@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/academy/academy_screen.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/guide/narrator.dart';
 import 'package:ghost_md/plugins/marks_plugin.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
@@ -32,7 +33,7 @@ Registry freshDevice({Set<String>? learned, Map<String, String> kept = const {}}
 }
 
 /// The Academy alone on a phone's screen, under the app's theme.
-Future<Shown> showAcademy(WidgetTester tester, {String theme = 'light', Size size = const Size(390, 844)}) async {
+Future<Shown> showAcademy(WidgetTester tester, {String theme = 'light', Size size = const Size(390, 844), bool? simple, VoiceOver? voice}) async {
   final shown = Shown();
   await pumpApp(
     tester,
@@ -46,7 +47,8 @@ Future<Shown> showAcademy(WidgetTester tester, {String theme = 'light', Size siz
         builder: (context) => RootStamps(
           sheet: context.tokens.sheet,
           stamps: const {'tabs': null},
-          child: AcademyScreen(onDone: () => shown.done += 1, onCheatSheet: () => shown.cheatSheet += 1),
+          // Quiet unless a test listens: no player, so nothing goes to the platform channel.
+          child: AcademyScreen(onDone: () => shown.done += 1, onCheatSheet: () => shown.cheatSheet += 1, simple: simple, voice: voice ?? VoiceOver(useDefaultOutput: false)),
         ),
       ),
     ),
@@ -128,7 +130,7 @@ class Held {
 
   /// The page and the screen are laid over one another where [thing] is on each: the page was drawn with no status
   /// bar over it, the screen under a test's 36 px one.
-  void anchor(String thing, Rect here) => shift = reference.of(thing).first.rect.topLeft - here.topLeft;
+  void anchor(String thing, Rect here, {int at = 0}) => shift = reference.of(thing)[at].rect.topLeft - here.topLeft;
 
   /// [got] against the page's [thing]: [dims] are the sides compared, `x`, `y`, `w` and `h`.
   void check(String thing, List<Rect> got, {String dims = 'xywh', int from = 0}) {

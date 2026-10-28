@@ -77,16 +77,76 @@ const List<(double, double, double, double)> _spots = [
   (0.14, 0.76, 0.18, 0.14),
 ];
 
-class GuideBand extends StatefulWidget {
+/// A walkthrough page's band: its [GuideLook] on a [HueBand].
+class GuideBand extends StatelessWidget {
   const GuideBand({super.key, required this.page, required this.height});
   final GuidePage page;
   final double height;
 
   @override
-  State<GuideBand> createState() => _GuideBandState();
+  Widget build(BuildContext context) {
+    final look = guideLooks[page]!;
+    return HueBand(
+      key: ValueKey('guide-band-${page.name}'),
+      colours: look.colours,
+      height: height,
+      tiles: [
+        if (look.claude) (size) => ClaudeMark(size: size * 0.5, color: _white),
+        for (final icon in look.tiles) bandIcon(icon),
+      ],
+      sign: (height, width) {
+        final ghost = look.ghost;
+        if (ghost == null) return bandDisc(look.icon, height: height, width: width);
+        // As tall as most of the band, and never wider than half of it: the picture's own height follows its width.
+        final across = math.min(height * 0.72 * ghost.ratio, width * 0.5);
+        return SizedBox(width: across, child: Ghost(scene: ghost, color: _white, align: GhostAlign.center, heightShare: 1, maxWidth: across));
+      },
+    );
+  }
 }
 
-class _GuideBandState extends State<GuideBand> with SingleTickerProviderStateMixin {
+/// A tile's mark: [icon] in white, half the tile across, in the person's icon pack.
+Widget Function(double size) bandIcon(LucideIcon icon) => (size) => AppIcon(icon, size: size * 0.5, strokeWidth: 2.2, color: _white);
+
+/// The usual sign: a large [icon] on a disc of glass.
+Widget bandDisc(LucideIcon icon, {required double height, required double width, Widget? child}) {
+  final side = math.min(height * 0.46, width * 0.36);
+  return Container(
+    width: side,
+    height: side,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: const Color(0x33FFFFFF),
+      border: Border.all(color: const Color(0x59FFFFFF), width: 1.5),
+      boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 30, offset: Offset(0, 12))],
+    ),
+    child: child ?? AppIcon(icon, size: side * 0.5, strokeWidth: 2, color: _white),
+  );
+}
+
+/// A field of colour: a wash across [colours] from the top start corner to the bottom end, the Market's soft light
+/// over it, a sign in the middle and up to four glass tiles floating round it. The walkthrough's pages wear one each
+/// ([GuideBand]), and so do the Academy's chapters (lib/academy/looks.dart). The tiles drift and the sign breathes at
+/// the app's chosen pace (`motionScale`), and both stand still for a person who asked for less motion.
+class HueBand extends StatefulWidget {
+  const HueBand({super.key, required this.colours, required this.height, required this.sign, this.tiles = const []});
+
+  /// The wash, two colours or more.
+  final List<Color> colours;
+  final double height;
+
+  /// The large thing in the middle, for a band of this height and width.
+  final Widget Function(double height, double width) sign;
+
+  /// The small tiles' marks, largest first, each for a tile of the size given; the first four are drawn.
+  final List<Widget Function(double size)> tiles;
+
+  @override
+  State<HueBand> createState() => _HueBandState();
+}
+
+class _HueBandState extends State<HueBand> with SingleTickerProviderStateMixin {
   /// One slow turn that every tile's drift is read from; still for a person who asked for less motion.
   late final AnimationController _drift = AnimationController(vsync: this);
 
@@ -114,17 +174,12 @@ class _GuideBandState extends State<GuideBand> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final look = guideLooks[widget.page]!;
     final height = widget.height;
     final radius = t.radius('lg') * 1.6;
-    final colours = look.colours;
-    final tiles = <Widget Function(double)>[
-      if (look.claude) (size) => ClaudeMark(size: size * 0.5, color: _white),
-      for (final icon in look.tiles) (size) => AppIcon(icon, size: size * 0.5, strokeWidth: 2.2, color: _white),
-    ].take(_spots.length).toList();
+    final colours = widget.colours;
+    final tiles = widget.tiles.take(_spots.length).toList();
     return ExcludeSemantics(
       child: ClipRRect(
-        key: ValueKey('guide-band-${widget.page.name}'),
         borderRadius: BorderRadius.circular(radius),
         child: SizedBox(
           height: height,
@@ -145,7 +200,7 @@ class _GuideBandState extends State<GuideBand> with SingleTickerProviderStateMix
                   children: [
                     Positioned.fill(child: tileLight(radius: radius)),
                     for (var i = 0; i < tiles.length; i++) _tile(i, tiles[i], width: width, height: height),
-                    Center(child: _sign(t, look, height: height, width: width)),
+                    Center(child: _breathing(widget.sign(height, width))),
                   ],
                 );
               },
@@ -186,33 +241,10 @@ class _GuideBandState extends State<GuideBand> with SingleTickerProviderStateMix
     );
   }
 
-  /// The page's sign: the ghost in white, or a large icon on a disc of glass, breathing slowly.
-  Widget _sign(Tokens t, GuideLook look, {required double height, required double width}) {
-    final ghost = look.ghost;
-    final Widget sign;
-    if (ghost != null) {
-      // As tall as most of the band, and never wider than half of it: the picture's own height follows its width.
-      final across = math.min(height * 0.72 * ghost.ratio, width * 0.5);
-      sign = SizedBox(width: across, child: Ghost(scene: ghost, color: _white, align: GhostAlign.center, heightShare: 1, maxWidth: across));
-    } else {
-      final side = math.min(height * 0.46, width * 0.36);
-      sign = Container(
-        width: side,
-        height: side,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0x33FFFFFF),
-          border: Border.all(color: const Color(0x59FFFFFF), width: 1.5),
-          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 30, offset: Offset(0, 12))],
-        ),
-        child: AppIcon(look.icon, size: side * 0.5, strokeWidth: 2, color: _white),
-      );
-    }
-    return AnimatedBuilder(
-      animation: _drift,
-      child: sign,
-      builder: (context, child) => Transform.scale(scale: 1 + 0.025 * math.sin(2 * math.pi * _drift.value), child: child),
-    );
-  }
+  /// The sign, breathing slowly.
+  Widget _breathing(Widget sign) => AnimatedBuilder(
+    animation: _drift,
+    child: sign,
+    builder: (context, child) => Transform.scale(scale: 1 + 0.025 * math.sin(2 * math.pi * _drift.value), child: child),
+  );
 }

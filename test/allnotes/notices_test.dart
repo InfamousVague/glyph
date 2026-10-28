@@ -171,7 +171,7 @@ void main() {
     testWidgets('starts the Academy, and can be put away when there is a way to', (tester) async {
       var opened = 0, hidden = 0;
       await show(tester, AcademyCard(onOpen: () => opened += 1, onHide: () => hidden += 1));
-      expect(find.text('Ghost.md Academy'), findsOneWidget);
+      expect(find.text('Ghost Academy'), findsOneWidget);
       expect(find.text('Learn the marks, one at a time.'), findsOneWidget);
       await tester.tap(find.text('Start'));
       await tester.tap(find.bySemanticsLabel('Not now'));
@@ -184,7 +184,7 @@ void main() {
 
     testWidgets('keeps Start and the cross beside its words, and drops them under the words where the card is narrow', (tester) async {
       await show(tester, AcademyCard(onOpen: () {}, onHide: () {}));
-      final beside = tester.getRect(find.text('Start')), words = tester.getRect(find.text('Ghost.md Academy'));
+      final beside = tester.getRect(find.text('Start')), words = tester.getRect(find.text('Ghost Academy'));
       expect(beside.top, lessThan(tester.getRect(find.text('Learn the marks, one at a time.')).bottom), reason: 'on the words’ own line');
       expect(beside.left, greaterThan(words.right));
       await away(tester);

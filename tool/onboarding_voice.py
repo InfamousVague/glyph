@@ -74,13 +74,14 @@ def call(path: str, token: str, body: dict | None = None) -> bytes:
         sys.exit(f"ElevenLabs said {error.code} for {path}: {detail}")
 
 
-def scripts() -> dict[str, str]:
-    """Each page's words, read from narration.dart's map: `GuidePage.<name>: '<words>',` on one line."""
+def scripts(words: pathlib.Path = WORDS, pattern: str = r"GuidePage\.(\w+):\s*'((?:[^'\\]|\\.)*)'") -> dict[str, str]:
+    """Each page's words, read from narration.dart's map: `GuidePage.<name>: '<words>',` on one line. Another file
+    and pattern for other words: tool/academy_voice.py reads lib/academy/voice.dart's `'<name>': '<words>',`."""
     found = {}
-    for name, words in re.findall(r"GuidePage\.(\w+):\s*'((?:[^'\\]|\\.)*)'", WORDS.read_text()):
-        found[name] = words.replace("\\'", "'").replace("\\$", "$")
+    for name, said in re.findall(pattern, words.read_text()):
+        found[name] = said.replace("\\'", "'").replace("\\$", "$")
     if not found:
-        sys.exit(f"No words found in {WORDS}.")
+        sys.exit(f"No words found in {words}.")
     return found
 
 
@@ -148,32 +149,44 @@ def main() -> None:
             print(f"{voice['voice_id']}  {voice['name']:<22} {voice.get('category', '')}  {labels}")
         return
 
-    pages = scripts()
-    if args.page and args.page not in pages:
-        sys.exit(f"No page called {args.page}. Pages: {', '.join(pages)}")
+    make(token, scripts(), OUT, MANIFEST, made="tool/onboarding_voice.py", only=args.page, again=args.again)
+
+
+def make(token: str, clips: dict[str, str], out_dir: pathlib.Path, manifest_path: pathlib.Path, *, made: str, only: str | None = None, again: bool = False) -> None:
+    """Speaks each clip of [clips] whose words, model or voice changed since its file was made ([only] that one, or
+    every one [again]), takes away the files of clips that are gone, and writes the manifest. The Academy's voice
+    (tool/academy_voice.py) is made with this too, into its own folder."""
+    if only and only not in clips:
+        sys.exit(f"No clip called {only}. Clips: {', '.join(clips)}")
     model = pick_model(token)
-    OUT.mkdir(parents=True, exist_ok=True)
-    kept = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    kept = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     files = kept.get("files", {})
-    for name, words in pages.items():
-        if args.page and name != args.page:
+    for name, words in clips.items():
+        if only and name != only:
             continue
-        out = OUT / f"{name}.mp3"
+        out = out_dir / f"{name}.mp3"
         was = files.get(name, {})
-        if not args.again and out.exists() and was.get("words") == digest(words) and was.get("model") == model and was.get("voice") == VOICE:
+        if not again and out.exists() and was.get("words") == digest(words) and was.get("model") == model and was.get("voice") == VOICE:
             continue
-        print(f"  {name}")
+        print(f"  {name}", flush=True)
         speak(token, model, words, out)
         files[name] = {"words": digest(words), "model": model, "voice": VOICE, "bytes": out.stat().st_size, "seconds": seconds(out)}
-    # Pages that are gone from the words lose their files too.
+        # Written after every clip, so a run stopped halfway keeps what it made.
+        write_manifest(manifest_path, made, files)
+    # Clips that are gone from the words lose their files too.
     for name in list(files):
-        if name not in pages:
-            (OUT / f"{name}.mp3").unlink(missing_ok=True)
+        if name not in clips:
+            (out_dir / f"{name}.mp3").unlink(missing_ok=True)
             del files[name]
-    manifest = {"made": "tool/onboarding_voice.py", "voice": {"id": VOICE, "name": VOICE_NAME}, "files": dict(sorted(files.items()))}
-    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+    write_manifest(manifest_path, made, files)
     total = sum(f["bytes"] for f in files.values())
     print(f"{len(files)} files, {total / 1024:.0f} KB, model {model}, voice {VOICE_NAME}")
+
+
+def write_manifest(manifest_path: pathlib.Path, made: str, files: dict) -> None:
+    manifest = {"made": made, "voice": {"id": VOICE, "name": VOICE_NAME}, "files": dict(sorted(files.items()))}
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 
 
 if __name__ == "__main__":

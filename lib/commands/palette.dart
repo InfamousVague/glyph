@@ -452,7 +452,7 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   final cheatSheet = doing.cheatSheet;
   if (cheatSheet != null) add('cheatsheet', 'Cheat sheet', app, 'marks markdown reference help', cheatSheet);
   final academy = doing.academy;
-  if (academy != null) add('academy', 'Ghost.md Academy', app, 'learn lessons markdown teach', academy);
+  if (academy != null) add('academy', 'Ghost Academy', app, 'learn lessons markdown teach', academy);
   final guide = doing.guide;
   if (guide != null) add('guide', 'The welcome walkthrough', app, 'guide walkthrough voice help onboarding how to talk', guide);
 

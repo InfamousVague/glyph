@@ -130,14 +130,14 @@ void main() {
       final labels = rowLabels(tester), shown = _shown(tester);
       final findable = aboutFindable(updates: false, alerts: false, whatsNew: false).map((found) => found.name).toList();
       debugDefaultTargetPlatformOverride = null;
-      expect(labels.take(5), ['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Examples']);
+      expect(labels.take(5), ['Ghost Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Examples']);
       expect(shown, contains('The tour from the first launch, read aloud: what it does, and where the rest is taught.'));
       expect(shown, isNot(contains('model')));
       expect(findable, isNot(contains('Ghost.md: The Guide')));
       await endSettings(tester);
 
       await openPane(tester, 'about');
-      expect(rowLabels(tester).take(6), ['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples']);
+      expect(rowLabels(tester).take(6), ['Ghost Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples']);
       expect(_shown(tester), contains('The tour from the first launch, read aloud: what it does, and where the rest is taught.'));
       expect(aboutFindable(updates: false, alerts: false, whatsNew: false).map((found) => found.name), contains('Ghost.md: The Guide'));
       await endSettings(tester);

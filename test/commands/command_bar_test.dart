@@ -184,7 +184,9 @@ void main() {
 
             final drawn = await allLines(tester);
             final rows = (page['rows'] as List).cast<Map<String, dynamic>>();
-            expect([for (final line in drawn) '${line.kind} ${line.text}'], [for (final row in rows) '${row['kind']} ${row['text']}']);
+            // The Academy is "Ghost Academy" now (Matt, 2026-10-28), where the page still says Ghost.md.
+            String said(Object? text) => text == 'Ghost.md Academy' ? 'Ghost Academy' : '$text';
+            expect([for (final line in drawn) '${line.kind} ${line.text}'], [for (final row in rows) '${row['kind']} ${said(row['text'])}']);
             expect([for (final line in drawn) if (line.selected) line.text], [for (final row in rows) if (row['selected'] == true) row['text']]);
 
             expectRect(panelRect(tester), page['panel'] as List, 'the panel');

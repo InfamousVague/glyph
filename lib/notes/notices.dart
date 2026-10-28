@@ -512,7 +512,7 @@ class AcademyCard extends StatelessWidget {
     return _Paper(
       key: const ValueKey('academy-card'),
       icon: Lucide.graduationCap,
-      lead: 'Ghost.md Academy',
+      lead: 'Ghost Academy',
       line: 'Learn the marks, one at a time.',
       actions: Row(
         mainAxisSize: MainAxisSize.min,

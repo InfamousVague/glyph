@@ -1,4 +1,4 @@
-/// Ghost.md Academy: markdown taught a mark at a time, by typing it (Matt: "we need a Glyph Academy section that
+/// Ghost Academy: markdown taught a mark at a time, by typing it (Matt: "we need a Glyph Academy section that
 /// teaches you markdown then teaches you the extra stuff we have. Build the academy section start with just the
 /// markdown basics set it up as a live code type thing where it teaches you then you type it and see it format
 /// below"). A port of `src/app/academy/AcademyScreen.tsx` with `AcademyScreen.module.css`.
@@ -20,6 +20,20 @@
 /// the note would not draw. The bars along the top are the chapter being taken, and the count beside the title is
 /// all of it.
 ///
+/// It is read aloud and it is in colour (Matt, 2026-10-28: "Add the voiceover to the academy sections and spice up
+/// the academy with more colors and iconography"), the way the walkthrough is:
+/// - **The voice** (voice.dart, said by [VoiceOver], lib/guide/narrator.dart) welcomes a person as the Academy opens
+///   on its chapters, says a chapter's hello as it is begun and then the lesson's teaching, and each lesson's teaching
+///   as it opens. It stops as the page goes (back, Next, Skip, out of the Academy) and as the app leaves the screen.
+///   The speaker in the top bar is the walkthrough's, and so is the switch it remembers: one "rather read" for both.
+/// - **The colour** (looks.dart): each chapter has a hue of its own, the Market's and the walkthrough's. The contents
+///   open under a band in every chapter's colour, each chapter's row wears its colour and its sign, a lesson opens
+///   under a band of its chapter's with its mark in the middle, the bars along the top and the words over the title
+///   are the chapter's colour, and the end of a chapter is a page in its colour, the ghost ticking every box once all
+///   of it is learned. The bands stand still under Reduce motion (lib/guide/pages/band.dart [HueBand]).
+/// - **Simple** (`Preferences.simple`, GHST-103): the contents show the two Markdown chapters, and the five chapters of
+///   Ghost's own marks wait behind a More row that opens in place.
+///
 /// What differs:
 /// - **The rows of the chapters and of a chapter's end are in the app's own face.** On the page they are `<button>`s
 ///   whose CSS never says `font: inherit`, so a browser draws them in its own button face at 13.333px (Arial on a
@@ -31,8 +45,12 @@
 /// - The row of a chapter and of a lesson to take again is lit while pressed as well as under a pointer; the page's
 ///   was `:hover` alone.
 /// - The plugins are listened to (`plugins`, a `ChangeNotifier`) where the page called `usePlugins()`.
+/// - The page had no colour but its accent, no bands, no voice and no speaker: the chapters' rows were a number in a
+///   grey circle, the bars ink. Everything else is laid out as the page laid it out, under the bands
+///   (test/academy/reference_test.dart holds it to the page from below each band).
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
@@ -42,11 +60,16 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/back.dart';
+import '../core/preferences.dart';
 import '../editor/state/state.dart' show Extension;
+import '../guide/narrator.dart';
+import '../guide/voice_button.dart';
 import '../home/home_parts.dart' show CssLines;
 import '../plugins/registry.dart';
 import 'lessons.dart';
+import 'looks.dart';
 import 'playground.dart';
+import 'voice.dart';
 
 /// The face the rows that are `<button>`s on the page are drawn in; the app's own while null. See the header.
 @visibleForTesting
@@ -72,7 +95,7 @@ class _AtChapterEnd extends _Place {
 }
 
 class AcademyScreen extends StatefulWidget {
-  const AcademyScreen({super.key, required this.onDone, required this.onCheatSheet, this.extensions = const <Extension>[]});
+  const AcademyScreen({super.key, required this.onDone, required this.onCheatSheet, this.extensions = const <Extension>[], this.voice, this.simple});
 
   /// Out of the Academy: its arrow, or back, from the contents.
   final VoidCallback onDone;
@@ -83,11 +106,17 @@ class AcademyScreen extends StatefulWidget {
   /// More of the editor's pieces for the note a lesson shows (playground.dart `Playground.extensions`).
   final List<Extension> extensions;
 
+  /// What reads the Academy aloud; one of its own, let go with the screen, unless given (a test's, which counts).
+  final VoiceOver? voice;
+
+  /// Simple's contents, or Advanced's; the person's own mode ([Preferences.simple]) unless told.
+  final bool? simple;
+
   @override
   State<AcademyScreen> createState() => _AcademyScreenState();
 }
 
-class _AcademyScreenState extends State<AcademyScreen> {
+class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserver {
   bool _skipStandard = readSkipStandard();
   Set<String> _done = readProgress();
 
@@ -99,34 +128,86 @@ class _AcademyScreenState extends State<AcademyScreen> {
   bool _hinting = false;
   Registry? _registry;
 
+  /// Simple's More on the contents, pressed: every chapter shown.
+  bool _moreChapters = false;
+
+  late final VoiceOver _voice = widget.voice ?? VoiceOver();
+
+  /// The chapter whose hello has been said since the contents were left: begun again from the contents, it says
+  /// hello again; Next from one of its lessons to the next does not.
+  String? _greeted;
+
   @override
   void initState() {
     super.initState();
     // Drawn again when a plugin is switched, so its lessons come and go with its marks.
     _registry = plugins..addListener(_switched);
+    preferences.addListener(_switched);
+    _voice.addListener(_switched);
+    WidgetsBinding.instance.addObserver(this);
+    // Read once for the app (voice.dart), so a chapter begun can say its hello before its first lesson.
+    unawaited(academyVoiceLengths());
+    // The welcome, once, as the Academy opens on its contents.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _place is _AtContents) _voice.say([(asset: academyVoiceAsset('welcome'), length: null)]);
+    });
   }
 
   @override
   void dispose() {
     _registry?.removeListener(_switched);
+    preferences.removeListener(_switched);
+    _voice.removeListener(_switched);
+    WidgetsBinding.instance.removeObserver(this);
+    // Out of the Academy: so is its voice.
+    if (widget.voice == null) {
+      _voice.dispose();
+    } else {
+      unawaited(_voice.hush());
+    }
     super.dispose();
+  }
+
+  /// The app has left the screen: the voice stops with it, and is not started again on the way back, where the words
+  /// are on the page to read.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) unawaited(_voice.hush());
   }
 
   void _switched() {
     if (mounted) setState(() {});
   }
 
-  /// Another place. A new lesson starts on a clean page, with its hint put away.
+  /// Another place. A new lesson starts on a clean page, with its hint put away, and is said aloud: after its
+  /// chapter's hello where the chapter is being begun. The contents and a chapter's end are quiet.
   void _go(_Place place) {
+    final was = _place;
+    final same = was is _AtLesson && place is _AtLesson && was.id == place.id;
     setState(() {
-      final was = _place, now = place;
-      final same = was is _AtLesson && now is _AtLesson && was.id == now.id;
       _place = place;
       if (!same) {
         _typed = '';
         _hinting = false;
       }
     });
+    if (same) return;
+    if (place is _AtLesson) {
+      final lesson = lessons.where((one) => one.id == place.id).firstOrNull;
+      if (lesson == null) return;
+      final hello = chapterVoice(lesson.chapter);
+      final length = academyVoiceLengthsRead[hello];
+      final greet = _greeted != lesson.chapter && length != null;
+      _greeted = lesson.chapter;
+      _voice.say([
+        if (greet) (asset: academyVoiceAsset(hello), length: length),
+        (asset: academyVoiceAsset(lesson.id), length: null),
+      ]);
+    } else {
+      if (place is _AtContents) _greeted = null;
+      // Nothing to say, and nothing to say again if the speaker is switched on here.
+      _voice.say(const []);
+    }
   }
 
   /// What is in the field now. Ticked the moment the mark appears, and only once: the tick is a fact about the
@@ -155,6 +236,7 @@ class _AcademyScreenState extends State<AcademyScreen> {
     final chapter = lesson?.chapter ?? (place is _AtChapterEnd ? place.chapter : null);
     final bars = chapter == null ? const <Lesson>[] : lessonsIn(chapter, all);
     final atContents = place is _AtContents;
+    final look = chapter == null ? academyLook : lookOf(chapter);
 
     /// The lesson after this one; at the end of its chapter, that chapter's end page.
     void next(Lesson from) {
@@ -204,6 +286,8 @@ class _AcademyScreenState extends State<AcademyScreen> {
           if (first != null) _go(_AtLesson(first.id));
         },
         onCheatSheet: widget.onCheatSheet,
+        simple: (widget.simple ?? preferences.value.simple) && !_moreChapters,
+        onMore: () => setState(() => _moreChapters = true),
       );
     }
 
@@ -237,8 +321,9 @@ class _AcademyScreenState extends State<AcademyScreen> {
                 // `.heading { gap: var(--glacier-space-2) }`
                 spacing: t.space(2),
                 children: [
-                  ExcludeSemantics(child: AppIcon(Lucide.graduationCap, size: 18, color: ink)),
-                  Flexible(child: Text('Ghost.md Academy', style: t.textAt(t.fontSize('md'), weight: 'semibold', color: ink))),
+                  // The mortarboard in the colour of the chapter being taken, or the Academy's own on its contents.
+                  ExcludeSemantics(child: AppIcon(Lucide.graduationCap, size: 18, color: look.ink(t))),
+                  Flexible(child: Text('Ghost Academy', style: t.textAt(t.fontSize('md'), weight: 'semibold', color: ink))),
                 ],
               ),
             ),
@@ -250,6 +335,8 @@ class _AcademyScreenState extends State<AcademyScreen> {
               child: Text('$learned/${all.length}', key: const ValueKey('academy-count'), style: _tabular(t.textAt(t.fontSize('sm'), color: t.color('app-ink-3')))),
             ),
           ),
+          // The walkthrough's speaker, the size of the back arrow so the bar keeps its height.
+          VoiceButton(key: const ValueKey('academy-voice'), off: _voice.muted, onPressed: () => _voice.setMuted(!_voice.muted), side: t.space(8), icon: 20),
         ],
       ),
     );
@@ -278,7 +365,7 @@ class _AcademyScreenState extends State<AcademyScreen> {
                         child: Row(
                           spacing: 3,
                           children: [
-                            for (final one in bars) Expanded(key: ValueKey('bar:${one.id}'), child: _Bar(done: _done.contains(one.id), now: one.id == lesson?.id)),
+                            for (final one in bars) Expanded(key: ValueKey('bar:${one.id}'), child: _Bar(done: _done.contains(one.id), now: one.id == lesson?.id, hue: look.ink(t))),
                           ],
                         ),
                       ),
@@ -323,21 +410,23 @@ TextStyle _buttonText(Tokens t, double px, {String weight = 'regular', Color? co
   return tabular ? _tabular(style) : style;
 }
 
-/// `.bar`: one lesson of the chapter being taken.
+/// `.bar`: one lesson of the chapter being taken, in the chapter's colour ([hue]): the one in hand full, the learned
+/// ones a little lighter, the ones to come the page's faint rule.
 class _Bar extends StatelessWidget {
-  const _Bar({required this.done, required this.now});
+  const _Bar({required this.done, required this.now, required this.hue});
 
   final bool done;
   final bool now;
+  final Color hue;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     // `.bar[data-now]` after `.bar[data-done]`: the one in hand is lit whether or not it is learned.
     final color = now
-        ? t.color('glacier-accent-solid')
+        ? hue
         : done
-        ? t.color('app-ink')
+        ? hue.withValues(alpha: 0.5)
         : t.color('glacier-border-strong');
     return TweenAnimationBuilder<double>(
       // `transform 260ms cubic-bezier(0.2, 1.6, 0.4, 1)`; `.bar[data-now] { transform: scaleY(2) }`
@@ -366,10 +455,10 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, spacing: context.tokens.space(3), children: children);
 }
 
-/// `.chapter`: where this is, in small spaced capitals.
-Widget _eyebrow(Tokens t, String words) {
+/// `.chapter`: where this is, in small spaced capitals, in the chapter's colour ([look]).
+Widget _eyebrow(Tokens t, String words, ChapterLook look) {
   final xs = t.fontSize('xs');
-  return Text(words.toUpperCase(), key: const ValueKey('academy-chapter'), style: t.textAt(xs, color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: xs)));
+  return Text(words.toUpperCase(), key: const ValueKey('academy-chapter'), style: t.textAt(xs, weight: 'semibold', color: look.ink(t), tracking: t.len('app-tracking-caps', em: xs)));
 }
 
 /// `.title`
@@ -417,6 +506,7 @@ class _LessonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final ink = t.color('app-ink');
+    final look = lookOf(lesson.chapter);
     final at = chapter.indexOf(lesson) + 1;
     final Widget said;
     if (passed) {
@@ -426,7 +516,7 @@ class _LessonCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: t.space(2),
         children: [
-          ExcludeSemantics(child: AppIcon(Lucide.check, size: 18, color: ink)),
+          ExcludeSemantics(child: AppIcon(Lucide.circleCheck, size: 18, strokeWidth: 2.4, color: look.ink(t))),
           Flexible(child: Text(lesson.praise, style: t.textAt(_rem(t), weight: 'semibold', color: ink))),
         ],
       );
@@ -438,13 +528,15 @@ class _LessonCard extends StatelessWidget {
     }
     return _Card(
       children: [
-        _eyebrow(t, 'Chapter ${chapters.indexOf(lesson.chapter) + 1} · ${lesson.chapter} · $at of ${chapter.length}'),
+        LessonBand(chapter: lesson.chapter, symbol: lesson.symbol),
+        _eyebrow(t, 'Chapter ${chapters.indexOf(lesson.chapter) + 1} · ${lesson.chapter} · $at of ${chapter.length}', look),
         _title(t, lesson.title),
         _teach(t, teachOf(lesson)),
         // `.example`: the line to look at, in the typewriter face, with a way to have it written for you.
         DecoratedBox(
           key: const ValueKey('academy-example'),
-          decoration: BoxDecoration(color: ink.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(t.radius('md'))),
+          // A wash of the chapter's colour, where the page's was the ink's.
+          decoration: BoxDecoration(color: look.wash(t), borderRadius: BorderRadius.circular(t.radius('md'))),
           child: Padding(
             padding: EdgeInsets.all(t.space(3)),
             child: Row(
@@ -466,7 +558,7 @@ class _LessonCard extends StatelessWidget {
         Playground(value: typed, onChange: onTyped, placeholder: lesson.example, extensions: extensions),
         _Foot(
           start: said,
-          end: passed ? _Pill(key: const ValueKey('academy-next'), onPressed: onNext, label: 'Next') : _Word(key: const ValueKey('academy-next'), onPressed: onNext, label: 'Skip'),
+          end: passed ? _Pill(key: const ValueKey('academy-next'), onPressed: onNext, label: 'Next', colours: look.colours) : _Word(key: const ValueKey('academy-next'), onPressed: onNext, label: 'Skip'),
         ),
       ],
     );
@@ -486,10 +578,16 @@ class _Contents extends StatelessWidget {
     required this.onChapter,
     required this.onStartOver,
     required this.onCheatSheet,
+    this.simple = false,
+    this.onMore,
   });
 
   final List<Lesson> lessons;
   final Set<String> done;
+
+  /// Simple's contents, More not yet pressed: the two Markdown chapters, and a row for the rest.
+  final bool simple;
+  final VoidCallback? onMore;
   final bool skipStandard;
   final ValueChanged<bool> onSkipStandard;
   final ValueChanged<String> onLesson;
@@ -504,8 +602,11 @@ class _Contents extends StatelessWidget {
     final left = lessons.where((lesson) => !done.contains(lesson.id)).firstOrNull;
     final begun = lessons.any((lesson) => done.contains(lesson.id));
     final sm = t.fontSize('sm');
+    // In Simple the chapters of Ghost's own marks wait behind More, which opens in place.
+    final shown = simple ? chapters.take(_simpleChapters).toList() : chapters;
     return _Card(
       children: [
+        const AcademyHero(),
         _title(
           t,
           left != null
@@ -518,7 +619,7 @@ class _Contents extends StatelessWidget {
           t,
           left != null
               ? 'A mark at a time: what it does, an example, and a line of your own to write, drawn as the note draws it while you type.'
-              : 'Every mark a note can carry is one you can now write by hand. The Markdown ones read the same in any app that knows Markdown, and Ghost.md’s own read as plain words there. Take any chapter again below.',
+              : 'Every mark a note can carry is one you can now write by hand. The Markdown ones read the same in any app that knows Markdown, and Ghost’s own read as plain words there. Take any chapter again below.',
         ),
         if (left != null)
           // `.go { justify-self: start }`
@@ -549,7 +650,7 @@ class _Contents extends StatelessWidget {
                           Text('I know Markdown already', style: t.textAt(_rem(t), weight: 'medium', color: ink)),
                           _lined(
                             t,
-                            'Skip what any Markdown app reads: headings, bold, lists, links, tables, pictures. Ghost.md’s own marks are still taught.',
+                            'Skip what any Markdown app reads: headings, bold, lists, links, tables, pictures. Ghost’s own marks are still taught.',
                             sm,
                             t.len('glacier-leading-md'),
                             t.textAt(sm, color: quiet, height: t.len('glacier-leading-md')),
@@ -565,7 +666,7 @@ class _Contents extends StatelessWidget {
             ),
           ),
         ),
-        // `.chapters { gap: 1px }`
+        // `.chapters { gap: 1px }`, a little more between rows that each wear a colour.
         Semantics(
           label: 'Chapters',
           container: true,
@@ -574,9 +675,10 @@ class _Contents extends StatelessWidget {
             key: const ValueKey('academy-chapters'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            spacing: 1,
+            spacing: t.space(2),
             children: [
-              for (final (index, chapter) in chapters.indexed) _chapterRow(context, index, chapter),
+              for (final (index, chapter) in shown.indexed) _chapterRow(context, index, chapter),
+              if (shown.length < chapters.length) _moreRow(context, chapters.length - shown.length),
             ],
           ),
         ),
@@ -589,10 +691,12 @@ class _Contents extends StatelessWidget {
     );
   }
 
-  /// `.chapterRow`
+  /// `.chapterRow`, in the chapter's colour: its sign on a tile of its wash (a tick once all of it is learned), a
+  /// faint wash of the colour behind the row, and its count in the colour.
   Widget _chapterRow(BuildContext context, int index, String chapter) {
     final t = context.tokens;
     final ink = t.color('app-ink'), quiet = t.color('app-ink-3');
+    final look = lookOf(chapter);
     final its = lessonsIn(chapter, lessons);
     final learned = its.where((lesson) => done.contains(lesson.id)).length;
     final skipped = its.isEmpty;
@@ -604,28 +708,20 @@ class _Contents extends StatelessWidget {
       semanticLabel: 'Chapter ${index + 1}, $chapter',
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
-        radius: t.radius('md'),
+        radius: t.radius('lg'),
         // `.chapterRow:disabled { opacity: 0.45 }`
         child: Opacity(
           opacity: skipped ? 0.45 : 1,
           // The row is named by its chapter (`aria-label`), not by everything written in it.
           child: _Named(
             constraints: BoxConstraints(minHeight: t.space(12)),
-            padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(3)),
-            // `.chapterRow:hover:not(:disabled) { background: color-mix(in oklch, currentColor 6%, transparent) }`
-            decoration: BoxDecoration(color: !skipped && (state.hovered || state.pressed) ? ink.withValues(alpha: 0.06) : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+            padding: EdgeInsets.symmetric(vertical: t.space(3), horizontal: t.space(3)),
+            // Deeper while pressed or under a pointer, as the page's row was lit then.
+            decoration: BoxDecoration(color: look.wash(t, light: !skipped && (state.hovered || state.pressed) ? 0.14 : 0.07, dark: !skipped && (state.hovered || state.pressed) ? 0.24 : 0.14), borderRadius: BorderRadius.circular(t.radius('lg'))),
             child: Row(
               spacing: t.space(3),
               children: [
-                // `.chapterNumber { inline-size: 1.8em; block-size: 1.8em; font-size: var(--glacier-font-size-sm) }`
-                Container(
-                  key: ValueKey('chapter-number:$chapter'),
-                  width: 1.8 * sm,
-                  height: 1.8 * sm,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: all ? ink : ink.withValues(alpha: 0.1), shape: BoxShape.circle),
-                  child: all ? AppIcon(Lucide.check, size: 14, color: t.color('app-paper')) : Text('${index + 1}', style: _buttonText(t, sm, color: ink, tabular: true)),
-                ),
+                ChapterTile(key: ValueKey('chapter-number:$chapter'), chapter: chapter, learned: all),
                 Expanded(
                   child: Column(
                     key: ValueKey('chapter-words:$chapter'),
@@ -633,12 +729,12 @@ class _Contents extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     spacing: 2,
                     children: [
-                      Text(chapter, key: ValueKey('chapter-title:$chapter'), style: _buttonText(t, _buttonSize, weight: 'medium', color: ink)),
+                      Text(chapter, key: ValueKey('chapter-title:$chapter'), style: _buttonText(t, _buttonSize, weight: 'semibold', color: ink)),
                       _lined(t, chapterAbout[chapter]!, sm, t.len('glacier-leading-md'), _buttonText(t, sm, color: quiet, height: t.len('glacier-leading-md')), key: ValueKey('chapter-about:$chapter')),
                     ],
                   ),
                 ),
-                Text(skipped ? 'Skipped' : '$learned/${its.length}', key: ValueKey('chapter-count:$chapter'), style: _buttonText(t, t.fontSize('xs'), color: quiet, tabular: true)),
+                Text(skipped ? 'Skipped' : '$learned/${its.length}', key: ValueKey('chapter-count:$chapter'), style: _buttonText(t, t.fontSize('xs'), weight: 'semibold', color: skipped ? quiet : look.ink(t), tabular: true)),
               ],
             ),
           ),
@@ -646,7 +742,53 @@ class _Contents extends StatelessWidget {
       ),
     );
   }
+
+  /// Simple's More: the chapters still to come, opened where they are (GHST-103).
+  Widget _moreRow(BuildContext context, int more) {
+    final t = context.tokens;
+    final quiet = t.color('app-ink-3');
+    return GlacierPressable(
+      key: const ValueKey('academy-more-chapters'),
+      onPressed: onMore,
+      semanticLabel: 'More chapters',
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        radius: t.radius('lg'),
+        child: _Named(
+          constraints: BoxConstraints(minHeight: t.space(12)),
+          padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(3)),
+          decoration: BoxDecoration(
+            color: state.hovered || state.pressed ? t.color('app-ink').withValues(alpha: 0.06) : null,
+            border: Border.all(color: t.color('app-rule')),
+            borderRadius: BorderRadius.circular(t.radius('lg')),
+          ),
+          child: Row(
+            spacing: t.space(3),
+            children: [
+              // The Academy's own wash, for the chapters still behind it.
+              const ChapterTile(chapter: '', learned: false, icon: Lucide.layoutGrid),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 2,
+                  children: [
+                    Text('More', style: _buttonText(t, _buttonSize, weight: 'semibold', color: t.color('app-ink'))),
+                    Text('$more more chapters on what only Ghost draws: tags, boards, tickets, effects.', style: _buttonText(t, t.fontSize('sm'), color: quiet, height: t.len('glacier-leading-md'))),
+                  ],
+                ),
+              ),
+              AppIcon(Lucide.chevronDown, size: 18, color: quiet),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
+
+/// How many chapters Simple's contents show before More: the two of Markdown any app reads.
+const int _simpleChapters = 2;
 
 /// A box whose own name stands for what is in it: a `Container` under `ExcludeSemantics`.
 class _Named extends StatelessWidget {
@@ -679,12 +821,15 @@ class _ChapterEnd extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final ink = t.color('app-ink');
+    final look = lookOf(chapter);
     final its = lessonsIn(chapter, lessons);
     final all = its.every((lesson) => done.contains(lesson.id));
     final following = chapters.skip(chapters.indexOf(chapter) + 1).where((name) => lessonsIn(name, lessons).isNotEmpty).firstOrNull;
     return _Card(
       children: [
-        _eyebrow(t, 'Chapter ${chapters.indexOf(chapter) + 1} · $chapter'),
+        // The chapter seen off in its colour: the ghost ticking every box once all of it is learned.
+        ChapterEndBand(chapter: chapter, learned: all),
+        _eyebrow(t, 'Chapter ${chapters.indexOf(chapter) + 1} · $chapter', look),
         _title(t, all ? 'Chapter learned.' : 'The end of the chapter.'),
         _teach(t, all ? 'Every mark in $chapter is one you can write by hand now.' : 'You can come back to the ones you skipped whenever you like: tap one to take it.'),
         // `.list { gap: 1px }`
@@ -717,8 +862,8 @@ class _ChapterEnd extends StatelessWidget {
                             width: 1.4 * _buttonSize,
                             height: 1.4 * _buttonSize,
                             alignment: Alignment.center,
-                            decoration: BoxDecoration(color: done.contains(lesson.id) ? ink : ink.withValues(alpha: 0.1), shape: BoxShape.circle),
-                            child: done.contains(lesson.id) ? AppIcon(Lucide.check, size: 14, color: t.color('app-paper')) : null,
+                            decoration: BoxDecoration(color: done.contains(lesson.id) ? look.colours.first : look.wash(t, light: 0.14, dark: 0.24), shape: BoxShape.circle),
+                            child: done.contains(lesson.id) ? const AppIcon(Lucide.check, size: 14, strokeWidth: 2.6, color: Color(0xFFFFFFFF)) : null,
                           ),
                         ),
                         Expanded(child: Text(lesson.title, key: ValueKey('again-name:${lesson.id}'), style: _buttonText(t, _buttonSize, color: ink))),
@@ -744,8 +889,9 @@ class _ChapterEnd extends StatelessWidget {
         _Foot(
           start: _Word(key: const ValueKey('academy-all-chapters'), onPressed: onContents, label: 'All chapters'),
           end: following != null
-              ? _Pill(key: const ValueKey('academy-next-chapter'), onPressed: () => onNextChapter(following), label: 'Next: $following', after: Lucide.arrowRight)
-              : _Pill(key: const ValueKey('academy-next-chapter'), onPressed: onContents, label: 'Done'),
+              // Onward in the next chapter's colour.
+              ? _Pill(key: const ValueKey('academy-next-chapter'), onPressed: () => onNextChapter(following), label: 'Next: $following', after: Lucide.arrowRight, colours: lookOf(following).colours)
+              : _Pill(key: const ValueKey('academy-next-chapter'), onPressed: onContents, label: 'Done', colours: look.colours),
         ),
       ],
     );
@@ -754,17 +900,21 @@ class _ChapterEnd extends StatelessWidget {
 
 /// `.app-pill` (ink.css): the one loud action on the screen. Its words wrap, in the middle, where it is squeezed.
 class _Pill extends StatelessWidget {
-  const _Pill({super.key, required this.onPressed, required this.label, this.before, this.after});
+  const _Pill({super.key, required this.onPressed, required this.label, this.before, this.after, this.colours});
 
   final VoidCallback onPressed;
   final String label;
   final LucideIcon? before;
   final LucideIcon? after;
 
+  /// A chapter's wash in place of the ink, with white words on it: the way on, in the colour it leads to.
+  final List<Color>? colours;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final paper = t.color('app-paper');
+    final colours = this.colours;
+    final paper = colours != null ? const Color(0xFFFFFFFF) : t.color('app-paper');
     final size = t.fontSize('md');
     return GlacierPressable(
       onPressed: onPressed,
@@ -772,7 +922,7 @@ class _Pill extends StatelessWidget {
         visible: state.focused,
         offset: 3,
         radius: t.radius('full'),
-        color: t.color('app-ink'),
+        color: colours?.first ?? t.color('app-ink'),
         child: AnimatedScale(
           // `.app-pill:active { transform: scale(0.98) }`
           scale: state.pressed ? 0.98 : 1,
@@ -781,7 +931,11 @@ class _Pill extends StatelessWidget {
           child: Container(
             constraints: BoxConstraints(minHeight: t.space(12)),
             padding: EdgeInsets.symmetric(horizontal: t.space(6)),
-            decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('full'))),
+            decoration: BoxDecoration(
+              color: colours == null ? t.color('app-ink') : null,
+              gradient: colours == null ? null : LinearGradient(colors: colours.length > 1 ? colours : [colours.first, colours.first]),
+              borderRadius: BorderRadius.circular(t.radius('full')),
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,

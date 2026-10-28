@@ -1,4 +1,4 @@
-/// Ghost.md Academy's lessons (academy_screen.dart): what each mark is, what to type, and how the Academy knows it
+/// Ghost Academy's lessons (academy_screen.dart): what each mark is, what to type, and how the Academy knows it
 /// worked. A port of `src/app/academy/lessons.ts`.
 ///
 /// Matt: "we need a Glyph Academy section that teaches you markdown then teaches you the extra stuff we have. Build

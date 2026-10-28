@@ -58,9 +58,18 @@ NarrationOutput? defaultNarrationOutput() {
   };
 }
 
-/// Says each page as it shows. One is made by the guide and let go with it, which hushes it.
-class Narrator extends ChangeNotifier {
-  Narrator({NarrationOutput? output, bool useDefaultOutput = true, Future<ByteData> Function(String asset)? load})
+/// One clip to say: where it is in the app's assets, and how long it runs, so a clip after it waits its turn.
+typedef VoiceClip = ({String asset, Duration? length});
+
+/// Says clips one after another over the device's player, and stops them as asked: the walkthrough's [Narrator], and
+/// the Academy's voice (lib/academy/academy_screen.dart; Matt, 2026-10-28: "Add the voiceover to the academy
+/// sections"). One switch keeps both quiet, [guideMutedKey], remembered on the device: a person who would rather read
+/// the tour would rather read the lessons too, and the speaker in either bar turns it back on for both.
+///
+/// The player has one clip at a time and says nothing of its end, so a clip after another waits the first one's
+/// [VoiceClip.length] and a breath before it starts; a clip with no length is the last said.
+class VoiceOver extends ChangeNotifier {
+  VoiceOver({NarrationOutput? output, bool useDefaultOutput = true, Future<ByteData> Function(String asset)? load})
       : output = output ?? (useDefaultOutput ? defaultNarrationOutput() : null),
         _load = load ?? rootBundle.load;
 
@@ -68,41 +77,49 @@ class Narrator extends ChangeNotifier {
   final NarrationOutput? output;
   final Future<ByteData> Function(String asset) _load;
 
-  GuidePage? _page;
-  GuidePage? _saying;
+  /// The pause between one clip and the next.
+  static const Duration breath = Duration(milliseconds: 450);
 
-  /// Each turn of the pages counts one, so a load that comes back after the page has turned is not played.
+  /// What was asked for last, said again from its start when the voice is switched back on.
+  List<VoiceClip>? _asked;
+  String? _saying;
+  Timer? _waiting;
+
+  /// Each hush counts one, so a load or a wait that comes back after it is not played.
   int _turn = 0;
 
   /// Whether the voice is off on this device.
   bool get muted => stored.readText(guideMutedKey) == '1';
 
-  /// The page being said now, as far as this side knows: null when hushed, muted or never begun. The clip's own end
-  /// is the player's, and not reported back: the words on the page are what is read once it stops.
-  GuidePage? get saying => _saying;
+  /// The asset being said now, as far as this side knows: null when hushed, muted or never begun. The clip's own end
+  /// is the player's, and not reported back.
+  String? get sayingAsset => _saying;
 
-  /// [page] is on screen: say it, unless the voice is off. The page that was being said stops first.
-  void show(GuidePage page) {
-    if (_page == page && _saying == page) return;
-    _page = page;
-    unawaited(_say(page));
+  /// Says [clips], one after another, in place of whatever was being said; nothing while the voice is off.
+  void say(List<VoiceClip> clips) {
+    _asked = clips;
+    unawaited(_play(clips));
   }
 
-  /// The voice on or off, remembered on this device. Off stops it at once; on says the page showing from the start.
+  /// The voice on or off, remembered on this device. Off stops it at once; on says what was asked for last, from its
+  /// start.
   void setMuted(bool off) {
     stored.writeText(guideMutedKey, off ? '1' : null);
     notifyListeners();
-    final page = _page;
+    final asked = _asked;
     if (off) {
       unawaited(hush());
-    } else if (page != null) {
-      unawaited(_say(page));
+    } else if (asked != null) {
+      unawaited(_play(asked));
     }
   }
 
-  /// Stops the voice: the guide has gone, the app has left the screen, or a recording has begun.
+  /// Stops the voice, and any clip waiting its turn: the page has gone, the app has left the screen, or a recording
+  /// has begun.
   Future<void> hush() async {
     _turn++;
+    _waiting?.cancel();
+    _waiting = null;
     final was = _saying;
     _saying = null;
     if (was != null) notifyListeners();
@@ -113,21 +130,40 @@ class Narrator extends ChangeNotifier {
     }
   }
 
-  Future<void> _say(GuidePage page) async {
+  Future<void> _play(List<VoiceClip> clips) async {
     await hush();
     final output = this.output;
     if (output == null || muted) return;
     final turn = _turn;
-    final asset = narrationAsset(page);
-    try {
-      final data = await _load(asset);
-      if (turn != _turn) return;
-      final played = await output.narrate(asset, data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      if (turn != _turn || !played) return;
-      _saying = page;
-      notifyListeners();
-    } catch (_) {
-      // No file for the page (its voice not made yet) or no player: the page's words are there to read.
+    for (final (index, clip) in clips.indexed) {
+      if (index > 0) {
+        final before = clips[index - 1].length;
+        if (before == null) return;
+        // Cancelled by a hush, the wait never ends, and nothing after it is said.
+        final waited = Completer<void>();
+        _waiting = Timer(before + breath, waited.complete);
+        await waited.future;
+        if (turn != _turn) return;
+      }
+      try {
+        final data = await _load(clip.asset);
+        if (turn != _turn) return;
+        final played = await output.narrate(clip.asset, data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        if (turn != _turn) return;
+        if (!played) {
+          // The device asks for quiet: what comes after is not said either.
+          if (_saying != null) {
+            _saying = null;
+            notifyListeners();
+          }
+          return;
+        }
+        _saying = clip.asset;
+        notifyListeners();
+      } catch (_) {
+        // No file for the clip (its voice not made yet) or no player: the page's words are there to read.
+        return;
+      }
     }
   }
 
@@ -135,9 +171,31 @@ class Narrator extends ChangeNotifier {
   void dispose() {
     // Hushed without telling anyone: nobody is listening now.
     _turn++;
+    _waiting?.cancel();
     _saying = null;
     final output = this.output;
     if (output != null) unawaited(output.hush().catchError((Object _) {}));
     super.dispose();
+  }
+}
+
+/// Says each walkthrough page as it shows. One is made by the guide and let go with it, which hushes it.
+class Narrator extends VoiceOver {
+  Narrator({super.output, super.useDefaultOutput, super.load});
+
+  GuidePage? _page;
+
+  /// The page being said now, as far as this side knows: null when hushed, muted or never begun. The words on the
+  /// page are what is read once it stops.
+  GuidePage? get saying {
+    final asset = sayingAsset;
+    return asset == null ? null : GuidePage.values.where((page) => narrationAsset(page) == asset).firstOrNull;
+  }
+
+  /// [page] is on screen: say it, unless the voice is off. The page that was being said stops first.
+  void show(GuidePage page) {
+    if (_page == page && saying == page) return;
+    _page = page;
+    say([(asset: narrationAsset(page), length: null)]);
   }
 }

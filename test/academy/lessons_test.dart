@@ -307,7 +307,8 @@ void main() {
         final one = theirs[at];
         expect(
           {'chapter': lesson.chapter, 'symbol': lesson.symbol, 'rows': lesson.rows, 'standard': lesson.standard, 'needs': lesson.needs, 'title': lesson.title, 'teach': lesson.teach, 'example': lesson.example, 'task': lesson.task, 'praise': lesson.praise, 'hint': lesson.hint},
-          {for (final key in const ['chapter', 'symbol', 'rows', 'standard', 'needs', 'title', 'teach', 'example', 'task', 'praise', 'hint']) key: one[key]},
+          // The app is "Ghost" in the Academy's words now (Matt, 2026-10-28), where the page still says Ghost.md.
+          {for (final key in const ['chapter', 'symbol', 'rows', 'standard', 'needs', 'title', 'teach', 'example', 'task', 'praise', 'hint']) key: one[key] is String ? (one[key] as String).replaceAll('Ghost.md', 'Ghost') : one[key]},
           reason: lesson.id,
         );
       }

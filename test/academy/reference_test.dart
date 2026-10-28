@@ -7,6 +7,14 @@
 // The rows that are `<button>`s on the page are in the browser's own button face there (academy_screen.dart's
 // header); for these tests they are drawn in the Mac's Arial, as Chromium drew them, so their words wrap where the
 // page's did. Without that file the tests of those rows are skipped.
+//
+// Where the redesign leaves the page on purpose (Matt, 2026-10-28: "spice up the academy with more colors and
+// iconography"), the page is held from below it: a band now heads the card, so after the top bar the two are laid
+// over one another again at the first thing under the band (the title on the contents, the chapter's words on a
+// lesson and a chapter's end), and the card is held only across. The speaker at the end of the top bar narrows the
+// heading and moves the count, which are held only down. On the contents each chapter's row is a coloured tile and
+// words with more room round them, so the rows are held only across, and the lines under them from the next thing
+// the page and the screen share (the cheat sheet's line).
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/academy/academy_screen.dart';
@@ -31,18 +39,20 @@ void main() {
   Finder icon(String name) => find.descendant(of: key(name), matching: find.byType(AppIcon));
 
   /// The line at the top and the card's own words, which every page of the Academy has.
-  void top(WidgetTester tester, Held held, {bool bars = false}) {
+  void top(WidgetTester tester, Held held, {bool bars = false, required String below}) {
     held.anchor('back', tester.getRect(key('academy-back')));
     held.check('back', rectsOf(tester, key('academy-back')));
     held.check('backIcon', rectsOf(tester, icon('academy-back')));
     held.check('headingIcon', rectsOf(tester, icon('academy-heading')));
-    held.check('heading', rectsOf(tester, key('academy-heading')));
-    held.check('count', rectsOf(tester, key('academy-count')));
+    held.check('heading', rectsOf(tester, key('academy-heading')), dims: 'xyh');
+    held.check('count', rectsOf(tester, key('academy-count')), dims: 'yh');
     if (bars) {
       held.check('bars', rectsOf(tester, find.descendant(of: key('academy-bars'), matching: find.byType(Row))));
       held.check('bar', rectsOf(tester, find.descendant(of: key('academy-bars'), matching: find.byType(AnimatedContainer))));
     }
-    held.check('card', rectsOf(tester, key('academy-card')));
+    held.check('card', rectsOf(tester, key('academy-card')), dims: 'xw');
+    // Under the band: the page again, from [below] down.
+    held.anchor(below, tester.getRect(key(below == 'title' ? 'academy-title' : 'academy-chapter')));
     held.check('title', rectsOf(tester, key('academy-title')));
   }
 
@@ -55,28 +65,27 @@ void main() {
     freshDevice();
     await showAcademy(tester);
     final held = Held(Reference('contents'));
-    top(tester, held);
-    held.check('teach', [tester.getRect(lined(find.textContaining('A mark at a time'))), tester.getRect(lined(find.textContaining('Every mark is in the cheat sheet')))]);
+    top(tester, held, below: 'title');
+    held.check('teach', [tester.getRect(lined(find.textContaining('A mark at a time')))]);
     held.check('go', rectsOf(tester, key('academy-go')));
     held.check('goIcon', rectsOf(tester, icon('academy-go')));
     held.check('skip', rectsOf(tester, key('academy-skip')));
     held.check('skipWords', rectsOf(tester, key('academy-skip-words')));
     held.check('skipName', rectsOf(tester, find.text('I know Markdown already')));
     held.check('skipSaid', rectsOf(tester, key('academy-skip-said')));
+    if (arial) {
+      held.check('chapters', rectsOf(tester, key('academy-chapters')), dims: 'xw');
+      held.check('chapterRow', each(tester, 'chapter', chapters), dims: 'xw');
+    }
+    // Under the chapters, from the cheat sheet's line down.
+    final sheetLine = tester.getRect(lined(find.textContaining('Every mark is in the cheat sheet')));
+    held.anchor('teach', sheetLine, at: 1);
+    held.check('teach', [sheetLine], from: 1);
     held.check('foot', rectsOf(tester, key('academy-foot')));
     held.check('footButtons', [tester.getRect(key('academy-start-again')), tester.getRect(key('academy-cheat-sheet'))]);
     held.check('footIcons', [tester.getRect(icon('academy-start-again')), tester.getRect(icon('academy-cheat-sheet'))]);
-    if (arial) {
-      held.check('chapters', rectsOf(tester, key('academy-chapters')));
-      held.check('chapterRow', each(tester, 'chapter', chapters));
-      held.check('chapterNumber', each(tester, 'chapter-number', chapters));
-      held.check('chapterWords', each(tester, 'chapter-words', chapters));
-      held.check('chapterTitle', each(tester, 'chapter-title', chapters));
-      held.check('chapterAbout', each(tester, 'chapter-about', chapters));
-      held.check('chapterCount', each(tester, 'chapter-count', chapters));
-    }
     held.done();
-    expect(held.checked, greaterThan(arial ? 55 : 14));
+    expect(held.checked, greaterThan(arial ? 25 : 14));
     await away(tester);
   });
 
@@ -85,7 +94,7 @@ void main() {
     await showAcademy(tester);
     await press(tester, key('academy-go'));
     final held = Held(Reference('lesson'));
-    top(tester, held, bars: true);
+    top(tester, held, bars: true, below: 'chapter');
     held.check('chapter', rectsOf(tester, key('academy-chapter')));
     held.check('teach', rectsOf(tester, lined(find.text(lessons.first.teach))));
     held.check('example', rectsOf(tester, key('academy-example')));
@@ -112,7 +121,7 @@ void main() {
     await press(tester, key('academy-go'));
     await press(tester, key('academy-show-me'));
     final held = Held(Reference('lesson-passed'));
-    top(tester, held, bars: true);
+    top(tester, held, bars: true, below: 'chapter');
     held.check('playground', rectsOf(tester, key('playground')));
     held.check('part', [tester.getRect(key('playground-typed')), tester.getRect(key('playground-shows'))]);
     held.check('field', rectsOf(tester, key('playground-field')));
@@ -132,7 +141,7 @@ void main() {
     await press(tester, key('academy-go'));
     await press(tester, find.text('Show me a hint'));
     final held = Held(Reference('lesson-hint'));
-    top(tester, held, bars: true);
+    top(tester, held, bars: true, below: 'chapter');
     held.check('hint', rectsOf(tester, key('academy-hint')));
     held.check('foot', rectsOf(tester, key('academy-foot')));
     held.check('footButtons', rectsOf(tester, key('academy-next')));
@@ -144,15 +153,10 @@ void main() {
     freshDevice(learned: learnedSome);
     await showAcademy(tester);
     final held = Held(Reference('contents-begun'));
-    top(tester, held);
+    top(tester, held, below: 'title');
     held.check('go', rectsOf(tester, key('academy-go')));
     held.check('skip', rectsOf(tester, key('academy-skip')));
-    if (arial) {
-      held.check('chapterRow', each(tester, 'chapter', chapters));
-      held.check('chapterNumber', each(tester, 'chapter-number', chapters));
-      held.check('chapterCount', each(tester, 'chapter-count', chapters));
-    }
-    held.check('foot', rectsOf(tester, key('academy-foot')));
+    if (arial) held.check('chapterRow', each(tester, 'chapter', chapters), dims: 'xw');
     held.done();
     await away(tester);
   });
@@ -164,7 +168,7 @@ void main() {
     await press(tester, key('academy-next'));
     final its = [for (final lesson in lessonsIn('Links and places')) lesson.id];
     final held = Held(Reference('chapter-end'));
-    top(tester, held, bars: true);
+    top(tester, held, bars: true, below: 'chapter');
     held.check('chapter', rectsOf(tester, key('academy-chapter')));
     held.check('teach', rectsOf(tester, lined(find.textContaining('You can come back'))));
     held.check('list', rectsOf(tester, key('academy-list')));

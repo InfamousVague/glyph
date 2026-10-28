@@ -82,6 +82,11 @@ flutter:
     # lib/guide/narration.dart), so a new person hears it with no key and no network; narration.json says which
     # words, model and voice made each file.
     - assets/onboarding/
+    # The Academy's voice (lib/academy/voice.dart; Matt, 2026-10-28: "Add the voiceover to the academy sections"): a
+    # welcome, each chapter's hello and each lesson's teaching, said once by ElevenLabs at build time
+    # (tool/academy_voice.py) in the walkthrough's voice; narration.json says which words made each file and how long
+    # it runs.
+    - assets/academy/
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
   # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness

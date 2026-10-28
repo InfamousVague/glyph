@@ -44,7 +44,7 @@ List<SettingsFindable> aboutFindable({required bool updates, required bool alert
       if (updates) const SettingsFindable('Updates', 'update check upgrade install'),
       // Android's own switch, drawn only where the activity has alerts to switch.
       if (alerts) const SettingsFindable('Update alerts', 'notifications notify'),
-      const SettingsFindable('Ghost.md Academy', 'learn tutorial lessons'),
+      const SettingsFindable('Ghost Academy', 'learn tutorial lessons'),
       const SettingsFindable('The welcome walkthrough', 'guide onboarding set-up first launch side key how to talk to ghost.md voice commands cues hey ghost keyword'),
       if (offersGuideBook) const SettingsFindable(guideTitle, 'guide manual help book notebook chapters add'),
       if (updates && whatsNew) const SettingsFindable("What's new", 'changelog releases'),
@@ -198,7 +198,7 @@ class AboutPane extends StatelessWidget {
         PaneSection(
           title: 'Help',
           children: [
-            help(Lucide.graduationCap, 'Ghost.md Academy', 'Markdown taught a mark at a time. It shows you one, you type your own, and you watch it format.', onAcademy),
+            help(Lucide.graduationCap, 'Ghost Academy', 'Markdown taught a mark at a time. It shows you one, you type your own, and you watch it format.', onAcademy),
             // What lib/guide/pages.dart shows: a tour of the app read aloud, simple or advanced, and the Academy.
             help(Lucide.bookOpen, 'The welcome walkthrough', 'The tour from the first launch, read aloud: what it does, and where the rest is taught.', onGuide),
             help(Lucide.listChecks, 'Cheat sheet', 'Every mark you can type, and what it looks like, on one page.', open == null ? null : () => open('cheatsheet')),

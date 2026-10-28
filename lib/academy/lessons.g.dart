@@ -1,5 +1,7 @@
 // MADE, not written: the words of the web app's own academy/lessons.ts, read off its running page (LESSONS,
-// CHAPTERS, CHAPTER_ABOUT) on 2026-10-08. The checks are lessons.dart's, by each lesson's id.
+// CHAPTERS, CHAPTER_ABOUT) on 2026-10-08. The checks are lessons.dart's, by each lesson's id. Since 2026-10-28 the app is
+// "Ghost" here where the page says Ghost.md (Matt: the visible name is Ghost), in the link's example and the emoji's
+// teaching; test/academy/lessons_test.dart reads the page's words the same way.
 // coverage:ignore-file
 part of 'lessons.dart';
 
@@ -118,7 +120,7 @@ final List<Lesson> lessons = List<Lesson>.unmodifiable(<Lesson>[
     rows: <String>['A link'],
     title: 'A link',
     teach: 'The words people read go in square brackets, and where they point goes in round ones after it. The note shows the words, not the address.',
-    example: '[Ghost.md](https://attack.fm/glyph) is the app this is in',
+    example: '[Ghost](https://attack.fm/glyph) is the app this is in',
     task: 'Write a link of your own.',
     praise: 'That is a link.',
     hint: 'Words in square brackets, then the address in round ones: [words](https://example.com).',
@@ -306,7 +308,7 @@ final List<Lesson> lessons = List<Lesson>.unmodifiable(<Lesson>[
     symbol: ': :',
     rows: <String>['An emoji'],
     title: 'An emoji',
-    teach: 'A name between colons becomes its emoji: :tada: is a party popper. The name comes back while the caret is on the line, and a name Ghost.md does not know stays as it was typed.',
+    teach: 'A name between colons becomes its emoji: :tada: is a party popper. The name comes back while the caret is on the line, and a name Ghost does not know stays as it was typed.',
     example: 'shipped :tada:',
     task: 'Put an emoji in a line by its name.',
     praise: 'An emoji, from its name.',

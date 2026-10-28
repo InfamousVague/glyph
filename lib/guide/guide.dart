@@ -55,6 +55,7 @@ import 'pages/parts.dart';
 import 'pages/start.dart';
 import 'pages/welcome.dart';
 import 'swipe_nav.dart';
+import 'voice_button.dart';
 
 class Guide extends StatefulWidget {
   const Guide({
@@ -252,7 +253,7 @@ class _GuideState extends State<Guide> with WidgetsBindingObserver {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _Voice(off: _narrator.muted, onPressed: () => _narrator.setMuted(!_narrator.muted)),
+              VoiceButton(key: const ValueKey('guide-voice'), off: _narrator.muted, onPressed: () => _narrator.setMuted(!_narrator.muted)),
               // Nearly the size of Back and Next below: the page's corners read as one set of controls.
               GuideWord(_last ? 'Close' : 'Skip', onPressed: widget.onClose, style: t.textAt(barPx, weight: 'semibold')),
             ],
@@ -432,60 +433,6 @@ class _Progress extends StatelessWidget {
 /// From this width the band stands beside the words rather than above them: an unfolded Fold, a tablet, a window
 /// on the Mac.
 const double guideWideFrom = 720;
-
-/// The speaker in the bar: the voice on, or crossed out and off. Remembered on the device (narrator.dart).
-class _Voice extends StatelessWidget {
-  const _Voice({required this.off, required this.onPressed});
-  final bool off;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Semantics(
-      button: true,
-      toggled: !off,
-      label: 'Read aloud',
-      excludeSemantics: true,
-      onTap: onPressed,
-      child: GlacierPressable(
-        key: const ValueKey('guide-voice'),
-        onPressed: onPressed,
-        builder: (context, state) {
-          final ink = state.pressed ? t.color('glacier-text') : t.color('glacier-text-muted');
-          return GlacierFocusRing(
-            visible: state.focused,
-            radius: t.radius('sm'),
-            child: SizedBox.square(
-              dimension: t.space(12),
-              child: Center(
-                child: SizedBox.square(
-                  dimension: 24,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      AppIcon(Lucide.volume2, size: 24, strokeWidth: 2.2, color: ink),
-                      // Off is the speaker struck through, edged in the page's ground so the stroke reads over it.
-                      if (off)
-                        Transform.rotate(
-                          angle: math.pi / 4,
-                          child: Container(
-                            width: 3,
-                            height: 30,
-                            decoration: BoxDecoration(color: ink, borderRadius: BorderRadius.circular(2), border: Border.symmetric(vertical: BorderSide(color: t.color('glacier-bg'), width: 0.8))),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 /// `.page`'s `enter`: a page arrives from eight pixels down, out of nothing, over the normal duration.
 class _Enter extends StatelessWidget {

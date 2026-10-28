@@ -1,0 +1,492 @@
+{
+  "made": "tool/academy_voice.py",
+  "voice": {
+    "id": "cgSgspJ2msm6clMCkdW9",
+    "name": "Jessica"
+  },
+  "files": {
+    "added": {
+      "words": "3d299687928eb38a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 54796,
+      "seconds": 6.77
+    },
+    "anchor": {
+      "words": "6baaef70d8955b5f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 63155,
+      "seconds": 7.82
+    },
+    "aside": {
+      "words": "4f20ba60f810a356",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 62737,
+      "seconds": 7.76
+    },
+    "blank": {
+      "words": "b9bed8a334ebb2a2",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 89487,
+      "seconds": 11.12
+    },
+    "board": {
+      "words": "d1a9cfce00f6fa57",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 79247,
+      "seconds": 9.84
+    },
+    "boardHeight": {
+      "words": "ba2cfa97dd63ad47",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 78202,
+      "seconds": 9.72
+    },
+    "bold": {
+      "words": "821fcb1713ded80e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 54587,
+      "seconds": 6.76
+    },
+    "bookmark": {
+      "words": "6e771bbdc8a58ed1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 66917,
+      "seconds": 8.3
+    },
+    "both": {
+      "words": "97394fbb02baebe3",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 58140,
+      "seconds": 7.19
+    },
+    "callout": {
+      "words": "c020d4cd91bd1fb0",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 87606,
+      "seconds": 10.88
+    },
+    "chapter-basics": {
+      "words": "c0e3430b20a75c1e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 80919,
+      "seconds": 10.05
+    },
+    "chapter-boards": {
+      "words": "80751c3c3f583ba6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 69634,
+      "seconds": 8.64
+    },
+    "chapter-lines": {
+      "words": "1c6355dd7da77d0b",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 81755,
+      "seconds": 10.16
+    },
+    "chapter-links": {
+      "words": "542244eeeeddca5d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 67753,
+      "seconds": 8.4
+    },
+    "chapter-marks": {
+      "words": "2550e9ba88f52890",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 67753,
+      "seconds": 8.4
+    },
+    "chapter-more": {
+      "words": "e4b46253e8d6b83c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 79247,
+      "seconds": 9.84
+    },
+    "chapter-tickets": {
+      "words": "fab02243e3b4de30",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 76530,
+      "seconds": 9.5
+    },
+    "choice": {
+      "words": "60b6b67e91516ac8",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 58558,
+      "seconds": 7.26
+    },
+    "code": {
+      "words": "84831e162128bfed",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 69634,
+      "seconds": 8.63
+    },
+    "comment": {
+      "words": "fb7fbad4ddbed22c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 88233,
+      "seconds": 10.96
+    },
+    "counter": {
+      "words": "1733b1d610c46a50",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 73186,
+      "seconds": 9.08
+    },
+    "definition": {
+      "words": "5ad2260a1d5e63ee",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 59394,
+      "seconds": 7.36
+    },
+    "diagram": {
+      "words": "58c7971706f5b50c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 79247,
+      "seconds": 9.84
+    },
+    "emoji": {
+      "words": "ebce869d5a5389f5",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 56677,
+      "seconds": 7.03
+    },
+    "fence": {
+      "words": "b26da2e505a93b1f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 73395,
+      "seconds": 9.11
+    },
+    "fields": {
+      "words": "44f5f05a07bf1b52",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 105996,
+      "seconds": 13.17
+    },
+    "footnote": {
+      "words": "757290d12c2c8017",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 96383,
+      "seconds": 11.98
+    },
+    "frost": {
+      "words": "459bcb966c731af8",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 50199,
+      "seconds": 6.21
+    },
+    "haunt": {
+      "words": "c25e35a3733ba483",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 61901,
+      "seconds": 7.66
+    },
+    "heading": {
+      "words": "0267ac29bea8b5fd",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 62110,
+      "seconds": 7.68
+    },
+    "heat": {
+      "words": "58407296f2d767dd",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 45810,
+      "seconds": 5.65
+    },
+    "hiddenLine": {
+      "words": "c9530738ad36b49a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 69007,
+      "seconds": 8.56
+    },
+    "highlight": {
+      "words": "21819cbfede79a50",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 52915,
+      "seconds": 6.54
+    },
+    "italic": {
+      "words": "ac987a891a98cb95",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72768,
+      "seconds": 9.02
+    },
+    "itemRef": {
+      "words": "480927725f7ac92d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 77784,
+      "seconds": 9.64
+    },
+    "link": {
+      "words": "798467cf7cf65871",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 80501,
+      "seconds": 10.0
+    },
+    "list": {
+      "words": "10c8dae7f86cda3e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 48527,
+      "seconds": 6.0
+    },
+    "lowered": {
+      "words": "ff2806074e005d3f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 62110,
+      "seconds": 7.69
+    },
+    "markNote": {
+      "words": "c855b59ae3f2c211",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 68798,
+      "seconds": 8.52
+    },
+    "maths": {
+      "words": "603eaf861e4fdac5",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 90741,
+      "seconds": 11.28
+    },
+    "notebookKey": {
+      "words": "bcf32187ba86a113",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 81128,
+      "seconds": 10.08
+    },
+    "number": {
+      "words": "379564e8417b9172",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 62319,
+      "seconds": 7.72
+    },
+    "picture": {
+      "words": "ea9d43d9c8010587",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 89278,
+      "seconds": 11.09
+    },
+    "place": {
+      "words": "8fa95814cf0a54ab",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 88651,
+      "seconds": 11.0
+    },
+    "progress": {
+      "words": "fc1c1670daf596a9",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 62319,
+      "seconds": 7.71
+    },
+    "query": {
+      "words": "74cb498b30d6990f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 87188,
+      "seconds": 10.84
+    },
+    "queryGroup": {
+      "words": "b31b0f18603bace6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 75485,
+      "seconds": 9.36
+    },
+    "queryShow": {
+      "words": "24eea5f60d992bd6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72350,
+      "seconds": 8.96
+    },
+    "queryWhere": {
+      "words": "c2a7a4f906d9fa9e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 90741,
+      "seconds": 11.28
+    },
+    "quote": {
+      "words": "4f0a66b542f468f6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 59394,
+      "seconds": 7.36
+    },
+    "raised": {
+      "words": "eb67fd50a9c7cd2b",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 76739,
+      "seconds": 9.52
+    },
+    "redact": {
+      "words": "cda4bbcfaf742a3c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 64409,
+      "seconds": 7.99
+    },
+    "rule": {
+      "words": "f5447e7881508ba7",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 55005,
+      "seconds": 6.8
+    },
+    "shimmer": {
+      "words": "6fb226be0dca95e0",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 38914,
+      "seconds": 4.8
+    },
+    "shout": {
+      "words": "cf7e84b2b1e6ab9a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 49572,
+      "seconds": 6.13
+    },
+    "spoiler": {
+      "words": "b22f844dfaa9a2e3",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 61275,
+      "seconds": 7.6
+    },
+    "struck": {
+      "words": "abfb29f0c931f0a5",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 68380,
+      "seconds": 8.48
+    },
+    "sum": {
+      "words": "074addb8aaf0e996",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 74231,
+      "seconds": 9.2
+    },
+    "table": {
+      "words": "3ddc98a5ad39f77e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 73813,
+      "seconds": 9.16
+    },
+    "tag": {
+      "words": "a83dbad2ea789da5",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 66917,
+      "seconds": 8.28
+    },
+    "ticket": {
+      "words": "a6a23e0fb3ba0f16",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 90114,
+      "seconds": 11.2
+    },
+    "tint": {
+      "words": "8f463692f39bc175",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 79247,
+      "seconds": 9.84
+    },
+    "title": {
+      "words": "185aec452ba94cf2",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 63782,
+      "seconds": 7.9
+    },
+    "todo": {
+      "words": "cc3db48cc246ee01",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 80919,
+      "seconds": 10.04
+    },
+    "unsure": {
+      "words": "264b2a6bfcabab34",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 41839,
+      "seconds": 5.17
+    },
+    "video": {
+      "words": "5591e1e5c73d981f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72141,
+      "seconds": 8.94
+    },
+    "wave": {
+      "words": "316e348aed81e77b",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 46646,
+      "seconds": 5.76
+    },
+    "welcome": {
+      "words": "f8daf11b0ed7531c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 88024,
+      "seconds": 10.93
+    },
+    "wiki": {
+      "words": "76678541ba4cc8ce",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72768,
+      "seconds": 9.02
+    }
+  }
+}

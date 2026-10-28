@@ -219,13 +219,13 @@ void main() {
       expect(tester.widget<PaneHero>(find.byType(PaneHero)).title, ghostVersion);
       // Help's six, then what the build says of itself (lib/core/build_facts.dart).
       expect(rowLabels(tester), [
-        'Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples',
+        'Ghost Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples',
         'Version', 'Built', 'Commit', 'Kind', 'Dart', 'Runs on', 'Account service', 'Updates from',
       ]);
       expect(hintOf(tester, 'Version'), '$ghostVersion (${versionCodeOf(ghostVersion)})');
       expect(hintOf(tester, 'Built'), 'Not stamped');
       expect(hintOf(tester, 'Ghost.md: The Guide'), 'The whole app in 44 short chapters. Added to your notes the first time, and opened after that.');
-      await tapOn(tester, rowCalled('Ghost.md Academy'));
+      await tapOn(tester, rowCalled('Ghost Academy'));
       await tapOn(tester, rowCalled('Ghost.md: The Guide'));
       expect(ran, ['academy', 'book']);
       // The walkthrough has nothing to run yet: its row is there and cannot be pressed.
@@ -328,8 +328,8 @@ void main() {
       expect(buildLine(const SettingsUpdates(version: '1')), 'Built into the app · unknown build');
       expect(buildLine(const SettingsUpdates(version: '1', built: 'Oct 8', nativeVersion: '1.9.0', staging: true, sourceHost: 'x')), 'Built into the app · Oct 8 · app 1.9.0 · staging build, updates off');
       // From the App Store there is nothing to check here, and no What's new to list.
-      expect(aboutFindable(updates: true, alerts: false, whatsNew: false).map((f) => f.name), ['Updates', 'Ghost.md Academy', 'The welcome walkthrough', 'Ghost.md: The Guide']);
-      expect(aboutFindable(updates: false, alerts: false, whatsNew: true).map((f) => f.name), ['Ghost.md Academy', 'The welcome walkthrough', 'Ghost.md: The Guide']);
+      expect(aboutFindable(updates: true, alerts: false, whatsNew: false).map((f) => f.name), ['Updates', 'Ghost Academy', 'The welcome walkthrough', 'Ghost.md: The Guide']);
+      expect(aboutFindable(updates: false, alerts: false, whatsNew: true).map((f) => f.name), ['Ghost Academy', 'The welcome walkthrough', 'Ghost.md: The Guide']);
     });
 
     testWidgets('is the page’s inside the app, rect for rect', (tester) async {
@@ -341,7 +341,7 @@ void main() {
       // The words under the card: a thumb high, in from the card's edge as its title is.
       expect(tester.getRect(find.byType(RowAction)), rectNear(31.23, 308.25, 150.11, 44.63, 0.75));
       expect(tester.getRect(find.text('HELP')).topLeft, offsetMoreOrLessEquals(const Offset(31.24, 370.72), epsilon: 0.75));
-      expect(tester.getRect(inRow('Ghost.md Academy', find.text('Ghost.md Academy'))).topLeft, offsetMoreOrLessEquals(const Offset(78.69, 407.03), epsilon: 0.75));
+      expect(tester.getRect(inRow('Ghost Academy', find.text('Ghost Academy'))).topLeft, offsetMoreOrLessEquals(const Offset(78.69, 407.03), epsilon: 0.75));
       expect(tester.getRect(inRow('Examples', find.text('Examples', skipOffstage: false))).topLeft, offsetMoreOrLessEquals(const Offset(78.69, 938.98), epsilon: 1.5));
       expect(tester.getRect(find.text("WHAT'S NEW", skipOffstage: false)).top, closeTo(1032.77, 1.5));
       await endSettings(tester);
