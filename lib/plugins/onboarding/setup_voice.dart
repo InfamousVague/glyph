@@ -20,7 +20,7 @@ const Map<String, String> setupVoice = {
   'lovart-intro': 'Lovart is a design agent that makes images. With it, Ghost draws a header for a note, a moodboard for a design meeting, or a picture wherever you ask for one in a note. It uses your own Lovart account and its credits: about 6 credits an image.',
   'lovart-intro-simple': 'Lovart makes images for your notes. It uses your own Lovart account and its credits: about 6 credits an image.',
   'lovart-account': 'First, a Lovart account. Open Lovart’s site and sign up, or sign in if you already have one. Come back here once you’re in.',
-  'lovart-keys': 'Now the keys. In Lovart, open your avatar menu, then AK/SK Management, and make a new pair. Keep that page open: you’ll copy an access key and a secret key from it.',
+  'lovart-keys': 'Now the keys. In Lovart, click your profile, then Lovart Agent, then OpenClaw. Your access key and secret key are there: keep that page open to copy them.',
   'lovart-paste': 'Paste the access key and the secret key here. They’re kept in this device’s secure storage, and follow your account, sealed, to your other devices.',
   'lovart-paste-simple': 'Paste the access key and the secret key here. They’re kept safely on this device.',
   'lovart-check': 'Ghost asks Lovart whether the keys work. Nothing in your account changes, and no credits are spent.',

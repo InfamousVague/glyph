@@ -33,7 +33,9 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../core/preferences.dart';
+import '../../guide/narrator.dart' show VoiceOver;
 import '../../guide/pages/band.dart';
+import '../../guide/voice_button.dart' show VoiceButton;
 import '../../market/market_cards.dart' show MarketButton, MarketButtonLook;
 import '../../market/market_items.dart' show marketHues;
 import '../../settings/kit/settings_type.dart' show pageText;
@@ -41,6 +43,7 @@ import '../../sheet/sheet.dart';
 import '../github/plain_field.dart';
 import '../host.dart' show pluginGround;
 import 'setup_flow.dart';
+import 'setup_voice.dart' show setupVoice, setupVoiceAsset;
 
 /// The setup's colour as ink on the page: the deep shade on a light page, the bright one on a dark page.
 Color setupInk(Tokens t, PluginSetup setup) {
@@ -55,7 +58,7 @@ List<Color> setupWash(PluginSetup setup) => [for (final hue in setup.hues) (mark
 Future<String?> _clipboard() async => (await Clipboard.getData(Clipboard.kTextPlain))?.text;
 
 class PluginSetupSheet extends StatefulWidget {
-  const PluginSetupSheet({super.key, required this.setup, required this.onClose, this.fromStart = false, this.memory, this.prefs, this.open, this.paste});
+  const PluginSetupSheet({super.key, required this.setup, required this.onClose, this.fromStart = false, this.memory, this.prefs, this.open, this.paste, this.voice});
 
   final PluginSetup setup;
 
@@ -77,12 +80,19 @@ class PluginSetupSheet extends StatefulWidget {
   /// Reads the clipboard; the system's when null.
   final Future<String?> Function()? paste;
 
+  /// Says each step's words (lib/guide/narrator.dart [VoiceOver]); the device's player when null. The clips are
+  /// `assets/plugin-setup/<plugin>-<step>.mp3` (tool/plugin_setup_voice.py), the walkthrough's voice, and its speaker
+  /// switch is the walkthrough's too (Matt, 2026-10-28: "The voiceover with elevenlabs isn't working on the lovart
+  /// onboarding": the clips had not been made, and nothing played them).
+  final VoiceOver? voice;
+
   @override
   State<PluginSetupSheet> createState() => _PluginSetupSheetState();
 }
 
 class _PluginSetupSheetState extends State<PluginSetupSheet> {
   late final SetupMemory _memory = widget.memory ?? SetupMemory();
+  late final VoiceOver _voice = widget.voice ?? VoiceOver();
   ValueListenable<Preferences> get _prefs => widget.prefs ?? preferences;
   PluginSetup get _setup => widget.setup;
 
@@ -121,6 +131,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
     String start() => _steps[setupStartIndex(_setup, _steps, _memory, fromStart: widget.fromStart)].id;
     _at = start();
     _prefs.addListener(_redraw);
+    _voice.addListener(_redraw);
     _stopWatching = _setup.watch(_redraw);
     final prepare = _setup.prepare;
     if (prepare == null) {
@@ -142,6 +153,8 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
 
   @override
   void dispose() {
+    unawaited(_voice.hush());
+    _voice.removeListener(_redraw);
     _prefs.removeListener(_redraw);
     _stopWatching();
     for (final field in _fields.values) {
@@ -156,9 +169,21 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
 
   TextEditingController _field(SetupPaste step, SetupField field) => _fields.putIfAbsent('${step.id}/${field.id}', () => TextEditingController()..addListener(_redraw));
 
-  /// What a step does as it shows: the check runs.
+  /// What a step does as it shows: its words are said, and the check runs.
   void _arrive() {
+    _speak();
     if (_step is SetupCheck) unawaited(_check());
+  }
+
+  /// The step's clip, Simple's shorter one where it has one: none where its words have no clip yet.
+  void _speak() {
+    final name = '${_setup.id}-${_step.id}';
+    final clip = _simple && setupVoice.containsKey('$name-simple') ? '$name-simple' : name;
+    if (!setupVoice.containsKey(clip)) {
+      unawaited(_voice.hush());
+      return;
+    }
+    _voice.say([(asset: setupVoiceAsset(clip), length: null)]);
   }
 
   void _go(int index) {
@@ -186,17 +211,20 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
   /// Put away where it is: it opens here again.
   void _close() {
     _run += 1;
+    unawaited(_voice.hush());
     _memory.at(_setup.id, _at);
     widget.onClose();
   }
 
   void _skip() {
     _run += 1;
+    unawaited(_voice.hush());
     _memory.end(_setup.id, _at, SetupEnd.skipped);
     widget.onClose();
   }
 
   void _finish() {
+    unawaited(_voice.hush());
     _memory.end(_setup.id, _at, SetupEnd.done);
     widget.onClose();
   }
@@ -293,6 +321,10 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
     final top = Row(
       children: [
         Expanded(child: Align(alignment: AlignmentDirectional.centerStart, child: SetupDots(at: index, count: steps.length, color: ink))),
+        if (_voice.output != null) ...[
+          VoiceButton(key: const ValueKey('setup-voice'), off: _voice.muted, onPressed: () => _voice.setMuted(!_voice.muted), side: t.space(8), icon: 18),
+          SizedBox(width: t.space(2)),
+        ],
         if (!last)
           MarketButton(key: const ValueKey('setup-skip'), label: 'Skip', semantics: 'Skip setting up ${_setup.name}', look: MarketButtonLook.ring, onPress: _skip)
         else

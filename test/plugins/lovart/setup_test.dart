@@ -38,7 +38,7 @@ void main() {
       expect([for (final step in setup.steps) step.runtimeType.toString()], ['SetupIntro', 'SetupOpen', 'SetupOpen', 'SetupPaste', 'SetupCheck', 'SetupDone']);
       final links = [for (final step in setup.steps.whereType<SetupOpen>()) for (final link in step.links) (link.label, link.url)];
       expect(links, [('Open lovart.ai', 'https://www.lovart.ai/'), ('Open Lovart', 'https://www.lovart.ai/home')]);
-      expect(setup.wordsOf(setup.steps[2], simple: false), contains('AK/SK Management'));
+      expect(setup.wordsOf(setup.steps[2], simple: false), contains('Lovart Agent, then OpenClaw'));
       final intro = setup.steps.first as SetupIntro;
       expect(intro.points.last.$2, 'With your Lovart credits: about $lovartCreditsPerImage credits an image');
       expect(lovartPlugin.setup, isNotNull);
@@ -74,7 +74,7 @@ void main() {
       ground = useGround((request) async => FetchResponse.json(401, {'message': 'bad signature'}));
       await keys();
       final result = await lovartSetupResult();
-      expect((result.kind, result.words, result.pasteAgain), (SetupCheckKind.failed, 'Lovart didn’t accept these keys. Copy both again from Lovart’s AK/SK Management.', true));
+      expect((result.kind, result.words, result.pasteAgain), (SetupCheckKind.failed, 'Lovart didn’t accept these keys. Copy both again from Lovart Agent › OpenClaw in Lovart.', true));
       expect(hasLovartKeys(), isFalse);
       expect(ground.secrets.held.values.whereType<String>(), isEmpty);
     });
@@ -145,7 +145,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('setup-next')));
       await settle(tester);
-      expect(find.text('Lovart didn’t accept these keys. Copy both again from Lovart’s AK/SK Management.'), findsOneWidget);
+      expect(find.text('Lovart didn’t accept these keys. Copy both again from Lovart Agent › OpenClaw in Lovart.'), findsOneWidget);
       expect(hasLovartKeys(), isFalse);
       await tester.tap(find.byKey(const ValueKey('setup-paste-again')));
       await settle(tester);
@@ -195,7 +195,7 @@ void main() {
       expect(find.text('Carry on'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('plugin-setup-start')));
       await settle(tester);
-      expect(find.text('Make your keys'), findsOneWidget);
+      expect(find.text('Copy your keys'), findsOneWidget);
       await away(tester);
     });
   });

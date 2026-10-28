@@ -119,7 +119,7 @@ class _LovartPaneState extends State<LovartPane> {
     if (wrong != null && wrong.badKeys) {
       setState(() {
         _checking = false;
-        _problem = 'Lovart refused those keys. Copy both again from AK/SK Management in Lovart.';
+        _problem = 'Lovart refused those keys. Copy both again from Lovart Agent › OpenClaw in Lovart.';
       });
       return;
     }
@@ -187,7 +187,7 @@ class _LovartPaneState extends State<LovartPane> {
         if (_said != null) SettingsCallout(child: Text(_said!)),
         PaneSection(
           title: 'Lovart keys',
-          description: const Text('Lovart makes the images with its design agent, using your own Lovart account: in Lovart, open your avatar menu › AK/SK Management and make a pair. Each image is made with your Lovart credits.'),
+          description: const Text('Lovart makes the images with its design agent, using your own Lovart account: in Lovart, click your profile, then Lovart Agent › OpenClaw, and copy the two keys. Each image is made with your Lovart credits.'),
           footer: const Text('The keys are kept in this device’s secure storage and follow your account, sealed, to your other devices.'),
           children: [
             if (keys == null)

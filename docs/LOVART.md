@@ -21,7 +21,7 @@ publishes for agents is the **Lovart skill**:
 - source: github.com/lovartai/lovart-skill (`skills/lovart-skill/SKILL.md`, `scripts/agent_skill.py`);
 - install: `npx skills add lovartai/lovart-skill`, or from ClawHub as `@lovart-admin/lovart-skill`;
 - it is a zero-dependency Python client over what the skill calls **"Lovart Agent OpenAPI"**, authenticated with an
-  access key / secret key pair (AK/SK) the user makes in Lovart: avatar menu › **AK/SK Management**.
+  access key / secret key pair (AK/SK) the user makes in Lovart: your profile › **Lovart Agent** › **OpenClaw** (Matt, 2026-10-28; the skill's README says avatar menu › AK/SK Management).
 
 So "the API for OpenClaw" is that HTTP API. This plugin does not run OpenClaw or the Python skill: it calls the same
 API directly from the app (`client.dart`), ported line for line from `agent_skill.py` **as read on 2026-10-26**. The

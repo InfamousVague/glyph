@@ -258,7 +258,7 @@ class LovartClient {
       // Not JSON: Lovart said nothing this can read.
     }
     final status = answer.status;
-    if (status == 401) return LovartFailure('Lovart didn’t accept these keys. Copy both again from Lovart’s AK/SK Management.', status: status, code: code);
+    if (status == 401) return LovartFailure('Lovart didn’t accept these keys. Copy both again from Lovart Agent › OpenClaw in Lovart.', status: status, code: code);
     if (status == 409 && said.isEmpty) return LovartFailure('Lovart is still busy with the last request. Try again when it is done.', status: status, code: code);
     if (status == 429 && said.isEmpty) return LovartFailure('Lovart is asking this device to slow down. Try again in a minute.', status: status, code: code);
     if (said.isNotEmpty) return LovartFailure(said, status: status, code: code);

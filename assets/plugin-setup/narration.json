@@ -1,0 +1,135 @@
+{
+  "made": "tool/plugin_setup_voice.py",
+  "voice": {
+    "id": "cgSgspJ2msm6clMCkdW9",
+    "name": "Jessica"
+  },
+  "files": {
+    "claude-account": {
+      "words": "b709b3265512fe01",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 81755,
+      "seconds": 10.15
+    },
+    "claude-check": {
+      "words": "1ec76f9923c796a9",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 70888,
+      "seconds": 8.8
+    },
+    "claude-done": {
+      "words": "5c258b08e742d922",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 46646,
+      "seconds": 5.75
+    },
+    "claude-done-simple": {
+      "words": "3fb12f937362b184",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 29928,
+      "seconds": 3.67
+    },
+    "claude-intro": {
+      "words": "ed221f321b3bf62d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 124177,
+      "seconds": 15.44
+    },
+    "claude-intro-simple": {
+      "words": "48ee68d862b7d693",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 71515,
+      "seconds": 8.86
+    },
+    "claude-key": {
+      "words": "9668a223dd5f0f3d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 95965,
+      "seconds": 11.92
+    },
+    "claude-paste": {
+      "words": "fe394c0692226971",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 88233,
+      "seconds": 10.96
+    },
+    "claude-paste-simple": {
+      "words": "233af093d03f1266",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 58767,
+      "seconds": 7.28
+    },
+    "lovart-account": {
+      "words": "c89150020085dda1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 63782,
+      "seconds": 7.91
+    },
+    "lovart-check": {
+      "words": "0d42730578d1eb67",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 52497,
+      "seconds": 6.48
+    },
+    "lovart-done": {
+      "words": "e8b32e34264c98a4",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 146538,
+      "seconds": 18.24
+    },
+    "lovart-done-simple": {
+      "words": "0233c6b7be4a1251",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 63155,
+      "seconds": 7.83
+    },
+    "lovart-intro": {
+      "words": "8f8c40eaea963d9e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 121461,
+      "seconds": 15.1
+    },
+    "lovart-intro-simple": {
+      "words": "df4e363efcaddbd0",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 58140,
+      "seconds": 7.2
+    },
+    "lovart-keys": {
+      "words": "b17e0744e9b6d331",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 87606,
+      "seconds": 10.87
+    },
+    "lovart-paste": {
+      "words": "0ad73c67f412da7d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 74022,
+      "seconds": 9.19
+    },
+    "lovart-paste-simple": {
+      "words": "701fa37ea360bd30",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 40795,
+      "seconds": 5.03
+    }
+  }
+}

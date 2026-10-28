@@ -87,6 +87,7 @@ flutter:
     # (tool/academy_voice.py) in the walkthrough's voice; narration.json says which words made each file and how long
     # it runs.
     - assets/academy/
+    - assets/plugin-setup/
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
   # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness

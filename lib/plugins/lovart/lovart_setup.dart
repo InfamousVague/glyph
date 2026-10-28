@@ -6,8 +6,8 @@
 ///    image ([aboutCredits]).
 /// 2. **Make a Lovart account**: Open lovart.ai ([lovartSiteUrl]), to sign up or sign in. Lovart has no sign-up
 ///    address of its own; its home page's Get started is the way in (read on 2026-10-28).
-/// 3. **Make your keys**: avatar menu › AK/SK Management, as Lovart's own skill says (github.com/lovartai/lovart-skill,
-///    README: "Avatar menu -> AK/SK Management"; docs/LOVART.md). Lovart gives that page no address, so Open Lovart
+/// 3. **Your keys**: your profile › Lovart Agent › OpenClaw, where the access key and secret key are (Matt, 2026-10-28:
+///    "click their profile then lovart agent > OpenClaw and copy the keys"; the skill's README had said AK/SK Management). Lovart gives that page no address, so Open Lovart
 ///    opens its home ([lovartHomeUrl]), where the avatar menu is.
 /// 4. **Paste your keys**: the access key and the secret key, kept where the plugin's page keeps them
 ///    ([accessKeySecret], [secretKeySecret] in the secure store, through the plugin's host), so the sealed sync
@@ -40,7 +40,7 @@ import 'manifest.dart' as lovart;
 /// Lovart's site, where an account is made: its Get started.
 const String lovartSiteUrl = 'https://www.lovart.ai/';
 
-/// Lovart signed in, where the avatar menu is, and AK/SK Management in it.
+/// Lovart signed in, where the profile menu is, and Lovart Agent › OpenClaw in it.
 const String lovartHomeUrl = 'https://www.lovart.ai/home';
 
 /// The cue the last step offers to copy.
@@ -92,7 +92,7 @@ PluginSetup lovartSetup({PluginHost? via, LovartClient? Function()? client}) {
         ],
       ),
       const SetupOpen(id: 'account', title: 'Make a Lovart account', icon: Lucide.userPlus, links: [SetupLink('Open lovart.ai', lovartSiteUrl)]),
-      const SetupOpen(id: 'keys', title: 'Make your keys', icon: Lucide.keyRound, links: [SetupLink('Open Lovart', lovartHomeUrl)]),
+      const SetupOpen(id: 'keys', title: 'Copy your keys', icon: Lucide.keyRound, links: [SetupLink('Open Lovart', lovartHomeUrl)]),
       SetupPaste(
         id: 'paste',
         title: 'Paste your keys',
