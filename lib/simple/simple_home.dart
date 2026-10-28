@@ -53,6 +53,7 @@ import '../notes/when.dart';
 import '../shell/desktop/mac_drag_strip.dart';
 import '../shell/desktop/mac_lights.dart';
 import '../shell/header_pane.dart' show StatusScrim;
+import '../shell/header_toolbar.dart';
 import 'simple_bar.dart';
 
 export 'simple_bar.dart' show SimpleTab;
@@ -163,6 +164,13 @@ class SimpleHome extends StatefulWidget {
   /// hold, so there is no row for them here. Simple mode has no bar and leaves this off.
   final bool underBar;
 
+  /// Whether the page draws its search field: not as advanced mode's sidebar while the header toolbar's Grouped
+  /// command draws the bar over it, whose title pill is the search (Matt, 2026-10-28: "remove the search bar from the
+  /// home page since it's redundant", and then "the search bar still shows up on the home page section": on the opened
+  /// Fold the home page's notes column, this page, kept its field when the home page's own went). Simple mode, with
+  /// no bar, always has it.
+  bool get searchField => !(underBar && headerToolbarVersion == HeaderToolbarVersion.groupedCommand);
+
   /// Browse files at the start of the column's foot ([pane]): the notes' folder in the phone's Files app
   /// (lib/core/library_files.dart). The root hands it only to advanced mode's sidebar, on a device that can; the old
   /// tree's tool had it, and simple mode never did.
@@ -193,7 +201,26 @@ class _SimpleHomeState extends State<SimpleHome> {
   _Read? _read;
 
   @override
+  void initState() {
+    super.initState();
+    headerToolbarChoice.addListener(_versionChanged);
+  }
+
+  /// The bar's version chosen: the field goes or comes back, and what it had typed goes with it, so the column is
+  /// never narrowed by a search there is no field to see.
+  void _versionChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (!widget.searchField && _query.isNotEmpty) {
+        _search.clear();
+        _query = '';
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    headerToolbarChoice.removeListener(_versionChanged);
     _scroller.dispose();
     _search.dispose();
     _field.dispose();
@@ -250,7 +277,7 @@ class _SimpleHomeState extends State<SimpleHome> {
     final head = <Widget>[
       _Header(title: notesTab ? 'Notes' : 'To-dos', onSettings: widget.onSettings),
       if (pane && widget.onTab != null) _Switch(tab: widget.tab, onTab: widget.onTab!),
-      if (notesTab && (hasNotes || searched)) _SearchField(controller: _search, focusNode: _field, onQuery: _typed),
+      if (widget.searchField && notesTab && (hasNotes || searched)) _SearchField(controller: _search, focusNode: _field, onQuery: _typed),
       if (widget.notices.isNotEmpty) GappedColumn(gap: gap, children: widget.notices),
     ];
 
