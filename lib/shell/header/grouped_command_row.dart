@@ -35,10 +35,11 @@ import 'grouped_row.dart';
 import 'header_kit.dart';
 
 /// A size up from Grouped's 16 (Matt, 2026-10-28: "make the elements a size larger"), and a notch more that evening
-/// ("make the top bar items slightly larger very slightly": 19 became 20), in rings a size up too: the shell stamps
-/// `data-header='large'` while this version draws the bar, which makes `--app-bar-ring` 34-42px (assets/css/app.css),
+/// ("make the top bar items slightly larger very slightly": 19 became 20), and on 2.3.63 "3 points larger" (23, and 24
+/// on you), in rings a size up too: the shell stamps `data-header='large'` while this version draws the bar, which
+/// makes `--app-bar-ring` 37-45px (assets/css/app.css, 3px more with the glyphs so the air round them stays),
 /// and every pill, circle and the bar's height are built from that.
-const double _glyph = 20;
+const double _glyph = 23;
 
 HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   Widget solid(Widget child) => styled(context, IconStyle.solid, child);

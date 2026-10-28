@@ -15,6 +15,7 @@ import 'package:ghost_md/notes/tabs/bar_parts.dart' show BarRing, BarWord;
 import 'package:ghost_md/notes/tabs/tab_parts.dart' show HomeTab;
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart' show AppTabBar;
+import 'package:ghost_md/shell/header/header_kit.dart' show HeaderGlyph;
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/shell/placeholders.dart';
 import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
@@ -339,6 +340,13 @@ void main() {
       // Its title pill's words a size up from Command centre's.
       final command = await measure(HeaderToolbarVersion.command);
       expect(larger.text, greaterThan(command.text));
+      // Matt, on 2.3.63: "3 points larger": its glyphs 23, and 24 on you, and the rings 3px more round them.
+      await pumpShell(tester, version: HeaderToolbarVersion.groupedCommand, window: window, note: false);
+      double glyphIn(String id) => tester.widget<HeaderGlyph>(find.descendant(of: find.byKey(HeaderAct.keyOf(id)), matching: find.byType(HeaderGlyph)).first).size;
+      expect(glyphIn('home'), 23);
+      expect(glyphIn('sidebar'), 23);
+      expect(glyphIn('you'), 24);
+      expect(tester.getRect(find.byKey(HeaderAct.keyOf('you'))).height, greaterThanOrEqualTo(37));
     });
   }
 
