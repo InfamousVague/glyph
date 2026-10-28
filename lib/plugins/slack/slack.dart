@@ -35,6 +35,7 @@ import '../types.dart';
 import 'channels.dart';
 import 'manifest.dart';
 import 'marks.dart';
+import 'meetings.dart' show meetingSlackPoster;
 import 'mrkdwn.dart';
 import 'news.dart';
 import 'slack_pane.dart';
@@ -65,7 +66,7 @@ String _where() {
 
 /// Posts what [message] makes of the note on screen to the channel chosen, then says so on the note, or says why
 /// not in Slack's words (channels.dart [slackAnswer]).
-Future<void> _post(NoteEditing editing, String? choice, String? Function(String body) message) async {
+Future<void> _post(NoteEditing editing, String? choice, String? Function(String body) message, {void Function()? posted}) async {
   final list = channels();
   final channel = channelById(choice) ?? (list.length == 1 ? list.first : null);
   if (channel == null) {
@@ -79,6 +80,7 @@ Future<void> _post(NoteEditing editing, String? choice, String? Function(String 
   }
   try {
     await postToChannel(channel, text);
+    posted?.call();
     slackFelt(HapticKind.success);
     editing.say('Posted to ${channel.name}.');
   } catch (failure) {
@@ -108,13 +110,24 @@ final NoteAction postSummary = NoteAction(
   label: 'Post the summary to Slack',
   icon: (context, size) => SlackMark(size: size),
   visible: (noteId, body) => slackReadyNow() && channels().isNotEmpty && _summaryOf(noteId, body) != null,
-  hint: (noteId, body) => 'The meeting’s summary goes ${_where()}, and nothing else of the note.',
+  hint: (noteId, body) => 'The meeting’s action items, a brief summary and the link to its notes go ${_where()}.',
   enabled: (noteId, body) => true,
   choices: _channelChoices,
-  run: (editing, [choice]) => _post(editing, choice, (body) {
-    final section = _summaryOf(editing.noteId, body);
-    return section == null ? null : summaryMessage(body, section);
-  }),
+  run: (editing, [choice]) async {
+    // A meeting's summary goes as the meeting's own post (lib/plugins/slack/meetings.dart [meetingMessage]): its action
+    // items, a brief summary, then the public link (Matt, 2026-10-28), and counts as its one post for the account.
+    final poster = meetingSlackPoster;
+    final note = poster == null ? null : await poster.getNote(editing.noteId);
+    if (poster != null && note != null) {
+      final text = await poster.messageFor(note.copyWith(body: editing.body()));
+      await _post(editing, choice, (_) => text, posted: () => poster.postedByHand(note.id));
+      return;
+    }
+    await _post(editing, choice, (body) {
+      final section = _summaryOf(editing.noteId, body);
+      return section == null ? null : summaryMessage(body, section);
+    });
+  },
 );
 
 String _summary() {

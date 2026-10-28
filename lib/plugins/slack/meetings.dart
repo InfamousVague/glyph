@@ -563,6 +563,29 @@ class MeetingSlackPoster {
     return went;
   }
 
+  /// The message [note] posts as a meeting ([meetingMessage]), with its share link where "Include a share link" is
+  /// on and one can be made: what "Post the summary to Slack" sends from a meeting's More sheet (Matt, 2026-10-28:
+  /// "Yes", to posting the day's standup this way).
+  Future<String> messageFor(Note note) async {
+    String? link;
+    final share = shareLink;
+    if (meetingSlackSettings().share && share != null) {
+      try {
+        link = await share(note);
+      } catch (failure) {
+        warn?.call('[ghost] no share link for the meeting: $failure');
+      }
+    }
+    return meetingMessage(meetingPostOf(note, startedAt: preferences().meetings[note.id]?.toInt(), kept: kept(note.id), team: teamOf?.call(note.id), shareLink: link, me: me?.call()));
+  }
+
+  /// A meeting posted by hand: marked for the account as posted, so it is not posted again by itself once written
+  /// up here or on another device.
+  void postedByHand(String noteId) {
+    final at = _now();
+    setPreferences((now) => withMeetingPostMark(now, noteId, at: at, posted: at));
+  }
+
   Future<bool> _try(MeetingPostTry waiting) async {
     final channel = meetingChannel();
     if (channel == null) return false;

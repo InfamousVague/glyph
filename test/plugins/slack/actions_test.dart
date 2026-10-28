@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/slack/slack.dart';
 import 'package:glacier/glacier.dart' show HapticKind;
 
@@ -85,7 +87,7 @@ void main() {
       expect(postSummary.visible('n1', '# Standup\n\nWe met.'), isFalse);
       expect(postSummary.visible('n1', meeting), isTrue);
       expect(postSummary.enabled('n1', meeting), isTrue);
-      expect(postSummary.hint('n1', meeting), 'The meeting’s summary goes to #launch, and nothing else of the note.');
+      expect(postSummary.hint('n1', meeting), 'The meeting’s action items, a brief summary and the link to its notes go to #launch.');
     });
 
     test('posts the summary alone, under the note’s title', () async {
@@ -94,6 +96,32 @@ void main() {
       await postSummary.run(note, launch.id);
       expect(slack.posts, [(url: hook, text: '*Standup*\n*Summary*\nWe agreed to ship on Friday.\n\n☐ Sam: write the post')]);
       expect(note.said, ['Posted to #launch.']);
+    });
+
+    // Matt, 2026-10-28: a meeting's summary posted by hand goes as the meeting's own post, action items, a brief
+    // summary, then the public link, and counts as its one post so it does not go again by itself.
+    test('with the meetings poster, posts the action items, a brief summary and the public link, and marks it posted', () async {
+      final launch = await addChannel('#launch', hook);
+      var prefs = const Preferences();
+      final saved = Note(id: 'n1', body: meeting, createdAt: 1000, updatedAt: 1000);
+      meetingSlackPoster = MeetingSlackPoster(
+        preferences: () => prefs,
+        setPreferences: (change) => prefs = change(prefs),
+        getNote: (id) async => id == 'n1' ? saved : null,
+        shareLink: (note) async => 'https://ghostmarkdown.com/read.html#n1.key',
+        kept: (_) => null,
+        now: () => 1000,
+      );
+      addTearDown(() => meetingSlackPoster = null);
+      final note = noteOf(meeting);
+      await postSummary.run(note, launch.id);
+      final text = slack.posts.single.text as String;
+      expect(text.indexOf('*Action items*'), lessThan(text.indexOf('*Summary*')));
+      expect(text, contains('• Sam: write the post'));
+      expect(text, contains('We agreed to ship on Friday.'));
+      expect(text, endsWith('<https://ghostmarkdown.com/read.html#n1.key|Read the notes and transcript>'));
+      expect(note.said, ['Posted to #launch.']);
+      expect(meetingPostMarked(prefs, 'n1'), isTrue, reason: 'not posted again once written up');
     });
 
     test('says so when the summary was taken out before it went', () async {
