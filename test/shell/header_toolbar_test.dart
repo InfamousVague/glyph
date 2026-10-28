@@ -19,7 +19,7 @@ import 'package:ghost_md/shell/top_bar_tools.dart';
 import '../notes/bar_support.dart';
 import '../support/render.dart';
 
-/// The header toolbar's five versions (lib/shell/header_toolbar.dart; Matt, 2026-10-28: "Add a few ways to redo the
+/// The header toolbar's six versions (lib/shell/header_toolbar.dart; Matt, 2026-10-28: "Add a few ways to redo the
 /// header toolbar icons … add a developer setting to switch between 5 versions"): each drawn on a phone, the opened
 /// Fold and the Mac without running over, every control the bar was given within reach of a press, a press doing
 /// what the control does, and Developer's choice redrawing the bar at once.
@@ -28,8 +28,8 @@ import '../support/render.dart';
 /// its More as the tail, and the model they are drawn from, with every spare action a note can have.
 ///
 /// Pictures, not held: `FEATURE_SHOTS=1 flutter test --update-goldens test/shell/header_toolbar_test.dart` writes all
-/// five on a note and at home, folded, unfolded and on the Mac, light and dark, into build/feature-shots/
-/// header-toolbar/, and then `contact-sheet.png` there: the five on a note on the opened Fold, one under another.
+/// six on a note and at home, folded, unfolded and on the Mac, light and dark, into build/feature-shots/
+/// header-toolbar/, and then `contact-sheet.png` there: the six on a note on the opened Fold, one under another.
 void main() {
   setUpAll(loadAppFonts);
 
@@ -225,6 +225,58 @@ void main() {
     }
   });
 
+  // Matt, 2026-10-28, after the contact sheet on 2.3.61: "Make a version that combines the command center and grouped
+  // sections".
+  group('6 Grouped command', () {
+    const version = HeaderToolbarVersion.groupedCommand;
+
+    barTest('on the Mac: all four ways around, the title pill, the view and the two most used, ••• and you', (tester) async {
+      final log = <String>[];
+      await pumpShell(tester, version: version, window: mac, log: log);
+      final row = drawn(tester);
+      expect(row.containsAll({'home', 'sidebar', 'back', 'forward', 'search', 'view', 'share', 'history', 'overflow', 'you'}), isTrue, reason: '$row');
+      // The rest of the note's, and the aside, are one press away.
+      expect(row.intersection({'links', 'comment', 'bookmark', 'pin', 'archive', 'speak', 'more', 'aside', 'bell', 'settings'}), isEmpty, reason: '$row');
+      // The pill is the note's name, and opens the palette.
+      expect(find.text('Groceries').evaluate().length, greaterThan(1));
+      await tester.tap(find.byKey(HeaderAct.keyOf('search')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(log, ['search']);
+    });
+
+    for (final window in [folded, unfolded]) {
+      barTest('on the Fold ${window.name}, at home and on a note', (tester) async {
+        await pumpShell(tester, version: version, window: window);
+        final wide = window.size.width >= 600;
+        final row = drawn(tester);
+        expect(row.containsAll({'sidebar', 'back', 'search', 'view', 'overflow'}), isTrue, reason: '$row');
+        if (!wide) {
+          // Narrow: the sidebar and Back, the view and •••; Home, Forward and every action one press away.
+          expect(row.intersection({'home', 'forward', 'share', 'history'}), isEmpty, reason: '$row');
+        }
+        final reached = await reachable(tester);
+        expect(reached.containsAll({...way, ...noteTools}), isTrue, reason: 'missing ${{...way, ...noteTools}.difference(reached)}');
+
+        await pumpShell(tester, version: version, window: window, note: false);
+        final home = drawn(tester);
+        expect(home.containsAll({'sidebar', 'back', 'search', 'you'}), isTrue, reason: '$home');
+        // At home, ••• is a pill of its own for what the way around put away, and the aside.
+        expect(home, contains('overflow'));
+        expect(home.intersection(noteTools), isEmpty);
+      });
+    }
+
+    barTest('Developer’s choice switches the bar to it', (tester) async {
+      await pumpShell(tester, window: unfolded);
+      expect(headerKeys(), findsNothing);
+      headerToolbarChoice.set(version.id);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(headerToolbarVersion, version);
+      expect(find.byKey(HeaderAct.keyOf('search')), findsOneWidget);
+      expect(find.byKey(HeaderAct.keyOf('view')), findsOneWidget);
+    });
+  });
+
   barTest('Developer’s choice switches the bar at once, nothing restarted', (tester) async {
     final app = await pumpShell(tester, window: unfolded);
     expect(headerToolbarVersion, HeaderToolbarVersion.today);
@@ -251,7 +303,7 @@ void main() {
     expect(HeaderToolbarVersion.parse(null), HeaderToolbarVersion.today);
     headerToolbarChoice.set('nonsense');
     expect(headerToolbarChoice.value, 'today');
-    expect([for (final version in HeaderToolbarVersion.values) version.number], [1, 2, 3, 4, 5]);
+    expect([for (final version in HeaderToolbarVersion.values) version.number], [1, 2, 3, 4, 5, 6]);
   });
 
   // ---- the pictures --------------------------------------------------------------------------------------------
@@ -278,10 +330,10 @@ void main() {
     }
   }
 
-  // One picture for Matt: the five on a note on the opened Fold, the bar and the page's head of each, one under
+  // One picture for Matt: the six on a note on the opened Fold, the bar and the page's head of each, one under
   // another with its number and name. Made from the pictures above, so it runs after them.
   for (final theme in ['light', 'dark']) {
-    barTest('a picture: the contact sheet of the five on a note, unfolded, $theme', (tester) async {
+    barTest('a picture: the contact sheet of the six on a note, unfolded, $theme', (tester) async {
       await tester.runAsync(() async {
         const ratio = 2.0, keep = 230.0, band = 44.0, width = 880.0;
         final recorder = ui.PictureRecorder();

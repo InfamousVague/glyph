@@ -1,7 +1,8 @@
-/// The header toolbar's five versions, and the seam the top bar picks one through (Matt, 2026-10-28: "Add a few
+/// The header toolbar's six versions, and the seam the top bar picks one through (Matt, 2026-10-28: "Add a few
 /// ways to redo the header toolbar icons right now it's just a huge list of icons and is quite hard to work with
 /// include versions with different iconography vibrant colors and different UI/UX add a developer setting to switch
-/// between 5 versions").
+/// between 5 versions"; and the sixth, after the contact sheet on 2.3.61: "Make a version that combines the command
+/// center and grouped sections").
 ///
 /// The bar's four styles (lib/shell/top_bar.dart: Classic, Ledger, Masthead, Islands) are layouts of one row of
 /// rings; a version is what that row holds and how it is drawn - which controls stand out, which are gathered into
@@ -21,6 +22,9 @@
 /// - **5, Labelled** (header/labelled_row.dart): only what the screen is for, with words on a wide window: on a
 ///   note the view, Share and More; at home Search, New and Browse. The app's own are behind the round button for
 ///   you, and the bell is a dot on it.
+/// - **6, Grouped command** (header/grouped_command_row.dart): Grouped's pills at the ends - the way around, the
+///   note's own with •••, the button for you - and Command centre's title pill between them, opening the palette. On
+///   a narrow window the pills keep the sidebar and Back, the view and •••, and the rest is one press away.
 ///
 /// Every version keeps every control the bar was given within reach: in the row, or in a menu one press away
 /// (test/shell/header_toolbar_test.dart presses for each). A control the bar was not given (simple mode's, a phone
@@ -38,17 +42,19 @@ import '../core/preferences.dart' show DeviceWord;
 import '../core/workspaces.dart' show OrgLike;
 import '../note/note_tools.dart';
 import 'header/command_row.dart';
+import 'header/grouped_command_row.dart';
 import 'header/grouped_row.dart';
 import 'header/labelled_row.dart';
 import 'header/tiles_row.dart';
 
-/// The five, in the order Developer offers them, each with the line said under its name there.
+/// The six, in the order Developer offers them, each with the line said under its name there.
 enum HeaderToolbarVersion {
   today('Today’s bar', 'Every control its own ring on one line, as the bar has been.'),
   grouped('Grouped', 'The way around in one pill, the note’s most used in another with the rest under •••, and the bell, teams and Settings behind your round button.'),
   tiles('Vibrant tiles', 'Each control a small tile in its own colour with a white glyph, fewer at once and the rest under •••; words beside the note’s on a wide window.'),
   command('Command centre', 'Back, the note’s name in a pill that opens the command palette, one action and •••, with everything else in its menu’s sections.'),
-  labelled('Labelled', 'Only what the screen needs, with words on a wide window: view, Share and More on a note; Search, New and Browse at home. The bell is a dot on you.');
+  labelled('Labelled', 'Only what the screen needs, with words on a wide window: view, Share and More on a note; Search, New and Browse at home. The bell is a dot on you.'),
+  groupedCommand('Grouped command', 'Grouped’s pills at the ends and the note’s name between them in a pill that opens the command palette; on a phone the pills keep Back, the sidebar, the view and •••.');
 
   const HeaderToolbarVersion(this.label, this.hint);
 
@@ -252,6 +258,7 @@ HeaderRowBuilder? headerRowFor(HeaderToolbarVersion version) => switch (version)
       HeaderToolbarVersion.tiles => tilesRow,
       HeaderToolbarVersion.command => commandRow,
       HeaderToolbarVersion.labelled => labelledRow,
+      HeaderToolbarVersion.groupedCommand => groupedCommandRow,
     };
 
 // ---- the note's tools as acts ------------------------------------------------------------------------------------

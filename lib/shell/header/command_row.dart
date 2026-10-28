@@ -44,7 +44,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   ];
   return HeaderRow(
     lead: [if (start != null) outline(_Plain(act: start, fine: parts.fine))],
-    centre: outline(_Field(parts: parts, entries: entries)),
+    centre: outline(CommandField(parts: parts, entries: entries)),
     trail: [
       ?parts.presence,
       if (!parts.onNote) ...fallbackTools(parts),
@@ -59,8 +59,8 @@ const Map<String, String> _hues = {'home': 'blue', 'sidebar': 'indigo', 'back': 
 String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
 
 /// The pill in the middle: a search glyph, the note's name (or what the palette is for), and ⌘K under a mouse.
-class _Field extends StatelessWidget {
-  const _Field({required this.parts, required this.entries});
+class CommandField extends StatelessWidget {
+  const CommandField({super.key, required this.parts, required this.entries});
   final HeaderParts parts;
 
   /// The menu of •••, which the pill opens where there is no palette.

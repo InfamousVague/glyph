@@ -29,12 +29,12 @@ HeaderRow groupedRow(BuildContext context, HeaderParts parts) {
     lead: [
       if (way.isNotEmpty)
         solid(
-          _Pill(
+          GroupedPill(
             children: [
               for (final act in way) ...[
                 // A hairline between where you are and where you have been.
-                if (act.id == 'back' && way.any((each) => each.id == 'home' || each.id == 'sidebar')) const _Rule(),
-                _Segment(act: act, fine: parts.fine),
+                if (act.id == 'back' && way.any((each) => each.id == 'home' || each.id == 'sidebar')) const GroupedRule(),
+                GroupedSegment(act: act, fine: parts.fine),
               ],
             ],
           ),
@@ -43,8 +43,8 @@ HeaderRow groupedRow(BuildContext context, HeaderParts parts) {
     trail: [
       ?parts.presence,
       if (parts.onNote) solid(_NotePill(parts: parts)) else ...fallbackTools(parts),
-      if (parts.you.isNotEmpty) solid(_You(parts: parts)),
-      if (parts.aside case final aside?) solid(_Pill(children: [_Segment(act: aside, fine: parts.fine)])),
+      if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts)),
+      if (parts.aside case final aside?) solid(GroupedPill(children: [GroupedSegment(act: aside, fine: parts.fine)])),
     ],
   );
 }
@@ -66,12 +66,12 @@ class _NotePill extends StatelessWidget {
     final shown = parts.actions.take(parts.wide ? 3 : 2).toList();
     final rest = notShown(parts.actions, shown);
     final more = parts.more;
-    return _Pill(
+    return GroupedPill(
       children: [
-        if (parts.view case final view?) _Segment(act: view, fine: parts.fine),
-        for (final act in shown) _Segment(act: act, fine: parts.fine),
+        if (parts.view case final view?) GroupedSegment(act: view, fine: parts.fine),
+        for (final act in shown) GroupedSegment(act: act, fine: parts.fine),
         if (rest.isEmpty && more != null)
-          _Segment(act: more, fine: parts.fine)
+          GroupedSegment(act: more, fine: parts.fine)
         else if (rest.isNotEmpty)
           HeaderMenuButton(
             act: moreAct(label: 'More for this note: the rest of its tools'),
@@ -81,7 +81,7 @@ class _NotePill extends StatelessWidget {
               for (final act in rest) HeaderMenuAct(act),
               if (more != null) ...[const HeaderMenuRule(), HeaderMenuAct(more)],
             ],
-            face: (context, state, open) => _SegmentFace(act: moreAct(), state: state, on: open),
+            face: (context, state, open) => GroupedSegmentFace(act: moreAct(), state: state, on: open),
           ),
       ],
     );
@@ -89,8 +89,8 @@ class _NotePill extends StatelessWidget {
 }
 
 /// The round button for you, with the bell's dot.
-class _You extends StatelessWidget {
-  const _You({required this.parts});
+class GroupedYou extends StatelessWidget {
+  const GroupedYou({super.key, required this.parts});
   final HeaderParts parts;
 
   @override
@@ -129,8 +129,8 @@ class _You extends StatelessWidget {
 }
 
 /// A pill of segments on the page's second paper, a ring high, with a hairline round it.
-class _Pill extends StatelessWidget {
-  const _Pill({required this.children});
+class GroupedPill extends StatelessWidget {
+  const GroupedPill({super.key, required this.children});
   final List<Widget> children;
 
   @override
@@ -151,8 +151,8 @@ class _Pill extends StatelessWidget {
 }
 
 /// The hairline between a pill's two halves.
-class _Rule extends StatelessWidget {
-  const _Rule();
+class GroupedRule extends StatelessWidget {
+  const GroupedRule({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -165,17 +165,17 @@ class _Rule extends StatelessWidget {
 }
 
 /// One segment of a pill: a round inside it.
-class _Segment extends StatelessWidget {
-  const _Segment({required this.act, required this.fine});
+class GroupedSegment extends StatelessWidget {
+  const GroupedSegment({super.key, required this.act, required this.fine});
   final HeaderAct act;
   final bool fine;
 
   @override
-  Widget build(BuildContext context) => HeaderPress(act: act, fine: fine, radius: 999, face: (context, state) => _SegmentFace(act: act, state: state, on: act.on));
+  Widget build(BuildContext context) => HeaderPress(act: act, fine: fine, radius: 999, face: (context, state) => GroupedSegmentFace(act: act, state: state, on: act.on));
 }
 
-class _SegmentFace extends StatelessWidget {
-  const _SegmentFace({required this.act, required this.state, required this.on});
+class GroupedSegmentFace extends StatelessWidget {
+  const GroupedSegmentFace({super.key, required this.act, required this.state, required this.on});
   final HeaderAct act;
   final PressState state;
   final bool on;

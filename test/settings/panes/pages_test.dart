@@ -323,10 +323,10 @@ void main() {
     });
 
     // Matt, 2026-10-28: "add a developer setting to switch between 5 versions" (lib/shell/header_toolbar.dart).
-    testWidgets('Header toolbar offers the five versions, today’s chosen, and a pick is this device’s and kept', (tester) async {
+    testWidgets('Header toolbar offers the six versions, today’s chosen, and a pick is this device’s and kept', (tester) async {
       addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
       await openPane(tester, 'developer', developer: true, size: const Size(390, 2600));
-      expect(rowLabels(tester, 'Header toolbar'), ['1. Today’s bar', '2. Grouped', '3. Vibrant tiles', '4. Command centre', '5. Labelled']);
+      expect(rowLabels(tester, 'Header toolbar'), ['1. Today’s bar', '2. Grouped', '3. Vibrant tiles', '4. Command centre', '5. Labelled', '6. Grouped command']);
       bool picked(String id) => tester.widget<Pick>(find.descendant(of: find.byKey(ValueKey('developer-header-$id')), matching: find.byType(Pick))).checked;
       expect(picked('today'), isTrue);
       expect(headerToolbarVersion, HeaderToolbarVersion.today);
@@ -334,6 +334,11 @@ void main() {
       expect(headerToolbarVersion, HeaderToolbarVersion.command);
       expect(picked('command'), isTrue);
       expect(picked('today'), isFalse);
+      // Matt, 2026-10-28: "Make a version that combines the command center and grouped sections".
+      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('developer-header-groupedCommand')), matching: find.byType(Pick)));
+      expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand);
+      expect(picked('groupedCommand'), isTrue);
+      expect(picked('command'), isFalse);
       await endSettings(tester);
     });
 
