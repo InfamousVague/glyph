@@ -67,7 +67,7 @@ void main() {
           me: 'matt',
         );
 
-    test('is the title, when and how long, the items, the decisions and both links, in mrkdwn', () {
+    test('is the title, when and how long, then the items, a brief summary and the public link, in mrkdwn (Matt, 2026-10-28)', () {
       final text = meetingMessage(post(
         actions: const [MeetingAction(text: 'First pass at the copy'), MeetingAction(text: 'Book the venue', assignee: '@dana', due: '2026-10-31'), MeetingAction(text: 'the press list', assignee: 'Sam')],
         decisions: const ['No paid ads until the beta closes.'],
@@ -78,27 +78,27 @@ void main() {
       expect(lines[0], '*Launch &lt;sync&gt; &amp; co*');
       expect(lines[1], matches(RegExp(r'^<!date\^1792591200\^\{date_short_pretty\} at \{time\}\|[^>]+> · 45 min · HelloTrade$')));
       expect(lines.sublist(2), [
-        '_A call about the *launch*._',
         '',
         '*Action items*',
         '• *@matt*: First pass at the copy',
-        '• *@dana*: Book the venue _(due ${lines[6].split('(due ').last.split(')').first})_',
+        '• *@dana*: Book the venue _(due ${lines[5].split('(due ').last.split(')').first})_',
         '• *Sam*: the press list',
         '',
-        '*Decisions*',
-        '• No paid ads until the beta closes.',
+        '*Summary*',
+        'A call about the *launch*.',
+        '• Decided: No paid ads until the beta closes.',
         '',
-        '<ghostmd://note/n-1|Open in Ghost.md> · <https://ghostmarkdown.com/read.html#abc.def|Read the notes and transcript>',
+        '<https://ghostmarkdown.com/read.html#abc.def|Read the notes and transcript>',
       ]);
       // The due day in the phone's words: "Sat, 31 Oct" here, "Sat, Oct 31" in the US.
-      expect(lines[6], matches(RegExp(r'^• \*@dana\*: Book the venue _\(due Sat, (?:31 Oct|Oct 31)\)_$')));
+      expect(lines[5], matches(RegExp(r'^• \*@dana\*: Book the venue _\(due Sat, (?:31 Oct|Oct 31)\)_$')));
     });
 
     test('says there are no action items, and carries the app’s link alone without a share', () {
       final text = meetingMessage(post());
-      expect(text, contains('\n\nNo action items.\n\n'));
+      expect(text, contains('\n\nNo action items.\n\n*Summary*\n'));
       expect(text, endsWith('<ghostmd://note/n-1|Open in Ghost.md>'));
-      expect(text, isNot(contains('Decisions')));
+      expect(text, isNot(contains('Decided')));
       expect(text, isNot(contains('read.html')));
     });
 
@@ -110,7 +110,7 @@ void main() {
       final shorter = meetingMessage(post(actions: [for (var i = 0; i < 30; i++) MeetingAction(text: 'Item $i')], decisions: [for (var i = 0; i < 6; i++) 'Decision $i']));
       expect('• '.allMatches(shorter).length, 25);
       expect(shorter, contains('_and 5 more in Ghost.md_'));
-      expect(shorter, isNot(contains('*Decisions*')));
+      expect(shorter, isNot(contains('Decided:')));
     });
 
     test('is made from the note: its title, the meeting’s start, its length, and its summary', () {
@@ -197,7 +197,8 @@ void main() {
       final text = slack.posts.single.text! as String;
       expect(text, startsWith('*Launch sync*\n'));
       expect(text, contains('• *Sam*: the press list by Friday.'));
-      expect(text, contains('<ghostmd://note/n1|Open in Ghost.md> · <https://ghostmarkdown.com/read.html#n1.key|Read the notes and transcript>'));
+      expect(text, endsWith('<https://ghostmarkdown.com/read.html#n1.key|Read the notes and transcript>'));
+      expect(text, isNot(contains('ghostmd://')), reason: 'the public link alone where there is one');
       expect(shared, ['n1']);
       expect(prefs.more[slackMeetingPostsKey], {'n1': {'at': 1000, 'posted': 1000}});
       expect(meetingPostTries(), isEmpty);

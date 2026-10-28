@@ -203,7 +203,7 @@ In Simple, Settings › Recording shows the Meetings card first, and the rest of
 
 ## Action items to Slack or Discord
 
-Once a meeting is written up, its action items can go to a chat channel by themselves: the to-dos with who they're for and when they're due, the decisions when there are only a few, and two links, one that opens the meeting in Ghost.md and a share link to its notes.
+Once a meeting is written up, its action items can go to a chat channel by themselves. In Slack the post is the action items first, with who they're for and when they're due, then a brief summary with the decisions when there are only a few, then the public link to the meeting's notes (a link that opens it in Ghost.md when there's no share link). In Discord it's the same items and decisions, with a link that opens the meeting in Ghost.md and a share link to its notes.
 
 1. Add the Slack or Discord plugin in the Market, and add a channel on its page. See [[Plugins, one by one]].
 2. On the plugin's page, under **Post to Slack** or **Post to Discord**, switch on **Post meetings to Slack** (or **Post meetings to Discord**).

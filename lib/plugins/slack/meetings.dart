@@ -8,11 +8,12 @@
 /// link); and it goes **automatically**, once the meeting is written up, to the channel chosen in Settings ›
 /// Meetings, with a switch to turn it off.
 ///
-/// What goes ([meetingMessage]): the meeting's title, when it began and how long it ran, the summary's one sentence,
-/// its action items as a list ([meetingActions]: the to-dos, `- [ ]`, with the `@person` and `📅` due date
+/// What goes ([meetingMessage]; its order since 2026-10-28: action items, a brief summary, the public link): the
+/// meeting's title, when it began and how long it ran, its action items as a list ([meetingActions]: the to-dos, `- [ ]`, with the `@person` and `📅` due date
 /// lib/core/task_fields.dart reads; and the "Name: what" points the summary gives another person's actions, where the
 /// name is someone who spoke), "No action items." where there are none, its decisions where there are a few
-/// ([meetingDecisions]), and the two links. Nothing else of the note: the transcript is behind the share link, and
+/// ([meetingDecisions]) beside the summary's one sentence, and the share link (the app's own link only without one).
+/// Nothing else of the note: the transcript is behind the share link, and
 /// only when "Include a share link" is on.
 ///
 /// The rules, each a test (test/plugins/slack/meetings_test.dart):
@@ -231,21 +232,24 @@ String _actionLine(MeetingAction action, String? me) {
   return '• ${who == null ? '' : '*${escapedMrkdwn(who)}*: '}$said$due';
 }
 
-/// The message a meeting posts, in Slack's mrkdwn, held under Slack's length:
+/// The message a meeting posts, in Slack's mrkdwn, held under Slack's length. The action items first, then a brief
+/// summary, then the public link to the note (Matt, 2026-10-28: "configure the slack bot to post the action items a
+/// brief summary then the public link to the note"): the share link, which anyone in the channel can open, and the
+/// app's own `ghostmd://` link only where there is no share to give.
 ///
 /// ```
 /// *Launch sync*
 /// <!date^…|Tue, Oct 21, 2:00 PM> · 45 min · HelloTrade
-/// _A call that fixed the launch date and who does what next._
 ///
 /// *Action items*
 /// • *@matt*: First pass at the site copy by Friday
 /// • *Sam*: the press list
 ///
-/// *Decisions*
-/// • No paid ads until the beta closes.
+/// *Summary*
+/// A call that fixed the launch date and who does what next.
+/// • Decided: no paid ads until the beta closes.
 ///
-/// <ghostmd://note/…|Open in Ghost.md> · <https://ghostmarkdown.com/read.html#…|Read the notes and transcript>
+/// <https://ghostmarkdown.com/read.html#…|Read the notes and transcript>
 /// ```
 String meetingMessage(MeetingPost post) {
   final out = <String>['*${escapedMrkdwn(post.title.trim().isEmpty ? 'Untitled meeting' : post.title.trim())}*'];
@@ -255,7 +259,6 @@ String meetingMessage(MeetingPost post) {
     if (post.team case final team? when team.trim().isNotEmpty) escapedMrkdwn(team.trim()),
   ];
   if (facts.isNotEmpty) out.add(facts.join(' · '));
-  if (post.gist case final gist? when gist.trim().isNotEmpty) out.add('_${inlineMrkdwn(gist.trim()).replaceAll('_', '')}_');
   out.add('');
   if (post.actions.isEmpty) {
     out.add('No action items.');
@@ -267,22 +270,27 @@ String meetingMessage(MeetingPost post) {
     final more = post.actions.length - meetingActionsMost;
     if (more > 0) out.add('_and $more more in Ghost.md_');
   }
+  // The brief summary: the summary's one sentence, and what was decided where that is short.
+  final gist = post.gist?.trim() ?? '';
   final decisions = post.decisions;
-  if (decisions.isNotEmpty && decisions.length <= meetingDecisionsMost && decisions.fold<int>(0, (n, d) => n + d.length) <= _decisionsChars) {
+  final decided = decisions.isNotEmpty && decisions.length <= meetingDecisionsMost && decisions.fold<int>(0, (n, d) => n + d.length) <= _decisionsChars;
+  if (gist.isNotEmpty || decided) {
     out
       ..add('')
-      ..add('*Decisions*');
-    for (final decision in decisions) {
-      out.add('• ${inlineMrkdwn(decision)}');
+      ..add('*Summary*');
+    if (gist.isNotEmpty) out.add(inlineMrkdwn(gist));
+    if (decided) {
+      for (final decision in decisions) {
+        out.add('• Decided: ${inlineMrkdwn(decision)}');
+      }
     }
   }
-  final links = [
-    '<${slackLinkUrl('ghostmd://note/${post.noteId}')}|Open in Ghost.md>',
-    if (post.shareLink case final link? when link.isNotEmpty) '<${slackLinkUrl(link)}|Read the notes and transcript>',
-  ];
+  final share = post.shareLink;
   out
     ..add('')
-    ..add(links.join(' · '));
+    ..add(share != null && share.isNotEmpty
+        ? '<${slackLinkUrl(share)}|Read the notes and transcript>'
+        : '<${slackLinkUrl('ghostmd://note/${post.noteId}')}|Open in Ghost.md>');
   return fittedMrkdwn(out.join('\n'));
 }
 
