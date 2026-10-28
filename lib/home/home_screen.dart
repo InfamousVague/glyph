@@ -71,6 +71,7 @@ import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
 import '../shell/header_pane.dart';
+import '../shell/header_toolbar.dart';
 import '../shell/page_dock.dart';
 import '../tapes/player.dart' show TapePlayer;
 import '../tapes/previews.dart' show TapePreviews;
@@ -485,6 +486,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     widget.workspaces.addListener(_redraw);
     windowEndCover.addListener(_redraw);
+    // Grouped command's title pill is the search, so the page's field goes while it draws the bar.
+    headerToolbarChoice.addListener(_redraw);
     if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
   }
 
@@ -501,6 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     widget.workspaces.removeListener(_redraw);
     windowEndCover.removeListener(_redraw);
+    headerToolbarChoice.removeListener(_redraw);
     _runner
       ?..removeListener(_gistsSpoke)
       ..dispose();
@@ -666,7 +670,9 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.simple ? 65536 : 0) |
           (widget.onNewFolder != null ? 131072 : 0) |
           (widget.onNewNote != null ? 262144 : 0) |
-          (widget.onAllTapes != null ? 524288 : 0),
+          (widget.onAllTapes != null ? 524288 : 0) |
+          // The header toolbar's Grouped command takes the search field off a page already drawn.
+          (headerToolbarVersion == HeaderToolbarVersion.groupedCommand ? 1048576 : 0),
       meetings: widget.meetings,
       // Cards or icons where a workspace is chosen: its own choice, or the nearest one above it. Not in simple mode.
       view: workspace == null || widget.simple ? BrowseView.cards : browseViewAt(spaces.list, workspace, widget.stored),
@@ -979,6 +985,10 @@ class _HomeScreenState extends State<HomeScreen> {
           onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
           onSaveSearch: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
           simple: widget.simple,
+          // No field of the page's own while the header toolbar's Grouped command draws the bar: its title pill opens
+          // the palette, which finds notes by name (Matt, 2026-10-28: "remove the search bar from the home page since
+          // it's redundant"). Simple mode has no bar, so it keeps its field.
+          searchField: widget.simple || headerToolbarVersion != HeaderToolbarVersion.groupedCommand,
         ),
       // The folders inside the chosen workspace, where it is, and cards or icons for it (GHST-107): not while
       // searching, and not in simple mode. In icons the folders are the first tiles, and the strip is the line above

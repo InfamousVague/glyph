@@ -1,12 +1,15 @@
 /// Version 5 of the header toolbar, **Labelled** (lib/shell/header_toolbar.dart): only what the screen in front of
 /// you is for, and on a wide window each with its word beside its glyph, so nothing has to be guessed from a shape.
 ///
-/// - **On a note**: the sidebar's toggle and Back at the start; at the end the view (its word, Formatted or Markdown,
-///   on a wide window), Share (or the note's first action where it has no Share), and More, whose menu has the rest
-///   of the note's, More for this note, and the way around (Home, Forward, the side panel, a new note).
-/// - **At home**: the sidebar's toggle; Search (the command palette), New, and Browse (every note), then More with
-///   Home, Back, Forward and the side panel.
-/// - **Anywhere else**: the sidebar's toggle and Back, whatever the screen handed the bar, and More.
+/// - **On a note**: Home, the sidebar's toggle and Back at the start; at the end the view (its word, Formatted or
+///   Markdown, on a wide window), Share (or the note's first action where it has no Share), and More, whose menu has
+///   the rest of the note's, More for this note, and the way around (Forward, the side panel, a new note).
+/// - **At home**: Home and the sidebar's toggle; Search (the command palette), New, and Browse (every note), then More
+///   with Back, Forward and the side panel.
+/// - **Anywhere else**: Home, the sidebar's toggle and Back, whatever the screen handed the bar, and More.
+///
+/// Home is at the start on every screen and at every width (Matt, 2026-10-28: "Also always show the home button on
+/// the top bar").
 ///
 /// The app's own - the bell, the organizations, Settings - are behind the round button for you at the row's end, and
 /// the bell is a dot on it while something is new. (What was asked had them move to the sidebar and the dock;
@@ -33,17 +36,18 @@ HeaderRow labelledRow(BuildContext context, HeaderParts parts) {
   final List<HeaderAct> others;
   if (parts.onNote) {
     final second = parts.actions.where((act) => act.id == 'share').firstOrNull ?? parts.actions.firstOrNull;
-    lead = [?parts.sidebar, ?parts.back];
+    // Home first at every width, on every screen (Matt, 2026-10-28: "Also always show the home button on the top bar").
+    lead = [?parts.home, ?parts.sidebar, ?parts.back];
     shown = [?parts.view, ?second];
-    others = [...notShown(parts.actions, [?second]), ?parts.more, ?parts.home, ?parts.forward, ?parts.aside, ?parts.newNote];
+    others = [...notShown(parts.actions, [?second]), ?parts.more, ?parts.forward, ?parts.aside, ?parts.newNote];
   } else if (parts.atHome) {
-    lead = [?parts.sidebar];
+    lead = [?parts.home, ?parts.sidebar];
     shown = [?parts.search, ?parts.newNote, ?parts.allNotes];
-    others = [?parts.home, ?parts.back, ?parts.forward, ?parts.aside];
+    others = [?parts.back, ?parts.forward, ?parts.aside];
   } else {
-    lead = [?parts.sidebar, ?parts.back];
+    lead = [?parts.home, ?parts.sidebar, ?parts.back];
     shown = const [];
-    others = [?parts.home, ?parts.forward, ?parts.aside, ?parts.search, ?parts.newNote, ?parts.allNotes];
+    others = [?parts.forward, ?parts.aside, ?parts.search, ?parts.newNote, ?parts.allNotes];
   }
   final ink = context.tokens.color('glacier-text');
   Widget glyph(HeaderAct act) => HeaderGlyph(act, size: 16, color: ink);

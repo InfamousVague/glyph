@@ -1,5 +1,6 @@
 /// Version 4 of the header toolbar, **Command centre** (lib/shell/header_toolbar.dart): a bar that is mostly a
-/// place to type. At the start, Back (the sidebar's toggle at home, where there is nowhere back to go); in the
+/// place to type. At the start, Home and Back (the sidebar's toggle at home, where there is nowhere back to go;
+/// Home always, Matt, 2026-10-28: "Also always show the home button on the top bar"); in the
 /// middle a pill with the note's name and a search glyph, which opens the command palette, where every command the
 /// app has is a word away (lib/commands/command_bar.dart; ⌘K said on it under a mouse); at the end one primary
 /// action - the view switch on a note, a new note at home - and •••.
@@ -34,7 +35,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   ];
   final goRows = <HeaderMenuEntry>[
     // A new note and every note at home; on a note they are the tabs' + and the sidebar's, and the menu is long enough.
-    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ...[?parts.newNote, ?parts.allNotes]], [?start, ?primary])) HeaderMenuAct(act, icon: colour(act)),
+    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ...[?parts.newNote, ?parts.allNotes]], [?parts.home, ?start, ?primary])) HeaderMenuAct(act, icon: colour(act)),
   ];
   final youRows = youEntries(parts, icon: colour);
   final entries = <HeaderMenuEntry>[
@@ -43,7 +44,11 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
     if (youRows.isNotEmpty) ...[if (noteRows.isNotEmpty || goRows.isNotEmpty) const HeaderMenuRule(), const HeaderMenuLabel('You'), ...youRows],
   ];
   return HeaderRow(
-    lead: [if (start != null) outline(_Plain(act: start, fine: parts.fine))],
+    lead: [
+      // Home is always in the row, whatever the width (Matt, 2026-10-28: "Also always show the home button on the top bar").
+      if (parts.home case final home?) outline(_Plain(act: home, fine: parts.fine)),
+      if (start != null) outline(_Plain(act: start, fine: parts.fine)),
+    ],
     centre: outline(CommandField(parts: parts, entries: entries)),
     trail: [
       ?parts.presence,
@@ -60,8 +65,11 @@ String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
 
 /// The pill in the middle: a search glyph, the note's name (or what the palette is for), and ⌘K under a mouse.
 class CommandField extends StatelessWidget {
-  const CommandField({super.key, required this.parts, required this.entries});
+  const CommandField({super.key, required this.parts, required this.entries, this.large = false});
   final HeaderParts parts;
+
+  /// A size up: the title's words in the page's own size, the glyph with them (Grouped command's).
+  final bool large;
 
   /// The menu of •••, which the pill opens where there is no palette.
   final List<HeaderMenuEntry> entries;
@@ -71,7 +79,8 @@ class CommandField extends StatelessWidget {
     final t = context.tokens;
     final search = parts.search;
     final title = parts.title;
-    final words = title == null || title.isEmpty ? 'Search or run a command' : title;
+    // A size up on a narrow window leaves the long words no room: the one word there.
+    final words = title == null || title.isEmpty ? (large && !parts.wide ? 'Search' : 'Search or run a command') : title;
     final act = search ?? HeaderAct(id: 'search', label: 'Everything else', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: () {});
     final named = HeaderAct(id: act.id, label: title == null || title.isEmpty ? act.label : '${act.label}: $title', word: act.word, hue: act.hue, icon: act.icon, onPress: act.onPress);
     Widget face(BuildContext context, PressState state, bool open) {
@@ -88,10 +97,10 @@ class CommandField extends StatelessWidget {
               child: Row(
                 spacing: t.space(2),
                 children: [
-                  HeaderGlyph(act, size: 15, color: muted, strokeWidth: 1.9, wash: false),
+                  HeaderGlyph(act, size: large ? 17 : 15, color: muted, strokeWidth: 1.9, wash: false),
                   Expanded(
                     child: ExcludeSemantics(
-                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
+                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text(large ? 'md' : 'sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
                     ),
                   ),
                   if (parts.fine && search != null)
@@ -105,10 +114,10 @@ class CommandField extends StatelessWidget {
                           spacing: 2,
                           children: [
                             if (defaultTargetPlatform == TargetPlatform.macOS)
-                              CustomPaint(size: Size.square(t.fontSize('xs') * 0.85), painter: _CommandKey(muted))
+                              CustomPaint(size: Size.square(t.fontSize(large ? 'sm' : 'xs') * 0.85), painter: _CommandKey(muted))
                             else
-                              Text('Ctrl', style: t.text('xs', weight: 'medium', color: muted)),
-                            Text('K', style: t.text('xs', weight: 'medium', color: muted)),
+                              Text('Ctrl', style: t.text(large ? 'sm' : 'xs', weight: 'medium', color: muted)),
+                            Text('K', style: t.text(large ? 'sm' : 'xs', weight: 'medium', color: muted)),
                           ],
                         ),
                       ),

@@ -47,6 +47,7 @@ class HomeFilters extends StatefulWidget {
     this.onSearching,
     this.onSaveSearch,
     this.simple = false,
+    this.searchField = true,
   });
 
   final String query;
@@ -80,6 +81,11 @@ class HomeFilters extends StatefulWidget {
   /// offers no operator chips and no Save as a smart notebook. Plain words still search as they always have, and an
   /// operator typed by hand is still read and still said back as a chip.
   final bool simple;
+
+  /// Whether the search field is drawn. Not while the header toolbar's Grouped command draws the bar, whose title pill
+  /// is the search (lib/shell/header/grouped_command_row.dart; Matt, 2026-10-28: "remove the search bar from the home
+  /// page since it's redundant"): the filters' button alone then, at the row's end, where it always stood.
+  final bool searchField;
 
   @override
   State<HomeFilters> createState() => HomeFiltersState();
@@ -186,8 +192,11 @@ class HomeFiltersState extends State<HomeFilters> {
 
     final row = Row(
       children: [
-        Expanded(child: _SearchField(controller: _controller, focusNode: _field, onQuery: widget.onQuery)),
-        SizedBox(width: t.space(2)),
+        if (widget.searchField) ...[
+          Expanded(child: _SearchField(controller: _controller, focusNode: _field, onQuery: widget.onQuery)),
+          SizedBox(width: t.space(2)),
+        ] else
+          const Spacer(),
         GlacierPopover(
           open: _open,
           onOpenChange: _openPanel,

@@ -19,6 +19,7 @@ import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/notes/swipe_row.dart';
 import 'package:ghost_md/shell/header_pane.dart';
+import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:glacier/glacier.dart';
 
 import '../ai/fake_backend.dart';
@@ -1122,6 +1123,32 @@ void main() {
       expect(position.pixels, 0);
       await away(tester);
     });
+  });
+
+  // Matt, 2026-10-28: "remove the search bar from the home page since it's redundant", with the header toolbar's
+  // Grouped command, whose title pill is the search (lib/shell/header/grouped_command_row.dart).
+  testWidgets('the page’s search field goes while Grouped command draws the bar, the filters stay, and the other versions keep it', (tester) async {
+    final handle = tester.ensureSemantics();
+    addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
+    final it = seeded();
+    await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+    await settle(tester);
+    for (final version in HeaderToolbarVersion.values) {
+      headerToolbarChoice.set(version.id);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final grouped = version == HeaderToolbarVersion.groupedCommand;
+      expect(find.bySemanticsLabel('Search notebooks and notes'), grouped ? findsNothing : findsWidgets, reason: version.label);
+      expect(find.bySemanticsLabel('Filters'), findsOneWidget, reason: version.label);
+    }
+    // The filters still open from where they stand, with the search gone.
+    headerToolbarChoice.set(HeaderToolbarVersion.groupedCommand.id);
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Filters'));
+    await settle(tester);
+    expect(radio('All, 20'), findsOneWidget);
+    handle.dispose();
+    await away(tester);
   });
 
   group('what a screen reader is told', () {

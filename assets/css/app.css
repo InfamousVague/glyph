@@ -354,6 +354,16 @@ body {
  * line tall there whatever is open. The bar and the screen's header pane paint no glass under them - the capsules
  * carry their own, and the page scrolls under them.
  */
+/*
+ * The header toolbar's sixth version, Grouped command (lib/shell/header/grouped_command_row.dart), a size larger on
+ * every device (Matt, 2026-10-28: "on mobile and desktop with the new grouped command pallette hybrid make the
+ * elements a size larger"): its rings 32-40px where the rest are 28-34px, and the bar taller with them, since the bar's
+ * heights are built from the ring. Stamped by the shell (`data-header`) only while that version draws the bar.
+ */
+:root[data-header='large'] {
+  --app-bar-ring: calc(var(--glacier-space-10) * 0.8);
+}
+
 :root[data-topbar='islands'] {
   --app-bar-extra: 8px;
 }

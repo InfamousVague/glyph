@@ -86,8 +86,11 @@ class _NotePill extends StatelessWidget {
 
 /// The round button for you, with the bell's dot.
 class GroupedYou extends StatelessWidget {
-  const GroupedYou({super.key, required this.parts});
+  const GroupedYou({super.key, required this.parts, this.glyph = 17});
   final HeaderParts parts;
+
+  /// The glyph's size: Grouped command's is a size up.
+  final double glyph;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +116,7 @@ class GroupedYou extends StatelessWidget {
               color: lit ? t.color('app-paper-2') : null,
               border: Border.all(color: lit ? ink : t.color('glacier-border-subtle'), width: 1.5),
             ),
-            child: Center(child: HeaderGlyph(act, size: 17, color: lit ? ink : t.color('glacier-text-muted'))),
+            child: Center(child: HeaderGlyph(act, size: glyph, color: lit ? ink : t.color('glacier-text-muted'))),
           ),
           rim: t.color('glacier-bg'),
           ink: ink,
@@ -149,9 +152,10 @@ class GroupedPill extends StatelessWidget {
 /// The way around as two pills, the bar's gap between them: where you are (Home, the sidebar) and where you have
 /// been (Back, Forward). A half with nothing in it is not drawn; a half with one button is that button's circle.
 class GroupedWay extends StatelessWidget {
-  const GroupedWay({super.key, required this.way, required this.fine});
+  const GroupedWay({super.key, required this.way, required this.fine, this.glyph = 16});
   final List<HeaderAct> way;
   final bool fine;
+  final double glyph;
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +166,7 @@ class GroupedWay extends StatelessWidget {
       spacing: context.tokens.space(2),
       children: [
         for (final half in [here, been])
-          if (half.isNotEmpty) GroupedPill(children: [for (final act in half) GroupedSegment(act: act, fine: fine)]),
+          if (half.isNotEmpty) GroupedPill(children: [for (final act in half) GroupedSegment(act: act, fine: fine, glyph: glyph)]),
       ],
     );
   }
@@ -170,19 +174,23 @@ class GroupedWay extends StatelessWidget {
 
 /// One segment of a pill: a circle inside it, as wide as it is tall.
 class GroupedSegment extends StatelessWidget {
-  const GroupedSegment({super.key, required this.act, required this.fine});
+  const GroupedSegment({super.key, required this.act, required this.fine, this.glyph = 16});
   final HeaderAct act;
   final bool fine;
 
+  /// The glyph's size: Grouped command's is a size up.
+  final double glyph;
+
   @override
-  Widget build(BuildContext context) => HeaderPress(act: act, fine: fine, radius: 999, face: (context, state) => GroupedSegmentFace(act: act, state: state, on: act.on));
+  Widget build(BuildContext context) => HeaderPress(act: act, fine: fine, radius: 999, face: (context, state) => GroupedSegmentFace(act: act, state: state, on: act.on, glyph: glyph));
 }
 
 class GroupedSegmentFace extends StatelessWidget {
-  const GroupedSegmentFace({super.key, required this.act, required this.state, required this.on});
+  const GroupedSegmentFace({super.key, required this.act, required this.state, required this.on, this.glyph = 16});
   final HeaderAct act;
   final PressState state;
   final bool on;
+  final double glyph;
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +205,7 @@ class GroupedSegmentFace extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(color: on ? ink : (lit ? paper : null), shape: BoxShape.circle),
-        child: Center(child: HeaderGlyph(act, size: 16, color: color, strokeWidth: 2)),
+        child: Center(child: HeaderGlyph(act, size: glyph, color: color, strokeWidth: 2)),
       ),
       rim: t.color('app-paper-2'),
       ink: ink,

@@ -10,9 +10,14 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart' show Preferences;
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/note/note_tools.dart';
+import 'package:ghost_md/notes/tabs/bar_icon.dart' show BarGlyph;
+import 'package:ghost_md/notes/tabs/bar_parts.dart' show BarRing, BarWord;
+import 'package:ghost_md/notes/tabs/tab_parts.dart' show HomeTab;
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/app_tab_bar.dart' show AppTabBar;
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/shell/placeholders.dart';
+import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 import 'package:ghost_md/shell/top_bar.dart';
 import 'package:ghost_md/shell/top_bar_tools.dart';
 
@@ -158,6 +163,15 @@ void main() {
             for (final note in [true, false]) {
               await pumpShell(tester, version: version, window: window, style: style, note: note);
               expect(tester.takeException(), isNull);
+              // Home is always in the bar itself, never in a menu (Matt, 2026-10-28: "Also always show the home button
+              // on the top bar"): today's ring, the Masthead's word or the Ledger's pinned tab; a version's own button.
+              final home = version == HeaderToolbarVersion.today
+                  ? find.byWidgetPredicate((widget) => (widget is BarRing && widget.glyph == BarGlyph.house) || (widget is BarWord && widget.word == 'Home') || widget is HomeTab)
+                  : find.byKey(HeaderAct.keyOf('home'));
+              expect(home, findsOneWidget, reason: 'Home on ${note ? 'a note' : 'home'}');
+              final at = tester.getRect(home);
+              expect(at.left >= -0.5 && at.right <= window.size.width + 0.5 && at.top >= 0, isTrue, reason: 'Home at $at');
+              expect(find.byType(PopMenu), findsNothing, reason: 'no menu open: Home is in the row');
               for (final element in headerKeys().evaluate()) {
                 final box = element.renderObject;
                 if (box is! RenderBox || !box.hasSize || !box.attached) continue;
@@ -251,8 +265,9 @@ void main() {
         final row = drawn(tester);
         expect(row.containsAll({'sidebar', 'back', 'search', 'view', 'overflow'}), isTrue, reason: '$row');
         if (!wide) {
-          // Narrow: the sidebar and Back, the view and •••; Home, Forward and every action one press away.
-          expect(row.intersection({'home', 'forward', 'share', 'history'}), isEmpty, reason: '$row');
+          // Narrow: Home and the sidebar, then Back; the view and •••; Forward and every action one press away.
+          expect(row, contains('home'));
+          expect(row.intersection({'forward', 'share', 'history'}), isEmpty, reason: '$row');
         }
         final reached = await reachable(tester);
         expect(reached.containsAll({...way, ...noteTools}), isTrue, reason: 'missing ${{...way, ...noteTools}.difference(reached)}');
@@ -298,6 +313,33 @@ void main() {
         }
       });
     }
+  }
+
+  // Matt, 2026-10-28: "on mobile and desktop with the new grouped command pallette hybrid make the elements a size
+  // larger".
+  for (final window in windows) {
+    barTest('6 Grouped command is a size larger than 2 Grouped, its bar with it, ${window.name}', (tester) async {
+      Future<({Rect home, Rect view, Rect bar, double text})> measure(HeaderToolbarVersion version) async {
+        await pumpShell(tester, version: version, window: window);
+        // The title pill's words, where the version has one; a tab's otherwise, which no version changes.
+        final words = find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.byType(RichText));
+        return (
+          home: tester.getRect(find.byKey(HeaderAct.keyOf('home'))),
+          view: tester.getRect(find.byKey(HeaderAct.keyOf('view'))),
+          bar: tester.getRect(find.byType(AppTabBar)),
+          text: words.evaluate().isEmpty ? 0.0 : (tester.widget<RichText>(words.first).text.style?.fontSize ?? 0),
+        );
+      }
+
+      final grouped = await measure(HeaderToolbarVersion.grouped);
+      final larger = await measure(HeaderToolbarVersion.groupedCommand);
+      expect(larger.home.height, greaterThan(grouped.home.height + 3));
+      expect(larger.view.width, greaterThan(grouped.view.width + 3));
+      expect(larger.bar.height, greaterThan(grouped.bar.height));
+      // Its title pill's words a size up from Command centre's.
+      final command = await measure(HeaderToolbarVersion.command);
+      expect(larger.text, greaterThan(command.text));
+    });
   }
 
   barTest('Developer’s choice switches the bar at once, nothing restarted', (tester) async {

@@ -369,6 +369,12 @@ class AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _sync();
+    // The bar's version decides its height too (`data-header`), so the whole shell hears a change of it.
+    headerToolbarChoice.addListener(_versionChanged);
+  }
+
+  void _versionChanged() {
+    if (mounted && widget.headerToolbar == null) setState(() {});
   }
 
   @override
@@ -392,6 +398,7 @@ class AppShellState extends State<AppShell> {
   void dispose() {
     // No shell, no stamps of its own on the root: once the tree has settled.
     Future<void>.microtask(() => shellStamps.value = const <String, String?>{});
+    headerToolbarChoice.removeListener(_versionChanged);
     _tabs.dispose();
     _walk.dispose();
     _barTools.dispose();
@@ -723,6 +730,9 @@ class AppShellState extends State<AppShell> {
       'split': sidebar ? 'on' : null,
       // The bar's style, for its heights and grounds; Classic stamps nothing.
       'topbar': topBar == TopBarStyle.classic ? null : topBar.id,
+      // Grouped command is a size larger, the bar with it (app.css `[data-header='large']`; Matt, 2026-10-28: "make the
+      // elements a size larger"); only where there is a bar for it to draw.
+      'header': tabBar && (widget.headerToolbar ?? headerToolbarVersion) == HeaderToolbarVersion.groupedCommand ? 'large' : null,
     };
 
     // The page's root is told too: what is drawn outside the shell reads the same attributes (root_stamps.dart).
