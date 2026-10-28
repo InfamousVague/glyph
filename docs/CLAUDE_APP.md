@@ -92,6 +92,22 @@ memory only. What is asked, and the notes Claude reads to answer, go from the de
 nowhere else; Anthropic bills the key. So do meetings' transcripts, while Claude writes meetings up (Meetings,
 below).
 
+**Its setup** (lib/plugins/claude/claude_setup.dart, on the plugins' setup flow in lib/plugins/onboarding/; Matt,
+2026-10-28: "For each of the plugins add a small onboarding flow start with the lovart and Claude plugins walk the user
+through setting up an account and getting their keys and have the onboarding test setup to make sure it was
+successful"). Six steps in a sheet: what it is; an account, Open the Console (`https://console.anthropic.com/`) and
+Billing (`…/settings/billing`); a key, Open API keys (`…/settings/keys`) then Create Key; the key pasted, its shape
+checked (`sk-ant-`, no spaces, not cut short) and kept through `ClaudeSettings.setKey`, the page's own store and so the
+sealed sync's; the check, `ClaudeApi.check` (`GET /v1/models?limit=1`, not billed); and the two settings that matter,
+Write meeting summaries with Claude and the model. The check's words: 401 "That key isn’t right." (the key let go of,
+as the page keeps no refused key); 403 or `permission_error`, a key not allowed the API; 402, 429, `billing_error` or a
+400 that speaks of credit, "The key works but the account has no credit yet; add some under Billing." (kept, with Open
+Billing); no answer, the connection. The addresses are console.anthropic.com's, as the page names them; each answers a
+301 to the same path on platform.claude.com (read 2026-10-28). Honest limit: the models list is not billed, so a key on
+an account with no credit can pass it, and the first request then says so in Anthropic's words. Offered as Claude is
+added in the Market without a key, and from Set up under the page's head (Run setup again once a key is kept). Words
+in lib/plugins/onboarding/setup_voice.dart; test/plugins/claude/setup_test.dart.
+
 ## Spending limit
 
 Matt, 2026-10-20: "Also enable setting spending limits in claude settings in the app". Settings › Plugins › Claude,

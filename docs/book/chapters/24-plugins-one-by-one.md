@@ -4,6 +4,18 @@ Ghost.md ships with sixteen plugins. Each is built in: you add it in the Market,
 
 Plugins that use the internet are held off while **Local only** is on. Each section says whether that applies.
 
+## Setting a plugin up
+
+Some plugins need an account somewhere else and a key from it before they can do anything. Those have a short setup, a few steps in a sheet in the plugin's own colours: what it is and what it costs, a button to open the service's sign-up page in your browser, a button to open the page where its keys are made, the place to paste them, a check that they work, and a first thing to try. **Lovart** and **Claude** have one so far.
+
+- **It opens by itself** as soon as you add the plugin in the Market, if its keys aren't kept yet. Keys that already came from another of your devices don't ask again.
+- **Back** and **Next** step through it, and the dots along the top say how far you are. Each key field has **Paste**, which takes what you copied, and **Show**, to see what you pasted. A key that can't be right (a Claude key that doesn't start `sk-ant-`, a Lovart key with a space in it) is said at once, and nothing is kept.
+- **The check** runs as soon as its step shows. It says "Your Lovart keys work." or "Your key works. Claude is ready.", or in plain words what is wrong, with **Check again**, and **Paste again** where the keys were refused. Refused keys are not kept.
+- **Skip** puts it away. Closing it any other way (tapping outside it, the back gesture, leaving for the browser) keeps your place: it opens at the same step next time. What you typed is never kept anywhere but where the plugin keeps its keys.
+- **From the plugin's page.** While the keys are missing, **Settings ›** the plugin's page starts with a **Set up** card (**Carry on** if you were part of the way through). Once they are kept, it has **Run setup again**, which starts from the first step.
+
+In Simple mode the steps are the same with fewer words, and a step's extra points are left out.
+
 ## At a glance
 
 | Plugin | Category | On from the start | Works on | You bring |
@@ -35,7 +47,9 @@ Claude on your notes, both ways.
 
 **From Claude's own app** (claude.ai, Claude Desktop or Claude Code), Claude reaches your notes through Ghost.md's connector. Nothing about that half runs inside the app.
 
-To set it up, open **Settings › Claude**. Under **In the app**:
+**Its setup** walks you from an Anthropic account to a key that works: **Open the Console** (console.anthropic.com) to sign up, **Billing** to add credit, **Open API keys** to make one with **Create Key**, paste it, the check, then the two settings that matter, **Write meeting summaries with Claude** and the model. See [[#Setting a plugin up]].
+
+To set it up by hand, open **Settings › Claude**. Under **In the app**:
 
 - **Ask Claude**: paste your key (it starts `sk-ant-`) under **API key** and tap **Keep it**. It is checked before it is kept. Once kept, **Check** asks again, and **Forget the key** removes it.
 - **Model**: Sonnet 5.5, Opus 5.5 or Haiku 5.5. Each is billed to your key at its own price.
@@ -56,6 +70,8 @@ Works on: Android, iPhone and Mac. Held off by Local only. More in [[Claude in G
 Images from your notes, made by Lovart's design agent. Write `{image: a prompt}` where a picture should go, ask any note for a moodboard of four, give notes a header image in the ghost's dotwork, or let design meetings come back with inspiration.
 
 It is off until you add it, because it sends words to Lovart and spends your Lovart credits. You bring your own Lovart keys, kept in **Settings › Lovart**. Once it is added, **Header images for notes** is on until you switch it off.
+
+Adding it opens **its setup**: what Lovart is and that an image costs about 6 credits, **Open lovart.ai** to sign up, where the keys are made (your avatar menu › **AK/SK Management**), the two keys pasted, the check, and **Try it**: a cue to copy and the Header images switch. See [[#Setting a plugin up]].
 
 Works on: Android, iPhone and Mac. Held off by Local only. The whole story is in [[Lovart]].
 

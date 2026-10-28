@@ -8,6 +8,19 @@ Both are part of the **Claude** plugin, which is on unless you remove it in the 
 
 Works on: Android, iPhone and the Mac. Anthropic bills your key.
 
+**The quick way: its setup.** While no key is kept, **Settings › Claude** starts with a **Set up Claude** card; it also opens by itself when you add Claude in the Market. Six short steps, in Claude's coral:
+
+1. **Claude, with your own key**: what Claude does in Ghost.md, and that Anthropic bills your key.
+2. **Make an Anthropic account**: **Open the Console** (console.anthropic.com) to sign up or sign in. A new account has no credit: **Billing** opens the page to add some.
+3. **Make a key**: **Open API keys** (console.anthropic.com/settings/keys), tap **Create Key**, name it, and copy it at once: the Console shows it only once.
+4. **Paste your key**: it starts `sk-ant-`. A key that doesn't is said at once and not kept. **Check** keeps it.
+5. **Check it works**: one look at the list of models the key may use, which isn't billed. "Your key works. Claude is ready."; or "That key isn’t right." (and it is not kept; **Paste again**); a key that may not use the API; "The key works but the account has no credit yet; add some under Billing.", with **Open Billing**; or that Anthropic couldn't be reached.
+6. **Your settings**: **Write meeting summaries with Claude**, on by default, and the **Model**, Sonnet 5.5 unless you choose another.
+
+Listing the models isn't billed, so a key on an account with no credit may still pass the check; your first question then gets Anthropic's own word that the balance is too low. **Skip** puts the setup away; anything else keeps your place. Once a key is kept, the page has **Run setup again**. More in [[Plugins, one by one#Setting a plugin up]].
+
+**By hand:**
+
 1. Make an API key at console.anthropic.com.
 2. Open **Settings › Claude**, paste it under **API key** in the **Ask Claude** card, and tap **Keep it**. The app checks it with Anthropic before keeping it, so a mistyped key is said at once.
 3. Choose a **Model**: Sonnet 5.5 (the one to start with), Opus 5.5 (the most careful, slower and dearer) or Haiku 5.5 (the fastest and cheapest).

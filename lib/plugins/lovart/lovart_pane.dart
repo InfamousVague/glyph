@@ -2,6 +2,9 @@
 /// are kept (`POST /mode/query`, which changes nothing), Check and Forget once kept; and "Inspiration for design
 /// meetings". Shaped as the Claude plugin's key card (lib/plugins/claude/claude_in_app.dart): Forget asks twice.
 ///
+/// At its head, while the keys are missing, Set up (lovart_setup.dart, through lib/plugins/onboarding/setup_card.dart):
+/// the steps from an account to keys that work; once they are kept, Run setup again.
+///
 /// The keys are kept in the device's secure store (manifest.dart) and follow the account sealed
 /// (lib/sync/connections.dart); the page draws again when the plugin's storage or secrets change, so keys that arrive
 /// from another device show as soon as they are read.
@@ -18,12 +21,15 @@ import '../../settings/panes/pane_parts.dart' show armedFor;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
 import 'banner_run.dart' show BannerRun, bannerCandidates, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
 import 'banners.dart' show bannersOn, setBanners;
 import 'lovart_queue.dart';
+import 'lovart_setup.dart';
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 
 /// What Settings' search finds on the page.
@@ -67,6 +73,9 @@ class _LovartPaneState extends State<LovartPane> {
   String? _problem;
   String? _said;
   bool _armed = false;
+
+  /// The setup the head of the page opens (lovart_setup.dart).
+  late final PluginSetup _setup = lovartSetup();
 
   /// Make them's two choices, for the next run (Matt, 2026-10-26: "remove the header banner images on the docs as we
   /// will regenerate them"): the notes whose banner was taken off, and the black-and-white or square banners made again in
@@ -173,6 +182,7 @@ class _LovartPaneState extends State<LovartPane> {
     final ready = _access.text.trim().isNotEmpty && _secret.text.trim().isNotEmpty;
     return PaneBody(
       children: [
+        PluginSetupCard(setup: _setup),
         if (_problem != null) SettingsCallout(child: Text(_problem!)),
         if (_said != null) SettingsCallout(child: Text(_said!)),
         PaneSection(

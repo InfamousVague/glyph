@@ -21,7 +21,7 @@ import 'claude_guide.dart';
 import 'steps.dart';
 
 class ClaudePane extends StatefulWidget {
-  const ClaudePane({super.key, this.handle, this.inApp});
+  const ClaudePane({super.key, this.handle, this.inApp, this.setup});
 
   /// The handle this device is signed in with, for the footnote and the sign-in command; null when it is not.
   final String? handle;
@@ -29,6 +29,10 @@ class ClaudePane extends StatefulWidget {
   /// The app's own Claude's cards ([ClaudeInApp]), drawn first under "In the app"; null draws the connector's page
   /// alone.
   final Widget? inApp;
+
+  /// Set up, or Run setup again (lib/plugins/onboarding/setup_card.dart, claude_setup.dart), under the page's head;
+  /// none where null, as the web's page has none.
+  final Widget? setup;
 
   @override
   State<ClaudePane> createState() => _ClaudePaneState();
@@ -71,6 +75,7 @@ class _ClaudePaneState extends State<ClaudePane> {
             ),
           ],
         ),
+        ?widget.setup,
         if (inApp != null) ...[
           const ClaudePartHeading(title: 'In the app', words: 'Claude on every page’s dock and in the command bar, answering with your own Anthropic API key.'),
           inApp,

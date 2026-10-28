@@ -8,6 +8,19 @@ Works on: Android, iPhone and Mac. Held off while Local only is on.
 
 ## Setting it up
 
+**The quick way: its setup.** Add Lovart in the Market and its setup opens by itself, or tap **Set up** at the top of **Settings › Lovart**. Six short steps, in Lovart's purple:
+
+1. **Images by Lovart**: what it does, and that it uses your own Lovart credits, about 6 an image.
+2. **Make a Lovart account**: **Open lovart.ai** opens Lovart's site in your browser. Sign up there, or sign in.
+3. **Make your keys**: in Lovart, open your avatar menu, then **AK/SK Management**, and make a pair. **Open Lovart** takes you there; Lovart has no direct address for that page.
+4. **Paste your keys**: the access key and the secret key, each with **Paste** and **Show**. **Check** keeps them, in the same place as below.
+5. **Check they work**: Ghost.md asks Lovart, with a request that changes nothing and spends no credits. "Your Lovart keys work.", or Lovart's own words: "Lovart didn’t accept these keys. Copy both again from Lovart’s AK/SK Management." (and they are not kept; **Paste again**), Lovart's message about your plan or credits, or "Lovart couldn’t be reached. Check the connection and try again."
+6. **Try it**: a cue to copy, `{image: a lighthouse at dawn, in soft watercolour}`, and the **Header images for notes** switch, since that one spends credits on its own. Nothing is made during the setup.
+
+**Skip** puts it away; anything else keeps your place for next time. Once the keys are kept, the page has **Run setup again**. More in [[Plugins, one by one#Setting a plugin up]].
+
+**By hand:**
+
 1. **Make a key pair in Lovart.** On lovart.ai, open your avatar menu, then **AK/SK Management**, and make an access key and a secret key.
 2. **Add the plugin.** Open the Market, find **Lovart** under **AI**, and tap **Add to Ghost.md**. It is off until you add it.
 3. **Keep the keys.** Open **Settings › Lovart**. Under **Lovart keys**, paste the access key and the secret key, then tap **Keep them**. They are checked with Lovart first. You see "The keys work.", or "Lovart refused those keys. Copy both again from AK/SK Management in Lovart." If Lovart can't be reached just then, the keys are kept anyway and the page says they couldn't be checked; the first image tells you if they are wrong.

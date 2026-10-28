@@ -12,6 +12,11 @@
 ///   account from outside, through the sync service, and switching the plugin off does not disconnect it, which is
 ///   done in Claude, as the page says.
 ///
+/// - **Its setup** (claude_setup.dart; Matt, 2026-10-28: "For each of the plugins add a small onboarding flow start
+///   with the lovart and Claude plugins walk the user through setting up an account and getting their keys"): an
+///   Anthropic account, a key, a check that it works, and the two settings that matter; from Set up at the head of the
+///   page while there is no key ([ClaudePane.setup]), and as Claude is added in the Market.
+///
 /// It declares `notes` and `network` because that is what each half reaches: the app's Claude reads and writes the
 /// notes here and talks to `api.anthropic.com`, and the connector is given the account's notes through
 /// `ghostmarkdown.com` once a person signs it in. The key and its choices are kept by lib/claude/claude_settings.dart
@@ -28,10 +33,13 @@ import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'claude_in_app.dart';
 import 'claude_pane.dart';
+import 'claude_setup.dart';
+import '../onboarding/setup_card.dart';
 
 export 'claude_guide.dart' show ClaudeGuide, cssLine, wrapCode;
 export 'claude_in_app.dart' show ClaudeInApp, PhoneAssistantSeam, claudeInAppFindable, claudeSummary;
 export 'claude_pane.dart' show ClaudePane, ClaudePartHeading;
+export 'claude_setup.dart';
 export 'steps.dart';
 
 const PluginManifest claudeManifest = PluginManifest(
@@ -68,8 +76,9 @@ String? Function()? claudeHandle;
 final GlyphPlugin claudePlugin = GlyphPlugin(
   manifest: claudeManifest,
   icon: 'bot',
+  setup: claudeSetup,
   settings: PluginSettings(
-    pane: (context) => ClaudePane(handle: claudeHandle?.call(), inApp: const ClaudeInApp()),
+    pane: (context) => ClaudePane(handle: claudeHandle?.call(), inApp: const ClaudeInApp(), setup: PluginSetupCard(setup: claudeSetup())),
     summary: claudeSummary,
     hue: 'coral',
     // What Settings' search finds on the page (docs/DESIGN.md §138): its cards, by their titles, the app's first.

@@ -16,6 +16,9 @@
 ///   switch is on (on by default), and on the note's cog (banners.dart); and for the hundred most recent notes at
 ///   once, from its page, as a job of the app's own that goes on in the background (banner_run.dart).
 /// - Its page in Settings: the two keys, checked before they are kept, and the switch (lovart_pane.dart).
+/// - **Its setup** (lovart_setup.dart; Matt, 2026-10-28: "For each of the plugins add a small onboarding flow start
+///   with the lovart and Claude plugins"): an account, the keys, a check that they work, and a first thing to try,
+///   offered as Lovart is added in the Market and from Set up at the head of its page.
 ///
 /// A picture Lovart made carries Lovart's mark at its corner wherever it is drawn (lib/editor/media/lovart_badge.dart),
 /// by its name, plugin on or not.
@@ -36,6 +39,7 @@ import 'keep.dart';
 import 'making.dart';
 import 'lovart_mark.dart';
 import 'lovart_pane.dart';
+import 'lovart_setup.dart';
 import 'manifest.dart';
 import '../../sounds/sound_pack.dart' show SoundEvent;
 import '../../sounds/sounds.dart' show sounds;
@@ -49,6 +53,7 @@ export 'keep.dart';
 export 'lovart_hold.dart';
 export 'lovart_mark.dart';
 export 'lovart_pane.dart';
+export 'lovart_setup.dart';
 export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey, bannersKey, bannersDoneKey, bannerRunKey;
 export 'making.dart';
 export 'meetings.dart';
@@ -165,6 +170,7 @@ bool lovartCuesOn() => pluginOn(manifest);
 final GlyphPlugin lovartPlugin = GlyphPlugin(
   manifest: manifest,
   icon: 'palette',
+  setup: lovartSetup,
   settings: PluginSettings(
     pane: (context) => const LovartPane(),
     hue: 'purple',

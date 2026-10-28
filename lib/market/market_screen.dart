@@ -16,6 +16,12 @@
 /// shelves. A plugin's own page in Settings stays there (lib/settings/settings_sections.dart `pluginPageSections`);
 /// a plugin's page here has the way to it ([onPluginSettings]).
 ///
+/// **Setting one up** (Matt, 2026-10-28: "For each of the plugins add a small onboarding flow start with the lovart and
+/// Claude plugins walk the user through setting up an account and getting their keys"): a plugin added here, from its
+/// card, a featured card or its page, that has a setup ([GlyphPlugin.setup]) and still needs it (Lovart with no keys)
+/// opens that setup at once over the Market (lib/plugins/onboarding/setup_sheet.dart): its account, its keys, a check
+/// that they work. Skip puts it away; its page in Settings has Set up until the keys are kept.
+///
 /// On a phone the page is one column: the featured plugins, the themes and the fonts are rows that scroll sideways,
 /// the plugins a card each down the page, and a plugin's page takes the screen, its way back the bar's arrow and the
 /// back gesture. With room (a Fold open, a Mac), the cards stand two to four across, and a plugin's page opens beside
@@ -46,6 +52,8 @@ import '../art/art.dart';
 import '../core/back.dart';
 import '../core/preferences.dart';
 import '../plugins/catalogue.dart';
+import '../plugins/onboarding/setup_flow.dart' show PluginSetup;
+import '../plugins/onboarding/setup_sheet.dart';
 import '../plugins/reach.dart';
 import '../plugins/registry.dart';
 import '../plugins/types.dart';
@@ -66,7 +74,7 @@ import 'market_plugins.dart';
 const double marketWide = 720;
 
 class MarketScreen extends StatefulWidget {
-  const MarketScreen({super.key, required this.onBack, this.plugin, this.link, this.onPluginSettings, this.onLocalOnly, this.registry, this.prefs, this.dock, this.shelf});
+  const MarketScreen({super.key, required this.onBack, this.plugin, this.link, this.onPluginSettings, this.onLocalOnly, this.registry, this.prefs, this.dock, this.shelf, this.offerSetup = true});
 
   /// Home, from the bar's arrow.
   final VoidCallback onBack;
@@ -95,6 +103,10 @@ class MarketScreen extends StatefulWidget {
 
   /// The shelf it opens on; All when null.
   final MarketShelf? shelf;
+
+  /// Whether a plugin added here that still needs its keys opens its setup at once (lib/plugins/onboarding/; Matt,
+  /// 2026-10-28: "For each of the plugins add a small onboarding flow"). A test of the shelves alone turns it off.
+  final bool offerSetup;
 
   @override
   State<MarketScreen> createState() => _MarketScreenState();
@@ -126,6 +138,9 @@ class _MarketScreenState extends State<MarketScreen> {
 
   final ScrollController _scroll = ScrollController();
 
+  /// The setup open over the Market, for the plugin just added; null when none is.
+  PluginSetup? _setup;
+
   Registry get _registry => widget.registry ?? plugins;
   PreferencesStore get _prefs => widget.prefs ?? preferences;
 
@@ -139,6 +154,26 @@ class _MarketScreenState extends State<MarketScreen> {
         _open = id;
         _openPack = null;
       });
+
+  /// Adds the plugin [id], then offers its setup where it has one and it is still needed: Lovart with no keys yet.
+  void _add(String id) {
+    final registry = _registry;
+    registry.setEnabled(id, true);
+    final make = registry.byId(id)?.setup;
+    if (!widget.offerSetup || make == null || !registry.isEnabled(id)) return;
+    final setup = make();
+    final prepare = setup.prepare;
+    void offer() {
+      if (mounted && !setup.ready() && registry.isEnabled(id)) setState(() => _setup = setup);
+    }
+
+    if (prepare == null) {
+      offer();
+    } else {
+      // The keys are read first, so a plugin whose keys arrived from another device is not set up twice.
+      prepare().then((_) => offer(), onError: (Object _) => offer());
+    }
+  }
 
   void _openIcons(String id) => setState(() {
         _openPack = id;
@@ -234,6 +269,8 @@ class _MarketScreenState extends State<MarketScreen> {
               child: Stack(
                 children: [
                   Positioned.fill(child: dock == null ? body : PageDockFrame(seam: dock, child: body)),
+                  // Drawn over the app, wherever it is built (lib/sheet/sheet.dart): it takes no room here.
+                  if (_setup case final setup?) PluginSetupSheet(key: ValueKey('market-setup-${setup.id}'), setup: setup, prefs: _prefs, onClose: () => setState(() => _setup = null)),
                   HeaderPane(
                     child: Padding(
                       key: const ValueKey('market-bar'),
@@ -280,7 +317,7 @@ class _MarketScreenState extends State<MarketScreen> {
       added: registry.switchedOn(id),
       on: registry.isEnabled(id),
       held: held,
-      onSwitch: (on) => registry.setEnabled(id, on),
+      onSwitch: (on) => on ? _add(id) : registry.setEnabled(id, false),
       onSettings: settings == null || plugin.settings == null ? null : () => settings(id),
       onLocalOnly: widget.onLocalOnly,
       onClose: close ? _close : null,
@@ -537,7 +574,7 @@ class _MarketScreenState extends State<MarketScreen> {
   Widget _featured(GlyphPlugin plugin) {
     final id = plugin.manifest.id;
     final held = _prefs.value.localOnly && usesNetwork(plugin.manifest);
-    return FeaturedPluginCard(plugin: plugin, added: _registry.switchedOn(id), held: held, onAdd: held ? null : () => _registry.setEnabled(id, true), onOpen: () => _openPlugin(id));
+    return FeaturedPluginCard(plugin: plugin, added: _registry.switchedOn(id), held: held, onAdd: held ? null : () => _add(id), onOpen: () => _openPlugin(id));
   }
 
   /// The plugins: how many are added, Local only's word, the categories on their own shelf, then Added and Discover.
@@ -557,7 +594,7 @@ class _MarketScreenState extends State<MarketScreen> {
         held: held,
         wide: wide,
         selected: _open == id,
-        onAdd: held ? null : () => registry.setEnabled(id, true),
+        onAdd: held ? null : () => _add(id),
         onOpen: () => _openPlugin(id),
       );
     }

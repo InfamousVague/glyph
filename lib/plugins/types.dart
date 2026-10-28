@@ -30,6 +30,7 @@ import '../core/notifications.dart' show FeedNotification;
 import '../settings/settings_search.dart' show SettingsFindable;
 import 'mark_details.dart';
 import 'marks.dart';
+import 'onboarding/setup_flow.dart' show PluginSetup;
 
 export 'mark_details.dart';
 export 'marks.dart' show EffectLook, FormatLook, GlyphFormat, StyleLook, WispLook;
@@ -376,6 +377,7 @@ class GlyphPlugin {
     this.marks,
     this.formats = const [],
     this.newRows,
+    this.setup,
   });
 
   final PluginManifest manifest;
@@ -405,4 +407,10 @@ class GlyphPlugin {
 
   /// The bell's rows after each pass of the feed (lib/sync/arrived.dart). Told only while the plugin is on.
   final Future<void> Function(int before, List<FeedNotification> rows)? newRows;
+
+  /// Its setup, step by step: an account, its keys, a check that they work (lib/plugins/onboarding/setup_flow.dart;
+  /// Matt, 2026-10-28: "For each of the plugins add a small onboarding flow"). The Market offers it as soon as the
+  /// plugin is added while it still needs it, and its page in Settings has Set up, or Run setup again. Made when it is
+  /// asked for, so a test's ground or settings are the ones it reads.
+  final PluginSetup Function()? setup;
 }

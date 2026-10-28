@@ -85,6 +85,17 @@ refuses anything else, and an artifact URL elsewhere is skipped.
   and the meetings switch stay on each device.
 - Every image costs Lovart credits. Which Lovart plans include AK/SK access is not documented; ask Lovart before relying
   on it for a team.
+- **The setup** (lib/plugins/lovart/lovart_setup.dart, on the plugins' setup flow in lib/plugins/onboarding/; Matt,
+  2026-10-28: "For each of the plugins add a small onboarding flow start with the lovart and Claude plugins"): what it
+  is and about 6 credits an image; an account, Open lovart.ai (`https://www.lovart.ai/`: Lovart has no sign-up address
+  of its own, its home page's Get started is the way in); the keys, avatar menu › AK/SK Management, as the skill's
+  README says, with Open Lovart (`https://www.lovart.ai/home`, signed in, where that menu is: the AK/SK page has no
+  address anyone has published, so the link is to the menu's page, and the menu path is the skill's word, not seen
+  here signed in); the pair pasted and kept where the page keeps them; the check, `POST /mode/query`, said in the
+  client's own words (401 refused and the keys let go of, 402 Lovart's sentence with the keys kept, no connection
+  `lovartUnreachable`); and Try it, a cue to copy and the Header images switch. Nothing is made, nothing spent.
+  Offered as Lovart is added in the Market without keys, and from Set up at the head of its page. Words in
+  lib/plugins/onboarding/setup_voice.dart; test/plugins/lovart/setup_test.dart.
 
 ## What the plugin adds
 
