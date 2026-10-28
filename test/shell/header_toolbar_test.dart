@@ -1,0 +1,361 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/app/ghost_app.dart' show GhostApp;
+import 'package:ghost_md/art/lucide.g.dart';
+import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/preferences.dart' show Preferences;
+import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/note/note_tools.dart';
+import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/header_toolbar.dart';
+import 'package:ghost_md/shell/placeholders.dart';
+import 'package:ghost_md/shell/top_bar.dart';
+import 'package:ghost_md/shell/top_bar_tools.dart';
+
+import '../notes/bar_support.dart';
+import '../support/render.dart';
+
+/// The header toolbar's five versions (lib/shell/header_toolbar.dart; Matt, 2026-10-28: "Add a few ways to redo the
+/// header toolbar icons … add a developer setting to switch between 5 versions"): each drawn on a phone, the opened
+/// Fold and the Mac without running over, every control the bar was given within reach of a press, a press doing
+/// what the control does, and Developer's choice redrawing the bar at once.
+///
+/// The note is a stand-in that hands the bar what a note's screen hands it (lib/note/note_screen.dart): its tools,
+/// its More as the tail, and the model they are drawn from, with every spare action a note can have.
+///
+/// Pictures, not held: `FEATURE_SHOTS=1 flutter test --update-goldens test/shell/header_toolbar_test.dart` writes all
+/// five on a note and at home, folded, unfolded and on the Mac, light and dark, into build/feature-shots/
+/// header-toolbar/, and then `contact-sheet.png` there: the five on a note on the opened Fold, one under another.
+void main() {
+  setUpAll(loadAppFonts);
+
+  /// A test of the app drawn with real shadows (`pumpApp`), which gives them back before the test is over.
+  void barTest(String description, Future<void> Function(WidgetTester tester) body, {bool skip = false}) => testWidgets(description, (tester) async {
+        await body(tester);
+        debugDisableShadows = true;
+      }, skip: skip);
+  tearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
+
+  const three = ['weekend', 'groceries', 'standup'];
+
+  // The three windows: the Fold folded and opened, and the Mac's.
+  const folded = (name: 'folded', size: Size(390, 844), mobile: true, fine: false);
+  const unfolded = (name: 'unfolded', size: Size(880, 1000), mobile: true, fine: false);
+  const mac = (name: 'mac', size: Size(1280, 800), mobile: false, fine: true);
+  const windows = [folded, unfolded, mac];
+
+  Future<AppShellState> pumpShell(
+    WidgetTester tester, {
+    HeaderToolbarVersion? version,
+    required ({String name, Size size, bool mobile, bool fine}) window,
+    String theme = 'light',
+    TopBarStyle style = TopBarStyle.classic,
+    List<String>? log,
+    bool note = true,
+  }) async {
+    final said = log ?? <String>[];
+    final sheet = await appSheet(tester);
+    // A shell of its own each time: one pumped over another keeps the first one's screen.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 100));
+    await pumpApp(
+      tester,
+      size: window.size,
+      prefs: Preferences(theme: theme),
+      home: AppShell(
+        sheet: sheet,
+        notes: library,
+        workspaces: spaces,
+        topBar: style,
+        headerToolbar: version,
+        openNotes: three,
+        unread: true,
+        mobile: window.mobile,
+        finePointer: window.fine,
+        organizations: const [OrgLike(id: 'o1', name: 'Attic Press', hue: 'moss')],
+        onNew: () => said.add('new'),
+        onSearch: () => said.add('search'),
+        onSettings: () => said.add('settings'),
+        onOrganizations: () => said.add('organizations'),
+        onDeleteNote: (_) {},
+        noteBuilder: (context, shell, screen) => _StandInNote(note: screen.note, log: said.add),
+        asideBuilder: (context, shell) => const SizedBox.shrink(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    final app = tester.state<AppShellState>(find.byType(AppShell));
+    if (note) {
+      app.openNote('groceries');
+      // The note hands its tools over a frame after it builds.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    return app;
+  }
+
+  Finder headerKeys() => find.byWidgetPredicate((widget) => widget.key is ValueKey<String> && (widget.key! as ValueKey<String>).value.startsWith('header:'));
+
+  Set<String> drawn(WidgetTester tester) => {for (final element in headerKeys().evaluate()) (element.widget.key! as ValueKey<String>).value.substring('header:'.length)};
+
+  /// Every control in reach: those in the row, and those in each menu the row opens.
+  Future<Set<String>> reachable(WidgetTester tester) async {
+    final ids = drawn(tester);
+    for (final trigger in const ['overflow', 'you', 'search']) {
+      final found = find.byKey(HeaderAct.keyOf(trigger));
+      final count = found.evaluate().length;
+      for (var at = 0; at < count; at++) {
+        final before = drawn(tester);
+        await tester.tap(found.at(at), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 400));
+        final after = drawn(tester);
+        ids.addAll(after);
+        // Shut again, by the trigger, where a menu opened.
+        if (after.length > before.length) {
+          await tester.tap(find.byKey(HeaderAct.keyOf(trigger)).at(at), warnIfMissed: false);
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+      }
+    }
+    return ids;
+  }
+
+  /// Presses [id] where it is: in the row, or in the menu that holds it.
+  Future<void> press(WidgetTester tester, String id) async {
+    if (find.byKey(HeaderAct.keyOf(id)).evaluate().isEmpty) {
+      for (final trigger in const ['overflow', 'you']) {
+        final found = find.byKey(HeaderAct.keyOf(trigger));
+        for (var at = 0; at < found.evaluate().length; at++) {
+          await tester.tap(found.at(at), warnIfMissed: false);
+          await tester.pump(const Duration(milliseconds: 400));
+          if (find.byKey(HeaderAct.keyOf(id)).evaluate().isNotEmpty) break;
+          await tester.tap(find.byKey(HeaderAct.keyOf(trigger)).at(at), warnIfMissed: false);
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+        if (find.byKey(HeaderAct.keyOf(id)).evaluate().isNotEmpty) break;
+      }
+    }
+    await tester.ensureVisible(find.byKey(HeaderAct.keyOf(id)).last);
+    await tester.pump();
+    await tester.tap(find.byKey(HeaderAct.keyOf(id)).last);
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  const noteTools = {'view', 'share', 'history', 'links', 'comment', 'bookmark', 'pin', 'archive', 'speak', 'more'};
+  const way = {'home', 'sidebar', 'back', 'forward', 'aside'};
+  const yours = {'organizations', 'org:o1', 'bell', 'settings'};
+
+  final others = [for (final version in HeaderToolbarVersion.values) if (version != HeaderToolbarVersion.today) version];
+
+  group('every version', () {
+    for (final version in HeaderToolbarVersion.values) {
+      for (final window in windows) {
+        for (final style in TopBarStyle.values) {
+          barTest('${version.number} ${version.label}, ${style.label}, ${window.name}: a note and home draw inside the window', (tester) async {
+            for (final note in [true, false]) {
+              await pumpShell(tester, version: version, window: window, style: style, note: note);
+              expect(tester.takeException(), isNull);
+              for (final element in headerKeys().evaluate()) {
+                final box = element.renderObject;
+                if (box is! RenderBox || !box.hasSize || !box.attached) continue;
+                final rect = box.localToGlobal(Offset.zero) & box.size;
+                expect(rect.left >= -0.5 && rect.right <= window.size.width + 0.5, isTrue, reason: '${element.widget.key} at $rect on a ${window.size.width} window');
+              }
+            }
+          });
+        }
+      }
+    }
+  });
+
+  group('every control in reach', () {
+    for (final version in others) {
+      for (final window in windows) {
+        barTest('${version.number} ${version.label} on a note, ${window.name}', (tester) async {
+          await pumpShell(tester, version: version, window: window);
+          // A phone reading a note gives the bar no bell, Settings or organizations (the shell's `quietBar`).
+          final wanted = {...way, ...noteTools, if (!window.mobile) ...yours};
+          final got = await reachable(tester);
+          expect(got.containsAll(wanted), isTrue, reason: 'missing ${wanted.difference(got)}');
+        });
+
+        barTest('${version.number} ${version.label} at home, ${window.name}', (tester) async {
+          await pumpShell(tester, version: version, window: window, note: false);
+          final wanted = {...way, ...yours};
+          final got = await reachable(tester);
+          expect(got.containsAll(wanted), isTrue, reason: 'missing ${wanted.difference(got)}');
+          expect(got.intersection(noteTools), isEmpty, reason: 'no note is up');
+        });
+      }
+    }
+
+    barTest('1 Today’s bar keeps its rings and their labels', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpShell(tester, version: HeaderToolbarVersion.today, window: mac);
+      expect(headerKeys(), findsNothing);
+      for (final label in ['Home', 'All your notes', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications, something new', 'Settings', 'Side panel', 'More for this note', 'Showing the formatted note. Show the marks.']) {
+        expect(find.bySemanticsLabel(label), findsWidgets, reason: label);
+      }
+      semantics.dispose();
+    });
+
+    for (final version in others) {
+      barTest('${version.number} ${version.label}: a press does what the control does, in the row or its menu', (tester) async {
+        final log = <String>[];
+        await pumpShell(tester, version: version, window: mac, log: log);
+        await press(tester, 'view');
+        await press(tester, 'history');
+        await press(tester, 'speak');
+        await press(tester, 'settings');
+        await press(tester, 'more');
+        expect(log, ['switch', 'history', 'speak', 'settings', 'more']);
+      });
+
+      barTest('${version.number} ${version.label}: the labels a screen reader hears are today’s', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpShell(tester, version: version, window: mac);
+        final got = await reachable(tester);
+        expect(got, contains('back'));
+        expect(find.bySemanticsLabel('Back to where you were'), findsWidgets);
+        semantics.dispose();
+      });
+    }
+  });
+
+  barTest('Developer’s choice switches the bar at once, nothing restarted', (tester) async {
+    final app = await pumpShell(tester, window: unfolded);
+    expect(headerToolbarVersion, HeaderToolbarVersion.today);
+    expect(headerKeys(), findsNothing);
+    final note = tester.state(find.byType(_StandInNote));
+    for (final version in others) {
+      headerToolbarChoice.set(version.id);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(HeaderAct.keyOf('view')), findsOneWidget, reason: version.label);
+      // The same note's screen, the same shell: the bar alone was drawn again.
+      expect(tester.state(find.byType(_StandInNote)), same(note));
+      expect(tester.state<AppShellState>(find.byType(AppShell)), same(app));
+    }
+    headerToolbarChoice.set(HeaderToolbarVersion.today.id);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(headerKeys(), findsNothing);
+  });
+
+  test('a version is kept by its word, and a word this build does not know is today’s', () {
+    for (final version in HeaderToolbarVersion.values) {
+      expect(HeaderToolbarVersion.parse(version.id), version);
+    }
+    expect(HeaderToolbarVersion.parse('strip'), HeaderToolbarVersion.today);
+    expect(HeaderToolbarVersion.parse(null), HeaderToolbarVersion.today);
+    headerToolbarChoice.set('nonsense');
+    expect(headerToolbarChoice.value, 'today');
+    expect([for (final version in HeaderToolbarVersion.values) version.number], [1, 2, 3, 4, 5]);
+  });
+
+  // ---- the pictures --------------------------------------------------------------------------------------------
+
+  final shots = Platform.environment.containsKey('FEATURE_SHOTS');
+  const folder = '../../build/feature-shots/header-toolbar';
+  for (final version in HeaderToolbarVersion.values) {
+    for (final window in windows) {
+      for (final theme in ['light', 'dark']) {
+        barTest('a picture: ${version.number} ${version.label} on a note and at home, ${window.name}, $theme', (tester) async {
+          // The Mac's window buttons are drawn where the bar begins: the app's own word for a Mac.
+          if (window == mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+          try {
+            for (final note in [true, false]) {
+              await pumpShell(tester, version: version, window: window, theme: theme, note: note);
+              await tester.pump(const Duration(milliseconds: 600));
+              await expectLater(find.byType(GhostApp), matchesGoldenFile('$folder/${version.number}-${version.id}-${note ? 'note' : 'home'}-${window.name}-$theme.png'));
+            }
+          } finally {
+            debugDefaultTargetPlatformOverride = null;
+          }
+        }, skip: !shots);
+      }
+    }
+  }
+
+  // One picture for Matt: the five on a note on the opened Fold, the bar and the page's head of each, one under
+  // another with its number and name. Made from the pictures above, so it runs after them.
+  for (final theme in ['light', 'dark']) {
+    barTest('a picture: the contact sheet of the five on a note, unfolded, $theme', (tester) async {
+      await tester.runAsync(() async {
+        const ratio = 2.0, keep = 230.0, band = 44.0, width = 880.0;
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder);
+        final count = HeaderToolbarVersion.values.length;
+        final height = count * (keep + band) * ratio;
+        final paper = theme == 'light' ? const Color(0xFFF6F4EF) : const Color(0xFF151413);
+        final ink = theme == 'light' ? const Color(0xFF1B1A18) : const Color(0xFFEDEAE4);
+        canvas.drawRect(Rect.fromLTWH(0, 0, width * ratio, height), Paint()..color = paper);
+        for (final version in HeaderToolbarVersion.values) {
+          final file = File('build/feature-shots/header-toolbar/${version.number}-${version.id}-note-unfolded-$theme.png');
+          final codec = await ui.instantiateImageCodec(file.readAsBytesSync());
+          final image = (await codec.getNextFrame()).image;
+          final top = version.index * (keep + band) * ratio;
+          final words = ui.ParagraphBuilder(ui.ParagraphStyle(fontFamily: 'Inter Variable', fontSize: 15 * ratio, fontWeight: FontWeight.w600))
+            ..pushStyle(ui.TextStyle(color: ink))
+            ..addText('${version.number}  ${version.label}');
+          final paragraph = words.build()..layout(const ui.ParagraphConstraints(width: width * ratio));
+          canvas.drawParagraph(paragraph, Offset(16 * ratio, top + (band * ratio - paragraph.height) / 2));
+          canvas.drawImageRect(image, Rect.fromLTWH(0, 0, width * ratio, keep * ratio), Rect.fromLTWH(0, top + band * ratio, width * ratio, keep * ratio), Paint());
+          canvas.drawRect(Rect.fromLTWH(0, top + (band + keep) * ratio - 2, width * ratio, 2), Paint()..color = ink.withValues(alpha: 0.18));
+        }
+        final sheet = await recorder.endRecording().toImage((width * ratio).round(), height.round());
+        final bytes = await sheet.toByteData(format: ui.ImageByteFormat.png);
+        File('build/feature-shots/header-toolbar/contact-sheet${theme == 'light' ? '' : '-dark'}.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+      });
+    }, skip: !shots);
+  }
+}
+
+/// What a note's screen hands the bar (lib/note/note_screen.dart `TopBarFill`): its tools drawn from a model, its
+/// More as the tail, and the model, with every spare action a note can have.
+class _StandInNote extends StatefulWidget {
+  const _StandInNote({required this.note, required this.log});
+  final Note note;
+  final ValueChanged<String> log;
+
+  @override
+  State<_StandInNote> createState() => _StandInNoteState();
+}
+
+class _StandInNoteState extends State<_StandInNote> {
+  late final ValueNotifier<NoteToolsModel> _model = ValueNotifier(_made(page: true));
+  late final Widget _tools = NoteTools(model: _model);
+  late final Widget _more = NoteMore(onMore: () => widget.log('more'));
+
+  NoteToolsModel _made({required bool page}) => NoteToolsModel(
+        kind: NoteKind.words,
+        page: page,
+        switchable: true,
+        onSwitch: () {
+          widget.log('switch');
+          _model.value = _made(page: !_model.value.page);
+        },
+        onMore: () => widget.log('more'),
+        more: false,
+        actions: [
+          ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: () => widget.log('share')),
+          ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.log('history')),
+          ToolAction(id: 'links', label: 'Linked from 3 notes', icon: Lucide.link2, count: 3, onPress: () => widget.log('links')),
+          ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => widget.log('comment')),
+          ToolAction(id: 'bookmark', label: 'Bookmark this line', icon: Lucide.bookmark, on: false, onPress: () => widget.log('bookmark')),
+          ToolAction(id: 'pin', label: 'Pin to the top', icon: Lucide.pin, on: false, onPress: () => widget.log('pin')),
+          ToolAction(id: 'archive', label: 'Archive', icon: Lucide.archive, onPress: () => widget.log('archive')),
+          ToolAction(id: 'speak', label: 'Talk into this note', icon: Lucide.mic, onPress: () => widget.log('speak')),
+        ],
+      );
+
+  @override
+  void dispose() {
+    _model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TopBarFill(tools: _tools, tail: _more, model: _model, child: NotePlaceholder(note: widget.note));
+}

@@ -13,6 +13,7 @@ import '../perf/frame_log.dart';
 import '../share/app_links.dart' show MarketPlace;
 import '../simple/simple_pane.dart';
 import 'app_tab_bar.dart';
+import 'header_toolbar.dart';
 import 'open_tabs.dart';
 import 'placeholders.dart';
 import 'root_stamps.dart';
@@ -100,6 +101,7 @@ class AppShell extends StatefulWidget {
     this.trash = const {},
     this.drafts = const {},
     this.topBar = TopBarStyle.classic,
+    this.headerToolbar,
     this.sidebarStyle = SidebarStyle.popover,
     this.workspaces = const Workspaces(),
     this.organizations = const [],
@@ -132,6 +134,7 @@ class AppShell extends StatefulWidget {
     this.onSettings,
     this.onOrganizations,
     this.onNew,
+    this.onSearch,
     this.onDeleteNote,
     this.onRenameNote,
     this.onRefresh,
@@ -166,6 +169,10 @@ class AppShell extends StatefulWidget {
 
   /// How the top bar is laid out (Settings › Appearance).
   final TopBarStyle topBar;
+
+  /// Which of the header toolbar's five versions draws the bar's line of controls (lib/shell/header_toolbar.dart).
+  /// Null is this device's own choice, Settings › Developer › Header toolbar, heard as it changes; a test names one.
+  final HeaderToolbarVersion? headerToolbar;
   final SidebarStyle sidebarStyle;
 
   /// The workspaces, for the pill a filed note's tab wears.
@@ -235,6 +242,10 @@ class AppShell extends StatefulWidget {
 
   /// A new note in a new tab, from the + at the end of the row. Absent, there is no +.
   final VoidCallback? onNew;
+
+  /// The command palette (lib/commands/command_bar.dart), for the header toolbar's versions that offer it in the
+  /// bar. Absent, they offer it nowhere, and the Command centre's pill opens its own menu.
+  final VoidCallback? onSearch;
 
   /// A tab's note deleted from its menu; the shell has closed its tab and left it. Absent, the menu has no Delete.
   final ValueChanged<String>? onDeleteNote;
@@ -919,12 +930,18 @@ class AppShellState extends State<AppShell> {
     final chip = widget.barChip;
     // Simple mode's bar: no people icon, no bell, no Forward, no aside, and tabs with no groups.
     final simple = widget.simple;
+    final named = widget.headerToolbar;
     return ListenableBuilder(
-      listenable: chip == null ? _barTools : Listenable.merge([_barTools, chip.changes]),
+      listenable: Listenable.merge([_barTools, ?chip?.changes, if (named == null) headerToolbarChoice]),
       builder: (context, _) => AppTabBar(
         style: widget.topBar,
         child: NoteTabs(
           style: widget.topBar,
+          // The line of controls in the version Developer chose; a change draws the bar again at once.
+          version: named ?? headerToolbarVersion,
+          toolsModel: _barTools.model,
+          onSearch: widget.onSearch,
+          onAllNotes: showAllNotes,
           tabs: _tabs.tabs,
           activeId: shown ?? '',
           workspaces: widget.workspaces,

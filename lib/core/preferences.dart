@@ -1138,6 +1138,9 @@ class PreferencesStore extends ValueNotifier<Preferences> {
       for (final flag in DeviceFlag._all) {
         flag._attach(kept);
       }
+      for (final word in DeviceWord._all) {
+        word._attach(kept);
+      }
       var read = _read();
       if (_early.isEmpty) {
         super.value = read;
@@ -1267,6 +1270,9 @@ class PreferencesStore extends ValueNotifier<Preferences> {
     for (final flag in DeviceFlag._all) {
       flag._forget();
     }
+    for (final word in DeviceWord._all) {
+      word._forget();
+    }
   }
 }
 
@@ -1367,6 +1373,55 @@ class DeviceFlag extends ValueNotifier<bool> {
     final kept = _kept;
     if (kept != null) unawaited((text == null ? kept.remove(key) : kept.setString(key, text)).catchError((Object _) => false));
     super.value = on;
+  }
+}
+
+/// A [DeviceFlag] with more than two answers: one of a few words, this device's own and no other's, kept under
+/// [key] as the word itself, and as nothing while it is the [fallback]. Made for Settings › Developer's Header
+/// toolbar (lib/shell/header_toolbar.dart; Matt, 2026-10-28: "add a developer setting to switch between 5
+/// versions"), which is a developer's look at the bar on the device in his hand, so it does not travel to the
+/// account's other devices as a preference would. Read once when the preferences load, as the flags are.
+class DeviceWord extends ValueNotifier<String> {
+  DeviceWord(this.key, {required this.fallback, this.words}) : super(fallback) {
+    _all.add(this);
+    final storage = DeviceFlag._storage;
+    if (storage != null) _attach(storage);
+  }
+
+  static final List<DeviceWord> _all = [];
+
+  /// The key in storage: `glyph-<thing>`, as the flags'.
+  final String key;
+
+  /// The word while nothing is kept, or what is kept is not one of [words].
+  final String fallback;
+
+  /// The words it may be; null takes any.
+  final Set<String>? words;
+  SharedPreferences? _kept;
+
+  bool _knows(String? word) => word != null && (words == null || words!.contains(word));
+
+  void _attach(SharedPreferences kept) {
+    _kept = kept;
+    final text = kept.getString(key);
+    super.value = _knows(text) ? text! : fallback;
+  }
+
+  void _forget() {
+    _kept = null;
+    super.value = fallback;
+  }
+
+  /// Chooses [word], and keeps it; a word it does not know is the [fallback].
+  void set(String word) => value = word;
+
+  @override
+  set value(String word) {
+    final next = _knows(word) ? word : fallback;
+    final kept = _kept;
+    if (kept != null) unawaited((next == fallback ? kept.remove(key) : kept.setString(key, next)).catchError((Object _) => false));
+    super.value = next;
   }
 }
 

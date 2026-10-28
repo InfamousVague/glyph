@@ -1,0 +1,246 @@
+/// Version 4 of the header toolbar, **Command centre** (lib/shell/header_toolbar.dart): a bar that is mostly a
+/// place to type. At the start, Back (the sidebar's toggle at home, where there is nowhere back to go); in the
+/// middle a pill with the note's name and a search glyph, which opens the command palette, where every command the
+/// app has is a word away (lib/commands/command_bar.dart; ⌘K said on it under a mouse); at the end one primary
+/// action - the view switch on a note, a new note at home - and •••.
+///
+/// ••• holds everything else, in sections, each row's glyph in its own colour: **This note** (its actions and More
+/// for this note), **Go** (Home, the sidebar, Back or Forward, the side panel, a new note), and **You** (the bell,
+/// the organizations, Settings). Without a palette to open (a shell that was given none) the pill opens that menu.
+///
+/// Iconography: the chosen pack's **Outline** at a lighter stroke than today's (1.7), muted, so the pill and the one
+/// primary action - paper glyph on an ink round - are what the eye finds; colour lives in the menu.
+library;
+
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../../art/icon_packs.dart' show IconStyle;
+import '../../art/lucide.g.dart';
+import '../header_toolbar.dart';
+import 'grouped_row.dart' show fallbackTools;
+import 'header_kit.dart';
+
+HeaderRow commandRow(BuildContext context, HeaderParts parts) {
+  Widget outline(Widget child) => styled(context, IconStyle.outline, child);
+  // Back where there is a note or a page to come back from; the sidebar's toggle at home.
+  final start = parts.atHome ? (parts.sidebar ?? parts.back) : (parts.back ?? parts.sidebar);
+  final primary = parts.onNote ? parts.view : parts.newNote;
+  Widget colour(HeaderAct act) => HeaderGlyph(act, size: 16, color: hueInk(context.tokens, _hueOf(act)), strokeWidth: 2);
+  final noteRows = <HeaderMenuEntry>[
+    for (final act in notShown(parts.noteActs, [?primary])) HeaderMenuAct(act, icon: colour(act)),
+    if (parts.more case final more?) HeaderMenuAct(more, icon: colour(more)),
+  ];
+  final goRows = <HeaderMenuEntry>[
+    // A new note and every note at home; on a note they are the tabs' + and the sidebar's, and the menu is long enough.
+    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ...[?parts.newNote, ?parts.allNotes]], [?start, ?primary])) HeaderMenuAct(act, icon: colour(act)),
+  ];
+  final youRows = youEntries(parts, icon: colour);
+  final entries = <HeaderMenuEntry>[
+    if (noteRows.isNotEmpty) ...[const HeaderMenuLabel('This note'), ...noteRows],
+    if (goRows.isNotEmpty) ...[if (noteRows.isNotEmpty) const HeaderMenuRule(), const HeaderMenuLabel('Go'), ...goRows],
+    if (youRows.isNotEmpty) ...[if (noteRows.isNotEmpty || goRows.isNotEmpty) const HeaderMenuRule(), const HeaderMenuLabel('You'), ...youRows],
+  ];
+  return HeaderRow(
+    lead: [if (start != null) outline(_Plain(act: start, fine: parts.fine))],
+    centre: outline(_Field(parts: parts, entries: entries)),
+    trail: [
+      ?parts.presence,
+      if (!parts.onNote) ...fallbackTools(parts),
+      if (primary != null) outline(_Primary(act: primary, fine: parts.fine)),
+      if (entries.isNotEmpty) outline(_CommandMenu(parts: parts, entries: entries)),
+    ],
+  );
+}
+
+const Map<String, String> _hues = {'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'search': 'blue', 'new': 'green', 'all': 'indigo', 'more': 'indigo'};
+
+String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
+
+/// The pill in the middle: a search glyph, the note's name (or what the palette is for), and ⌘K under a mouse.
+class _Field extends StatelessWidget {
+  const _Field({required this.parts, required this.entries});
+  final HeaderParts parts;
+
+  /// The menu of •••, which the pill opens where there is no palette.
+  final List<HeaderMenuEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final search = parts.search;
+    final title = parts.title;
+    final words = title == null || title.isEmpty ? 'Search or run a command' : title;
+    final act = search ?? HeaderAct(id: 'search', label: 'Everything else', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: () {});
+    final named = HeaderAct(id: act.id, label: title == null || title.isEmpty ? act.label : '${act.label}: $title', word: act.word, hue: act.hue, icon: act.icon, onPress: act.onPress);
+    Widget face(BuildContext context, PressState state, bool open) {
+            final lit = state.hovered || state.pressed || open;
+            final muted = t.color('glacier-text-muted');
+            return Container(
+              height: t.len('app-bar-ring'),
+              padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+              decoration: BoxDecoration(
+                color: t.color(lit ? 'app-paper-3' : 'app-paper-2'),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: t.color(lit ? 'glacier-border' : 'glacier-border-subtle'), width: t.len('glacier-hairline')),
+              ),
+              child: Row(
+                spacing: t.space(2),
+                children: [
+                  HeaderGlyph(act, size: 15, color: muted, strokeWidth: 1.9, wash: false),
+                  Expanded(
+                    child: ExcludeSemantics(
+                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
+                    ),
+                  ),
+                  if (parts.fine && search != null)
+                    ExcludeSemantics(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(5), border: Border.all(color: t.color('glacier-border'), width: 1)),
+                        // The Mac's ⌘ is drawn, not typed: the app's faces have no glyph for it. Ctrl elsewhere.
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 2,
+                          children: [
+                            if (defaultTargetPlatform == TargetPlatform.macOS)
+                              CustomPaint(size: Size.square(t.fontSize('xs') * 0.85), painter: _CommandKey(muted))
+                            else
+                              Text('Ctrl', style: t.text('xs', weight: 'medium', color: muted)),
+                            Text('K', style: t.text('xs', weight: 'medium', color: muted)),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+    }
+
+    return Align(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: search != null || entries.isEmpty
+            ? HeaderPress(act: named, fine: parts.fine, radius: 999, face: (context, state) => face(context, state, false))
+            : HeaderMenuButton(act: named, fine: parts.fine, radius: 999, entries: entries, menuLabel: 'Everything else', face: face),
+      ),
+    );
+  }
+}
+
+/// A ring with no ground: Back, the sidebar's toggle.
+class _Plain extends StatelessWidget {
+  const _Plain({required this.act, required this.fine});
+  final HeaderAct act;
+  final bool fine;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ring = t.len('app-bar-ring');
+    return HeaderPress(
+      act: act,
+      fine: fine,
+      radius: 999,
+      face: (context, state) {
+        final lit = state.hovered || state.pressed || act.on;
+        return Container(
+          width: ring,
+          height: ring,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: lit ? t.color('app-paper-2') : null),
+          child: Center(child: HeaderGlyph(act, size: 19, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
+        );
+      },
+    );
+  }
+}
+
+/// The one action that stands out: paper on an ink round.
+class _Primary extends StatelessWidget {
+  const _Primary({required this.act, required this.fine});
+  final HeaderAct act;
+  final bool fine;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ring = t.len('app-bar-ring');
+    return HeaderPress(
+      act: act,
+      fine: fine,
+      radius: 999,
+      face: (context, state) => AnimatedScale(
+        scale: state.pressed ? 0.92 : 1,
+        duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 120),
+        child: Container(
+          width: ring,
+          height: ring,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('glacier-text')),
+          child: Center(child: HeaderGlyph(act, size: 16, color: t.color('glacier-bg'), strokeWidth: 2)),
+        ),
+      ),
+    );
+  }
+}
+
+/// ••• and its sections, with the bell's dot while something is new.
+class _CommandMenu extends StatelessWidget {
+  const _CommandMenu({required this.parts, required this.entries});
+  final HeaderParts parts;
+  final List<HeaderMenuEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ring = t.len('app-bar-ring');
+    final act = moreAct(label: 'Everything else');
+    return HeaderMenuButton(
+      act: HeaderAct(id: act.id, label: act.label, word: act.word, hue: act.hue, icon: act.icon, onPress: act.onPress, dot: parts.unread && parts.bell != null),
+      fine: parts.fine,
+      radius: 999,
+      entries: entries,
+      menuLabel: 'Everything else',
+      face: (context, state, open) {
+        final lit = state.hovered || state.pressed || open;
+        final marked = HeaderAct(id: act.id, label: act.label, word: act.word, hue: act.hue, icon: act.icon, onPress: act.onPress, dot: parts.unread && parts.bell != null);
+        return withMarks(
+          marked,
+          Container(
+            width: ring,
+            height: ring,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: lit ? t.color('app-paper-2') : null),
+            child: Center(child: HeaderGlyph(act, size: 19, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
+          ),
+          rim: t.color('glacier-bg'),
+          ink: t.color('glacier-text'),
+          paper: t.color('app-paper'),
+        );
+      },
+    );
+  }
+}
+
+/// ⌘, the Mac's command key: a square with a loop at each corner.
+class _CommandKey extends CustomPainter {
+  const _CommandKey(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final side = size.shortestSide;
+    final loop = side * 0.2;
+    final inner = Rect.fromLTWH(loop * 2, loop * 2, side - loop * 4, side - loop * 4);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = side * 0.1;
+    canvas.drawRect(inner, paint);
+    for (final corner in [inner.topLeft, inner.topRight, inner.bottomLeft, inner.bottomRight]) {
+      canvas.drawCircle(Offset(corner.dx + (corner.dx < side / 2 ? -loop : loop), corner.dy + (corner.dy < side / 2 ? -loop : loop)), loop, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CommandKey old) => old.color != color;
+}

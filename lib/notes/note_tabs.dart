@@ -1,7 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
+
+import '../art/lucide.g.dart';
 
 import '../core/book.dart';
 import '../core/canvas_body.dart';
@@ -10,7 +13,9 @@ import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/tabs.dart';
 import '../core/workspaces.dart';
+import '../note/note_tools.dart' show NoteToolsModel;
 import '../shell/desktop/mac_lights.dart';
+import '../shell/header_toolbar.dart';
 import '../shell/pop_menu.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart';
@@ -43,6 +48,12 @@ import 'tabs/tab_row.dart';
 ///   On a window in two panes the three share one line.
 ///
 /// In every way but Classic the cross is drawn on the open tab alone: the rest close from their menu, or once opened.
+///
+/// **And five versions of the line of controls** ([version]; lib/shell/header_toolbar.dart, Settings › Developer ›
+/// Header toolbar): today's, drawn here as it always was, or one of four that redraw the controls' line - grouped
+/// into pills, as tiles of colour, as a command centre, or labelled - in whichever of the four ways the bar is laid
+/// out. A version is handed the controls as words ([HeaderParts]) and the note's tools as their model
+/// ([toolsModel]), and answers the line ([HeaderRow]); the tabs are the style's as ever.
 ///
 /// The bar is the app's, not any screen's: shell/app_shell.dart draws it once, in shell/app_tab_bar.dart's box, which
 /// is the web's `.app-tabBar`. It fills the box it is given, across the whole window: the bar's own gutters
@@ -105,7 +116,21 @@ class NoteTabs extends StatefulWidget {
     this.presence,
     this.finePointer,
     this.grouping = true,
+    this.version = HeaderToolbarVersion.today,
+    this.toolsModel,
+    this.onSearch,
+    this.onAllNotes,
   });
+
+  /// Which of the header toolbar's five versions draws the line of controls; today's unless Developer says.
+  final HeaderToolbarVersion version;
+
+  /// What the screen's [tools] are, as the actions they draw, for a version other than today's.
+  final ValueListenable<NoteToolsModel>? toolsModel;
+
+  /// The command palette, and every note: what a version may offer at home.
+  final VoidCallback? onSearch;
+  final VoidCallback? onAllNotes;
 
   /// How the bar is laid out; Classic unless Settings says otherwise.
   final TopBarStyle style;
@@ -529,11 +554,79 @@ class _NoteTabsState extends State<NoteTabs> {
     return (row: row, pills: pills);
   }
 
+  // ---- a version's line --------------------------------------------------------------------------------------------
+
+  /// The controls as words, for a version to draw: each with today's label, so a screen reader hears the same bar.
+  HeaderParts _parts(double room) {
+    final w = widget;
+    final model = w.toolsModel?.value;
+    final note = model == null ? null : noteActsOf(model);
+    final active = w.tabs.where((each) => each.id == w.activeId).firstOrNull;
+    final picks = w.organizations.isNotEmpty && w.onOrganization != null;
+    return HeaderParts(
+      home: w.onHome == null ? null : HeaderAct(id: 'home', label: 'Home', word: 'Home', hue: 'blue', house: true, onPress: w.onHome, on: w.atHome, current: w.atHome),
+      sidebar: w.onSidebar == null
+          ? null
+          : HeaderAct(id: 'sidebar', label: 'All your notes', word: 'Notes', hue: 'indigo', icon: Lucide.panelLeft, onPress: w.onSidebar, on: w.sidebarOpen, expanded: w.sidebarOpen, toggle: sidebarToggle),
+      back: w.onGoBack == null ? null : HeaderAct(id: 'back', label: 'Back to where you were', word: 'Back', hue: 'cyan', icon: Lucide.arrowLeft, onPress: w.canGoBack ? w.onGoBack : null),
+      forward: w.onGoOn == null ? null : HeaderAct(id: 'forward', label: 'Forward again', word: 'Forward', hue: 'cyan', icon: Lucide.arrowRight, onPress: w.canGoOn ? w.onGoOn : null),
+      view: note?.view,
+      actions: note?.actions ?? const [],
+      more: note?.more,
+      search: w.onSearch == null ? null : HeaderAct(id: 'search', label: 'Search or run a command', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: w.onSearch),
+      newNote: w.onNew == null ? null : HeaderAct(id: 'new', label: 'New note', word: 'New', hue: 'green', icon: Lucide.plus, onPress: w.onNew),
+      allNotes: w.onAllNotes == null ? null : HeaderAct(id: 'all', label: 'Every note', word: 'Browse', hue: 'indigo', icon: Lucide.layoutGrid, onPress: w.onAllNotes),
+      organizations: w.onOrganizations == null
+          ? null
+          : HeaderAct(id: 'organizations', label: 'Organizations', word: picks ? 'All organizations…' : 'Organizations', hue: 'magenta', icon: Lucide.userGroup, onPress: w.onOrganizations),
+      orgs: w.organizations,
+      onOrganization: w.onOrganization,
+      bell: w.onNotifications == null
+          ? null
+          : HeaderAct(
+              id: 'bell',
+              label: w.unread ? 'Notifications, something new' : 'Notifications',
+              word: 'Notifications',
+              hue: 'amber',
+              icon: Lucide.bell,
+              onPress: w.onNotifications,
+              on: w.unread || w.atNotifications,
+              expanded: w.atNotifications,
+              dot: w.unread,
+              toggle: notificationsToggle,
+            ),
+      settings: w.onSettings == null ? null : HeaderAct(id: 'settings', label: 'Settings', word: 'Settings', hue: 'lime', icon: Lucide.settings, onPress: w.onSettings),
+      aside: w.onAside == null
+          ? null
+          : HeaderAct(id: 'aside', label: 'Side panel', word: 'Side panel', hue: 'mint', icon: Lucide.panelLeft, mirrored: true, onPress: w.onAside, on: w.asideOpen, expanded: w.asideOpen, toggle: asideToggle),
+      presence: w.presence,
+      // A screen with no model is drawn from its widgets; a note's are redrawn from its model.
+      tools: model == null ? w.tools : null,
+      tail: model == null ? w.tail : null,
+      title: active == null || w.atHome ? null : _titleOf(active),
+      atHome: w.atHome,
+      unread: w.unread,
+      fine: _fine,
+      room: room,
+    );
+  }
+
+  /// A version's line, laid out on one line: the start, the middle taking what is left, the end.
+  Widget _versionLine(HeaderRow row, double gap) => Row(
+        spacing: gap,
+        children: [
+          ...row.lead,
+          Expanded(child: row.centre ?? const SizedBox.shrink()),
+          ...row.trail,
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     if (widget.onSidebar == null && widget.onGoBack == null && widget.tabs.isEmpty) return const SizedBox.shrink();
+    final model = widget.toolsModel;
     return ListenableBuilder(
-      listenable: _live,
+      listenable: model == null || widget.version == HeaderToolbarVersion.today ? _live : Listenable.merge([_live, model]),
       builder: (context, _) => LayoutBuilder(builder: (context, constraints) => _bar(context, constraints)),
     );
   }
@@ -552,8 +645,12 @@ class _NoteTabsState extends State<NoteTabs> {
     final gap = MediaQuery.sizeOf(context).width <= 440 ? t.space(1) : t.space(2);
     final hairline = t.len('glacier-hairline');
     final tabRow = _tabRow(t, shape);
+    // A version other than today's draws the line of controls; today's is the code below, as it always was.
+    final build = headerRowFor(widget.version);
+    final room = constraints.maxWidth - start - end - trafficLightsRoom(t);
+    final version = build == null ? null : build(context, _parts(room));
 
-    if (style == TopBarStyle.islands) return _islands(t, constraints, tabRow?.row, split: split);
+    if (style == TopBarStyle.islands) return _islands(t, constraints, tabRow?.row, split: split, version: version);
 
     final Widget top;
     final double topH;
@@ -566,13 +663,17 @@ class _NoteTabsState extends State<NoteTabs> {
           color: t.color('glacier-bg'),
           border: Border(bottom: BorderSide(color: t.color('glacier-border-subtle'), width: hairline)),
         ),
-        child: _toolRow(gap, 0, [_sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
+        child: version != null
+            ? _versionLine(version, gap)
+            : _toolRow(gap, 0, [_sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
       );
     } else {
       // The Mac's three window buttons sit at this row's start: the first control begins after their room.
       final lights = trafficLightsRoom(t);
       topH = ring;
-      final controls = style == TopBarStyle.masthead
+      final controls = version != null
+          ? Padding(padding: EdgeInsets.only(right: end), child: _versionLine(version, gap))
+          : style == TopBarStyle.masthead
           ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), ..._arrowWords()], [widget.presence, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
           : _toolRow(gap, end, [_homeRing(), _sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
       top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
@@ -619,7 +720,7 @@ class _NoteTabsState extends State<NoteTabs> {
 
   /// The Islands: three capsules of glass over the page - the way around at the start, the screen's own at the end,
   /// and the tabs between them on a window in two panes, on a line of their own on a phone.
-  Widget _islands(Tokens t, BoxConstraints constraints, Widget? tabRow, {required bool split}) {
+  Widget _islands(Tokens t, BoxConstraints constraints, Widget? tabRow, {required bool split, HeaderRow? version}) {
     final ring = t.len('app-bar-ring');
     final hairline = t.len('glacier-hairline');
     final start = t.len('app-bar-start'), end = t.len('app-bar-end');
@@ -628,12 +729,18 @@ class _NoteTabsState extends State<NoteTabs> {
     // A capsule's height with its padding and hairline round it, so a folded group's chip does not move.
     final rowH = t.len('app-tab-h') - 4 + 6 + 2 * hairline;
 
-    final Widget capsule = BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ..._arrows()]);
+    // A version's line in the Islands: its start in the first capsule, its end in the last, its middle between them.
+    final Widget capsule = version != null ? BarCapsule(children: version.lead) : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ..._arrows()]);
     final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
     final own = <Widget>[?widget.presence, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
     final tools = widget.tools;
     // The slot is a place in the capsule's row whether or not the screen has put anything in it.
-    final ownCapsule = own.isEmpty && tools == null ? null : BarCapsule(children: [tools ?? const SizedBox.shrink(), ...own]);
+    final ownCapsule = version != null
+        ? (version.trail.isEmpty ? null : BarCapsule(children: version.trail))
+        : own.isEmpty && tools == null
+            ? null
+            : BarCapsule(children: [tools ?? const SizedBox.shrink(), ...own]);
+    final middle = version?.centre;
     final tabs = tabRow == null ? null : SizedBox(height: rowH, child: tabRow);
 
     final Widget body;
@@ -651,6 +758,7 @@ class _NoteTabsState extends State<NoteTabs> {
                 ? const SizedBox.shrink()
                 : Center(heightFactor: 1, child: ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('44rem')), child: SizedBox(width: double.infinity, child: tabs))),
           ),
+          if (middle != null) ...[SizedBox(width: gap), ConstrainedBox(constraints: const BoxConstraints(maxWidth: 260), child: middle)],
           if (ownCapsule != null) ...[SizedBox(width: gap), ownCapsule],
         ],
       );
@@ -660,7 +768,14 @@ class _NoteTabsState extends State<NoteTabs> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [way, const Spacer(), ?ownCapsule]),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              way,
+              if (middle != null) ...[SizedBox(width: gap), Expanded(child: SizedBox(height: capH, child: middle)), SizedBox(width: gap)] else const Spacer(),
+              ?ownCapsule,
+            ],
+          ),
           if (tabs != null) ...[SizedBox(height: gap), tabs],
         ],
       );

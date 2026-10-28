@@ -9,6 +9,7 @@ import '../../art/art.dart';
 import '../../core/preferences.dart';
 import '../../guide/guide_state.dart' show guideSeen;
 import '../../core/wip.dart';
+import '../../shell/header_toolbar.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import '../settings_sheet.dart' show developerMode;
@@ -24,6 +25,7 @@ const List<SettingsFindable> developerFindable = [
   SettingsFindable('Developer settings', 'mode'),
   SettingsFindable('Reset local data', 'clear erase'),
   SettingsFindable('Reset everything', 'clear erase models'),
+  SettingsFindable('Header toolbar', 'top bar icons versions grouped tiles command labelled'),
 ];
 
 /// Which readings the scene plays with (`READINGS`), in the choice's order.
@@ -192,6 +194,25 @@ class _DeveloperPaneState extends State<DeveloperPane> {
               ),
             ],
           ),
+        // The header toolbar's five versions (Matt, 2026-10-28: "add a developer setting to switch between 5
+        // versions"; lib/shell/header_toolbar.dart): this device's own choice, drawn on the bar at once. Last of all,
+        // so every card above stands where it did.
+        ValueListenableBuilder<String>(
+          valueListenable: headerToolbarChoice,
+          builder: (context, chosen, _) => PaneSection(
+            title: 'Header toolbar',
+            description: const Text('Five ways to draw the controls at the top: what stands out, what is grouped, and in what colour. This device only; a choice shows at once.'),
+            children: [
+              for (final version in HeaderToolbarVersion.values)
+                SettingRow(
+                  key: ValueKey('developer-header-${version.id}'),
+                  label: '${version.number}. ${version.label}',
+                  hint: Text(version.hint),
+                  control: Pick(checked: chosen == version.id, label: 'Use ${version.label}', onPress: () => headerToolbarChoice.set(version.id)),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }

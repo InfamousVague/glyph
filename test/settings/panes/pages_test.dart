@@ -21,6 +21,7 @@ import 'package:ghost_md/settings/panes/spec_pane.dart';
 import 'package:ghost_md/settings/panes/specification.g.dart';
 import 'package:ghost_md/settings/panes/test_results_pane.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
+import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:glacier/glacier.dart';
 
 import 'support.dart';
@@ -303,7 +304,7 @@ void main() {
     testWidgets('says what the window is, marks the bench that waits, and hides itself by its switch', (tester) async {
       await openPane(tester, 'developer', developer: true, size: const Size(390, 1800));
       // No Smoke card: the smoke went, and its bench with it (2026-10-24).
-      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Onboarding', 'Work in progress']);
+      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Onboarding', 'Work in progress', 'Header toolbar']);
       expect(rowLabels(tester, 'Window'), ['Top inset', 'Page', 'Screen', 'Engine']);
       final facts = windowFacts(tester.element(find.byType(DeveloperPane)));
       expect((facts.inset, facts.page, facts.engine), ('0px', '390 × 1800 @2', 'Flutter on android'));
@@ -318,6 +319,21 @@ void main() {
       expect(developerMode.value, isFalse);
       // The section is gone from the list, and so is its page.
       expect(find.byType(DeveloperPane), findsNothing);
+      await endSettings(tester);
+    });
+
+    // Matt, 2026-10-28: "add a developer setting to switch between 5 versions" (lib/shell/header_toolbar.dart).
+    testWidgets('Header toolbar offers the five versions, today’s chosen, and a pick is this device’s and kept', (tester) async {
+      addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
+      await openPane(tester, 'developer', developer: true, size: const Size(390, 2600));
+      expect(rowLabels(tester, 'Header toolbar'), ['1. Today’s bar', '2. Grouped', '3. Vibrant tiles', '4. Command centre', '5. Labelled']);
+      bool picked(String id) => tester.widget<Pick>(find.descendant(of: find.byKey(ValueKey('developer-header-$id')), matching: find.byType(Pick))).checked;
+      expect(picked('today'), isTrue);
+      expect(headerToolbarVersion, HeaderToolbarVersion.today);
+      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('developer-header-command')), matching: find.byType(Pick)));
+      expect(headerToolbarVersion, HeaderToolbarVersion.command);
+      expect(picked('command'), isTrue);
+      expect(picked('today'), isFalse);
       await endSettings(tester);
     });
 

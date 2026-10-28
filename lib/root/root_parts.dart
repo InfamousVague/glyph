@@ -196,6 +196,8 @@ extension _RootParts on _GhostRootState {
       // The people icon with no organization joined, and the picker's last row: Settings › Organizations.
       onOrganizations: () => _openSettingsAt('organizations'),
       onNew: _plus,
+      // The command palette, for the header toolbar's versions that offer it in the bar (lib/shell/header_toolbar.dart).
+      onSearch: _search,
       // Whether the bell rings: something unread the person asked to see (`unreadCount`).
       unread: _unread,
       onDeleteNote: _delete,
