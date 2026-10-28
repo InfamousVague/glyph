@@ -120,8 +120,19 @@ def seconds(path: pathlib.Path) -> float:
         return 0.0
 
 
+# How a word is said where its spelling misleads the voice: the captions keep the spelling, the voice is sent this
+# (Matt, 2026-10-28: "update the voiceover for the lovart plugin to pronounce lovart as Loveart").
+SAID = [(re.compile(r"\bLovart\b"), "Love-art")]
+
+
+def said(words: str) -> str:
+    for pattern, sound in SAID:
+        words = pattern.sub(sound, words)
+    return words
+
+
 def speak(token: str, model: str, words: str, out: pathlib.Path) -> None:
-    body = {"text": words, "model_id": model, "voice_settings": SETTINGS}
+    body = {"text": said(words), "model_id": model, "voice_settings": SETTINGS}
     with tempfile.TemporaryDirectory() as work:
         raw = pathlib.Path(work) / "raw.mp3"
         raw.write_bytes(call(f"/text-to-speech/{VOICE}?output_format=mp3_44100_128", token, body))
