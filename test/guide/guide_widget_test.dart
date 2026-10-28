@@ -137,7 +137,7 @@ void main() {
       await it.again(walkthroughPages.length - 1);
       await wait(tester, 400);
       expect(words(tester), contains('You’re ready.'));
-      await tester.tap(pill('Take the Ghost.md Academy'));
+      await tester.tap(pill('Take the Ghost Academy'));
       expect(it.calls, ['close', 'academy']);
       // The last page asks light or dark under its words, so Start waits for the bottom like any Next.
       await toTheEnd(tester);

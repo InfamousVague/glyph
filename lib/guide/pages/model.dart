@@ -85,7 +85,7 @@ Widget _size(Tokens t, String text, bool on) => GuideSwatch(
   final here = phone.present(chosen.id);
   final problem = phone.problem;
   final words = download?.id == chosen.id
-      ? 'Getting ${modelName(chosen.id)}, ${gb(download!.received)} of ${gb(download.total)}. Keep Ghost.md open.'
+      ? 'Getting ${modelName(chosen.id)}, ${gb(download!.received)} of ${gb(download.total)}. Keep Ghost open.'
       : here
       ? '${chosen.name} is on the phone.'
       : problem != null && problem.isNotEmpty

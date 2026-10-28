@@ -85,9 +85,18 @@ void main() {
       final guide = GuideController();
       guide.close();
       expect(guide.open, isFalse);
-      expect(kept.getItem(guideSeenKey), '1');
+      expect(kept.getItem(guideSeenKey), guideSeenValue);
       expect(kept.getItem('glyph-guide-started'), isNull);
       expect(kept.getItem('glyph-guide-page'), isNull);
+      expect(GuideController().open, isFalse);
+    });
+
+    test('opens once more for someone who saw only the first tour, signed in or not, and is seen again when closed', () {
+      kept.setItem(guideSeenKey, '1');
+      final guide = GuideController();
+      expect(guide.open, isTrue);
+      guide.close();
+      expect(kept.getItem(guideSeenKey), guideSeenValue);
       expect(GuideController().open, isFalse);
     });
 

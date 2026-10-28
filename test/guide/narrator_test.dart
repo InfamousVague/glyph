@@ -129,7 +129,7 @@ void main() {
       expect(GuideController().open, isTrue);
       GuideController().close();
       expect(GuideController().open, isFalse);
-      expect(stored.readText(guideSeenKey), '1');
+      expect(stored.readText(guideSeenKey), guideSeenValue);
     });
   });
 

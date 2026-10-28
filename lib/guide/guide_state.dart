@@ -20,8 +20,16 @@ import 'too_soon.dart';
 /// The key that says the guide was seen (`glyph-guide-seen`).
 const String guideSeenKey = 'glyph-guide-seen';
 
-/// No storage: showing it every launch would be worse than never.
-StoredFlag _seen() => stored.flag(guideSeenKey, value: '1', unreadable: true);
+/// What the key holds once this walkthrough is seen: the tour's edition. The colourful, narrated tour of 2026-10-27
+/// is the second; the first's `1` reads as not seen, so it opens once for everyone who has not been through it, an
+/// account or not (Matt, 2026-10-28: "if someone hasn't seen the onboarding flow yet. Show them it even if they
+/// already have an account").
+const String guideSeenValue = '2';
+
+/// Whether this walkthrough was seen. No storage: showing it every launch would be worse than never.
+StoredFlag guideSeen() => stored.flag(guideSeenKey, value: guideSeenValue, unreadable: true);
+
+StoredFlag _seen() => guideSeen();
 
 /// `GuideState`, with `useGuide(launchedByKey)` as its constructor.
 class GuideController extends ChangeNotifier {

@@ -12,7 +12,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/reset.dart' show spared;
 import 'package:ghost_md/core/stored.dart' show stored;
 import 'package:ghost_md/core/wip.dart';
-import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey;
+import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey, guideSeenValue;
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/cheat_sheet.dart';
 import 'package:ghost_md/settings/panes/developer_pane.dart';
@@ -324,7 +324,7 @@ void main() {
     // Matt, 2026-10-28: "Add a developer setting to re run the onboarding".
     testWidgets('Run the onboarding again marks the walkthrough unseen and opens it on its first page', (tester) async {
       var opened = 0;
-      stored.writeText(guideSeenKey, '1');
+      stored.writeText(guideSeenKey, guideSeenValue);
       await openPane(tester, 'developer', developer: true, size: const Size(390, 1800), onGuide: () => opened += 1);
       expect(rowLabels(tester, 'Onboarding'), ['Run the onboarding again']);
       await tapOn(tester, find.byKey(const ValueKey('developer-run-onboarding-go')));

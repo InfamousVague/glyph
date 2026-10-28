@@ -1208,7 +1208,7 @@ extension _RootParts on _GhostRootState {
   /// Whether home asks simple or advanced (GHST-103): the walkthrough has been seen (so it did not ask, or was
   /// skipped before its page) and the choice was never made, here or on another device. Matt, 2026-10-18: new
   /// installs choose in the walkthrough, "existing users see it on the card one time".
-  bool get _asksExperience => !preferences.value.experienceChosen && _guide?.open != true && _stored.flag(guideSeenKey, value: '1', unreadable: true).isMarked;
+  bool get _asksExperience => !preferences.value.experienceChosen && _guide?.open != true && _stored.flag(guideSeenKey, value: guideSeenValue, unreadable: true).isMarked;
 
   /// Whether home offers the Academy's card (lib/academy/banner.dart): in simple mode, where the marks are hidden
   /// and the Academy is how they are learnt (Matt: "the academy page should show up on the home screen kinda like

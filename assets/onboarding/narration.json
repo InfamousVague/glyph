@@ -13,11 +13,11 @@
       "seconds": 11.83
     },
     "market": {
-      "words": "1e815016ae266813",
+      "words": "5822f20c5ca9d5db",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 95338,
-      "seconds": 11.84
+      "bytes": 90741,
+      "seconds": 11.28
     },
     "meetings": {
       "words": "963b3da9f3aa0e63",
@@ -41,11 +41,11 @@
       "seconds": 9.02
     },
     "speak": {
-      "words": "42c72bb76fd2d37c",
+      "words": "ea3b202b7eb77436",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 106205,
-      "seconds": 13.2
+      "bytes": 102026,
+      "seconds": 12.67
     },
     "start": {
       "words": "92ee9e5f0d5271e9",
@@ -62,11 +62,11 @@
       "seconds": 11.92
     },
     "welcome": {
-      "words": "bfecff7d0ba6d2c9",
+      "words": "164ba76cf5cbf4f5",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 81128,
-      "seconds": 10.08
+      "bytes": 76112,
+      "seconds": 9.44
     }
   }
 }

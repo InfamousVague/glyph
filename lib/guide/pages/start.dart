@@ -44,7 +44,7 @@ class GuideStart extends StatelessWidget {
         GuideThemeChoices(store: store),
         Padding(
           padding: EdgeInsets.only(top: t.space(6)),
-          child: AppPill(onPressed: onAcademy, icon: AppIcon(Lucide.graduationCap, size: 18, strokeWidth: 2.2, color: t.color('app-paper')), child: const Text('Take the Ghost.md Academy')),
+          child: AppPill(onPressed: onAcademy, icon: AppIcon(Lucide.graduationCap, size: 18, strokeWidth: 2.2, color: t.color('app-paper')), child: const Text('Take the Ghost Academy')),
         ),
       ],
     );

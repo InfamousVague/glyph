@@ -15,7 +15,7 @@ import 'package:ghost_md/notes/note_tabs.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/notes/notices.dart' show ExperienceCard;
-import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey;
+import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey, guideSeenValue;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/page_dock.dart' show PageDock;
@@ -190,7 +190,7 @@ void main() {
   });
   testWidgets('asks an install from before the choice once, on home, and the answer is the preference (Matt, 2026-10-18: "existing users see it on the card one time")', (tester) async {
     // The walkthrough was seen on this device long ago, and no mode was ever chosen, here or elsewhere.
-    final kept = MemoryStored({guideSeenKey: '1'});
+    final kept = MemoryStored({guideSeenKey: guideSeenValue});
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,

@@ -350,7 +350,7 @@ class _GuideState extends State<Guide> with WidgetsBindingObserver {
           scopesRoute: true,
           explicitChildNodes: true,
           namesRoute: true,
-          label: 'How to use Ghost.md',
+          label: 'How to use Ghost',
           child: ColoredBox(
             color: t.color('glacier-bg'),
             child: DefaultTextStyle(

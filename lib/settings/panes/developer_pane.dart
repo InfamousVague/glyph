@@ -7,8 +7,7 @@ import 'package:glacier/glacier.dart';
 import '../../ai/runs.dart' show useAnyRunning;
 import '../../art/art.dart';
 import '../../core/preferences.dart';
-import '../../core/stored.dart' show stored;
-import '../../guide/guide_state.dart' show guideSeenKey;
+import '../../guide/guide_state.dart' show guideSeen;
 import '../../core/wip.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -167,7 +166,7 @@ class _DeveloperPaneState extends State<DeveloperPane> {
                 key: const ValueKey('developer-run-onboarding-go'),
                 disabled: widget.onGuide == null,
                 onPress: () {
-                  stored.flag(guideSeenKey, value: '1', unreadable: true).clear();
+                  guideSeen().clear();
                   widget.onGuide?.call();
                 },
                 child: const Text('Run'),

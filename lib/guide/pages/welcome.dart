@@ -74,7 +74,7 @@ class _GuideWelcomeState extends State<GuideWelcome> with SingleTickerProviderSt
       children: [
         Semantics(
           header: true,
-          child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chWidth(title, 14)), child: guideLines(title, WispText('Welcome to Ghost.md', pace: 16, style: title))),
+          child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chWidth(title, 14)), child: guideLines(title, WispText('Welcome to Ghost', pace: 16, style: title))),
         ),
         // The words the voice says (narration.dart), shown as it says them.
         GuideLead(narration[GuidePage.welcome]!),
@@ -82,7 +82,7 @@ class _GuideWelcomeState extends State<GuideWelcome> with SingleTickerProviderSt
           padding: EdgeInsets.only(top: t.space(5)),
           child: Semantics(
             container: true,
-            label: 'What Ghost.md does',
+            label: 'What Ghost does',
             child: Wrap(
               spacing: t.space(2),
               runSpacing: t.space(2),
