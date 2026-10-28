@@ -171,11 +171,11 @@ When a meeting ends, Ghost.md writes it up **on your device**:
 - **A summary** under the title, under `## Summary`: one line on what it was about, what was decided, and the to-dos as to-dos.
 - **The tape** at the top of the note, to play it back. See [[Tapes and transcripts]].
 
-Until it's written up, a meeting Ghost was in says "It is being written up on your device", with the captions in the meantime.
+Until it's written up, a meeting Ghost was in says "It is being written up on your device", with the captions in the meantime. Its summary doesn't wait for that: a Google Meet or Zoom meeting comes with captions that say who said what, so the summary is written from them as soon as the meeting reaches your device, and it's sorted and posted minutes after the call. The full transcript follows later, under the summary, and doesn't change it. Tap **Summarize** on the tape to write the summary again from the transcript.
 
 ### Who writes the summary
 
-The summary is written by the AI model on your phone or Mac. If the Claude plugin is on with your own key, Claude writes meeting summaries instead, with your key, straight to Anthropic. See [[Claude in Ghost.md]].
+If the Claude plugin is on with your own key, Claude writes meeting summaries, on every device the key has reached. The meeting's transcript is sent from your device to Anthropic under your own key, and nowhere else. To keep meetings on your devices, turn off **Write meeting summaries with Claude** in Settings › Plugins › Claude. Without Claude, the AI model on your phone or Mac writes the summary. If Claude can't be reached, or turns the request down, the model on your device writes it instead, and the tape says why. See [[Claude in Ghost.md]].
 
 Choose what gets a summary in Settings › Recording, under **Summaries**: **Meetings**, **Meetings and long voice notes**, or **Off**.
 
@@ -183,7 +183,7 @@ On Android, a meeting is written up when the phone is charging or has more than 
 
 ### Written up on another device
 
-If the device that got the meeting can't write a summary, because it has no summary model and no Claude, it hands the meeting on. Another of your Android phones or Macs that can write it picks it up, writes the summary, and the note syncs back. Only one device writes it.
+If the device that got the meeting can't write a summary, because it has no summary model and no Claude, it hands the meeting on. Another of your Android phones or Macs that can write it picks it up, writes the summary, and the note syncs back. Only one device writes it. A device with Claude takes it first. And if one device is still busy with a meeting's transcript, a device with Claude writes the summary from its captions, so you aren't left waiting.
 
 Meanwhile the meeting's row and its tape say where it stands, such as "Waiting for a summary: turn on Claude or download the summary model on this Mac, or open Ghost.md on your phone", or "Being summarized on your phone."
 

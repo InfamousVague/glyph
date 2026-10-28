@@ -60,7 +60,7 @@ class TapeSummary {
 /// asked about the one note).
 @immutable
 class TapeQueue {
-  const TapeQueue({this.pending = false, this.needsModel = false, this.failed = false, this.refining = false, this.running = false, this.claudeHeld = false, this.failedWhy, this.waitWords});
+  const TapeQueue({this.pending = false, this.needsModel = false, this.failed = false, this.refining = false, this.running = false, this.claudeHeld = false, this.failedWhy, this.waitWords, this.fellBackWhy});
 
   /// A summary of this note is queued or being written (`summaries.pending.has(id)`).
   final bool pending;
@@ -82,6 +82,10 @@ class TapeQueue {
   /// Why the summary was given up on, in Claude's words, where it said; or, [claudeHeld], why it waits where that is
   /// the spending limit (ai/summaries.dart `reasons`). The port's own.
   final String? failedWhy;
+
+  /// Why Claude did not write this meeting's summary, which the device's own model is writing instead (ai/summaries.dart
+  /// `fellBack`; Matt, 2026-10-28). The port's own.
+  final String? fellBackWhy;
 
   /// The note's better words are still to come (`refining.pending.has(id)`).
   final bool refining;
@@ -176,7 +180,7 @@ class _NoteTapeState extends State<NoteTape> {
             : held
                 ? 'The summary comes after the better words.'
                 : summarizing
-                    ? null
+                    ? (queue.fellBackWhy != null ? 'Claude couldn’t write the summary: ${queue.fellBackWhy} It’s being written on this device.' : null)
                     : (summary?.behind ?? false)
                         ? 'Summary is from before the last take.'
                         : null);

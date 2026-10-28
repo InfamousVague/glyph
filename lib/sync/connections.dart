@@ -4,8 +4,8 @@
 ///
 /// THAT TRAVELS, each an item read and written where its owner already keeps it:
 /// - **Claude** (lib/claude/claude_settings.dart, claude_spend.dart): the API key, the model, the effort, the "Ask
-///   Claude" inbox switch, the watch's To Claude switch, and the spending limit's switch, amount and warning
-///   ([claudeLimitName]). The secure store's own names; [ClaudeSettings.reload] after each is written. So a key put in
+///   Claude" inbox switch, the watch's To Claude switch, Write meeting summaries with Claude ([claudeMeetingsName],
+///   2026-10-28), and the spending limit's switch, amount and warning ([claudeLimitName]). The secure store's own names; [ClaudeSettings.reload] after each is written. So a key put in
 ///   on the Fold is the Mac's at its next sync, and the summaries' handoff (lib/ai/summary_handoff.dart), which looks
 ///   again when Claude's settings change, sees the Mac able to write a meeting up.
 /// - **The plugins' switches** for the six whose connections travel, Claude, Slack, Discord, GitHub, Lovart and ElevenLabs
@@ -77,7 +77,7 @@ import '../plugins/types.dart' show PluginHost;
 import 'sealed_keys.dart';
 
 /// Claude's names in the secure store that travel.
-const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeLimitName];
+const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeMeetingsName, claudeLimitName];
 
 /// The plugins whose switch travels.
 const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs'];
@@ -136,6 +136,7 @@ Object? _claudePeek(ClaudeSettings settings, String name) => switch (name) {
       claudeEffortName => settings.effortChosen ? settings.effort : null,
       claudeInboxName => settings.inbox,
       claudeWatchName => settings.watch,
+      claudeMeetingsName => settings.meetings,
       claudeLimitName => settings.spend.limitText,
       _ => null,
     };

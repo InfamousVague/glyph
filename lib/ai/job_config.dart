@@ -7,9 +7,9 @@
 /// Summaries), and when a model arrives or goes: the model named is what the page would pick from what is on the
 /// phone, and a download changes that without any preference changing. A config that still named the model the
 /// phone lacked would send a meeting asked again after the download straight back to "Needs a model" (Rust also
-/// picks from what is there by the same rule, `llm::model::model_for`, as a second guard). Only on Android, where
-/// the write-up runs, and only to a binary that has it; the model list is not read for a preference that has nothing
-/// to do with it.
+/// picks from what is there by the same rule, `llm::model::model_for`, as a second guard). Only where the write-up
+/// runs (Android, and since 2026-10-28 the Mac that runs its own, [macRunsWriteUps]), and only to a binary that has
+/// it; the model list is not read for a preference that has nothing to do with it.
 ///
 /// CLAUDE, FOR MEETINGS (2026-10-19, ai/summary_claude.dart): where the app's Claude is chosen for meetings, the
 /// config says summaries `off` whatever the preference says, so the phone makes the transcript and no summary, and the
@@ -57,9 +57,20 @@ String jobConfigKey(Preferences prefs) {
   return jsonEncode([prefs.formatModel, prefs.writeUp, prefs.summaries]);
 }
 
-/// Whether this device writes meetings up itself: Android, on a binary with the write-up.
+/// Whether the Mac app runs the core's write-ups itself (lib/meet/tape.dart `CoreWriteUps`), set where the app wires
+/// them (lib/root/voice_wiring.dart). Until 2026-10-28 the Mac was sent no config, so its write-up ran on the core's
+/// compiled-in defaults, summaries on: with Claude chosen it still wrote a summary on the Mac's own model after
+/// Whisper, hours of background cores for an answer the queue then put aside for Claude's (Matt, 2026-10-28: "We should
+/// be using Claude to generate the meeting summaries not the local processor on the Mac when the anthropic API key is
+/// set"). Sent the config, the Mac's write-up makes the transcript alone while Claude is chosen, as the phone's does.
+bool macRunsWriteUps = false;
+
+/// Whether this device writes meetings up itself: Android, or a Mac that runs its write-ups ([macRunsWriteUps]), on a
+/// binary with the write-up.
 Future<bool> _writesUp() async {
-  return aiBackend.available && !kIsWeb && defaultTargetPlatform == TargetPlatform.android && await hasNativeGeneration(meetingGeneration);
+  if (!aiBackend.available || kIsWeb) return false;
+  final here = defaultTargetPlatform == TargetPlatform.android || (macRunsWriteUps && defaultTargetPlatform == TargetPlatform.macOS);
+  return here && await hasNativeGeneration(meetingGeneration);
 }
 
 String _lastSent = '';

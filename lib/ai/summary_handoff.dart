@@ -51,6 +51,24 @@
 /// while leaving the take would hide the meeting there until the phone app opens and make the phone run an hour of
 /// Whisper on its battery. The handoff passes on only the step the Mac cannot do, which on the Fold is Claude: seconds.
 ///
+/// CLAUDE FIRST, AND A MEETING STILL BEING HEARD (Matt, 2026-10-28: "We should be using Claude to generate the meeting
+/// summaries not the local processor on the Mac when the anthropic API key is set"). That morning's standup was not
+/// stranded by these rules: the Mac was an hour into Whisper on it at background priority, its note still saying it
+/// was being written up, so no device marked it, and its summary waited on the Mac's transcript for five hours. Now:
+/// - **A device with Claude takes a meeting at once; one with only a model gives it a moment.** A meeting marked
+///   waiting is handed on at once by a device that would write it with Claude ([HandoffQueue.writesMeetingsWithClaude]),
+///   and by a device that would write it only with its own model once [modelDeferMs] has passed since it was marked,
+///   so a device with the key (the key follows the account, so any of them) claims it first. The claim itself is
+///   unchanged: once, through the account. The device that marked it waiting holds nothing.
+/// - **A meeting still being heard, with its captions** ([captionsStranded]): one Ghost filed in the last week whose
+///   note still says it is being written up, with captions naming who said what, no summary, never sorted, nothing
+///   queued for it here, and quiet for [captionsQuietMs]. A device that would write it with Claude marks it waiting
+///   and takes it, as a stranded one, and writes it from the captions (ai/summaries.dart, CAPTIONS FIRST); the
+///   device running Whisper goes on making the transcript, which lands under the summary, and its own write-up puts
+///   aside any summary it makes (a device's kept summary says which section is its own, and the one another device
+///   wrote is not). A device on the new build summarizes such a meeting itself from its captions straight away, so
+///   this is for a device that is not, or is asleep.
+///
 /// Privacy is the summary's own: the transcript is already in the note on every device of the account; a device that
 /// writes the summary with Claude sends it to Anthropic with that device's key, as it would for a meeting it recorded.
 /// Local only is never asked to hand on: a meeting held for Claude by it waits as before, and a device under Local
@@ -68,7 +86,7 @@ import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
 import '../core/summary_text.dart' show summarySection;
 import '../meet/meet_note.dart' show awaitsWriteUp, ghostLineStart;
-import '../meet/speakers.dart' show sectionOf;
+import '../meet/speakers.dart' show captionWords, sectionOf;
 import 'meeting_sort.dart' show meetingSortsKey;
 import '../core/host_platform.dart';
 
@@ -87,6 +105,13 @@ const int handoffKeptMs = 30 * 24 * 3600000;
 /// A stranded meeting ([strandedMeeting]) is one of the last week's, quiet for an hour.
 const int strandedWithinMs = 7 * 24 * 3600000;
 const int strandedQuietMs = 3600000;
+
+/// A meeting still being heard, with its captions ([captionsStranded]), is taken on once quiet this long.
+const int captionsQuietMs = 10 * 60000;
+
+/// How long a device that would write a meeting only with its own model leaves one marked waiting for a device with
+/// Claude to claim (see CLAUDE FIRST in the header).
+const int modelDeferMs = 5 * 60000;
 
 /// This device, as the handoff names it: an id of its own, made once and kept in its storage, and what a person
 /// calls it ("Mac", "phone").
@@ -275,9 +300,25 @@ bool strandedMeeting(Note note, Preferences prefs, {required int now}) {
   return hasMeetingWords(note);
 }
 
-/// Whether [note] carries a meeting's words to summarize: its phrases, or its written transcript.
+/// Whether [note] is a meeting still being heard that a device with Claude may write from its captions (see CLAUDE
+/// FIRST in the header): one Ghost filed in the last week, its note still saying it is being written up, its
+/// captions naming who said what ([captionWords]), no summary, never sorted, with summaries on, and quiet for
+/// [captionsQuietMs].
+bool captionsStranded(Note note, Preferences prefs, {required int now}) {
+  if (prefs.summaries == 'off') return false;
+  final started = prefs.meetings[note.id];
+  if (started == null || now - started > strandedWithinMs) return false;
+  if (now - note.updatedAt < captionsQuietMs) return false;
+  final body = note.body;
+  if (!body.contains(ghostLineStart) || !awaitsWriteUp(body) || summarySection(body) != null || captionWords(body) == null) return false;
+  final sorts = prefs.more[meetingSortsKey];
+  final mark = sorts is Map ? sorts[note.id] : null;
+  return !(mark is Map && mark.containsKey('sorted'));
+}
+
+/// Whether [note] carries a meeting's words to summarize: its phrases, its written transcript, or its captions.
 bool hasMeetingWords(Note note) =>
-    (note.segments ?? const []).any((s) => s.text.trim().isNotEmpty) || (sectionOf(note.body, '## Transcript') ?? '').trim().isNotEmpty;
+    (note.segments ?? const []).any((s) => s.text.trim().isNotEmpty) || (sectionOf(note.body, '## Transcript') ?? '').trim().isNotEmpty || captionWords(note.body) != null;
 
 /// What the handoff asks of this device's summary queue (ai/summaries.dart `Summaries`).
 abstract interface class HandoffQueue {
@@ -287,6 +328,9 @@ abstract interface class HandoffQueue {
   /// Whether a meeting's summary could be written here now: Claude chosen and free to run, or, where Claude is not
   /// chosen, a summary model on the device.
   Future<bool> canWriteUpMeetings();
+
+  /// Whether a meeting's summary would be written here by Claude, chosen and free to run now (see CLAUDE FIRST).
+  Future<bool> writesMeetingsWithClaude();
 
   /// The meeting's summary asked for here, as a meeting recorded here is asked for.
   void handOn(String id);
@@ -479,8 +523,11 @@ class SummaryHandoff {
     final prefs = preferences();
     final now = clock();
     final all = handoffsOf(prefs);
-    bool? able;
+    bool? able, withClaude;
     Future<bool> canWrite() async => able ??= await queue.canWriteUpMeetings();
+    Future<bool> claudeHere() async => withClaude ??= await queue.writesMeetingsWithClaude();
+    // When a meeting left for a device with Claude is this one's to take, if none has by then.
+    int? deferredUntil;
     for (final MapEntry(key: id, value: h) in all.entries) {
       if (h.done != null) {
         if (queue.hasJob(id)) queue.handedOff(id);
@@ -491,14 +538,32 @@ class SummaryHandoff {
       final note = await getNote(id);
       if (note == null || !hasMeetingWords(note)) continue;
       if (!await canWrite()) return;
+      // A device with only its own model leaves a meeting just marked to one with Claude for a while (CLAUDE FIRST).
+      if (!await claudeHere() && now - h.at < modelDeferMs) {
+        final until = h.at + modelDeferMs;
+        deferredUntil = deferredUntil == null ? until : math.min(deferredUntil, until);
+        continue;
+      }
       queue.handOn(id);
     }
+    if (deferredUntil != null) _lookAt(deferredUntil - now);
     for (final note in notes()) {
-      if (all.containsKey(note.id) || queue.hasJob(note.id) || (isTrashed?.call(note.id) ?? false) || !strandedMeeting(note, prefs, now: now)) continue;
+      if (all.containsKey(note.id) || queue.hasJob(note.id) || (isTrashed?.call(note.id) ?? false)) continue;
+      final stranded = strandedMeeting(note, prefs, now: now);
+      // A meeting still being heard is only taken on from its captions by a device with Claude (CLAUDE FIRST).
+      if (!stranded && !(captionsStranded(note, prefs, now: now) && await claudeHere())) continue;
       if (!await canWrite()) return;
       setPreferences((was) => handoffsOf(was).containsKey(note.id) ? was : withHandoff(was, note.id, Handoff(from: '', at: now), now: now));
       queue.handOn(note.id);
     }
+  }
+
+  Timer? _later;
+
+  /// One more look in [ms], for a meeting left to a device with Claude for a while.
+  void _lookAt(int ms) {
+    _later?.cancel();
+    _later = Timer(Duration(milliseconds: math.max(0, ms) + 1000), () => unawaited(look()));
   }
 
   /// Looks whenever [changes] says something changed (the preferences, the notes), a second after the last word, and
@@ -514,6 +579,7 @@ class SummaryHandoff {
     heard();
     return () {
       soon?.cancel();
+      _later?.cancel();
       changes.removeListener(heard);
     };
   }

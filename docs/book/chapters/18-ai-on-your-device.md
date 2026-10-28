@@ -117,7 +117,7 @@ With no model on the device, a meeting waits, and says what to do: "Waiting for 
 
 Once a meeting is written up, the AI files it into the Meetings folder of the workspace it is about. **Sort meetings into workspaces**, on the same Meetings card, turns this off.
 
-If Claude is set up in the app, meetings are written up by Claude instead. See [[Claude in Ghost.md]] and [[Meetings and the Meet bot]].
+If Claude is set up in the app, meetings are written up by Claude instead, unless you turn off **Write meeting summaries with Claude** in Settings › Plugins › Claude. If Claude can't write one, because there's no connection or the key is refused, the model on your device writes it. A meeting Ghost was in is summarized from its captions straight away, by Claude or by your device, so the summary doesn't wait for the transcript. See [[Claude in Ghost.md]] and [[Meetings and the Meet bot]].
 
 ## The review after recording
 

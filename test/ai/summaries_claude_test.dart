@@ -26,6 +26,7 @@ import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart' show Segment;
 import 'package:ghost_md/core/preferences.dart' show Preferences;
 import 'package:ghost_md/meet/speakers.dart' show CaptionTurn, captionsSection;
+import 'package:ghost_md/ai/summary_text.dart' show onePassChars, pieceChars;
 import 'package:ghost_md/format/prompt.dart' show recordingNotesPrompt, recordingSummaryPrompt;
 
 import 'summaries_test.dart' as q;
@@ -102,7 +103,7 @@ const transcript = 'That is the March launch settled. Sam owns the press list.';
 const body = '# March launch\n\n${q.section}\n\n$transcript';
 
 /// A case with the queue made with this file's Claude: switched on, a key kept, Local only off unless it says.
-void claudeTest(String name, Future<void> Function(WidgetTester tester) run, {bool key = true}) {
+void claudeTest(String name, Future<void> Function(WidgetTester tester) run, {bool key = true, int onePassChars = claudeOnePassChars, int pieceChars = claudePieceChars}) {
   testWidgets(name, (tester) async {
     api = FakeClaudeApi();
     settings = ClaudeSettings(MemorySecureStore());
@@ -110,7 +111,7 @@ void claudeTest(String name, Future<void> Function(WidgetTester tester) run, {bo
     changes = Heard();
     switchedOn = true;
     localOnly = false;
-    q.claudeSeam = MeetingClaude(settings: settings, switchedOn: () => switchedOn, localOnly: () => localOnly, api: (_) => api, changes: changes);
+    q.claudeSeam = MeetingClaude(settings: settings, switchedOn: () => switchedOn, localOnly: () => localOnly, api: (_) => api, changes: changes, onePassChars: onePassChars, pieceChars: pieceChars);
     q.begin();
     try {
       await run(tester);
@@ -323,7 +324,23 @@ void main() {
       expect(ask.betas, isEmpty);
     });
 
-    claudeTest('a long meeting goes in the same pieces, each piece’s notes checkpointed, then the summary of the notes', (tester) async {
+    claudeTest('a long meeting that fits goes to Claude whole, in one request, where the device’s model would read it in pieces', (tester) async {
+      final tape = q.longTape();
+      q.notes['n1'] = q.note('n1', '# Long', recordingMs: 600000, segments: tape);
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      final ask = api.asked.single;
+      expect(ask.system, recordingSummaryPrompt);
+      expect(ask.prompt.length, greaterThan(onePassChars), reason: 'past the device model’s one pass, inside Claude’s');
+      expect(ask.prompt, contains(tape.last.text));
+      ask.answer(q.answer);
+      await advance(tester, 0);
+      expect(api.asked, hasLength(1));
+      expect(q.notes['n1']?.body, contains('## Summary'));
+    });
+
+    // The 69-minute standup of 2026-10-28 was 362,000 characters; one past Claude's limit goes in its pieces.
+    claudeTest('a meeting past Claude’s one pass is chunked: each piece’s notes checkpointed, then the summary of the notes', (tester) async {
       q.notes['n1'] = q.note('n1', '# Long', recordingMs: 600000, segments: q.longTape());
       q.summaries.enqueueSummary('n1', SummaryKind.meeting);
       await advance(tester, 0);
@@ -338,7 +355,7 @@ void main() {
       expect(api.asked[2].system, recordingSummaryPrompt);
       expect(api.asked[2].prompt, endsWith('notes one\n\nnotes two'));
       expect(q.fakes, isEmpty);
-    });
+    }, onePassChars: onePassChars, pieceChars: pieceChars);
   });
 
   group('in the background', () {
@@ -393,7 +410,8 @@ void main() {
   });
 
   group('a failure', () {
-    claudeTest('of the connection, or Claude overloaded, keeps the job and counts a try; the third fails it with Claude’s words', (tester) async {
+    claudeTest('with no model on the device, of the connection, or Claude overloaded, keeps the job and counts a try; the third fails it with Claude’s words', (tester) async {
+      q.present = [];
       q.summaries.enqueueSummary('n1', SummaryKind.meeting);
       await advance(tester, 0);
       api.asked[0].fail(const ClaudeError('Claude could not be reached. Check the connection.'));
@@ -417,7 +435,8 @@ void main() {
       expect(api.asked, hasLength(4));
     });
 
-    claudeTest('of the key fails the job at once, for Try again', (tester) async {
+    claudeTest('of the key, with no model on the device, fails the job at once, for Try again', (tester) async {
+      q.present = [];
       q.summaries.enqueueSummary('n1', SummaryKind.meeting);
       await advance(tester, 0);
       api.asked.single.fail(errorOf(401, '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}'));
@@ -430,7 +449,8 @@ void main() {
       expect(q.notes['n1']?.body, isNot(contains('## Summary')));
     });
 
-    claudeTest('a decline, or an answer cut off or empty, is no section: declined fails at once, the others count a try', (tester) async {
+    claudeTest('a decline, or an answer cut off or empty, is no section: with no model here, declined fails at once, the others count a try', (tester) async {
+      q.present = [];
       q.summaries.enqueueSummary('n1', SummaryKind.meeting);
       await advance(tester, 0);
       api.asked[0].answer(q.answer, stop: 'max_tokens');

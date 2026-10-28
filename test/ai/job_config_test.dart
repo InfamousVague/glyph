@@ -94,6 +94,21 @@ void main() {
       expect(kept, hasLength(2));
     });
 
+    // Matt, 2026-10-28: "We should be using Claude to generate the meeting summaries not the local processor on the
+    // Mac when the anthropic API key is set".
+    test('goes to a Mac that runs its own write-ups, saying summaries off where meetings are Claude’s', () async {
+      android = false;
+      await sendJobConfig(claude: true);
+      expect(kept, isEmpty, reason: 'a Mac whose app runs no write-ups is sent none');
+      macRunsWriteUps = true;
+      try {
+        await sendJobConfig(claude: true);
+        expect(kept.single['summaries'], 'off');
+      } finally {
+        macRunsWriteUps = false;
+      }
+    });
+
     test('is sent again when a model arrives, and not for a preference that has nothing to do with it', () async {
       final stop = keepJobConfigCurrent();
       await settle();

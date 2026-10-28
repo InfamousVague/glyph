@@ -176,7 +176,7 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       await pumpSettings(tester, SettingsPaneScope(finder: finder, child: SingleChildScrollView(child: Builder(builder: claudePlugin.settings!.pane))), size: const Size(390, 4000));
       final names = [for (final setting in claudePlugin.settings!.settings) setting.name];
-      expect(names, ['Ask Claude', 'API key', 'Model', 'Spending limit', 'Ask Claude note', 'Phone assistant', 'Connect', 'What Claude can do', 'Your key']);
+      expect(names, ['Ask Claude', 'API key', 'Model', 'Meeting summaries', 'Spending limit', 'Ask Claude note', 'Phone assistant', 'Connect', 'What Claude can do', 'Your key']);
       expect(names.where((name) => finder.find(name) == null), isEmpty);
       for (final tool in canDo) {
         expect(find.text(tool.name, skipOffstage: false), findsOneWidget);

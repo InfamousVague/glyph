@@ -703,6 +703,9 @@ class _Queue implements HandoffQueue {
   }
 
   @override
+  Future<bool> writesMeetingsWithClaude() => canWriteUpMeetings();
+
+  @override
   void handOn(String id) => handed.add(id);
 
   @override

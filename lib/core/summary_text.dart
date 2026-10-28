@@ -428,12 +428,13 @@ final RegExp _sentenceEnd = RegExp(r'(?<=[.!?]["”’)]?)\s+');
 final RegExp _paragraphBreak = RegExp(r'\n\s*\n');
 
 /// The transcript in pieces of about [size] characters, cut at paragraph breaks; a paragraph longer than a piece is
-/// cut at sentence ends (`transcriptPieces`). Up to [onePassChars] goes in one piece. Nothing is dropped: the pieces
+/// cut at sentence ends (`transcriptPieces`). Up to [onePass] ([onePassChars], the on-device model's, unless the
+/// caller says: Claude's is its own, lib/ai/summary_claude.dart) goes in one piece. Nothing is dropped: the pieces
 /// joined by paragraph breaks are the transcript's paragraphs again.
-List<String> transcriptPieces(String plain, [int size = pieceChars]) {
+List<String> transcriptPieces(String plain, [int size = pieceChars, int onePass = onePassChars]) {
   final text = jsTrim(plain);
   if (text.isEmpty) return [];
-  if (text.length <= onePassChars) return [text];
+  if (text.length <= onePass) return [text];
   final units = <String>[
     for (final paragraph in text.split(_paragraphBreak).map(jsTrim))
       if (paragraph.isNotEmpty) ...(paragraph.length <= size ? [paragraph] : _sentencesUnder(paragraph, size)),

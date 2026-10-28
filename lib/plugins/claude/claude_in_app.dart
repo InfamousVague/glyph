@@ -17,6 +17,14 @@
 /// lib/claude/claude_spend.dart): off by default; on, a monthly amount in US dollars ($5, $10, $25, $50 or one typed),
 /// counted again from the 1st, and "Warn me at 80%". The month so far is shown under it with Reset count. The count
 /// is this device's, from what Claude reports for each request, and the card says so.
+///
+/// **Meeting summaries** (Matt, 2026-10-28: "We should be using Claude to generate the meeting summaries not the local
+/// processor on the Mac when the anthropic API key is set"; lib/ai/summary_claude.dart): Write meeting summaries with
+/// Claude, on unless turned off ([ClaudeSettings.meetings], synced with the key), so a key is all a meeting needs to be
+/// written up by Claude on every device; off, the device's own summary model writes them, as before. The card says
+/// plainly what goes where: the meeting's transcript, from this device to Anthropic, under the person's own key,
+/// billed to it, and nowhere else. In Simple ([Preferences.simple]) it is the switch and that sentence; Advanced adds
+/// how a meeting is sent and what happens when Claude cannot be reached.
 library;
 
 import 'dart:async';
@@ -29,6 +37,7 @@ import '../../art/art.dart' show AppIcon, Lucide;
 import '../../claude/claude_settings.dart';
 import '../../claude/claude_spend.dart';
 import '../../claude/messages_api.dart';
+import '../../core/preferences.dart' show PreferencesStore, preferences;
 import '../../core/wip.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/pane_parts.dart' show armedFor;
@@ -40,6 +49,7 @@ const List<SettingsFindable> claudeInAppFindable = [
   SettingsFindable('Ask Claude', 'anthropic claude ask chat dock in the app'),
   SettingsFindable('API key', 'anthropic api key claude sk-ant console token'),
   SettingsFindable('Model', 'claude sonnet opus haiku model'),
+  SettingsFindable('Meeting summaries', 'meeting meetings summary summaries write up transcript standup claude anthropic privacy device model'),
   SettingsFindable('Spending limit', 'spending limit budget cost money dollars monthly price usage spend cap warn'),
   SettingsFindable('Ask Claude note', 'inbox ask claude requests to-do automatic'),
   SettingsFindable('Phone assistant', 'assistant digital default side key gesture voice talk microphone bind gemini bixby'),
@@ -75,7 +85,10 @@ String claudeSummary([ClaudeSettings? settings]) {
 
 /// The three cards, Ask Claude (the key), Model and Ask Claude note, a page's gap apart.
 class ClaudeInApp extends StatefulWidget {
-  const ClaudeInApp({super.key, this.settings, this.assistant = const PhoneAssistantSeam(), this.phone});
+  const ClaudeInApp({super.key, this.settings, this.assistant = const PhoneAssistantSeam(), this.phone, this.prefs});
+
+  /// The preferences Simple is read from; the app's own when null.
+  final PreferencesStore? prefs;
 
   /// The settings to read and write; the app's own when null.
   final ClaudeSettings? settings;
@@ -273,6 +286,40 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
     );
   }
 
+  /// Write meeting summaries with Claude (see the header).
+  Widget _meetingsCard(BuildContext context, ClaudeSettings settings) {
+    return ValueListenableBuilder(
+      valueListenable: widget.prefs ?? preferences,
+      builder: (context, prefs, _) {
+        final simple = prefs.simple;
+        final on = settings.meetings;
+        final String hint;
+        if (!settings.hasKey) {
+          hint = 'Add your API key above, and Claude writes your meetings up.';
+        } else if (!on) {
+          hint = 'Off: the summary model on your device writes them, and the transcript stays on your devices.';
+        } else if (simple) {
+          hint = 'On: Claude writes them.';
+        } else {
+          hint = 'On: ${claudeModelLabel(settings.model)} writes them, a meeting read whole where it fits. If Claude can’t be reached, the summary model on your device writes it instead, where you have one.';
+        }
+        return PaneSection(
+          title: 'Meeting summaries',
+          description: const Text('Each meeting’s summary: what was said, what was decided, and who does what next. A meeting Ghost was in is written up from its captions as soon as it reaches your device.'),
+          footer: const Text('On, a meeting’s transcript is sent from this device to Anthropic under your own API key, and Anthropic bills the key. It goes nowhere else: not through Ghost.md’s server. Off, nothing of a meeting goes to Anthropic.'),
+          children: [
+            SettingRow(
+              key: const ValueKey('claude-meetings'),
+              label: 'Write meeting summaries with Claude',
+              hint: Text(hint),
+              control: GlacierSwitch(ariaLabel: 'Write meeting summaries with Claude', checked: on, onCheckedChange: (next) => unawaited(settings.setMeetings(next))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _assistantCard(BuildContext context) {
     final chosen = _chosen;
     return ValueListenableBuilder<bool>(
@@ -372,6 +419,7 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
                   ),
               ],
             ),
+            _meetingsCard(context, settings),
             _spendCard(context, settings.spend),
             PaneSection(
               title: 'Ask Claude note',

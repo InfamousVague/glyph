@@ -37,7 +37,7 @@ import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../ai/backend.dart' as ai;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs;
-import '../ai/job_config.dart' show keepJobConfigCurrent, sendJobConfig;
+import '../ai/job_config.dart' show keepJobConfigCurrent, macRunsWriteUps, sendJobConfig;
 import '../ai/native_backend.dart';
 import '../ai/review.dart' show reviewAvailable;
 import '../ai/summaries.dart';
@@ -447,6 +447,8 @@ class Voice {
           )
         : null;
     final writesUp = host.hasMeetings || writeUps != null;
+    // The Mac's write-up reads the config the phone's does, so with Claude chosen it makes no summary of its own.
+    macRunsWriteUps = writeUps != null;
 
     // The app's own Claude, which writes meetings up where it is chosen (lib/ai/summary_claude.dart): its plugin's
     // switch whatever Local only says (Local only holds it, and the write-up waits), and the key on this device.

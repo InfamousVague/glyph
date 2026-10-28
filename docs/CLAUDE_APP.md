@@ -130,12 +130,18 @@ lib/claude/claude_spend.dart). Search finds it by spending, limit, budget and co
 
 Matt, 2026-10-19: "when claude is enabled the meeting summary should go through claude instead of gemma". A meeting's
 write-up (one recorded on the phone or the Mac, and one Ghost was in, docs/MEET.md) is Claude's where Claude is
-**chosen**: the Claude plugin's switch is on and a key is kept on this device. Without either, meetings are written up
-on the device as they always were; a long voice note's summary always is. lib/ai/summary_claude.dart is Claude's half,
+**chosen**: the Claude plugin's switch is on, a key is kept on this device (typed, or sealed from another device), and
+**Write meeting summaries with Claude** is on (Matt, 2026-10-28: "We should be using Claude to generate the meeting
+summaries not the local processor on the Mac when the anthropic API key is set"; the Meeting summaries card on the
+plugin's page, on unless turned off, `anthropic-meetings`, synced with the key). Without any of them, meetings are
+written up on the device as they always were; a long voice note's summary always is. lib/ai/summary_claude.dart is Claude's half,
 lib/ai/summaries.dart (its header, "CLAUDE, FOR MEETINGS") the queue's.
 
-- **The same write-up.** The summary queue reads the tape's words as for the phone's model, in the same pieces when it
-  is long (ai/summary_text.dart `transcriptPieces`), with the same prompts (format/prompt.dart), and the answer is
+- **The same write-up.** The summary queue reads the tape's words as for the phone's model, with the same prompts
+  (format/prompt.dart), but whole up to 800,000 characters (about 200,000 tokens; the device's model takes 20,000 at a
+  time) and in 400,000-character pieces past that (ai/summary_text.dart `transcriptPieces`, `claudeOnePassChars`). A
+  meeting Ghost was in is written from its captions as soon as it is filed, not after Whisper (docs/MEET.md, "The
+  summary comes from the captions first"). The answer is
   placed and shaped by the same rules, written plain into a closed note or handed whole to an open note's editor,
   which lands it as tracked changes with Keep and Revert. Kept as made by the model chosen (`claude-sonnet-5-5`, ...).
 - **The request.** One streamed `POST /v1/messages` a generation, read whole: the summary prompt as `system`, the
@@ -150,8 +156,10 @@ lib/ai/summaries.dart (its header, "CLAUDE, FOR MEETINGS") the queue's.
   summary waits for Claude: Local only is on.") and is asked once Local only is off, rather than being written by the
   phone's model, since a summary is never remade on its own. A request in flight when Local only comes on is stopped
   and its job waits, uncounted.
-- **Failures** are said in Claude's words beside Try again ("The summary didn't come. The API key was refused.
-  Check it in Settings › Claude."). A refused key or request, or a decline, fails the job at once; no connection, too
+- **Failures** go to the device's own model where it has one (2026-10-28), at once, logged, with the strip saying
+  "Claude couldn't write the summary: … It's being written on this device."; Try again asks Claude afresh. With no
+  model here they are said in Claude's words beside Try again ("The summary didn't come. The API key was refused.
+  Check it in Settings › Claude."): a refused key or request, or a decline, fails the job at once; no connection, too
   many requests or Claude overloaded counts as one of the queue's three tries, 20 seconds apart. No "Needs a model":
   none is looked for.
 - **With the app closed.** On Android the meeting service still makes the transcript with the app closed (Whisper

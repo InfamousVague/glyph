@@ -28,6 +28,11 @@ const String claudeInboxName = 'anthropic-inbox';
 const String claudeEffortName = 'anthropic-effort';
 const String claudeWatchName = 'anthropic-watch';
 
+/// Whether meetings' summaries are written by Claude here (Matt, 2026-10-28: "We should be using Claude to generate
+/// the meeting summaries not the local processor on the Mac when the anthropic API key is set"): on unless turned
+/// off, so a key is all it takes; `off` leaves meetings to the device's own model (lib/ai/summary_claude.dart).
+const String claudeMeetingsName = 'anthropic-meetings';
+
 /// A model the app offers.
 @immutable
 class ClaudeModel {
@@ -106,6 +111,7 @@ class ClaudeSettings extends ChangeNotifier {
   String? _effort;
   bool _inbox = true;
   bool _watch = true;
+  bool _meetings = true;
   bool _loaded = false;
   Future<void>? _loading;
 
@@ -128,6 +134,11 @@ class ClaudeSettings extends ChangeNotifier {
   /// Whether a short recording from the watch goes to Claude, as one said to the dock's microphone does
   /// (lib/watch/watch_notes.dart, "To Claude"); off, it is a voice note. Settings › Recording › Watch.
   bool get watch => _watch;
+
+  /// Whether a meeting's summary is Claude's to write where a key is kept: Settings › Plugins › Claude, Write meeting
+  /// summaries with Claude. On unless turned off ([claudeMeetingsName]); off, the device's own model writes them, as
+  /// before there was a key.
+  bool get meetings => _meetings;
 
   /// Reads what this device keeps. Once; later calls wait for the same read.
   Future<void> load() => _loading ??= _load();
@@ -155,11 +166,13 @@ class ClaudeSettings extends ChangeNotifier {
       final inbox = await _store.read(claudeInboxName);
       final effort = await _store.read(claudeEffortName);
       final watch = await _store.read(claudeWatchName);
+      final meetings = await _store.read(claudeMeetingsName);
       _effort = effort != null && claudeEfforts.any((e) => e.$1 == effort) ? effort : null;
       _key = (key ?? '').trim().isEmpty ? null : key!.trim();
       _model = model != null && model.isNotEmpty ? model : defaultClaudeModel;
       _inbox = inbox != 'off';
       _watch = watch != 'off';
+      _meetings = meetings != 'off';
     } catch (_) {
       // A store that cannot be read is a device with no key.
     }
@@ -200,6 +213,13 @@ class ClaudeSettings extends ChangeNotifier {
     _watch = on;
     notifyListeners();
     await _store.write(claudeWatchName, on ? 'on' : 'off');
+  }
+
+  Future<void> setMeetings(bool on) async {
+    if (on == _meetings) return;
+    _meetings = on;
+    notifyListeners();
+    await _store.write(claudeMeetingsName, on ? 'on' : 'off');
   }
 }
 

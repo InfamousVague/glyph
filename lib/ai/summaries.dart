@@ -57,7 +57,8 @@
 /// (none is looked for). PRIVACY: the meeting's transcript then goes to Anthropic, with the person's own key, and to
 /// nobody else; nothing of a long voice note's does, whose summary stays the phone's. Held by Local only, the job
 /// waits for Claude (`claudeHeld`, "The summary waits for Claude") and is asked once Local only is off; it does not go
-/// to the phone's model instead, since a summary is never remade on its own. A Claude failure is said in Claude's
+/// to the phone's model instead, since a summary is never remade on its own. A Claude failure goes to the device's
+/// model where there is one (since 2026-10-28, "Falling back" below); where there is none it is said in Claude's
 /// words beside the job (`reasons`): a refused key or request, or a decline, fails it at once for Try again; no
 /// connection, too many requests or Claude overloaded counts as a try, as a model's failure does. A Claude job may run
 /// with the app off the screen (no cores are taken); every other job waits for the screen as before. At the month's
@@ -80,6 +81,32 @@
 /// account's devices that can write it claims it, once, writes it into the note through this same queue, sorts it,
 /// and marks it done; this device's job waits ("Waiting for a summary: …") until then, and goes. Every meeting's job
 /// is claimed before it runs where another device waits on it ([handoff]).
+///
+/// CLAUDE WHERE THE KEY IS, AND CAPTIONS FIRST (Matt, 2026-10-28: "We should be using Claude to generate the meeting
+/// summaries not the local processor on the Mac when the anthropic API key is set"). That morning a 69-minute
+/// Engineering Standup, a Google Meet take with Meet's captions, sat "being written up on your device" for five hours:
+/// the Mac was running Whisper over it on two background cores, and the summary was to follow on its own model, while
+/// the key that would have had Claude write it in a minute was on the Mac all along (synced, lib/sync/sealed_keys.dart).
+/// So, with what Claude is chosen by unchanged but for one switch (ai/summary_claude.dart: the plugin on, a key here,
+/// Write meeting summaries with Claude on, as it is unless turned off):
+/// - **Captions first** ([_captionsFirst]). A meeting Ghost was in comes with its captions, who said what, under
+///   `## Captions` (lib/meet/meet_note.dart). Its native job no longer waits for Whisper's transcript: as soon as the
+///   queue sees one whose note has named captions and no transcript or summary yet ([summarizesFromCaptions]), it is
+///   made a page job and written from the captions ([captionWords], `Sam Lee: words`), by Claude where it is chosen
+///   and by this device's model where it is not, so the summary, the sorting and the Slack post come minutes after the
+///   meeting. The write-up goes on: Whisper's transcript lands under `## Transcript` below everything else
+///   (tauri/src-tauri/src/transcript.rs `with_transcript` keeps all above it, the summary with it), and the meeting
+///   step names its speakers from the captions as before (lib/meet/meet_in.dart `nameSpeakers`). The meeting is kept
+///   among those still transcribing ([_transcribingKey]) until the write-up's result is there; that result is taken
+///   and whatever it wrote of a summary put aside ([landNativeResult]): a summary is never remade on its own, and the
+///   later pass never touches the one there. Replace on the strip writes it again from the transcript, on purpose.
+/// - **Falling back** ([SummaryJob.local]). A meeting Claude did not answer for (no connection, the key refused, a
+///   429, Anthropic out of credit, overloaded, declined, cut off) is written by this device's model instead, at once,
+///   where it has one: logged with Claude's words, and said on the strip while it writes ([SummariesState.fellBack]).
+///   Try again asks Claude afresh. With no model here, it counts a try, or fails in Claude's words, as before. Local
+///   only and the spending limit hold the job for Claude as before: they are the person's choices, not failures.
+/// - The Mac's own write-up is sent the config too now (ai/job_config.dart `macRunsWriteUps`), so with Claude chosen
+///   it makes the transcript and no summary of its own, as the phone's does.
 ///
 /// What differs:
 /// - The web's module is one queue for the page, with its state in module variables. Here it is a [Summaries], made
@@ -128,7 +155,8 @@ import '../core/note_text.dart' show noteTitle;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
 import '../format/prompt.dart' show fill, notesContext, pieceContext, recordingNotesBudget, recordingNotesPrompt, recordingSummaryBudget, recordingSummaryPrompt, temperature;
-import '../meet/speakers.dart' show phraseSpeakers, sectionOf, speakerParagraphs;
+import '../meet/meet_note.dart' show awaitsWriteUp;
+import '../meet/speakers.dart' show captionWords, phraseSpeakers, sectionOf, speakerParagraphs;
 import 'available.dart' show modelFor, presentIds;
 import 'backend.dart' show AiFailure, ModelInfo, Run, RunOptions, generate, listModels, unloadModel;
 import 'runs.dart' show RunHandle, RunPhase, anyRunning;
@@ -166,6 +194,7 @@ class SummaryJob {
     this.native,
     this.failed,
     this.replace,
+    this.local,
   });
 
   /// The note.
@@ -195,8 +224,12 @@ class SummaryJob {
   /// Replace the section the note has even if it was edited: the strip's Replace was tapped.
   final bool? replace;
 
+  /// A meeting Claude did not answer for, written by this device's model instead (FALLING BACK, in the header). Try
+  /// again asks Claude afresh.
+  final bool? local;
+
   /// The web's spread: this job with some of it said again.
-  SummaryJob copyWith({int? tries, bool? started, List<String>? pieces, String? text, String? model, bool? native, bool? failed, bool? replace}) => SummaryJob(
+  SummaryJob copyWith({int? tries, bool? started, List<String>? pieces, String? text, String? model, bool? native, bool? failed, bool? replace, bool? local}) => SummaryJob(
         id: id,
         kind: kind,
         tries: tries ?? this.tries,
@@ -207,6 +240,7 @@ class SummaryJob {
         native: native ?? this.native,
         failed: failed ?? this.failed,
         replace: replace ?? this.replace,
+        local: local ?? this.local,
       );
 
   /// The job as the queue writes it: the web's keys, and none for what is absent.
@@ -221,6 +255,7 @@ class SummaryJob {
         if (native != null) 'native': native,
         if (failed != null) 'failed': failed,
         if (replace != null) 'replace': replace,
+        if (local != null) 'local': local,
       };
 
   /// A job as the queue kept it, or null for anything without an id.
@@ -242,6 +277,7 @@ class SummaryJob {
       native: flag('native'),
       failed: flag('failed'),
       replace: flag('replace'),
+      local: flag('local'),
     );
   }
 }
@@ -249,7 +285,7 @@ class SummaryJob {
 /// What the shelf and the strip see of the queue (`SummariesState`).
 @immutable
 class SummariesState {
-  const SummariesState({required this.pending, required this.native, required this.waiting, required this.failed, required this.needsModel, this.claudeHeld = const <String>{}, this.reasons = const <String, String>{}, this.writingUp = const <String, num>{}});
+  const SummariesState({required this.pending, required this.native, required this.waiting, required this.failed, required this.needsModel, this.claudeHeld = const <String>{}, this.reasons = const <String, String>{}, this.writingUp = const <String, num>{}, this.fellBack = const <String, String>{}});
 
   /// Notes whose page summary is queued or running.
   final Set<String> pending;
@@ -271,6 +307,10 @@ class SummariesState {
 
   /// Why a failed job's last try failed, in Claude's words, for the caption beside Try again.
   final Map<String, String> reasons;
+
+  /// Meetings Claude did not answer for, being written by this device's model instead, with Claude's words for why
+  /// (FALLING BACK, in the header): the strip says so while it writes.
+  final Map<String, String> fellBack;
 
   /// How far each of [native]'s write-ups has got, in percent, by the phone's own progress files, for the
   /// transcript's place in an open note: "Writing up… 42%" (Matt, 2026-10-24: "when clicking on meetings it doesn't
@@ -349,6 +389,10 @@ class RecordingResult {
 }
 
 const String _queueKey = 'glyph-summary-queue';
+
+/// The meetings summarized from their captions whose write-up is still making the transcript (CAPTIONS FIRST, in the
+/// header): their results are still to be taken, and put aside.
+const String _transcribingKey = 'glyph-summary-transcribing';
 const int _maxTries = 3;
 
 /// How long to wait before trying again after "busy", "cancelled" or a failure (`RETRY_MS`).
@@ -527,6 +571,25 @@ class Summaries implements HandoffQueue {
   /// Why each job's last try failed, where Claude said (kept for this run of the app).
   final Map<String, String> _reasons = <String, String>{};
 
+  /// Why Claude did not write a meeting this device's model is writing instead (kept for this run of the app).
+  final Map<String, String> _fellBack = <String, String>{};
+
+  /// The meetings summarized from their captions whose transcript is still being made ([_transcribingKey]).
+  List<String> _transcribing() => stored.read<List<String>>(_transcribingKey, const <String>[], (raw) => raw is List ? [for (final id in raw) if (id is String) id] : const <String>[]);
+
+  void _stillTranscribing(String id) {
+    final now = _transcribing();
+    if (!now.contains(id)) stored.write(_transcribingKey, [...now, id]);
+  }
+
+  void _transcribed(String id) {
+    final now = _transcribing();
+    if (now.contains(id)) stored.write(_transcribingKey, [for (final kept in now) if (kept != id) kept]);
+  }
+
+  /// Native jobs found to have no captions to summarize from, so their notes are not read again at every look.
+  final Set<String> _uncaptioned = <String>{};
+
   /// The phone's own write-ups, as last read (core/recordings.ts): what a native job's caption is made of.
   List<RecordingJobState> _jobStates = const [];
 
@@ -593,8 +656,12 @@ class Summaries implements HandoffQueue {
           if (j.failed != true && j.native != true && _claudeHeld.contains(j.id) && _heldWhy.containsKey(j.id)) j.id: _heldWhy[j.id]!,
       },
       writingUp: {
-        for (final j in nativeJobs)
-          if (stateOf(j.id) case final state? when state.phase == RecordingJobPhase.listening || state.phase == RecordingJobPhase.summarizing) j.id: state.percent,
+        for (final id in [for (final j in nativeJobs) j.id, ..._transcribing()])
+          if (stateOf(id) case final state? when state.phase == RecordingJobPhase.listening || state.phase == RecordingJobPhase.summarizing) id: state.percent,
+      },
+      fellBack: {
+        for (final j in queue)
+          if (j.failed != true && j.local == true && _fellBack.containsKey(j.id)) j.id: _fellBack[j.id]!,
       },
     ));
     // A meeting that needs a model here waits for another of the account's devices to write it.
@@ -656,6 +723,8 @@ class Summaries implements HandoffQueue {
     _jobStates = _jobStates.where((s) => s.id != id).toList();
     _askedAfterModel.remove(id);
     _reasons.remove(id);
+    _fellBack.remove(id);
+    _uncaptioned.remove(id);
     _publish();
     _kick();
   }
@@ -672,8 +741,18 @@ class Summaries implements HandoffQueue {
       }
     }
     if (job == null) return;
-    _writeQueue([for (final j in queue) j.id == id ? j.copyWith(tries: 0, failed: false, started: false) : j]);
+    // One this device's model wrote after Claude did not is Claude's again, from the start: its pieces were the model's.
+    _writeQueue([
+      for (final j in queue)
+        if (j.id != id)
+          j
+        else if (j.local == true)
+          SummaryJob(id: j.id, kind: j.kind, native: j.native, replace: j.replace)
+        else
+          j.copyWith(tries: 0, failed: false, started: false),
+    ]);
     _reasons.remove(id);
+    _fellBack.remove(id);
     if (job.native == true) {
       writeUpOnHost(id, true);
       _jobStates = _jobStates.where((s) => s.id != id).toList();
@@ -695,6 +774,7 @@ class Summaries implements HandoffQueue {
   void dropSummary(String id) {
     final queue = _readQueue();
     _forgetWaits(id);
+    _transcribed(id);
     if (!queue.any((j) => j.id == id)) return;
     _writeQueue(queue.where((j) => j.id != id).toList());
     _publish();
@@ -729,6 +809,18 @@ class Summaries implements HandoffQueue {
       if (claude.chosen) return claude.enabled && !claude.limited;
     }
     return modelFor(presentIds(await _models()), preferences().formatModel) != null;
+  }
+
+  @override
+  Future<bool> writesMeetingsWithClaude() async {
+    final claude = this.claude;
+    if (!isTauri() || claude == null) return false;
+    try {
+      await claude.load();
+    } catch (_) {
+      return false;
+    }
+    return claude.enabled && !claude.limited;
   }
 
   @override
@@ -850,12 +942,14 @@ class Summaries implements HandoffQueue {
     _heldWhy.remove(id);
     _askedAfterModel.remove(id);
     _reasons.remove(id);
+    _fellBack.remove(id);
   }
 
-  /// Whether a job is Claude's to write up: a meeting, with Claude chosen.
+  /// Whether a job is Claude's to write up: a meeting, with Claude chosen, that Claude has not already failed to
+  /// write this time (one written by this device's model instead is the model's until Try again).
   Future<bool> _forClaude(SummaryJob job) async {
     final claude = this.claude;
-    if (claude == null || job.kind != SummaryKind.meeting) return false;
+    if (claude == null || job.kind != SummaryKind.meeting || job.local == true) return false;
     try {
       await claude.load();
     } catch (_) {
@@ -872,8 +966,8 @@ class Summaries implements HandoffQueue {
   /// Whether any job could still run, for the kick after one.
   bool _owed() => _readQueue().any((j) => j.failed != true && j.native != true);
 
-  /// Whether a native job waits for its result.
-  bool _anyNative() => _readQueue().any((j) => j.native == true && j.failed != true);
+  /// Whether a native job waits for its result, or a meeting summarized from its captions for its transcript's.
+  bool _anyNative() => _readQueue().any((j) => j.native == true && j.failed != true) || _transcribing().isNotEmpty;
 
   /// What the service said when a write-up ended.
   Future<void> _recordingDone(String json) async {
@@ -891,7 +985,13 @@ class Summaries implements HandoffQueue {
       return;
     }
     await _refreshJobStates();
-    if (said['outcome'] == RecordingOutcome.done.name) await landNativeResult(id);
+    if (said['outcome'] == RecordingOutcome.done.name) {
+      await landNativeResult(id);
+    } else {
+      // The transcript stopped short of a result (needing a model, failed): nothing is left to take for a meeting
+      // summarized from its captions.
+      _transcribed(id);
+    }
     _publish();
     // A result made into a job for Claude is written up now, the app on the screen or not.
     if (!_running && _owed()) _kick(0);
@@ -975,6 +1075,8 @@ class Summaries implements HandoffQueue {
     // Off the screen, only Claude's jobs: they take no cores. The rest wait for the app to come back.
     final away = !visible();
     if (away && !(claude?.enabled ?? false)) return;
+    // A meeting whose note has its captions is summarized from them now, not after its transcript (CAPTIONS FIRST).
+    await _captionsFirst();
     if (!away && _anyNative()) {
       await _refreshJobStates();
       // A meeting whose write-up stopped for a model, with Claude chosen here since: its transcript is in the note, so
@@ -990,6 +1092,7 @@ class Summaries implements HandoffQueue {
       for (final job in _readQueue().where((j) => j.native == true && j.failed != true).toList()) {
         await landNativeResult(job.id);
       }
+      await _lookAtTranscribing();
       _publish();
     }
     // The hold read at its source: the same answer as `paused`, which follows it and is what the cancel needs.
@@ -1084,6 +1187,13 @@ class Summaries implements HandoffQueue {
       final message = failureText(error);
       if (_paused || _busy.hasMatch(message) || (error is ClaudeError && error.type == claudeLimitType)) {
         next = _retryMs;
+      } else if (error is ClaudeError && await _modelHere()) {
+        // Claude did not answer: this device's model writes it instead, now, and the strip says why (FALLING BACK).
+        warn('[glyph] Claude did not write the summary, so this device will: $message');
+        _fellBack[job.id] = message;
+        _reasons.remove(job.id);
+        _patch(job.id, (j) => SummaryJob(id: j.id, kind: j.kind, tries: j.tries, local: true, replace: j.replace));
+        next = 0;
       } else {
         warn('[glyph] the summary did not come: $message');
         // Claude's own words are kept for the caption; what asking again cannot mend fails the job at once.
@@ -1105,6 +1215,68 @@ class Summaries implements HandoffQueue {
         _kick(next);
       } else if (_anyNative()) {
         _kick(_nativePollMs);
+      }
+    }
+  }
+
+  /// Whether this device has a summary model to write with, should Claude not answer.
+  Future<bool> _modelHere() async => isTauri() && modelFor(presentIds(await _models()), preferences().formatModel) != null;
+
+  /// CAPTIONS FIRST (see the header): each native meeting whose note already has its captions with who said what, and
+  /// no transcript or summary yet, is made a page job now, for Claude or this device's model to write from the
+  /// captions, while the write-up goes on making the transcript; it is kept among those still transcribing, whose
+  /// results are taken and put aside ([_lookAtTranscribing], [landNativeResult]).
+  Future<void> _captionsFirst() async {
+    if (preferences().summaries == 'off') return;
+    final jobs = [
+      for (final j in _readQueue())
+        if (j.native == true && j.failed != true && j.kind == SummaryKind.meeting && j.text == null && !_uncaptioned.contains(j.id)) j,
+    ];
+    var moved = false;
+    for (final job in jobs) {
+      Note? note;
+      try {
+        note = await getNote(job.id);
+      } catch (_) {
+        continue;
+      }
+      if (note == null) continue;
+      if (!summarizesFromCaptions(note.body)) {
+        // Captions are only ever taken away: one that has none now will never have them.
+        _uncaptioned.add(job.id);
+        continue;
+      }
+      _patch(job.id, (j) => SummaryJob(id: j.id, kind: SummaryKind.meeting, replace: j.replace));
+      _stillTranscribing(job.id);
+      _askedAfterModel.remove(job.id);
+      moved = true;
+    }
+    if (moved) _publish();
+  }
+
+  /// The meetings summarized from their captions, looked at with the phone's write-ups: a result there is taken and
+  /// put aside ([landNativeResult]); one that ended with none (a model needed for its summary, a failure, cancelled), or
+  /// that is gone with the transcript in, is let go.
+  Future<void> _lookAtTranscribing() async {
+    for (final id in _transcribing()) {
+      RecordingJobState? state;
+      for (final s in _jobStates) {
+        if (s.id == id) state = s;
+      }
+      final phase = state?.phase;
+      if (phase == RecordingJobPhase.done) {
+        await landNativeResult(id);
+        _transcribed(id);
+      } else if (phase == RecordingJobPhase.needsModel || phase == RecordingJobPhase.failed || phase == RecordingJobPhase.cancelled) {
+        _transcribed(id);
+      } else if (state == null) {
+        Note? note;
+        try {
+          note = await getNote(id);
+        } catch (_) {
+          continue;
+        }
+        if (note == null || !awaitsWriteUp(note.body)) _transcribed(id);
       }
     }
   }
@@ -1163,6 +1335,12 @@ class Summaries implements HandoffQueue {
         result = null;
       }
       if (result == null) return;
+      _transcribed(id);
+      if (_jobOf(id) == null && await _summarizedAlready(id)) {
+        // The summary came first, from the meeting's captions (CAPTIONS FIRST): the transcript is in the note from the
+        // write-up, and whatever it wrote of a summary is put aside, never over the one there.
+        return;
+      }
       if (!_readQueue().any((j) => j.id == id)) {
         final queue = _readQueue();
         queue.add(SummaryJob(id: id, kind: SummaryKind.meeting, tries: 0, native: true));
@@ -1203,6 +1381,16 @@ class Summaries implements HandoffQueue {
     return _forClaude(SummaryJob(id: id, kind: SummaryKind.meeting));
   }
 
+  /// Whether the note has a summary already: one of the app's, or the person's own.
+  Future<bool> _summarizedAlready(String id) async {
+    try {
+      final note = await getNote(id);
+      return note != null && summarySection(note.body, readSummary(id)?.text) != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// The note's job as the queue has it now, or null; with [native], only a native one.
   SummaryJob? _jobOf(String id, {bool native = false}) {
     for (final j in _readQueue()) {
@@ -1240,8 +1428,12 @@ class Summaries implements HandoffQueue {
     // A meeting whose phrases are not on this device (one handed on from another, from a build before its phrases
     // synced) is summarized from the transcript its note keeps.
     if (jsTrim(plain).isEmpty && job.kind == SummaryKind.meeting) plain = plainTurns(sectionOf(note.body, '## Transcript') ?? '');
+    // A meeting Ghost was in whose write-up has not heard it yet is summarized from its captions (CAPTIONS FIRST).
+    if (jsTrim(plain).isEmpty && job.kind == SummaryKind.meeting) plain = captionWords(note.body) ?? '';
     if (jsTrim(plain).isEmpty) return _Outcome.left;
-    final pieces = transcriptPieces(plain);
+    // Claude reads a meeting whole where it fits, the device's model twenty thousand characters at a time.
+    final asked = viaClaude ? claude : null;
+    final pieces = asked != null ? transcriptPieces(plain, asked.pieceChars, asked.onePassChars) : transcriptPieces(plain);
     final budget = recordingSummaryBudget(plain.length);
     var words = plain;
     String? context;
@@ -1427,6 +1619,11 @@ class Summaries implements HandoffQueue {
 }
 
 final RegExp _boldName = RegExp(r'^\*\*(.+?)(?: \(\d+:\d{2}(?::\d{2})?\))?:\*\*\s*', multiLine: true);
+
+/// Whether a meeting's summary may be written from its note's captions now (CAPTIONS FIRST, in the header): the
+/// captions name who said what ([captionWords]), and the note has no transcript and no summary yet.
+bool summarizesFromCaptions(String body) =>
+    captionWords(body) != null && (sectionOf(body, '## Transcript') ?? '').trim().isEmpty && summarySection(body) == null;
 
 /// A transcript's `**Sam Lee (0:12):** words` turns as `Sam Lee: words`, for a model to read.
 String plainTurns(String transcript) => transcript.replaceAllMapped(_boldName, (m) => '${m[1]}: ');

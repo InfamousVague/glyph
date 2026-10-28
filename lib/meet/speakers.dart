@@ -313,6 +313,18 @@ List<String> captionParagraphs(List<CaptionTurn> turns) => [
         if (turn.text.trim().isNotEmpty) turn.speaker.isEmpty ? turn.text.trim() : '**${turn.speaker}:** ${turn.text.trim()}',
     ];
 
+/// A note's captions as a model reads a meeting's words (lib/ai/summaries.dart, CAPTIONS FIRST; Matt, 2026-10-28):
+/// a turn a paragraph, `Sam Lee: words`, an unnamed turn its words alone, the times left out. Null where the captions
+/// name nobody who said anything: none kept, or a Discord call's, which names who spoke and no words.
+String? captionWords(String body) {
+  final turns = turnsOf(body);
+  if (!turns.any((turn) => turn.speaker.isNotEmpty && turn.text.trim().isNotEmpty)) return null;
+  return [
+    for (final turn in turns)
+      if (turn.text.trim().isNotEmpty) turn.speaker.isEmpty ? turn.text.trim() : '${turn.speaker}: ${turn.text.trim()}',
+  ].join('\n\n');
+}
+
 /// The section the captions are kept in until the write-up (see the header): heading and all. A named turn with no
 /// words (a Discord call's) is kept as its name and time alone, `**Sam Lee (0:12):**`; an unnamed one with none is
 /// nothing.

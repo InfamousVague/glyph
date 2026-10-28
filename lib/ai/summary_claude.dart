@@ -1,7 +1,11 @@
 /// A meeting's write-up through the app's own Claude (docs/CLAUDE_APP.md, "Meetings"). Matt, 2026-10-19: "when
 /// claude is enabled the meeting summary should go through claude instead of gemma".
 ///
-/// Claude is **chosen** for meetings when the Claude plugin's switch is on and an API key is kept on this device; it
+/// Claude is **chosen** for meetings when the Claude plugin's switch is on, an API key is kept on this device (typed
+/// here, or sealed from another of the account's devices, lib/sync/sealed_keys.dart), and Write meeting summaries with
+/// Claude is on (Settings › Plugins › Claude, [ClaudeSettings.meetings], on unless turned off; Matt, 2026-10-28: "We
+/// should be using Claude to generate the meeting summaries not the local processor on the Mac when the anthropic API
+/// key is set"). It
 /// is **enabled** (asked now) when, besides, Local only is off, since Local only holds the plugin off with every
 /// plugin that reaches the internet. Chosen but held by Local only, a meeting's write-up waits for Claude rather than
 /// going to the phone's own model: summaries are never remade on their own, so a local write-up made in the meantime
@@ -10,8 +14,23 @@
 ///
 /// What goes to Anthropic, with the person's own key and nowhere else (no Ghost.md server between): the meeting's
 /// transcript as the summary queue reads it, in the same pieces and with the same prompts as the on-device model is
-/// given (format/prompt.dart, ai/summary_text.dart `transcriptPieces`), so the answer is placed and shaped by the
-/// same rules. Only meetings: a long voice note's summary stays on the phone.
+/// given (format/prompt.dart), so the answer is placed and shaped by the same rules. Only meetings: a long voice
+/// note's summary stays on the phone.
+///
+/// **One pass where it fits** (2026-10-28). The on-device model reads twenty thousand characters at a time, so a long
+/// meeting goes to it in pieces, each boiled down to notes and the notes summarized. Claude's models read a million
+/// tokens, so a meeting goes to Claude whole up to [claudeOnePassChars] (about 200,000 tokens at four characters a
+/// token: the 69-minute standup of that morning was 362,000 characters, some 90,000 tokens, and goes in one request),
+/// and only past that in pieces of [claudePieceChars], the same notes-then-summary map and reduce with the same
+/// prompts (ai/summary_text.dart `transcriptPieces`). [onePassChars] and [pieceChars] are those two unless a test
+/// says.
+///
+/// **Falling back** (2026-10-28). A request Claude did not answer (no connection, the key refused, too many requests,
+/// Anthropic out of credit, overloaded, declined, cut off) is not the end of the summary: where the device has a
+/// summary model, the job is written by it instead, at once, and the strip says why ("Claude couldn't write it: … It
+/// is being written on this device."; ai/summaries.dart `fellBack`). Only where there is no model does the job count
+/// a try, or fail in Claude's words, as before. Local only and the spending limit are choices, not failures: they
+/// hold the job for Claude as they did.
 ///
 /// One request a generation, streamed (lib/claude/messages_api.dart [ClaudeApi.streamWith]) and read whole: the text
 /// of every text block joined, thinking left alone (the models run adaptive thinking when none is asked for), the
@@ -41,6 +60,12 @@ const String claudeWriteUpJobId = 'claude-write-up';
 
 /// The room a write-up's request is given: its thinking and its words.
 const int claudeSummaryMaxTokens = 16000;
+
+/// The most of a meeting's words sent to Claude in one request (see the header): about 200,000 tokens.
+const int claudeOnePassChars = 800000;
+
+/// About how many characters a piece of a meeting longer than [claudeOnePassChars] holds.
+const int claudePieceChars = 400000;
 
 /// The beta the server-side fallback is asked for under (`fallbacks: "default"`).
 const String claudeFallbackBeta = 'server-side-fallback-2026-07-01';
@@ -72,7 +97,7 @@ class ClaudeWriting {
 
 /// Claude, as the summary queue asks it for a meeting's write-up.
 class MeetingClaude {
-  MeetingClaude({required this.settings, required this.switchedOn, required this.localOnly, ClaudeApi Function(String key)? api, this.changes, BackgroundJobs? background})
+  MeetingClaude({required this.settings, required this.switchedOn, required this.localOnly, ClaudeApi Function(String key)? api, this.changes, BackgroundJobs? background, this.onePassChars = claudeOnePassChars, this.pieceChars = claudePieceChars})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
         background = background ?? const NoBackgroundJobs();
 
@@ -99,11 +124,16 @@ class MeetingClaude {
 
   final ClaudeApi Function(String key) _api;
 
+  /// The most of a meeting sent in one request, and the size of a piece past it (see the header).
+  final int onePassChars;
+  final int pieceChars;
+
   /// Reads the settings, once.
   Future<void> load() => settings.load();
 
-  /// Meetings are Claude's: the plugin switched on and a key kept (see the header).
-  bool get chosen => switchedOn() && settings.hasKey;
+  /// Meetings are Claude's: the plugin switched on, a key kept, and Write meeting summaries with Claude on (see the
+  /// header).
+  bool get chosen => switchedOn() && settings.hasKey && settings.meetings;
 
   /// Chosen, and held off by Local only: the write-up waits.
   bool get held => chosen && localOnly();

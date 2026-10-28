@@ -580,8 +580,8 @@ listening. The write-up then appends `## Transcript` with Whisper's words and ke
 the next pass gives each phrase the speaker whose caption turn overlaps it longest (lib/meet/speakers.dart: a turn runs
 from a speaker's first caption to the next speaker's, moved a second earlier for the captions' lag; a phrase no turn
 overlaps takes the nearest turn's speaker within four seconds, or none), writes the transcript as `**Name:** words`
-paragraphs, drops `## Captions` and the "being written up" words, and the summary lands above as any meeting's does
-(lib/ai/summaries.dart, a native job). The turns are read back from the note itself, so whichever of the account's
+paragraphs, drops `## Captions` and the "being written up" words. The summary was already written from the captions
+before Whisper began (see "The summary comes from the captions first", below), and stays above. The turns are read back from the note itself, so whichever of the account's
 devices wrote it up can name them.
 
 Filed from the captions alone, the captions are the transcript at once, `**Name:** words`, and the first line says why
@@ -620,6 +620,38 @@ notification as for any meeting); on the Mac the core's `write_up_run`, run by t
 `CoreWriteUps`, one at a time, a hold tried again a minute later), the Mac counting as plugged in. The summary is the
 summary queue's native job where Summaries are on; the Mac's queue now reads the core's write-up states and results as
 Android's does (lib/root/voice_wiring.dart), so Try again, Write up now and a model arriving ask the Mac's runner.
+
+### The summary comes from the captions first
+
+Matt, 2026-10-28: "We should be using Claude to generate the meeting summaries not the local processor on the Mac when
+the anthropic API key is set". That morning a 69-minute Engineering Standup (Meet's captions, some 362,000 characters)
+sat "being written up on your device" for five hours: the Mac ran Whisper over it at background priority on two
+cores, and the summary was to follow on the Mac's own model, while Claude's key was on the Mac all along (it syncs
+sealed, lib/sync/sealed_keys.dart). Now (lib/ai/summaries.dart, "CLAUDE WHERE THE KEY IS, AND CAPTIONS FIRST"):
+
+- **Who writes it.** Claude, wherever the Claude plugin is on, a key is here (typed, or sealed from another device) and
+  **Write meeting summaries with Claude** is on (Settings › Plugins › Claude, on unless turned off, synced with the
+  key); otherwise the device's own summary model. The transcript then goes from that device to Anthropic under the
+  person's own key, and nowhere else. A meeting goes to Claude whole up to 800,000 characters (about 200,000 tokens; the
+  standup was one request), and past that in 400,000-character pieces, notes then summary, with the same prompts
+  (lib/ai/summary_claude.dart). The Mac's write-up is sent the job config now, so with Claude chosen it makes the
+  transcript and no summary of its own (lib/ai/job_config.dart `macRunsWriteUps`).
+- **No wait for Whisper.** A native job whose note has named captions and no transcript or summary yet is made a page
+  job at the queue's next look and summarized from the captions (`Sam Lee: words`, a turn a paragraph): the summary,
+  the sorting into the workspace's Meetings folder and the Slack and Discord posts come minutes after the take is filed.
+  A Discord call's captions name who spoke and no words, so its job waits for Whisper as before.
+- **Whisper still runs, and keeps the summary.** Its transcript lands under `## Transcript` below everything else
+  (`with_transcript` keeps all above it), the next pass names its speakers and drops `## Captions` as above, and the
+  write-up's result is taken and whatever summary it made put aside: the summary is not remade unless the person taps
+  Replace (`glyph-summary-transcribing` lists the meetings whose result is still to be taken).
+- **Falling back.** A Claude request that fails (no connection, the key refused, 429, out of credit, overloaded,
+  declined, cut off) is written by the device's model at once where it has one, logged, and the tape says "Claude
+  couldn't write the summary: … It's being written on this device."; with no model it counts a try or fails in Claude's
+  words as before. Local only and the spending limit still hold it for Claude.
+- **Which device.** A meeting marked waiting (lib/ai/summary_handoff.dart) is claimed at once by a device that would
+  write it with Claude, and by one with only its own model after five minutes, so the keyed device goes first. A device
+  with Claude also takes a meeting another device is still hearing, once it has named captions, no summary and ten
+  quiet minutes (`captionsStranded`), for a device on an older build or asleep.
 
 ### The plugins' pages: Google Meet and Zoom
 

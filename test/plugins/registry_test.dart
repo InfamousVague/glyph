@@ -131,7 +131,7 @@ void main() {
           expect(ours.hosts, ['api.anthropic.com', ...theirs.hosts]);
           expect((plugin.icon, plugin.settings?.hue), (web[index].icon, web[index].settings?.hue));
           final names = [for (final s in plugin.settings!.settings) s.name];
-          expect(names, ['Ask Claude', 'API key', 'Model', 'Spending limit', 'Ask Claude note', 'Phone assistant', for (final s in web[index].settings!.settings) s.name]);
+          expect(names, ['Ask Claude', 'API key', 'Model', 'Meeting summaries', 'Spending limit', 'Ask Claude note', 'Phone assistant', for (final s in web[index].settings!.settings) s.name]);
           continue;
         }
         expect((ours.name, ours.description, ours.version, ours.author, ours.standard), (theirs.name, theirs.description, theirs.version, theirs.author, theirs.standard), reason: id);

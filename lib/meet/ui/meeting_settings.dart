@@ -16,7 +16,9 @@
 ///   sound on the Mac), then **Sync meeting recordings**, with how many recordings stayed on this phone under the
 ///   card, for a signed-in account where this device records, and **Sort meetings into workspaces** (on unless
 ///   turned off; the key is `sortMeetings` in the synced preferences). Kept in Simple: the card is what Simple's
-///   Recording page shows first, the rest behind More (lib/settings/panes/recording_pane.dart).
+///   Recording page shows first, the rest behind More (lib/settings/panes/recording_pane.dart). In Advanced, and only
+///   where a Claude key is kept, a row says who writes the summaries, Claude or this device, and where to change it
+///   (Settings › Plugins › Claude, Write meeting summaries with Claude; Matt, 2026-10-28), with what goes to Anthropic.
 /// - **Where meetings go** ([MeetingsGoSection]), on each meeting plugin's page (Google Meet, Zoom, Discord): one row
 ///   saying where its meetings go, which opens the Meetings card, lit ([meetingsGoName]).
 library;
@@ -28,6 +30,8 @@ import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
 import '../../ai/meeting_sort.dart' show sortsMeetings, withSortMeetings;
+import '../../claude/claude_settings.dart' show ClaudeSettings, claudeSettings;
+import '../../plugins/registry.dart' show plugins;
 import '../../core/preferences.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../sync/notes.dart' show longestSyncedSaid, stayedHere;
@@ -49,7 +53,7 @@ String meetingsGoSaid(Preferences prefs) => sortsMeetings(prefs) ? 'Workspaces' 
 /// meetings, first in the card; [signedIn] and [records] decide Sync meeting recordings, which is about the account's
 /// devices and is not on an iPhone.
 class MeetingsCard extends StatefulWidget {
-  const MeetingsCard({super.key, required this.store, this.services, this.before = const [], this.signedIn = false, this.records = true});
+  const MeetingsCard({super.key, required this.store, this.services, this.before = const [], this.signedIn = false, this.records = true, this.claude, this.claudeOn});
 
   final PreferencesStore store;
 
@@ -58,6 +62,10 @@ class MeetingsCard extends StatefulWidget {
   final List<Widget> before;
   final bool signedIn;
   final bool records;
+
+  /// Claude's settings and whether its plugin is on, for who writes the summaries; the app's own when null.
+  final ClaudeSettings? claude;
+  final bool Function()? claudeOn;
 
   @override
   State<MeetingsCard> createState() => _MeetingsCardState();
@@ -87,9 +95,13 @@ class _MeetingsCardState extends State<MeetingsCard> {
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
-    return ValueListenableBuilder<Preferences>(
-      valueListenable: store,
-      builder: (context, prefs, _) {
+    final claude = widget.claude ?? claudeSettings;
+    return ListenableBuilder(
+      listenable: Listenable.merge([store, claude, if (widget.claudeOn == null) plugins]),
+      builder: (context, _) {
+        final prefs = store.value;
+        final keyed = claude.hasKey;
+        final byClaude = keyed && claude.meetings && (widget.claudeOn ?? () => plugins.switchedOn('claude'))();
         final sync = widget.signedIn && widget.records;
         if (sync) _countStayed(prefs);
         final stayed = sync ? _stayed : 0;
@@ -122,6 +134,15 @@ class _MeetingsCardState extends State<MeetingsCard> {
                   onCheckedChange: (on) => store.update((was) => withSortMeetings(was, on)),
                 ),
               ),
+              if (keyed && !prefs.simple)
+                SettingRow(
+                  key: const ValueKey('meetings-summaries-by'),
+                  label: 'Summaries written by',
+                  hint: Text(byClaude
+                      ? 'Claude, with your own API key: a meeting’s transcript goes from this device to Anthropic. Change it under Write meeting summaries with Claude, in Settings › Plugins › Claude.'
+                      : 'The summary model on this device. Write meeting summaries with Claude, in Settings › Plugins › Claude, has Claude write them with your key instead.'),
+                  value: Text(byClaude ? 'Claude' : 'This device'),
+                ),
             ],
           ),
         );

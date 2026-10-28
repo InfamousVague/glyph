@@ -64,9 +64,13 @@ Once the limit is reached, Claude isn't asked until the 1st of next month or unt
 
 ### Meetings by Claude
 
-With a key kept and the plugin on, meetings are written up by Claude instead of the device's model, in the same shape: what was decided, and the to-dos. The transcript goes to Anthropic with your key, and nowhere else. A long voice note is still summarised on the device. With Local only on, a meeting's write-up waits for Claude rather than going to the device's model.
+With a key kept and the plugin on, meetings are written up by Claude instead of the device's model, in the same shape: what was decided, who does what, and the to-dos. The **Meeting summaries** card's switch, **Write meeting summaries with Claude**, is on to begin with. Turn it off and your device's model writes them, and nothing of a meeting goes to Anthropic. The switch follows your account, like the key.
 
-A meeting filed on a device that can't write it up, say a Mac with no key and no model, waits there: "Waiting for a summary: turn on Claude or download the summary model on this Mac, or open Ghost.md on your phone." Any of your devices that can write it takes it on, and the waiting one says "Being summarized on your phone." until it is done. Only one device writes each meeting up. Since the key follows your account, putting it in on your phone is enough for the Mac to write meetings up too.
+When it's on, the meeting's transcript goes from your device to Anthropic under your own key, billed to it, and nowhere else: not through Ghost.md's server. A meeting is sent whole, even an hour-long one; a very long one goes in parts. A meeting Ghost was in is written up from its captions as soon as it reaches your device, so it's summarized, sorted and posted minutes after the call, not once the transcript is done.
+
+If Claude can't write it, because there's no connection, the key is refused, the account is out of credit or there are too many requests, your device's model writes it instead if you have one, and the tape says why. A long voice note is still summarised on the device. With Local only on, or at your spending limit, a meeting's write-up waits for Claude rather than going to the device's model.
+
+A meeting filed on a device that can't write it up, say a Mac with no key and no model, waits there: "Waiting for a summary: turn on Claude or download the summary model on this Mac, or open Ghost.md on your phone." Any of your devices that can write it takes it on, a device with Claude first, and the waiting one says "Being summarized on your phone." until it is done. Only one device writes each meeting up. Since the key follows your account, putting it in on your phone is enough for the Mac to write meetings up too, and the Mac then only makes the transcript itself.
 
 Sorting follows the same AI. Once a meeting is written up, Claude reads it and files it into the Meetings folder of the workspace it is about. Meetings you filed yourself stay put. Turn this off with **Sort meetings into workspaces**, on the **Meetings** card in Settings › Recording.
 
