@@ -10,7 +10,9 @@ import 'package:ghost_md/ai/runs.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/reset.dart' show spared;
+import 'package:ghost_md/core/stored.dart' show stored;
 import 'package:ghost_md/core/wip.dart';
+import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey;
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/cheat_sheet.dart';
 import 'package:ghost_md/settings/panes/developer_pane.dart';
@@ -301,7 +303,7 @@ void main() {
     testWidgets('says what the window is, marks the bench that waits, and hides itself by its switch', (tester) async {
       await openPane(tester, 'developer', developer: true, size: const Size(390, 1800));
       // No Smoke card: the smoke went, and its bench with it (2026-10-24).
-      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Work in progress']);
+      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Onboarding', 'Work in progress']);
       expect(rowLabels(tester, 'Window'), ['Top inset', 'Page', 'Screen', 'Engine']);
       final facts = windowFacts(tester.element(find.byType(DeveloperPane)));
       expect((facts.inset, facts.page, facts.engine), ('0px', '390 × 1800 @2', 'Flutter on android'));
@@ -309,12 +311,25 @@ void main() {
       // The bench is not given here: its row is there and cannot be pressed.
       expect(rowCalled('Smoke bench'), findsNothing);
       expect(tester.widget<SettingRow>(rowCalled('Play the scene')).disabled, isTrue);
-      expect([for (final word in tester.widgetList<RowAction>(find.byType(RowAction))) word.disabled], [true, true]);
+      // The two resets with nothing to run, and the onboarding's Run with no walkthrough to open here.
+      expect([for (final word in tester.widgetList<RowAction>(find.byType(RowAction))) word.disabled], [true, true, true]);
 
       await tapOn(tester, find.descendant(of: rowCalled('Developer settings'), matching: find.byType(GlacierSwitch)));
       expect(developerMode.value, isFalse);
       // The section is gone from the list, and so is its page.
       expect(find.byType(DeveloperPane), findsNothing);
+      await endSettings(tester);
+    });
+
+    // Matt, 2026-10-28: "Add a developer setting to re run the onboarding".
+    testWidgets('Run the onboarding again marks the walkthrough unseen and opens it on its first page', (tester) async {
+      var opened = 0;
+      stored.writeText(guideSeenKey, '1');
+      await openPane(tester, 'developer', developer: true, size: const Size(390, 1800), onGuide: () => opened += 1);
+      expect(rowLabels(tester, 'Onboarding'), ['Run the onboarding again']);
+      await tapOn(tester, find.byKey(const ValueKey('developer-run-onboarding-go')));
+      expect(opened, 1);
+      expect(stored.readText(guideSeenKey), isNull, reason: 'unseen, so it behaves as on a first launch until finished');
       await endSettings(tester);
     });
 

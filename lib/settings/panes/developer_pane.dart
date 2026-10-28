@@ -7,6 +7,8 @@ import 'package:glacier/glacier.dart';
 import '../../ai/runs.dart' show useAnyRunning;
 import '../../art/art.dart';
 import '../../core/preferences.dart';
+import '../../core/stored.dart' show stored;
+import '../../guide/guide_state.dart' show guideSeenKey;
 import '../../core/wip.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -57,17 +59,24 @@ const Map<String, String> _readings = {'heat': 'Heat', 'cold': 'No heat', 'none'
 /// - **The resets** ask twice, as the page's do, and then run [SettingsFeatures.onReset] (core/reset.ts is the
 ///   library's to port); without it the word Reset is there and cannot be pressed.
 class DeveloperPane extends StatefulWidget {
-  const DeveloperPane({super.key, this.features = const SettingsFeatures(), this.developer, this.assistantSwitch});
+  const DeveloperPane({super.key, this.features = const SettingsFeatures(), this.developer, this.assistantSwitch, this.onGuide});
 
   /// What the Voice assistant switch does; the app's own (lib/core/wip.dart `switchVoiceAssistant`) when null.
   final Future<void> Function(bool on)? assistantSwitch;
 
   final SettingsFeatures features;
 
+  /// Opens the welcome walkthrough on its first page (Settings' own, the root's `guide.show(0)`); without it the
+  /// onboarding row offers nothing.
+  final VoidCallback? onGuide;
+
   /// The switch that hides the page; the app's own when null.
   final DeviceFlag? developer;
 
-  static Widget hosted(BuildContext context) => DeveloperPane(features: SettingsHost.maybeOf(context)?.features ?? const SettingsFeatures());
+  static Widget hosted(BuildContext context) {
+    final host = SettingsHost.maybeOf(context);
+    return DeveloperPane(features: host?.features ?? const SettingsFeatures(), onGuide: host?.onGuide);
+  }
 
   @override
   State<DeveloperPane> createState() => _DeveloperPaneState();
@@ -139,6 +148,31 @@ class _DeveloperPaneState extends State<DeveloperPane> {
               onReset: features.onReset,
             ),
             _ResetRow(label: 'Reset everything', hint: 'The same, and the downloaded models too. They come back when asked for.', models: true, onReset: features.onReset),
+          ],
+        ),
+        // After Reset, so the cards above stand where the page's do (test/settings/panes/pages_test.dart, rect for
+        // rect). The onboarding again, as a new person meets it (Matt, 2026-10-28: "Add a developer setting to re run the
+        // onboarding"): the walkthrough marked unseen and opened on its first page, so it behaves as on a first launch
+        // (a relaunch part way comes back to it) until it is finished. Notes, settings and the sign-in stay; Reset
+        // local data below is the way to a whole first launch.
+        PaneSection(
+          title: 'Onboarding',
+          children: [
+            SettingRow(
+              key: const ValueKey('developer-run-onboarding'),
+              icon: const AppIcon(Lucide.sparkles, size: 20),
+              label: 'Run the onboarding again',
+              hint: const Text('The welcome walkthrough from its first page, with its voice, as on a first launch. Your notes and settings stay.'),
+              control: RowAction(
+                key: const ValueKey('developer-run-onboarding-go'),
+                disabled: widget.onGuide == null,
+                onPress: () {
+                  stored.flag(guideSeenKey, value: '1', unreadable: true).clear();
+                  widget.onGuide?.call();
+                },
+                child: const Text('Run'),
+              ),
+            ),
           ],
         ),
         // Ghost.md's branch `voice/assistant-flag` has this card (lib/core/wip.dart), as the page's first; here it is
