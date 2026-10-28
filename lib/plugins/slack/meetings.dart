@@ -579,6 +579,40 @@ class MeetingSlackPoster {
     return meetingMessage(meetingPostOf(note, startedAt: preferences().meetings[note.id]?.toInt(), kept: kept(note.id), team: teamOf?.call(note.id), shareLink: link, me: me?.call()));
   }
 
+  /// The latest meetings, newest first, at most [most]: the notes Ghost or a recording made a meeting of
+  /// (`Preferences.meetings`, by when each began), for "Latest meetings" on the plugin's page (Matt, 2026-10-28:
+  /// "add a button in the slack section to post the latest meetings").
+  Future<List<({Note note, int at, bool posted})>> latestMeetings({int most = 3}) async {
+    final now = preferences();
+    final began = now.meetings.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final out = <({Note note, int at, bool posted})>[];
+    for (final entry in began) {
+      if (out.length >= most) break;
+      Note? note;
+      try {
+        note = await getNote(entry.key);
+      } catch (_) {
+        note = null;
+      }
+      if (note == null) continue;
+      final mark = _marks(now)[entry.key];
+      out.add((note: note, at: entry.value.toInt(), posted: mark is Map && mark['posted'] != null));
+    }
+    return out;
+  }
+
+  /// [noteId] posted now, by hand, to the channel chosen for meetings, as the meeting's own post ([messageFor]), and
+  /// marked as its one post; whatever waited for it in the queue is let go. Throws Slack's refusal.
+  Future<void> postNow(String noteId) async {
+    final channel = meetingChannel();
+    if (channel == null) throw StateError('Choose a channel for meetings first.');
+    final note = await getNote(noteId);
+    if (note == null) throw StateError('That meeting is not on this device.');
+    await _post(channel, await messageFor(note));
+    postedByHand(noteId);
+    forgetMeetingPost(noteId);
+  }
+
   /// A meeting posted by hand: marked for the account as posted, so it is not posted again by itself once written
   /// up here or on another device.
   void postedByHand(String noteId) {

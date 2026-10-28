@@ -12,6 +12,9 @@
 /// - **Channel**: the channel's name, and Change, which opens the device's channels in place to pick from.
 /// - **Include a share link**: on unless turned off (Matt's "Both"), with the warning that anyone the link reaches
 ///   reads the transcript, a team's meeting's too.
+/// - **Latest meetings**, the three newest, each with Post (or Post again once it went), which sends it now through
+///   the channel as the meeting's own post: action items, a brief summary, the public link (Matt, 2026-10-28: "add
+///   a button in the slack section to post the latest meetings").
 /// - **A meeting not posted**, one row each, with Slack's reason, how many tries it has had, Try now, and Don't
 ///   post, which lets it go.
 ///
@@ -25,7 +28,11 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../core/note.dart' show Note;
+import '../../core/note_text.dart' show noteTitle;
 import '../../core/preferences.dart';
+import '../../meet/ui/meet_card.dart' show meetWhen;
+import '../details_cache.dart' show failureWords;
 import '../../settings/kit/settings_kit.dart';
 import '../host.dart' show onPluginStorage;
 import '../registry.dart' show plugins;
@@ -106,6 +113,56 @@ class _MeetingsSlackSectionState extends State<MeetingsSlackSection> {
   bool _choosing = false;
   bool _more = false;
   String? _trying;
+  String? _posting;
+  String? _said;
+  int _asked = 0;
+  Future<List<({Note note, int at, bool posted})>>? _latest;
+
+  Future<List<({Note note, int at, bool posted})>> _latestNow() {
+    final poster = meetingSlackPoster;
+    return _latest ??= poster == null ? Future.value(const []) : poster.latestMeetings();
+  }
+
+  Future<void> _postNow(String noteId, String title) async {
+    final poster = meetingSlackPoster;
+    if (poster == null) return;
+    setState(() {
+      _posting = noteId;
+      _said = null;
+    });
+    String said;
+    try {
+      await poster.postNow(noteId);
+      said = 'Posted “$title” to ${meetingChannel()?.name ?? 'Slack'}.';
+    } catch (failure) {
+      said = 'Not posted. ${failure is StateError ? failure.message : failureWords(failure)}';
+    }
+    if (!mounted) return;
+    setState(() {
+      _posting = null;
+      _said = said;
+      _latest = null;
+      _asked += 1;
+    });
+  }
+
+  List<Widget> _latestRows(List<({Note note, int at, bool posted})> latest) => [
+        if (latest.isNotEmpty)
+          SettingRow(key: const ValueKey('slack-latest-head'), label: 'Latest meetings', hint: Text(_said ?? 'Post one now: its action items, a brief summary and the link to its notes.')),
+        for (final meeting in latest)
+          SettingRow(
+            key: ValueKey('slack-latest-${meeting.note.id}'),
+            icon: const AppIcon(Lucide.audioLines, size: 16),
+            label: noteTitle(meeting.note.body).isEmpty ? 'Untitled meeting' : noteTitle(meeting.note.body),
+            hint: Text('${meetWhen(meeting.at, now: DateTime.now().millisecondsSinceEpoch)}${meeting.posted ? ' · Posted' : ''}'),
+            control: RowAction(
+              key: ValueKey('slack-latest-post-${meeting.note.id}'),
+              disabled: _posting != null || meetingChannel() == null,
+              onPress: () => unawaited(_postNow(meeting.note.id, noteTitle(meeting.note.body))),
+              child: Text(_posting == meeting.note.id ? 'Posting…' : (meeting.posted ? 'Post again' : 'Post')),
+            ),
+          ),
+      ];
 
   Future<void> _tryNow(String noteId) async {
     final poster = meetingSlackPoster;
@@ -201,6 +258,12 @@ class _MeetingsSlackSectionState extends State<MeetingsSlackSection> {
                 label: 'More',
                 hint: const Text('The channel, and whether a share link goes with each meeting.'),
                 control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
+              ),
+            if (channel != null)
+              FutureBuilder<List<({Note note, int at, bool posted})>>(
+                key: ValueKey('slack-latest-$_asked'),
+                future: _latestNow(),
+                builder: (context, latest) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: _latestRows(latest.data ?? const [])),
               ),
             ..._failures(context.tokens),
           ],

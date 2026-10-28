@@ -220,7 +220,7 @@ Each channel under **Channels** has **Test**, **Rename** and **Forget**.
 
 Two things can post by themselves, only if you set them up on the same page:
 
-- **Post to Slack**: switch on **Post meetings to Slack**, pick the **Channel**, and choose whether to **Include a share link**. Each meeting's action items, a brief summary and the public link to its notes go there once, from the device that writes it up. A meeting that couldn't be posted is listed with a way to try again.
+- **Post to Slack**: switch on **Post meetings to Slack**, pick the **Channel**, and choose whether to **Include a share link**. Each meeting's action items, a brief summary and the public link to its notes go there once, from the device that writes it up. **Latest meetings** lists your three newest, each with **Post** to send it now. A meeting that couldn't be posted is listed with a way to try again.
 - **Organizations' news**: who joined, left or changed role in an organization, and its new name, to the channel you pick for it. This is set on one device only, since every device with a channel set posts the news.
 
 The channels and Post to Slack follow your account, sealed, while **Keep keys and connections in sync** is on.

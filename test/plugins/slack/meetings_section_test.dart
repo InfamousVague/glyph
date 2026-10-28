@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -112,6 +113,41 @@ void main() {
     await settle(tester);
     expect(textOf(tester), isNot(contains('Not posted')));
     expect(slack.posts.last.text, contains('• Ship it.'));
+    await away(tester);
+  });
+
+  // Matt, 2026-10-28: "add a button in the slack section to post the latest meetings".
+  testWidgets('lists the latest meetings, and Post sends one now and marks it posted', (tester) async {
+    await addChannel('#launch', hook);
+    setMeetingPosts(true);
+    var prefs = Preferences.defaults.copyWith(meetings: {'old': 1000, 'new': 5000});
+    final notes = {
+      'old': Note(id: 'old', body: '# Monday sync\n\n## Summary\nA sync.\n\n- [ ] Sam: the list', createdAt: 1, updatedAt: 1),
+      'new': Note(id: 'new', body: '# Engineering Standup\n\n## Summary\nThe release.\n\n- [ ] Matt: open the PR', createdAt: 1, updatedAt: 1),
+    };
+    meetingSlackPoster = MeetingSlackPoster(
+      preferences: () => prefs,
+      setPreferences: (change) => prefs = change(prefs),
+      getNote: (id) async => notes[id],
+      shareLink: (note) async => 'https://ghostmarkdown.com/read.html#${note.id}.key',
+      kept: (_) => null,
+    );
+    await pumpSection(tester);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await settle(tester);
+    final text = textOf(tester);
+    expect(text, contains('Latest meetings'));
+    expect(text.indexOf('Engineering Standup'), lessThan(text.indexOf('Monday sync')), reason: 'newest first');
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('slack-latest-post-new')));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await settle(tester);
+    final posted = slack.posts.single.text as String;
+    expect(posted.indexOf('*Action items*'), lessThan(posted.indexOf('*Summary*')));
+    expect(posted, endsWith('<https://ghostmarkdown.com/read.html#new.key|Read the notes and transcript>'));
+    expect(meetingPostMarked(prefs, 'new'), isTrue);
+    expect(textOf(tester), contains('Posted “Engineering Standup” to #launch.'));
     await away(tester);
   });
 
