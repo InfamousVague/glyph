@@ -20,6 +20,7 @@ import 'package:ghost_md/shell/app_shell.dart';
 
 import '../plugins/github/support.dart' show useGround;
 import '../plugins/lovart/banners_test.dart' show GatedClient;
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 const String _words = 'We drove down on Friday, stayed in the old house by the river, walked the market on Saturday morning, '
@@ -119,6 +120,11 @@ void main() {
   });
 
   testWidgets('stopped for credits, the line says why until Hide', (tester) async {
+    // On today's bar. With Grouped command, the default since 2026-10-29, the home page has no search field and its
+    // line stands at the page's top, where the Activity's result chip hangs under the bar over it and takes the press
+    // meant for Hide (build/feature-shots/header-default/overlap-activity-chip-over-job-notice-phone.png): left to be
+    // settled where the chip and the line are placed.
+    pinTodaysBar();
     library.create('# Trip\n\n$_words');
     await pumpRoot(tester);
     gated
