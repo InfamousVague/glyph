@@ -28,6 +28,7 @@ library;
 
 import '../../core/banner.dart' show bannerOf;
 import '../../core/book.dart' show isBookBody, isJournalBody;
+import '../../core/note_text.dart' show noteTitle;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'banner_run.dart';
@@ -91,6 +92,9 @@ Future<bool> makeCue(NoteEditing editing, ImageCue cue) async {
   final key = makingKey(editing.noteId, cue.text);
   if (lovartMaking.value.contains(key)) return false;
   markMaking(key, true);
+  final job = lovartPictureJob('lovart-cue:$key', noteId: editing.noteId, title: 'Image for ${noteTitle(editing.body())}');
+  var made = 0;
+  String? failed;
   try {
     final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
     if (names.isEmpty) return false;
@@ -98,12 +102,15 @@ Future<bool> makeCue(NoteEditing editing, ImageCue cue) async {
     if (!written) editing.say('The image was made, but its {image: …} was gone from the note.');
     // Lovart's picture is ready (Settings › Sounds; Matt, 2026-10-27).
     if (written) sounds.play(SoundEvent.lovartReady);
+    if (written) made = names.length;
     return written;
   } on LovartFailure catch (failure) {
     editing.say(lovartSaid(failure));
+    if (!failure.passing && failure is! LovartRefused) failed = lovartSaid(failure);
     return false;
   } finally {
     markMaking(key, false);
+    lovartPictureEnded(job, noteId: editing.noteId, made: made, failed: failed);
   }
 }
 
@@ -114,27 +121,36 @@ Future<void> makeAllCues(NoteEditing editing) async {
   if (unready != null) return editing.say(unready);
   final cues = imageCues(editing.body());
   var made = 0;
-  for (final (index, cue) in cues.indexed) {
-    editing.say(cues.length == 1 ? 'Lovart is making the image…' : 'Lovart is making image ${index + 1} of ${cues.length}…');
-    final lovart = lovartClient();
-    if (lovart == null) return;
-    final key = makingKey(editing.noteId, cue.text);
-    markMaking(key, true);
-    try {
-      final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
-      if (names.isNotEmpty && placeCue(editing, cue, names)) made += 1;
-    } on LovartRefused catch (failure) {
-      editing.say(failure.message);
-    } on LovartFailure catch (failure) {
-      editing.say(lovartSaid(failure));
-      return;
-    } finally {
-      markMaking(key, false);
+  // One job for them all: the ring's arc fills as each lands, and one chip as the last does.
+  final job = lovartPictureJob('lovart-cues:${editing.noteId}', noteId: editing.noteId, title: 'Images for ${noteTitle(editing.body())}');
+  String? failed;
+  try {
+    for (final (index, cue) in cues.indexed) {
+      job.progress(done: index, total: cues.length, unit: 'images');
+      editing.say(cues.length == 1 ? 'Lovart is making the image…' : 'Lovart is making image ${index + 1} of ${cues.length}…');
+      final lovart = lovartClient();
+      if (lovart == null) return;
+      final key = makingKey(editing.noteId, cue.text);
+      markMaking(key, true);
+      try {
+        final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
+        if (names.isNotEmpty && placeCue(editing, cue, names)) made += 1;
+      } on LovartRefused catch (failure) {
+        editing.say(failure.message);
+      } on LovartFailure catch (failure) {
+        editing.say(lovartSaid(failure));
+        if (!failure.passing) failed = lovartSaid(failure);
+        return;
+      } finally {
+        markMaking(key, false);
+      }
     }
-  }
-  if (made > 0) {
-    editing.say(made == 1 ? 'Made 1 image with Lovart.' : 'Made $made images with Lovart.');
-    sounds.play(SoundEvent.lovartReady);
+    if (made > 0) {
+      editing.say(made == 1 ? 'Made 1 image with Lovart.' : 'Made $made images with Lovart.');
+      sounds.play(SoundEvent.lovartReady);
+    }
+  } finally {
+    lovartPictureEnded(job, noteId: editing.noteId, made: made, words: made == 1 ? 'Image ready' : '$made images ready', failed: made > 0 ? null : failed);
   }
 }
 
@@ -146,16 +162,22 @@ Future<void> makeInspiration(NoteEditing editing) async {
   if (lovart == null) return;
   editing.say('Lovart is making inspiration images…');
   markInspiring(editing.noteId, true);
+  final job = lovartPictureJob('lovart-inspiration:${editing.noteId}', noteId: editing.noteId, title: 'Inspiration for ${noteTitle(editing.body())}');
+  var made = 0;
+  String? failed;
   try {
     final names = await keepLovartImages(await lovart.generate(inspirationPrompt(editing.body())));
     if (names.isEmpty) return;
     final at = inspirationInsert(editing.body(), names);
     editing.replaceLine((text, line) => line == at.line, (text) => '$text${at.add}');
     editing.say(names.length == 1 ? 'Added 1 inspiration image.' : 'Added ${names.length} inspiration images.');
+    made = names.length;
   } on LovartFailure catch (failure) {
     editing.say(lovartSaid(failure));
+    if (!failure.passing && failure is! LovartRefused) failed = lovartSaid(failure);
   } finally {
     markInspiring(editing.noteId, false);
+    lovartPictureEnded(job, noteId: editing.noteId, made: made, words: 'Inspiration ready', failed: failed);
   }
 }
 

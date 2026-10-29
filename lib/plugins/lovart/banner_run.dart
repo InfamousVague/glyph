@@ -510,6 +510,27 @@ class BannerJob {
   bool _gone = false;
   VoidCallback? _unhear;
 
+  /// Whether the run going now was asked for by the person ([start]) rather than picked up at launch ([resume]); and
+  /// the notebook it is for, where it is one's.
+  bool _asked = false;
+  String? _book;
+
+  /// The same run asked for again: a stopped run's Retry.
+  Future<String?> Function()? _again;
+
+  /// A stopped run's one fix (docs/ACTIVITY.md, Failures): Top up where Lovart said the plan or the credits do not
+  /// cover it, Open Lovart where its agent wants a go-ahead there, Sign in again where the keys were refused or are
+  /// gone, and otherwise Retry, the same run again from where it stopped.
+  JobFix bannerFix(LovartFailure? failure) {
+    if (failure != null && (failure.status == 402 || failure.code == 2012)) return activityRoutes.topUp(Uri.parse(lovartBillingUrl));
+    if (failure is LovartNeedsConfirmation) return JobFix(JobFixKind.open, () => activityRoutes.openLink?.call(Uri.parse(lovartBillingUrl)), label: 'Open Lovart');
+    if ((failure?.badKeys ?? false) || !hasLovartKeys(_host)) return activityRoutes.signIn(manifest.id);
+    final again = _again;
+    return JobFix(JobFixKind.retry, () {
+      if (again != null) unawaited(again());
+    });
+  }
+
   /// Whether a run is going on this device now.
   bool get running => _running;
 
@@ -540,9 +561,14 @@ class BannerJob {
   /// [redoOld], the black-and-white and square banners made again where the job was told how to tell ([redo]); or
   /// over [asks] where given (a notebook's pages, [bookBannerAsks]). Answers why it did not start, or null where it
   /// did (or one was already going, which it leaves be).
-  Future<String?> start({bool takenOff = false, bool redoOld = false, List<BannerAsk>? asks}) async {
+  Future<String?> start({bool takenOff = false, bool redoOld = false, List<BannerAsk>? asks, String? book}) async {
     if (_running) return null;
     _running = true;
+    // Asked for by the person (Settings' Make them, a notebook's More): its end chimes where it ran a while, and a
+    // notebook's run opens the notebook from its chip.
+    _asked = true;
+    _book = book;
+    _again = () => start(takenOff: takenOff, redoOld: redoOld, asks: asks, book: book);
     try {
       final unready = _unready();
       if (unready != null) {
@@ -603,6 +629,9 @@ class BannerJob {
     final kept = keptBannerQueue(_host);
     if (_running || kept == null) return;
     _running = true;
+    _asked = false;
+    _book = null;
+    _again = () => start();
     try {
       // The ones being made as the app went were marked given before Lovart was asked: asked for again. Not the ones
       // asked again on purpose, given one before, which leaving them never makes again.
@@ -633,6 +662,20 @@ class BannerJob {
     final going = <String>{};
     var made = queue.made, skipped = queue.skipped;
     String? stopped;
+    // What stopped it, where Lovart said: its fix in the tray (Top up, Sign in again) follows from it.
+    LovartFailure? stoppedBy;
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): the ring, the tray with
+    // its Stop, the credits it should cost and has spent so far, and the chip as it ends.
+    final book = _book;
+    final job = activity.begin(
+      bannerJobId,
+      kind: JobKind.images,
+      title: 'Making header images',
+      personStarted: _asked,
+      onStop: stop,
+      onOpen: book == null ? null : activityRoutes.noteOpener(book),
+      estimate: bannerRunEstimate(total - made - skipped),
+    );
 
     void keep() => _on.storage.set(
           bannerRunKey,
@@ -650,6 +693,9 @@ class BannerJob {
     void say() {
       final run = lovartBannerRun.value = now();
       unawaited(background.running(bannerJobId, title: 'Making header images', text: '${run.done} of ${run.total}', done: run.done, total: run.total));
+      job
+        ..progress(done: run.done, total: run.total)
+        ..update(spent: run.made * lovartCreditsPerImage);
       claims?.renew(done: run.done, total: run.total);
     }
 
@@ -700,6 +746,7 @@ class BannerJob {
             continue;
           }
           // Not this note's fault: it stays in the queue for the next run, and the rest wait for it.
+          stoppedBy ??= failure;
           stopped ??= failure is LovartNeedsConfirmation ? failure.said : failure.message;
         } catch (failure) {
           // Anything else is this note's alone: skipped, and the run goes on.
@@ -720,6 +767,15 @@ class BannerJob {
     final asked = _stop && stopped == null && left.isNotEmpty;
     final run = lovartBannerRun.value = BannerRun(total: total, done: made + skipped, made: made, running: false, stopped: asked ? 'Stopped.' : stopped, asked: asked);
     unawaited(background.ended(bannerJobId, title: bannerRunEndWords(run)));
+    // The record: the chip says how it ended (it was the root's toast), one for the whole run.
+    final tally = JobTally('banner', 'banners', made);
+    if (asked) {
+      job.stopped(tally: tally);
+    } else if (run.stopped != null) {
+      job.failed(bannerRunEndWords(run), fix: bannerFix(stoppedBy), tally: tally);
+    } else {
+      job.done(result: JobResult(bannerRunEndWords(run), action: book == null ? 'View' : 'Open', onOpen: book == null ? null : activityRoutes.noteOpener(book)), tally: tally);
+    }
     ended?.call(run);
   }
 }
@@ -768,12 +824,18 @@ Future<void> makeBookBanners(NoteEditing editing, String? choice) async {
   final asks = await bookBannerAsks(book.copyWith(body: editing.body()), notes, redo: job.redo, redoAll: choice == 'all');
   if (asks.isEmpty) return editing.say('Every page has a header image already, or is not one to have one.');
   editing.say(asks.length == 1 ? 'Making a header image for 1 page.' : 'Making header images for ${asks.length} pages.');
-  final refused = await job.start(asks: asks);
+  final refused = await job.start(asks: asks, book: book.id);
   if (refused != null) editing.say(refused);
 }
 
 /// The app's job, set by the root as it starts; null where there is no library (a test, the page alone).
 BannerJob? lovartBannerJob;
+
+/// What a run of [count] header images should cost and take, said before one over about 20 credits starts
+/// (lib/activity/activity_cost.dart; docs/ACTIVITY.md: "12 banners · ~72 Lovart credits · ~4 min") and in the tray as
+/// it runs: [lovartCreditsPerImage] each, and about 20 seconds each, three being made at a time.
+JobEstimate bannerRunEstimate(int count) =>
+    JobEstimate(credits: count * lovartCreditsPerImage, provider: 'Lovart', duration: Duration(seconds: count * 20), count: count, one: 'header image', many: 'header images');
 
 /// Settings › Lovart's Make them, with its two choices for the run.
 Future<void> runBanners({bool takenOff = false, bool redoOld = false}) async {

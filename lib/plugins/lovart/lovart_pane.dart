@@ -15,6 +15,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../activity/activity_cost.dart' show askJobCost;
 import '../../claude/claude_settings.dart' show maskKey;
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/pane_parts.dart' show armedFor;
@@ -26,7 +27,7 @@ import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
-import 'banner_run.dart' show BannerRun, bannerCandidates, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
+import 'banner_run.dart' show BannerRun, bannerCandidates, bannerRunEstimate, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
 import 'banners.dart' show bannersOn, setBanners;
 import 'lovart_queue.dart';
 import 'lovart_setup.dart';
@@ -76,6 +77,15 @@ class _LovartPaneState extends State<LovartPane> {
 
   /// The setup the head of the page opens (lovart_setup.dart).
   late final PluginSetup _setup = lovartSetup();
+
+  /// Make them: a run over about 20 credits asks first, with what it should cost and take (docs/ACTIVITY.md, Cost:
+  /// "12 banners · ~72 Lovart credits · ~4 min"); a smaller one just starts.
+  Future<void> _makeThem() async {
+    final job = lovartBannerJob;
+    final count = job == null ? 0 : (bannerCandidates(job.notes()).length + (_takenOff ? bannerTakenOff(job.notes()).length : 0)).clamp(0, bannerRunMost);
+    if (count > 0 && !await askJobCost(context, bannerRunEstimate(count), title: 'Make header images?')) return;
+    await runBanners(takenOff: _takenOff, redoOld: _redoOld);
+  }
 
   /// Make them's two choices, for the next run (Matt, 2026-10-26: "remove the header banner images on the docs as we
   /// will regenerate them"): the notes whose banner was taken off, and the black-and-white or square banners made again in
@@ -248,7 +258,7 @@ class _LovartPaneState extends State<LovartPane> {
                       hint: Text(_runWords(run, takenOff: _takenOff, redoOld: _redoOld)),
                       value: run?.running == true
                           ? RowAction(onPress: stopBannerRun, child: const Text('Stop'))
-                          : RowAction(onPress: () => unawaited(runBanners(takenOff: _takenOff, redoOld: _redoOld)), disabled: keys == null, child: const Text('Make them')),
+                          : RowAction(onPress: () => unawaited(_makeThem()), disabled: keys == null, child: const Text('Make them')),
                     ),
                     if (run?.running != true) ...[
                       SettingRow(

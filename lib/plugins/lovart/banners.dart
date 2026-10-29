@@ -28,6 +28,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/background_jobs.dart';
 import '../../core/banner.dart';
 import '../../core/front_matter.dart' show frontMatterFence, frontMatterOffset;
 import '../../core/images.dart' show PictureStore;
@@ -40,6 +41,7 @@ import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'client.dart';
 import 'keep.dart';
+import 'making.dart' show lovartPictureEnded, lovartPictureJob;
 import 'manifest.dart';
 
 /// How many of a note's opening characters tell Lovart what it is about, past its title.
@@ -186,7 +188,40 @@ class LovartBanners {
   /// although it is marked given; and [replacing], the black-and-white banner of that name made again in colour and
   /// put in its place. Either way only while the note still has what it had: a banner given by hand meanwhile, or a
   /// different one, stands. Leaving a note never asks either: there a banner taken off stays off.
+  ///
+  /// One made on its own, not in a run, is a job on the app's record of running work (lib/core/background_jobs.dart;
+  /// docs/ACTIVITY.md): "Header image for Plan" in the ring and the tray while Lovart draws it, and "Banner ready · View"
+  /// as it lands while the note is not on screen. A run is one job of its own (banner_run.dart), so its banners are not.
   Future<bool> make(String id, {bool rethrowStopping = false, bool again = false, String? replacing}) async {
+    if (rethrowStopping) return _make(id, rethrowStopping: true, again: again, replacing: replacing);
+    JobHandle? job;
+    LovartFailure? refused;
+    try {
+      final made = await _make(
+        id,
+        again: again,
+        replacing: replacing,
+        started: (title) => job = activity.begin('banner:$id', kind: JobKind.images, title: title.isEmpty ? 'Header image' : 'Header image for $title', shownHere: activityRoutes.noteShown(id)),
+        refused: (failure) => refused = failure,
+      );
+      final failure = refused;
+      if (made) {
+        job?.done(result: JobResult('Banner ready', onOpen: activityRoutes.noteOpener(id)), tally: const JobTally('banner', 'banners'));
+      } else if (failure != null && !failure.passing && failure is! LovartRefused) {
+        // Credits, keys, a go-ahead: the person's to fix. Lovart busy or out of reach a moment is not: leaving the note
+        // again asks again, so that goes quietly.
+        job?.failed(failure is LovartNeedsConfirmation ? failure.said : failure.message, fix: failure.badKeys ? activityRoutes.signIn(manifest.id) : (failure.status == 402 || failure.code == 2012 || failure is LovartNeedsConfirmation) ? activityRoutes.topUp(Uri.parse(lovartBillingUrl), label: failure is LovartNeedsConfirmation ? 'Open Lovart' : null) : null);
+      } else {
+        job?.stopped();
+      }
+      return made;
+    } catch (failure) {
+      job?.stopped();
+      rethrow;
+    }
+  }
+
+  Future<bool> _make(String id, {bool rethrowStopping = false, bool again = false, String? replacing, void Function(String title)? started, void Function(LovartFailure failure)? refused}) async {
     if (!pluginOn(manifest) || !hasLovartKeys(_on)) return false;
     if ((pictures ?? lovartPictureStore) == null) return false;
     final asked = again || replacing != null;
@@ -198,11 +233,13 @@ class LovartBanners {
     final lovart = client != null ? client!() : (_host == null ? lovartClient() : LovartClient.kept(via: _host));
     if (lovart == null) return false;
     _making(id, true);
+    started?.call(noteTitle(note.body));
     try {
       final List<Uint8List> images;
       try {
         images = await lovart.generate(bannerPrompt(note.body));
       } on LovartFailure catch (failure) {
+        refused?.call(failure);
         if (rethrowStopping && failure is! LovartRefused) {
           // Not this note's fault: a run started again later tries it again. One asked again was given one before,
           // and stays so for leaving it.
@@ -284,14 +321,20 @@ Future<void> makeBanner(NoteEditing editing) async {
   _markDone(host, id);
   _making(id, true);
   editing.say('Lovart is making a header image…');
+  final job = lovartPictureJob('banner:$id', noteId: id, title: 'Header image for ${noteTitle(editing.body())}');
+  var made = 0;
+  String? failed;
   try {
     final names = await keepLovartImages((await lovart.generate(bannerPrompt(editing.body()))).take(1).toList());
     if (names.isEmpty) return;
     final edit = bannerEdit(editing.body(), names.first);
     editing.replaceLine((text, line) => line == edit.line, edit.next);
+    made = 1;
   } on LovartFailure catch (failure) {
     editing.say(failure is LovartNeedsConfirmation ? failure.said : failure.message);
+    if (!failure.passing && failure is! LovartRefused) failed = failure is LovartNeedsConfirmation ? failure.said : failure.message;
   } finally {
     _making(id, false);
+    lovartPictureEnded(job, noteId: id, made: made, words: 'Banner ready', failed: failed);
   }
 }
