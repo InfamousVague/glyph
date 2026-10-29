@@ -118,6 +118,10 @@ const int captionsQuietMs = 10 * 60000;
 /// Claude to claim (see CLAUDE FIRST in the header).
 const int modelDeferMs = 5 * 60000;
 
+/// How long after a meeting's summary was marked written a note here still without one is taken to have lost it,
+/// not to be waiting for it to sync ([SummaryHandoff.lost]).
+const int handoffLostMs = 10 * 60000;
+
 /// This device, as the handoff names it: an id of its own, made once and kept in its storage, and what a person
 /// calls it ("Mac", "phone").
 @immutable
@@ -401,6 +405,23 @@ class SummaryHandoff {
   /// Whether the meeting's summary has been written, here or anywhere.
   bool isDone(String id) => _entry(id)?.done != null;
 
+  /// Whether the meeting's summary was written, by the account's word, [handoffLostMs] ago or more, and the note here
+  /// has none: it went from the note after it was written (Matt's standup, 2026-10-29: the device holding the
+  /// recording put its transcript into the team's note over the words from before the summary), so a job for it here
+  /// is written rather than let go as done elsewhere. Within that time, the summary may only not have synced yet.
+  Future<bool> lost(String id) async {
+    final h = _entry(id);
+    final done = h?.done;
+    if (done == null || clock() - done < handoffLostMs) return false;
+    final Note? note;
+    try {
+      note = await getNote(id);
+    } catch (_) {
+      return false;
+    }
+    return note != null && summarySection(note.body) == null;
+  }
+
   /// Whether the meeting is marked as waiting for a summary at all, and not yet written.
   bool isWaiting(String id) {
     final h = _entry(id);
@@ -535,7 +556,8 @@ class SummaryHandoff {
     int? deferredUntil;
     for (final MapEntry(key: id, value: h) in all.entries) {
       if (h.done != null) {
-        if (queue.hasJob(id)) queue.handedOff(id);
+        // A job for a summary lost from the note since is this device's to write ([lost]).
+        if (queue.hasJob(id) && !await lost(id)) queue.handedOff(id);
         continue;
       }
       if (queue.hasJob(id) || (h.claimedAt(now) && h.claimBy != device().id)) continue;

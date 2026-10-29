@@ -512,7 +512,7 @@ class NoteDeskWorld {
 /// What a desk's [NoteAi] is given of the app (lib/ai/note_ai.dart's own list).
 @immutable
 class NoteAiWorld {
-  const NoteAiWorld({required this.availability, this.deviceFacts, this.reviewHost, this.openForSummaries, this.onGetModel, this.summarize, this.summaryEdited, this.opened});
+  const NoteAiWorld({required this.availability, this.deviceFacts, this.reviewHost, this.openForSummaries, this.onGetModel, this.summarize, this.summaryEdited, this.opened, this.writesMeetings});
 
   /// Whether the AI can run here: the app's one controller.
   final AvailabilityController availability;
@@ -531,6 +531,11 @@ class NoteAiWorld {
   /// and whether the section in these words is no longer the one the app wrote.
   final void Function(String noteId, bool replace)? summarize;
   final bool Function(String noteId, String body)? summaryEdited;
+
+  /// Whether a meeting's summary is written here by Claude (lib/ai/summary_claude.dart `MeetingClaude.chosen`), which
+  /// needs no model on the device: a meeting's tape offers Summarize then on a Mac with no summary model, where the
+  /// word was missing (Matt's standup, 2026-10-29, left without its summary).
+  final bool Function()? writesMeetings;
 
   /// Told the AI of the note on a desk as it is made, and null as it goes: the root draws the scene over the
   /// window from it (lib/scene/at_work.dart).
@@ -2203,7 +2208,7 @@ class NoteDeskState extends State<NoteDesk> {
                 transcriptShown: _reading,
                 // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
                 // can run.
-                summary: (_ai?.canSummarize ?? false) && _aiWorld?.summarize != null
+                summary: ((_ai?.canSummarize ?? false) || (_meeting && (_aiWorld?.writesMeetings?.call() ?? false))) && _aiWorld?.summarize != null
                     ? TapeSummary(
                         ask: (replace) {
                           _flush?.call();

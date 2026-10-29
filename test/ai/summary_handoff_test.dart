@@ -238,6 +238,53 @@ void main() {
       expect(store.workspaceOf('n2')?.name, meetingsFolderName);
     });
 
+    // Matt's standup, 2026-10-29: summarized on one device, marked done, and the summary then went from the team's note
+    // (test/team_sync/meeting_note_test.dart plays how). The tape's Summarize, or the transcript's arrival, asks for it
+    // again here; with the entry saying done, the job was let go before it ran, and the tap did nothing.
+    handoffTest('a meeting the account says is done whose summary went from the note is written again here, once the summary has had time to sync', (tester) async {
+      q.prefs = meeting(q.prefs, 'n1');
+      theirs('n1', Handoff(from: '', at: 0, done: now, doneBy: 'mac-1'));
+      final handoff = q.summaries.handoff = handoffFor(phone);
+      // Just done elsewhere, the summary may only not have reached this note yet: the job is let go, nothing asked.
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      expect(await handoff.lost('n1'), isFalse);
+      await handoff.look();
+      await advance(tester, 0);
+      expect(q.summaries.summaryPending('n1'), isFalse);
+      expect(q.fakes, isEmpty);
+
+      // Ten minutes on and still no summary in the note: the tape's Summarize writes it, here, into this note.
+      now += handoffLostMs;
+      expect(await handoff.lost('n1'), isTrue);
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await handoff.look();
+      expect(q.summaries.summaryPending('n1'), isTrue, reason: 'the look keeps the job');
+      await advance(tester, 0);
+      expect(q.fakes, hasLength(1));
+      q.fakes.single.finish(q.answer);
+      await advance(tester, 0);
+      await advance(tester, 0);
+      expect(q.notes['n1']!.body, contains(q.section));
+      expect(q.summaries.summaryPending('n1'), isFalse);
+      // With its summary in the note, it is not lost any more, and nothing more is asked.
+      expect(await handoff.lost('n1'), isFalse);
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await handoff.look();
+      await advance(tester, 0);
+      expect(q.fakes, hasLength(1));
+    });
+
+    handoffTest('a meeting done elsewhere and lost from the note is still left to a device that holds a live claim on it', (tester) async {
+      q.prefs = meeting(q.prefs, 'n1');
+      theirs('n1', Handoff(from: '', at: 0, claimBy: 'tablet-1', claimName: 'tablet', claimAt: now));
+      final handoff = q.summaries.handoff = handoffFor(phone);
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      expect(await handoff.lost('n1'), isFalse);
+      await advance(tester, 0);
+      expect(q.fakes, isEmpty);
+      expect(q.summaries.summaryPending('n1'), isTrue, reason: 'it waits for the claim');
+    });
+
     test('a stranded meeting is only one Ghost filed, written up, recent, quiet, unsummarized and unsorted', () {
       final at = 10 * 24 * 3600000;
       const body = '# Standup\n\nGhost was in this meeting on 26 Oct, 09:28 to 09:55.\n\n## Transcript\n\n**Sam:** Hello.\n';

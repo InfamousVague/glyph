@@ -64,6 +64,7 @@ import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../core/attachment_refs.dart' show attachmentNames;
 import '../core/bytes.dart';
+import '../core/merge_words.dart';
 import '../core/note.dart';
 import '../core/note_folders.dart' show orgFolderNames;
 import '../core/note_json.dart';
@@ -84,29 +85,32 @@ const int _postAtMost = 100;
 
 /// Per note: the row's revision last seen, the note's particulars then ([particulars]), the fingerprint of the
 /// recording the row named, where it named one (GHST-112), and the recording's phrases then ([phrasesMark]): a
-/// write-up made after the row went moves no particular, and the row is put again for it.
+/// write-up made after the row went moves no particular, and the row is put again for it. And [from]: the account's
+/// revision the note left this account's feed at as it became the team's, as its row said it ([_ownWords]), carried
+/// into every row this device puts.
 class TeamMark {
-  const TeamMark({required this.rev, required this.mark, this.recording, this.phrases});
+  const TeamMark({required this.rev, required this.mark, this.recording, this.phrases, this.from});
 
   static TeamMark? fromJson(Object? raw) {
     if (raw is! Map) return null;
-    final rev = raw['rev'], mark = raw['mark'], recording = raw['recording'], phrases = raw['phrases'];
+    final rev = raw['rev'], mark = raw['mark'], recording = raw['recording'], phrases = raw['phrases'], from = raw['from'];
     if (rev is! num || mark is! String) return null;
-    return TeamMark(rev: rev.toInt(), mark: mark, recording: recording is String && recording.isNotEmpty ? recording : null, phrases: phrases is String ? phrases : null);
+    return TeamMark(rev: rev.toInt(), mark: mark, recording: recording is String && recording.isNotEmpty ? recording : null, phrases: phrases is String ? phrases : null, from: from is num ? from.toInt() : null);
   }
 
   final int rev;
   final String mark;
   final String? recording;
   final String? phrases;
+  final int? from;
 
-  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'recording': ?recording, 'phrases': ?phrases};
-
-  @override
-  bool operator ==(Object other) => other is TeamMark && other.rev == rev && other.mark == mark && other.recording == recording && other.phrases == phrases;
+  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'recording': ?recording, 'phrases': ?phrases, 'from': ?from};
 
   @override
-  int get hashCode => Object.hash(rev, mark, recording, phrases);
+  bool operator ==(Object other) => other is TeamMark && other.rev == rev && other.mark == mark && other.recording == recording && other.phrases == phrases && other.from == from;
+
+  @override
+  int get hashCode => Object.hash(rev, mark, recording, phrases, from);
 
   @override
   String toString() => 'TeamMark($rev, $mark${recording == null ? '' : ', $recording'})';
@@ -187,6 +191,9 @@ class TeamSyncContext {
     required this.isTeamNote,
     this.leftTeam,
     this.keptOut,
+    this.agreed,
+    this.leftAt,
+    this.account,
     required this.file,
     this.folders,
     this.now,
@@ -224,6 +231,20 @@ class TeamSyncContext {
   /// here or on another of their devices. The account's own sync keeps it from an old build's deletion for a while
   /// after (lib/sync/notes.dart [LeftTeams]).
   final void Function(String id)? keptOut;
+
+  /// The words this device and the account last both acknowledged for a note, with the account's revision they were
+  /// at (lib/sync/notes.dart `agreedOf`); null where it has none. A note this device had of its own when the team's
+  /// row first lands is merged from them, where they can be trusted: only what changed here since is this device's
+  /// change ([_ownWords]).
+  final ({String words, int rev})? Function(String id)? agreed;
+
+  /// The account's revision a note's words were at when this device took it out of the account's feed as it became
+  /// this team's (lib/sync/notes.dart `SyncState.teams`): put in the note's row with [account], so the account's other
+  /// devices know which of their own words the team's note grew from.
+  final int? Function(String id)? leftAt;
+
+  /// The account this device is signed in to, as the service numbers it: whose revisions [leftAt] and a row's are.
+  final int? account;
 
   /// A note from the team, filed in the organization's workspace on this device: one at the organization's own
   /// folder, or any, where this device has no [folders].
@@ -290,13 +311,14 @@ class _Tally {
 /// A row's blob, opened (`TeamPayload`): the note as it stood, the document's whole state then, the seq it covered,
 /// and the files.
 class _Payload {
-  const _Payload({required this.note, required this.state, required this.seq, this.images = const [], this.versions, this.recording, this.files = const [], this.texts = const []});
+  const _Payload({required this.note, required this.state, required this.seq, this.images = const [], this.versions, this.recording, this.files = const [], this.texts = const [], this.account, this.from});
 
   factory _Payload.fromJson(Object? raw, String id) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
     final note = noteFromJson(map['note']);
     final state = map['state'], seq = map['seq'], images = map['images'], versions = map['versions'], files = map['files'], texts = map['texts'];
     final recording = map['recording'];
+    final left = map['from'] is Map ? map['from'] as Map : const <Object?, Object?>{};
     if (note == null || state is! String) throw const FormatException('That note of the team’s could not be read.');
     return _Payload(
       note: withId(note, id),
@@ -307,6 +329,8 @@ class _Payload {
       recording: recording is String && recording.isNotEmpty ? recording : null,
       files: files is List ? files.whereType<String>().toList() : const [],
       texts: texts is List ? texts.whereType<String>().toList() : const [],
+      account: left['account'] is num ? (left['account'] as num).toInt() : null,
+      from: left['rev'] is num ? (left['rev'] as num).toInt() : null,
     );
   }
 
@@ -322,6 +346,11 @@ class _Payload {
   /// The files the note links, and the things whose words were read (lib/sync/notes.dart's payload has the same).
   final List<String> files;
   final List<String> texts;
+
+  /// Which account's feed the note left, and at which of its revisions, as it became the team's ([TeamMark.from]);
+  /// null from a row put by a build that does not say, or for a note that was never an account's.
+  final int? account;
+  final int? from;
 }
 
 /// A row in the organization's feed, and what a refused write answers with (`TeamFeedItem`).
@@ -444,6 +473,34 @@ Future<void> _writeWords(TeamSyncContext ctx, TeamDoc doc, _Tally tally) async {
 
 // --- pull ------------------------------------------------------------------------------------------------------------
 
+/// What a note this device had of its own makes of the team's words ([theirs]) as the team's row first lands here:
+/// its own words ([mine]) were reconciled into the document whole, as the change they were, which took out of the
+/// team's note whatever this device had not had yet. So a meeting lost its summary for every device (Matt's
+/// standup, 2026-10-29: the device holding the recording landed its transcript over the words from before the
+/// summary, while the device that wrote the summary filed the meeting in HelloTrade › Meetings; the transcript's words
+/// took the summary out, and it went from every device). Now, from the words this device last agreed on with the
+/// account ([TeamSyncContext.agreed]):
+/// - none known, or none to trust, this device's words as before, with the team's summary where they have none;
+/// - unchanged here since, the team's: there is nothing of this device's to add;
+/// - changed on both sides, both changes, merged by their lines (lib/core/merge_words.dart);
+/// - changed at the same lines, this device's words, with the team's summary where they have none.
+///
+/// THE BASE MUST BE ONE BOTH SIDES GREW FROM (the Testing session, 2026-10-29): merged from words the team's note never
+/// had, an addition both have at different places is doubled, and a line one side took out comes back; and "unchanged
+/// here since" would take the team's words over whatever this device wrote after them. So the words are trusted only
+/// where the team's row says which of the account's revisions the note left the account at ([from]: put there by the
+/// device that took it out of the account's feed, [TeamSyncContext.leftAt]) and this device's are at that revision or
+/// before it: the account's history runs through every revision up to the one the note left at, which the team's
+/// note grew from. Words of a later revision were written after the note went to the team (a device a pass behind
+/// put them back as the account's row, and wrote on), and the team's note never had them.
+String _ownWords(TeamSyncContext ctx, String id, String mine, String theirs, int? from) {
+  final agreed = ctx.agreed?.call(id);
+  if (agreed == null || from == null || agreed.rev > from) return withSummaryOf(mine, theirs);
+  assert(agreed.rev <= from, 'the base is at or before the revision the team’s note left the account at');
+  if (agreed.words == mine) return theirs;
+  return mergedWords(agreed.words, mine, theirs) ?? withSummaryOf(mine, theirs);
+}
+
 Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally) async {
   final blob = item.blob;
   if (item.deleted || blob == null) {
@@ -470,8 +527,16 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   // state comes in, so the merge is the CRDT's and nothing typed is written over.
   if (held != null && local != null) await held.reconcileKept(local.body);
   final doc = await ctx.docs.adopt(item.id, payload.state, payload.seq);
-  // This device's own words, from before the team had the note: a change for the team, not words to lose.
-  if (held == null && local != null && local.body != doc.words) await doc.reconcile(local.body);
+  // This device's own words, from before the team had the note: a change for the team, not words to lose. Only what
+  // changed here is (Matt's standup, 2026-10-29): see [_ownWords].
+  // Which of this account's revisions the team's note left the account at: the row's, where it is this account's,
+  // else what an earlier row said (a row put again by a build that does not carry it).
+  final known = ctx.state.notes[item.id];
+  final from = (payload.account != null && payload.account == ctx.account ? payload.from : null) ?? known?.from;
+  if (held == null && local != null && local.body != doc.words) {
+    final words = _ownWords(ctx, item.id, local.body, doc.words, from);
+    if (words != doc.words) await doc.reconcile(words);
+  }
   // The note first, its history and pictures after every note of the feed is here: a member who has just joined
   // reads the team's words in the time the rows take, not the time sixty files take.
   ctx._later.add(() async {
@@ -495,7 +560,6 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   final movedOut = local != null && (ctx.leftTeam?.call(item.id) ?? false);
   if (movedOut) theirs = theirs.copyWith(path: () => local.path);
   // The phrases too, where only those moved: a write-up made on another member's device after the row last went.
-  final known = ctx.state.notes[item.id];
   final whole = local == null ? null : await ctx.notes.get(item.id);
   final phrased = withPhrases(theirs, whole, known?.phrases);
   final phrasesMoved = whole != null && phrased.note.segments != null && !listEquals(phrased.note.segments, whole.segments);
@@ -513,7 +577,7 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   } else {
     ctx.file(item.id);
   }
-  ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs), recording: payload.recording, phrases: phrasesMark(payload.note));
+  ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs), recording: payload.recording, phrases: phrasesMark(payload.note), from: from);
   // Read under a generation before the turn: put again under the one in force, so every member can read it.
   if (older) await _putRow(ctx, await ctx.notes.get(item.id) ?? theirs, doc, tally);
 }
@@ -647,6 +711,8 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
   final covered = (await doc.pending()).length;
   // The note whole, as its file has it: the list's has no phrases and no formatted version.
   final whole = await ctx.notes.get(note.id) ?? note;
+  // Which of this account's revisions the note left the account at: this device's own word, else the row's.
+  final from = ctx.leftAt?.call(note.id) ?? known?.from;
   final payload = {
     'v': 1,
     'note': noteToJson(_withWords(whole, doc.words)),
@@ -657,11 +723,12 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     'recording': ?recording,
     if (linked.isNotEmpty) 'files': linked,
     if (texts.isNotEmpty) 'texts': texts,
+    if (from != null && ctx.account != null) 'from': {'account': ctx.account, 'rev': from},
   };
   final blob = await ctx.crypto.seal(ctx.key, payload, _noteContext(ctx.orgId, note.id));
   try {
     final answer = await ctx.api.call('PUT', ctx._route('notes/${Uri.encodeComponent(note.id)}'), token: ctx.token, body: ctx._body({'base': known?.rev ?? 0, 'blob': blob, 'upTo': doc.seq}));
-    ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note), recording: recording, phrases: phrasesMark(whole));
+    ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note), recording: recording, phrases: phrasesMark(whole), from: from);
     tally.sent += 1;
     doc.snapshotSeq = doc.seq;
     // The snapshot carried the updates pending when it was taken; what was typed since is still pending.
@@ -908,6 +975,9 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       isTeamNote: pass.isTeamNote,
       leftTeam: pass.leftTeam,
       keptOut: pass.keptOut,
+      agreed: pass.agreed,
+      leftAt: pass.leftAt,
+      account: pass.accountId,
       file: pass.file,
       folders: pass.folders,
       pulled: pass.pulled,

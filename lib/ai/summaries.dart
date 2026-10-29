@@ -1169,8 +1169,11 @@ class Summaries implements HandoffQueue {
       }
       // A meeting another device waits on is claimed first, so one device writes it (ai/summary_handoff.dart): one the
       // account says is done is let go, and one held elsewhere, or a claim not yet seen to be the account's, waits.
+      // One the account says is done whose summary is not in the note ([SummaryHandoff.lost]) is written here: the
+      // summary went from the note after it was written (Matt's standup, 2026-10-29), and the tape's Summarize, or the
+      // transcript's arrival, asks for it again.
       final handoff = this.handoff;
-      if (handoff != null && job.kind == SummaryKind.meeting && job.replace != true && !await handoff.claim(job.id)) {
+      if (handoff != null && job.kind == SummaryKind.meeting && job.replace != true && !await handoff.claim(job.id) && !await handoff.lost(job.id)) {
         if (handoff.isDone(job.id)) {
           _forgetWaits(job.id);
           _writeQueue(_readQueue().where((j) => j.id != job.id).toList());

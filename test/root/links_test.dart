@@ -17,6 +17,7 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/share/app_links.dart';
+import 'package:ghost_md/share/share.dart' show readShareLink;
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
 
@@ -172,6 +173,25 @@ void main() {
       expect(sheet.code, 'AbCdEfGh12345678');
       expect(heldJoin(kept: device.kept), 'AbCdEfGh12345678');
       expect(device.services.joined, isEmpty, reason: 'nothing is joined until the person says so');
+      await close(tester);
+    });
+
+    // Matt, 2026-10-29: the meeting's link from Slack, its reader page's Open in Ghost.md, saved "Engineering Standup
+    // (shared)" beside the meeting on the device it was tapped on.
+    testWidgets('a share link of the account’s own note opens that note, says so, and saves no copy', (tester) async {
+      final device = await tester.runAsync(Device.make);
+      final library = await open(tester, services: device!.services);
+      await settle(tester, 2);
+      final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week');
+      final link = await tester.runAsync(() => device.shares!.shareNote(note, library.value));
+      final found = readShareLink(link!)!;
+      final count = library.value.length;
+      links.arrive('ghostmd://fork#${found.id}.${found.key}');
+      await settle(tester);
+      expect(shellOf(tester).shown, note.id);
+      expect(find.text(ownShareWords), findsOneWidget);
+      expect(library.value, hasLength(count), reason: 'no copy');
+      expect(library.value.where((n) => noteTitle(n.body).contains('(shared)')), isEmpty);
       await close(tester);
     });
 

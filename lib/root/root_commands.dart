@@ -96,6 +96,14 @@ extension _RootCommands on _GhostRootState {
     final shares = _services?.shares;
     if (shares == null) throw StateError('This build has no service to read a shared link from.');
     final forked = await forkFromLink(link, shares: shares, notes: () async => _library.value, save: _library.createNote);
+    // The account's own share, or a share of a note that is here: that note, never a copy beside it (Matt, 2026-10-29).
+    if (forked is ForkedOwn) {
+      if (!mounted) return;
+      if (_trash.isTrashed(forked.noteId)) return _say(context, '$ownShareWords: it is in the Trash.');
+      _say(context, ownShareWords);
+      _afterFrame((shell) => _openWhereLeft(shell, forked.noteId));
+      return;
+    }
     if (forked is! ForkedCopy) return;
     await _library.refresh();
     if (!mounted) return;

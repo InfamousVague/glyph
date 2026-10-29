@@ -214,6 +214,8 @@ class TeamPass {
     required this.isTeamNote,
     this.leftTeam,
     this.keptOut,
+    this.agreed,
+    this.leftAt,
     required this.file,
     this.folders,
     required this.pulled,
@@ -256,6 +258,15 @@ class TeamPass {
   /// Told of a note that stays on this device as its team's row goes (lib/team/sync.dart `keptOut`): the engine
   /// keeps it from an old build's deletion for a while ([LeftTeams]).
   final void Function(String noteId)? keptOut;
+
+  /// The words this device and the account last both acknowledged for a note, and the account's revision they were
+  /// at (lib/sync/notes.dart [agreedOf]): what a note it had of its own is merged from when the team's row first lands
+  /// (lib/team/sync.dart `_ownWords`).
+  final ({String words, int rev})? Function(String noteId)? agreed;
+
+  /// The account's revision a note's words were at when this device took it out of the account's feed for the team
+  /// ([SyncState.teams]), which its team's row carries for the account's other devices; null where it did not.
+  final int? Function(String noteId)? leftAt;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
@@ -678,6 +689,12 @@ class SyncEngine {
                 return filed != null && _workspaces.orgOf(filed.id) != row.id;
               },
               keptOut: leftTeams.keep,
+              // Read as the note's row lands: the account's step of this pass may have answered a deletion with it.
+              agreed: (id) {
+                final state = _loadNotes(accountId);
+                return agreedOf(state.notes[id]) ?? state.teams[id]?.agreed;
+              },
+              leftAt: (id) => _loadNotes(accountId).teams[id]?.rev,
               file: (id) => _workspaces.fileNote(id, workspace),
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.

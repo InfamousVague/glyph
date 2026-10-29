@@ -79,7 +79,7 @@ class SharedPage {
 /// What a share holds, sealed (`Shared`). A note is one page; a book is its index first, then its chapters in order.
 @immutable
 class Shared {
-  const Shared({required this.kind, required this.title, required this.pages, required this.at, this.pictures, this.meeting});
+  const Shared({required this.kind, required this.title, required this.pages, required this.at, this.pictures, this.meeting, this.note});
 
   /// `note` or `book`.
   final String kind;
@@ -98,12 +98,18 @@ class Shared {
   /// everything but a meeting, and for a share made by an older build.
   final Map<String, Object?>? meeting;
 
-  Shared withPictures(Map<String, Uint8List>? pictures) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures, meeting: meeting);
+  /// The id of the note it was made from (the book's, for a book), so the app of someone who has that note opens it
+  /// rather than saving a copy ([forkFromLink]; Matt, 2026-10-29: a meeting's own link from Slack saved as "Engineering
+  /// Standup (shared)" beside it). A random id, which says nothing of the note; null from a share made by an older
+  /// build, and one the reader page and an older app pass over.
+  final String? note;
 
-  Shared withMeeting(Map<String, Object?>? meeting) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures, meeting: meeting);
+  Shared withPictures(Map<String, Uint8List>? pictures) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures, meeting: meeting, note: note);
+
+  Shared withMeeting(Map<String, Object?>? meeting) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures, meeting: meeting, note: note);
 
   /// The share's words, as they are sealed: everything but the pictures.
-  Map<String, Object?> toJson() => {'v': 1, 'kind': kind, 'title': title, 'pages': [for (final page in pages) page.toJson()], 'at': at, if (meeting != null) 'meeting': meeting};
+  Map<String, Object?> toJson() => {'v': 1, 'kind': kind, 'title': title, 'pages': [for (final page in pages) page.toJson()], 'at': at, if (meeting != null) 'meeting': meeting, if (note != null) 'note': note};
 
   @override
   String toString() => 'Shared($kind, $title, ${pages.length} pages, ${pictures?.length ?? 0} pictures)';
@@ -216,6 +222,7 @@ Future<Shared> openShare(AccountCrypto crypto, String blob, String key, {String 
     at: words['at'] is num ? (words['at'] as num).toInt() : 0,
     pictures: pictures,
     meeting: words['meeting'] is Map ? (words['meeting'] as Map).cast<String, Object?>() : null,
+    note: words['note'] is String && (words['note'] as String).isNotEmpty ? words['note'] as String : null,
   );
 }
 
@@ -319,7 +326,7 @@ Shared sharedOf(Note note, List<Note> notes, {bool place = false, bool places = 
 
   final when = at ?? DateTime.now().millisecondsSinceEpoch;
   final title = _titleOf(note.body);
-  if (!isBookBody(note.body)) return Shared(kind: 'note', title: title, pages: [SharedPage(title: title, body: carried(note.body))], at: when);
+  if (!isBookBody(note.body)) return Shared(kind: 'note', title: title, pages: [SharedPage(title: title, body: carried(note.body))], at: when, note: note.id);
   final pages = [SharedPage(title: title, body: carried(note.body))];
   for (final chapter in chaptersOf(note.body)) {
     Note? found;
@@ -331,7 +338,7 @@ Shared sharedOf(Note note, List<Note> notes, {bool place = false, bool places = 
     }
     if (found != null && !pages.any((p) => sameTitle(p.title, chapter.title))) pages.add(SharedPage(title: chapter.title, body: carried(found.body)));
   }
-  return Shared(kind: 'book', title: title, pages: pages, at: when);
+  return Shared(kind: 'book', title: title, pages: pages, at: when, note: note.id);
 }
 
 /// Whether the pages [note] would share say where any of them was written, for the sheet to offer the choice
@@ -346,8 +353,11 @@ bool sharesPlaces(Note note, List<Note> notes) => sharedOf(note, notes, place: t
 String shareDigest(Shared shared) {
   // "p2": pictures travel with a share, and a share remembers which it lacked. A share sent before either reads as
   // changed, so it is sent again, with them and with that list. A meeting's turns and the recording it names are
-  // what it holds too; anything else digests as it did, so it is not sent again for them.
-  final text = jsonEncode(['p2', shared.kind, shared.title, [for (final page in shared.pages) page.toJson()], if (shared.meeting != null) shared.meeting]);
+  // what it holds too; anything else digests as it did, so it is not sent again for them. A meeting's note's id too
+  // ([Shared.note]): its share went to the team's Slack channel, and is sent again once carrying it, so a member's app
+  // opens the team's meeting from it rather than saving a copy (Matt, 2026-10-29). Any other share takes it on at its
+  // next change.
+  final text = jsonEncode(['p2', shared.kind, shared.title, [for (final page in shared.pages) page.toJson()], if (shared.meeting != null) shared.meeting, if (shared.meeting != null && shared.note != null) shared.note]);
   var h = 2166136261;
   for (var i = 0; i < text.length; i += 1) {
     h = ((h ^ text.codeUnitAt(i)) * 16777619) & 0xffffffff;
@@ -427,6 +437,15 @@ class Shares extends ChangeNotifier {
   /// (`takeDownShare`).
   Future<void> takeDownShare(String id) async {
     await api.call('DELETE', 'shares/$id', token: _token());
+  }
+
+  /// The note this account shared under the share [shareId], here or on another of its devices (the settings keep
+  /// every share by its note), or null for a share that is not the account's own.
+  String? noteOfShare(String shareId) {
+    for (final entry in _readKept().entries) {
+      if (entry.value.id == shareId) return entry.key;
+    }
+    return null;
   }
 
   /// The link for a shared note, or null (`linkFor`).

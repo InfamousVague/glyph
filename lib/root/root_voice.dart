@@ -308,6 +308,8 @@ extension _RootVoice on _GhostRootState {
         final section = summarySection(body, keptText(id));
         return section != null && !summaryUnchanged(id, section.text);
       },
+      // Claude writes the meetings here: their tapes offer Summarize with no model on the device.
+      writesMeetings: () => summaries?.claude?.chosen ?? false,
       opened: (id, ai) {
         if (ai == null && _noteAiId != id) return;
         _noteAi?.removeListener(_aiChanged);
