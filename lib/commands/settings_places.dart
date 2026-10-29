@@ -135,6 +135,9 @@ String? _stillToSetUp(GlyphPlugin plugin) {
   return setup.ready() ? null : setup.name;
 }
 
+/// How many setups have read their keys: one that has since the index was made may have a Set up to offer now.
+int get setupsPrepared => _prepared.length;
+
 /// Forgets which setups have read their keys, for a test.
 @visibleForTesting
 void forgetPreparedSetups() {

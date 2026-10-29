@@ -85,6 +85,12 @@ class CommandBarState extends State<CommandBar> {
   bool get isOpen => _open;
   String get query => _query;
 
+  /// How many times it has been opened: for whoever keeps something for one opening, as the root keeps what there is
+  /// to find in Settings while the palette is up (lib/commands/settings_places.dart), rather than making it again at
+  /// every letter typed.
+  int get openings => _openings;
+  int _openings = 0;
+
   @override
   void initState() {
     super.initState();
@@ -104,6 +110,7 @@ class CommandBarState extends State<CommandBar> {
   void _set(bool next) {
     if (!mounted) return;
     setState(() {
+      if (next && !_open) _openings += 1;
       if (next) _query = '';
       _open = next;
     });

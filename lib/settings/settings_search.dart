@@ -52,8 +52,17 @@ String fold(String text) => unaccented(text).toLowerCase().replaceAll(RegExp('[â
 
 final RegExp _notWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 
-/// The words of a text, split wherever a letter or a digit isn't: "Ghost.md's guess" is ghost, md, s, guess.
-List<String> _wordsOf(String text) => fold(text).split(_notWord).where((word) => word.isNotEmpty).toList();
+/// The words of a text, split wherever a letter or a digit isn't: "Ghost.md's guess" is ghost, md, s, guess. Kept
+/// for the texts asked about, which are the same names and words at every letter typed: folded afresh each time,
+/// accents and all, the command bar's search of every setting and plugin was 9 ms a letter in a test on a Mac.
+List<String> _wordsOf(String text) {
+  final held = _words[text];
+  if (held != null) return held;
+  if (_words.length > 8000) _words.clear();
+  return _words[text] = List.unmodifiable(fold(text).split(_notWord).where((word) => word.isNotEmpty));
+}
+
+final Map<String, List<String>> _words = {};
 
 /// Whether every typed word starts one of the words of the texts.
 bool _matches(List<String> typed, List<String?> texts) {

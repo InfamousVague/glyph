@@ -56,7 +56,7 @@ import '../capture/ui/meeting_screen.dart';
 import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
-import '../commands/settings_places.dart' show settingsIndex;
+import '../commands/settings_places.dart' show SettingsIndex, settingsIndex, setupsPrepared;
 import '../comments/ask.dart';
 import '../core/aliases.dart' show aliasesOfNote;
 import '../core/backup.dart' show Backups;
@@ -1548,6 +1548,13 @@ class _GhostRootState extends State<GhostRoot> {
 
   final GlobalKey<AppShellState> _shell = GlobalKey<AppShellState>();
   final GlobalKey<CommandBarState> _commands = GlobalKey<CommandBarState>();
+
+  /// What the palette finds in Settings and among the plugins, made once for each time it is opened
+  /// ([CommandBarState.openings]) and again when a plugin's setup has read its keys meanwhile, rather than at every
+  /// letter typed, which was a millisecond more a letter in a test on a Mac (lib/root/root_parts.dart
+  /// `_paletteSettings`).
+  SettingsIndex? _settingsIndex;
+  (int, int) _settingsIndexAt = (-1, -1);
 
   /// Settings asked for at a page, by when it was asked (settings/settings_sheet.dart `toPage`).
   SettingsTarget? _settingsPage;
