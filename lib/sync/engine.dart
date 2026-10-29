@@ -208,6 +208,7 @@ class TeamPass {
     this.leftTeam,
     this.keptOut,
     this.agreed,
+    this.leftAt,
     required this.file,
     this.folders,
     required this.pulled,
@@ -251,9 +252,14 @@ class TeamPass {
   /// keeps it from an old build's deletion for a while ([LeftTeams]).
   final void Function(String noteId)? keptOut;
 
-  /// The words this device last agreed on with the account for a note (lib/sync/notes.dart [agreedWords]): what a
-  /// note it had of its own is merged from when the team's row first lands (lib/team/sync.dart `_ownWords`).
-  final String? Function(String noteId)? agreed;
+  /// The words this device and the account last both acknowledged for a note, and the account's revision they were
+  /// at (lib/sync/notes.dart [agreedOf]): what a note it had of its own is merged from when the team's row first lands
+  /// (lib/team/sync.dart `_ownWords`).
+  final ({String words, int rev})? Function(String noteId)? agreed;
+
+  /// The account's revision a note's words were at when this device took it out of the account's feed for the team
+  /// ([SyncState.teams]), which its team's row carries for the account's other devices; null where it did not.
+  final int? Function(String noteId)? leftAt;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
@@ -623,7 +629,11 @@ class SyncEngine {
               },
               keptOut: leftTeams.keep,
               // Read as the note's row lands: the account's step of this pass may have answered a deletion with it.
-              agreed: (id) => agreedWords(_loadNotes(accountId).notes[id]),
+              agreed: (id) {
+                final state = _loadNotes(accountId);
+                return agreedOf(state.notes[id]) ?? state.teams[id]?.agreed;
+              },
+              leftAt: (id) => _loadNotes(accountId).teams[id]?.rev,
               file: (id) => _workspaces.fileNote(id, workspace),
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.
