@@ -64,7 +64,11 @@ export interface TeamRecord {
   org: OrgName;
 }
 
-/** A row's blob, opened (core/team/sync.ts `TeamPayload`). */
+/**
+ * A row's blob, opened (core/team/sync.ts `TeamPayload`). The app's rows carry more than this reads or writes - the
+ * recording, the files and texts, `from` (lib/team/sync.dart) - and whatever a later build adds: kept as they came
+ * (`Entry.rest`) and put back with the row.
+ */
 interface TeamPayload {
   v: 1;
   note: Note;
@@ -72,6 +76,16 @@ interface TeamPayload {
   seq: number;
   images?: string[];
   versions?: string;
+  [field: string]: unknown;
+}
+
+/** The fields of a row this connector writes itself on every put; the rest of a payload it carries as it read them. */
+const WRITTEN_HERE = new Set(['v', 'note', 'state', 'seq', 'images', 'versions']);
+
+/** A payload's fields this connector does not write itself (`WRITTEN_HERE`), as they were. */
+function restOf(payload: TeamPayload): Record<string, unknown> | undefined {
+  const rest = Object.fromEntries(Object.entries(payload).filter(([field]) => !WRITTEN_HERE.has(field)));
+  return Object.keys(rest).length ? rest : undefined;
 }
 
 interface TeamFeedItem {
@@ -100,6 +114,8 @@ interface Entry {
   state: Uint8Array;
   seq: number;
   versions?: string;
+  /** The row's other fields, as last read: put back with it unchanged, so a connector's put drops none of them. */
+  rest?: Record<string, unknown>;
   /** Its particulars changed here, or its log is full: the row is still to be put. */
   owed?: boolean;
 }
@@ -302,6 +318,8 @@ export class TeamNotes {
         seq: doc.seq,
       };
       if (payload.versions) entry.versions = payload.versions;
+      const rest = restOf(payload);
+      if (rest) entry.rest = rest;
       held.notes.set(item.id, entry);
     } finally {
       await release(doc);
@@ -554,7 +572,7 @@ export class TeamNotes {
     const entry = held.notes.get(id)!;
     const key = this.keyOf(held);
     const images = imageNames(entry.note.body);
-    const payload: TeamPayload = { v: 1, note: entry.note, state: toBase64Url(entry.state), seq: entry.seq, ...(images.length ? { images } : {}), ...(entry.versions ? { versions: entry.versions } : {}) };
+    const payload: TeamPayload = { ...entry.rest, v: 1, note: entry.note, state: toBase64Url(entry.state), seq: entry.seq, ...(images.length ? { images } : {}), ...(entry.versions ? { versions: entry.versions } : {}) };
     const blob = await seal(key, payload, noteContext(held.row.id, id));
     try {
       const { rev } = await this.service.call<{ rev: number }>('PUT', this.route(held, `notes/${encodeURIComponent(id)}`), { base: entry.rev, blob, upTo: entry.seq, generation: held.generation });
@@ -584,6 +602,8 @@ export class TeamNotes {
         entry.seq = doc.seq;
         entry.rev = winner.rev;
         if (theirs.versions) entry.versions = theirs.versions;
+        // Their row is the newer: its recording, files, `from` and the rest go up with this one.
+        entry.rest = restOf(theirs);
       } finally {
         await release(doc);
       }

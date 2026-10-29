@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Note } from '../tauri/src/app/core/store.ts';
-import { fromBase64Url, open, openBytes, sealBytes } from '../tauri/src/app/core/sync/crypto.ts';
+import { fromBase64Url, open, openBytes, seal, sealBytes } from '../tauri/src/app/core/sync/crypto.ts';
 import { forgetTeamDocs } from '../tauri/src/app/core/team/doc.ts';
 import { fakeService, FAST } from '../tauri/src/test/fakeService.ts';
 import { GlyphAccount } from './glyph.ts';
@@ -278,6 +278,46 @@ describe('writing an organization’s notes', () => {
     await account.edit('t1', (note) => ({ ...note, starred: true }));
     const row = (await rowOf(service, org, 't1'))!;
     expect(row.note).toMatchObject({ starred: true, path: 'Work/Plan.md', body: '# Plan\n\nOne.\n\nTwo.' });
+  });
+
+  it('keeps what else the app’s row carries - the recording, files, texts, `from`, and fields it does not know - when it puts the row again', async () => {
+    const { service, call } = await connected();
+    const org = await anOrganization(service);
+    const phone = teamDevice(service, org);
+    phone.put('t1', '# Standup\n\n## Summary\n\nShipped.');
+    await phone.sync();
+    // As the app's own channel puts a meeting's row (lib/team/sync.dart `_putRow`): more than this connector writes.
+    const carried = { recording: 'rec-digest', files: ['deck.pdf'], texts: ['deck.pdf'], from: { account: 7, rev: 41 }, later: { anything: [1, 2] } };
+    const asApp = async (extra: Record<string, unknown>, rev?: number) => {
+      const row = service.teamNotes(org.id).get('t1')!;
+      const opened = await open<Record<string, unknown>>(org.key, row.blob!, `org:${org.id}:note:t1`);
+      const blob = await seal(org.key, { ...opened, ...extra }, `org:${org.id}:note:t1`);
+      service.teamNotes(org.id).set('t1', { ...row, blob, ...(rev ? { rev } : {}) });
+    };
+    await asApp(carried);
+
+    // A pin puts the row; a picture named in the words puts it too (the row lists a note's pictures).
+    await call('set_note_flags', { id: 't1', pinned: true });
+    let row = (await rowOf(service, org, 't1')) as unknown as Record<string, unknown> & { note: Note };
+    expect(row).toMatchObject(carried);
+    expect(row.note.starred).toBe(true);
+    await call('append_to_note', { id: 't1', text: '![](image/pic-1.png)', as: 'paragraph' });
+    row = (await rowOf(service, org, 't1')) as unknown as Record<string, unknown> & { note: Note };
+    expect(row).toMatchObject({ ...carried, images: ['pic-1.png'] });
+    expect(row.note.body).toContain('![](image/pic-1.png)');
+
+    // A member's row put after the connector last read, carrying newer fields: the merge takes theirs, not the old ones.
+    const newer = { recording: 'rec-digest-2', files: [], from: { account: 7, rev: 42 }, later: 'changed' };
+    await asApp(newer, (service.teamNotes(org.id).get('t1')!.rev ?? 0) + 100);
+    await call('set_note_flags', { id: 't1', archived: true });
+    row = (await rowOf(service, org, 't1')) as unknown as Record<string, unknown> & { note: Note };
+    expect(row).toMatchObject({ ...newer, texts: ['deck.pdf'] });
+    expect(row.note.archivedAt).toBeGreaterThan(0);
+
+    // And the app's own channel still reads the row it put.
+    await phone.sync();
+    expect(phone.notes.get('t1')).toMatchObject({ starred: true });
+    expect(phone.notes.get('t1')!.body).toContain('Shipped.');
   });
 
   it('reads this account’s wrap at the new generation when the key turns under a write, and writes once more', async () => {
