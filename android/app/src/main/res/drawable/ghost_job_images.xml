@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brush stroke the tray draws for pictures (lib/activity/activity_look.dart _StrokePainter), drawn whole, its tip a dot. A notification's small icon (ActivityNotices.kt), white, tinted by the system; 24 of 24. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M2.88 16.8C7.2 4.8 10.8 22.8 14.88 12Q17.76 4.8 21.12 7.2"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.12"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18.72 7.2a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0 -4.8 0Z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

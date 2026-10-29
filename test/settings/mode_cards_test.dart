@@ -293,6 +293,18 @@ void main() {
       await endSettings(tester);
     });
 
+    testWidgets('Activity on the Mac has "Always show in the menu bar" under Calm, and it writes', (tester) async {
+      // The Mac's alone (runsAsMacApp): a test shows it off the Mac (macos/Runner/ActivitySurfaces.swift reads it).
+      showMenuBarRow = true;
+      addTearDown(() => showMenuBarRow = false);
+      await _open(tester, size: const Size(390, 1600), toPage: const SettingsTarget('theme', nonce: 1));
+      expect([for (final row in tester.widgetList<SettingRow>(find.byType(SettingRow))) row.label], containsAllInOrder(['Calm', 'Always show in the menu bar', 'Focus mode']));
+      expect(preferences.value.menuBarAlways, isFalse);
+      await _tap(tester, find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Always show in the menu bar'));
+      expect(preferences.value.menuBarAlways, isTrue);
+      await endSettings(tester);
+    });
+
     testWidgets('About’s Help in Simple keeps the cheat sheet and leaves out the Specification and the Examples', (tester) async {
       await _open(tester, toPage: const SettingsTarget('about', nonce: 1));
       expect(_display(tester), 'About');

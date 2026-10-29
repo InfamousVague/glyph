@@ -25,6 +25,10 @@
 ///   app's own toast says it.
 /// - Anywhere else (a test, an iPhone, the web): nothing, and the job runs while the app does.
 ///
+/// The same channel carries the record to the OS surfaces (lib/activity/activity_surfaces.dart: `activity`,
+/// `activityLook`, and `activityStop` / `activityOpen` back): Android's progress notifications, the Mac's Dock ring
+/// and menu bar item, an iPhone's Live Activities. [JobsHeard] is what hears the device on it.
+///
 /// Nothing is waited on: a channel that does not answer is a device without the half, never a job that cannot run.
 /// The two halves are apart on purpose: the record is for the person to see, the device half for the device to hold
 /// on, and a job that holds the device tells both.
@@ -100,12 +104,64 @@ class ChannelBackgroundJobs implements BackgroundJobs {
   @override
   void onStop(void Function(String id)? stop) {
     if (!_here) return;
-    _channel.setMethodCallHandler(stop == null
-        ? null
-        : (call) async {
-            if (call.method == 'stop' && call.arguments is Map && (call.arguments as Map)['id'] is String) stop((call.arguments as Map)['id'] as String);
-            return null;
-          });
+    JobsHeard.on(_channel).stops(this, stop);
+  }
+}
+
+/// What the device says on a jobs channel, heard by everyone who asked: the phone's service notification's Stop
+/// (`stop {id}`, the banner run's), and the OS surfaces' Stop and Open (lib/activity/activity_surfaces.dart). A
+/// channel has one handler, so it is set here once for all of them: each [ChannelBackgroundJobs] the root makes would
+/// otherwise take it from the one before.
+class JobsHeard {
+  JobsHeard._(this.channel);
+
+  static final Map<String, JobsHeard> _on = {};
+
+  /// The one for [channel]'s name.
+  factory JobsHeard.on(MethodChannel channel) => _on.putIfAbsent(channel.name, () => JobsHeard._(channel));
+
+  final MethodChannel channel;
+  final Map<Object, void Function(String id)> _stops = {};
+  Future<Object?> Function(MethodCall call)? _surfaces;
+
+  /// [who] hears the service's Stop, or no longer does ([stop] null).
+  void stops(Object who, void Function(String id)? stop) {
+    if (stop == null) {
+      _stops.remove(who);
+    } else {
+      _stops[who] = stop;
+    }
+    _listen();
+  }
+
+  /// Everything else the device says (`activityStop`, `activityOpen`), to the OS surfaces; null, nobody.
+  set surfaces(Future<Object?> Function(MethodCall call)? heard) {
+    _surfaces = heard;
+    _listen();
+  }
+
+  void _listen() => channel.setMethodCallHandler(_stops.isEmpty && _surfaces == null ? null : _heard);
+
+  Future<Object?> _heard(MethodCall call) async {
+    final args = call.arguments;
+    if (call.method == 'stop') {
+      if (args is Map && args['id'] is String) {
+        for (final stop in [..._stops.values]) {
+          stop(args['id'] as String);
+        }
+      }
+      return null;
+    }
+    return _surfaces?.call(call);
+  }
+
+  /// Forgets every channel's listeners: a test's fresh start.
+  @visibleForTesting
+  static void reset() {
+    for (final heard in _on.values) {
+      heard.channel.setMethodCallHandler(null);
+    }
+    _on.clear();
   }
 }
 

@@ -172,6 +172,7 @@ import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../activity/activity_chime.dart' show startActivityChime;
+import '../activity/activity_surfaces.dart' show startActivitySurfaces;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs, activityRoutes;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
@@ -1776,6 +1777,9 @@ class _GhostRootState extends State<GhostRoot> {
       ..openLink = ((link) => widget.openLink?.call('$link'))
       ..openPlugin = ((id) => _openSettingsAt('plugin:$id'));
     startActivityChime();
+    // And the device's own surfaces of it: a phone's progress notifications, the Mac's Dock ring and menu bar item,
+    // an iPhone's Live Activities (lib/activity/activity_surfaces.dart).
+    startActivitySurfaces();
     // Another device's run over the recent notes, claimed in the synced settings: its job, "on your Mac".
     preferences.addListener(_bannerJob.tellElsewhere);
     _bannerJob.tellElsewhere();

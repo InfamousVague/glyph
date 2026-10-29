@@ -505,6 +505,7 @@ class Preferences {
     this.wispEdge = true,
     this.ripples = true,
     this.calm = false,
+    this.menuBarAlways = false,
     this.focusMode = false,
     this.focusTypewriter = true,
     this.soundPack = 'ghostly',
@@ -615,6 +616,7 @@ class Preferences {
       wispEdge: flag('wispEdge', d.wispEdge),
       ripples: flag('ripples', d.ripples),
       calm: flag('calm', d.calm),
+      menuBarAlways: flag('menuBarAlways', d.menuBarAlways),
       focusMode: flag('focusMode', d.focusMode),
       focusTypewriter: flag('focusTypewriter', d.focusTypewriter),
       // A pack from a later build, which this one has no files for, is Ghostly; a volume that is not a step is the
@@ -777,6 +779,11 @@ class Preferences {
   /// theme ([attrs]), which assets/css/app.css reads for the `--activity-*` tokens. A look, so it travels.
   final bool calm;
 
+  /// Settings › Appearance › Activity, on the Mac: the menu bar's ring (macos/Runner/ActivitySurfaces.swift) shown
+  /// while nothing runs too, where it is otherwise there only while work runs. This Mac's own, so it does not travel
+  /// (lib/sync/prefs.dart lists what does).
+  final bool menuBarAlways;
+
   /// Focus mode (Matt, 2026-10-27: "build ... focus mode"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md, idea 14: "Dim every
   /// paragraph but the one being written, with a typewriter scroll that keeps the line in the middle"). [focusMode]
   /// is the switch, and dims every block of a note but the caret's while the note is being written in
@@ -832,7 +839,7 @@ class Preferences {
     'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'assist', 'textSize', 'typeface', //
     'noteFace', 'iconPack', 'iconStyle', 'dock', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
-    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', 'calm', 'focusMode', 'focusTypewriter', //
+    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', 'calm', 'menuBarAlways', 'focusMode', 'focusTypewriter', //
     'soundPack', 'interfaceSounds', 'soundVolume', 'soundEvents', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications', 'snippets',
   };
@@ -881,6 +888,7 @@ class Preferences {
     bool? wispEdge,
     bool? ripples,
     bool? calm,
+    bool? menuBarAlways,
     bool? focusMode,
     bool? focusTypewriter,
     String? soundPack,
@@ -943,6 +951,7 @@ class Preferences {
         wispEdge: wispEdge ?? this.wispEdge,
         ripples: ripples ?? this.ripples,
         calm: calm ?? this.calm,
+        menuBarAlways: menuBarAlways ?? this.menuBarAlways,
         focusMode: focusMode ?? this.focusMode,
         focusTypewriter: focusTypewriter ?? this.focusTypewriter,
         soundPack: soundPack ?? this.soundPack,
@@ -1008,6 +1017,7 @@ class Preferences {
         'wispEdge': wispEdge,
         'ripples': ripples,
         if (calm) 'calm': true,
+        if (menuBarAlways) 'menuBarAlways': true,
         'focusMode': focusMode,
         'focusTypewriter': focusTypewriter,
         'soundPack': soundPack,
