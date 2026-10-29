@@ -293,6 +293,47 @@ void main() {
     expect(phone.notes[_id]!.body, mac.notes[_id]!.body);
   }, skip: coreSkip);
 
+  // A row put again by something that writes only what it knows of a team's row: the connector before 2026-10-29
+  // (mcp/team.ts `putRow` wrote the note, the document and its seq, the pictures and the versions, nothing else), or
+  // any build from before a field it does not carry. Here it pins the meeting from Claude, between the Mac's filing and
+  // the phone's first read of the team's row, and the row loses its 'from'. The phone never saw it, so it has no word
+  // of where the note left the account and no base it can trust: its own words stand with the team's summary, the
+  // fallback, and nothing is lost or doubled. The Mac's new title, which only a merge keeps, is the price; case A is
+  // this same order with the row as the Mac put it, and merges.
+  test('a connector puts the team’s row again without its "from": the phone, which never saw it, keeps its words with the team’s summary, nothing lost or doubled', () async {
+    final (:phone, :mac, :meetings, :orgId) = await filed();
+    summarized(mac);
+    await mac.sync();
+    mac.workspaces.fileNote(_id, meetings.id);
+    await mac.sync();
+    final crypto = CoreCrypto(core.invoke), key = mac.orgKeys.orgKeyOf(orgId)!, context = 'org:$orgId:note:$_id';
+    Future<Map<Object?, Object?>> payload() async => await crypto.open(key, world.service.teamNotes(orgId)[_id]!.blob!, context) as Map<Object?, Object?>;
+    final put = await payload();
+    expect(put['from'], isA<Map<Object?, Object?>>(), reason: 'the Mac said which revision the meeting left the account at');
+    // The connector's put: what it knew of the row, the pin set.
+    final stripped = {
+      for (final field in ['v', 'note', 'state', 'seq', 'images', 'versions'])
+        if (put.containsKey(field)) field: put[field],
+    };
+    stripped['note'] = {...put['note']! as Map<Object?, Object?>, 'starred': true};
+    final blob = await crypto.seal(key, stripped, context);
+    await world.api().call('PUT', 'orgs/${Uri.encodeComponent(orgId)}/notes/$_id', token: mac.account.session!.token, body: {'base': world.service.teamNotes(orgId)[_id]!.rev, 'blob': blob, 'upTo': put['seq']});
+    expect((await payload()).containsKey('from'), isFalse);
+
+    heard(phone);
+    await rounds(phone, mac);
+    for (final d in [phone, mac]) {
+      oneNote(d, orgId: orgId, meetings: meetings, merged: false);
+      final body = d.notes[_id]!.body;
+      expect(body, startsWith('# Engineering Standup\n'), reason: 'the fallback, not a merge: no base it could trust');
+      expect('**Sam Lee (0:04):** Morning.'.allMatches(body).length, 1);
+      expect('**Matt (0:10):** Shipping today.'.allMatches(body).length, 1);
+      expect('Ghost was in this meeting'.allMatches(body).length, 1);
+      expect(d.notes[_id]!.starred, isTrue, reason: 'the connector’s pin stands');
+    }
+    expect(phone.notes[_id]!.body, mac.notes[_id]!.body);
+  }, skip: coreSkip);
+
   test('the meeting’s share link, as Slack posts it, opened on the other device opens the meeting: no "(shared)" copy', () async {
     final (:phone, :mac, :meetings, :orgId) = await filed();
     summarized(mac);
