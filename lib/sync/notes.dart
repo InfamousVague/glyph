@@ -58,6 +58,7 @@ import '../core/note_json.dart';
 import '../core/note_text.dart';
 import '../core/summary_text.dart';
 import '../core/versions_file.dart';
+import 'sync_marks.dart' show noteSyncMarks;
 
 // --- what this module is given ---------------------------------------------------------------------------------------
 
@@ -559,6 +560,10 @@ List<String> imageNames(String body) => [
 
 bool _blank(Note note) => note.body.trim().isEmpty && !note.starred && note.archivedAt == null && (note.recordingMs ?? 0) == 0;
 
+/// Whether [note] is opened and left empty, which is not a note yet and is not sent until it has words (the push's
+/// rule; the sync marks' too, lib/sync/sync_marks.dart).
+bool isBlankNote(Note note) => _blank(note);
+
 /// A caught thing, as words a person can read (core/failure.ts `failureText`).
 String failureText(Object failure) {
   if (failure is ApiError) return failure.message;
@@ -590,21 +595,27 @@ Future<void> sendFile(SyncContext ctx, FileKind kind, String name, Uint8List byt
   final known = ctx.state.files[id];
   final sealed = await ctx.crypto.sealBytes(ctx.key, bytes, 'file:$id');
   int rev;
+  // A thin bar where the picture or the recording is drawn while it goes (lib/sync/sync_marks.dart).
+  final gone = noteSyncMarks.sending(kind, name);
   try {
-    rev = await _putFile(ctx, id, sealed, known?.rev ?? 0);
-  } catch (failure) {
-    final turned = turnedKey(failure);
-    if (turned != null) throw turned;
-    if (failure is! ApiError || failure.status != 409) rethrow;
-    // A picture's name is never reused, so one already there is this one, and so is a linked file's; words read in
-    // one on two devices are the same words. A recording taken again on two devices: the note that carries it
-    // decides which is meant, and this device's note is the one being sent.
-    final winner = _revOf(failure.body);
-    if (kind == FileKind.image || kind == FileKind.attachment || kind == FileKind.text) {
-      ctx.state.files[id] = FileMark(rev: winner);
-      return;
+    try {
+      rev = await _putFile(ctx, id, sealed, known?.rev ?? 0);
+    } catch (failure) {
+      final turned = turnedKey(failure);
+      if (turned != null) throw turned;
+      if (failure is! ApiError || failure.status != 409) rethrow;
+      // A picture's name is never reused, so one already there is this one, and so is a linked file's; words read in
+      // one on two devices are the same words. A recording taken again on two devices: the note that carries it
+      // decides which is meant, and this device's note is the one being sent.
+      final winner = _revOf(failure.body);
+      if (kind == FileKind.image || kind == FileKind.attachment || kind == FileKind.text) {
+        ctx.state.files[id] = FileMark(rev: winner);
+        return;
+      }
+      rev = await _putFile(ctx, id, sealed, winner);
     }
-    rev = await _putFile(ctx, id, sealed, winner);
+  } finally {
+    gone();
   }
   ctx.state.files[id] = FileMark(rev: rev, sha: digest != null && digest.isNotEmpty ? digest : null);
 }
@@ -1165,6 +1176,8 @@ Future<void> _send(SyncContext ctx, String id, Note? note, Outcome outcome, {boo
       final blob = await ctx.crypto.seal(ctx.key, payload.toJson(), 'note:$id');
       final answer = await ctx.api.call('PUT', 'notes/${Uri.encodeComponent(id)}', token: ctx.token, body: {'base': known?.rev ?? 0, 'blob': blob});
       ctx.state.notes[id] = NoteMark(rev: _revOf(answer), mark: mark(note), phrases: phrasesMark(full));
+      // Its title's tick (lib/sync/sync_marks.dart).
+      noteSyncMarks.sent(id);
     } else {
       await ctx.api.call('DELETE', 'notes/${Uri.encodeComponent(id)}', token: ctx.token, body: {'base': known?.rev ?? 0});
       ctx.state.notes.remove(id);
@@ -1192,6 +1205,8 @@ Future<void> _sendCounted(SyncContext ctx, String id, Note? note, Outcome outcom
     if (failure is ApiError && failure.status == 401) rethrow;
     outcome.unsent += 1;
     outcome.reason ??= failureText(failure);
+    // Its title red, with the reason, until it goes (lib/sync/sync_marks.dart).
+    if (note != null) noteSyncMarks.failed(id, failureText(failure));
   }
 }
 

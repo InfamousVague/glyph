@@ -36,7 +36,10 @@ import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../../activity/sync_mark.dart' show FileSendingBar;
+import '../../core/background_jobs.dart' show JobKind;
 import '../../core/images.dart';
+import '../../sync/notes.dart' show FileKind;
 import '../commands/inserts.dart';
 import '../editor.dart';
 import '../view/line_facts.dart';
@@ -175,9 +178,17 @@ class _KeptPictureState extends State<KeptPicture> {
           name: widget.badge ? widget.name : '',
           child: ClipRRect(
             borderRadius: BorderRadius.circular(widget.radius),
-            child: ColoredBox(
-              color: widget.background ?? const Color(0x00000000),
-              child: RawImage(image: image, fit: BoxFit.fill, filterQuality: FilterQuality.medium),
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: [
+                ColoredBox(
+                  color: widget.background ?? const Color(0x00000000),
+                  child: RawImage(image: image, fit: BoxFit.fill, filterQuality: FilterQuality.medium),
+                ),
+                // While it goes to the account, a thin bar along its foot in the pictures' colour (docs/ACTIVITY.md,
+                // In place): nothing otherwise.
+                PositionedDirectional(start: 0, end: 0, bottom: 0, child: FileSendingBar(file: FileKind.image, name: widget.name, kind: JobKind.images)),
+              ],
             ),
           ),
         ),

@@ -87,6 +87,33 @@ job.stopped();                                            // went quietly: a Sto
   `noteShown(id)`, `topUp(uri)`, `signIn(pluginId)` built on them, so code deep in a plugin need not know how a note
   is opened.
 
+- `job.write(sofar)` tells the words a job has written so far (Claude streaming a meeting's summary, the phone's model's
+  partial text); `activity.wordsOf(id)` is a `ValueListenable<String>` of them, '' until it writes and once it ends.
+  Kept off the `Job`: a change every few letters is never told to the ring, the tray, `events` or the OS surfaces.
+
+### In place
+
+Built 2026-10-29, reading the record and the sync's own bookkeeping, never a list of their own:
+
+- **Banner shimmer** (`lib/activity/banner_shimmer.dart`, drawn by `lib/note/note_banner.dart` `NoteBannerView`): while
+  `lovartBannerMaking` holds the note (one made alone or in a notebook's run, whose banners are not jobs of their own)
+  or its `banner:<note>` job is live, a band at the banner's shape in the images' colour, a sheen sweeping and the brush
+  stroke drawing; the band fades away over the picture as it lands. Cards in the lists draw no banners, so none there.
+- **Summary writing** (`lib/editor/ai/summary_writing.dart`, an editor extension the note's screen adds in
+  `lib/root/note_desk.dart`): while `summary:<note>` is live (here or another device's) and the note has no
+  `## Summary`, a block at `summaryPlace` says "Writing the summary…" with the sparkle, the job's `steps` and
+  `deviceWords`, and `wordsOf` streaming in. A decoration only: the note's words and their sync are never touched.
+- **Sync marks** (`lib/sync/sync_marks.dart` `noteSyncMarks`, drawn by `lib/activity/sync_mark.dart` `NoteSyncMarked`
+  in the cards, the icon view's tiles, the sidebar's rows and the tabs): waiting is the account's fingerprint
+  (`SyncState.notes`, told by the engine as it reads and saves it) against the note's own `mark`, or for a team's note
+  the channel's word (`teamSeen` in `lib/team/sync.dart` `_push`); `sent` (a tick for 1.6 s) and `failed` (red, the
+  reason on hover or a long press) come from `_send` / `_sendCounted` and the channel. Nothing signed out, with Local
+  only, or for a note live with another device.
+- **Uploads**: a share's recording reads `share-audio:<note>` (`lib/share/ui/share_rows.dart`, a `JobBar` under the
+  row's line); a picture or a recording going (`noteSyncMarks.sending`, told by `sendFile` in `lib/sync/notes.dart`)
+  is `FileSendingBar` along the picture's foot (`lib/editor/media/images.dart` `KeptPicture`) and under the note's tape
+  (`lib/tapes/note_tape.dart`).
+
 ### The log
 
 `activity.log` (`ActivityLog`, a `ChangeNotifier`): kept on this device under `glyph-activity` in the stored

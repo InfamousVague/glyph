@@ -68,6 +68,7 @@ import 'notes.dart';
 import 'prefs.dart';
 import 'record.dart';
 import 'sealed_keys.dart';
+import 'sync_marks.dart';
 
 /// How long after the last change a sync follows (`QUIET_MS`).
 const Duration quietWait = Duration(seconds: 4);
@@ -336,6 +337,18 @@ class SyncEngine {
         _orgsPass = orgsPass ?? orgs.syncOrgs {
     final session = account.session;
     if (session != null) _bridgeFor(session.accountId);
+    // Each note's mark by its title (lib/sync/sync_marks.dart): only while this device syncs, a team's note by its
+    // channel's word, nothing for a note live with another device. The account's fingerprints are told at each pass.
+    noteSyncMarks
+      ..syncing = (() => account.session != null && !prefs.value.localOnly)
+      ..teamNote = _inTeam
+      ..live = ((id) => sharedLive?.call(id) ?? false);
+  }
+
+  /// Whether a note is filed in an organization's workspace, or a folder under it: the team's (docs/SHARED.md, S1).
+  bool _inTeam(String id) {
+    final space = _workspaces.workspaceOf(id);
+    return space != null && _workspaces.orgOf(space.id) != null;
   }
 
   final SyncAccount account;
@@ -400,6 +413,11 @@ class SyncEngine {
 
   SyncState _loadNotes(int accountId) => _device.read<SyncState>(_stateKey(accountId, 'notes'), emptyState(), SyncState.fromJson);
 
+  SyncState _toldMarks(SyncState state) {
+    noteSyncMarks.account(state);
+    return state;
+  }
+
   PrefsBridge? _bridge;
   int? _bridgeAccount;
 
@@ -447,6 +465,7 @@ class SyncEngine {
       _device.write(_stateKey(accountId, 'team-${row.id}'), null);
     }
     forgetTeams?.call();
+    noteSyncMarks.forget();
     feed.forgetNotifications(accountId);
     orgs.forgetOrgs(accountId);
     orgKeys.forgetOrgKeys();
@@ -832,8 +851,12 @@ class SyncEngine {
           key: accountKey,
           notes: notes,
           files: files,
-          state: _loadNotes(accountId),
-          save: (state) => _device.write(notesKey, state.toJson()),
+          // Told to the notes' marks as it is read and as it is saved: what each note was last sent or taken at.
+          state: _toldMarks(_loadNotes(accountId)),
+          save: (state) {
+            _device.write(notesKey, state.toJson());
+            noteSyncMarks.account(state);
+          },
           api: api,
           crypto: crypto,
           now: _now,
@@ -846,10 +869,7 @@ class SyncEngine {
           onConflict: (copy) => unawaited(record?.record('sync-conflict', {'noteId': copy.noteId, 'title': copy.title})),
           // A note filed in an organization's workspace, or a folder under it, is the team's (docs/SHARED.md, S1):
           // the channel's below.
-          teamNote: (id) {
-            final space = _workspaces.workspaceOf(id);
-            return space != null && _workspaces.orgOf(space.id) != null;
-          },
+          teamNote: _inTeam,
           sharedLive: sharedLive,
           leftTeams: leftTeams,
         )),

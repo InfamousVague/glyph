@@ -69,6 +69,7 @@ import '../core/note_folders.dart' show orgFolderNames;
 import '../core/note_json.dart';
 import '../sync/engine.dart' show TeamNotesPass, TeamOutcome, TeamPass;
 import '../sync/notes.dart';
+import '../sync/sync_marks.dart' show noteSyncMarks;
 import 'doc.dart';
 import 'folders.dart';
 
@@ -756,7 +757,18 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
   final present = <String>{};
   for (final note in here) {
     present.add(note.id);
-    await _counted(tally, () => _pushOne(ctx, note, tally));
+    // Its title's mark (lib/sync/sync_marks.dart): seen to as it is now, a tick where something of it went, red with
+    // the reason where it could not go.
+    await _counted(tally, () async {
+      final before = tally.sent;
+      try {
+        await _pushOne(ctx, note, tally);
+      } catch (failure) {
+        if (!((failure is ApiError && failure.status == 401) || failure is KeyTurned)) noteSyncMarks.failed(note.id, failureText(failure));
+        rethrow;
+      }
+      noteSyncMarks.teamSeen(note.id, note.updatedAt, went: tally.sent > before);
+    });
   }
   // Gone from here, or taken out of the organization's workspace: gone from the team. Only on evidence (2026-10-26:
   // 108 team notes were deleted for every member by a build that read the organizations' folders as personal): a

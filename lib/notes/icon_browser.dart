@@ -30,6 +30,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../activity/sync_mark.dart' show NoteSyncMarked;
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/note.dart';
@@ -366,6 +367,7 @@ class _NoteTile extends StatelessWidget {
         glyph: HomeIcon(glyph, size: kind == HomeKind.tape ? 1.1 * _Tile.glyphSize(t) : _Tile.glyphSize(t), strokeWidth: 1.75, color: t.color('app-ink-2')),
         wash: t.colorOf('color-mix(in oklch, var(--app-ink) 5%, transparent)'),
         name: title,
+        note: note,
         meta: touched,
         said: [title, if (note.starred) 'pinned', touched].join(', '),
         onPressed: onPressed,
@@ -376,7 +378,7 @@ class _NoteTile extends StatelessWidget {
 
 /// One tile: the glyph on its square, the name under it, the small line under that.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.glyph, required this.wash, required this.name, this.org = false, required this.meta, required this.said, required this.onPressed});
+  const _Tile({required this.glyph, required this.wash, required this.name, this.org = false, required this.meta, required this.said, required this.onPressed, this.note});
 
   final Widget glyph;
   final Color wash;
@@ -387,6 +389,9 @@ class _Tile extends StatelessWidget {
   final String meta;
   final String said;
   final VoidCallback onPressed;
+
+  /// A note's tile: its sync after its name while it has one to say (lib/activity/sync_mark.dart).
+  final Note? note;
 
   /// The glyph's size: 2.5rem, forty pixels at the app's own text size.
   static double glyphSize(Tokens t) => t.lenOf('2.5rem');
@@ -415,13 +420,17 @@ class _Tile extends StatelessWidget {
               children: [
                 Container(width: square, height: square, alignment: Alignment.center, decoration: BoxDecoration(color: wash, borderRadius: BorderRadius.circular(t.radius('md'))), child: glyph),
                 SizedBox(height: t.space(2)),
-                Text.rich(
-                  TextSpan(children: [if (org) OrgMark.span(em: sm, color: t.color('app-ink-2')), TextSpan(text: name)]),
-                  maxLines: 2,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  style: pageText(t, sm, weight: 'medium', color: t.color('app-ink')),
-                ),
+                () {
+                  final named = Text.rich(
+                    TextSpan(children: [if (org) OrgMark.span(em: sm, color: t.color('app-ink-2')), TextSpan(text: name)]),
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: pageText(t, sm, weight: 'medium', color: t.color('app-ink')),
+                  );
+                  final note = this.note;
+                  return note == null ? named : NoteSyncMarked(note: note, size: (0.85 * sm).roundToDouble(), expand: false, child: named);
+                }(),
                 const SizedBox(height: 2),
                 Text(meta, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: tabular(pageText(t, xs, color: t.color('app-ink-3')))),
               ],

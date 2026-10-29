@@ -4,7 +4,11 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/activity/activity_look.dart' show kindColour;
+import 'package:ghost_md/activity/activity_tray.dart' show JobBar;
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/shared_links.dart';
@@ -287,6 +291,38 @@ void main() {
       expect(row(tester, 'Include the recording')?.chosen, isFalse);
       await endSettings(tester);
     });
+
+    for (final (name, size) in [('phone', const Size(390, 844)), ('mac', const Size(1280, 800))]) {
+      testWidgets('while the recording goes, a thin bar in the audio\'s colour under its line, read from the record (docs/ACTIVITY.md; $name)', (tester) async {
+        tester.view.physicalSize = size * 2;
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+        final record = Activity(store: () => MemoryStored());
+        useActivity(record);
+        addTearDown(() => useActivity(Activity()));
+        final device = await meetingOn();
+        await rows(tester, device, 'm');
+        Clipped(tester);
+        await pressRow(tester, 'Share a read-only link');
+        await tester.runAsync(() => device.shares!.audioSent('m'));
+        await settle(tester, 12);
+        expect(find.byKey(const ValueKey('share-recording:bar')), findsNothing, reason: 'sent: no bar');
+        final job = record.begin('share-audio:m', kind: JobKind.audio, title: 'Sharing the recording of Standup', line: 'Sending the recording')..progress(fraction: 0.4);
+        await tester.pump();
+        expect(hintOf(tester, 'Include the recording'), 'Sending the recording… 40%');
+        final bar = tester.widget<JobBar>(find.byKey(const ValueKey('share-recording:bar')));
+        expect(bar.fraction, 0.4);
+        expect(bar.colour, kindColour(GlacierTheme.of(tester.element(find.byType(JobBar))), JobKind.audio));
+        expect(tester.getRect(find.byType(JobBar)).top, greaterThan(tester.getRect(find.text('Sending the recording… 40%')).bottom), reason: 'under its line');
+        job.progress(fraction: 0.75);
+        await tester.pump();
+        expect(tester.widget<JobBar>(find.byKey(const ValueKey('share-recording:bar'))).fraction, 0.75);
+        job.done(quiet: true);
+        await tester.pump();
+        expect(find.byKey(const ValueKey('share-recording:bar')), findsNothing);
+        await endSettings(tester);
+      });
+    }
 
     testWidgets('says where the recording is when this device does not have it, and is no row for a note that is no meeting', (tester) async {
       final device = await meetingOn(here: false);

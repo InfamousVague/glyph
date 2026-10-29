@@ -504,6 +504,7 @@ class _NoteTabsState extends State<NoteTabs> {
           child: NoteTab(
             shape: shape,
             title: title,
+            note: note,
             active: active,
             space: space,
             group: group,

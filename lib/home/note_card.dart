@@ -23,6 +23,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../activity/sync_mark.dart' show NoteSyncMarked;
 import '../ai/marks.dart' show hasMarks;
 import '../core/book.dart';
 import '../core/note.dart';
@@ -152,14 +153,20 @@ class NoteCard extends StatelessWidget {
           Padding(
             // `.item[data-dense] .title`: room for the ring or the dot in the corner.
             padding: EdgeInsetsDirectional.only(end: dense ? t.space(4) : 0),
-            child: CssLines(
-              lineHeight: 1.25 * md,
-              child: Text(
-                title.isNotEmpty ? facts.shownTitle : (journal ? 'Untitled journal' : (book ? 'Untitled notebook' : 'Untitled')),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                // `.card:active .title { color: var(--glacier-text-muted) }`.
-                style: pageText(t, md, weight: 'semibold', height: 1.25, color: title.isEmpty ? subtle : (state.pressed ? muted : t.color('glacier-text'))),
+            // Its sync by the title while it has one to say (lib/activity/sync_mark.dart): an arrow, a tick, red.
+            child: NoteSyncMarked(
+              note: note,
+              size: (0.8 * md).roundToDouble(),
+              top: (1.25 * md - (0.8 * md).roundToDouble()) / 2,
+              child: CssLines(
+                lineHeight: 1.25 * md,
+                child: Text(
+                  title.isNotEmpty ? facts.shownTitle : (journal ? 'Untitled journal' : (book ? 'Untitled notebook' : 'Untitled')),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  // `.card:active .title { color: var(--glacier-text-muted) }`.
+                  style: pageText(t, md, weight: 'semibold', height: 1.25, color: title.isEmpty ? subtle : (state.pressed ? muted : t.color('glacier-text'))),
+                ),
               ),
             ),
           ),
