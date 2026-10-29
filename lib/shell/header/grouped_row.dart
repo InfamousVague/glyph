@@ -144,7 +144,9 @@ class GroupedPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: t.color('glacier-border-subtle'), width: hairline),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, spacing: 1, children: children),
+      // A gap between the circles, so two buttons read as two (Matt, 2026-10-29, of Home and the sidebar: "too close
+      // together it's missing the gap").
+      child: Row(mainAxisSize: MainAxisSize.min, spacing: t.space(1), children: children),
     );
   }
 }
