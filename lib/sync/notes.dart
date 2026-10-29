@@ -115,6 +115,37 @@ abstract interface class LocalFiles {
   FileDigest? get digest;
 }
 
+/// Notes this device keeps that have lately left an organization: the person moved them out, here or on another of
+/// their devices, so the team's row went and the note is the account's own again (lib/team/sync.dart
+/// `TeamSyncContext.keptOut`). The port's own, against the builds before 2.3.79 (test/team_sync/old_peers_test.dart,
+/// 2026-10-29). Such a build removes its copy of a note whose team row goes, wherever it has it filed; and where it
+/// had already taken the account's row of it as the person's own, its next push sends the account a deletion, which
+/// took the note from every device of the person's, with the words they had written since. So for [leftTeamsKept]
+/// after a note leaves a team here:
+/// - a deletion of it from the account's feed is not taken: its words here stand and go again, as for a note changed
+///   here (`_merge`), which is what the old build's own deletion meets; and
+/// - its row is put again every [leftTeamsAgain] ([owed]), so the old build, which skipped the account's row while it
+///   had the note filed in the team and then removed its copy, takes it again from the feed as a note it lacks.
+/// A note deleted for good on another device within the time is kept, and sent again, here: the price of never
+/// losing one to an old build.
+abstract interface class LeftTeams {
+  /// Whether [id] left a team on this device within [leftTeamsKept].
+  bool kept(String id);
+
+  /// Whether [id]'s row is owed to the account again now.
+  bool owed(String id);
+
+  /// [id]'s row has just gone to the account.
+  void sent(String id);
+}
+
+/// How long a note that left a team is kept from the account's deletions and put again ([LeftTeams]): the days an
+/// old build may sleep through before it next syncs.
+const Duration leftTeamsKept = Duration(days: 14);
+
+/// How often, while kept, its row is put again ([LeftTeams.owed]).
+const Duration leftTeamsAgain = Duration(hours: 1);
+
 /// What a pass works with (`SyncContext`).
 class SyncContext {
   SyncContext({
@@ -134,6 +165,7 @@ class SyncContext {
     this.sharedLive,
     this.filesRoute,
     this.generation,
+    this.leftTeams,
   });
 
   final String token;
@@ -173,10 +205,14 @@ class SyncContext {
   /// The organization key's generation the files are sealed under (docs/SHARED.md, S11); none for the account's own.
   final int? generation;
 
+  /// The notes lately out of a team here, kept from an old build's deletion ([LeftTeams]); none, and none are.
+  final LeftTeams? leftTeams;
+
   Map<String, num> get _meetings => meetings?.call() ?? const {};
   bool get _syncMeetings => syncMeetingRecordings?.call() ?? true;
   bool _live(String id) => sharedLive?.call(id) ?? false;
   bool _team(String id) => teamNote?.call(id) ?? false;
+  bool _keptOut(String id) => leftTeams?.kept(id) ?? false;
   String get _route => filesRoute ?? 'recordings';
 
   /// `?base=` and, for a team's files, the generation the bytes are sealed under.
@@ -1017,7 +1053,9 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
 
   final blob = item.blob;
   if (item.deleted || blob == null || blob.isEmpty) {
-    if (local != null && changedHere) {
+    // Lately out of a team here, it is not taken either: an old build's removal of its copy said as a deletion
+    // ([LeftTeams]).
+    if (local != null && (changedHere || ctx._keptOut(item.id))) {
       // Deleted there, changed here: this device's words stand, and are sent again from the deletion's revision.
       ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: '');
       return;
@@ -1206,6 +1244,16 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
     final note = notes[id];
     if (note == null || ctx._live(id) || ctx._team(id)) continue;
     await _sendCounted(ctx, id, note, outcome);
+  }
+  // Lately out of a team, and its row due again ([LeftTeams.owed]): put again as it is, for an old build that removed
+  // its copy to take it back.
+  final left = ctx.leftTeams;
+  if (left != null) {
+    for (final note in here) {
+      if (ctx._team(note.id) || ctx._live(note.id) || ctx.state.notes[note.id] == null || !left.owed(note.id)) continue;
+      await _sendCounted(ctx, note.id, note, outcome);
+      left.sent(note.id);
+    }
   }
   ctx.save(ctx.state);
 }

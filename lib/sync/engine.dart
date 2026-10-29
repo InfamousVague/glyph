@@ -206,6 +206,7 @@ class TeamPass {
     required this.saveState,
     required this.isTeamNote,
     this.leftTeam,
+    this.keptOut,
     required this.file,
     this.folders,
     required this.pulled,
@@ -244,6 +245,10 @@ class TeamPass {
   /// it knows that is not the organization's nor under it. A note unfiled, or in a folder this device cannot place,
   /// has not (lib/team/sync.dart `_push`).
   final bool Function(String noteId)? leftTeam;
+
+  /// Told of a note that stays on this device as its team's row goes (lib/team/sync.dart `keptOut`): the engine
+  /// keeps it from an old build's deletion for a while ([LeftTeams]).
+  final void Function(String noteId)? keptOut;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
@@ -425,7 +430,7 @@ class SyncEngine {
 
   /// Forgets what this device knew of an account's sync: for signing out (`forgetSync`).
   void _forgetSync(int accountId) {
-    for (final part in ['notes', 'prefs']) {
+    for (final part in ['notes', 'prefs', 'left-teams']) {
       _device.write(_stateKey(accountId, part), null);
     }
     _bridgeFor(accountId).forget();
@@ -547,6 +552,9 @@ class SyncEngine {
       return;
     }
     final accountKey = key;
+    // The notes lately out of a team here, kept from an old build's deletion and put again for it (lib/sync/notes.dart
+    // [LeftTeams]): told by the team's channels, read by the account's own sync.
+    final leftTeams = _LeftTeamsKept(_device, _stateKey(session.accountId, 'left-teams'), _now);
     final token = session.token, accountId = session.accountId;
     final call = CallContext(token: token);
 
@@ -608,6 +616,7 @@ class SyncEngine {
                 final filed = _workspaces.workspaceOf(id);
                 return filed != null && _workspaces.orgOf(filed.id) != row.id;
               },
+              keptOut: leftTeams.keep,
               file: (id) => _workspaces.fileNote(id, workspace),
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.
@@ -795,6 +804,7 @@ class SyncEngine {
             return space != null && _workspaces.orgOf(space.id) != null;
           },
           sharedLive: sharedLive,
+          leftTeams: leftTeams,
         )),
       );
       if ((synced?.changed ?? 0) > 0) await _changed();
@@ -954,5 +964,54 @@ class SyncEngine {
     _bridge?.dispose();
     _bridge = null;
     _status.dispose();
+  }
+}
+
+/// [LeftTeams] kept on the device, per account (`glyph-sync-<account>-left-teams`): each note's id with when it left a
+/// team here and when its row last went to the account, as `{id: [left, sent]}`, both in ms. One left longer ago than
+/// [leftTeamsKept] is let go as the record is read.
+class _LeftTeamsKept implements LeftTeams {
+  _LeftTeamsKept(this._kept, this._key, this._now);
+
+  final Stored _kept;
+  final String _key;
+  final int Function() _now;
+
+  Map<String, List<int>> _read() {
+    final raw = _kept.read<Object?>(_key, null);
+    final now = _now();
+    final out = <String, List<int>>{};
+    if (raw is! Map) return out;
+    for (final MapEntry(:key, :value) in raw.entries) {
+      if (key is! String || value is! List || value.length != 2 || value[0] is! num || value[1] is! num) continue;
+      final left = (value[0] as num).toInt(), sent = (value[1] as num).toInt();
+      if (now - left < leftTeamsKept.inMilliseconds) out[key] = [left, sent];
+    }
+    return out;
+  }
+
+  void _write(Map<String, List<int>> all) => _kept.write(_key, all.isEmpty ? null : all);
+
+  /// [id] has just left a team here: kept from now, its row owed again in [leftTeamsAgain].
+  void keep(String id) {
+    final now = _now();
+    _write(_read()..[id] = [now, now]);
+  }
+
+  @override
+  bool kept(String id) => _read().containsKey(id);
+
+  @override
+  bool owed(String id) {
+    final at = _read()[id];
+    return at != null && _now() - at[1] >= leftTeamsAgain.inMilliseconds;
+  }
+
+  @override
+  void sent(String id) {
+    final all = _read();
+    final at = all[id];
+    if (at == null) return;
+    _write(all..[id] = [at[0], _now()]);
   }
 }
