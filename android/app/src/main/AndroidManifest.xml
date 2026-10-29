@@ -19,6 +19,10 @@
 
     <!-- "Written up" and the recording's own notification; Android 13+ asks at the meeting screen's prompt. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- A job's progress notification as one of Android 16's Live Updates (ActivityNotices.kt): the status bar's chip,
+         the lock screen, and Samsung's Now Bar. A normal permission, granted with the install; a phone before it
+         has no such thing and shows the notification as it always would. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <!--
       Meetings (capture/MeetingService.kt, ported from tauri/): a recording that keeps going with the screen
@@ -599,6 +603,10 @@
         <!-- The widgets' midnight and quarter-hour clock: reached only by this app's own alarms. -->
         <receiver
             android:name=".home.WidgetClock"
+            android:exported="false" />
+        <!-- Stop on a job's progress notification (ActivityNotices.kt): reached only by its own PendingIntent. -->
+        <receiver
+            android:name=".ActivityStopReceiver"
             android:exported="false" />
         <!-- A to-do ticked on the To-dos widget: reached only by the widget's own PendingIntent. -->
         <receiver

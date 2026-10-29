@@ -217,6 +217,8 @@ class MainActivity : FlutterActivity() {
         meeting?.onNewIntent(intent)
         links.onNewIntent(intent)
         shares.onNewIntent(intent)
+        // A job's notification tapped (ActivityNotices.kt): its Open, in the app.
+        ActivityNotices.opened(intent)
     }
 
     override fun onResume() {
@@ -261,6 +263,8 @@ class MainActivity : FlutterActivity() {
         meeting?.onDestroy()
         // No engine to hear the next take from the watch: it is a notification until the app is back.
         watch?.detach()
+        // Nor a job's Stop: its notification goes with the engine that ran it (ActivityNotices.kt).
+        BackgroundJobs.detached(applicationContext)
         super.onDestroy()
     }
 

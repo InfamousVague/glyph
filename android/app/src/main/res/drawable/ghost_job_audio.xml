@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The two reels the tray draws for audio (lib/activity/activity_look.dart _ReelsPainter), the cassette's own hubs. A notification's small icon (ActivityNotices.kt), white, tinted by the system; 24 of 24. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M6.48 17.28H17.52"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.16"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M1.2 12a5.28 5.28 0 1 0 10.56 0a5.28 5.28 0 1 0 -10.56 0Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.16"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M5.880 8.726L7.080 8.726L7.080 10.310L5.880 10.310Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M9.015 9.844L9.615 10.883L8.243 11.675L7.643 10.636Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M9.615 13.117L9.015 14.156L7.643 13.364L8.243 12.325Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M7.080 15.274L5.880 15.274L5.880 13.690L7.080 13.690Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M3.945 14.156L3.345 13.117L4.717 12.325L5.317 13.364Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M3.345 10.883L3.945 9.844L5.317 10.636L4.717 11.675Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M12.24 12a5.28 5.28 0 1 0 10.56 0a5.28 5.28 0 1 0 -10.56 0Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.16"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M16.920 8.726L18.120 8.726L18.120 10.310L16.920 10.310Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M20.055 9.844L20.655 10.883L19.283 11.675L18.683 10.636Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M20.655 13.117L20.055 14.156L18.683 13.364L19.283 12.325Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M18.120 15.274L16.920 15.274L16.920 13.690L18.120 13.690Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M14.985 14.156L14.385 13.117L15.757 12.325L16.357 13.364Z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M14.385 10.883L14.985 9.844L16.357 10.636L15.757 11.675Z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

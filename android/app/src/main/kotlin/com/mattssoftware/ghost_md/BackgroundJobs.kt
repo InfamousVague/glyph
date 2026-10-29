@@ -44,12 +44,19 @@ import io.flutter.plugin.common.MethodChannel
  * Swiped out of the recents, the activity goes and its engine with it, and the job with the engine: the service lets
  * itself go and says the job goes on when Ghost.md is opened, which is when the app takes it up again from where it
  * kept it.
+ *
+ * The same channel carries the app's record of running work to its notifications (ActivityNotices.kt;
+ * lib/activity/activity_surfaces.dart): `activity {event, job, jobs}` and `activityLook {calm}` in, and
+ * `activityStop {id}` / `activityOpen {id}` back. While the service holds the app up, its foreground notification is
+ * one of those where any shows (the banner run's own, with its bar and Stop), and its own only where none does: one
+ * notification for one job.
  */
 class BackgroundJobs(private val context: Context) {
   fun register(messenger: BinaryMessenger) {
     val channel = MethodChannel(messenger, CHANNEL)
     val main = Handler(Looper.getMainLooper())
     stopAsked = { id -> main.post { channel.invokeMethod("stop", mapOf("id" to id)) } }
+    activityAsked = { method, id -> main.post { channel.invokeMethod(method, mapOf("id" to id)) } }
     channel.setMethodCallHandler { call, result ->
       val id = call.argument<String>("id") ?: ""
       val title = call.argument<String>("title") ?: ""
@@ -61,6 +68,14 @@ class BackgroundJobs(private val context: Context) {
           BackgroundJobService.ended(context, id, title, call.argument<String>("text"), call.argument<Boolean>("quiet") == true)
           result.success("ended")
         }
+        "activity" -> {
+          ActivityNotices.told(context, call.argument<String>("event") ?: "changed", call.argument<Map<*, *>>("job"), call.argument<List<*>>("jobs"))
+          result.success(null)
+        }
+        "activityLook" -> {
+          ActivityNotices.look(context, call.argument<Boolean>("calm") == true)
+          result.success(null)
+        }
         else -> result.notImplemented()
       }
     }
@@ -71,12 +86,31 @@ class BackgroundJobs(private val context: Context) {
 
     /** Says Stop to the app's engine, while one is listening. */
     @Volatile internal var stopAsked: ((String) -> Unit)? = null
+
+    /** Says a notification's Stop or tap to the app's engine (`activityStop`, `activityOpen`), while one listens. */
+    @Volatile internal var activityAsked: ((String, String) -> Unit)? = null
+
+    /** [method] {id} to the app; false with no engine to hear it. */
+    fun say(method: String, id: String): Boolean {
+      val ask = activityAsked ?: return false
+      ask(method, id)
+      return true
+    }
+
+    /** The engine is going: nobody hears a Stop now, and the jobs it ran are gone with it. */
+    fun detached(context: Context) {
+      activityAsked = null
+      ActivityNotices.clear(context)
+    }
   }
 }
 
 /** The foreground service a running job holds (see [BackgroundJobs]). Not exported: only this app starts it. */
 class BackgroundJobService : Service() {
   private var wakeLock: PowerManager.WakeLock? = null
+
+  /** The activity notification the service holds the app up by (ActivityNotices.kt), or null for its own. */
+  private var adopted: Int? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -94,8 +128,7 @@ class BackgroundJobService : Service() {
       }
       else -> {
         // A start asked for must become a foreground one within seconds, even where the job has ended meanwhile.
-        val job = said ?: Said("", "Ghost.md", "", null, null)
-        startAsForeground(notification(this, job))
+        present()
         if (said == null) {
           finish()
         } else {
@@ -111,6 +144,7 @@ class BackgroundJobService : Service() {
     super.onTaskRemoved(rootIntent)
     for (job in jobs.values.toList()) postEnded(this, job.id, job.title, "Paused. It goes on when you open Ghost.md.")
     jobs.clear()
+    BackgroundJobs.detached(this)
     finish()
   }
 
@@ -122,6 +156,8 @@ class BackgroundJobService : Service() {
 
   private fun show(job: Said) {
     holdWakeLock()
+    // Held up by an activity notification: that one says the job (ActivityNotices.kt).
+    if (adopted != null) return
     try {
       NotificationManagerCompat.from(this).notify(ONGOING_ID, notification(this, job))
     } catch (error: SecurityException) {
@@ -131,16 +167,34 @@ class BackgroundJobService : Service() {
 
   private fun finish() {
     dropWakeLock()
-    stopForeground(STOP_FOREGROUND_REMOVE)
+    // An activity notification held up by is left showing: its job is the app's to end.
+    stopForeground(if (adopted != null) STOP_FOREGROUND_DETACH else STOP_FOREGROUND_REMOVE)
+    adopted = null
     stopSelf()
   }
 
-  /** `specialUse` from Android 14 (declared in the manifest with what it is for); below that types are not asked for. */
-  private fun startAsForeground(notification: Notification) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-      startForeground(ONGOING_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+  /**
+   * Holds the app up by the first activity notification that shows (ActivityNotices.kt), or by its own where none
+   * does: so a job told both ways (the banner run) is one notification. Called again as they come and go.
+   */
+  private fun present() {
+    val notice = ActivityNotices.first()
+    if (notice != null) {
+      startAsForeground(notice.first, notice.second)
+      if (adopted == null) NotificationManagerCompat.from(this).cancel(ONGOING_ID)
+      adopted = notice.first
     } else {
-      startForeground(ONGOING_ID, notification)
+      startAsForeground(ONGOING_ID, notification(this, said ?: Said("", "Ghost.md", "", null, null)))
+      adopted = null
+    }
+  }
+
+  /** `specialUse` from Android 14 (declared in the manifest with what it is for); below that types are not asked for. */
+  private fun startAsForeground(id: Int, notification: Notification) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+    } else {
+      startForeground(id, notification)
     }
   }
 
@@ -181,6 +235,18 @@ class BackgroundJobService : Service() {
 
     /** The job the notification says: the one that spoke last, null once every job has ended. */
     private val said: Said? get() = synchronized(jobs) { jobs.values.lastOrNull() }
+
+    /** An activity notification came: the running service holds the app up by it, if by its own until now. */
+    internal fun reconsider() {
+      val service = current ?: return
+      if (said != null && service.adopted == null) service.present()
+    }
+
+    /** The activity notification [id] is going: the service takes another, or its own, first. */
+    internal fun letGo(id: Int) {
+      val service = current ?: return
+      if (service.adopted == id) service.present()
+    }
 
     fun running(context: Context, id: String, title: String, text: String, done: Int?, total: Int?): String {
       val job = Said(id, title, text, done, total)
