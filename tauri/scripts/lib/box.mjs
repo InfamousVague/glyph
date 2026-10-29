@@ -106,8 +106,21 @@ export function openBox(env, sshOptions) {
         stdio: 'ignore',
         env: withPassword(),
       });
-      if (result.status !== 0) {
-        fail('Could not log in to the box. If the password is right, it is the lockout: wait ten minutes, and do not retry sooner.');
+      if (result.status === 0) return;
+      // The two "refusals" of 2026-10-28 20:48 and 2026-10-29 22:16 were not the box's: it has no fail2ban, and its
+      // sshd logged only "Connection closed by authenticating user root … [preauth]" from this Mac, with no failed
+      // password - this end hung up before it sent one (build/diag/lockout-look.mjs). So one more try after 45 s,
+      // with ssh's own account of it in ~/Library/Logs/ghost-deploy-ssh.log (no password is ever written there), to
+      // see why. sshpass's exit says which half gave up: 5 a wrong password, 6 a host key, 255 ssh itself.
+      const log = join(homedir(), 'Library', 'Logs', 'ghost-deploy-ssh.log');
+      console.log(`  the box did not answer the login (sshpass ${result.status}); trying once more in 45 s, ssh's account in ${log}`);
+      spawnSync('sleep', ['45']);
+      const again = spawnSync('sshpass', ['-e', 'ssh', ...sshOptions, '-vvv', '-E', log, '-fN', target], {
+        stdio: 'ignore',
+        env: withPassword(),
+      });
+      if (again.status !== 0) {
+        fail(`Could not log in to the box (sshpass ${result.status}, then ${again.status}; ssh's account is in ${log}). Wait before trying again.`);
       }
     },
 
