@@ -7,11 +7,16 @@
 /// job (a notebook's banner run is one run), so it gives one chip. At most two at once, the newest on top, the oldest
 /// let go for a third; a swipe sideways or the × puts one away, and each goes on its own after [chipFor].
 ///
-/// They hang under the header, at the top: never over the dock at the foot, nor the keyboard.
+/// They hang under the header, at the top: never over the dock at the foot, nor the keyboard. Nor over a page's own
+/// controls (on Grouped command becoming the default, 2026-10-29: "the result chips must never cover a page's own
+/// controls"): a line the page shows at its top marks itself [ClearOfChips] (lib/notes/notices.dart's lines: the home
+/// page's job line with its Stop or Hide, the voice model's Try again), and the chips stand under it wherever it is,
+/// on a phone, the Fold or the Mac and under any header version, going back up as it scrolls away.
 library;
 
 import 'dart:async';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -51,6 +56,84 @@ class ActivityChip {
   final bool failed;
 }
 
+/// A page's own control the chips must not cover: [child], marked while it is up, and told again as it scrolls or
+/// changes size, so chips standing over its place move down under it ([ActivityChipsState]).
+class ClearOfChips extends StatefulWidget {
+  const ClearOfChips({super.key, required this.child});
+  final Widget child;
+
+  /// What is marked now.
+  static final Set<Element> marked = {};
+
+  /// A tick each time a mark comes, goes, moves or changes size.
+  static final ValueNotifier<int> moved = ValueNotifier(0);
+
+  /// Where each mark is in the window as it is drawn: those on screen, not one on a page kept offstage.
+  static List<Rect> get rects => [
+        for (final element in marked)
+          if (element.mounted && _shown(element))
+            if (element.findRenderObject() case final RenderBox box when box.attached && box.hasSize) box.localToGlobal(Offset.zero) & box.size,
+      ];
+
+  static bool _shown(Element element) {
+    var shown = true;
+    element.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if ((widget is Offstage && widget.offstage) || (widget is Visibility && !widget.visible)) shown = false;
+      return shown;
+    });
+    return shown;
+  }
+
+  @override
+  State<ClearOfChips> createState() => _ClearOfChipsState();
+}
+
+class _ClearOfChipsState extends State<ClearOfChips> {
+  ScrollPosition? _scroll;
+  Size? _size;
+
+  void _tell() => ClearOfChips.moved.value++;
+
+  @override
+  void initState() {
+    super.initState();
+    ClearOfChips.marked.add(context as Element);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scroll = Scrollable.maybeOf(context)?.position;
+    if (!identical(scroll, _scroll)) {
+      _scroll?.removeListener(_tell);
+      _scroll = scroll?..addListener(_tell);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll?.removeListener(_tell);
+    ClearOfChips.marked.remove(context as Element);
+    _tell();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Told once it is laid out, and again whenever its size changes.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = (context.findRenderObject() as RenderBox?)?.size;
+      if (size != _size) {
+        _size = size;
+        _tell();
+      }
+    });
+    return widget.child;
+  }
+}
+
 /// The chips' layer: put where the chips hang, at the window's end under the header. Hears [record]'s ends.
 class ActivityChips extends StatefulWidget {
   const ActivityChips({super.key, this.record});
@@ -72,10 +155,44 @@ class ActivityChipsState extends State<ActivityChips> {
   /// The chips showing, newest first.
   List<ActivityChip> get chips => [for (final (chip, _) in _chips) chip];
 
+  /// How far the chips stand under where they hang, to be clear of a page's own control ([ClearOfChips]).
+  double _drop = 0;
+  final GlobalKey _hung = GlobalKey(debugLabel: 'activity chips');
+  bool _placing = false;
+
+  /// How far they stand under where they hang now.
+  double get drop => _drop;
+
   @override
   void initState() {
     super.initState();
     _hearing = _record.events.listen(_heard);
+    ClearOfChips.moved.addListener(_place);
+  }
+
+  /// Once this frame is laid out: where the chips would hang, and under each mark in their way, in turn.
+  void _place() {
+    if (_placing || !mounted) return;
+    _placing = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _placing = false;
+      if (!mounted) return;
+      final hung = _hung.currentContext?.findRenderObject();
+      var drop = 0.0;
+      if (_chips.isNotEmpty && hung is RenderBox && hung.attached && hung.hasSize) {
+        final at = hung.localToGlobal(Offset.zero) & hung.size;
+        final gap = context.tokens.space(2);
+        var top = at.top;
+        final marks = ClearOfChips.rects..sort((a, b) => a.top.compareTo(b.top));
+        for (final mark in marks) {
+          final across = mark.left < at.right && mark.right > at.left;
+          if (across && mark.top < top + at.height && mark.bottom > top) top = mark.bottom + gap;
+        }
+        drop = top - at.top;
+      }
+      if ((drop - _drop).abs() > 0.5) setState(() => _drop = drop);
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   void _heard(JobEvent event) {
@@ -109,6 +226,7 @@ class ActivityChipsState extends State<ActivityChips> {
 
   @override
   void dispose() {
+    ClearOfChips.moved.removeListener(_place);
     _hearing?.cancel();
     for (final timer in _going.values) {
       timer.cancel();
@@ -119,11 +237,21 @@ class ActivityChipsState extends State<ActivityChips> {
 
   @override
   Widget build(BuildContext context) {
-    if (_chips.isEmpty) return const SizedBox.shrink();
+    if (_chips.isEmpty) {
+      _drop = 0;
+      return const SizedBox.shrink();
+    }
     final t = context.tokens;
+    // Placed again after every frame drawn with chips: they come, go and change size.
+    _place();
     // Two stack as one: as wide as the wider, the same end edge, one over the other with a gap, their actions and
-    // crosses in line (Matt, 2026-10-29: "result chips when two stack should stack cleanly").
-    return IntrinsicWidth(
+    // crosses in line (Matt, 2026-10-29: "result chips when two stack should stack cleanly"). Where they hang is
+    // measured untouched ([_hung]); they are drawn [_drop] under it, clear of the page's own controls.
+    return KeyedSubtree(
+      key: _hung,
+      child: Transform.translate(
+        offset: Offset(0, _drop),
+        child: IntrinsicWidth(
       child: Column(
       key: const ValueKey('activity-chips'),
       mainAxisSize: MainAxisSize.min,
@@ -144,6 +272,8 @@ class ActivityChipsState extends State<ActivityChips> {
             ),
           ),
       ],
+      ),
+        ),
       ),
     );
   }

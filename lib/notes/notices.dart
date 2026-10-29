@@ -24,6 +24,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../activity/activity_chips.dart' show ClearOfChips;
 import '../art/art.dart';
 import '../home/home_parts.dart';
 import '../home/home_text.dart';
@@ -597,10 +598,14 @@ class _Line extends StatelessWidget {
       child: Padding(
         // `margin: 0 0 var(--glacier-space-4)`
         padding: EdgeInsets.only(bottom: t.space(4)),
-        child: CssLines(
-          lineHeight: t.len('glacier-leading-sm') * sm,
-          // `font-size: sm; line-height: leading-sm; color: var(--glacier-text-muted)`
-          child: Text.rich(TextSpan(children: children), style: pageText(t, sm, color: t.color('glacier-text-muted'), height: t.len('glacier-leading-sm'))),
+        // The line's words and its Stop, Hide or Try again are the page's own: the result chips stand clear of them
+        // (lib/activity/activity_chips.dart).
+        child: ClearOfChips(
+          child: CssLines(
+            lineHeight: t.len('glacier-leading-sm') * sm,
+            // `font-size: sm; line-height: leading-sm; color: var(--glacier-text-muted)`
+            child: Text.rich(TextSpan(children: children), style: pageText(t, sm, color: t.color('glacier-text-muted'), height: t.len('glacier-leading-sm'))),
+          ),
         ),
       ),
     );
