@@ -3,7 +3,9 @@
 /// Home always, Matt, 2026-10-28: "Also always show the home button on the top bar"); in the
 /// middle a pill with the note's name and a search glyph, which opens the command palette, where every command the
 /// app has is a word away (lib/commands/command_bar.dart; ⌘K said on it under a mouse); at the end one primary
-/// action - the view switch on a note, a new note at home - and •••.
+/// action on a note, the view switch - and •••. Every note by folder and a new note are the first rows of ••• (Matt,
+/// 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header"), so at
+/// home there is no primary action.
 ///
 /// ••• holds everything else, in sections, each row's glyph in its own colour: **This note** (its actions and More
 /// for this note), **Go** (Home, the sidebar, Back or Forward, the side panel, a new note), and **You** (the bell,
@@ -30,7 +32,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   final step = headerOnPhone(context) ? phoneGlyphStep : 0.0;
   // Back where there is a note or a page to come back from; the sidebar's toggle at home.
   final start = parts.atHome ? (parts.sidebar ?? parts.back) : (parts.back ?? parts.sidebar);
-  final primary = parts.onNote ? parts.view : parts.newNote;
+  final primary = parts.onNote ? parts.view : null;
   Widget colour(HeaderAct act) => HeaderGlyph(act, size: 16, color: hueInk(context.tokens, _hueOf(act)), strokeWidth: 2);
   final noteRows = <HeaderMenuEntry>[
     for (final act in notShown(parts.noteActs, [?primary])) HeaderMenuAct(act, icon: colour(act)),
@@ -38,10 +40,12 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   ];
   final goRows = <HeaderMenuEntry>[
     // A new note and every note at home; on a note they are the tabs' + and the sidebar's, and the menu is long enough.
-    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ...[?parts.newNote, ?parts.allNotes]], [?parts.home, ?start, ?parts.folders, ?primary])) HeaderMenuAct(act, icon: colour(act)),
+    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ?parts.allNotes], [?parts.home, ?start, ?primary])) HeaderMenuAct(act, icon: colour(act)),
   ];
   final youRows = youEntries(parts, icon: colour);
   final entries = <HeaderMenuEntry>[
+    // What the bar keeps under ••• first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
+    ...keptEntries(parts, more: noteRows.isNotEmpty || goRows.isNotEmpty || youRows.isNotEmpty, icon: colour),
     if (noteRows.isNotEmpty) ...[const HeaderMenuLabel('This note'), ...noteRows],
     if (goRows.isNotEmpty) ...[if (noteRows.isNotEmpty) const HeaderMenuRule(), const HeaderMenuLabel('Go'), ...goRows],
     if (youRows.isNotEmpty) ...[if (noteRows.isNotEmpty || goRows.isNotEmpty) const HeaderMenuRule(), const HeaderMenuLabel('You'), ...youRows],
@@ -51,7 +55,6 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
       // Home is always in the row, whatever the width (Matt, 2026-10-28: "Also always show the home button on the top bar").
       if (parts.home case final home?) outline(_Plain(act: home, fine: parts.fine, step: step)),
       if (start != null) outline(_Plain(act: start, fine: parts.fine, step: step)),
-      if (parts.folders case final folders?) outline(_Plain(act: folders, fine: parts.fine, step: step)),
     ],
     centre: outline(CommandField(parts: parts, entries: entries)),
     trail: [
@@ -67,7 +70,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   );
 }
 
-const Map<String, String> _hues = {'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'search': 'blue', 'new': 'green', 'all': 'indigo', 'more': 'indigo'};
+const Map<String, String> _hues = {'folders': 'amber', 'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'search': 'blue', 'new': 'green', 'all': 'indigo', 'more': 'indigo'};
 
 String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
 

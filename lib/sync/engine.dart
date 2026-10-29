@@ -222,6 +222,7 @@ class TeamPass {
     this.meetings,
     this.syncMeetingRecordings,
     this.reseal = false,
+    this.progress,
   });
 
   final String token;
@@ -286,6 +287,10 @@ class TeamPass {
   /// False: one pass of the channel (`syncTeamNotes`). True: the key has just turned, [key] and [generation] are
   /// the new ones, and every note of the team's is to be sealed again under them (`resealTeamNotes`).
   final bool reseal;
+
+  /// Told what the channel finds to do and does: the Syncing job's count, summed with the account's own
+  /// (lib/sync/notes.dart [SyncProgress]).
+  final SyncProgress? progress;
 }
 
 /// One organization's channel, or its re-sealing. May throw [KeyTurned] (the key turned under this device: the next
@@ -515,6 +520,13 @@ class SyncEngine {
   int _moved = 0;
   ({String words, Object error})? _failure;
 
+  /// What the rolling job's passes have found to do and done, the account's and every team's summed: its bar fills as
+  /// they go, never back, and is empty before anything is counted, never a sweep (Matt, 2026-10-29: "Also don't spin
+  /// the progress bar on the sync just make it fill as it's being synced"). "Syncing, 12 of 40".
+  SyncCount? _count;
+
+  SyncCount _counting() => _count ??= SyncCount(onChange: (count) => _job?.progress(fraction: count.fraction, steps: count.steps));
+
   void _movedSome(int count) {
     if (count <= 0) return;
     _moved += count;
@@ -529,6 +541,7 @@ class SyncEngine {
   void _endJob() {
     final job = _job, moved = _moved, failure = _failure;
     _job = null;
+    _count = null;
     _moved = 0;
     _failure = null;
     if (job == null) return;
@@ -622,7 +635,9 @@ class SyncEngine {
       return;
     }
     final accountKey = key;
-    if (parts != _Parts.notifications) _job ??= activity.begin(syncJobId, kind: JobKind.sync, title: 'Syncing', showAfter: syncShownAfter);
+    // Its bar at 0 until the pass knows what it will do: a sync fills, it never sweeps.
+    if (parts != _Parts.notifications) _job ??= activity.begin(syncJobId, kind: JobKind.sync, title: 'Syncing', fraction: 0, showAfter: syncShownAfter);
+    final count = parts == _Parts.notifications ? null : _counting();
     _failure = null;
     // The notes lately out of a team here, kept from an old build's deletion and put again for it (lib/sync/notes.dart
     // [LeftTeams]): told by the team's channels, read by the account's own sync.
@@ -703,6 +718,7 @@ class SyncEngine {
               meetings: () => prefs.value.meetings,
               syncMeetingRecordings: () => prefs.value.syncMeetingRecordings,
               reseal: reseal,
+              progress: count,
             );
         try {
           final team = await channel(pass(key: orgKey, generation: orgKeys.orgKeyGeneration(row.id)));
@@ -889,6 +905,7 @@ class SyncEngine {
           teamNote: _inTeam,
           sharedLive: sharedLive,
           leftTeams: leftTeams,
+          progress: count,
         )),
       );
       _movedSome(synced?.changed ?? 0);

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart' show GhostApp;
+import 'package:ghost_md/activity/activity_ring.dart' show ActivityRing;
 import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart' show Preferences;
@@ -111,7 +112,9 @@ void main() {
     return app;
   }
 
-  Finder headerKeys() => find.byWidgetPredicate((widget) => widget.key is ValueKey<String> && (widget.key! as ValueKey<String>).value.startsWith('header:'));
+  // The activity ring is the app's own in every version, today's too (Matt, 2026-10-29: "Keep the activity indicator
+  // always showing"): not one of a version's controls.
+  Finder headerKeys() => find.byWidgetPredicate((widget) => widget.key is ValueKey<String> && (widget.key! as ValueKey<String>).value.startsWith('header:') && widget.key != ActivityRing.key_);
 
   Set<String> drawn(WidgetTester tester) => {for (final element in headerKeys().evaluate()) (element.widget.key! as ValueKey<String>).value.substring('header:'.length)};
 
@@ -251,7 +254,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       await pumpShell(tester, version: HeaderToolbarVersion.today, window: mac);
       expect(headerKeys(), findsNothing);
-      for (final label in ['Home', 'All your notes', 'All notes, by folder', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications, something new', 'Settings', 'Side panel', 'More for this note', 'Showing the formatted note. Show the marks.']) {
+      for (final label in ['Home', 'All your notes', 'More: all notes by folder, a new note', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications, something new', 'Settings', 'Side panel', 'More for this note', 'Showing the formatted note. Show the marks.']) {
         expect(find.bySemanticsLabel(label), findsWidgets, reason: label);
       }
       semantics.dispose();
@@ -406,42 +409,75 @@ void main() {
       final t = GlacierTheme.of(tester.element(find.byType(AppTabBar)));
       final phone = window.size.width < 600;
       final ring = phone ? t.len('app-ring') * dockScrolledScale + 2.5 : t.lenOf('calc(var(--glacier-space-10) * 0.68)');
-      for (final id in ['home', 'filters', 'search', 'new', 'overflow']) {
+      for (final id in ['home', 'filters', 'search', 'overflow']) {
         final rect = tester.getRect(find.byKey(HeaderAct.keyOf(id)).first);
         expect((rect.height - ring).abs(), lessThan(1), reason: '$id is ${rect.height}, wanted $ring');
       }
       if (phone) expect(ring, greaterThan(t.lenOf('calc(var(--glacier-space-10) * 0.68)') + 2));
       double glyphIn(String id) => tester.widget<HeaderGlyph>(find.descendant(of: find.byKey(HeaderAct.keyOf(id)), matching: find.byType(HeaderGlyph)).first).size;
       expect(glyphIn('home'), 19 + (phone ? 1.5 : 0));
-      expect(glyphIn('new'), 16 + (phone ? 1.5 : 0));
-      // Home, Filters and the + always in the row; the pill a word on a phone.
+      // Home and Filters always in the row (a new note is under ••• now); the pill a word on a phone.
       expect(find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.text(phone ? 'Search' : 'Search or run a command')), findsOneWidget);
     });
   }
 
-  // Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view".
+  // Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header". Every
+  // note by folder (2026-10-29: "add a folder icon to the top near home and sidebar") and a new note are the first two
+  // rows of the bar's •••, on a note and at home, in every version; today's bar, which had no ••• of its own, has one
+  // after the sidebar's icon. Neither is in the row, and the tabs have no + after them.
   for (final version in HeaderToolbarVersion.values) {
     for (final window in windows) {
-      barTest('${version.number} ${version.label}, ${window.name}: the folder beside Home and the sidebar opens All notes by folder', (tester) async {
-        final semantics = tester.ensureSemantics();
-        final app = await pumpShell(tester, version: version, window: window, note: false);
-        // In the row itself, never under •••, at every width.
-        final folder = version == HeaderToolbarVersion.today ? find.bySemanticsLabel('All notes, by folder') : find.byKey(HeaderAct.keyOf('folders'));
-        expect(folder, findsOneWidget);
-        expect(find.byType(PopMenu), findsNothing);
-        final at = tester.getRect(folder);
-        expect(at.right <= window.size.width && at.left >= 0, isTrue, reason: '$at');
-        if (version != HeaderToolbarVersion.today) {
-          // Beside Home and the sidebar: after them, and before the title pill where there is one.
-          expect(at.left, greaterThan(tester.getRect(find.byKey(HeaderAct.keyOf('home'))).left));
-          final pill = find.byKey(HeaderAct.keyOf('search'));
-          if (pill.evaluate().isNotEmpty) expect(at.right, lessThan(tester.getRect(pill).left));
-        }
-        await tester.tap(folder);
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(app.screen, const ScreenNotes(icons: true));
-        semantics.dispose();
-      });
+      for (final note in [true, false]) {
+        barTest('${version.number} ${version.label}, ${window.name}, ${note ? 'a note' : 'home'}: every note by folder and a new note are under •••, first, and do what they say', (tester) async {
+          final semantics = tester.ensureSemantics();
+          final said = <String>[];
+          final app = await pumpShell(tester, version: version, window: window, note: note, log: said);
+          expect(find.byKey(HeaderAct.keyOf('folders')), findsNothing, reason: 'not in the row');
+          expect(find.byKey(HeaderAct.keyOf('new')), findsNothing, reason: 'not in the row');
+          expect(find.bySemanticsLabel('All notes, by folder'), findsNothing);
+          expect(find.bySemanticsLabel('New note'), findsNothing, reason: 'no + after the tabs');
+          Future<void> open() async {
+            if (version == HeaderToolbarVersion.today) {
+              await tester.tap(find.bySemanticsLabel('More: all notes by folder, a new note'));
+              await tester.pump(const Duration(milliseconds: 400));
+            } else {
+              final before = drawn(tester);
+              // The bar's ••• (the note's pill's, or at home a circle of its own), or the menu that version has for it.
+              for (final trigger in const ['overflow', 'search']) {
+                final found = find.byKey(HeaderAct.keyOf(trigger));
+                if (found.evaluate().isEmpty) continue;
+                await tester.tap(found.last, warnIfMissed: false);
+                await tester.pump(const Duration(milliseconds: 400));
+                if (find.byKey(HeaderAct.keyOf('folders')).evaluate().isNotEmpty) break;
+                if (drawn(tester).length > before.length) {
+                  await tester.tap(found.last, warnIfMissed: false);
+                  await tester.pump(const Duration(milliseconds: 400));
+                }
+              }
+            }
+          }
+
+          final before = drawn(tester);
+          await open();
+          expect(find.byKey(HeaderAct.keyOf('folders')), findsOneWidget, reason: 'under •••');
+          expect(find.byKey(HeaderAct.keyOf('new')), findsOneWidget, reason: 'under •••');
+          // The first two rows: every note by folder, then a new note, then the rest.
+          final folders = tester.getRect(find.byKey(HeaderAct.keyOf('folders')));
+          final make = tester.getRect(find.byKey(HeaderAct.keyOf('new')));
+          expect(folders.top, lessThan(make.top));
+          for (final id in drawn(tester).difference(before).difference({'folders', 'new'})) {
+            expect(tester.getRect(find.byKey(HeaderAct.keyOf(id)).last).top, greaterThan(make.top), reason: '$id after them');
+          }
+          await tester.tap(find.byKey(HeaderAct.keyOf('new')));
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(said, contains('new'));
+          await open();
+          await tester.tap(find.byKey(HeaderAct.keyOf('folders')));
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(app.screen, const ScreenNotes(icons: true));
+          semantics.dispose();
+        });
+      }
     }
   }
 

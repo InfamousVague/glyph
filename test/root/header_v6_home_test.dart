@@ -313,13 +313,20 @@ void main() {
   // Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view".
   for (final version in [HeaderToolbarVersion.today, HeaderToolbarVersion.groupedCommand, HeaderToolbarVersion.command]) {
     for (final size in [phone, unfolded]) {
-      testWidgets('${version.number} ${version.label}, ${size.width.round()} wide: the bar’s folder opens All notes in its icon view, nothing kept', (tester) async {
+      testWidgets('${version.number} ${version.label}, ${size.width.round()} wide: the folder under the bar’s ••• opens All notes in its icon view, nothing kept', (tester) async {
         final semantics = tester.ensureSemantics();
         final stored = MemoryStored();
         await launch(tester, size: size, version: version.id, stored: stored);
-        final folder = version == HeaderToolbarVersion.today ? find.bySemanticsLabel('All notes, by folder') : find.byKey(HeaderAct.keyOf('folders'));
-        expect(folder, findsOneWidget);
+        // Under •••, not in the row (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as
+        // the + button in the header").
+        final folder = find.byKey(HeaderAct.keyOf('folders'));
+        expect(folder, findsNothing);
         expect(find.byKey(HeaderAct.keyOf('home')).evaluate().isNotEmpty || version == HeaderToolbarVersion.today, isTrue);
+        await tester.tap(version == HeaderToolbarVersion.today ? find.bySemanticsLabel('More: all notes by folder, a new note') : find.byKey(HeaderAct.keyOf('overflow')).last);
+        for (var i = 0; i < 4; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(folder, findsOneWidget);
         await tester.tap(folder);
         for (var i = 0; i < 8; i++) {
           await tester.pump(const Duration(milliseconds: 100));

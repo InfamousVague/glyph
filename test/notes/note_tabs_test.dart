@@ -66,11 +66,17 @@ void main() {
     });
 
     testWidgets('answers each control with its own doing, and leaves a dead arrow dead', (tester) async {
-      final log = await pumpBar(tester, open: const ['weekend'], canGoBack: true, aside: true);
-      for (final label in ['Home', 'All your notes', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications', 'Settings', 'Side panel', 'New note in a new tab']) {
+      final log = await pumpBar(tester, open: const ['weekend'], canGoBack: true, aside: true, kept: true);
+      for (final label in ['Home', 'All your notes', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications', 'Settings', 'Side panel']) {
         await tester.tap(find.bySemanticsLabel(label), warnIfMissed: false);
         await tester.pump();
       }
+      // A new note under the ••• after the sidebar's icon (Matt, 2026-10-29: "Put the all files folder icon under the
+      // more menu as well as the + button in the header").
+      await tester.tap(find.bySemanticsLabel('More: all notes by folder, a new note'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('New note'));
+      await tester.pump();
       // Nowhere forward to go: still there, so the row never changes width, but plainly dead.
       expect(log.said, ['home', 'sidebar', 'back', 'organizations', 'notifications', 'settings', 'aside', 'new']);
       await away(tester);
@@ -251,7 +257,8 @@ void main() {
       expect(named(tester, 'Groceries, in Home'), boxAt(167.39, 43.78, 161.02, 40.89));
       expect(tester.getRect(find.byType(SpacePill).first), boxAt(180.78, 49.58, 60.92, 29.3));
       expect(named(tester, 'Close Weekend trip'), boxAt(132.17, 51.33, 26.77, 26.77));
-      expect(named(tester, 'New note in a new tab'), boxAt(612.16, 50.34, 26.77, 26.77));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       expect(find.byTooltip('x'), findsNothing);
       for (final title in ['Weekend trip', 'Groceries', 'Monday standup']) {
         expect(find.bySemanticsLabel('Close $title'), findsOneWidget);
@@ -270,7 +277,8 @@ void main() {
       expect(named(tester, 'Back to where you were'), boxAt(48.2, 51.59, 30.35, 30.35));
       expect(named(tester, 'Organizations'), boxAt(267.71, 51.59, 30.35, 30.35));
       expect(named(tester, 'Settings'), boxAt(337.34, 51.59, 30.35, 30.35));
-      expect(named(tester, 'New note in a new tab'), boxAt(561.42, 11.29, 26.77, 26.77));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       // The cross is the open tab's alone.
       expect(find.bySemanticsLabel(RegExp('^Close ')), findsNothing);
       await away(tester);
@@ -303,7 +311,8 @@ void main() {
       expect(tab(tester, 0), boxAt(13.39, 43.75, 103.94, 40.92));
       expect(tab(tester, 1), boxAt(135.17, 43.75, 147.17, 40.92));
       expect(tab(tester, 2), boxAt(300.19, 43.75, 196.02, 40.92));
-      expect(named(tester, 'New note in a new tab'), boxAt(518.5, 50.83, 26.77, 26.77));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       await away(tester);
       final log = await pumpBar(tester, style: TopBarStyle.masthead, open: three, active: 'groceries', canGoOn: true, canGoBack: true);
       await tester.tap(find.bySemanticsLabel('Forward again'));
@@ -327,7 +336,8 @@ void main() {
       expect(tab(tester, 0), boxAt(23.31, 57.74, 117.78, 36.92));
       expect(tab(tester, 1), boxAt(145.55, 57.74, 161.02, 36.92));
       expect(tester.getRect(find.byType(SpacePill).first), boxAt(158.94, 61.55, 60.92, 29.3));
-      expect(named(tester, 'New note in a new tab'), boxAt(561 - 31.22, 62.81, 26.77, 26.77));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       await away(tester);
       // With nothing open the bar is one line.
       await pumpBar(tester, style: TopBarStyle.islands, atHome: true);
@@ -352,7 +362,8 @@ void main() {
       expect(tester.getRect(find.byType(GroupChip)), boxAt(188.02, 59.7, 61.47, 25.5));
       expect(tab(tester, 1), boxAt(253.48, 49.66, 214.2, 45.58));
       expect(tab(tester, 2), boxAt(469.69, 49.66, 267.31, 45.58));
-      expect(named(tester, 'New note in a new tab'), boxAt(744.27, 56.65, 31.61, 31.61));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       // The row fits, so neither end fades.
       expect(find.byType(BlurSides), findsNothing);
       await away(tester);
@@ -369,7 +380,8 @@ void main() {
       expect(named(tester, 'All your notes'), boxAt(57.47, 4.86, 33.12, 33.12));
       expect(tab(tester, 0), boxAt(14.61, 46.74, 159.73, 42.78));
       expect(tab(tester, 1), boxAt(176.34, 45.76, 204.36, 43.77));
-      expect(named(tester, 'New note in a new tab'), boxAt(644.95, 53.02, 29.22, 29.22));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       await away(tester);
     });
 
@@ -410,7 +422,8 @@ void main() {
       expect(find.bySemanticsLabel('Trip, 2 tabs, folded'), findsOneWidget);
       expect(tester.getRect(find.byType(GroupChip)), boxAt(168.39, 52.19, 58.11, 24.03));
       expect(tester.getRect(find.byType(TabRow)), boxAt(0, 43.75, 390, 40.92));
-      expect(named(tester, 'New note in a new tab'), boxAt(234.95, 50.83, 26.77, 26.77));
+      // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       await away(tester);
     });
 

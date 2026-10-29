@@ -9,6 +9,8 @@
 /// - **The note's own**, at the end: Grouped's second pill, the view switch and the two most used of its actions, with
 ///   ••• for the rest of them, More for this note, and what the row has no room for. Then the round button for you
 ///   (the bell, the organizations, Settings), wearing the bell's dot.
+/// - **Under •••**, first, on every screen (Matt, 2026-10-29: "Put the all files folder icon under the more menu as
+///   well as the + button in the header"): every note by folder and a new note.
 ///
 /// **On a narrow window** (the Fold folded, a phone) the title wants the room: the way around is Home and the sidebar,
 /// then Back (Home always shows, Matt, 2026-10-28: "Also always show the home button on the top bar"), the note's
@@ -69,6 +71,8 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   final rest = notShown(parts.actions, shown);
   final more = parts.more;
   final entries = <HeaderMenuEntry>[
+    // What the bar keeps under ••• first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
+    ...keptEntries(parts, more: rest.isNotEmpty || more != null || putAway.isNotEmpty),
     for (final act in rest) HeaderMenuAct(act),
     if (more != null) HeaderMenuAct(more),
     if (putAway.isNotEmpty) ...[

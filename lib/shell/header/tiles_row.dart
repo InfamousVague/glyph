@@ -38,6 +38,9 @@ HeaderRow tilesRow(BuildContext context, HeaderParts parts) {
   final shownActs = parts.actions.take(roomy ? 3 : (wide ? 2 : 1)).toList();
   final you = wide ? [?parts.bell, ?parts.settings] : const <HeaderAct>[];
   final hidden = <HeaderMenuEntry>[
+    // What the bar keeps under ••• first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
+    for (final act in parts.kept) HeaderMenuAct(act, icon: _MenuTile(act: act)),
+    if (parts.kept.isNotEmpty) const HeaderMenuRule(),
     for (final act in notShown(parts.way, way)) HeaderMenuAct(act, icon: _MenuTile(act: act)),
     for (final act in notShown(parts.actions, shownActs)) HeaderMenuAct(act, icon: _MenuTile(act: act)),
     if (parts.more case final more?) HeaderMenuAct(more, icon: _MenuTile(act: more)),

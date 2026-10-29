@@ -2,7 +2,11 @@
 // waiting and a failed row and Today, and a result chip; on a phone and the Mac, light and dark, vivid and Calm.
 //
 // Not held: `FEATURE_SHOTS=1 flutter test --update-goldens test/activity/activity_shots_test.dart` writes them into
-// build/feature-shots/activity/.
+// build/feature-shots/activity/, and into build/feature-shots/activity-idle/ the ring with nothing running (Matt,
+// 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing is happening") at home and
+// on a note, its tray, the bar's ••• with every note by folder and a new note at its top ("Put the all files folder
+// icon under the more menu as well as the + button in the header"), and a sync filling ("Also don't spin the progress
+// bar on the sync just make it fill as it's being synced").
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -29,6 +33,7 @@ void main() {
 
   final shots = Platform.environment.containsKey('FEATURE_SHOTS');
   const folder = '../../build/feature-shots/activity';
+  const idleFolder = '../../build/feature-shots/activity-idle';
   const phone = (name: 'phone', size: Size(390, 844), mobile: true, fine: false);
   const mac = (name: 'mac', size: Size(1280, 800), mobile: false, fine: true);
 
@@ -109,11 +114,60 @@ void main() {
     }
   }
 
-  Future<void> picture(WidgetTester tester, String name) async {
+  Future<void> picture(WidgetTester tester, String name, {String into = folder}) async {
     for (var i = 0; i < 4; i += 1) {
       await tester.pump(const Duration(milliseconds: 150));
     }
-    await expectLater(find.byType(GhostApp), matchesGoldenFile('$folder/$name.png'));
+    await expectLater(find.byType(GhostApp), matchesGoldenFile('$into/$name.png'));
+  }
+
+  for (final window in [phone, mac]) {
+    for (final theme in ['light', 'dark']) {
+      final look = '${window.name}-$theme';
+      Future<void> idle(WidgetTester tester, Future<void> Function() body) async {
+        if (window == mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        try {
+          await body();
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+          debugDisableShadows = true;
+        }
+      }
+
+      for (final note in [false, true]) {
+        testWidgets('a picture: the idle ring, grey, ${note ? 'on a note' : 'at home'}, $look', (tester) async {
+          await idle(tester, () async {
+            await pumpShell(tester, window, theme: theme, calm: false, note: note);
+            await picture(tester, 'idle-${note ? 'note' : 'home'}-$look', into: idleFolder);
+          });
+        }, skip: !shots);
+      }
+
+      testWidgets('a picture: the idle ring’s tray, $look', (tester) async {
+        await idle(tester, () async {
+          await pumpShell(tester, window, theme: theme, calm: false, note: false);
+          await tester.tap(find.byKey(ActivityRing.key_));
+          await picture(tester, 'idle-tray-$look', into: idleFolder);
+        });
+      }, skip: !shots);
+
+      testWidgets('a picture: the bar’s ••• with every note by folder and a new note, $look', (tester) async {
+        await idle(tester, () async {
+          await pumpShell(tester, window, theme: theme, calm: false, note: false);
+          await tester.tap(find.byKey(const ValueKey('header:overflow')).last);
+          await picture(tester, 'more-menu-$look', into: idleFolder);
+        });
+      }, skip: !shots);
+
+      testWidgets('a picture: a sync filling, 12 of 40, $look', (tester) async {
+        await idle(tester, () async {
+          record.begin('sync', kind: JobKind.sync, title: 'Syncing').progress(fraction: 12 / 40, steps: '12 of 40');
+          await pumpShell(tester, window, theme: theme, calm: false, note: false);
+          await tester.tap(find.byKey(ActivityRing.key_));
+          await picture(tester, 'sync-filling-$look', into: idleFolder);
+        });
+      }, skip: !shots);
+    }
   }
 
   for (final window in [phone, mac]) {

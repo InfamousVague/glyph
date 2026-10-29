@@ -8,6 +8,9 @@
 /// - **The note's own**, at the end: the view switch and the two most used of its actions (three on a wide window),
 ///   then ••• with the rest and More for this note, in a second pill. With nothing else to show, ••• is the note's
 ///   More itself.
+/// - **Under •••**, first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the +
+///   button in the header"): every note by folder and a new note; at home, where there is no note's pill, ••• is a
+///   circle of its own for them.
 /// - **You**: one round button for the app's own - the bell, the organizations, Settings - whose menu has them with
 ///   their badges, and which wears the bell's dot while something is new. The aside's toggle ends the row, a round
 ///   of its own.
@@ -22,6 +25,8 @@
 /// ink with the glyph in paper, where today's rings wore a ring.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -31,14 +36,35 @@ import 'header_kit.dart';
 
 HeaderRow groupedRow(BuildContext context, HeaderParts parts) {
   Widget solid(Widget child) => styled(context, IconStyle.solid, child);
-  final way = parts.way;
+  // A cramped row (a Mac's window at a phone's width, its window buttons at the start) on a note puts Back and Forward
+  // under the note's •••, with the activity ring always in the row (Matt, 2026-10-29: "Keep the activity indicator
+  // always showing just have it gray put when nothing is happening").
+  final putAway = parts.onNote && parts.cramped ? [?parts.back, ?parts.forward] : const <HeaderAct>[];
+  final way = notShown(parts.way, putAway);
   return HeaderRow(
     lead: [
       if (way.isNotEmpty) solid(GroupedWay(way: way, fine: parts.fine)),
     ],
     trail: [
       ?parts.presence,
-      if (parts.onNote) solid(_NotePill(parts: parts)) else ...fallbackTools(parts),
+      if (parts.onNote) solid(_NotePill(parts: parts, putAway: putAway)) else ...[
+        ...fallbackTools(parts),
+        // At home there is no note's pill: ••• is a circle of its own, for what the bar keeps under it.
+        if (parts.kept.isNotEmpty)
+          solid(
+            GroupedPill(
+              children: [
+                HeaderMenuButton(
+                  act: moreAct(),
+                  fine: parts.fine,
+                  radius: 999,
+                  entries: keptEntries(parts, more: false),
+                  face: (context, state, open) => GroupedSegmentFace(act: moreAct(), state: state, on: open),
+                ),
+              ],
+            ),
+          ),
+      ],
       ?parts.activity,
       if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts)),
       if (parts.aside case final aside?) solid(GroupedPill(children: [GroupedSegment(act: aside, fine: parts.fine)])),
@@ -53,30 +79,39 @@ List<Widget> fallbackTools(HeaderParts parts) => [
       ?parts.tail,
     ];
 
-/// The note's pill: the view, the most used, and ••• for the rest.
+/// The note's pill: the view, the most used, and ••• for the rest, and for the way around a cramped row put away.
 class _NotePill extends StatelessWidget {
-  const _NotePill({required this.parts});
+  const _NotePill({required this.parts, this.putAway = const []});
   final HeaderParts parts;
+  final List<HeaderAct> putAway;
 
   @override
   Widget build(BuildContext context) {
-    final shown = parts.actions.take(parts.wide ? 3 : 2).toList();
+    // Three on a wide window, two on a phone, one where the row is cramped; on a narrow row the button for you takes a
+    // circle's room from them, two on a 360 phone's (a phone reading a note has none; the one frame a note's tools stay
+    // in the row as you leave it for All notes, and a Mac's narrowed window, have it), with the activity ring always
+    // in the row (Matt, 2026-10-29: "Keep the activity indicator always showing").
+    final crowd = parts.you.isNotEmpty && !parts.wide ? (parts.room < snugRoom ? 2 : 1) : 0;
+    final shown = parts.actions.take(parts.wide ? 3 : math.max(0, (parts.cramped ? 1 : 2) - crowd)).toList();
     final rest = notShown(parts.actions, shown);
     final more = parts.more;
     return GroupedPill(
       children: [
         if (parts.view case final view?) GroupedSegment(act: view, fine: parts.fine),
         for (final act in shown) GroupedSegment(act: act, fine: parts.fine),
-        if (rest.isEmpty && more != null)
+        if (rest.isEmpty && parts.kept.isEmpty && more != null)
           GroupedSegment(act: more, fine: parts.fine)
-        else if (rest.isNotEmpty)
+        else if (rest.isNotEmpty || parts.kept.isNotEmpty)
           HeaderMenuButton(
             act: moreAct(label: 'More for this note: the rest of its tools'),
             fine: parts.fine,
             radius: 999,
             entries: [
+              // What the bar keeps under ••• first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
+              ...keptEntries(parts, more: rest.isNotEmpty || more != null),
               for (final act in rest) HeaderMenuAct(act),
-              if (more != null) ...[const HeaderMenuRule(), HeaderMenuAct(more)],
+              if (more != null) ...[if (rest.isNotEmpty) const HeaderMenuRule(), HeaderMenuAct(more)],
+              if (putAway.isNotEmpty) ...[const HeaderMenuRule(), const HeaderMenuLabel('Go'), for (final act in putAway) HeaderMenuAct(act)],
             ],
             face: (context, state, open) => GroupedSegmentFace(act: moreAct(), state: state, on: open),
           ),
@@ -162,7 +197,7 @@ class GroupedWay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final here = [for (final act in way) if (act.id == 'home' || act.id == 'sidebar' || act.id == 'folders') act];
+    final here = [for (final act in way) if (act.id == 'home' || act.id == 'sidebar') act];
     final been = notShown(way, here);
     return Row(
       mainAxisSize: MainAxisSize.min,

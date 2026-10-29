@@ -212,7 +212,8 @@ class HeaderParts {
     required this.room,
   });
 
-  // The way around: and every note by folder, after the sidebar (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view").
+  // The way around; and every note by folder (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to
+  // show all notes in the folder / icon view"), which is under ••• now, not in the row ([kept]).
   final HeaderAct? home, sidebar, folders, back, forward;
 
   /// The note's view switch, its spare actions in today's order (Share, History, Links, Comment, Bookmark, Pin,
@@ -234,9 +235,9 @@ class HeaderParts {
   /// Who else is here: the Claude chip, drawn as it comes.
   final Widget? presence;
 
-  /// The ring of the app's running work (lib/activity/activity_ring.dart; docs/ACTIVITY.md), drawn as it comes beside
-  /// the button for you, or where a version has none, before the app's own; null while nothing runs, so an idle row
-  /// is the row it was.
+  /// The ring of the app's running work (lib/activity/activity_ring.dart; docs/ACTIVITY.md), beside the button for
+  /// you, or where a version has none, before the app's own; the app hands it always, grey while nothing runs, so its
+  /// room is kept (null only where a caller has no ring to give, as the web's page and some tests).
   final Widget? activity;
 
   /// The home page's Filters, handed to the bar to draw in its own look; null off the home page, and for a version
@@ -261,7 +262,12 @@ class HeaderParts {
   bool get onNote => view != null;
 
   /// The way around, in today's order.
-  List<HeaderAct> get way => [?home, ?sidebar, ?folders, ?back, ?forward];
+  List<HeaderAct> get way => [?home, ?sidebar, ?back, ?forward];
+
+  /// What every version keeps under its ••• rather than in its row, at the menu's top (Matt, 2026-10-29: "Put the
+  /// all files folder icon under the more menu as well as the + button in the header"): every note by folder, then a
+  /// new note. ⌘N and the palette's commands make a note as they did; the home page's dock keeps its +.
+  List<HeaderAct> get kept => [?folders, ?newNote];
 
   /// The note's own, the view first.
   List<HeaderAct> get noteActs => [?view, ...actions];
@@ -271,7 +277,20 @@ class HeaderParts {
 
   /// Whether the row has room for words: the opened Fold, a tablet, the Mac.
   bool get wide => room >= 600;
+
+  /// Whether the row is narrower than a 360 phone's ([crampedRoom]): a Mac's window narrowed to a phone's width, its
+  /// window buttons taking the row's start. With the activity ring always in the row (Matt, 2026-10-29: "Keep the
+  /// activity indicator always showing just have it gray put when nothing is happening") a version puts a little more
+  /// under its ••• there.
+  bool get cramped => room < crampedRoom;
 }
+
+/// The row under which a 360 phone's is: a 390 phone's row is about 354 wide, a 360 phone's about 324.
+const double snugRoom = 340;
+
+/// The row under which [HeaderParts.cramped] holds: a 360 phone's row is about 324, a Mac's window at 390 with its
+/// window buttons about 291.
+const double crampedRoom = 310;
 
 /// What a version draws on the row: the start, a middle that takes what is left (or nothing, the start and end
 /// pushed apart), and the end. The bar lays them out for its style: on one line, or the Islands' capsules.

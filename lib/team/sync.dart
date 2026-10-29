@@ -202,6 +202,7 @@ class TeamSyncContext {
     this.olderKey,
     this.meetings,
     this.syncMeetingRecordings,
+    this.progress,
   });
 
   final String token;
@@ -269,6 +270,12 @@ class TeamSyncContext {
   /// goes.
   final Map<String, num> Function()? meetings;
   final bool Function()? syncMeetingRecordings;
+
+  /// Told what the pass finds to do and does (lib/sync/notes.dart [SyncProgress]): the team's rows taken, the
+  /// histories and pictures fetched after them, the logs read, the notes put and deleted, each one step of the
+  /// Syncing job's bar beside the account's own (Matt, 2026-10-29: "Also don't spin the progress bar on the sync just
+  /// make it fill as it's being synced"). None, and nothing is told.
+  final SyncProgress? progress;
 
   /// What this pass still owes the notes it has taken: their versions files and pictures, fetched once the notes
   /// are in.
@@ -588,12 +595,14 @@ Future<void> _pull(TeamSyncContext ctx, _Tally tally) async {
     final items = [for (final raw in page['items'] is List ? page['items'] as List : const <Object?>[]) ?_Row.fromJson(raw)];
     if (items.isNotEmpty) {
       final here = {for (final note in await ctx.notes.list()) note.id: note};
-      for (final item in items) {
-        if (ctx.state.notes[item.id]?.rev == item.rev) continue;
+      final taken = [for (final item in items) if (ctx.state.notes[item.id]?.rev != item.rev) item];
+      ctx.progress?.found(taken.length);
+      for (final item in taken) {
         // A row that will not be read - sealed under a key this device lacks, or cut short - is counted and passed
         // over, so one bad row does not hold every other note of the team's back; it is tried again when it next
         // changes.
         await _counted(tally, () => _takeRow(ctx, item, here[item.id], tally));
+        ctx.progress?.did();
       }
     }
     final rev = _numOf(page, 'rev');
@@ -780,7 +789,9 @@ Future<void> _settleRecordings(TeamSyncContext ctx, List<Note> team, _Tally tall
     final known = ctx.state.notes[note.id];
     final digest = known?.recording;
     if (known == null || digest == null || (note.recordingMs ?? 0) == 0 || known.mark != particulars(note)) continue;
+    ctx.progress?.found(1);
     await _counted(tally, () => fetchRecordingOf(ctx._files, note.id, digest));
+    ctx.progress?.did();
   }
 }
 
@@ -822,6 +833,8 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
   ];
   final onDevice = {for (final note in all) note.id};
   final present = <String>{};
+  // Each of the team's notes here one step of the bar, whether or not it has anything to put.
+  ctx.progress?.found(here.length);
   for (final note in here) {
     present.add(note.id);
     // Its title's mark (lib/sync/sync_marks.dart): seen to as it is now, a tick where something of it went, red with
@@ -836,6 +849,7 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
       }
       noteSyncMarks.teamSeen(note.id, note.updatedAt, went: tally.sent > before);
     });
+    ctx.progress?.did();
   }
   // Gone from here, or taken out of the organization's workspace: gone from the team. Only on evidence (2026-10-26:
   // 108 team notes were deleted for every member by a build that read the organizations' folders as personal): a
@@ -850,6 +864,7 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
   for (final id in ctx.state.notes.keys.toList()) {
     if (present.contains(id)) continue;
     if (onDevice.contains(id) && !(ctx.leftTeam?.call(id) ?? false)) continue;
+    ctx.progress?.found(1);
     await _counted(tally, () async {
       final known = ctx.state.notes[id]!;
       final path = ctx._route('notes/${Uri.encodeComponent(id)}');
@@ -866,6 +881,7 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
       // Still here, the person's own note now: its team's row gone by this device's hand.
       if (onDevice.contains(id)) ctx.keptOut?.call(id);
     });
+    ctx.progress?.did();
   }
   ctx.save(ctx.state);
 }
@@ -932,8 +948,10 @@ Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
   if (tally.changed > 0) ctx.pulled?.call();
   final later = ctx._later.toList();
   ctx._later.clear();
+  ctx.progress?.found(later.length);
   for (final fetch in later) {
     await _counted(tally, fetch);
+    ctx.progress?.did();
   }
   final team = [
     for (final note in await ctx.notes.list())
@@ -950,7 +968,9 @@ Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
     // A log that has not moved past what this device applied is not read: one request for the organization, not one
     // a note.
     if (moved != null && (moved[note.id] ?? 0) <= doc.seq) continue;
+    ctx.progress?.found(1);
     await _counted(tally, () => _takeUpdates(ctx, doc, tally));
+    ctx.progress?.did();
   }
   await _push(ctx, tally);
   ctx.save(ctx.state);
@@ -985,6 +1005,7 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       olderKey: pass.olderKey,
       meetings: pass.meetings,
       syncMeetingRecordings: pass.syncMeetingRecordings,
+      progress: pass.progress,
     );
 
 /// The engine's step-5 hook (lib/sync/engine.dart `teamNotes`): one pass of an organization's channel, or, when the

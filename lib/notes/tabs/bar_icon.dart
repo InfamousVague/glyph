@@ -5,8 +5,8 @@ import '../../art/icons.dart';
 import '../../art/lucide.g.dart';
 
 /// The glyphs the top bar draws (notes/NoteTabs.tsx: `House` of art/Icons.tsx, and `PanelLeft`, `ArrowLeft`,
-/// `ArrowRight`, `UserGroup`, `Bell`, `Settings`, `Plus` and `X` of @glacier/icons).
-enum BarGlyph { house, panelLeft, folder, arrowLeft, arrowRight, people, bell, settings, plus, close }
+/// `ArrowRight`, `UserGroup`, `Bell`, `Settings`, `Plus` and `X` of @glacier/icons), and the app's own •••.
+enum BarGlyph { house, panelLeft, folder, arrowLeft, arrowRight, people, bell, settings, plus, close, more }
 
 /// One glyph of the bar, at the size the web draws it, in the colour of the control it is in.
 ///
@@ -37,6 +37,7 @@ class BarIcon extends StatelessWidget {
         BarGlyph.settings => Lucide.settings,
         BarGlyph.plus => Lucide.plus,
         BarGlyph.close => Lucide.x,
+        BarGlyph.more => Lucide.ellipsis,
       };
 
   /// `strokeWidth={…}` as NoteTabs.tsx writes it for [glyph].

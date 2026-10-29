@@ -38,7 +38,8 @@ class BarLog {
 }
 
 /// The bar as the shell draws it, over a page of paper: [style] on a window of [size], with [open] as its tabs and
-/// [active] the one being read. `split` is whether the window is in two panes, as the shell stamps it.
+/// [active] the one being read. `split` is whether the window is in two panes, as the shell stamps it. [kept] gives
+/// it a new note, and with it the ••• that holds it.
 Future<BarLog> pumpBar(
   WidgetTester tester, {
   TopBarStyle style = TopBarStyle.classic,
@@ -55,6 +56,7 @@ Future<BarLog> pumpBar(
   bool canGoOn = false,
   bool fine = false,
   bool aside = false,
+  bool kept = false,
   List<OrgLike> organizations = const [],
   Widget? tools,
   Widget? tail,
@@ -77,7 +79,10 @@ Future<BarLog> pumpBar(
     onOpen: (id) => log('open $id'),
     onClose: (id) => log('close $id'),
     onDelete: (id) => log('delete $id'),
-    onNew: () => log('new'),
+    // A new note is under the app's own ••• after the sidebar's icon (Matt, 2026-10-29: "Put the all files folder icon
+    // under the more menu as well as the + button in the header"), drawn only where it is given ([kept]): the web's
+    // bar, which these boxes were measured on, has no •••, and its + after the tabs is gone here.
+    onNew: kept ? () => log('new') : null,
     onGroups: onGroups ?? (next) => log('groups ${next.list.map((g) => '${g.name}:${g.hue}${g.collapsed ? ':folded' : ''}').join(',')} ${next.of}'),
     onCloseTabs: (ids) => log('close tabs $ids'),
     onSidebar: () => log('sidebar'),

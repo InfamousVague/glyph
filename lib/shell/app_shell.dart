@@ -869,7 +869,8 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  /// The ring over simple mode's plain places, which have no bar to hold it: only while [activityShown] holds.
+  /// The ring over simple mode's plain places, which have no bar to hold it: only while [activityShown] holds, never the
+  /// idle grey ring the bar keeps (there is no bar here for it to sit in).
   Widget _floatingRing(BuildContext context) => ValueListenableBuilder<bool>(
         valueListenable: activityShown,
         builder: (context, shown, _) {
@@ -987,8 +988,7 @@ class AppShellState extends State<AppShell> {
     final simple = widget.simple;
     final named = widget.headerToolbar;
     return ListenableBuilder(
-      // The ring of running work comes and goes as there is something to show (lib/activity/activity_ring.dart).
-      listenable: Listenable.merge([_barTools, ?chip?.changes, if (named == null) headerToolbarChoice, activityShown]),
+      listenable: Listenable.merge([_barTools, ?chip?.changes, if (named == null) headerToolbarChoice]),
       builder: (context, _) => AppTabBar(
         style: widget.topBar,
         child: NoteTabs(
@@ -1009,7 +1009,9 @@ class AppShellState extends State<AppShell> {
           tools: _barTools.tools,
           tail: _barTools.tail,
           presence: chip?.build(context),
-          activity: activityShown.value ? ActivityRing(fine: _mouse, simple: simple) : null,
+          // The ring of running work, always there and grey while nothing runs (lib/activity/activity_ring.dart; Matt,
+          // 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing is happening").
+          activity: ActivityRing(fine: _mouse, simple: simple),
           onOpen: openNote,
           onClose: closeTab,
           onNew: widget.onNew,

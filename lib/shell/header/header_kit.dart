@@ -416,5 +416,11 @@ HeaderAct youAct(HeaderParts parts) => HeaderAct(
       dot: parts.unread,
     );
 
+/// [HeaderParts.kept] as the first rows of a version's •••, with a rule after them where [more] rows follow.
+List<HeaderMenuEntry> keptEntries(HeaderParts parts, {bool more = true, Widget? Function(HeaderAct act)? icon}) => [
+      for (final act in parts.kept) HeaderMenuAct(act, icon: icon?.call(act)),
+      if (more && parts.kept.isNotEmpty) const HeaderMenuRule(),
+    ];
+
 /// The menu of more's own act.
 HeaderAct moreAct({String label = 'More'}) => HeaderAct(id: 'overflow', label: label, word: 'More', hue: 'indigo', icon: Lucide.ellipsis, onPress: () {});

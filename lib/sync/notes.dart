@@ -149,6 +149,71 @@ const Duration leftTeamsKept = Duration(days: 14);
 /// How often, while kept, its row is put again ([LeftTeams.owed]).
 const Duration leftTeamsAgain = Duration(hours: 1);
 
+/// What a pass has found to do and has done, told as it goes (Matt, 2026-10-29: "Also don't spin the progress bar on
+/// the sync just make it fill as it's being synced"): rows of the feed to merge, notes to send or delete, a picture or
+/// a file to send or fetch. The engine sums the account's pass and every team's into the Syncing job's bar ([SyncCount]).
+abstract interface class SyncProgress {
+  /// [count] more to do.
+  void found(int count);
+
+  /// [count] of them done, however each went.
+  void did([int count = 1]);
+}
+
+/// The Syncing job's count: what its passes have found to do ([todo]) and done ([done]), and the bar they fill
+/// ([fraction]), which never goes back within the job though more is found as it goes, and is 0 before anything is
+/// counted. [onChange] hears it as more is found, and as the count goes at most once a whole percent of it (so a pass of
+/// a thousand notes is not a thousand changes), and always at the last.
+class SyncCount implements SyncProgress {
+  SyncCount({this.onChange});
+
+  final void Function(SyncCount count)? onChange;
+  int _todo = 0, _done = 0;
+  double _fraction = 0;
+  int _toldAt = -1;
+
+  int get todo => _todo;
+  int get done => _done;
+  double get fraction => _fraction;
+
+  /// "12 of 40"; null before anything is counted.
+  String? get steps => _todo == 0 ? null : '$_done of $_todo';
+
+  @override
+  void found(int count) {
+    if (count <= 0) return;
+    _todo += count;
+    _tell(found: true);
+  }
+
+  @override
+  void did([int count = 1]) {
+    if (count <= 0) return;
+    _done = (_done + count).clamp(0, _todo);
+    _tell();
+  }
+
+  void _tell({bool found = false}) {
+    final now = _todo == 0 ? 0.0 : _done / _todo;
+    if (now > _fraction) _fraction = now;
+    final percent = (now * 100).floor();
+    if (!found && percent == _toldAt && _done < _todo) return;
+    _toldAt = percent;
+    onChange?.call(this);
+  }
+}
+
+/// [run], one thing of the pass: told to [SyncContext.progress] as one more to do, and done however it went (a picture
+/// or a file sent or fetched: one step of the bar).
+Future<T> _oneStep<T>(SyncContext ctx, Future<T> Function() run) async {
+  ctx.progress?.found(1);
+  try {
+    return await run();
+  } finally {
+    ctx.progress?.did();
+  }
+}
+
 /// What a pass works with (`SyncContext`).
 class SyncContext {
   SyncContext({
@@ -169,6 +234,7 @@ class SyncContext {
     this.filesRoute,
     this.generation,
     this.leftTeams,
+    this.progress,
   });
 
   final String token;
@@ -210,6 +276,9 @@ class SyncContext {
 
   /// The notes lately out of a team here, kept from an old build's deletion ([LeftTeams]); none, and none are.
   final LeftTeams? leftTeams;
+
+  /// Told what the pass finds to do and does ([SyncProgress]); none, and nothing is told.
+  final SyncProgress? progress;
 
   Map<String, num> get _meetings => meetings?.call() ?? const {};
   bool get _syncMeetings => syncMeetingRecordings?.call() ?? true;
@@ -1010,13 +1079,13 @@ Future<void> settlePictures(SyncContext ctx) async {
         if (held != null && held > 0) {
           ctx.state.files[id] = FileMark(rev: held);
         } else {
-          await sendFile(ctx, FileKind.image, name, bytes);
+          await _oneStep(ctx, () => sendFile(ctx, FileKind.image, name, bytes));
         }
         continue;
       }
       final asked = _unsent[id];
       if (asked != null && now() - asked < askAgainMs) continue;
-      if (await fetchFile(ctx, FileKind.image, name)) {
+      if (await _oneStep(ctx, () => fetchFile(ctx, FileKind.image, name))) {
         _unsent.remove(id);
       } else {
         _unsent[id] = now();
@@ -1046,7 +1115,7 @@ Future<void> _settleAttachmentsOf(SyncContext ctx, String body, Set<String> seen
           ctx.state.files[id] = FileMark(rev: held);
         } else {
           final bytes = await ctx.files.read(FileKind.attachment, name);
-          if (bytes != null) await sendFile(ctx, FileKind.attachment, name, bytes);
+          if (bytes != null) await _oneStep(ctx, () => sendFile(ctx, FileKind.attachment, name, bytes));
         }
         continue;
       }
@@ -1054,7 +1123,7 @@ Future<void> _settleAttachmentsOf(SyncContext ctx, String body, Set<String> seen
       if ((bytesOfSize(match.group(3)) ?? 0) > attachmentSyncLimit) continue;
       final asked = _unsent[id];
       if (asked != null && now() - asked < askAgainMs) continue;
-      if (await fetchFile(ctx, FileKind.attachment, name)) {
+      if (await _oneStep(ctx, () => fetchFile(ctx, FileKind.attachment, name))) {
         _unsent.remove(id);
       } else {
         _unsent[id] = now();
@@ -1068,7 +1137,7 @@ Future<void> _settleAttachmentsOf(SyncContext ctx, String body, Set<String> seen
     if ((ctx.state.files[id]?.rev ?? 0) > 0) continue;
     if (await ctx.files.lengthOf(FileKind.text, key) == null) continue;
     final bytes = await ctx.files.read(FileKind.text, key);
-    if (bytes != null) await sendFile(ctx, FileKind.text, key, bytes);
+    if (bytes != null) await _oneStep(ctx, () => sendFile(ctx, FileKind.text, key, bytes));
   }
 }
 
@@ -1252,16 +1321,25 @@ Future<void> _pull(SyncContext ctx, Outcome outcome) async {
     ];
     if (items.isNotEmpty) {
       final here = {for (final note in await ctx.notes.list()) note.id: note};
-      for (final item in items) {
-        // A revision already seen is this device's own write coming back.
-        if (ctx.state.notes[item.id]?.rev == item.rev) continue;
-        // A team's note now (docs/SHARED.md, S1): the organization channel has it, and the account's row is stale.
-        if (ctx._team(item.id)) continue;
-        // Live with another device right now: its words are arriving a keystroke at a time already, and a merge made
-        // mid-sentence would take the few characters still in flight for a conflict. Its revision stays unrecorded,
-        // so once the session ends the push meets it as a 409 and finds the same words (docs/LIVE.md).
-        if (ctx._live(item.id)) continue;
+      final taken = [
+        for (final item in items)
+          // A revision already seen is this device's own write coming back.
+          if (ctx.state.notes[item.id]?.rev != item.rev &&
+              // A team's note now (docs/SHARED.md, S1): the organization channel has it, and the account's row is
+              // stale.
+              !ctx._team(item.id) &&
+              // Live with another device right now: its words are arriving a keystroke at a time already, and a merge
+              // made mid-sentence would take the few characters still in flight for a conflict. Its revision stays
+              // unrecorded, so once the session ends the push meets it as a 409 and finds the same words
+              // (docs/LIVE.md).
+              !ctx._live(item.id))
+            item,
+      ];
+      // The page's rows to take, each one step of the bar.
+      ctx.progress?.found(taken.length);
+      for (final item in taken) {
         await _merge(ctx, item, here[item.id], outcome);
+        ctx.progress?.did();
       }
     }
     final rev = page['rev'];
@@ -1391,13 +1469,16 @@ Future<bool> _phrasesOwed(SyncContext ctx, Note note, NoteMark known) async {
 Future<void> _push(SyncContext ctx, Outcome outcome) async {
   final here = await ctx.notes.list();
   final present = <String>{};
+  // What goes, found before any of it is sent, so the bar knows how much there is: each note sent or deleted is one
+  // step of it.
+  final sends = <(String, Note?)>[];
   for (final note in here) {
     present.add(note.id);
     final known = ctx.state.notes[note.id];
     // Filed in an organization's workspace, the note is the team's (docs/SHARED.md, S1): the organization channel
     // carries it from here on, and the account's own row goes, so the account's other devices take it from the team.
     if (ctx._team(note.id)) {
-      if (known != null) await _sendCounted(ctx, note.id, null, outcome);
+      if (known != null) sends.add((note.id, null));
       continue;
     }
     // The account's own again: the revision it once left for a team is no longer what its words are at.
@@ -1407,10 +1488,15 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
     if (ctx._live(note.id)) continue;
     // A note opened and left empty is not a note yet: it is sent once it has words.
     if (known == null && _blank(note)) continue;
-    await _sendCounted(ctx, note.id, note, outcome);
+    sends.add((note.id, note));
   }
   for (final id in ctx.state.notes.keys.toList()) {
-    if (!present.contains(id)) await _sendCounted(ctx, id, null, outcome);
+    if (!present.contains(id)) sends.add((id, null));
+  }
+  ctx.progress?.found(sends.length);
+  for (final (id, note) in sends) {
+    await _sendCounted(ctx, id, note, outcome);
+    ctx.progress?.did();
   }
   ctx.state.teams.removeWhere((id, left) => !present.contains(id) || ctx._clock() - left.at > teamLeftKeptMs);
   // Versions kept with no change to a note's words (one named by hand, or merged with another device's here): the
@@ -1420,7 +1506,7 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
   for (final id in ctx.files.owed()) {
     final note = notes[id];
     if (note == null || ctx._live(id) || ctx._team(id)) continue;
-    await _sendCounted(ctx, id, note, outcome);
+    await _oneStep(ctx, () => _sendCounted(ctx, id, note, outcome));
   }
   // Lately out of a team, and its row due again ([LeftTeams.owed]): put again as it is, for an old build that removed
   // its copy to take it back.
@@ -1428,7 +1514,7 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
   if (left != null) {
     for (final note in here) {
       if (ctx._team(note.id) || ctx._live(note.id) || ctx.state.notes[note.id] == null || !left.owed(note.id)) continue;
-      await _sendCounted(ctx, note.id, note, outcome);
+      await _oneStep(ctx, () => _sendCounted(ctx, note.id, note, outcome));
       left.sent(note.id);
     }
   }

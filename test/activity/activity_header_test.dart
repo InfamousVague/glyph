@@ -1,12 +1,16 @@
 // The ring of running work in the header (lib/activity/activity_ring.dart; docs/ACTIVITY.md, Ring): in every version
 // of the header toolbar and every top bar style, on a phone, the opened Fold and the Mac, beside the button for you;
-// one arc for each job in its colour, the other devices' dimmed; nothing at all while idle; one bloom when all finish;
-// a still red dot when something needs you; the tray it opens, a card under it on a wide window and a sheet on a phone.
+// one arc for each job in its colour, the other devices' dimmed; a quiet grey ring while idle, still a button that opens
+// the tray (Matt, 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing is
+// happening"); one bloom when all finish, then grey again; a still red dot when something needs you; the tray it opens,
+// a card under it on a wide window and a sheet on a phone.
+import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/activity/activity_look.dart';
 import 'package:ghost_md/activity/activity_ring.dart';
 import 'package:ghost_md/activity/activity_tray.dart';
+import 'package:ghost_md/art/app_icon.dart' show AppIcon;
 import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart';
@@ -41,7 +45,7 @@ void main() {
     headerToolbarChoice.set(HeaderToolbarVersion.today.id);
   });
 
-  void barTest(String description, Future<void> Function(WidgetTester tester) body) => testWidgets(description, (tester) async {
+  void barTest(String description, Future<void> Function(WidgetTester tester) body, {bool skip = false}) => testWidgets(description, skip: skip, (tester) async {
         await body(tester);
         debugDisableShadows = true;
       });
@@ -50,6 +54,11 @@ void main() {
   const unfolded = (name: 'unfolded', size: Size(880, 1000), mobile: true, fine: false);
   const mac = (name: 'mac', size: Size(1280, 800), mobile: false, fine: true);
   const windows = [folded, unfolded, mac];
+  // A phone at 360, and a Mac's window at a phone's width (it narrows to 360, macos/Runner/MainFlutterWindow.swift),
+  // its window buttons at the bar's start: the narrowest rows there are.
+  const phone = (name: 'phone-360', size: Size(360, 780), mobile: true, fine: false);
+  const narrowMac = (name: 'mac-narrow', size: Size(390, 700), mobile: false, fine: true);
+  const everyWidth = [phone, folded, unfolded, mac, narrowMac];
 
   Future<void> pumpShell(WidgetTester tester, {HeaderToolbarVersion? version, required ({String name, Size size, bool mobile, bool fine}) window, TopBarStyle style = TopBarStyle.classic, bool note = true, String theme = 'light', bool calm = false}) async {
     final sheet = await appSheet(tester);
@@ -99,44 +108,95 @@ void main() {
 
   ActivityRingPainter painter(WidgetTester tester) => tester.widget<CustomPaint>(find.byKey(const ValueKey('activity-ring:arcs'))).painter! as ActivityRingPainter;
 
-  group('fits every version, every style, every window', () {
+  group('fits every version, every style, every window, idle and busy', () {
     for (final version in HeaderToolbarVersion.values) {
-      for (final window in windows) {
+      for (final window in everyWidth) {
         for (final style in TopBarStyle.values) {
-          barTest('${version.number} ${version.label}, ${style.label}, ${window.name}', (tester) async {
-            threeJobs();
-            for (final note in [true, false]) {
-              await pumpShell(tester, version: version, window: window, style: style, note: note);
-              expect(tester.takeException(), isNull, reason: 'nothing ran over on ${note ? 'a note' : 'home'}');
-              expect(ring(), findsOneWidget, reason: 'the ring on ${note ? 'a note' : 'home'}');
-              final at = tester.getRect(ring());
-              expect(at.left >= -0.5 && at.right <= window.size.width + 0.5 && at.top >= 0 && at.bottom < 160, isTrue, reason: 'the ring at $at');
-              // Beside the button for you, where the version has one in the row.
-              final you = find.byKey(HeaderAct.keyOf('you'));
-              if (you.evaluate().isNotEmpty) {
-                final rect = tester.getRect(you.first);
-                expect((rect.left - at.right).abs() < 24 || (at.left - rect.right).abs() < 24, isTrue, reason: 'beside You: ring $at, you $rect');
-              }
-              for (final element in find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('header:')).evaluate()) {
-                final box = element.renderObject;
-                if (box is! RenderBox || !box.hasSize || !box.attached) continue;
-                final rect = box.localToGlobal(Offset.zero) & box.size;
-                expect(rect.left >= -0.5 && rect.right <= window.size.width + 0.5, isTrue, reason: '${element.widget.key} at $rect on a ${window.size.width} window');
+          // On a narrowed Mac, today's Islands reading a note ran over before the ring was always there (by 14, its
+          // window buttons, two capsules and ten rings in 390) and still do, and today's Masthead runs its words past the
+          // line's end as the page does (lib/notes/tabs/bar_parts.dart ToolRow), the ring with them; every other row fits.
+          final over = version == HeaderToolbarVersion.today && (style == TopBarStyle.islands || style == TopBarStyle.masthead) && window == narrowMac;
+          barTest('${version.number} ${version.label}, ${style.label}, ${window.name}', skip: over, (tester) async {
+            if (window == narrowMac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+            addTearDown(() => debugDefaultTargetPlatformOverride = null);
+            // The idle ring keeps its room as the busy one does: the row is the same either way.
+            for (final busy in [false, true]) {
+              if (busy) threeJobs();
+              for (final note in [true, false]) {
+                await pumpShell(tester, version: version, window: window, style: style, note: note);
+                final where = '${busy ? 'busy' : 'idle'}, on ${note ? 'a note' : 'home'}';
+                expect(tester.takeException(), isNull, reason: 'nothing ran over, $where');
+                expect(ring(), findsOneWidget, reason: 'the ring, $where');
+                expect(painter(tester).arcs, busy ? hasLength(3) : isEmpty, reason: where);
+                final at = tester.getRect(ring());
+                expect(at.left >= -0.5 && at.right <= window.size.width + 0.5 && at.top >= 0 && at.bottom < 160, isTrue, reason: 'the ring at $at');
+                // Beside the button for you, where the version has one in the row.
+                final you = find.byKey(HeaderAct.keyOf('you'));
+                if (you.evaluate().isNotEmpty) {
+                  final rect = tester.getRect(you.first);
+                  expect((rect.left - at.right).abs() < 24 || (at.left - rect.right).abs() < 24, isTrue, reason: 'beside You: ring $at, you $rect');
+                }
+                for (final element in find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('header:')).evaluate()) {
+                  final box = element.renderObject;
+                  if (box is! RenderBox || !box.hasSize || !box.attached) continue;
+                  final rect = box.localToGlobal(Offset.zero) & box.size;
+                  expect(rect.left >= -0.5 && rect.right <= window.size.width + 0.5, isTrue, reason: '${element.widget.key} at $rect on a ${window.size.width} window, $where');
+                }
               }
             }
+            debugDefaultTargetPlatformOverride = null;
           });
         }
       }
     }
   });
 
-  barTest('idle, nothing of the ring is drawn, on every version', (tester) async {
-    for (final version in HeaderToolbarVersion.values) {
-      await pumpShell(tester, version: version, window: folded);
-      expect(ring(), findsNothing);
-      expect(find.byType(ActivityRing), findsNothing);
-    }
-  });
+  /// The idle ring: no arcs, no glyph, no tick, the track alone in the muted ink, and nothing moving.
+  void expectIdle(WidgetTester tester, {String reason = ''}) {
+    expect(ring(), findsOneWidget, reason: reason);
+    final drawn = painter(tester);
+    expect(drawn.arcs, isEmpty, reason: reason);
+    expect(drawn.idle, GlacierTheme.of(tester.element(ring())).color('app-ink-3'), reason: 'grey, $reason');
+    expect(find.descendant(of: ring(), matching: find.byType(AppIcon)), findsNothing, reason: 'no glyph and no tick, $reason');
+    expect(find.descendant(of: ring(), matching: find.byType(JobGlyph)), findsNothing, reason: reason);
+    expect(find.byKey(const ValueKey('activity-ring:dot')), findsNothing, reason: reason);
+  }
+
+  for (final window in windows) {
+    barTest('idle, a quiet grey ring on every version, a button that opens the tray, ${window.name}', (tester) async {
+      for (final version in HeaderToolbarVersion.values) {
+        for (final note in [true, false]) {
+          final reason = '${version.label} on ${note ? 'a note' : 'home'}';
+          await pumpShell(tester, version: version, window: window, note: note);
+          expectIdle(tester, reason: reason);
+          final spin = painter(tester).spin;
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(painter(tester).spin, spin, reason: 'still, $reason');
+          expect(tester.getSemantics(ring()).label, 'Activity: nothing running', reason: reason);
+          await tester.tap(ring());
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(find.byType(ActivityTray), findsOneWidget, reason: reason);
+          expect(find.byType(window.size.width < activityTrayCardWidth ? Sheet : FloatingCard), findsOneWidget, reason: reason);
+          expect(find.text('Nothing running now.'), findsOneWidget, reason: reason);
+          expect(tester.widget<Text>(find.byKey(const ValueKey('activity-tray:today'))).data, 'Nothing finished yet today.', reason: reason);
+          await tester.ensureVisible(find.byKey(const ValueKey('activity-tray:more')));
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.tap(find.byKey(const ValueKey('activity-tray:more')));
+          await tester.pump();
+          expect(find.byKey(const ValueKey('activity-tray:past-none')), findsOneWidget, reason: 'Past 7 days, $reason');
+        }
+      }
+    });
+  }
+
+  for (final (theme, calm) in [('light', false), ('dark', false), ('light', true), ('dark', true)]) {
+    barTest('idle is the muted ink in ${calm ? 'Calm, ' : ''}$theme, never a job\'s colour', (tester) async {
+      await pumpShell(tester, window: mac, theme: theme, calm: calm);
+      expectIdle(tester);
+      final t = GlacierTheme.of(tester.element(ring()));
+      expect(painter(tester).idle, isNot(jobColour(t, JobLook.sync)));
+    });
+  }
 
   barTest('one arc per job in its colour, the other device\'s dimmed', (tester) async {
     threeJobs();
@@ -153,7 +213,7 @@ void main() {
     expect({arcs[0].colour, arcs[1].colour, arcs[2].colour}, hasLength(3), reason: 'vivid: a colour each');
   });
 
-  barTest('blooms once when all finish, then is gone', (tester) async {
+  barTest('blooms once when all finish, then is grey again, not gone', (tester) async {
     final a = record.begin('a', kind: JobKind.images, title: 'A');
     final b = record.begin('b', kind: JobKind.audio, title: 'B');
     await pumpShell(tester, window: mac);
@@ -169,7 +229,26 @@ void main() {
     expect(painter(tester).arcs, isEmpty);
     await tester.pump(activityBloom);
     await tester.pump();
-    expect(ring(), findsNothing, reason: 'gone once the bloom is over');
+    expectIdle(tester, reason: 'grey once the bloom is over');
+    expect(tester.getSemantics(ring()).label, 'Activity: nothing running');
+    // And busy again from grey.
+    record.begin('c', kind: JobKind.sync, title: 'Syncing');
+    await tester.pump();
+    expect(painter(tester).arcs, hasLength(1));
+  });
+
+  barTest('reduced motion: the tick holds for the bloom, then the ring is grey again', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final a = record.begin('a', kind: JobKind.images, title: 'A');
+    await pumpShell(tester, window: folded);
+    a.done();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.descendant(of: ring(), matching: find.byType(AppIcon)), findsOneWidget, reason: 'the tick, still');
+    await tester.pump(activityBloom);
+    await tester.pump();
+    expectIdle(tester, reason: 'grey once the bloom is over');
   });
 
   barTest('a still red dot when something needs you, and it stays after the rest end', (tester) async {
@@ -225,13 +304,32 @@ void main() {
     expect(glyphs.where((glyph) => glyph.moving), isEmpty, reason: 'every glyph held still');
   });
 
-  barTest('moving otherwise: the ring and its glyph turn', (tester) async {
-    record.begin('sync', kind: JobKind.sync, title: 'Syncing');
+  barTest('moving otherwise: the ring and its glyph turn for work that cannot say how far it is', (tester) async {
+    record.begin('voice', kind: JobKind.audio, title: 'Reading aloud');
     await pumpShell(tester, window: mac);
     final before = painter(tester).spin;
     await tester.pump(const Duration(milliseconds: 300));
     expect(painter(tester).spin, isNot(before));
     expect(tester.state<JobGlyphState>(find.byType(JobGlyph)).moving, isTrue);
+  });
+
+  barTest('a sync fills its arc and never sweeps it (Matt, 2026-10-29: "Also don\'t spin the progress bar on the sync just make it fill as it\'s being synced")', (tester) async {
+    final sync = record.begin('sync', kind: JobKind.sync, title: 'Syncing');
+    await pumpShell(tester, window: mac);
+    expect(painter(tester).arcs.single.fraction, 0, reason: 'empty before the counts are known');
+    expect(painter(tester).arcs.single.moving, isFalse);
+    final before = painter(tester).spin;
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(painter(tester).spin, before, reason: 'nothing goes round');
+    sync.progress(fraction: 12 / 40, steps: '12 of 40');
+    await tester.pump();
+    expect(painter(tester).arcs.single.fraction, closeTo(0.3, 1e-9));
+    await tester.tap(ring());
+    await tester.pump(const Duration(milliseconds: 300));
+    // The tray says the title once and the count under it; a screen reader and the OS surfaces hear "Syncing, 12 of 40".
+    expect(tester.widget<Text>(find.byKey(const ValueKey('activity-row:line:sync'))).data, '12 of 40');
+    expect(record['sync']!.liveLine, 'Syncing, 12 of 40');
+    expect(tester.widget<JobBar>(find.byType(JobBar)).fraction, closeTo(0.3, 1e-9), reason: 'a bar that fills');
   });
 
   group('the tray', () {
@@ -347,8 +445,7 @@ void main() {
     });
   });
 
-  barTest('simple mode: the ring floats over the plain places', (tester) async {
-    record.begin('sync', kind: JobKind.sync, title: 'Syncing');
+  barTest('simple mode: the ring floats over the plain places while something runs, never idle', (tester) async {
     final sheet = await appSheet(tester);
     await pumpApp(
       tester,
@@ -356,11 +453,17 @@ void main() {
       home: AppShell(sheet: sheet, notes: library, workspaces: spaces, simple: true, mobile: true, finePointer: false, onDeleteNote: (_) {}),
     );
     await tester.pump(const Duration(milliseconds: 300));
+    // No bar for an idle ring to sit in: none floats.
+    expect(find.byKey(const ValueKey('activity-ring:floating')), findsNothing);
+    expect(ring(), findsNothing);
+    record.begin('sync', kind: JobKind.sync, title: 'Syncing');
+    await tester.pump();
     expect(find.byKey(const ValueKey('activity-ring:floating')), findsOneWidget);
     expect(ring(), findsOneWidget);
     record.handle('sync')!.done();
     await tester.pump(activityBloom * 2);
     expect(find.byKey(const ValueKey('activity-ring:floating')), findsNothing);
+    expect(ring(), findsNothing);
   });
 }
 

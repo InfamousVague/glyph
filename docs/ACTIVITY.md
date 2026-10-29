@@ -14,7 +14,7 @@ choice below. Built straight (no mockup, no developer switch) and shipped all at
 | Motion | Gentle and purposeful: reels turn (audio), the brush draws (images), arrows circle (sync), the sparkle shimmers (AI), a people glyph pulses (meetings), a ring fills (downloads). Reduced motion stops it. |
 | The record | One record of running work: `lib/core/background_jobs.dart` grows from the device hint into the app's registry. Every job: kind, title, state (queued, running, waiting, done, failed), progress (fraction or indeterminate), what it waits on (Wi-Fi, charger, credits, your Mac, sign-in), Stop, Open result, device it runs on. |
 | Jobs on it | All of them: banners, summaries and write-ups, own and team sync, recording, transcription and Better words, share uploads, model and update downloads, Slack posts, ElevenLabs read-alouds, Notion/GitHub/Calendar fetches, the Meet/Zoom bot. |
-| Ring | In the header, beside You, in every header version: one arc per running job in its colour. Gone when idle; one bloom when all finish. A still red dot when something needs you. |
+| Ring | In the header, beside You, in every header version: one arc per running job in its colour. Always there; grey when idle (a thin ring in the ink's grey, Calm too, still a button that opens the tray: "Nothing running now.", Today, Past 7 days). One bloom when all finish, then grey again. A still red dot when something needs you. A sync's arc fills as it goes and never sweeps. |
 | Tray | A card hanging under the ring (as History's does); a sheet on a phone. Live rows (icon, title, live line, progress, Stop/Open), then **Today** ("3 summaries, 12 banners, 40 notes synced, 1 failed"), then **Past 7 days** behind More. |
 | In place | Banner shimmer where the banner will land; "Writing the summary…" streaming into the meeting note; per-note sync marks (blue arrow → tick) in lists and the note's header; upload progress on share rows, pictures and recordings. |
 | Results | A result chip slides in from the edge ("Banner ready · View"), replacing most toasts; a batch gives one chip. |
@@ -23,7 +23,7 @@ choice below. Built straight (no mockup, no developer switch) and shipped all at
 | Failures | Red row with the cause in plain words and one fix (Top up, Sign in again, Retry); network blips retry on their own. |
 | Sound | A soft chime and a light tap when a job the person started and that ran over ~30 s finishes; nothing for sync or small jobs; off with the app's sounds setting. |
 | OS surfaces | Android progress notifications (and Samsung's Now Bar where offered) for recording, write-ups, banner runs and uploads; the Mac's Dock icon progress ring and badge; a Mac menu bar item with the ring and a mini tray; iPhone Live Activities (Dynamic Island, lock screen) for write-ups and uploads. |
-| Simple mode | The ring, tray, chips and in-place marks all show; the tray's Past 7 days and per-device detail sit behind More. |
+| Simple mode | The ring, tray, chips and in-place marks all show; the tray's Past 7 days and per-device detail sit behind More. On simple mode's plain pages, which have no bar, the ring floats at the top right only while something runs: there is no bar for an idle one to sit in. |
 
 ## The API
 
@@ -165,7 +165,12 @@ those); **the Mac** everything the ring shows, other devices' too, and a failed 
   (assets/css/app.css; Calm stamps `data-calm` and turns them to ink), `JobGlyph` (moves only while running and the
   device allows motion), `activityMoves(context)`.
 - `activity_ring.dart`: `ActivityRing` (key `header:activity`), `activityShown` (true while something shows or the
-  bloom does; the bar listens to it), `ActivityRingPainter` / `RingArc`.
+  bloom does; simple mode's floating ring listens to it, and the ring to end its bloom's tick), `ActivityRingPainter`
+  / `RingArc`. The bar always draws the ring (Matt, 2026-10-29: "Keep the activity indicator always showing just have
+  it gray put when nothing is happening"): idle, the painter draws its track alone (`idle`, `app-ink-3`, the ink's
+  grey, `idleStroke` 1.5) on the arcs' own line, no glyph, nothing moving, labelled "Activity: nothing running". Its room is
+  kept in every version: the rows that had none for it give a spare tool or Back and Forward to their ••• where the
+  row is a 360 phone's or a narrowed Mac's (`lib/shell/header_toolbar.dart` `HeaderParts.cramped`, `snugRoom`).
 - `activity_tray.dart`: `ActivityTray`, `ActivityRow`, `JobBar`, `TrayButton`.
 - `activity_chips.dart`: `ActivityChips` (mounted by the shell under the header), `ActivityChip.of(job)`.
 - `activity_cost.dart`: `askJobCost(context, estimate, title:)`, true at once under 20 credits and 2 minutes.
@@ -179,7 +184,7 @@ those); **the Mac** everything the ring shows, other devices' too, and a failed 
 | `banner:<note>` | images | `lib/plugins/lovart/banners.dart` `make` (outside a run), `makeBanner` |
 | `lovart-cue:…`, `lovart-cues:<note>`, `lovart-inspiration:<note>` | images | `lib/plugins/lovart/lovart.dart`, `meetings.dart` (`making.dart` `lovartPictureJob`) |
 | `summary:<note>` (and another device's claim) | ai | `lib/ai/summaries.dart` `_lookOnce`, `_summarize`; `lib/ai/summary_handoff.dart` `jobsElsewhere` |
-| `sync` | sync | `lib/sync/engine.dart` `_once`, `_run` (own and team passes; shown after 1 s or once it moves something) |
+| `sync` | sync | `lib/sync/engine.dart` `_once`, `_run` (own and team passes; shown after 1 s or once it moves something; its bar fills, below) |
 | `meeting-recording`, `write-up:<note>` | audio | `lib/capture/meeting_live.dart` `followOnRecord`; `lib/meet/tape.dart` `CoreWriteUps` |
 | `refine:<note>`, `refine-model` | audio, downloads | `lib/capture/refine.dart` |
 | `voice-over:<note>` | audio | `lib/plugins/elevenlabs/voice_over.dart` `makeVoiceOver` |
@@ -189,6 +194,17 @@ those); **the Mac** everything the ring shows, other devices' too, and a failed 
 | `fetch:<plugin>` | sync | `lib/plugins/details_cache.dart` (Notion, GitHub; shown after 1 s, not logged) |
 | `calendar:ical`, `calendar:google` | sync | `lib/calendar/calendar.dart` (shown after 1 s, not logged) |
 | `meet:<booking>` | meetings | `lib/meet/meet_in.dart` `meetBotJobs` (the bot's, elsewhere) |
+
+**The sync's bar fills, never sweeps** (Matt, 2026-10-29: "Also don't spin the progress bar on the sync just make it
+fill as it's being synced"). The passes tell what they find to do and do (`lib/sync/notes.dart` `SyncProgress`, handed
+as `SyncContext.progress` and `TeamPass.progress`): the account's feed rows to merge (per page), its notes to send or
+delete (found before any is sent), each picture, file or read text sent or fetched; each team's rows taken, the
+histories and pictures fetched after them, each recording fetched, each log read, each team note put and each row
+deleted. The engine sums them for the rolling job (`SyncCount`): the fraction is done over to do, never back within
+the job though more is found as it goes (the bar holds while the count grows), told as more is found and at most once a
+whole percent as it goes; the line is "Syncing, 12 of 40" (the tray: Syncing, and "12 of 40" under it). Before anything
+is counted the bar is empty at 0. Any job of the sync kind begun with no fraction is at 0 (`Activity.begin`), so the
+calendar's and the plugins' fetches never sweep either. Mail, meetings and webhooks filed in a pass are not counted.
 
 Toasts replaced by chips: the banner run's end (`ghost_root.dart` `_bannerRunEnded`) and "Summarized “title”" with
 Open (`root_voice.dart`).

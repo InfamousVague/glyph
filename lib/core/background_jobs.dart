@@ -702,6 +702,9 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
 
   /// Begins the job [id], or, where it is already live, tells it these words again and hands back its handle: a
   /// second start of the same work is the same job. A failed one begun again starts afresh.
+  ///
+  /// A sync's bar fills and never sweeps (Matt, 2026-10-29: "Also don't spin the progress bar on the sync just make it
+  /// fill as it's being synced"): one begun with no [fraction] is at 0 until it says how far it is.
   JobHandle begin(
     String id, {
     required JobKind kind,
@@ -732,7 +735,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
         state: state,
         line: line,
         waitingOn: waitingOn,
-        fraction: fraction,
+        fraction: fraction ?? (kind == JobKind.sync ? 0 : null),
         steps: steps,
         onStop: onStop,
         onOpen: onOpen,

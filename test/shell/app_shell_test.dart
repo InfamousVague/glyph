@@ -318,7 +318,13 @@ void main() {
       var asked = 0;
       await shell(tester, open: ['weekend'], onSettings: () => asked += 1);
       await tester.tap(find.bySemanticsLabel('Settings'));
-      await tester.tap(find.bySemanticsLabel('New note in a new tab'));
+      // A new note is under today's ••• now, not a + after the tabs (Matt, 2026-10-29: "Put the all files folder icon
+      // under the more menu as well as the + button in the header").
+      expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
+      await tester.tap(find.bySemanticsLabel('More: all notes by folder, a new note'));
+      await settle(tester);
+      await tester.tap(find.text('New note'));
+      await settle(tester);
       expect(asked, 1);
       expect(kept, ['new']);
       await away(tester);

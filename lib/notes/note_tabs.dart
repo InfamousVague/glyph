@@ -233,7 +233,7 @@ class NoteTabs extends StatefulWidget {
   final Widget? presence;
 
   /// The ring of the app's running work, beside the app's own (lib/activity/activity_ring.dart; docs/ACTIVITY.md):
-  /// handed only while there is something to show, so an idle bar is the bar it was.
+  /// the app hands it always, grey while nothing runs.
   final Widget? activity;
 
   /// Whether the pointer is a mouse (`(hover: hover) and (pointer: fine)`): a longer fade at the row's ends, flyouts
@@ -270,6 +270,10 @@ class _NoteTabsState extends State<NoteTabs> {
   /// The organizations' picker, open, and the icon it hangs from.
   bool _pickingOrg = false;
   final GlobalKey _orgsKey = GlobalKey(debugLabel: 'organizations');
+
+  /// The menu of what the bar keeps under its •••, open, and the ring it hangs from.
+  bool _keeping = false;
+  final GlobalKey _keptKey = GlobalKey(debugLabel: 'kept');
 
   /// The chip being renamed, and the tab whose name is open as a field.
   String? _renaming;
@@ -329,18 +333,55 @@ class _NoteTabsState extends State<NoteTabs> {
               child: BarWord(word: 'Notes', label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen),
             );
 
-  /// Every note by folder: a folder after the sidebar's icon (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view").
-  Widget? _foldersRing() => widget.onFolders == null
-      ? null
-      : BarRing(glyph: BarGlyph.folder, iconSize: 19, label: 'All notes, by folder', onPressed: widget.onFolders, on: widget.atFolders, current: widget.atFolders);
-
-  /// The Masthead's: the word.
-  Widget? _foldersWord() => widget.onFolders == null ? null : BarWord(word: 'Folders', label: 'All notes, by folder', onPressed: widget.onFolders, on: widget.atFolders, current: widget.atFolders);
+  /// Today's •••, after the sidebar's icon, where every note by folder and a new note are (Matt, 2026-10-29: "Put the
+  /// all files folder icon under the more menu as well as the + button in the header"): the folder had been a ring of
+  /// its own there (2026-10-29: "add a folder icon to the top near home and sidebar"), and the + the last of the tabs.
+  /// Today's bar had no ••• of its own (a note's More is the note's sheet), so it has one now; the Masthead's is the
+  /// word More.
+  ///
+  /// [back] and [forward]: the arrows the Islands put under it where their capsules have no room for them.
+  Widget? _kept({required bool asWord, bool back = false, bool forward = false}) {
+    final folders = widget.onFolders, make = widget.onNew;
+    final goBack = back ? widget.onGoBack : null, goOn = forward ? widget.onGoOn : null;
+    if (folders == null && make == null && goBack == null && goOn == null) return null;
+    void toggle() => setState(() => _keeping = !_keeping);
+    final trigger = asWord
+        ? BarWord(word: 'More', label: 'More: all notes by folder, a new note', onPressed: toggle, expanded: _keeping, on: widget.atFolders, anchorKey: _keptKey)
+        : BarRing(glyph: BarGlyph.more, iconSize: 19, label: 'More: all notes by folder, a new note', onPressed: toggle, expanded: _keeping, on: widget.atFolders, anchorKey: _keptKey);
+    if (!_keeping) return trigger;
+    final t = context.tokens;
+    Widget glyph(BarGlyph glyph) => BarIcon(glyph, size: 16, color: t.color('glacier-text'));
+    void pick(VoidCallback act) {
+      setState(() => _keeping = false);
+      act();
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        trigger,
+        PopMenu(
+          anchor: GlacierAnchor.key(_keptKey),
+          placement: Placement.bottomStart,
+          reach: PopReach.down,
+          ariaLabel: 'More',
+          coarse: !_fine,
+          onDismiss: () => setState(() => _keeping = false),
+          children: [
+            if (folders != null) GlacierMenuItem(key: HeaderAct.keyOf('folders'), onSelect: () => pick(folders), icon: glyph(BarGlyph.folder), child: const Text('All notes, by folder')),
+            if (make != null) GlacierMenuItem(key: HeaderAct.keyOf('new'), onSelect: () => pick(make), icon: glyph(BarGlyph.plus), child: const Text('New note')),
+            if (goBack != null || goOn != null) const GlacierMenuSeparator(),
+            if (goBack != null) GlacierMenuItem(key: HeaderAct.keyOf('back'), onSelect: widget.canGoBack ? () => pick(goBack) : null, icon: glyph(BarGlyph.arrowLeft), child: const Text('Back')),
+            if (goOn != null) GlacierMenuItem(key: HeaderAct.keyOf('forward'), onSelect: widget.canGoOn ? () => pick(goOn) : null, icon: glyph(BarGlyph.arrowRight), child: const Text('Forward')),
+          ],
+        ),
+      ],
+    );
+  }
 
   /// Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button.
-  List<Widget> _arrows() => [
-        if (widget.onGoBack != null) BarRing(glyph: BarGlyph.arrowLeft, iconSize: 19, label: 'Back to where you were', onPressed: widget.canGoBack ? widget.onGoBack : null),
-        if (widget.onGoOn != null) BarRing(glyph: BarGlyph.arrowRight, iconSize: 19, label: 'Forward again', onPressed: widget.canGoOn ? widget.onGoOn : null),
+  List<Widget> _arrows({bool back = true, bool forward = true}) => [
+        if (back && widget.onGoBack != null) BarRing(glyph: BarGlyph.arrowLeft, iconSize: 19, label: 'Back to where you were', onPressed: widget.canGoBack ? widget.onGoBack : null),
+        if (forward && widget.onGoOn != null) BarRing(glyph: BarGlyph.arrowRight, iconSize: 19, label: 'Forward again', onPressed: widget.canGoOn ? widget.onGoOn : null),
       ];
 
   /// The Masthead's: Back as a word, and Forward only when there is somewhere forward to go, since it seldom is.
@@ -537,10 +578,8 @@ class _NoteTabsState extends State<NoteTabs> {
         ),
       );
     }
-    // After the last tab, so it moves along with the row: a new note, in a tab of its own.
-    if (widget.onNew != null) {
-      entries.add(TabRowEntry(kind: RowKind.newTab, center: true, marginStart: t.space(1), child: NewTabButton(onPressed: widget.onNew!)));
-    }
+    // No + after the last tab: a new note is under the bar's ••• (Matt, 2026-10-29: "Put the all files folder icon
+    // under the more menu as well as the + button in the header"), ⌘N, the palette and the home page's dock.
     final capsule = shape == TabShape.capsule;
     final row = TabRow(
       shape: shape,
@@ -595,16 +634,17 @@ class _NoteTabsState extends State<NoteTabs> {
       sidebar: w.onSidebar == null
           ? null
           : HeaderAct(id: 'sidebar', label: 'All your notes', word: 'Notes', hue: 'indigo', icon: Lucide.panelLeft, onPress: w.onSidebar, on: w.sidebarOpen, expanded: w.sidebarOpen, toggle: sidebarToggle),
+      // Every note by folder and a new note are rows of the bar's ••• (HeaderParts.kept): their words are their whole names.
       folders: w.onFolders == null
           ? null
-          : HeaderAct(id: 'folders', label: 'All notes, by folder', word: 'Folders', hue: 'amber', icon: Lucide.folder, onPress: w.onFolders, on: w.atFolders, current: w.atFolders),
+          : HeaderAct(id: 'folders', label: 'All notes, by folder', word: 'All notes, by folder', hue: 'amber', icon: Lucide.folder, onPress: w.onFolders, on: w.atFolders, current: w.atFolders),
       back: w.onGoBack == null ? null : HeaderAct(id: 'back', label: 'Back to where you were', word: 'Back', hue: 'cyan', icon: Lucide.arrowLeft, onPress: w.canGoBack ? w.onGoBack : null),
       forward: w.onGoOn == null ? null : HeaderAct(id: 'forward', label: 'Forward again', word: 'Forward', hue: 'cyan', icon: Lucide.arrowRight, onPress: w.canGoOn ? w.onGoOn : null),
       view: note?.view,
       actions: note?.actions ?? const [],
       more: note?.more,
       search: w.onSearch == null ? null : HeaderAct(id: 'search', label: 'Search or run a command', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: w.onSearch),
-      newNote: w.onNew == null ? null : HeaderAct(id: 'new', label: 'New note', word: 'New', hue: 'green', icon: Lucide.plus, onPress: w.onNew),
+      newNote: w.onNew == null ? null : HeaderAct(id: 'new', label: 'New note', word: 'New note', hue: 'green', icon: Lucide.plus, onPress: w.onNew),
       allNotes: w.onAllNotes == null ? null : HeaderAct(id: 'all', label: 'Every note', word: 'Browse', hue: 'indigo', icon: Lucide.layoutGrid, onPress: w.onAllNotes),
       organizations: w.onOrganizations == null
           ? null
@@ -697,7 +737,7 @@ class _NoteTabsState extends State<NoteTabs> {
         ),
         child: version != null
             ? _versionLine(version, gap)
-            : _toolRow(gap, 0, [_sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
+            : _toolRow(gap, 0, [_sidebarRing(), _kept(asWord: false), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
       );
     } else {
       // The Mac's three window buttons sit at this row's start: the first control begins after their room.
@@ -706,8 +746,8 @@ class _NoteTabsState extends State<NoteTabs> {
       final controls = version != null
           ? Padding(padding: EdgeInsets.only(right: end), child: _versionLine(version, gap))
           : style == TopBarStyle.masthead
-          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), _foldersWord(), ..._arrowWords()], [widget.presence, widget.activity, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
-          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
+          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), _kept(asWord: true), ..._arrowWords()], [widget.presence, widget.activity, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
+          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), _kept(asWord: false), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
       top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
     }
 
@@ -762,7 +802,14 @@ class _NoteTabsState extends State<NoteTabs> {
     final rowH = t.len('app-tab-h') - 4 + 6 + 2 * hairline;
 
     // A version's line in the Islands: its start in the first capsule, its end in the last, its middle between them.
-    final Widget capsule = version != null ? BarCapsule(children: version.lead) : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ?_foldersRing(), ..._arrows()]);
+    // Today's two capsules, with the activity ring always in the second (Matt, 2026-10-29: "Keep the activity
+    // indicator always showing"), have no room for both arrows on a 360 phone: Forward is under •••, and Back with it
+    // on a Mac's window at a phone's width, whose window buttons take the start.
+    final room = constraints.maxWidth - start - end - trafficLightsRoom(t);
+    final forward = room >= snugRoom, back = room >= crampedRoom;
+    final Widget capsule = version != null
+        ? BarCapsule(children: version.lead)
+        : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ?_kept(asWord: false, back: !back, forward: !forward), ..._arrows(back: back, forward: forward)]);
     final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
     final own = <Widget>[?widget.presence, ?widget.activity, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
     final tools = widget.tools;

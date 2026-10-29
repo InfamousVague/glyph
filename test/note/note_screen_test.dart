@@ -201,7 +201,9 @@ void main() {
     testWidgets('are the view switch and More, with nothing brought out that has no way to be done', (tester) async {
       final world = NoteWorld();
       await pumpNote(tester, world, await seeded(tester, world, '# Day\n'), headerToolbar: HeaderToolbarVersion.today);
-      expect(labels(tester), ['Version history', 'Pin to the top', 'Archive', 'Showing the marks. Show the formatted note.', 'More for this note']);
+      // Two of the spares here: the activity ring, always in the row (Matt, 2026-10-29: "Keep the activity indicator
+      // always showing"), takes the room Archive had, and Archive is More's alone.
+      expect(labels(tester), ['Version history', 'Pin to the top', 'Showing the marks. Show the formatted note.', 'More for this note']);
       await closeNote(tester);
     });
 

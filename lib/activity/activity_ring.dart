@@ -1,11 +1,13 @@
 /// The ring in the header (docs/ACTIVITY.md, Ring; Matt, 2026-10-29): beside the button for you, in every version of
-/// the header toolbar, one arc for each job in its kind's colour, the other devices' a little dimmed; gone when
-/// nothing runs; one bloom when the last job ends; a still red dot when something needs the person. A press opens the
-/// tray (activity_tray.dart): a card hung under the ring on a wide window, a sheet on a phone.
+/// the header toolbar, one arc for each job in its kind's colour, the other devices' a little dimmed; a quiet grey ring
+/// when nothing runs (Matt, 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing
+/// is happening"); one bloom when the last job ends, and grey again after it; a still red dot when something needs the
+/// person. A press opens the tray (activity_tray.dart), idle or not: a card hung under the ring on a wide window, a
+/// sheet on a phone.
 ///
-/// The bar draws the ring only while [activityShown] holds - something to show, or the bloom - so an idle header is
-/// exactly the header it was: no room kept, nothing drawn (lib/shell/app_shell.dart hands it to the bar as
-/// `activity`, as it hands the Claude chip).
+/// The bar always draws the ring, so its room is kept whether or not anything runs (lib/shell/app_shell.dart hands it
+/// to the bar as `activity`, as it hands the Claude chip). Simple mode's plain places, which have no bar for an idle
+/// ring to sit in, float it only while [activityShown] holds: something to show, or the bloom.
 library;
 
 import 'dart:async';
@@ -32,9 +34,9 @@ const Duration activityBloom = Duration(milliseconds: 900);
 /// The window under which the tray is a sheet from the foot rather than a card under the ring.
 const double activityTrayCardWidth = 600;
 
-/// Whether the ring is drawn: something on the record ([Activity.value]), or the bloom of the last to end. Heard by
-/// the bar, which draws the ring only while this holds. Told only as it flips, so the bar is not drawn again for
-/// every step of a download.
+/// Whether there is something for the ring to say: something on the record ([Activity.value]), or the bloom of the
+/// last to end. Heard by simple mode's floating ring, drawn only while this holds, and by the ring, which shows the
+/// bloom's tick only while it does. Told only as it flips, so neither is drawn again for every step of a download.
 class ActivityShown extends ChangeNotifier implements ValueListenable<bool> {
   ActivityShown(this.record);
 
@@ -109,7 +111,7 @@ String activityRingLabel(List<Job> jobs) {
     if (live > 0) live == 1 ? '1 job running' : '$live jobs running',
     if (needs) 'something needs you',
   ];
-  return parts.isEmpty ? 'Activity' : 'Activity: ${parts.join(', ')}';
+  return parts.isEmpty ? 'Activity: nothing running' : 'Activity: ${parts.join(', ')}';
 }
 
 /// The ring: a round control a bar's ring across.
@@ -133,6 +135,7 @@ class ActivityRing extends StatefulWidget {
 
 class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMixin {
   late final Activity _record = activity;
+  late final ActivityShown _shown = activityShown;
   late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
   late final AnimationController _bloom = AnimationController(vsync: this, duration: activityBloom);
   late int _blooms = _record.blooms;
@@ -143,6 +146,12 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
   void initState() {
     super.initState();
     _record.addListener(_heard);
+    // The bloom's end: the tick goes and the ring is grey again, moving or not.
+    _shown.addListener(_settled);
+  }
+
+  void _settled() {
+    if (mounted) setState(() {});
   }
 
   bool _started = false;
@@ -154,7 +163,7 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
     if (_started) return;
     _started = true;
     // Drawn for a bloom alone (a sync that moved notes and ended before the bar was drawn again): the bloom is shown.
-    if (activityShown.blooming && _record.value.isEmpty) {
+    if (_shown.blooming && _record.value.isEmpty) {
       if (activityMoves(context)) {
         _bloom.forward(from: 0);
       } else {
@@ -192,6 +201,7 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
   @override
   void dispose() {
     _record.removeListener(_heard);
+    _shown.removeListener(_settled);
     _spin.dispose();
     _bloom.dispose();
     super.dispose();
@@ -212,13 +222,16 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
     final ring = AnimatedBuilder(
       animation: Listenable.merge([_spin, _bloom]),
       builder: (context, _) {
-        final blooming = _bloom.value > 0 && _bloom.value < 1 && live.isEmpty;
+        // The tick shows through the bloom, and while the device holds still, for as long as the bloom would last.
+        final ticked = live.isEmpty && jobs.isEmpty && _shown.blooming && _bloom.value > 0;
         return CustomPaint(
           key: const ValueKey('activity-ring:arcs'),
           painter: ActivityRingPainter(
             arcs: [for (final job in jobs) RingArc.of(t, job)],
             spin: _spin.value,
             track: t.color('glacier-border-subtle'),
+            // Nothing running: the ring's track alone, thin, in the ink's grey, in Calm as well (it is no job's colour).
+            idle: t.color('app-ink-3'),
             bloom: live.isEmpty && jobs.isEmpty ? _bloom.value : 0,
             bloomColour: _lastColour ?? (_record.lastEnded == null ? jobColour(t, JobLook.sync) : kindColour(t, _record.lastEnded!.kind)),
           ),
@@ -227,7 +240,7 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
             child: Center(
               child: lead != null
                   ? JobGlyph.of(lead, key: ValueKey('activity-ring:glyph:${lead.id}'), size: size * 0.5)
-                  : blooming || _bloom.value >= 1
+                  : ticked
                       ? Opacity(opacity: activityMoves(context) ? (1 - _bloom.value).clamp(0.0, 1.0) : 1, child: AppIcon(Lucide.check, size: size * 0.5, color: _lastColour ?? (_record.lastEnded == null ? t.color('glacier-text') : kindColour(t, _record.lastEnded!.kind)), strokeWidth: 2.4))
                       : const SizedBox.shrink(),
             ),
@@ -310,15 +323,21 @@ class RingArc {
 
 /// The arcs round the ring, and the bloom.
 class ActivityRingPainter extends CustomPainter {
-  const ActivityRingPainter({required this.arcs, required this.spin, required this.track, this.bloom = 0, required this.bloomColour});
+  const ActivityRingPainter({required this.arcs, required this.spin, required this.track, this.idle, this.bloom = 0, required this.bloomColour});
 
   final List<RingArc> arcs;
   final double spin;
   final Color track;
 
+  /// The ring with nothing running, a thin full circle in this; null draws nothing then.
+  final Color? idle;
+
   /// 0 to 1 through the bloom; 0 is none.
   final double bloom;
   final Color bloomColour;
+
+  /// How thick the idle ring is drawn: thinner than an arc, so it reads as quiet.
+  static const double idleStroke = 1.5;
 
   /// The gap between two arcs, in radians.
   static const double gap = 0.32;
@@ -343,7 +362,16 @@ class ActivityRingPainter extends CustomPainter {
         ..color = bloomColour.withValues(alpha: (1 - bloom) * bloomColour.a));
       canvas.drawOval(rect, Paint()..color = bloomColour.withValues(alpha: 0.18 * (1 - bloom) * bloomColour.a));
     }
-    if (arcs.isEmpty) return;
+    if (arcs.isEmpty) {
+      if (idle case final grey?) {
+        // On the arcs' own line, so nothing moves as the first job begins.
+        canvas.drawOval(rect, Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = idleStroke
+          ..color = grey);
+      }
+      return;
+    }
     final segs = segments(arcs.length);
     for (var i = 0; i < arcs.length; i += 1) {
       final arc = arcs[i];

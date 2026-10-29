@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/activity/activity_ring.dart' show ActivityRing;
 import 'package:ghost_md/note/byline.dart';
 import 'package:ghost_md/note/note_place.dart';
 import 'package:ghost_md/note/note_settings.dart';
@@ -38,18 +39,28 @@ void main() {
         await pumpNote(tester, world, note!, size: size, seams: measuredSeams(world.asked), speak: true);
         final tools = (frame['tools'] as List).cast<Map<String, dynamic>>();
         final drawn = tester.widgetList<NoteToolButton>(find.byType(NoteToolButton)).toList();
-        // The bar's folder after the sidebar's icon (Matt, 2026-10-29: "add a folder icon to the top near home and
-        // sidebar to show all notes in the folder / icon view") is the app's own and takes a ring's room on the line:
-        // where the page had room for one spare tool more, that tool is More's alone now (the last of the spares, by
-        // the order they come out of More), and the rest stand where the page's last ones stood. The view switch and
-        // More are the last two, as on the page.
+        // The bar's own take two rings' room on the line that the page has for the note's spare tools: today's •••
+        // after the sidebar's icon, which holds every note by folder and a new note (Matt, 2026-10-29: "Put the all
+        // files folder icon under the more menu as well as the + button in the header"; the folder had been a ring of
+        // its own there), and the activity ring, always there and grey while nothing runs (Matt, 2026-10-29: "Keep
+        // the activity indicator always showing just have it gray put when nothing is happening"). Where the page had
+        // room for spare tools more, up to two are More's alone now (the last of the spares, by the order they come
+        // out of More); the view switch and More are the last two, as on the page. The ring stands after the view
+        // switch, so the tools before it stand where the page's stood less the ring and its gap, and More, after it,
+        // where the page's does.
         final spares = tools.length - 2;
         final dropped = tools.length - drawn.length;
-        expect(dropped, inInclusiveRange(0, 1), reason: 'a ring’s room, one spare tool at most');
+        expect(dropped, inInclusiveRange(0, 2), reason: 'two rings’ room, two spare tools at most');
         final want = [for (final (at, tool) in tools.indexed) if (at < spares - dropped || at >= spares) tool['label']];
         expect([for (final tool in drawn) tool.label], want, reason: 'which of the spare tools the row has room for');
+        final ring = tester.getRect(find.byKey(ActivityRing.key_));
+        final view = tester.getRect(find.byWidget(drawn[drawn.length - 2]));
+        final more = tester.getRect(find.byWidget(drawn.last));
+        expect(ring.left > view.right && ring.right < more.left, isTrue, reason: 'the ring after the view switch, before More');
+        final shift = ring.width + (ring.left - view.right);
         for (final (at, button) in drawn.indexed) {
-          near(tester.getRect(find.byWidget(button)), webRect(tools[at + dropped]['rect'], down: notch), button.label);
+          final rect = webRect(tools[at + dropped]['rect'], down: notch);
+          near(tester.getRect(find.byWidget(button)), button == drawn.last ? rect : rect.translate(-shift, 0), button.label);
         }
         await closeNote(tester);
       });
