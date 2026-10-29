@@ -86,13 +86,5 @@
     "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
     "licence": "CC0-1.0",
     "brand": "https://doist.com/press"
-  },
-  "zoom": {
-    "title": "Zoom",
-    "hex": "0B5CFF",
-    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/zoom.svg",
-    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
-    "licence": "CC0-1.0",
-    "brand": "https://brand.zoom.us/usage-legal/"
   }
 }

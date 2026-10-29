@@ -43,7 +43,7 @@ import '../../market/market_cards.dart' show MarketButton, MarketButtonLook;
 import '../../market/market_items.dart' show marketHues;
 import '../../settings/kit/settings_type.dart' show pageText;
 import '../../sheet/sheet.dart';
-import '../brands.dart' show brandOfId, pluginBrands;
+import '../brands.dart' show brandOfId, marksInWhite, pluginBrands;
 import '../github/plain_field.dart';
 import '../host.dart' show pluginGround;
 import 'setup_flow.dart';
@@ -60,9 +60,12 @@ List<Color> setupWash(PluginSetup setup) => [for (final hue in setup.hues) (mark
 
 /// The mark a setup's band and its card wear, white on its wash: its company's where the plugin wears one (Matt,
 /// 2026-10-29: "Iconize real company logos ... and use those for the plugin icons"; lib/plugins/brands.dart), none
-/// for a company's plugin in a store-shot build, and else the setup's own ([PluginSetup.mark]).
-Widget Function(double size)? setupMarkOf(PluginSetup setup) {
+/// for a company's plugin in a store-shot build, and else the setup's own ([PluginSetup.mark]). [onPage] is the card on
+/// the plugin's page in Settings, where Google Meet's, the page of meetings Zoom shares, has its icon and not the mark
+/// (lib/plugins/brands.dart `marksInWhite`).
+Widget Function(double size)? setupMarkOf(PluginSetup setup, {bool onPage = false}) {
   if (!pluginBrands.containsKey(setup.id)) return setup.mark;
+  if (onPage && marksInWhite.contains(setup.id)) return null;
   final mark = brandOfId(setup.id);
   return mark == null ? null : (size) => BrandMarkIcon(mark, size: size, color: const Color(0xFFFFFFFF));
 }
@@ -663,17 +666,20 @@ class SetupDots extends StatelessWidget {
 
 /// A small tile of the setup's wash with a white icon on it, or its mark: an intro's points, the plugin page's card.
 class SetupTile extends StatelessWidget {
-  const SetupTile({super.key, required this.setup, required this.size, this.icon});
+  const SetupTile({super.key, required this.setup, required this.size, this.icon, this.onPage = false});
   final PluginSetup setup;
   final double size;
 
   /// The icon; the plugin's mark (or its first tile's icon) where null.
   final LucideIcon? icon;
 
+  /// On the plugin's page in Settings ([setupMarkOf]).
+  final bool onPage;
+
   @override
   Widget build(BuildContext context) {
     final colours = setupWash(setup);
-    final mark = setupMarkOf(setup);
+    final mark = setupMarkOf(setup, onPage: onPage);
     return Container(
       width: size,
       height: size,

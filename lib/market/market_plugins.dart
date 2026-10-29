@@ -6,7 +6,8 @@
 ///
 /// Each wears its colour (lib/market/market_items.dart [pluginTile]): a wash across its hue, the one its page in
 /// Settings wears, with its Lucide icon in white; a company's plugin wears its company's mark instead, in its brand's
-/// colour on a badge of its own ([PluginBadge]; lib/plugins/brands.dart). Each says where it works ([reachOf]): "Mobile · Desktop", "Android · Desktop", "Android
+/// colour on a badge of its own ([PluginBadge]; lib/plugins/brands.dart), but Google Meet, whose mark is in white on
+/// its colour as the icons are (`marksInWhite`). Each says where it works ([reachOf]): "Mobile · Desktop", "Android · Desktop", "Android
 /// only".
 ///
 /// Adding one is the registry's switch (`registry.setEnabled`), as the catalogue's Add was, so the switches the
@@ -19,7 +20,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/art.dart';
 import '../art/brand_marks.dart';
-import '../plugins/brands.dart' show brandOf;
+import '../plugins/brands.dart' show badgedBrandOf;
 import '../plugins/reach.dart';
 import '../plugins/types.dart';
 import '../settings/kit/settings_type.dart';
@@ -39,7 +40,7 @@ class PluginTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = size * 0.28;
-    final brand = brandOf(plugin);
+    final brand = badgedBrandOf(plugin);
     // A filled mark on the light badge reads smaller than a white glyph on colour: a little larger.
     if (brand != null) return PluginBadge(mark: brand, size: size, radius: radius, markSize: size * 0.58);
     return SizedBox.square(
@@ -90,7 +91,7 @@ class PluginBadge extends StatelessWidget {
 /// The chip that holds a plugin's mark on its coloured head, [size] square: glass with the mark in white, or the
 /// company's mark on its badge ([PluginBadge]).
 Widget _markChip(GlyphPlugin plugin, {required double size, required double radius, required double markSize}) {
-  final brand = brandOf(plugin);
+  final brand = badgedBrandOf(plugin);
   if (brand != null) return PluginBadge(mark: brand, size: size, radius: radius, markSize: markSize);
   return Container(
     width: size,
@@ -213,7 +214,7 @@ class MarketPluginCard extends StatelessWidget {
                   // The mark again, large and faint past the end: the card's picture.
                   Positioned(right: -head * 0.18, bottom: -head * 0.3, child: Opacity(opacity: 0.16, child: pluginMark(plugin, head * 1.15))),
                   // A company's mark on its badge, in its colour; any other in white on the head.
-                  Positioned(left: t.space(3), bottom: t.space(3), child: brandOf(plugin) == null ? pluginMark(plugin, head * 0.42) : PluginTile(plugin: plugin, size: head * 0.52)),
+                  Positioned(left: t.space(3), bottom: t.space(3), child: badgedBrandOf(plugin) == null ? pluginMark(plugin, head * 0.42) : PluginTile(plugin: plugin, size: head * 0.52)),
                   if (manifest.category != null)
                     Positioned(top: t.space(2), right: t.space(2), child: MarketTag(label: manifest.category!.label, ground: const Color(0x33000000), ink: _white)),
                 ],

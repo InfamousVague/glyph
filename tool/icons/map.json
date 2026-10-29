@@ -1365,6 +1365,12 @@
       "material": "group",
       "remix": "team"
     },
+    "video": {
+      "phosphor": "video-camera",
+      "tabler": "video",
+      "material": "videocam",
+      "remix": "vidicon"
+    },
     "volume-2": {
       "phosphor": "speaker-high",
       "tabler": "volume",

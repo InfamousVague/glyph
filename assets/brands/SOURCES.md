@@ -31,7 +31,6 @@ its colours are its data file's (`data/simple-icons.json`, `hex`).
 | Notion | `notion` | `#000000` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/notion.svg | https://www.notion.so |
 | Things | `things` | `#2473E7` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/things.svg | https://culturedcode.com/terms/#using_our_service |
 | Todoist | `todoist` | `#E44332` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/todoist.svg | https://doist.com/press |
-| Zoom | `zoom` | `#0B5CFF` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/zoom.svg | https://brand.zoom.us/usage-legal/ |
 
 Claude's path is the one `lib/claude/claude_mark.dart` and the landing page already drew (the same string).
 
@@ -41,14 +40,21 @@ Claude's path is the one `lib/claude/claude_mark.dart` and the landing page alre
 | --- | --- | --- | --- | --- |
 | Lovart | `lovart` | none (drawn in the ink) | https://www.lovart.ai/, the inline `<svg>` beside the wordmark in the page's header, read 2026-10-26 (docs/LOVART.md; the same file as `assets/plugins/lovart/lovart-mark.svg`) | none given: Lovart's mark, used to identify the integration |
 
+Google Meet's mark is drawn in white only, on its own colour (its Market tile and heads, its setup's band); its page in
+Settings, the page of meetings Zoom shares, and its row there wear the plugin's glyph, a group of people (Matt,
+2026-10-29: "set the Google meets to use Google meets logo in white but show a generic meetings icon for the meetings
+page"; `marksInWhite`).
+
 ## Kept as glyphs
 
-Companies' products whose marks the app has no copy of from either source, so their plugins keep the generic glyph
-(`lib/plugins/brands.dart`, `pluginsWithoutMark`):
+Companies' products whose plugins keep the generic glyph (`lib/plugins/brands.dart`, `pluginsWithoutMark`): the app
+has no copy of the mark from either source, or (Zoom) Matt chose the glyph over the one there is:
 
 - **Slack** (`hash`): Simple Icons no longer carries Slack's mark, and Slack's media kit hands its logos out
   from Salesforce's Widen (salesforce.widencollective.com), not from slack.com.
 - **OpenAI** (`brain`): Simple Icons carries no OpenAI mark, and openai.com/brand gave no file to fetch (it answered
   403 to a plain request, and asks for permission by mail for use of its logos).
+- **Zoom** (`video`): Simple Icons' Zoom mark (16.35.0) is the word "zoom", which cannot be read at an icon's size,
+  so Matt chose a video camera for it (2026-10-29: "change zoom"); the app carries no Zoom mark.
 - **Aster** (`asterisk`): Simple Icons has no Aster Lab, and asterlab.ai publishes no press kit and no SVG (its header
   logo is a PNG, `/aster_logo_dark.png`).

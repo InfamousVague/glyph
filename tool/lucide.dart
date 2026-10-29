@@ -23,6 +23,8 @@ const also = <String>[
   // lib/market: the Market's own mark (the sidebar's row, the palette, Settings' row) and the Themes shelf's.
   'store',
   'swatch-book',
+  // lib/plugins/meetings: the Zoom plugin's icon, a video camera (Matt, 2026-10-29: "change zoom").
+  'video',
 ];
 
 const glyph = 'tauri';

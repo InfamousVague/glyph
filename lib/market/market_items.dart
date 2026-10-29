@@ -105,7 +105,7 @@ Widget tileLight({required double radius}) => IgnorePointer(
 /// (lib/art/brand_marks.dart `brandMarksShown`). Where the mark stands on a badge of its own it is in its brand's
 /// colour instead (lib/market/market_plugins.dart `PluginBadge`).
 Widget pluginMark(GlyphPlugin plugin, double size, {Color color = const Color(0xFFFFFFFF)}) =>
-    IconTheme.merge(data: IconThemeData(color: color, size: size), child: pluginGlyph(plugin, size, color: color, strokeWidth: 1.8, wash: false));
+    IconTheme.merge(data: IconThemeData(color: color, size: size), child: pluginGlyph(plugin, size, color: color, onColour: true, strokeWidth: 1.8, wash: false));
 
 /// Whether the featured shelf leads with a plugin: the four it has led with since 2026-10-26 (Claude, Notion,
 /// GitHub, Lovart), whose marks the app drew before any other's, and the site draws still (landing/brands/). Every

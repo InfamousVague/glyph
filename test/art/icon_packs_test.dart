@@ -64,7 +64,7 @@ void main() {
       }
       // Lucide draws them all; the four between them nearly all (tool/icons/map.json).
       expect(packCoverage(iconPacks.first).lucides, isEmpty);
-      expect({for (final id in packIds) id: packCoverage(iconPackOf(id)).own}, {'phosphor': 217, 'tabler': 227, 'material': 222, 'remix': 217});
+      expect({for (final id in packIds) id: packCoverage(iconPackOf(id)).own}, {'phosphor': 218, 'tabler': 228, 'material': 223, 'remix': 218});
     });
 
     test('pins every source and keeps every licence', () {

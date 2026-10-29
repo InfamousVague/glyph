@@ -138,7 +138,7 @@ class _PluginSetupCardState extends State<PluginSetupCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: t.space(3),
             children: [
-              SetupTile(setup: setup, size: t.lenOf('2.75rem')),
+              SetupTile(setup: setup, size: t.lenOf('2.75rem'), onPage: true),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

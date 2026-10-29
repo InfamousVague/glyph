@@ -221,6 +221,7 @@ const _userPlus = LucideIcon('user-plus', ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-
 const _userRound = LucideIcon('user-round', ['M7 8A5 5 0 1 0 17 8A5 5 0 1 0 7 8Z', 'M20 21a8 8 0 0 0-16 0'], [0]);
 const _userX = LucideIcon('user-x', ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M5 7A4 4 0 1 0 13 7A4 4 0 1 0 5 7Z', 'M17 8L22 13', 'M22 8L17 13'], [1]);
 const _users = LucideIcon('users', ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M16 3.128a4 4 0 0 1 0 7.744', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M5 7A4 4 0 1 0 13 7A4 4 0 1 0 5 7Z'], [3]);
+const _video = LucideIcon('video', ['m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5', 'M4 6H14A2 2 0 0 1 16 8V16A2 2 0 0 1 14 18H4A2 2 0 0 1 2 16V8A2 2 0 0 1 4 6Z'], [1]);
 const _volume2 = LucideIcon('volume-2', ['M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z', 'M16 9a5 5 0 0 1 0 6', 'M19.364 18.364a9 9 0 0 0 0-12.728'], [0]);
 const _wandSparkles = LucideIcon('wand-sparkles', ['m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72', 'm14 7 3 3', 'M5 6v4', 'M19 14v4', 'M10 2v2', 'M7 8H3', 'M21 16h-4', 'M11 3H9'], [0]);
 const _wavesHorizontal = LucideIcon('waves-horizontal', ['M2 12q2.5 2 5 0t5 0 5 0 5 0', 'M2 19q2.5 2 5 0t5 0 5 0 5 0', 'M2 5q2.5 2 5 0t5 0 5 0 5 0'], []);
@@ -454,6 +455,7 @@ abstract final class Lucide {
   static const userRound = _userRound;
   static const userX = _userX;
   static const users = _users;
+  static const video = _video;
   static const volume2 = _volume2;
   static const wand2 = _wandSparkles;
   static const wandSparkles = _wandSparkles;
@@ -717,6 +719,7 @@ abstract final class Lucide {
     'user-round': _userRound,
     'user-x': _userX,
     'users': _users,
+    'video': _video,
     'volume-2': _volume2,
     'wand-2': _wandSparkles,
     'wand-sparkles': _wandSparkles,

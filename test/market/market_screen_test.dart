@@ -192,7 +192,8 @@ void main() {
 
   // Matt, 2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins".
   testWidgets('lists Google Meet and Zoom as two plugins, each found by its name, added, in a colour and a mark of its own', (tester) async {
-    for (final (id, name, icon, hue, slug) in [('google-meet', 'Google Meet', 'users', 'orange', 'googlemeet'), ('zoom', 'Zoom', 'laptop', 'mint', 'zoom')]) {
+    // Google Meet's mark in white on its colour; Zoom a video camera (Matt, 2026-10-29: "change zoom").
+    for (final (id, name, icon, hue, slug) in [('google-meet', 'Google Meet', 'users', 'orange', 'googlemeet'), ('zoom', 'Zoom', 'video', 'mint', null)]) {
       final plugin = builtIn.singleWhere((p) => p.manifest.id == id);
       expect((plugin.manifest.name, plugin.icon, pluginHue(plugin), plugin.manifest.standard), (name, icon, hue, true), reason: id);
       // Its company's mark in the app, its plain icon in a store's pictures (test/plugins/brands_test.dart).

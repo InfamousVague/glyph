@@ -1,7 +1,7 @@
 // MADE, not written: `dart run tool/icons/generate.dart <the packs' folder>` writes it from tool/icons/map.json.
 //
 // Tabler (@tabler/icons 3.49.0, MIT). Outline is the outline set, stroked as Lucide is; Solid the same lines heavier (Tabler's own stroke width); Filled the filled set where it has the glyph. The wash is the rule Lucide's is (lib/art/icon_wash.dart).
-// 227 of the app's 228 glyphs; 1 drawn as Lucide's: bookmark-check. Solid native for 0, Filled native for 104.
+// 228 of the app's 229 glyphs; 1 drawn as Lucide's: bookmark-check. Solid native for 0, Filled native for 105.
 // coverage:ignore-file
 
 import '../icon_pack.dart';
@@ -315,18 +315,20 @@ const _g305 = PackGlyph.lines(['M8 7a4 4 0 108 0A4 4 0 008 7', 'M6 21v-2a4 4 0 0
 const _g306 = PackGlyph.shapes(['M12 2A5 5 0 117 7l.01-.22A5 5 0 0112 2Z', 'M14 14a5 5 0 015 5v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a5 5 0 015-5h4Z']);
 const _g307 = PackGlyph.lines(['M8 7a4 4 0 108 0A4 4 0 008 7', 'M6 21v-2a4 4 0 014-4h3.5', 'M22 22l-5-5', 'M17 22l5-5'], wash: [0]);
 const _g308 = PackGlyph.lines(['M5 7a4 4 0 108 0A4 4 0 105 7', 'M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2', 'M16 3.13a4 4 0 010 7.75', 'M21 21v-2a4 4 0 00-3-3.85'], wash: [0]);
-const _g309 = PackGlyph.lines(['M15 8a5 5 0 010 8', 'M17.7 5a9 9 0 010 14', 'M6 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h2l3.5-4.5A.8.8 0 0111 5v14a.8.8 0 01-1.5.5L6 15'], wash: [2]);
-const _g310 = PackGlyph.lines(['M6 21L21 6l-3-3L3 18l3 3', 'M15 6l3 3', 'M9 3a2 2 0 002 2A2 2 0 009 7 2 2 0 007 5a2 2 0 002-2', 'M19 13a2 2 0 002 2 2 2 0 00-2 2 2 2 0 00-2-2 2 2 0 002-2'], wash: [0]);
-const _g311 = PackGlyph.lines(['M3 7c3-2 6-2 9 0s6 2 9 0', 'M3 17c3-2 6-2 9 0s6 2 9 0', 'M3 12c3-2 6-2 9 0s6 2 9 0']);
-const _g312 = PackGlyph.lines(['M12 18l.01 0', 'M9.17 15.17a4 4 0 015.66 0', 'M6.34 12.34a8 8 0 0111.32 0', 'M3.52 9.52c4.68-4.69 12.28-4.69 17 0']);
-const _g313 = PackGlyph.lines(['M12 18l.01 0', 'M9.17 15.17a4 4 0 015.66 0', 'M6.34 12.34a7.96 7.96 0 013.87-2.14m4.16.16a7.97 7.97 0 013.29 2', 'M3.52 9.52a12 12 0 013.54-2.46m3.1-.92a12 12 0 0110.33 3.37', 'M3 3l18 18']);
-const _g314 = PackGlyph.lines(['M5 2h5v4H5l0-4', 'M15 10h5v4h-5l0-4', 'M5 18h5v4H5l0-4', 'M5 10h5v4H5l0-4', 'M10 12h5', 'M7.5 6v4', 'M7.5 14v4']);
-const _g315 = PackGlyph.lines(['M18 6L6 18', 'M6 6l12 12']);
-const _g316 = PackGlyph.shapes(['M6.71 5.29l5.29 5.3 5.29-5.3a1 1 0 011.42 1.42L13.42 12l5.29 5.29a1 1 0 01-1.42 1.42L12 13.42l-5.29 5.29a1 1 0 11-1.42-1.42l5.3-5.29-5.3-5.29a1 1 0 011.42-1.42']);
-const _g317 = PackGlyph.lines(['M3 10a7 7 0 1014 0A7 7 0 103 10', 'M7 10l6 0', 'M10 7l0 6', 'M21 21l-6-6'], wash: [0]);
-const _g318 = PackGlyph.shapes(['M14 3.07a8 8 0 012.62 11.43l4.94 4.94a1.4988 1.4988 0 01-2.01 2.22l-.11-.1-4.94-4.94A8 8 0 012.01 10.29L2 10l.01-.28A8 8 0 0114 3.07ZM10 6a1 1 0 00-.99.88L9 7v2H7l-.12.01a.997.997 0 000 1.98L7 11h2v2l.01.12a.997.997 0 001.98 0L11 13v-2h2l.12-.01a.997.997 0 000-1.98L13 9h-2V7l-.01-.12A1 1 0 0010 6Z']);
-const _g319 = PackGlyph.lines(['M3 10a7 7 0 1014 0A7 7 0 103 10', 'M7 10l6 0', 'M21 21l-6-6'], wash: [0]);
-const _g320 = PackGlyph.shapes(['M14 3.07a8 8 0 012.62 11.43l4.94 4.94a1.4988 1.4988 0 01-2.01 2.22l-.11-.1-4.94-4.94A8 8 0 012.01 10.29L2 10l.01-.28A8 8 0 0114 3.07ZM13 9H7l-.12.01a.997.997 0 000 1.98L7 11h6l.12-.01a.997.997 0 000-1.98L13 9Z']);
+const _g309 = PackGlyph.lines(['M15 10l4.55-2.28a1 1 0 011.45.9v6.76a1 1 0 01-1.45.9L15 14v-4', 'M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2l0-8'], wash: [0, 1]);
+const _g310 = PackGlyph.shapes(['M20.12 7.63a1 1 0 00-.57.1L15 10v4l4.55 2.27a1 1 0 001.45-.89V8.62a1 1 0 00-.88-1Z', 'M5 5C3.36 5 2 6.36 2 8v8c0 1.65 1.36 3 3 3h8c1.65 0 3-1.35 3-3V8c0-1.64-1.35-3-3-3Z']);
+const _g311 = PackGlyph.lines(['M15 8a5 5 0 010 8', 'M17.7 5a9 9 0 010 14', 'M6 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h2l3.5-4.5A.8.8 0 0111 5v14a.8.8 0 01-1.5.5L6 15'], wash: [2]);
+const _g312 = PackGlyph.lines(['M6 21L21 6l-3-3L3 18l3 3', 'M15 6l3 3', 'M9 3a2 2 0 002 2A2 2 0 009 7 2 2 0 007 5a2 2 0 002-2', 'M19 13a2 2 0 002 2 2 2 0 00-2 2 2 2 0 00-2-2 2 2 0 002-2'], wash: [0]);
+const _g313 = PackGlyph.lines(['M3 7c3-2 6-2 9 0s6 2 9 0', 'M3 17c3-2 6-2 9 0s6 2 9 0', 'M3 12c3-2 6-2 9 0s6 2 9 0']);
+const _g314 = PackGlyph.lines(['M12 18l.01 0', 'M9.17 15.17a4 4 0 015.66 0', 'M6.34 12.34a8 8 0 0111.32 0', 'M3.52 9.52c4.68-4.69 12.28-4.69 17 0']);
+const _g315 = PackGlyph.lines(['M12 18l.01 0', 'M9.17 15.17a4 4 0 015.66 0', 'M6.34 12.34a7.96 7.96 0 013.87-2.14m4.16.16a7.97 7.97 0 013.29 2', 'M3.52 9.52a12 12 0 013.54-2.46m3.1-.92a12 12 0 0110.33 3.37', 'M3 3l18 18']);
+const _g316 = PackGlyph.lines(['M5 2h5v4H5l0-4', 'M15 10h5v4h-5l0-4', 'M5 18h5v4H5l0-4', 'M5 10h5v4H5l0-4', 'M10 12h5', 'M7.5 6v4', 'M7.5 14v4']);
+const _g317 = PackGlyph.lines(['M18 6L6 18', 'M6 6l12 12']);
+const _g318 = PackGlyph.shapes(['M6.71 5.29l5.29 5.3 5.29-5.3a1 1 0 011.42 1.42L13.42 12l5.29 5.29a1 1 0 01-1.42 1.42L12 13.42l-5.29 5.29a1 1 0 11-1.42-1.42l5.3-5.29-5.3-5.29a1 1 0 011.42-1.42']);
+const _g319 = PackGlyph.lines(['M3 10a7 7 0 1014 0A7 7 0 103 10', 'M7 10l6 0', 'M10 7l0 6', 'M21 21l-6-6'], wash: [0]);
+const _g320 = PackGlyph.shapes(['M14 3.07a8 8 0 012.62 11.43l4.94 4.94a1.4988 1.4988 0 01-2.01 2.22l-.11-.1-4.94-4.94A8 8 0 012.01 10.29L2 10l.01-.28A8 8 0 0114 3.07ZM10 6a1 1 0 00-.99.88L9 7v2H7l-.12.01a.997.997 0 000 1.98L7 11h2v2l.01.12a.997.997 0 001.98 0L11 13v-2h2l.12-.01a.997.997 0 000-1.98L13 9h-2V7l-.01-.12A1 1 0 0010 6Z']);
+const _g321 = PackGlyph.lines(['M3 10a7 7 0 1014 0A7 7 0 103 10', 'M7 10l6 0', 'M21 21l-6-6'], wash: [0]);
+const _g322 = PackGlyph.shapes(['M14 3.07a8 8 0 012.62 11.43l4.94 4.94a1.4988 1.4988 0 01-2.01 2.22l-.11-.1-4.94-4.94A8 8 0 012.01 10.29L2 10l.01-.28A8 8 0 0114 3.07ZM13 9H7l-.12.01a.997.997 0 000 1.98L7 11h6l.12-.01a.997.997 0 000-1.98L13 9Z']);
 
 /// The app's glyphs as Tabler draws them, by their Lucide name (tool/icons/map.json).
 const Map<String, PackGlyphs> tablerGlyphs = {
@@ -548,13 +550,14 @@ const Map<String, PackGlyphs> tablerGlyphs = {
   'user-round': PackGlyphs(_g305, filled: _g306),
   'user-x': PackGlyphs(_g307),
   'users': PackGlyphs(_g308),
-  'volume-2': PackGlyphs(_g309),
-  'wand-sparkles': PackGlyphs(_g310),
-  'waves-horizontal': PackGlyphs(_g311),
-  'wifi': PackGlyphs(_g312),
-  'wifi-off': PackGlyphs(_g313),
-  'workflow': PackGlyphs(_g314),
-  'x': PackGlyphs(_g315, filled: _g316),
-  'zoom-in': PackGlyphs(_g317, filled: _g318),
-  'zoom-out': PackGlyphs(_g319, filled: _g320),
+  'video': PackGlyphs(_g309, filled: _g310),
+  'volume-2': PackGlyphs(_g311),
+  'wand-sparkles': PackGlyphs(_g312),
+  'waves-horizontal': PackGlyphs(_g313),
+  'wifi': PackGlyphs(_g314),
+  'wifi-off': PackGlyphs(_g315),
+  'workflow': PackGlyphs(_g316),
+  'x': PackGlyphs(_g317, filled: _g318),
+  'zoom-in': PackGlyphs(_g319, filled: _g320),
+  'zoom-out': PackGlyphs(_g321, filled: _g322),
 };

@@ -76,7 +76,7 @@ void main() {
     await tapOn(tester, card('phosphor'));
     expect(find.byKey(const ValueKey('market-icons-detail-phosphor')), findsOneWidget);
     expect(find.text('Phosphor'), findsWidgets);
-    expect(tester.widget<Text>(find.byKey(const ValueKey('market-icons-coverage'))).data, startsWith('217 of the app’s 228 icons.'));
+    expect(tester.widget<Text>(find.byKey(const ValueKey('market-icons-coverage'))).data, startsWith('218 of the app’s 229 icons.'));
     expect(find.textContaining('MIT', skipOffstage: false), findsWidgets);
 
     await tapOn(tester, find.byKey(const ValueKey('market-icons-use-phosphor')));

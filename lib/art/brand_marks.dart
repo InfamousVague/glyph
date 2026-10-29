@@ -75,9 +75,6 @@ const Map<String, double> _optical = {
   'elevenlabs': 0.7,
   // Discord's face is wide and short: a little larger, to weigh what the rest do.
   'discord': 0.86,
-  // Zoom's mark is its word, four letters wide and a quarter as tall (Simple Icons carries no other): the box's whole
-  // width, or it cannot be read.
-  'zoom': 1,
 };
 
 /// The mark of [slug], or null where the app carries none.

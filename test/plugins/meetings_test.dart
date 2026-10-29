@@ -49,7 +49,9 @@ void main() {
     expect((meet.manifest.name, zoom.manifest.name), ('Google Meet', 'Zoom'));
     expect((meet.manifest.standard, zoom.manifest.standard), (true, true));
     expect((meet.manifest.category, zoom.manifest.category), (PluginCategory.connections, PluginCategory.connections));
-    expect((meet.icon, zoom.icon), ('users', 'laptop'), reason: 'Lucide’s, not either service’s mark');
+    // Lucide's: the page of meetings' people, and Zoom's video camera (Matt, 2026-10-29: "change zoom"; Google Meet's mark
+    // is drawn in white on its colour alone, lib/plugins/brands.dart).
+    expect((meet.icon, zoom.icon), ('users', 'video'));
     expect(meet.manifest.description, isNot(zoom.manifest.description));
     expect((meet.settings!.simple, zoom.settings!.simple), (true, true));
     expect(registry.isEnabled('google-meet') && registry.isEnabled('zoom'), isTrue);

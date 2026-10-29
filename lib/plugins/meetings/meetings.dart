@@ -21,9 +21,11 @@
 /// Matt asked for the same day. With both off, nothing of meetings is in Settings; the meetings already filed are
 /// notes, and stay on the home page's shelf.
 ///
-/// The icons are Lucide's, not the services' marks (docs/store/, "no third-party brands"), as Slack's hash and
-/// Discord's speech bubble are: a group of people for Google Meet (`users`), and a laptop for Zoom (`laptop`), Ghost
-/// joining from a browser. The set has no camera to draw.
+/// The icons are Lucide's: a group of people for Google Meet (`users`), the page of meetings' own, and a video camera
+/// for Zoom (`video`; Matt, 2026-10-29: "change zoom", when its wordmark could not be read as an icon). Google Meet's
+/// mark is drawn in white on its colour, its tile in the Market and its setup's band, and nowhere on its page
+/// (lib/plugins/brands.dart `marksInWhite`; "set the Google meets to use Google meets logo in white but show a generic
+/// meetings icon for the meetings page").
 ///
 /// Each has a short setup (meeting_setup.dart): what Ghost does, and how to invite it, seen once as the plugin is added
 /// and from the head of its page.
@@ -134,4 +136,4 @@ PluginSettings _settingsFor(String kind, String hue) => PluginSettings(
 
 final GlyphPlugin googleMeetPlugin = GlyphPlugin(manifest: googleMeetManifest, icon: 'users', settings: _settingsFor('meet', 'orange'), setup: googleMeetSetup);
 
-final GlyphPlugin zoomPlugin = GlyphPlugin(manifest: zoomManifest, icon: 'laptop', settings: _settingsFor('zoom', 'mint'), setup: zoomSetup);
+final GlyphPlugin zoomPlugin = GlyphPlugin(manifest: zoomManifest, icon: 'video', settings: _settingsFor('zoom', 'mint'), setup: zoomSetup);

@@ -9,6 +9,7 @@ import 'package:ghost_md/plugins/brands.dart';
 import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/elevenlabs/elevenlabs_mark.dart';
 import 'package:ghost_md/plugins/lovart/lovart_mark.dart';
+import 'package:ghost_md/plugins/meetings/meeting_pane.dart' show MeetingPluginPane;
 import 'package:ghost_md/plugins/notion/marks.dart' show NotionMark;
 import 'package:ghost_md/plugins/onboarding/setup_sheet.dart' show setupMarkOf;
 import 'package:ghost_md/plugins/registry.dart';
@@ -63,7 +64,6 @@ void main() {
         'lovart': 'lovart',
         'discord': 'discord',
         'google-meet': 'googlemeet',
-        'zoom': 'zoom',
         'elevenlabs': 'elevenlabs',
         'gemini': 'googlegemini',
       });
@@ -71,14 +71,16 @@ void main() {
         expect(brandOf(pluginOf(id))?.slug, slug, reason: id);
         expect(brandMarkData[slug], isNotNull, reason: slug);
       }
-      expect(pluginsWithoutMark.keys.toSet(), {'slack', 'openai', 'aster'});
+      // Zoom's mark is its wordmark: a video camera instead (Matt, 2026-10-29: "change zoom").
+      expect(pluginsWithoutMark.keys.toSet(), {'slack', 'openai', 'aster', 'zoom'});
+      expect((pluginOf('zoom').icon, brandOf(pluginOf('zoom'))), ('video', null));
     });
 
-    testWidgets('a company’s plugin is drawn as its mark; the app’s own, and one without a mark, keep their glyphs', (tester) async {
+    testWidgets('a company’s plugin is drawn as its mark; the app’s own, one without a mark, and Google Meet’s page of meetings keep their glyphs', (tester) async {
       for (final plugin in builtIn) {
         final icon = pluginIcon(plugin, 20);
         final id = plugin.manifest.id;
-        if (pluginBrands.containsKey(id)) {
+        if (pluginBrands.containsKey(id) && !marksInWhite.contains(id)) {
           expect((icon as BrandMarkIcon).mark.slug, pluginBrands[id], reason: id);
         } else {
           expect((icon as AppIcon).icon, Lucide.all[plugin.icon], reason: id);
@@ -114,9 +116,18 @@ void main() {
 
         final t = GlacierTheme.of(tester.element(find.byType(MarketScreen)));
         expect(colourOn('todoist', 'todoist'), brandMarkData['todoist']!.colour);
-        expect(colourOn('zoom', 'zoom'), brandMarkData['zoom']!.colour);
         expect(colourOn('github', 'github'), theme == 'light' ? brandMarkData['github']!.colour : t.color('app-ink'));
         expect(colourOn('lovart', 'lovart'), t.color('app-ink'), reason: 'no colour of its own');
+        // Google Meet's mark is white on its own colour, the tile as it was, with no badge (Matt, 2026-10-29: "set the
+        // Google meets to use Google meets logo in white").
+        final meet = find.byKey(const ValueKey('market-plugin-google-meet'), skipOffstage: false);
+        expect(find.descendant(of: meet, matching: find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('plugin-badge-'), skipOffstage: false), skipOffstage: false), findsNothing);
+        final meetMark = tester.widget<BrandMarkIcon>(find.descendant(of: meet, matching: find.byType(BrandMarkIcon), skipOffstage: false));
+        expect((meetMark.mark.slug, meetMark.color), ('googlemeet', const Color(0xFFFFFFFF)));
+        // Zoom's tile is its colour with the video camera on it.
+        final zoom = find.byKey(const ValueKey('market-plugin-zoom'), skipOffstage: false);
+        expect(find.descendant(of: zoom, matching: find.byType(BrandMarkIcon), skipOffstage: false), findsNothing);
+        expect(find.descendant(of: zoom, matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.video), skipOffstage: false), findsOneWidget);
         // A plugin of the app's own keeps its tile in its colour, and no badge.
         expect(find.descendant(of: find.byKey(const ValueKey('market-plugin-webhooks'), skipOffstage: false), matching: find.byType(BrandMarkIcon), skipOffstage: false), findsNothing);
         await endSettings(tester);
@@ -178,11 +189,25 @@ void main() {
     });
   });
 
+  // Matt, 2026-10-29: "show a generic meetings icon for the meetings page".
+  testWidgets('the page of meetings, Google Meet’s and Zoom’s, wears no mark: its row a group of people, its setup card too', (tester) async {
+    expect((pluginIcon(pluginOf('google-meet'), 20) as AppIcon).icon, Lucide.users);
+    expect((pluginIcon(pluginOf('zoom'), 20) as AppIcon).icon, Lucide.video);
+    for (final kind in ['meet', 'zoom']) {
+      await pumpSettings(tester, MeetingPluginPane(services: null, kind: kind), size: const Size(390, 1600));
+      expect(find.byKey(ValueKey('meeting-setup-$kind')), findsOneWidget);
+      expect(find.byType(BrandMarkIcon, skipOffstage: false), findsNothing, reason: kind);
+      await endSettings(tester);
+    }
+  });
+
   testWidgets('in the app, the setups wear the company’s mark, and the actions too', (tester) async {
     for (final plugin in builtIn) {
       if (plugin.setup == null) continue;
       final setup = plugin.setup!();
       expect(setupMarkOf(setup) != null, pluginBrands.containsKey(setup.id) || setup.mark != null, reason: setup.id);
+      // On the plugin's page, all but Google Meet's, the page of meetings, which has its group of people there.
+      expect(setupMarkOf(setup, onPage: true) != null, (pluginBrands.containsKey(setup.id) && setup.id != 'google-meet') || setup.mark != null, reason: setup.id);
     }
     await pumpSettings(tester, Builder(builder: (context) => Column(children: [brandedIcon('notion', (context, size) => NotionMark(size: size))(context, 20), const ElevenLabsMark(size: 20)])));
     expect([for (final mark in tester.widgetList<BrandMarkIcon>(find.byType(BrandMarkIcon))) mark.mark.slug], ['notion', 'elevenlabs']);

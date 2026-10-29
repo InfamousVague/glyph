@@ -2,7 +2,7 @@
 // todoist, GitHub, Google meets, zoom etc and use those for the plugin icons"), for the eye: written only by
 // `flutter test --update-goldens test/plugins/brand_icons_shots_test.dart`, into build/feature-shots/brand-icons/ (not
 // committed). Settings' list with every plugin added and the Market's plugins, on a phone and on the Mac, light and
-// dark; the first step of six companies' setups; and a contact sheet of every plugin's icon beside Lucide glyphs at the sizes the app draws them, in each icon
+// dark; the first step of seven companies' setups; and a contact sheet of every plugin's icon beside Lucide glyphs at the sizes the app draws them, in each icon
 // style, with the Market's tiles, as the app has them and as a store-shot build has them.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -130,17 +130,19 @@ void main() {
         await endSettings(tester);
       });
 
-      testWidgets('a plugin’s page in the Market, Todoist, $where, $theme', (tester) async {
+      testWidgets('plugins’ pages in the Market, Todoist, Google Meet and Zoom, $where, $theme', (tester) async {
         if (!autoUpdateGoldenFiles) return;
-        await pumpSettings(tester, MarketScreen(onBack: () {}, registry: _everyOn(), plugin: 'todoist', offerSetup: false), size: size, prefs: Preferences(theme: theme));
-        await _picture(tester, 'market-todoist-$where-$theme');
-        await endSettings(tester);
+        for (final id in ['todoist', 'google-meet', 'zoom']) {
+          await pumpSettings(tester, MarketScreen(onBack: () {}, registry: _everyOn(), plugin: id, offerSetup: false), size: size, prefs: Preferences(theme: theme));
+          await _picture(tester, 'market-$id-$where-$theme');
+          await endSettings(tester);
+        }
       });
     }
 
     testWidgets('the setups’ first steps with the company’s mark in the band, $theme', (tester) async {
       if (!autoUpdateGoldenFiles) return;
-      for (final id in ['todoist', 'github', 'google-meet', 'gemini', 'notion', 'discord']) {
+      for (final id in ['todoist', 'github', 'google-meet', 'zoom', 'gemini', 'notion', 'discord']) {
         final setup = builtIn.singleWhere((p) => p.manifest.id == id).setup!();
         await pumpSettings(tester, PluginSetupSheet(key: UniqueKey(), setup: setup, memory: SetupMemory(MemoryStored()), onClose: () {}), size: const Size(390, 844), prefs: Preferences(theme: theme, experience: 'advanced', experienceChosen: true));
         await _picture(tester, 'setup-$id-$theme');
