@@ -19,6 +19,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/background_jobs.dart';
 import '../core/preferences.dart';
 import 'support/failure.dart';
 import 'support/runnable.dart';
@@ -751,15 +752,22 @@ class ModelsController extends ChangeNotifier {
     }
     _busy = true;
     _set(() => _problem = null);
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): a ring filling, green,
+    // as far as the download is; asked for by the person, so a long one chimes as it lands.
+    final job = activity.begin('model:$id', kind: JobKind.downloads, title: 'Downloading ${modelSpec(id)?.name ?? 'the model'}', line: 'Downloading', personStarted: true, fraction: 0);
     final unlisten = backend.listen(modelProgressEvent, (payload) {
       if (payload is! Map || payload['id'] != id) return;
       _set(() => _download = Download(id: id, received: (payload['receivedBytes'] as num?)?.toInt() ?? 0, total: (payload['totalBytes'] as num?)?.toInt() ?? 0));
+      final d = _download!;
+      if (d.total > 0) job.progress(fraction: d.received / d.total, steps: downloadSteps(d.received, d.total));
     });
     _set(() => _download = Download(id: id, received: 0, total: modelSpec(id)?.bytes ?? 0));
     try {
       await backend.fetchModel(id);
+      job.done(result: JobResult('${modelSpec(id)?.name ?? 'The model'} is ready'), tally: const JobTally('model downloaded', 'models downloaded'));
     } catch (failure) {
       _set(() => _problem = failureText(failure));
+      job.failed(failureText(failure), fix: JobFix(JobFixKind.retry, () => unawaited(fetch(id))));
     } finally {
       unlisten();
       _set(() => _download = null);

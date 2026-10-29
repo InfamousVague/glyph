@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/capture/voice_model.dart';
 
 /// The voice model's fetch as the app opens (lib/capture/voice_model.dart): shown while it runs, said when it
@@ -46,6 +48,30 @@ void main() {
       final host = show();
       expect(host.state.kind, 'unsupported');
       expect(asked, 0);
+    });
+
+    test('is a job on the app\'s record of running work only while it downloads', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      // Already here: no job.
+      show();
+      await settle();
+      expect(record[voiceModelJobId], isNull);
+      expect(record.log.today.isEmpty, isTrue);
+      final finish = Completer<Object?>();
+      answer = (onProgress) {
+        onProgress?.call(30000000, 60000000);
+        return finish.future;
+      };
+      show();
+      await settle();
+      expect(record[voiceModelJobId]!.fraction, 0.5);
+      expect(record[voiceModelJobId]!.liveLine, 'Downloading, 30 MB of 60 MB');
+      finish.complete(true);
+      await settle();
+      expect(record.value, isEmpty);
+      expect(record.log.today.words, '1 model downloaded');
     });
 
     test('shows its download as it comes, and then that it is ready', () async {

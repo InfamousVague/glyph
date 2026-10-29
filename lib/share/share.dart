@@ -42,6 +42,7 @@ import 'package:flutter/foundation.dart';
 import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../account/session.dart';
+import '../core/background_jobs.dart';
 import '../core/book.dart';
 import '../core/bytes.dart';
 import '../core/front_matter.dart';
@@ -573,20 +574,44 @@ class Shares extends ChangeNotifier {
       return now != null && now.id == first.id && now.recording;
     }
 
-    final sent = await sendShareAudio(
-      api: api,
-      token: _token(),
-      crypto: crypto,
-      shareId: first.id,
-      key: first.key,
-      recording: recording,
-      ms: note.recordingMs ?? 0,
-      wanted: wanted,
-      progress: (done) => audioSending.value = {...audioSending.value, note.id: done},
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): the teal reels and a bar
+    // as its parts go, "Recording shared" as the last lands, or red with Retry where it did not go.
+    final title = noteTitle(note.body);
+    final job = activity.begin(
+      'share-audio:${note.id}',
+      kind: JobKind.audio,
+      title: title.isEmpty ? 'Sharing the recording' : 'Sharing the recording of $title',
+      line: 'Sending the recording',
+      onOpen: activityRoutes.noteOpener(note.id),
+      shownHere: activityRoutes.noteShown(note.id),
     );
-    if (sent == null || !wanted()) return;
+    final SharedAudio? sent;
+    try {
+      sent = await sendShareAudio(
+        api: api,
+        token: _token(),
+        crypto: crypto,
+        shareId: first.id,
+        key: first.key,
+        recording: recording,
+        ms: note.recordingMs ?? 0,
+        wanted: wanted,
+        progress: (done) {
+          audioSending.value = {...audioSending.value, note.id: done};
+          job.progress(fraction: done);
+        },
+      );
+    } catch (failure) {
+      job.failed('The recording didn’t go: $failure', fix: JobFix(JobFixKind.retry, () => unawaited(refreshShares())));
+      rethrow;
+    }
+    if (sent == null || !wanted()) {
+      job.stopped();
+      return;
+    }
+    job.done(result: JobResult('Recording shared', onOpen: activityRoutes.noteOpener(note.id)), tally: const JobTally('recording shared', 'recordings shared'));
     final all = _readKept();
-    all[note.id] = all[note.id]!.copyWith(audio: () => sent.toJson());
+    all[note.id] = all[note.id]!.copyWith(audio: () => sent!.toJson());
     _writeKept(all);
     // The words again, naming the recording: its descriptor is in what the share holds, so the digest moved.
     await refreshShares();

@@ -13,7 +13,9 @@ import 'dart:ui' show AppLifecycleState;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/locale_dates.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
 import 'package:ghost_md/core/update_keys.dart';
@@ -497,6 +499,9 @@ void main() {
       expect(phone.handed, isEmpty);
       server.downloadFails = null;
       phone.answer = 'no installer';
+      // Red on the record too, with Retry (docs/ACTIVITY.md).
+      expect(activity[Updates.updateJobId]?.cause, 'APK download: Connection reset by peer');
+      expect(activity[Updates.updateJobId]?.fix?.kind, JobFixKind.retry);
       await updates.installApk();
       expect((updates.apk as ApkPhaseFailed).message, 'The installer did not start (no installer).');
     });
@@ -620,6 +625,27 @@ void main() {
       expect(mac.restarts, 1);
       await updates.check();
       expect(updates.apk, isA<ApkPhaseRestarting>(), reason: 'nor while it quits');
+    });
+
+    test('the download is a job on the app\'s record of running work, ending as "The update is ready" with Restart', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final seen = <Job>[];
+      final hearing = record.events.listen((e) {
+        if (e.job != null) seen.add(e.job!);
+      });
+      final updates = await offered();
+      await updates.installApk();
+      await hearing.cancel();
+      expect((seen.first.id, seen.first.kind, seen.first.personStarted), (Updates.updateJobId, JobKind.downloads, true));
+      expect(seen.where((job) => job.state == JobState.running).last.fraction, 1.0);
+      final ready = seen.last;
+      expect((ready.state, ready.result!.words, ready.result!.action), (JobState.done, 'The update is ready', 'Restart'));
+      ready.result!.onOpen!();
+      await pumpEventQueue();
+      expect(mac.restarts, 1);
+      expect(record.log.today.words, '1 update downloaded');
     });
 
     test('a newer release than the one in place is offered over it', () async {

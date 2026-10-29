@@ -230,6 +230,17 @@ String durationWords(Duration d) {
   return m == 0 ? '$h h' : '$h h $m min';
 }
 
+/// A size in words, for a download's steps: "640 KB", "45 MB", "1.2 GB".
+String bytesWords(int bytes) {
+  if (bytes < 1000000) return '${(bytes / 1000).round()} KB';
+  if (bytes < 1000000000) return '${(bytes / 1000000).round()} MB';
+  final gb = bytes / 1000000000;
+  return '${gb < 10 ? gb.toStringAsFixed(1) : gb.round()} GB';
+}
+
+/// A download's steps: "45 MB of 190 MB".
+String downloadSteps(int received, int total) => '${bytesWords(received)} of ${bytesWords(total)}';
+
 /// What a finished job made, for its result chip and the tray's Open: "Banner ready", "View".
 @immutable
 class JobResult {
