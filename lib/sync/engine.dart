@@ -539,14 +539,18 @@ class SyncEngine {
 
   /// The rolling job ended, as the last pass it covered ended.
   void _endJob() {
-    final job = _job, moved = _moved, failure = _failure;
+    final job = _job, moved = _moved, failure = _failure, count = _count;
+    final failed = failure != null && !_passing(failure.error);
+    // The bar full as it ends well ([SyncCount.finish]: it held back room for work the pass might still find), told
+    // while the job is still the engine's.
+    if (job != null && !failed) count?.finish();
     _job = null;
     _count = null;
     _moved = 0;
     _failure = null;
     if (job == null) return;
     final tally = JobTally('note synced', 'notes synced', moved);
-    if (failure != null && !_passing(failure.error)) {
+    if (failed) {
       job.failed(failure.words, fix: JobFix(JobFixKind.retry, () => unawaited(syncNow())), tally: tally);
     } else {
       job.done(tally: tally);

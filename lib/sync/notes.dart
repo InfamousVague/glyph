@@ -161,16 +161,30 @@ abstract interface class SyncProgress {
 }
 
 /// The Syncing job's count: what its passes have found to do ([todo]) and done ([done]), and the bar they fill
-/// ([fraction]), which never goes back within the job though more is found as it goes, and is 0 before anything is
-/// counted. [onChange] hears it as more is found, and as the count goes at most once a whole percent of it (so a pass of
-/// a thousand notes is not a thousand changes), and always at the last.
+/// ([fraction]), 0 before anything is counted.
+///
+/// The bar never goes back, and more work found as it goes takes up the room that is left rather than pinning it (the
+/// coordinator, 2026-10-29, of a bar full while its line said "5 of 9": "make new work take up the space that's left"):
+/// each time the count grows, what is left to do is laid over what is left of the bar, `shown + (1 - shown) × done since
+/// / (left then + 1)`. The one more is the work the pass may still find: a pass that has done all it knows of (the
+/// account's notes) may yet find the teams' rows, which then have the room it kept to fill, a share of it as large as
+/// one item of what came before, so a long count keeps little back and a short one more. So the bar is under 1 until
+/// the pass ends, and [finish] fills it as the job ends well.
+///
+/// [onChange] hears it as more is found, and as the bar goes at most once a whole percent (so a pass of a thousand
+/// notes is not a thousand changes), and always at the last.
 class SyncCount implements SyncProgress {
   SyncCount({this.onChange});
 
   final void Function(SyncCount count)? onChange;
+
   int _todo = 0, _done = 0;
   double _fraction = 0;
   int _toldAt = -1;
+
+  // Where the bar stood, and how much was done and left, when the count last grew.
+  double _from = 0;
+  int _doneThen = 0, _leftThen = 0;
 
   int get todo => _todo;
   int get done => _done;
@@ -183,6 +197,9 @@ class SyncCount implements SyncProgress {
   void found(int count) {
     if (count <= 0) return;
     _todo += count;
+    _from = _fraction;
+    _doneThen = _done;
+    _leftThen = _todo - _done;
     _tell(found: true);
   }
 
@@ -190,13 +207,23 @@ class SyncCount implements SyncProgress {
   void did([int count = 1]) {
     if (count <= 0) return;
     _done = (_done + count).clamp(0, _todo);
+    if (_leftThen > 0) {
+      final laid = _from + (1 - _from) * (_done - _doneThen) / (_leftThen + 1);
+      if (laid > _fraction) _fraction = laid;
+    }
     _tell();
   }
 
+  /// The pass is over and went well: the bar full, whatever was left of it.
+  void finish() {
+    _done = _todo;
+    _fraction = 1;
+    _toldAt = 100;
+    onChange?.call(this);
+  }
+
   void _tell({bool found = false}) {
-    final now = _todo == 0 ? 0.0 : _done / _todo;
-    if (now > _fraction) _fraction = now;
-    final percent = (now * 100).floor();
+    final percent = (_fraction * 100).floor();
     if (!found && percent == _toldAt && _done < _todo) return;
     _toldAt = percent;
     onChange?.call(this);

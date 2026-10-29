@@ -200,10 +200,13 @@ fill as it's being synced"). The passes tell what they find to do and do (`lib/s
 as `SyncContext.progress` and `TeamPass.progress`): the account's feed rows to merge (per page), its notes to send or
 delete (found before any is sent), each picture, file or read text sent or fetched; each team's rows taken, the
 histories and pictures fetched after them, each recording fetched, each log read, each team note put and each row
-deleted. The engine sums them for the rolling job (`SyncCount`): the fraction is done over to do, never back within
-the job though more is found as it goes (the bar holds while the count grows), told as more is found and at most once a
-whole percent as it goes; the line is "Syncing, 12 of 40" (the tray: Syncing, and "12 of 40" under it). Before anything
-is counted the bar is empty at 0. Any job of the sync kind begun with no fraction is at 0 (`Activity.begin`), so the
+deleted. The engine sums them for the rolling job (`SyncCount`): the bar never goes back within the job, and work
+found as it goes takes up the room that is left rather than pinning it: each time the count grows, what is left to do
+is laid over what is left of the bar, `shown + (1 − shown) × done since / (left then + 1)`, the one more being room kept
+for work the pass may still find (the teams' rows after the account's notes). So the bar is under 1 while the pass
+runs and fills to 1 as the job ends well (`SyncCount.finish`). Told as more is found and at most once a whole percent as
+it goes; the line is "Syncing, 12 of 40" (the tray: Syncing, and "12 of 40" under it). Before anything is counted the
+bar is empty at 0. Any job of the sync kind begun with no fraction is at 0 (`Activity.begin`), so the
 calendar's and the plugins' fetches never sweep either. Mail, meetings and webhooks filed in a pass are not counted.
 
 Toasts replaced by chips: the banner run's end (`ghost_root.dart` `_bannerRunEnded`) and "Summarized “title”" with

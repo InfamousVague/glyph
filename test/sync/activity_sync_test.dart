@@ -48,7 +48,9 @@ void main() {
     final rig = await Rig.make();
     rig.notesPass = (_) async => Outcome(changed: 3);
     await rig.engine.syncNow();
-    expect(heard.map((e) => e.kind), [JobEventKind.started, JobEventKind.ended, JobEventKind.allDone]);
+    // The bar filled as it ends, then the end.
+    expect(heard.map((e) => e.kind), [JobEventKind.started, JobEventKind.changed, JobEventKind.ended, JobEventKind.allDone]);
+    expect(heard[1].job!.fraction, 1);
     expect(heard.first.job!.kind, JobKind.sync);
     expect(heard.first.job!.title, 'Syncing');
     expect(record.blooms, 1);
@@ -184,35 +186,56 @@ void main() {
         expect(seen[at].fraction!, greaterThanOrEqualTo(seen[at - 1].fraction!), reason: 'never back: ${seen.map((e) => e.fraction).toList()}');
       }
       expect(seen.where((each) => each.fraction! > 0 && each.fraction! < 1), isNotEmpty, reason: 'filling as it goes');
-      final lines = seen.map((each) => each.line).toSet();
-      // Three pulled and two pushed, then the team's five: ten in all.
-      expect(lines, contains('Syncing, 3 of 3'));
-      expect(lines, contains('Syncing, 5 of 5'));
-      expect(lines, contains('Syncing, 5 of 9'), reason: 'the team’s rows found: the bar holds where it was');
+      // Three pulled and two pushed, then the team's five: ten in all. The account's notes done, the bar is under 1, so
+      // the team's rows found after them have room to fill (the coordinator, 2026-10-29: "make new work take up the
+      // space that's left"): it holds as they are found, rises with each one, and is full only as the pass ends.
+      double at(String line) => seen.lastWhere((each) => each.line == line).fraction!;
+      final notesDone = at('Syncing, 5 of 5');
+      expect(notesDone, lessThan(1), reason: 'the account’s notes done, room kept');
+      expect(at('Syncing, 3 of 3'), lessThan(notesDone));
+      expect(seen.firstWhere((each) => each.line == 'Syncing, 5 of 9').fraction, notesDone, reason: 'found, not yet done: it holds');
+      final team = [for (final line in ['Syncing, 6 of 9', 'Syncing, 7 of 9', 'Syncing, 10 of 10']) at(line)];
+      expect(team.first, greaterThan(notesDone));
+      expect(team[1], greaterThan(team.first));
+      expect(team.last, greaterThan(team[1]));
+      for (final each in seen.take(seen.length - 1)) {
+        expect(each.fraction, lessThan(1), reason: 'under 1 until the pass ends: ${each.line}');
+      }
       expect(seen.last.line, 'Syncing, 10 of 10');
-      expect(seen.last.fraction, 1);
+      expect(seen.last.fraction, 1, reason: 'full as it ends');
+      expect(record[syncJobId]?.state.live ?? false, isFalse);
     });
 
-    test('the count holds still when more is found, and tells as more is found, once a percent at most as it goes, and the last', () {
+    test('more found lays what is left over what is left of the bar, never back, full only at the end', () {
       final told = <(double, String?)>[];
       final count = SyncCount(onChange: (count) => told.add((count.fraction, count.steps)));
       expect((count.fraction, count.steps), (0.0, null));
       count.found(2);
       count.did();
-      expect(count.fraction, 0.5);
+      expect(count.fraction, closeTo(1 / 3, 1e-9), reason: 'one of two, and one more kept room for');
+      count.did();
+      expect(count.fraction, closeTo(2 / 3, 1e-9), reason: 'all it knows of done: room kept for what it may find');
       count.found(2);
-      expect((count.fraction, count.steps), (0.5, '1 of 4'), reason: 'more found: never back');
-      count.did(3);
+      expect(count.fraction, closeTo(2 / 3, 1e-9), reason: 'found: it holds');
+      expect(count.steps, '2 of 4');
+      count.did();
+      expect(count.fraction, closeTo(2 / 3 + (1 / 3) / 3, 1e-9), reason: 'the new work over the room that was left');
+      count.did();
+      expect(count.fraction, closeTo(2 / 3 + (1 / 3) * 2 / 3, 1e-9));
+      expect(count.fraction, lessThan(1), reason: 'full only as it ends');
+      count.finish();
       expect((count.fraction, count.steps), (1.0, '4 of 4'));
-      expect(told, [(0.0, '0 of 2'), (0.5, '1 of 2'), (0.5, '1 of 4'), (1.0, '4 of 4')]);
+      expect([for (final (fraction, _) in told) fraction], orderedEquals([for (final (fraction, _) in told) fraction]..sort()), reason: 'never back');
+      expect(told.map((each) => each.$2), ['0 of 2', '1 of 2', '2 of 2', '2 of 4', '3 of 4', '4 of 4', '4 of 4']);
       final many = SyncCount(onChange: (count) => told.add((count.fraction, count.steps)));
       told.clear();
       many.found(1000);
       for (var i = 0; i < 1000; i++) {
         many.did();
       }
-      expect(told.length, 101, reason: 'the first, and each whole percent to the last');
-      expect(told.last, (1.0, '1000 of 1000'));
+      expect(told.length, lessThanOrEqualTo(101), reason: 'once a whole percent at most, not a thousand');
+      expect(told.last.$1, closeTo(1000 / 1001, 1e-9));
+      expect(told.last.$2, '1000 of 1000');
     });
 
     test('no sync job sweeps: one begun with nothing to say of how far is at 0', () {
