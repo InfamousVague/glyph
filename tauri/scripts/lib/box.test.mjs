@@ -74,7 +74,7 @@ describe('what a deploy needs to reach the box', () => {
 describe('the ssh options each deploy passes', () => {
   it('are, for deploy-ota, the shared socket and one password prompt', () => {
     expect(boxSshOptions()).toEqual([
-      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'StrictHostKeyChecking=accept-new',
       '-o', 'ControlMaster=auto',
       '-o', SOCKET,
       '-o', 'ControlPersist=120',
@@ -84,7 +84,7 @@ describe('the ssh options each deploy passes', () => {
 
   it('are, for deploy-server, the same with a connect timeout, so it rides a master deploy-ota left open', () => {
     expect(boxSshOptions({ connectTimeout: 20 })).toEqual([
-      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'StrictHostKeyChecking=accept-new',
       '-o', 'ConnectTimeout=20',
       '-o', 'ControlMaster=auto',
       '-o', SOCKET,
@@ -96,7 +96,7 @@ describe('the ssh options each deploy passes', () => {
   it('are, for deploy-landing, a timeout and a known-hosts file and no shared connection', () => {
     const knownHosts = join(homedir(), '.ssh', 'known_hosts');
     expect(boxSshOptions({ connectTimeout: 20, shareConnection: false, knownHosts })).toEqual([
-      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'StrictHostKeyChecking=accept-new',
       '-o', 'ConnectTimeout=20',
       '-o', 'NumberOfPasswordPrompts=1',
       '-o', `UserKnownHostsFile=${knownHosts}`,
@@ -152,13 +152,28 @@ describe('a session with the box', () => {
     ]);
   });
 
-  it('says a refused login may be the lockout, and to wait rather than retry', () => {
+  it('says a refused password at once, and never tries it again', () => {
     vi.stubEnv('FAKE_EXIT_SSH', '255');
     vi.stubEnv('FAKE_EXIT_SSHPASS', '5');
     expect(caught(() => openBox(ENV, options).logIn())).toEqual({
       stopped: 'exit 1',
-      said: ['\x1b[31mx\x1b[0m Could not log in to the box. If the password is right, it is the lockout: wait ten minutes, and do not retry sooner.'],
+      said: ['\x1b[31mx\x1b[0m Could not log in to the box: the password was refused (sshpass 5).'],
     });
+    expect(calls().filter(({ name }) => name === 'sshpass')).toHaveLength(1);
+  });
+
+  it('tries a login this end gave up on once more, with ssh -vvv to a log, and then stops', () => {
+    vi.stubEnv('FAKE_EXIT_SSH', '255');
+    vi.stubEnv('FAKE_EXIT_SSHPASS', '255');
+    vi.stubEnv('GHOST_LOGIN_RETRY_SECONDS', '0');
+    const log = join(homedir(), 'Library', 'Logs', 'ghost-deploy-ssh.log');
+    const result = caught(() => openBox(ENV, options).logIn());
+    expect(result.stopped).toBe('exit 1');
+    expect(result.said.at(-1)).toBe(`\x1b[31mx\x1b[0m Could not log in to the box (sshpass 255, then 255; ssh's account is in ${log}). Wait before trying again.`);
+    expect(calls().filter(({ name }) => name === 'sshpass').map(({ args }) => args)).toEqual([
+      ['-e', 'ssh', ...options, '-fN', 'deploy@box.example'],
+      ['-e', 'ssh', ...options, '-vvv', '-E', log, '-fN', 'deploy@box.example'],
+    ]);
   });
 
   it('uploads with rsync over the same options, flags first, and stops naming sshpass when it fails', () => {

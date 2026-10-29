@@ -52,7 +52,10 @@ const CONTROL_SOCKET = [
  */
 export function boxSshOptions({ connectTimeout = null, shareConnection = true, knownHosts = null } = {}) {
   return [
-    '-o', 'StrictHostKeyChecking=no',
+    // accept-new, not no (the Testing session, 2026-10-29): with no, any host answering at the box's address would be
+    // sent root's password without a word; accept-new keeps the key it first saw and refuses one that has changed.
+    // This Mac's known_hosts held the box's three keys, matching what it serves, when this changed.
+    '-o', 'StrictHostKeyChecking=accept-new',
     ...(connectTimeout ? ['-o', `ConnectTimeout=${connectTimeout}`] : []),
     ...(shareConnection ? CONTROL_SOCKET : []),
     // A refused login costs one strike, not ssh's default three prompts' worth.
@@ -112,9 +115,14 @@ export function openBox(env, sshOptions) {
       // password - this end hung up before it sent one (build/diag/lockout-look.mjs). So one more try after 45 s,
       // with ssh's own account of it in ~/Library/Logs/ghost-deploy-ssh.log (no password is ever written there), to
       // see why. sshpass's exit says which half gave up: 5 a wrong password, 6 a host key, 255 ssh itself.
+      // A wrong password (5) or a changed host key (6) is not tried again: another try could only cost a strike.
+      if (result.status === 5 || result.status === 6) {
+        fail(`Could not log in to the box: ${result.status === 5 ? 'the password was refused' : 'the box answered with a host key this Mac does not know'} (sshpass ${result.status}).`);
+      }
       const log = join(homedir(), 'Library', 'Logs', 'ghost-deploy-ssh.log');
-      console.log(`  the box did not answer the login (sshpass ${result.status}); trying once more in 45 s, ssh's account in ${log}`);
-      spawnSync('sleep', ['45']);
+      const wait = process.env.GHOST_LOGIN_RETRY_SECONDS ?? '45';
+      console.log(`  the box did not answer the login (sshpass ${result.status}); trying once more in ${wait} s, ssh's account in ${log}`);
+      spawnSync('sleep', [wait]);
       const again = spawnSync('sshpass', ['-e', 'ssh', ...sshOptions, '-vvv', '-E', log, '-fN', target], {
         stdio: 'ignore',
         env: withPassword(),
