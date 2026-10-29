@@ -44,6 +44,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../ai/meeting_sort.dart' show attendeesOf;
 import '../../ai/summary_keep.dart' show keptText;
+import '../../core/background_jobs.dart';
 import '../../core/iphone_app.dart' show notOnIPhone;
 import '../../core/locale_dates.dart' show DateForm, localeDate;
 import '../../core/note.dart' show Note;
@@ -637,6 +638,11 @@ class MeetingSlackPoster {
     // Counted as it begins: an app stopped mid-post tries again once more, not forever.
     final tries = waiting.tries + 1;
     _putTry(waiting.copyWith(tries: tries, at: _now()));
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): "Posting Standup to
+    // Slack", then "Posted to #team" as a chip, or red with Slack's words once its tries are spent, with Sign in again
+    // where Slack refused the token and Retry otherwise; a try short of the last goes quietly, as the queue tries again.
+    final title = noteTitle(note.body);
+    final job = activity.begin('slack:${note.id}', kind: JobKind.meetings, title: 'Posting ${title.isEmpty ? 'the meeting' : title} to Slack', line: 'Posting to ${channel.name}', onOpen: activityRoutes.noteOpener(note.id));
     String? link;
     final share = shareLink;
     if (meetingSlackSettings().share && share != null) {
@@ -653,11 +659,18 @@ class MeetingSlackPoster {
     } catch (failure) {
       final said = failureWords(failure);
       _putTry(waiting.copyWith(tries: tries, said: said, at: _now()));
-      if (tries >= meetingPostTriesMost) setPreferences((now) => withMeetingPostMark(now, note!.id, at: _now(), failed: _now()));
+      if (tries >= meetingPostTriesMost) {
+        setPreferences((now) => withMeetingPostMark(now, note!.id, at: _now(), failed: _now()));
+        final signedOut = RegExp('invalid_auth|not_authed|token_revoked|account_inactive').hasMatch('$failure');
+        job.failed(said, fix: signedOut ? activityRoutes.signIn(manifest.id) : JobFix(JobFixKind.retry, () => unawaited(tryNow(note!.id))));
+      } else {
+        job.stopped();
+      }
       return false;
     }
     forgetMeetingPost(waiting.noteId);
     setPreferences((now) => withMeetingPostMark(now, note!.id, at: _now(), posted: _now()));
+    job.done(result: JobResult('Posted to ${channel.name}', action: 'Open', onOpen: activityRoutes.noteOpener(note.id)), tally: const JobTally('Slack post', 'Slack posts'));
     return true;
   }
 }

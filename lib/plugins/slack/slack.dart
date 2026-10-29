@@ -28,6 +28,7 @@ library;
 import 'package:glacier/glacier.dart' show HapticFn, HapticKind, fireMotor;
 
 import '../../ai/summary_keep.dart' show keptText;
+import '../../core/background_jobs.dart';
 import '../../core/summary_text.dart' show summarySection;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../details_cache.dart' show failureWords;
@@ -80,13 +81,18 @@ Future<void> _post(NoteEditing editing, String? choice, String? Function(String 
     editing.say('There is no summary in this note to post.');
     return;
   }
+  // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md), asked for from the note:
+  // its words say how it went, and a chip only where the person has left the note meanwhile.
+  final job = activity.begin('slack-post:${editing.noteId}', kind: JobKind.meetings, title: 'Posting to Slack', line: 'Posting to ${channel.name}', personStarted: true, shownHere: activityRoutes.noteShown(editing.noteId));
   try {
     await postToChannel(channel, text);
     posted?.call();
     slackFelt(HapticKind.success);
     editing.say('Posted to ${channel.name}.');
+    job.done(result: JobResult('Posted to ${channel.name}', action: 'Open', onOpen: activityRoutes.noteOpener(editing.noteId)), tally: const JobTally('Slack post', 'Slack posts'));
   } catch (failure) {
     editing.say('Not posted to ${channel.name}. ${failureWords(failure)}');
+    job.failed('Not posted to ${channel.name}. ${failureWords(failure)}');
   }
 }
 

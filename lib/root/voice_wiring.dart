@@ -64,6 +64,7 @@ import '../capture/voice_model.dart' show VoiceModel;
 import '../core/mac_app.dart';
 import '../core/library.dart';
 import '../core/note.dart';
+import '../core/note_text.dart' show noteTitle;
 import '../core/native/files.dart';
 import '../core/native/ghost_core.dart';
 import '../core/preferences.dart';
@@ -415,6 +416,9 @@ class Voice {
     var writingUp = false;
     final live = host.hasMeetings ? MeetingLive(host: host, writeUpRunningNow: () => writingUp) : null;
     final unbind = live == null ? null : host.bind(live);
+    // The meeting being recorded and written up, on the app's record of running work (lib/capture/meeting_live.dart
+    // followOnRecord; docs/ACTIVITY.md): the tray's Stop is the notification's Done.
+    final unfollow = live?.followOnRecord(stop: () => unawaited(host.stopMeeting()), titleOf: (id) => noteTitle(library.noteOf(id)?.body ?? ''));
 
     // Whoever asked to hear of the app coming back to the screen (the document's `visibilitychange`): the voice
     // model's fetch, which is then tried again where it failed, the better words' queue and the summaries', which
@@ -709,6 +713,7 @@ class Voice {
         if (watch != null) watchLink = null;
         writeUps?.dispose();
         offVisible();
+        unfollow?.call();
         unbind?.call();
         unawaited(heard.cancel());
         unawaited(keys.close());

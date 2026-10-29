@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/plugins/details_cache.dart';
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/types.dart';
@@ -55,6 +58,37 @@ void main() {
   });
 
   group('the details cache', () {
+    test('its reads are one job on the app\'s record of running work, shown once a batch takes a while, never counted', () {
+      fakeAsync((async) {
+        final record = Activity(clock: () => DateTime(2026, 10, 29).add(async.elapsed), store: () => MemoryStored());
+        useActivity(record);
+        addTearDown(() => useActivity(Activity()));
+        final (cache: c, :service) = cache();
+        for (final key in ['a', 'b', 'c']) {
+          c.want(key, 'https://x/$key');
+        }
+        expect(record['fetch:test'], isNotNull);
+        expect(record.value, isEmpty, reason: 'kept out of sight for a second');
+        async.elapse(const Duration(milliseconds: 1100));
+        expect(record.value.single.title, 'Reading from Test');
+        service.calls[0].answer.complete(details('a', now));
+        async.flushMicrotasks();
+        expect(record.value.single.liveLine, 'Reading links, 1 of 3');
+        service.calls[1].answer.complete(details('b', now));
+        async.flushMicrotasks();
+        service.calls[2].answer.complete(details('c', now));
+        async.flushMicrotasks();
+        expect(record.value, isEmpty);
+        expect(record.blooms, 1);
+        expect(record.log.today.isEmpty, isTrue);
+        // A quick batch is never seen.
+        c.want('d', 'https://x/d');
+        service.calls[3].answer.complete(details('d', now));
+        async.flushMicrotasks();
+        expect(record.blooms, 1);
+      });
+    });
+
     test('reads two at a time and queues the rest, in the order they were wanted', () async {
       final (cache: c, :service) = cache();
       for (final key in ['a', 'b', 'c', 'd']) {
