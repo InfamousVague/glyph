@@ -1,0 +1,215 @@
+/*
+ * A shared page drawn as a page (Rendered.tsx): the page's own type and inks, the kit's sizes for headings, nothing
+ * coloured but what the words say.
+ */
+
+.rendered {
+  min-inline-size: 0;
+  color: var(--glacier-text);
+  font-family: var(--glacier-font-sans);
+  font-size: var(--app-body, var(--glacier-font-size-md));
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  padding-block-end: var(--glacier-space-8);
+}
+
+.rendered > :first-child {
+  margin-block-start: 0;
+}
+
+.rendered p {
+  margin: 0 0 0.85em;
+}
+
+.rendered h1,
+.rendered h2,
+.rendered h3,
+.rendered h4,
+.rendered h5,
+.rendered h6 {
+  margin: 1.4em 0 0.5em;
+  line-height: 1.2;
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-bold);
+  color: var(--app-ink);
+}
+
+.rendered h1 {
+  font-size: var(--glacier-font-size-3xl);
+}
+
+.rendered h2 {
+  font-size: var(--glacier-font-size-2xl);
+}
+
+.rendered h3 {
+  font-size: var(--glacier-font-size-xl);
+}
+
+.rendered h4,
+.rendered h5,
+.rendered h6 {
+  font-size: var(--glacier-font-size-lg);
+}
+
+.rendered ul,
+.rendered ol {
+  margin: 0 0 0.85em;
+  padding-inline-start: 1.4em;
+}
+
+.rendered li {
+  margin-block: 0.2em;
+}
+
+.rendered li > p {
+  margin: 0;
+}
+
+.rendered li > ul,
+.rendered li > ol {
+  margin-block: 0.2em 0;
+}
+
+.rendered li::marker {
+  color: var(--app-ink-3);
+}
+
+/* A to-do: its box where the dash would be. */
+.task {
+  list-style: none;
+  margin-inline-start: -1.4em;
+}
+
+.task > p {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+}
+
+.task input {
+  flex: none;
+  inline-size: 1em;
+  block-size: 1em;
+  margin: 0;
+  transform: translateY(0.12em);
+  accent-color: var(--app-ink);
+}
+
+.task > p[data-done] > span {
+  color: var(--app-ink-3);
+  text-decoration: line-through;
+}
+
+.rendered blockquote {
+  margin: 0 0 0.85em;
+  padding-inline-start: var(--glacier-space-4);
+  border-inline-start: 3px solid var(--glacier-border);
+  color: var(--glacier-text-muted);
+}
+
+.rendered a {
+  color: var(--app-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--app-ink-4);
+  text-underline-offset: 0.2em;
+}
+
+.rendered a:hover {
+  text-decoration-color: currentColor;
+}
+
+.rendered code {
+  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-size: 0.88em;
+  padding: 0.1em 0.3em;
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-paper-2);
+}
+
+.code {
+  margin: 0 0 0.85em;
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.code code {
+  padding: 0;
+  background: none;
+  white-space: pre;
+}
+
+.rendered hr {
+  margin: 1.6em 0;
+  border: none;
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* A table scrolls on its own on a narrow page, so the page never scrolls sideways. */
+.tableWrap {
+  margin: 0 0 1em;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.tableWrap table {
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 0.4em 0.8em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.tableWrap th {
+  font-weight: var(--glacier-font-weight-semibold);
+  background: var(--app-paper-2);
+}
+
+.picture {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+  margin-block: 0.4em;
+  border-radius: var(--glacier-radius-md);
+}
+
+.missing,
+.raw {
+  color: var(--glacier-text-muted);
+}
+
+.raw {
+  white-space: pre-wrap;
+  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-size: 0.88em;
+}
+
+/* A [[wiki link]] to a page the share has: opens it. One to anything else is its words. */
+.wiki {
+  appearance: none;
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--app-ink);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.wiki:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--glacier-radius-sm);
+}

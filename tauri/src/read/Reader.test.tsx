@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import type { Shared } from '../app/share/share.ts';
 import { show, unmount, waitUntil } from '../test/render.tsx';
@@ -37,6 +37,10 @@ vi.mock('leaflet/dist/leaflet.css', () => ({}));
 // Loaded as the file is, not inside the test: the editor and the canvas are a cold import that took most of the
 // suite's twenty seconds on a loaded machine, and the test's time is for the page to read and draw the share.
 const { Reader } = await import('./Reader.tsx');
+const { READ_MODE_KEY } = await import('./readMode.ts');
+
+// These are the page in Markdown, the app's own editor read-only (readMode.ts); Read, the default, is ReadView.test.tsx's.
+beforeEach(() => localStorage.setItem(READ_MODE_KEY, 'markdown'));
 const { readShared } = await import('../app/share/share.ts');
 
 describe('the reader page', () => {

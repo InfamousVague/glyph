@@ -19,6 +19,9 @@ import { Byline } from '../app/authors/Byline.tsx';
 import { drawnBody } from './drawn.ts';
 import { meetingOf, summaryOf } from './meeting.ts';
 import { MeetingRead } from './MeetingRead.tsx';
+import { useReadMode } from './readMode.ts';
+import { ReadToggle } from './ReadToggle.tsx';
+import { Rendered } from './Rendered.tsx';
 import { APP_URL, INSTALL_URL } from './places.ts';
 import styles from './Reader.module.css';
 
@@ -175,6 +178,9 @@ function Read({
   const titles = () => shared.pages.map((p) => p.title);
   // The note's view as the app would open it for someone who has never changed it: its default (core/preferences.ts).
   const { noteView } = usePreferences();
+  // Read, the page drawn as a page, unless this browser chose Markdown, the source in the app's editor (readMode.ts).
+  const [mode, setMode] = useReadMode();
+  const known = (t: string) => indexOf(t) >= 0;
   const open = (title: string) => {
     const at = indexOf(title);
     if (at >= 0) {
@@ -280,9 +286,13 @@ function Read({
           meeting={meeting}
           link={found}
           dark={dark}
+          readToggle={<ReadToggle mode={mode} onChange={setMode} />}
           summary={
             <div className={styles.note} data-look={look ?? undefined}>
               <Byline authors={authorsOf(current.body)} />
+              {mode === 'read' ? (
+                <Rendered body={drawnBody(summaryOf(current.body, current.title))} known={known} open={open} />
+              ) : (
               <Editor
                 key={`summary:${current.title}`}
                 value={drawnBody(summaryOf(current.body, current.title))}
@@ -297,6 +307,7 @@ function Read({
                 look={look}
                 grow
               />
+              )}
             </div>
           }
         />
@@ -316,6 +327,10 @@ function Read({
           </div>
         </>
       ) : (
+        <>
+        <div className={styles.readRow}>
+          <ReadToggle mode={mode} onChange={setMode} />
+        </div>
         <article className={styles.note} data-look={look ?? undefined}>
           <Byline authors={authorsOf(current.body)} />
           {/* A map note's map is its header; with its place taken off the share there is no box at all (core/look.ts). */}
@@ -324,6 +339,9 @@ function Read({
               <MapCard tag={tag} size={look === 'map' ? 'header' : 'card'} mode={mapOn === page ? 'map' : 'ask'} dark={dark} onShow={() => setMapOn(page)} className={styles.map} />
             </Suspense>
           ) : null}
+          {mode === 'read' ? (
+            <Rendered key={`${page}:${current.title}`} body={drawnBody(current.body)} known={known} open={open} />
+          ) : (
           <Editor
             key={`${page}:${current.title}`}
             value={drawnBody(current.body)}
@@ -340,7 +358,9 @@ function Read({
             look={look}
             grow
           />
+          )}
         </article>
+        </>
       )}
       {isBook && page > 0 && place ? <BookFoot place={place} open={open} /> : null}
     </main>
