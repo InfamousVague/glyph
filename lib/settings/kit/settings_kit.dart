@@ -77,7 +77,7 @@ class SettingsFinder {
 /// `.settingsScreen__pane`: a section's page, for the parts of the kit drawn on it. The screen puts one over each
 /// page (settings_screen.dart); a pane drawn outside Settings does without, and its rows are plain.
 class SettingsPaneScope extends InheritedWidget {
-  const SettingsPaneScope({super.key, required this.finder, this.whole = false, required super.child});
+  const SettingsPaneScope({super.key, required this.finder, this.whole = false, this.seeking, required super.child});
 
   final SettingsFinder finder;
 
@@ -85,10 +85,26 @@ class SettingsPaneScope extends InheritedWidget {
   /// built whole in its first frame, where it otherwise builds its later cards in the frames after ([PaneBody]).
   final bool whole;
 
+  /// The name of the setting being looked for while [whole], for a part that keeps it out of sight until asked
+  /// ([settingsSought]). The port's own.
+  final String? seeking;
+
   static SettingsPaneScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<SettingsPaneScope>();
 
   @override
-  bool updateShouldNotify(SettingsPaneScope old) => !identical(old.finder, finder);
+  bool updateShouldNotify(SettingsPaneScope old) => !identical(old.finder, finder) || old.seeking != seeking;
+}
+
+/// Whether the setting a search's hit or a link is looking for on this page is one of [names], folded as the finder
+/// folds them: for a part that keeps rows behind Simple's More (GHST-103), which opens it in place for one of them so
+/// the row is there to be found and lit (Matt, 2026-10-29: "Add the ability to search settings and plugins from the
+/// command search", whose results reach the rows Simple keeps behind More). False where nothing is looked for, and
+/// outside Settings.
+bool settingsSought(BuildContext context, Iterable<String> names) {
+  final seeking = SettingsPaneScope.maybeOf(context)?.seeking;
+  if (seeking == null) return false;
+  final want = fold(seeking).trim();
+  return names.any((name) => fold(name).trim() == want);
 }
 
 /// The children of a pane, laid out as the page lays out `.settingsScreen__pane`'s: a column with `--glacier-space-4`

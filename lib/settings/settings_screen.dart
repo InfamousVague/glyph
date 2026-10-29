@@ -693,6 +693,12 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
     );
   }
 
+  /// The setting still to be found and lit on [shown], if one is.
+  String? _seeking(SettingsSection shown) {
+    final target = _target;
+    return target != null && target.setting != null && target.id == shown.id && _shownTarget != target.nonce ? target.setting : null;
+  }
+
   /// A section's page: its name as the page's word, then what it holds, in its colour.
   Widget _pane(Tokens t, SettingsSection shown, {required EdgeInsets padding}) {
     final titleSize = t.len('app-title');
@@ -704,8 +710,10 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
         attrs: {'hue': settingsHueOf(shown)},
         child: SettingsPaneScope(
           finder: _finder,
-          // A setting on this page still to be found and lit: the page is built whole, so it is there to find.
-          whole: _target?.setting != null && _target!.id == shown.id && _shownTarget != _target!.nonce,
+          // A setting on this page still to be found and lit: the page is built whole, so it is there to find, and
+          // a More that keeps it out of sight in Simple opens for it (settingsSought).
+          whole: _seeking(shown) != null,
+          seeking: _seeking(shown),
           child: Builder(
             // `useWispEdge(scroller, …)`, as the list: no header over the page, so it fades at its own top.
             // Its top is under Settings' own head, never the status bar: no bar's height over it to fade through, so

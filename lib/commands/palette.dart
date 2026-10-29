@@ -16,10 +16,17 @@
 ///   nowhere to go is left out rather than offered: [PaletteDoing.newNotebook], [PaletteDoing.setView],
 ///   [PaletteDoing.cheatSheet], [PaletteDoing.guide], [PaletteDoing.academy], [PaletteDoing.notifications] and
 ///   [PaletteDoing.organizations]. Given all of them the list is the web's, row for row.
+/// - Settings and the plugins are found here too, once something is typed (Matt, 2026-10-29: "Add the ability to
+///   search settings and plugins from the command search"; settings_places.dart): under Settings and Plugins, in
+///   bands of their own after every note and command ([CommandDescriptor.band]), each with where it is or how it
+///   stands beside it. Given no [PaletteWorld.settings] or no [PaletteDoing.settingsAt], there are none, and the list
+///   is the web's.
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:glacier/glacier.dart' show CommandDescriptor;
+
+import 'settings_places.dart';
 
 /// A note, as little of it as a command needs (`PaletteNote`).
 @immutable
@@ -72,6 +79,7 @@ class PaletteWorld {
     this.smartNotebooks = const [],
     this.simple = false,
     this.focusMode = false,
+    this.settings,
   });
 
   /// Every note, newest first: each is an "Open …".
@@ -119,6 +127,10 @@ class PaletteWorld {
 
   /// Whether focus mode is on (lib/editor/focus/focus_mode.dart), so the command says which way it goes.
   final bool focusMode;
+
+  /// What there is to find in Settings and among the plugins (settings_places.dart), asked for only once something
+  /// is typed: the index reads every page's line and every setting the page lists.
+  final ValueGetter<SettingsIndex>? settings;
 }
 
 /// What the palette can set off (`PaletteDoing`). Every one of these is something the app already does by hand. A
@@ -166,6 +178,8 @@ class PaletteDoing {
     this.trash,
     this.openSmart,
     this.setFocusMode,
+    this.settingsAt,
+    this.marketPlugin,
   });
 
   final void Function(String id) openNote;
@@ -243,6 +257,12 @@ class PaletteDoing {
 
   /// Focus mode on or off (Matt, 2026-10-27: "build ... focus mode"); offered in simple mode too, being one switch.
   final void Function(bool on)? setFocusMode;
+
+  /// Settings at a page, and at a setting on it, brought into view and lit: what is found there (settings_places.dart).
+  final void Function(String page, String? setting)? settingsAt;
+
+  /// A plugin's page in the Market, for a plugin with no page in Settings; advanced mode's, as the Market is.
+  final void Function(String id)? marketPlugin;
 }
 
 /// A row of the palette and what choosing it does (`PaletteCommand`).
@@ -456,5 +476,27 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   final guide = doing.guide;
   if (guide != null) add('guide', 'The welcome walkthrough', app, 'guide walkthrough voice help onboarding how to talk', guide);
 
+  // ---- Settings and the plugins -----------------------------------------------------------------------------------
+  // Only for something typed, in bands after everything above, so a setting named as a command is put after it.
+  final index = world.settings;
+  final settingsAt = doing.settingsAt;
+  if (index != null && settingsAt != null && query.trim().isNotEmpty) {
+    final market = simple ? null : doing.marketPlugin;
+    for (final place in findPlaces(index(), query, market: market != null)) {
+      final group = place.ofPlugins ? settingsPluginsGroup : settingsGroup;
+      final page = place.page;
+      final plugin = place.plugin;
+      final VoidCallback run = page != null ? () => settingsAt(page, place.setting) : () => market!(plugin!);
+      out.add(PaletteCommand(
+        CommandDescriptor(id: place.id, label: place.label, group: group, keywords: placeKeywords(place, group, query), band: place.ofPlugins ? 2 : 1, detail: place.detail),
+        run,
+      ));
+    }
+  }
+
   return out;
 }
+
+/// The headings of what is found in Settings and among the plugins.
+const String settingsGroup = 'Settings';
+const String settingsPluginsGroup = 'Plugins';

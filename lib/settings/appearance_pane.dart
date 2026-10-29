@@ -29,7 +29,9 @@ import '../core/iphone_app.dart' show recordsVoice;
 /// Two rows are drawn only where they do something, and listed only there: the sidebar's choice on a window wide
 /// enough for the sidebar, and the haptics where there is a motor. In Simple ([Preferences.simple]) the page is the
 /// theme and the text size and nothing else, so that is all the search finds on it: "accent" typed in Simple finds
-/// nothing, rather than a card that is not there.
+/// nothing, rather than a card that is not there. A row Simple keeps behind More is found (the typewriter scroll),
+/// since More opens in place for it (Matt, 2026-10-29: "Add the ability to search settings and plugins from the
+/// command search").
 List<SettingsFindable> appearanceFindable({required bool wide, required bool haptics, bool simple = false}) => [
       ...experienceFindable,
       const SettingsFindable('Page', 'theme light dark system dawn boreal ember'),
@@ -38,8 +40,9 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
         const SettingsFindable('Text size', 'font bigger smaller larger'),
         // The dock's buttons, in either mode: Simple's pages have a dock too.
         dockFindable,
-        // Its typewriter scroll is behind Simple's More: "typewriter" lands on the switch.
         const SettingsFindable('Focus mode', _focusWords),
+        // Behind Simple's More, which opens for it when it is looked for (focus_section.dart).
+        const SettingsFindable('Typewriter scroll', 'focus centre center middle line caret scroll'),
       ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
     ];
 

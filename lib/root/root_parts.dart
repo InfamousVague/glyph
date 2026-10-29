@@ -780,6 +780,20 @@ extension _RootParts on _GhostRootState {
     );
   }
 
+  /// What the palette finds in Settings and among the plugins, as Settings itself reads them: made the first time it is
+  /// asked for in an opening of the palette and kept until the next, since a plugin added or a setting changed while
+  /// it is up is the palette shut first.
+  SettingsIndex _paletteSettings(BuildContext context) {
+    final at = (_commands.currentState?.openings ?? -1, setupsPrepared);
+    final held = _settingsIndex;
+    if (held != null && at == _settingsIndexAt) return held;
+    _settingsIndexAt = at;
+    return _settingsIndex = settingsIndex(
+      settingsFactsFor(context, services: _services, workspaces: _workspaces.value.list.length, updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!), features: _features(_services)),
+      registry: plugins,
+    );
+  }
+
   Widget _commandsPart(BuildContext context) {
     final guide = _guide;
     return CommandBar.over(
@@ -794,6 +808,9 @@ extension _RootParts on _GhostRootState {
           _ => 0,
         },
         smartNotebooks: [for (final each in _organize.smart.value) (id: each.id, name: each.name)],
+        // Settings and the plugins, as Settings itself reads them (Matt, 2026-10-29: "Add the ability to search
+        // settings and plugins from the command search").
+        settings: () => _paletteSettings(context),
       ),
       doing: () => paletteDoingFor(
         shell: _shell.currentState!,
@@ -843,6 +860,8 @@ extension _RootParts on _GhostRootState {
         market: _showMarket,
         trash: _openTrash,
         openSmart: _organize.showSmart,
+        settingsAt: _openSettingsAt,
+        marketPlugin: (id) => _showMarket(plugin: id),
       ),
     );
   }

@@ -24,10 +24,12 @@ import 'watch_section.dart';
 /// the names the page draws, in its order. Android's rows are listed on Android only, the meetings whether or not
 /// this build has the service that records them: there the search opens the page. The Meetings card's own two
 /// (lib/meet/ui/meeting_settings.dart): Sync meeting recordings [signedIn], and Sort meetings into workspaces
-/// wherever the card is drawn without the service (signed in, or the desktop). In [simple] only the Meetings card's,
-/// which is all Simple's page shows until More.
+/// wherever the card is drawn without the service (signed in, or the desktop). In [simple] the same: Simple's page
+/// is the Meetings card with the rest behind More, and More opens in place for a row of the rest that is looked for
+/// ([recordingBehindMore]; Matt, 2026-10-29: "Add the ability to search settings and plugins from the command
+/// search"). Until then Simple's search listed the Meetings card's alone.
 List<SettingsFindable> recordingFindable({required bool android, bool signedIn = false, bool simple = false}) => [
-      if (!simple) ...const [
+      ...const [
         SettingsFindable('Stop when I go quiet', 'silence auto stop'),
         SettingsFindable('Review after recording', 'check transcript'),
         SettingsFindable('Voice log', 'voice commands what the app understood model transcript copy clear debug'),
@@ -43,11 +45,14 @@ List<SettingsFindable> recordingFindable({required bool android, bool signedIn =
       if (!android) const SettingsFindable("Record the computer's sound too", 'system audio meeting call both sides zoom'),
       if (signedIn && recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
       if (signedIn || !android) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox google meet zoom discord'),
-      if (!simple) ...const [
+      ...const [
         SettingsFindable('Tapes', 'your tapes storage audio remove space'),
         SettingsFindable('Remove audio older than a month', 'storage space delete recordings audio'),
       ],
     ];
+
+/// The names [recordingFindable] lists that Simple's page keeps behind More: looked for, they open it.
+const List<String> recordingBehindMore = ['Stop when I go quiet', 'Review after recording', 'Voice log', 'Better words', 'Summaries', 'Tapes', 'Remove audio older than a month'];
 
 /// Recording's row in the list: what a take becomes, better words or the words as heard.
 String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'Words as heard';
@@ -206,6 +211,8 @@ class _RecordingPaneState extends State<RecordingPane> {
     final store = widget.store ?? preferences;
     final features = widget.features;
     final android = widget.android ?? defaultTargetPlatform == TargetPlatform.android;
+    // A row of Simple's More looked for by name (Settings' search, the command bar) opens it.
+    if (!_more && settingsSought(context, recordingBehindMore)) _more = true;
     // Where the model does its work.
     final device = android ? 'the phone' : 'this Mac';
     return ValueListenableBuilder<Preferences>(

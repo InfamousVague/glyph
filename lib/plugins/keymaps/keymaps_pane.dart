@@ -57,6 +57,8 @@ class _KeymapsPaneState extends State<KeymapsPane> {
   Widget build(BuildContext context) {
     final via = widget.host;
     final mode = keyboardModeChosen(via);
+    // A row behind More looked for by name opens it.
+    if (!_more && settingsSought(context, const ['Start notes in Normal mode', 'jk to leave Insert'])) _more = true;
     final open = !_prefs.value.simple || _more;
     final choice = PaneSection(
       title: 'Keys',

@@ -9,6 +9,8 @@
 // What differs from the web original: `findSetting`, which read the page's DOM for the element naming a setting, is
 // `SettingsFinder.find` (kit/settings_kit.dart): the kit's parts say their own names to the page they are on.
 
+import '../ai/support/unaccent.dart' show unaccented;
+
 /// A setting inside a section, as its page names it (`SettingsFindable`): the name has to be the row's or the card's
 /// words on that page, so opening it can find it there.
 class SettingsFindable {
@@ -43,13 +45,24 @@ class SettingsHit<S extends SearchableSection> {
   final String? setting;
 }
 
-/// Lower case, with curly quotes and apostrophes made straight, so what is typed matches what is drawn (`fold`).
-String fold(String text) => text.toLowerCase().replaceAll(RegExp('[‘’]'), "'").replaceAll(RegExp('[“”]'), '"');
+/// Lower case, with curly quotes and apostrophes made straight, so what is typed matches what is drawn (`fold`), and
+/// with its accents off, so "cafe" finds a café and "zoe" Zoë (the port's own: Matt, 2026-10-29, "Add the
+/// ability to search settings and plugins from the command search", which asks for a match accents or none).
+String fold(String text) => unaccented(text).toLowerCase().replaceAll(RegExp('[‘’]'), "'").replaceAll(RegExp('[“”]'), '"');
 
 final RegExp _notWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 
-/// The words of a text, split wherever a letter or a digit isn't: "Ghost.md's guess" is ghost, md, s, guess.
-List<String> _wordsOf(String text) => fold(text).split(_notWord).where((word) => word.isNotEmpty).toList();
+/// The words of a text, split wherever a letter or a digit isn't: "Ghost.md's guess" is ghost, md, s, guess. Kept
+/// for the texts asked about, which are the same names and words at every letter typed: folded afresh each time,
+/// accents and all, the command bar's search of every setting and plugin was 9 ms a letter in a test on a Mac.
+List<String> _wordsOf(String text) {
+  final held = _words[text];
+  if (held != null) return held;
+  if (_words.length > 8000) _words.clear();
+  return _words[text] = List.unmodifiable(fold(text).split(_notWord).where((word) => word.isNotEmpty));
+}
+
+final Map<String, List<String>> _words = {};
 
 /// Whether every typed word starts one of the words of the texts.
 bool _matches(List<String> typed, List<String?> texts) {

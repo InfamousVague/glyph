@@ -19,6 +19,24 @@ export 'panes/settings_host.dart' show SettingsFeatures, SettingsModelsState, Se
 /// flipped by seven presses on the version in About and by the switch on Developer.
 final DeviceFlag developerMode = DeviceFlag('glyph-developer');
 
+/// What Settings' rows and its search read as they stand ([SettingsFacts]): the preferences, the window, this device,
+/// developer mode, the workspaces, the updates, the features and the account ([services]). The sheet reads its own
+/// through this, and so does the command bar's search of Settings (lib/commands/settings_places.dart), so what the bar
+/// finds is what Settings lists. [wide] is the split view's line asked of the window unless it is given.
+SettingsFacts settingsFactsFor(BuildContext context, {AccountServices? services, bool? wide, required int workspaces, SettingsUpdates? updates, SettingsFeatures features = const SettingsFeatures()}) => SettingsFacts(
+      prefs: preferences.value,
+      wide: wide ?? settingsSplitFits(context),
+      haptics: hapticsAvailable(),
+      android: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+      ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+      developer: developerMode.value,
+      workspaces: workspaces,
+      updates: updates,
+      features: features,
+      services: services,
+      sharedLinks: services != null && services.signedIn && (services.shares?.sharedLinks().isNotEmpty ?? false),
+    );
+
 /// Port of `SettingsSheet` (src/app/settings/SettingsSheet.tsx): Settings itself, the sections and their live
 /// one-line readings, handed to the screen that lists them ([SettingsScreen]). The sections are the table in
 /// settings_sections.dart; this reads the facts they depend on (the preferences, the workspaces, the window, the
@@ -240,19 +258,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           // preference (a tab opened, a note filed, the row of open notes), and each time read every section's
           // line and listed every setting the search can find, the cheat sheet's hundred marks among them.
           if (!widget.open) return SettingsScreen(open: false, onClose: widget.onClose, sections: const <SettingsSection>[], goTo: _goTo, split: widget.split);
-          final facts = SettingsFacts(
-            prefs: store.value,
-            wide: wide,
-            haptics: hapticsAvailable(),
-            android: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
-            ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
-            developer: developerMode.value,
-            workspaces: spaces.value.list.length,
-            updates: widget.updates,
-            features: widget.features,
-            services: services,
-            sharedLinks: services != null && services.signedIn && (services.shares?.sharedLinks().isNotEmpty ?? false),
-          );
+          final facts = settingsFactsFor(context, services: services, wide: wide, workspaces: spaces.value.list.length, updates: widget.updates, features: widget.features);
           final sections = [
             for (final spec in settingsSections)
               if (spec.where?.call(facts) ?? true)

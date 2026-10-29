@@ -32,6 +32,7 @@ import '../core/workspaces.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import 'palette.dart';
+import 'settings_places.dart';
 
 final Expando<List<PaletteNote>> _named = Expando<List<PaletteNote>>('the notes as the palette names them');
 
@@ -74,8 +75,9 @@ List<PaletteNote> paletteJournals(List<Note> notes) {
 
 /// The app as it stands, for the palette (`paletteWorld`, App.tsx): the shell's notes, tabs, screen and trail, the
 /// workspaces, and the two preferences a command's words turn on. [blanks] is how many blanks the open note's
-/// editor counted, once there is one to count them.
-PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0, List<PaletteNamed> smartNotebooks = const []}) {
+/// editor counted, once there is one to count them. [settings] is what there is to find in Settings and among the
+/// plugins (settings_places.dart `settingsIndex`), made only once something is typed.
+PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0, List<PaletteNamed> smartNotebooks = const [], ValueGetter<SettingsIndex>? settings}) {
   final screen = shell.screen;
   Note? open;
   if (screen is ScreenNote) {
@@ -106,6 +108,7 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     // Simple or advanced (GHST-103): the palette's own rule says which rows simple mode keeps.
     simple: prefs.simple,
     focusMode: prefs.focusMode,
+    settings: settings,
   );
 }
 
@@ -118,7 +121,9 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
 /// (lib/settings/settings_sections.dart), which the Organizations command and, unless [cheatSheet] is given, the
 /// cheat sheet use. Each of the others is the root's to give and left out of the palette while it is null;
 /// [setView] among them, which the root gives as the preference every note's editor reads
-/// (`(view) => preferences.update((now) => now.copyWith(noteView: view))`, lib/root/root_parts.dart).
+/// (`(view) => preferences.update((now) => now.copyWith(noteView: view))`, lib/root/root_parts.dart). [settingsAt]
+/// opens Settings at a page and a setting on it, and [marketPlugin] a plugin's page in the Market, for what the
+/// palette finds in Settings and among the plugins (settings_places.dart).
 PaletteDoing paletteDoingFor({
   required AppShellState shell,
   required NoteLibrary library,
@@ -150,6 +155,8 @@ PaletteDoing paletteDoingFor({
   VoidCallback? market,
   void Function(String id)? openSmart,
   VoidCallback? trash,
+  void Function(String page, {String? setting})? settingsAt,
+  void Function(String id)? marketPlugin,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -193,6 +200,8 @@ PaletteDoing paletteDoingFor({
     openSmart: openSmart,
     trash: trash,
     setFocusMode: (on) => store.update((now) => now.copyWith(focusMode: on)),
+    settingsAt: settingsAt == null ? null : (page, setting) => settingsAt(page, setting: setting),
+    marketPlugin: marketPlugin,
   );
 }
 

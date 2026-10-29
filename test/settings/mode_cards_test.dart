@@ -132,7 +132,7 @@ void main() {
       expect(appearance.summary!(_facts(_simple)), 'Simple · Light · Maple Mono');
       expect(appearance.summary!(_facts(_advanced)), 'Advanced · Light · Maple Mono');
       expect(experienceFindable.map((f) => f.name), ['Mode']);
-      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Focus mode']);
+      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Focus mode', 'Typewriter scroll']);
       expect(appearanceFindable(wide: true, haptics: true).map((f) => f.name).take(2), ['Mode', 'Page']);
       // The card's words are the walkthrough's, so the two say the same thing.
       expect(experienceChoices.map((c) => c.label), ['Simple', 'Advanced']);
@@ -284,7 +284,7 @@ void main() {
       await _tap(tester, find.descendant(of: find.byWidgetPredicate((w) => w is ChoiceCards<String> && w.label == 'Theme'), matching: find.text('Dark')));
       expect(preferences.value.theme, 'dark');
       // The search's list of the page is the page's.
-      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Focus mode']);
+      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Focus mode', 'Typewriter scroll']);
       expect(appearanceFindable(wide: true, haptics: true).map((f) => f.name), containsAll(['Accent', 'Sidebar', 'Haptics']));
       // The footnote that led to the mode's page went with the page: the mode is on this one.
       expect(find.byKey(const ValueKey('appearance-more-looks')), findsNothing);
