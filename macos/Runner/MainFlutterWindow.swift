@@ -29,6 +29,8 @@ class MainFlutterWindow: NSWindow {
   private var jobHold: NSObjectProtocol?
   /// The jobs holding it: Lovart's header run, and any pictures Lovart is making besides. Let go when the last ends.
   private var jobsHeld = Set<String>()
+  /// The record of running work on the Dock icon and in the menu bar (ActivitySurfaces.swift).
+  private var activity: ActivitySurfaces?
   private var lastPress: NSEvent?
   private var pressMonitor: Any?
 
@@ -71,7 +73,19 @@ class MainFlutterWindow: NSWindow {
     // while it runs the app is kept out of App Nap, which slows the timers and fetches of an app whose window is
     // behind others. The Mac app quits with its window, and a job it quit under goes on at the next launch.
     let jobs = FlutterMethodChannel(name: "ghost_md/jobs", binaryMessenger: messenger)
+    // The same channel tells the record of running work (lib/activity/activity_surfaces.dart): the Dock icon's ring
+    // and badge, and the menu bar's ring and mini tray, whose Stop and Open are said back on it.
+    activity = ActivitySurfaces(
+      say: { [weak jobs] method, id in jobs?.invokeMethod(method, arguments: ["id": id]) },
+      front: { [weak self] in
+        NSApp.activate(ignoringOtherApps: true)
+        self?.makeKeyAndOrderFront(nil)
+      })
     jobs.setMethodCallHandler { [weak self] call, result in
+      if let activity = self?.activity, activity.told(call.method, call.arguments as? [String: Any]) {
+        result(nil)
+        return
+      }
       switch call.method {
       case "running":
         let id = ((call.arguments as? [String: Any])?["id"] as? String) ?? ""
