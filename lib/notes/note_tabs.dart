@@ -16,6 +16,7 @@ import '../core/workspaces.dart';
 import '../note/note_tools.dart' show NoteToolsModel;
 import '../shell/desktop/mac_lights.dart';
 import '../shell/header_toolbar.dart';
+import '../shell/top_bar_tools.dart' show BarButton;
 import '../shell/pop_menu.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart';
@@ -120,7 +121,11 @@ class NoteTabs extends StatefulWidget {
     this.toolsModel,
     this.onSearch,
     this.onAllNotes,
+    this.filters,
   });
+
+  /// The home page's Filters, for a version that holds them in the bar ([HeaderParts.filters]).
+  final BarButton? filters;
 
   /// Which of the header toolbar's five versions draws the line of controls; today's unless Developer says.
   final HeaderToolbarVersion version;
@@ -600,6 +605,7 @@ class _NoteTabsState extends State<NoteTabs> {
           ? null
           : HeaderAct(id: 'aside', label: 'Side panel', word: 'Side panel', hue: 'mint', icon: Lucide.panelLeft, mirrored: true, onPress: w.onAside, on: w.asideOpen, expanded: w.asideOpen, toggle: asideToggle),
       presence: w.presence,
+      filters: w.filters,
       // A screen with no model is drawn from its widgets; a note's are redrawn from its model.
       tools: model == null ? w.tools : null,
       tail: model == null ? w.tail : null,

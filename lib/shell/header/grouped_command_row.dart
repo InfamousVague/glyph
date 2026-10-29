@@ -22,14 +22,21 @@
 ///
 /// **The home page has no search field of its own** while this version draws the bar (Matt, 2026-10-28: "remove the
 /// search bar from the home page since it's redundant"): the title pill is the search, the palette finding notes by
-/// name as the field did, and ⌘K / Ctrl K still opens it. The filters' button stays, at the head of the list, at its
-/// end (lib/home/home_filters.dart `searchField`).
+/// name as the field did, and ⌘K / Ctrl K still opens it (lib/home/home_filters.dart `searchField`). **Nor its filters'
+/// button** (Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it next to
+/// the command search bar in the top bar"): the home page hands it to the bar (lib/shell/top_bar_tools.dart
+/// `TopBarFill.filters`), and it is a circle of the bar's right after the title pill, the page's own button and panel
+/// (Show and Workspace, the counts and the tick), ink while a filter is on. Off the home page there is none. The chips
+/// of what is chosen stay on the page.
 library;
 
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
 
 import '../../art/icon_packs.dart' show IconStyle;
+import '../../art/lucide.g.dart';
 import '../header_toolbar.dart';
+import '../top_bar_tools.dart' show BarButton;
 import 'command_row.dart' show CommandField;
 import 'grouped_row.dart';
 import 'header_kit.dart';
@@ -45,7 +52,10 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   final wide = parts.wide;
   // The way around: all four on a wide window; Home, the sidebar and Back on a narrow one, Forward put away. Home is
   // never put away (Matt, 2026-10-28: "Also always show the home button on the top bar").
-  final way = [for (final act in parts.way) if (wide || act.id != 'forward') act];
+  // At home on a narrow window the Filters' circle wants a place beside the pill too, so Back, which at home has
+  // seldom anywhere to go, is put away with Forward before the pill is squeezed; Filters and Home never are.
+  final squeezed = !wide && parts.filters != null;
+  final way = [for (final act in parts.way) if (wide || (act.id != 'forward' && !(squeezed && act.id == 'back'))) act];
   final putAway = [...notShown(parts.way, way), ?parts.aside];
   final shown = parts.actions.take(wide ? 2 : 0).toList();
   final rest = notShown(parts.actions, shown);
@@ -75,6 +85,9 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
     // The pill opens ••• itself where there is no palette.
     centre: styled(context, IconStyle.outline, CommandField(parts: parts, entries: entries, large: true)),
     trail: [
+      // The home page's Filters beside the pill (Matt, 2026-10-29: "when on the homepage add it next to the command
+      // search bar in the top bar"): the page's own button and panel, a circle of the bar's.
+      if (parts.filters case final filters?) solid(KeyedSubtree(key: HeaderAct.keyOf('filters'), child: _FiltersCircle(filters: filters))),
       ?parts.presence,
       if (parts.onNote)
         solid(
@@ -93,4 +106,25 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
       if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts, glyph: _glyph + 1)),
     ],
   );
+}
+
+/// The home page's Filters as one of the bar's circles: the page's button (lib/home/home_filters.dart
+/// `HomeFiltersButton`) drawn as a Grouped segment in a pill of one, ink while a filter is on, as the page's own was.
+class _FiltersCircle extends StatelessWidget {
+  const _FiltersCircle({required this.filters});
+  final BarButton filters;
+
+  static const HeaderAct _act = HeaderAct(id: 'filters', label: 'Filters', word: 'Filters', hue: 'indigo', icon: Lucide.slidersHorizontal, onPress: null);
+
+  @override
+  Widget build(BuildContext context) => filters(
+        (context, state, {required open, required on}) {
+          final lit = PressState(hovered: state.hovered || open, pressed: state.pressed, focused: state.focused);
+          return GlacierFocusRing(
+            visible: state.focused,
+            radius: 999,
+            child: GroupedPill(children: [GroupedSegmentFace(act: _act, state: lit, on: on, glyph: _glyph)]),
+          );
+        },
+      );
 }

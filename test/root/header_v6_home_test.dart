@@ -12,6 +12,7 @@ import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
+import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/simple/simple_home.dart';
 import 'package:glacier/glacier.dart';
@@ -70,6 +71,12 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   }
 
+  /// The filters' button, by what it says: "Filters", or "Filters: Notebooks" with one chosen.
+  Finder filtersButton() => find.byWidgetPredicate((widget) => widget is Semantics && (widget.properties.button ?? false) && (widget.properties.label ?? '').startsWith('Filters'));
+
+  /// A row of the filters' panel, by the start of what it says ("Notebooks, 3").
+  Finder radio(String starts) => find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.checked != null && (widget.properties.label ?? '').startsWith(starts));
+
   /// Every search field a home page draws: the advanced page's, and simple mode's list's.
   Finder fields() => find.byWidgetPredicate(
         (widget) => widget is Semantics && (widget.properties.textField ?? false) && (widget.properties.label == 'Search notebooks and notes' || widget.properties.label == 'Search'),
@@ -95,7 +102,9 @@ void main() {
       // The bar's title pill is the search.
       expect(find.byKey(HeaderAct.keyOf('search')), findsOneWidget);
       expect(fields(), findsNothing);
-      expect(find.byWidgetPredicate((widget) => widget is Semantics && (widget.properties.label ?? '').startsWith('Filters')), findsWidgets);
+      // The filters' button is the bar's, beside the title pill, and not the page's (Matt, 2026-10-29).
+      expect(find.byKey(HeaderAct.keyOf('filters')), findsOneWidget);
+      expect(find.descendant(of: find.byType(HomeScreen), matching: filtersButton()), findsNothing);
       semantics.dispose();
       await close(tester);
     });
@@ -107,10 +116,68 @@ void main() {
       await launch(tester, size: layout.size, version: null, stored: stored, workspace: layout.workspace);
       expect(headerToolbarVersion, HeaderToolbarVersion.today);
       expect(fields(), layout.panes ? findsNWidgets(2) : findsOneWidget);
+      expect(find.descendant(of: find.byType(HomeScreen), matching: filtersButton()), findsOneWidget, reason: 'the page’s own');
+      expect(find.byKey(HeaderAct.keyOf('filters')), findsNothing);
       semantics.dispose();
       await close(tester);
     });
   }
+
+  // Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it next to the command
+  // search bar in the top bar".
+  for (final size in [phone, unfolded]) {
+    testWidgets('Grouped command: the bar’s Filters opens the page’s panel under it, and Notebooks filters the list (${size.width.round()})', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await launch(tester, size: size, version: HeaderToolbarVersion.groupedCommand.id);
+      final bar = find.byKey(HeaderAct.keyOf('filters'));
+      final button = tester.getRect(bar);
+      await tester.tap(bar);
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // The same panel: Show with its counts and the chosen one ticked, and Workspace.
+      final all = radio('All, ');
+      expect(all, findsOneWidget);
+      expect(tester.widget<Semantics>(all).properties.checked, isTrue);
+      expect(radio('Notebooks, '), findsOneWidget);
+      expect(find.text('Every workspace'), findsOneWidget);
+      // Hung under the bar's button.
+      expect(tester.getRect(all).top, greaterThan(button.bottom));
+      await tester.tap(radio('Notebooks, '));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // The page shows notebooks alone: its chip says so, and the bar's button says what is on.
+      expect(find.bySemanticsLabel('Notebooks: show everything'), findsOneWidget);
+      expect(find.descendant(of: bar, matching: find.bySemanticsLabel('Filters: Notebooks')), findsOneWidget);
+      semantics.dispose();
+      await close(tester);
+    });
+  }
+
+  for (final version in HeaderToolbarVersion.values.where((each) => each != HeaderToolbarVersion.groupedCommand)) {
+    testWidgets('${version.number} ${version.label}: the filters stay on the page, and the bar has none', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await launch(tester, size: phone, version: version.id);
+      expect(find.descendant(of: find.byType(HomeScreen), matching: filtersButton()), findsOneWidget);
+      expect(find.byKey(HeaderAct.keyOf('filters')), findsNothing);
+      semantics.dispose();
+      await close(tester);
+    });
+  }
+
+  testWidgets('Grouped command on a note: no Filters in the bar', (tester) async {
+    await launch(tester, size: unfolded, version: HeaderToolbarVersion.groupedCommand.id);
+    expect(find.byKey(HeaderAct.keyOf('filters')), findsOneWidget);
+    final shell = tester.state<AppShellState>(find.byType(AppShell));
+    shell.openNote(shell.notes.first.id);
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byKey(HeaderAct.keyOf('view')), findsOneWidget, reason: 'a note is up');
+    expect(find.byKey(HeaderAct.keyOf('filters')), findsNothing);
+    await close(tester);
+  });
 
   testWidgets('chosen after launch, the opened Fold’s notes column loses its field too, and gets it back', (tester) async {
     final semantics = tester.ensureSemantics();

@@ -17,6 +17,7 @@ import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart' show AppTabBar;
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/shell/placeholders.dart';
+import 'package:glacier/glacier.dart' show GlacierPressable;
 import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 import 'package:ghost_md/shell/top_bar.dart';
 import 'package:ghost_md/shell/top_bar_tools.dart';
@@ -88,6 +89,11 @@ void main() {
         onOrganizations: () => said.add('organizations'),
         onDeleteNote: (_) {},
         noteBuilder: (context, shell, screen) => _StandInNote(note: screen.note, log: said.add),
+        // The home page hands the bar its Filters, as lib/home/home_screen.dart does; only Grouped command draws them.
+        homeBuilder: (context, shell) => TopBarFill(
+          filters: (face) => GlacierPressable(onPressed: () => said.add('filters'), semanticLabel: 'Filters', builder: (context, state) => face(context, state, open: false, on: false)),
+          child: HomePlaceholder(notes: shell.notes, onOpen: shell.openNote, onAllNotes: shell.showAllNotes),
+        ),
         asideBuilder: (context, shell) => const SizedBox.shrink(),
       ),
     );
@@ -172,6 +178,15 @@ void main() {
               final at = tester.getRect(home);
               expect(at.left >= -0.5 && at.right <= window.size.width + 0.5 && at.top >= 0, isTrue, reason: 'Home at $at');
               expect(find.byType(PopMenu), findsNothing, reason: 'no menu open: Home is in the row');
+              // The home page's Filters beside the title pill in Grouped command at home, and nowhere else (Matt,
+              // 2026-10-29: "when on the homepage add it next to the command search bar in the top bar").
+              final filters = find.byKey(HeaderAct.keyOf('filters'));
+              expect(filters, version == HeaderToolbarVersion.groupedCommand && !note ? findsOneWidget : findsNothing, reason: 'Filters ${note ? 'on a note' : 'at home'}');
+              if (filters.evaluate().isNotEmpty) {
+                final rect = tester.getRect(filters);
+                expect(rect.right <= window.size.width + 0.5 && (rect.width - rect.height).abs() < 0.5, isTrue, reason: 'Filters a circle in the window, $rect');
+                expect(rect.left, greaterThan(tester.getRect(find.byKey(HeaderAct.keyOf('search'))).right), reason: 'after the title pill');
+              }
               for (final element in headerKeys().evaluate()) {
                 final box = element.renderObject;
                 if (box is! RenderBox || !box.hasSize || !box.attached) continue;
@@ -274,7 +289,10 @@ void main() {
 
         await pumpShell(tester, version: version, window: window, note: false);
         final home = drawn(tester);
-        expect(home.containsAll({'sidebar', 'back', 'search', 'you'}), isTrue, reason: '$home');
+        expect(home.containsAll({'home', 'sidebar', 'search', 'filters', 'you'}), isTrue, reason: '$home');
+        // At home on a narrow window Back is put away for the Filters' circle; Home and Filters never are.
+        expect(home.contains('back'), wide, reason: '$home');
+        expect((await reachable(tester)).contains('back'), isTrue);
         // At home, ••• is a pill of its own for what the way around put away, and the aside.
         expect(home, contains('overflow'));
         expect(home.intersection(noteTools), isEmpty);

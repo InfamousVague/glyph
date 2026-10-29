@@ -950,6 +950,7 @@ class AppShellState extends State<AppShell> {
           // The line of controls in the version Developer chose; a change draws the bar again at once.
           version: named ?? headerToolbarVersion,
           toolsModel: _barTools.model,
+          filters: _barTools.filters,
           onSearch: widget.onSearch,
           onAllNotes: showAllNotes,
           tabs: _tabs.tabs,

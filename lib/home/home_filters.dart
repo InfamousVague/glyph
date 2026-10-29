@@ -48,6 +48,7 @@ class HomeFilters extends StatefulWidget {
     this.onSaveSearch,
     this.simple = false,
     this.searchField = true,
+    this.filtersButton = true,
   });
 
   final String query;
@@ -87,8 +88,185 @@ class HomeFilters extends StatefulWidget {
   /// page since it's redundant"): the filters' button alone then, at the row's end, where it always stood.
   final bool searchField;
 
+  /// Whether the filters' button is drawn here. Not where Grouped command draws the bar, which holds the button beside
+  /// its title pill (Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it
+  /// next to the command search bar in the top bar"): the same [HomeFiltersButton], handed to the bar by the home page
+  /// (lib/shell/top_bar_tools.dart `TopBarFill.filters`). The chips of what is chosen stay here, under it.
+  final bool filtersButton;
+
   @override
   State<HomeFilters> createState() => HomeFiltersState();
+}
+
+/// How a [HomeFiltersButton] is drawn: for the press's state, whether its panel is [open], and whether a filter is
+/// [on] (a Show other than All, or a workspace chosen). The home page's own round button unless one is given: the
+/// header toolbar draws it in the bar's own look.
+typedef HomeFiltersFace = Widget Function(BuildContext context, PressState state, {required bool open, required bool on});
+
+/// The filters' button and its panel - Show, with each one's count and a tick by the chosen one, and Workspace, with
+/// New workspace, New organization and Edit (`HomeFilters.tsx` `.filters`, `.panel`) - on its own, so it can be drawn
+/// in the home page's row or in the top bar (Grouped command), one widget with one panel either way: what it shows
+/// and what it changes are the page's, handed in.
+class HomeFiltersButton extends StatefulWidget {
+  const HomeFiltersButton({
+    super.key,
+    required this.filter,
+    required this.onFilter,
+    required this.counts,
+    required this.workspaces,
+    required this.onManage,
+    this.onNewOrganization,
+    this.onOrganization,
+    this.simple = false,
+    this.focusNode,
+    this.face,
+    this.placement = Placement.bottomEnd,
+  });
+
+  final HomeFilter filter;
+  final ValueChanged<HomeFilter> onFilter;
+  final Map<HomeFilter, int> counts;
+  final WorkspaceStore workspaces;
+  final ValueChanged<Workspace?> onManage;
+  final VoidCallback? onNewOrganization;
+  final ValueChanged<String>? onOrganization;
+  final bool simple;
+
+  /// The button's focus, which the page's chips and the workspace sheet hand the keyboard back to; its own if none.
+  final FocusNode? focusNode;
+  final HomeFiltersFace? face;
+  final Placement placement;
+
+  @override
+  State<HomeFiltersButton> createState() => _HomeFiltersButtonState();
+}
+
+class _HomeFiltersButtonState extends State<HomeFiltersButton> {
+  final GlobalKey _buttonKey = GlobalKey(debugLabel: 'Home filters button');
+  FocusNode? _own;
+  bool _open = false;
+
+  /// How tall the panel may be: the room under the button, measured as it opens.
+  double? _room;
+
+  FocusNode get _button => widget.focusNode ?? (_own ??= FocusNode(debugLabel: 'Home filters'));
+
+  @override
+  void initState() {
+    super.initState();
+    widget.workspaces.addListener(_redraw);
+  }
+
+  @override
+  void didUpdateWidget(HomeFiltersButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.workspaces != widget.workspaces) {
+      oldWidget.workspaces.removeListener(_redraw);
+      widget.workspaces.addListener(_redraw);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.workspaces.removeListener(_redraw);
+    _own?.dispose();
+    super.dispose();
+  }
+
+  void _redraw() {
+    if (mounted) setState(() {});
+  }
+
+  void _openPanel(bool next) {
+    if (next) {
+      final box = _buttonKey.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        final below = box.localToGlobal(Offset(0, box.size.height)).dy;
+        final room = MediaQuery.sizeOf(context).height - below - 44;
+        _room = room < 160 ? 160 : room;
+      }
+    }
+    setState(() => _open = next);
+  }
+
+  void _manage(Workspace? which) {
+    setState(() => _open = false);
+    widget.onManage(which);
+  }
+
+  /// "Edit" on an organization's workspace is the organization's screen; its name and colour are the organization's.
+  void _edit(Workspace workspace) {
+    final org = workspace.org;
+    if (org != null && widget.onOrganization != null) {
+      setState(() => _open = false);
+      widget.onOrganization!(org);
+    } else {
+      _manage(workspace);
+    }
+  }
+
+  /// The home page's own round button.
+  Widget _homeFace(BuildContext context, PressState state, {required bool open, required bool on}) {
+    final t = context.tokens;
+    final lit = state.hovered || open;
+    final ink = on ? t.color('app-paper') : (lit ? t.color('app-ink') : t.color('app-ink-2'));
+    return GlacierFocusRing(
+      visible: state.focused,
+      child: Container(
+        width: t.space(10),
+        height: t.space(10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: on ? t.color('app-ink') : t.colorOf('color-mix(in oklch, var(--app-ink) 4%, transparent)'),
+          border: Border.all(color: on ? t.color('app-ink') : (lit ? t.color('glacier-border-strong') : t.color('app-rule')), width: t.len('glacier-hairline')),
+        ),
+        child: HomeIcon(HomeGlyph.filters, size: 16, strokeWidth: 2.2, color: ink),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final current = widget.workspaces.value.current;
+    final shown = homeFilters.firstWhere((each) => each.id == widget.filter);
+    final chosen = [if (widget.filter != HomeFilter.all) shown.label, if (current != null) current.name].join(', ');
+    final face = widget.face ?? _homeFace;
+    return GlacierPopover(
+      open: _open,
+      onOpenChange: _openPanel,
+      placement: widget.placement,
+      ariaLabel: 'Filters',
+      // `.panel { min-inline-size: min(17rem, calc(100vw - 2rem)) }`.
+      minWidth: t.lenOf('min(17rem, calc(100vw - 2rem))'),
+      trigger: (context, trigger) => GlacierPressable(
+        key: _buttonKey,
+        focusNode: _button,
+        onPressed: trigger.toggle,
+        semanticLabel: chosen.isEmpty ? 'Filters' : 'Filters: $chosen',
+        builder: (context, state) => face(context, state, open: trigger.isOpen, on: chosen.isNotEmpty),
+      ),
+      child: _PanelBody(
+        room: _room,
+        filter: widget.filter,
+        onFilter: widget.onFilter,
+        counts: widget.counts,
+        store: widget.workspaces,
+        simple: widget.simple,
+        onNew: () => _manage(null),
+        onNewOrganization: widget.onNewOrganization == null
+            ? null
+            : () {
+                setState(() => _open = false);
+                widget.onNewOrganization!();
+              },
+        onEdit: _edit,
+        onLeave: () => setState(() => _open = false),
+        trigger: _button,
+      ),
+    );
+  }
 }
 
 /// [HomeFilters]' state, public for [focusButton]: the workspace sheet hands the keyboard back to the filters'
@@ -97,11 +275,10 @@ class HomeFiltersState extends State<HomeFilters> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _field = FocusNode(debugLabel: 'Home search');
   final FocusNode _button = FocusNode(debugLabel: 'Home filters');
-  final GlobalKey _buttonKey = GlobalKey(debugLabel: 'Home filters button');
-  bool _open = false;
 
-  /// How tall the panel may be: the room under the button, measured as it opens.
-  double? _room;
+  /// The button kept across the row moving into a column under it as a filter is chosen, so its panel stays open for
+  /// another choice: the panel's open state is the button's own.
+  final GlobalKey _filtersKey = GlobalKey(debugLabel: 'Home filters');
 
   @override
   void initState() {
@@ -144,41 +321,16 @@ class HomeFiltersState extends State<HomeFilters> {
     if (mounted) setState(() {});
   }
 
-  /// Puts the keyboard on the filters' button: where the workspace sheet hands it back as it closes.
-  void focusButton() => _button.requestFocus();
-
-  void _openPanel(bool next) {
-    if (next) {
-      final box = _buttonKey.currentContext?.findRenderObject();
-      if (box is RenderBox && box.hasSize) {
-        final below = box.localToGlobal(Offset(0, box.size.height)).dy;
-        final room = MediaQuery.sizeOf(context).height - below - 44;
-        _room = room < 160 ? 160 : room;
-      }
-    }
-    setState(() => _open = next);
-  }
-
-  void _manage(Workspace? which) {
-    setState(() => _open = false);
-    widget.onManage(which);
-  }
-
-  /// "Edit" on an organization's workspace is the organization's screen; its name and colour are the organization's.
-  void _edit(Workspace workspace) {
-    final org = workspace.org;
-    if (org != null && widget.onOrganization != null) {
-      setState(() => _open = false);
-      widget.onOrganization!(org);
-    } else {
-      _manage(workspace);
-    }
+  /// Puts the keyboard on the filters' button: where the workspace sheet hands it back as it closes. Nowhere while
+  /// the button is the bar's ([HomeFilters.filtersButton]).
+  void focusButton() {
+    if (_button.context != null) _button.requestFocus();
   }
 
   /// A chip's cross: the filter comes off, and the keyboard goes to the button.
   void _takeOff(VoidCallback clear) {
     clear();
-    _button.requestFocus();
+    focusButton();
   }
 
   @override
@@ -190,66 +342,30 @@ class HomeFiltersState extends State<HomeFilters> {
     final chosen = [if (widget.filter != HomeFilter.all) shown.label, if (current != null) current.name].join(', ');
     final sm = t.fontSize('sm');
 
-    final row = Row(
-      children: [
-        if (widget.searchField) ...[
-          Expanded(child: _SearchField(controller: _controller, focusNode: _field, onQuery: widget.onQuery)),
-          SizedBox(width: t.space(2)),
-        ] else
-          const Spacer(),
-        GlacierPopover(
-          open: _open,
-          onOpenChange: _openPanel,
-          placement: Placement.bottomEnd,
-          ariaLabel: 'Filters',
-          // `.panel { min-inline-size: min(17rem, calc(100vw - 2rem)) }`.
-          minWidth: t.lenOf('min(17rem, calc(100vw - 2rem))'),
-          trigger: (context, trigger) => GlacierPressable(
-            key: _buttonKey,
-            focusNode: _button,
-            onPressed: trigger.toggle,
-            semanticLabel: chosen.isEmpty ? 'Filters' : 'Filters: $chosen',
-            builder: (context, state) {
-              final on = chosen.isNotEmpty;
-              final lit = state.hovered || trigger.isOpen;
-              final ink = on ? t.color('app-paper') : (lit ? t.color('app-ink') : t.color('app-ink-2'));
-              return GlacierFocusRing(
-                visible: state.focused,
-                child: Container(
-                  width: t.space(10),
-                  height: t.space(10),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: on ? t.color('app-ink') : t.colorOf('color-mix(in oklch, var(--app-ink) 4%, transparent)'),
-                    border: Border.all(color: on ? t.color('app-ink') : (lit ? t.color('glacier-border-strong') : t.color('app-rule')), width: t.len('glacier-hairline')),
-                  ),
-                  child: HomeIcon(HomeGlyph.filters, size: 16, strokeWidth: 2.2, color: ink),
+    final Widget? row = !widget.searchField && !widget.filtersButton
+        ? null
+        : Row(
+            children: [
+              if (widget.searchField) ...[
+                Expanded(child: _SearchField(controller: _controller, focusNode: _field, onQuery: widget.onQuery)),
+                if (widget.filtersButton) SizedBox(width: t.space(2)),
+              ] else
+                const Spacer(),
+              if (widget.filtersButton)
+                HomeFiltersButton(
+                  key: _filtersKey,
+                  filter: widget.filter,
+                  onFilter: widget.onFilter,
+                  counts: widget.counts,
+                  workspaces: widget.workspaces,
+                  onManage: widget.onManage,
+                  onNewOrganization: widget.onNewOrganization,
+                  onOrganization: widget.onOrganization,
+                  simple: widget.simple,
+                  focusNode: _button,
                 ),
-              );
-            },
-          ),
-          child: _PanelBody(
-            room: _room,
-            filter: widget.filter,
-            onFilter: widget.onFilter,
-            counts: widget.counts,
-            store: widget.workspaces,
-            simple: widget.simple,
-            onNew: () => _manage(null),
-            onNewOrganization: widget.onNewOrganization == null
-                ? null
-                : () {
-                    setState(() => _open = false);
-                    widget.onNewOrganization!();
-                  },
-            onEdit: _edit,
-            onLeave: () => setState(() => _open = false),
-            trigger: _button,
-          ),
-        ),
-      ],
-    );
+            ],
+          );
     // The operators a search reads, offered while the field is empty and has the keyboard, and what it understood
     // of what is typed (lib/home/search_hints.dart): the port's own.
     // Simple mode offers no operators and no Save: the row is there only to say back what was typed.
@@ -267,17 +383,17 @@ class HomeFiltersState extends State<HomeFilters> {
             onSave: onSave,
           )
         : null;
-    if (chosen.isEmpty && hints == null) return row;
+    if (chosen.isEmpty && hints == null) return row ?? const SizedBox.shrink();
 
     // What is chosen, under the search: a chip for each, its cross taking it off.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        row,
-        if (hints != null) ...[SizedBox(height: t.space(3)), hints],
+        ?row,
+        if (hints != null) ...[if (row != null) SizedBox(height: t.space(3)), hints],
         if (chosen.isNotEmpty) ...[
-        SizedBox(height: t.space(3)),
+        if (row != null || hints != null) SizedBox(height: t.space(3)),
         Semantics(
           container: true,
           label: 'Filters on',

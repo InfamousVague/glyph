@@ -72,6 +72,7 @@ import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
 import '../shell/header_pane.dart';
 import '../shell/header_toolbar.dart';
+import '../shell/top_bar_tools.dart';
 import '../shell/page_dock.dart';
 import '../tapes/player.dart' show TapePlayer;
 import '../tapes/previews.dart' show TapePreviews;
@@ -631,6 +632,35 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) => _build(context);
 
+  /// Whether the filters' button is the bar's: Grouped command draws the bar, so the button stands beside its title
+  /// pill (Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it next to the
+  /// command search bar in the top bar"). A page with no bar over it, or in simple mode, keeps its own.
+  bool _filtersInBar(BuildContext context) => !widget.simple && headerToolbarVersion == HeaderToolbarVersion.groupedCommand && TopBarTools.maybeOf(context) != null;
+
+  BarButton? _barButton;
+  String? _barKey;
+
+  /// The filters' button the bar draws, in its own look: the page's [HomeFiltersButton], one panel, the same state.
+  /// Made again only when what it shows changes, so the bar is told only then.
+  BarButton? _barFilters(_Read read, bool inBar) {
+    if (!inBar) return _barButton = _barKey = null;
+    final filter = read.filter, counts = read.counts;
+    final key = '${filter.name}|${identityHashCode(counts)}|${widget.workspaces.value.current?.id}|${widget.onNewOrganization != null}|${widget.onOrganization != null || widget.onOrganizationSettings != null}';
+    if (key == _barKey && _barButton != null) return _barButton;
+    _barKey = key;
+    final hasOrganization = widget.onOrganization != null;
+    return _barButton = (face) => HomeFiltersButton(
+          filter: filter,
+          onFilter: (filter) => setState(() => _filter = filter),
+          counts: counts,
+          workspaces: widget.workspaces,
+          onManage: _manage,
+          onNewOrganization: widget.onNewOrganization == null ? null : _newOrganization,
+          onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
+          face: face,
+        );
+  }
+
   Widget _build(BuildContext context) {
     if (ghostPerf) Perf.count('home.build');
     final t = context.tokens;
@@ -641,6 +671,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final now = _now;
     final at = DateTime.fromMillisecondsSinceEpoch(now);
     final read = _reading(spaces, DateTime(at.year, at.month, at.day).millisecondsSinceEpoch);
+    final inBar = _filtersInBar(context);
     final drawn = _Drawn(
       read: read,
       tokens: t,
@@ -672,7 +703,9 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.onNewNote != null ? 262144 : 0) |
           (widget.onAllTapes != null ? 524288 : 0) |
           // The header toolbar's Grouped command takes the search field off a page already drawn.
-          (headerToolbarVersion == HeaderToolbarVersion.groupedCommand ? 1048576 : 0),
+          (headerToolbarVersion == HeaderToolbarVersion.groupedCommand ? 1048576 : 0) |
+          // And its bar takes the filters' button off the page.
+          (inBar ? 2097152 : 0),
       meetings: widget.meetings,
       // Cards or icons where a workspace is chosen: its own choice, or the nearest one above it. Not in simple mode.
       view: workspace == null || widget.simple ? BrowseView.cards : browseViewAt(spaces.list, workspace, widget.stored),
@@ -693,7 +726,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // The page's window ends at the keyboard: on the phone the web's frame is padded by it (MainActivity's insets
     // listener), so the dock and the smoke at the foot ride above the keys and `dvh` is of what is left. Always
     // wrapped, so a keyboard coming up moves the page and does not rebuild it.
-    return _AboveKeyboard(child: page);
+    // The filters handed to the bar where it holds them, and nothing where it does not.
+    return TopBarFill(filters: _barFilters(read, inBar), child: _AboveKeyboard(child: page));
   }
 
   /// The page's widgets, for everything [drawn] holds. [now] is the moment "20 min ago" is counted from.
@@ -989,6 +1023,8 @@ class _HomeScreenState extends State<HomeScreen> {
           // the palette, which finds notes by name (Matt, 2026-10-28: "remove the search bar from the home page since
           // it's redundant"). Simple mode has no bar, so it keeps its field.
           searchField: widget.simple || headerToolbarVersion != HeaderToolbarVersion.groupedCommand,
+          // And the filters' button is the bar's beside its title pill; the chips of what is chosen stay here.
+          filtersButton: (drawn.seams & 2097152) == 0,
         ),
       // The folders inside the chosen workspace, where it is, and cards or icons for it (GHST-107): not while
       // searching, and not in simple mode. In icons the folders are the first tiles, and the strip is the line above

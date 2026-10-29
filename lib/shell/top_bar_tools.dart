@@ -1,8 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart' show PressState;
 
 import '../note/note_tools.dart' show NoteToolsModel;
+
+/// How a control a screen hands the bar is drawn in the bar's own look: for the press's state, whether what it opens
+/// is [open], and whether it is [on].
+typedef BarButtonFace = Widget Function(BuildContext context, PressState state, {required bool open, required bool on});
+
+/// A control a screen hands the bar to draw in the bar's look: the home page's Filters ([TopBarFill.filters]).
+typedef BarButton = Widget Function(BarButtonFace face);
 
 /// Where a screen's own controls go when the app's top bar is there to hold them: the web app's
 /// core/topBarTools.ts. A note's tools - the view toggle, the bookmark, the mic, the three dots - belong to the
@@ -28,6 +36,7 @@ class TopBarTools extends ChangeNotifier {
   Widget? _tools;
   Widget? _tail;
   ValueListenable<NoteToolsModel>? _model;
+  BarButton? _filters;
 
   /// The bar is gone. A screen under it goes in the same frame and gives its controls back a frame later
   /// ([_TopBarFillState._later]), to a bar that has nobody left to tell: without this the notifier threw in that
@@ -50,13 +59,19 @@ class TopBarTools extends ChangeNotifier {
   /// a screen that handed widgets alone.
   ValueListenable<NoteToolsModel>? get model => _model;
 
-  void _set(Object owner, Widget? tools, Widget? tail, ValueListenable<NoteToolsModel>? model) {
+  /// The home page's Filters, for a version that holds them in the bar (Grouped command; Matt, 2026-10-29: "when on
+  /// the homepage add it next to the command search bar in the top bar"). Today's bar and the rest draw nothing for
+  /// it: the home page keeps its own button under them.
+  BarButton? get filters => _filters;
+
+  void _set(Object owner, Widget? tools, Widget? tail, ValueListenable<NoteToolsModel>? model, BarButton? filters) {
     if (_gone) return;
-    if (identical(_owner, owner) && identical(_tools, tools) && identical(_tail, tail) && identical(_model, model)) return;
+    if (identical(_owner, owner) && identical(_tools, tools) && identical(_tail, tail) && identical(_model, model) && identical(_filters, filters)) return;
     _owner = owner;
     _tools = tools;
     _tail = tail;
     _model = model;
+    _filters = filters;
     notifyListeners();
   }
 
@@ -66,6 +81,7 @@ class TopBarTools extends ChangeNotifier {
     _tools = null;
     _tail = null;
     _model = null;
+    _filters = null;
     notifyListeners();
   }
 
@@ -83,11 +99,14 @@ class TopBarToolsScope extends InheritedNotifier<TopBarTools> {
 /// in the slot, [tail] at the row's end, and [model], what they are, for the bar's other versions. Taken out again as
 /// the screen goes.
 class TopBarFill extends StatefulWidget {
-  const TopBarFill({super.key, this.tools, this.tail, this.model, required this.child});
+  const TopBarFill({super.key, this.tools, this.tail, this.model, this.filters, required this.child});
 
   final Widget? tools;
   final Widget? tail;
   final ValueListenable<NoteToolsModel>? model;
+
+  /// [TopBarTools.filters]: the home page's.
+  final BarButton? filters;
   final Widget child;
 
   @override
@@ -118,14 +137,14 @@ class _TopBarFillState extends State<TopBarFill> {
   @override
   void didUpdateWidget(TopBarFill old) {
     super.didUpdateWidget(old);
-    if (!identical(old.tools, widget.tools) || !identical(old.tail, widget.tail) || !identical(old.model, widget.model)) _hand();
+    if (!identical(old.tools, widget.tools) || !identical(old.tail, widget.tail) || !identical(old.model, widget.model) || !identical(old.filters, widget.filters)) _hand();
   }
 
   void _hand() {
     final bar = _bar;
     if (bar == null) return;
     _later(() {
-      if (mounted) bar._set(this, widget.tools, widget.tail, widget.model);
+      if (mounted) bar._set(this, widget.tools, widget.tail, widget.model, widget.filters);
     });
   }
 

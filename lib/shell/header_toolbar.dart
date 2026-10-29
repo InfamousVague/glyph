@@ -46,6 +46,7 @@ import 'header/grouped_command_row.dart';
 import 'header/grouped_row.dart';
 import 'header/labelled_row.dart';
 import 'header/tiles_row.dart';
+import 'top_bar_tools.dart' show BarButton;
 
 /// The six, in the order Developer offers them, each with the line said under its name there.
 enum HeaderToolbarVersion {
@@ -176,6 +177,7 @@ class HeaderParts {
     this.settings,
     this.aside,
     this.presence,
+    this.filters,
     this.tools,
     this.tail,
     this.title,
@@ -206,6 +208,10 @@ class HeaderParts {
 
   /// Who else is here: the Claude chip, drawn as it comes.
   final Widget? presence;
+
+  /// The home page's Filters, handed to the bar to draw in its own look; null off the home page, and for a version
+  /// that leaves them on the page (all but Grouped command).
+  final BarButton? filters;
 
   /// A screen's own controls handed as widgets with no model: drawn as they come, so nothing is lost.
   final Widget? tools, tail;
