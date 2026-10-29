@@ -1679,6 +1679,7 @@ class _GhostRootState extends State<GhostRoot> {
     if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
     if (identical(lovartBannerJob, _bannerJob)) lovartBannerJob = null;
     lovartBannerRun.removeListener(_bannerMoved);
+    preferences.removeListener(_bannerJob.tellElsewhere);
     _bannerJob.dispose();
     _lovartHold.dispose();
     _voiceOverHold.dispose();
@@ -1775,6 +1776,9 @@ class _GhostRootState extends State<GhostRoot> {
       ..openLink = ((link) => widget.openLink?.call('$link'))
       ..openPlugin = ((id) => _openSettingsAt('plugin:$id'));
     startActivityChime();
+    // Another device's run over the recent notes, claimed in the synced settings: its job, "on your Mac".
+    preferences.addListener(_bannerJob.tellElsewhere);
+    _bannerJob.tellElsewhere();
     lovartBannerRun.addListener(_bannerMoved);
     _bannerMoved();
     unawaited(_bannerJob.resume(changes: _pluginsHeard));

@@ -537,6 +537,11 @@ class BannerJob {
   /// Another device's live claim on a run, if one holds.
   BannerClaim? elsewhere() => claims?.elsewhere();
 
+  /// Tells the app's record of running work of another device's live claim on a run (docs/ACTIVITY.md, Other
+  /// devices): its job, dimmed in the ring, "on your Mac" in the tray, as far as it last said. Asked as the settings
+  /// change, where claims arrive.
+  void tellElsewhere() => activity.elsewhere(bannerClaimJobsSource, bannerJobsElsewhere(elsewhere()));
+
   /// Stops the run after the pictures being made now.
   void stop() => _stop = true;
 
@@ -830,6 +835,24 @@ Future<void> makeBookBanners(NoteEditing editing, String? choice) async {
 
 /// The app's job, set by the root as it starts; null where there is no library (a test, the page alone).
 BannerJob? lovartBannerJob;
+
+/// The source another device's run is told to the app's record of running work under.
+const String bannerClaimJobsSource = 'lovart-claim';
+
+/// Another device's run as its job on the app's record of running work, or none.
+List<Job> bannerJobsElsewhere(BannerClaim? claim) => [
+      if (claim != null)
+        Job(
+          id: '$bannerJobId@${claim.by}',
+          kind: JobKind.images,
+          title: 'Making header images',
+          steps: claim.total > 0 ? '${claim.done} of ${claim.total}' : null,
+          fraction: claim.total > 0 ? claim.done / claim.total : null,
+          device: claim.by,
+          deviceName: claim.name,
+          startedAt: DateTime.fromMillisecondsSinceEpoch(claim.at),
+        ),
+    ];
 
 /// What a run of [count] header images should cost and take, said before one over about 20 credits starts
 /// (lib/activity/activity_cost.dart; docs/ACTIVITY.md: "12 banners · ~72 Lovart credits · ~4 min") and in the tray as

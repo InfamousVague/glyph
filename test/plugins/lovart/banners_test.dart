@@ -756,9 +756,18 @@ void main() {
         expect(await job.start(), 'Header images are being made on your Mac · 12 of 100.');
         expect(gated.asked, isEmpty);
         expect(job.elsewhere()!.name, 'Mac');
+        // On the app's record of running work: the Mac's job, as far as it said (docs/ACTIVITY.md, Other devices).
+        final record = Activity(store: () => MemoryStored());
+        useActivity(record);
+        addTearDown(() => useActivity(Activity()));
+        job.tellElsewhere();
+        final theirs = record.value.single;
+        expect((theirs.here, theirs.deviceWords, theirs.liveLine, theirs.fraction), (false, 'on your Mac', 'Making header images, 12 of 100', 0.12));
         // Once its claim has run out (the Mac went mid-run), this device may.
         at += bannerClaimMs;
         expect(job.elsewhere(), isNull);
+        job.tellElsewhere();
+        expect(record.value, isEmpty);
         expect(await job.start(), isNull);
         expect(gated.asked, hasLength(5));
       });
