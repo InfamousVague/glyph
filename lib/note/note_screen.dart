@@ -174,6 +174,7 @@ class NoteSeams {
     this.banner,
     this.transcript,
     this.saving,
+    this.closing,
     this.hasTape,
     this.beforeSpeak,
     this.sync,
@@ -256,6 +257,10 @@ class NoteSeams {
   /// Handed the way to save what is typed now ([NoteScreenState.flush]) as the screen is made: the AI flushes
   /// before a run, so the run's Undo has the note as it was.
   final void Function(VoidCallback flush)? saving;
+
+  /// Handed the way to close the note as its Back does (what is typed saved first, then the note left) as the screen
+  /// is made: Vim's `:q` and `:wq` (lib/plugins/keymaps; Matt, 2026-10-29: "add vim controls to the app via a plugin").
+  final void Function(VoidCallback close)? closing;
 
   /// Whether the note wears its tape now (`tape.length > 0`): a spoken note is talked into from its tape's Add, so
   /// the note's own mic is in neither the bar nor the More sheet. And what is told as the note's own mic is
@@ -647,6 +652,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _drafted = _records.recordOf(_id) != null;
     _untouched = _drafted && _records.isUntouched(_id, note.body, recordingMs: note.recordingMs, starred: note.starred, archivedAt: note.archivedAt);
     widget.seams.saving?.call(flush);
+    widget.seams.closing?.call(_back);
     if (!widget.readOnly) _unhearRecording = widget.seams.recordingChanged?.call(_recordingChanged);
     _fresh = _records.isFresh(_id);
     final versions = widget.versions;

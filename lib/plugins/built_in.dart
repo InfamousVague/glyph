@@ -21,7 +21,7 @@
 /// each made a plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): Calendar,
 /// Contacts, Rich embeds, Todoist and Things; then Lovart and Discord; then Google Meet and Zoom, which were Settings ›
 /// Meetings; then ElevenLabs; then the other AI providers, OpenAI, Gemini and a custom OpenAI-compatible endpoint
-/// (docs/AI_PROVIDERS.md). The app's own Claude is the Claude plugin's other half.
+/// (docs/AI_PROVIDERS.md); then Keyboard modes. The app's own Claude is the Claude plugin's other half.
 library;
 
 import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
@@ -34,6 +34,7 @@ import 'discord/discord.dart' show discordPlugin;
 import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
 import 'gemini/gemini.dart' show geminiPlugin;
 import 'github/github.dart' show githubPlugin;
+import 'keymaps/keymaps.dart' show keymapsPlugin;
 import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
@@ -78,6 +79,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   openAiPlugin,
   geminiPlugin,
   customAiPlugin,
+  // Matt, 2026-10-29: "add vim controls to the app via a plugin as well", then "add a vim / emac controls via a
+  // plugin": a note typed from a hardware keyboard as Vim or Emacs types (keymaps/keymaps.dart).
+  keymapsPlugin,
 ]);
 
 void Function()? _unhear;
