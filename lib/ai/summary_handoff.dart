@@ -81,7 +81,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../core/background_jobs.dart';
 import '../core/note.dart' show Note;
+import '../core/note_text.dart' show noteTitle;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
 import '../core/summary_text.dart' show summarySection;
@@ -89,6 +91,9 @@ import '../meet/meet_note.dart' show awaitsWriteUp, ghostLineStart;
 import '../meet/speakers.dart' show captionWords, sectionOf;
 import 'meeting_sort.dart' show meetingSortsKey;
 import '../core/host_platform.dart';
+
+/// The source the handoff's claims are told to the app's record of running work under ([SummaryHandoff.jobsElsewhere]).
+const String handoffJobsSource = 'summary-handoff';
 
 /// The synced map of meetings handed on, in [Preferences.more] (see the header).
 const String summaryHandoffsKey = 'summaryHandoffs';
@@ -573,6 +578,7 @@ class SummaryHandoff {
     void heard() {
       soon?.cancel();
       soon = Timer(settle, () => unawaited(look()));
+      tellElsewhere();
     }
 
     changes.addListener(heard);
@@ -581,6 +587,33 @@ class SummaryHandoff {
       soon?.cancel();
       _later?.cancel();
       changes.removeListener(heard);
+      activity.elsewhere(handoffJobsSource, const []);
     };
   }
+
+  /// The meetings another of the account's devices is summarizing now, as jobs of that device's for the ring and the
+  /// tray ("Writing the summary · on your Mac"; docs/ACTIVITY.md, Other devices): one for each live claim that is not
+  /// this device's, named by the note's title here.
+  List<Job> jobsElsewhere() {
+    final me = device();
+    final now = clock();
+    final titles = {for (final note in notes()) note.id: noteTitle(note.body)};
+    return [
+      for (final MapEntry(key: id, value: h) in handoffsOf(preferences()).entries)
+        if (h.claimedAt(now) && h.claimBy != me.id)
+          Job(
+            id: 'summary:$id',
+            kind: JobKind.ai,
+            title: (titles[id] ?? '').isEmpty ? 'Summary' : 'Summary of ${titles[id]}',
+            line: 'Writing the summary',
+            device: h.claimBy,
+            deviceName: h.claimName,
+            startedAt: DateTime.fromMillisecondsSinceEpoch(h.claimAt ?? now),
+            onOpen: activityRoutes.noteOpener(id),
+          ),
+    ];
+  }
+
+  /// Tells the app's record of running work which meetings are being summarized elsewhere now.
+  void tellElsewhere() => activity.elsewhere(handoffJobsSource, jobsElsewhere());
 }

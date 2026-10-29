@@ -25,6 +25,7 @@ import 'package:ghost_md/claude/sse.dart' show SseEvent;
 import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart' show Segment;
 import 'package:ghost_md/core/preferences.dart' show Preferences;
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/meet/speakers.dart' show CaptionTurn, captionsSection;
 import 'package:ghost_md/ai/summary_text.dart' show onePassChars, pieceChars;
 import 'package:ghost_md/format/prompt.dart' show recordingNotesPrompt, recordingSummaryPrompt;
@@ -356,6 +357,70 @@ void main() {
       expect(api.asked[2].prompt, endsWith('notes one\n\nnotes two'));
       expect(q.fakes, isEmpty);
     }, onePassChars: onePassChars, pieceChars: pieceChars);
+  });
+
+  group('on the app\'s record of running work (docs/ACTIVITY.md)', () {
+    late Activity record;
+    late List<Job> ended;
+    late StreamSubscription<JobEvent> hearing;
+    void listen() {
+      final kept = MemoryStored();
+      useActivity(record = Activity(store: () => kept));
+      ended = [];
+      hearing = record.events.where((e) => e.kind == JobEventKind.ended).listen((e) => ended.add(e.job!));
+      // Let go once the queue has been stopped (the case's own end), not before.
+      addTearDown(() async {
+        await hearing.cancel();
+        useActivity(Activity());
+      });
+    }
+
+    claudeTest('a summary is one job: "Summary of March launch", writing with Claude, then "Summarized “March launch”" with Open', (tester) async {
+      listen();
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      final job = record['summary:n1']!;
+      expect((job.kind, job.title, job.liveLine, job.here), (JobKind.ai, 'Summary of March launch', 'Writing the summary with Claude', true));
+      api.asked.single.answer(q.answer);
+      await advance(tester, 0);
+      expect(record.value, isEmpty);
+      expect(ended.single.result!.words, 'Summarized “March launch”');
+      expect(ended.single.result!.action, 'Open');
+      expect(record.log.today.words, '1 summary');
+    });
+
+    claudeTest('a long meeting says its parts: "Reading the meeting, 1 of 2 parts", then writing from them', (tester) async {
+      listen();
+      q.notes['n1'] = q.note('n1', '# Long', recordingMs: 600000, segments: q.longTape());
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      expect(record['summary:n1']!.liveLine, 'Reading the meeting, 1 of 2 parts');
+      expect(record['summary:n1']!.fraction, 0);
+      api.asked[0].answer('notes one');
+      await advance(tester, 0);
+      expect(record['summary:n1']!.liveLine, 'Reading the meeting, 2 of 2 parts');
+      api.asked[1].answer('notes two');
+      await advance(tester, 0);
+      expect(record['summary:n1']!.liveLine, 'Writing the summary, from 2 parts');
+      expect(record['summary:n1']!.fraction, closeTo(2 / 3, 1e-9));
+    }, onePassChars: onePassChars, pieceChars: pieceChars);
+
+    claudeTest('a try that fails goes quietly; the third is red in the tray, with Retry', (tester) async {
+      listen();
+      q.present = [];
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      api.asked.single.fail(errorOf(401, '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}'));
+      await advance(tester, 0);
+      final failed = record['summary:n1']!;
+      expect(failed.state, JobState.failed);
+      expect(failed.cause, 'The API key was refused. Check it in Settings › Claude.');
+      expect(failed.fix!.label, 'Retry');
+      failed.fix!.onPress();
+      await advance(tester, 0);
+      expect(api.asked, hasLength(2));
+      expect(record['summary:n1']!.state, JobState.running);
+    });
   });
 
   group('in the background', () {

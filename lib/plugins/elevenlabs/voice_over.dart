@@ -23,6 +23,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import '../../core/attachment_refs.dart' show attachmentOfLine, AttachmentKind;
+import '../../core/background_jobs.dart';
+import '../../core/note_text.dart' show noteTitle;
 import '../../core/front_matter.dart' show frontMatterEnd;
 import '../../files/attachment_store.dart' show AttachmentBytes, KeptAttachment, storeAttachment;
 import '../types.dart';
@@ -93,6 +95,10 @@ String voiceOverCost(int characters, ElevenModel model) {
   final credits = (characters * model.creditsPerCharacter).ceil();
   return '${grouped(characters)} ${characters == 1 ? 'character' : 'characters'}, about ${grouped(credits)} ElevenLabs ${credits == 1 ? 'credit' : 'credits'}';
 }
+
+/// Where a person tops up ElevenLabs' credits: its subscription page (the Top up of a voice-over stopped for them,
+/// docs/ACTIVITY.md).
+const String elevenBillingUrl = 'https://elevenlabs.io/app/subscription';
 
 /// What says ElevenLabs cannot be asked here, or null.
 String? voiceOverUnready() => hasElevenKey() ? null : 'Add your ElevenLabs key in Settings › ElevenLabs first.';
@@ -179,12 +185,27 @@ Future<bool> makeVoiceOver(NoteEditing editing, [String? voiceId]) async {
   final count = plan.chunks.length;
   _making(noteId, count == 1 ? 'Reading' : 'Part 1 of $count');
   editing.say('ElevenLabs is reading the note in ${voice.name}’s voice…');
+  // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): the teal reels in the
+  // ring, "Reading in Elara’s voice, 2 of 4 parts" and its credits in the tray, and "Voice-over ready · Open" as it lands
+  // while the note is not on screen. Asked for by the person, so a long one chimes as it ends.
+  final title = noteTitle(editing.body());
+  final job = activity.begin(
+    'voice-over:$noteId',
+    kind: JobKind.audio,
+    title: title.isEmpty ? 'Reading the note aloud' : 'Reading “$title” aloud',
+    line: 'Reading in ${voice.name}’s voice',
+    personStarted: true,
+    shownHere: activityRoutes.noteShown(noteId),
+    estimate: JobEstimate(credits: (plan.characters * model.creditsPerCharacter).ceil(), provider: 'ElevenLabs'),
+  );
+  var made = false;
   try {
     final parts = <Uint8List>[];
     for (var i = 0; i < count; i += 1) {
       if (count > 1) {
         _making(noteId, 'Part ${i + 1} of $count');
         if (i > 0) editing.say('ElevenLabs is reading part ${i + 1} of $count…');
+        job.progress(done: i, total: count, steps: '${i + 1} of $count parts');
       }
       try {
         parts.add(await client.speak(plan.chunks[i], voiceId: voice.id, modelId: model.id));
@@ -203,14 +224,22 @@ Future<bool> makeVoiceOver(NoteEditing editing, [String? voiceId]) async {
       return false;
     }
     editing.say('Added a voice-over read by ${voice.name}, at the top of the note.${fellBack ? ' Eleven v4 isn’t open to this key, so ${multilingualV2.name} read it.' : ''}');
+    made = true;
+    job.done(result: JobResult('Voice-over ready', action: 'Open', onOpen: activityRoutes.noteOpener(noteId)), tally: const JobTally('voice-over', 'voice-overs'));
     return true;
   } on ElevenFailure catch (failure) {
-    editing.say(failure.tooLong ? '${failure.message} Try a shorter note, or another model in Settings › ElevenLabs.' : failure.message);
+    final said = failure.tooLong ? '${failure.message} Try a shorter note, or another model in Settings › ElevenLabs.' : failure.message;
+    editing.say(said);
+    // Red in the tray, with its one fix: Top up for spent credits, Sign in again for a key refused.
+    job.failed(said, fix: failure.spent ? activityRoutes.topUp(Uri.parse(elevenBillingUrl)) : failure.badKey ? activityRoutes.signIn('elevenlabs') : null);
     return false;
   } on StateError catch (failure) {
     editing.say(failure.message);
+    job.failed(failure.message);
     return false;
   } finally {
     _making(noteId, null);
+    // The note changed under it, or anything else that is not a failure of ElevenLabs': it goes quietly.
+    if (!made) job.stopped();
   }
 }

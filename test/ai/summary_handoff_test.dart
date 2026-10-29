@@ -14,6 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/meeting_sort.dart';
 import 'package:ghost_md/ai/summaries.dart';
 import 'package:ghost_md/ai/summary_handoff.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier;
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart' show MemoryStored;
@@ -251,6 +253,29 @@ void main() {
       expect(strandedMeeting(n(body), prefs.copyWith(more: {meetingSortsKey: {'m': {'sorted': ''}}}), now: at), isFalse, reason: 'sorted once');
       expect(strandedMeeting(n(body), prefs.copyWith(summaries: 'off'), now: at), isFalse, reason: 'summaries off');
       expect(strandedMeeting(n('# Standup\n\nGhost was in this meeting on 26 Oct.\n'), prefs, now: at), isFalse, reason: 'no words');
+    });
+  });
+
+  group('on the app\'s record of running work (docs/ACTIVITY.md, Other devices)', () {
+    handoffTest('a meeting another device has claimed is its job, "on your phone", until it is done', (tester) async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      q.notes['n1'] = q.note('n1', '# Engineering standup');
+      final here = handoffFor(mac);
+      final stop = here.start(ChangeNotifier());
+      theirs('n1', Handoff(from: mac.id, fromName: 'Mac', at: now, claimBy: phone.id, claimName: 'phone', claimAt: now));
+      here.tellElsewhere();
+      final job = record['summary:n1']!;
+      expect((job.here, job.deviceWords, job.title, job.kind, job.liveLine), (false, 'on your phone', 'Summary of Engineering standup', JobKind.ai, 'Writing the summary'));
+      expect(record.log.today.isEmpty, isTrue, reason: 'the phone counts its own');
+      // Its own claim is not another device's.
+      expect(handoffFor(phone).jobsElsewhere(), isEmpty);
+      theirs('n1', Handoff(from: mac.id, at: now, claimBy: phone.id, claimAt: now, done: now, doneBy: phone.id));
+      here.tellElsewhere();
+      expect(record.value, isEmpty);
+      expect(record.blooms, 1);
+      stop();
     });
   });
 

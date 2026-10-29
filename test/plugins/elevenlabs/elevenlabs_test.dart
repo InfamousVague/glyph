@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/files/attachment_store.dart' show KeptAttachment;
 import 'package:ghost_md/plugins/elevenlabs/elevenlabs.dart';
 import 'package:ghost_md/plugins/elevenlabs/manifest.dart' as eleven;
@@ -171,6 +172,45 @@ void main() {
       expect(kept, isEmpty);
       expect(note.body(), '# A\n\nB.');
       expect(voiceOverMaking.value, isEmpty);
+    });
+
+    group('on the app\'s record of running work (docs/ACTIVITY.md)', () {
+      late Activity record;
+      setUp(() => useActivity(record = Activity(store: () => MemoryStored())));
+      tearDown(() => useActivity(Activity()));
+
+      test('one job, asked for by the person: its parts, its credits, then "Voice-over ready · Open"', () async {
+        await key();
+        final paragraph = List.generate(80, (i) => 'Sentence $i of the long note.').join(' ');
+        final note = TestNote('# Long\n\n${List.filled(4, paragraph).join('\n\n')}');
+        final lines = <String>[];
+        final ended = <Job>[];
+        final hearing = record.events.listen((e) {
+          if (e.job?.state.live ?? false) lines.add(e.job!.liveLine);
+          if (e.kind == JobEventKind.ended) ended.add(e.job!);
+        });
+        expect(await makeVoiceOver(note), isTrue);
+        await hearing.cancel();
+        expect(lines.first, 'Reading in Elara’s voice');
+        expect(lines, contains('Reading in Elara’s voice, 2 of ${fake.asked.length} parts'));
+        final done = ended.single;
+        expect((done.kind, done.title, done.personStarted, done.estimate!.provider), (JobKind.audio, 'Reading “Long” aloud', true, 'ElevenLabs'));
+        expect(done.estimate!.credits, greaterThan(1000));
+        expect(done.result!.words, 'Voice-over ready');
+        expect(record.log.today.words, '1 voice-over');
+      });
+
+      test('credits spent: red with Top up; a key refused: Sign in again', () async {
+        await key();
+        fake.fails = (model, ask) => const ElevenFailure('Your ElevenLabs credits are used up for now.', status: 402, code: 'insufficient_credits');
+        expect(await makeVoiceOver(TestNote('# A\n\nB.')), isFalse);
+        final failed = record['voice-over:${TestNote('# A\n\nB.').noteId}']!;
+        expect((failed.state, failed.cause, failed.fix!.kind), (JobState.failed, 'Your ElevenLabs credits are used up for now.', JobFixKind.topUp));
+        fake.fails = (model, ask) => const ElevenFailure('Invalid API key.', status: 401, code: 'invalid_api_key');
+        record.clear();
+        expect(await makeVoiceOver(TestNote('# A\n\nB.')), isFalse);
+        expect(record.value.single.fix!.kind, JobFixKind.signIn);
+      });
     });
 
     test('a note past the most is refused with its count, and so is one with nothing to read', () async {
