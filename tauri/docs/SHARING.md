@@ -122,7 +122,7 @@ timed. `v` stays 1: an older reader ignores `meeting` and reads the note as befo
 
 **The recording** goes only with **Include the recording** on in the share sheet (ticked by default for a meeting,
 shown in simple mode as in advanced; `ShareEntry.recording`, written only when false), and only from a device that has
-it (a meeting's sound stays on the device that recorded it). It is the WAV as the app keeps it (16 kHz mono 16-bit,
+it (the one that recorded it, or one sync brought it to). It is the WAV as the app keeps it (16 kHz mono 16-bit,
 115 MB an hour): the app has no sound encoder, only decoders, so nothing is re-encoded. It is sent beside the share
 as its own object, a megabyte a part, each sealed under the share's key (`1 ‖ iv ‖ AES-GCM`) in the context
 `glyph/v1/share-audio/<upload>/<n>/<parts>`, so a part cannot be moved, dropped, or swapped for another upload's

@@ -12,7 +12,7 @@
 /// it as a note, as before.
 ///
 /// **The recording** goes only where the person shares the meeting with "Include the recording" on (on unless turned
-/// off: [ShareEntry.recording]), from the device that has it: a meeting's sound stays on the device that recorded it.
+/// off: [ShareEntry.recording]), from a device that has it (the one that recorded it, or one sync brought it to).
 /// It is the recording as the app keeps it, the WAV (16 kHz mono, 16-bit): nothing in the app encodes sound, only
 /// decodes it (lib/meet/tape.dart), so it is sent as it is kept, 115 MB an hour. It is too large for the share, so it is
 /// an object of its own beside it on the service (server/src/shares.rs), sent a megabyte at a time ([audioChunk]),
@@ -86,7 +86,7 @@ class ShareRecording {
 }
 
 /// This device's recordings, as a share asks for them: a meeting's by its note's id, or null where this device has
-/// none (it stayed on the device that recorded it, or was removed).
+/// none (it has not come here, or was removed).
 abstract interface class ShareRecordings {
   Future<ShareRecording?> recordingOf(String noteId);
 }

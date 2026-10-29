@@ -10,7 +10,7 @@
 /// user transcript so we can listen along"), ticked unless it is turned off, before the link is made as well as after:
 /// the recording goes with the link, sealed as the words are, and the shared page plays it beside the transcript. It
 /// is drawn in simple mode as it is in advanced, nothing behind a More, since it is a choice about privacy. Its line
-/// says where the recording is: going (how far), there, on the device that recorded it, or too long for a share.
+/// says where the recording is: going (how far), there, on another device, or too long for a share.
 ///
 /// A notebook's row says its pages go with it. A journal is shared an entry at a time, so one not shared has one
 /// quiet row saying so; a notebook shared before it was kept as a journal goes on being shared as it was.
@@ -81,7 +81,7 @@ String recordingLine({required bool on, required bool here, required bool sent, 
   if (problem != null) return problem;
   if (sent) return 'Readers can play the meeting and follow its transcript. Sealed like the words: the server can’t hear it.';
   if (here) return 'The recording goes with the link, sealed like the words, so readers can listen along.';
-  return 'The recording is on the device that recorded the meeting: it goes with the link from there.';
+  return 'The recording isn’t on this device: it goes with the link from a device that has it.';
 }
 
 class _ShareRowsState extends State<ShareRows> {

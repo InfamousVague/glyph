@@ -291,7 +291,7 @@ void main() {
     testWidgets('says where the recording is when this device does not have it, and is no row for a note that is no meeting', (tester) async {
       final device = await meetingOn(here: false);
       await rows(tester, device, 'm');
-      expect(hintOf(tester, 'Include the recording'), 'The recording is on the device that recorded the meeting: it goes with the link from there.');
+      expect(hintOf(tester, 'Include the recording'), 'The recording isn’t on this device: it goes with the link from a device that has it.');
       await endSettings(tester);
       device.keep('a', '# Trip');
       await rows(tester, device, 'a');
