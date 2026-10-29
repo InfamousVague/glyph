@@ -27,10 +27,13 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../activity/sync_mark.dart' show FileSendingBar;
 import '../ai/kinds.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../core/background_jobs.dart' show JobKind;
 import '../core/note.dart';
+import '../sync/notes.dart' show FileKind;
 import '../home/home_text.dart' show tabular;
 import 'player.dart';
 import 'shelf.dart' show tapeDate;
@@ -312,6 +315,8 @@ class _NoteTapeState extends State<NoteTape> {
               ],
             ),
             for (final line in lines) ...[SizedBox(height: t.space(2)), line],
+            // While the recording goes to the account, a thin bar under it in the audio's colour (docs/ACTIVITY.md, In place).
+            FileSendingBar(file: FileKind.recording, name: widget.note.id, kind: JobKind.audio, top: t.space(2)),
           ],
         ),
       ),

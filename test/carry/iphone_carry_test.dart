@@ -284,7 +284,8 @@ void main() {
     });
 
     test('an iPhone\'s alone, compiled without the load optimiser, with the core\'s names kept', () {
-      expect(RegExp(r'TARGETED_DEVICE_FAMILY = 1;').allMatches(project), hasLength(3));
+      // The Runner's debug, profile and release, and the Live Activity extension's (ios/GhostActivity; docs/ACTIVITY.md).
+      expect(RegExp(r'TARGETED_DEVICE_FAMILY = 1;').allMatches(project), hasLength(6));
       expect(project, isNot(contains('TARGETED_DEVICE_FAMILY = "1,2"')));
       expect(File('ios/Flutter/Release.xcconfig').readAsStringSync(), contains('EXTRA_GEN_SNAPSHOT_OPTIONS=--no-load_cse'));
       expect(RegExp(r'STRIP_STYLE = "non-global";').allMatches(project), hasLength(3));

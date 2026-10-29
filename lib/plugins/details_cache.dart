@@ -20,6 +20,7 @@ library;
 import 'dart:async';
 import 'dart:collection';
 
+import '../core/background_jobs.dart';
 import 'types.dart';
 
 /// What a failure says on a card or a note (`core/failure.ts` `failureText`): its message when it carries one, its
@@ -126,13 +127,33 @@ class DetailsCache {
     markDetailsChanged();
   }
 
+  /// The reads as one job on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md: "the
+  /// Notion/GitHub/Calendar fetches"): "Reading from Notion", "3 of 5", from the first read of a batch to the last, kept
+  /// out of the ring unless the batch takes over a second. Not counted in the log: a pill's read is no news.
+  JobHandle? _job;
+  int _batch = 0;
+  int _batchDone = 0;
+
   void _pump() {
     while (_running < atOnce && _queue.isNotEmpty) {
       final next = _queue.removeFirst();
       _running += 1;
+      if (_job?.live != true) {
+        _batch = 0;
+        _batchDone = 0;
+        _job = activity.begin('fetch:${host.manifest.id}', kind: JobKind.sync, title: 'Reading from ${host.manifest.name}', line: 'Reading links', showAfter: const Duration(seconds: 1));
+      }
+      _batch += 1;
       unawaited(_load(next.key, next.url).whenComplete(() {
         _running -= 1;
+        _batchDone += 1;
         _pump();
+        if (_running == 0 && _queue.isEmpty) {
+          _job?.done();
+          _job = null;
+        } else {
+          _job?.progress(done: _batchDone, total: _batch + _queue.length);
+        }
       }));
     }
   }

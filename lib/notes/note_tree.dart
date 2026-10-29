@@ -18,6 +18,7 @@ import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces, org
 import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
+import '../activity/sync_mark.dart' show NoteSyncMarked;
 import 'book_place_mark.dart';
 import 'folder_drag.dart';
 import 'folder_menu.dart';
@@ -298,13 +299,21 @@ class _NoteTreeState extends State<NoteTree> {
       final active = note.id == widget.activeId;
       // The usual drawing is made from what the facts keep; another asked for is handed the body, as it asks.
       final small = compact ? null : (identical(widget.peek, NotePeek.plain) ? NotePeek.ofNote(context, note) : widget.peek(context, note.body));
-      final name = cssLines(
-        title.isEmpty ? 'Untitled' : title,
-        look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold'),
-        // `-webkit-line-clamp: 2`; names only, `white-space: nowrap; text-overflow: ellipsis`.
-        maxLines: compact ? 1 : 2,
-        softWrap: !compact,
-        overflow: TextOverflow.ellipsis,
+      final titleStyle = look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold');
+      final markSize = ((titleStyle.fontSize ?? look.em) * 0.8).roundToDouble();
+      // Its sync after the name while it has one to say (lib/activity/sync_mark.dart): an arrow, a tick, red.
+      final name = NoteSyncMarked(
+        note: note,
+        size: markSize,
+        top: compact ? null : ((titleStyle.fontSize ?? look.em) * (titleStyle.height ?? 1.3) - markSize) / 2,
+        child: cssLines(
+          title.isEmpty ? 'Untitled' : title,
+          titleStyle,
+          // `-webkit-line-clamp: 2`; names only, `white-space: nowrap; text-overflow: ellipsis`.
+          maxLines: compact ? 1 : 2,
+          softWrap: !compact,
+          overflow: TextOverflow.ellipsis,
+        ),
       );
       // An organization's note is dragged too: to another folder of the same organization, or once asked out of it
       // or into another ([folderVerdict]).

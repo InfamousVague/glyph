@@ -73,26 +73,34 @@ class LovartMeetings {
     if (lovart == null) return false;
     final List<Uint8List> images;
     markInspiring(id, true);
+    // The app's own job, not asked for: in the ring while Lovart draws, and a chip as the moodboard lands.
+    final job = lovartPictureJob('lovart-inspiration:$id', noteId: id, title: 'Inspiration for ${noteTitle(body)}', person: false);
     try {
       images = await lovart.generate(inspirationPrompt(body));
     } on LovartFailure catch (failure) {
       warn?.call('[lovart] no inspiration for the meeting: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
+      lovartPictureEnded(job, noteId: id);
       return false;
     } finally {
       markInspiring(id, false);
     }
     final names = await keepLovartImages(images, into: pictures);
-    if (names.isEmpty) return false;
+    if (names.isEmpty) {
+      lovartPictureEnded(job, noteId: id);
+      return false;
+    }
     for (var attempt = 0; attempt < 2; attempt += 1) {
       final note = await getNote(id);
-      if (note == null) return false;
+      if (note == null) break;
       try {
         await update(id, withInspiration(note.body, names), note.revision);
+        lovartPictureEnded(job, noteId: id, made: names.length, words: 'Inspiration ready');
         return true;
       } catch (failure) {
         if (attempt == 1) warn?.call('[lovart] the inspiration was not written into the meeting: $failure');
       }
     }
+    lovartPictureEnded(job, noteId: id);
     return false;
   }
 }

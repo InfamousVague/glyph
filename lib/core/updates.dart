@@ -66,6 +66,7 @@ import 'package:flutter/widgets.dart';
 
 import '../ai/support/failure.dart';
 import '../capture/meeting.dart' show stopTheMeeting;
+import 'background_jobs.dart';
 import 'locale_dates.dart';
 import 'mac_app.dart' show macAppStore, runsAsMacApp;
 import 'native/core.dart';
@@ -704,6 +705,9 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// The update's download on the app's record of running work.
+  static const String updateJobId = 'update';
+
   /// Brings the new version down and hands it to Android (`installApk`). Pressed again while Android's screen is
   /// up, or after it was put away, it hands the same file over again: the verified file is still in the cache.
   ///
@@ -723,12 +727,25 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     _set(() => _apk = ApkPhaseDownloading(info, received: 0, total: info.bytes));
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): a ring filling, green, as
+    // far as the download has come; the card says the rest, so how it ends is said on the record too.
+    final job = activity.begin(updateJobId, kind: JobKind.downloads, title: 'Downloading the update', line: 'Downloading', personStarted: true, fraction: 0);
+    void ended(ApkPhase phase) => switch (phase) {
+          ApkPhaseFailed(:final message) => job.failed(message, fix: JobFix(JobFixKind.retry, () => unawaited(installApk()))),
+          ApkPhaseReady() => job.done(result: JobResult('The update is ready', action: 'Restart', onOpen: () => unawaited(restart())), tally: const JobTally('update downloaded', 'updates downloaded')),
+          ApkPhaseInstalling() || ApkPhaseNeedsPermission() => job.done(tally: const JobTally('update downloaded', 'updates downloaded'), quiet: true),
+          _ => job.stopped(),
+        };
     try {
-      final path = await _fetch((latest, received) => _set(() => _apk = ApkPhaseDownloading(info, received: received, total: latest.bytes)));
+      final path = await _fetch((latest, received) {
+        _set(() => _apk = ApkPhaseDownloading(info, received: received, total: latest.bytes));
+        if (latest.bytes > 0) job.progress(fraction: received / latest.bytes, steps: downloadSteps(received, latest.bytes));
+      });
       // A meeting started while the download ran: the same answer, now that the file is here for a later tap.
       final busy = mac ? null : _busy;
       if (busy != null) {
         _set(() => _apk = ApkPhaseFailed(info, busy));
+        ended(_apk);
         return;
       }
       final answer = await _phone.install(path);
@@ -737,6 +754,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
         final why = answer.replaceFirst(RegExp(r'^manual:?\s*'), '');
         unawaited(_openLink('${config.source}/$macDiskImage').catchError((_) {}));
         _set(() => _apk = ApkPhaseFailed(info, '${why.isEmpty ? '' : '$why '}The disk image is opening in your browser instead.'));
+        ended(_apk);
         return;
       }
       _set(() {
@@ -748,8 +766,10 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
           _ => ApkPhaseFailed(info, 'The installer did not start ($answer).'),
         };
       });
+      ended(_apk);
     } catch (error) {
       _set(() => _apk = ApkPhaseFailed(info, failureText(error)));
+      ended(_apk);
     }
   }
 

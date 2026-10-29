@@ -115,6 +115,7 @@ class NoteTabs extends StatefulWidget {
     this.tools,
     this.tail,
     this.presence,
+    this.activity,
     this.finePointer,
     this.grouping = true,
     this.version = HeaderToolbarVersion.today,
@@ -230,6 +231,10 @@ class NoteTabs extends StatefulWidget {
   /// Who else is here before the people icon: the Claude chip while an AI is online (lib/shell/ai_chip.dart;
   /// docs/CLAUDE_LIVE.md). The app's own; the web's bar has none yet.
   final Widget? presence;
+
+  /// The ring of the app's running work, beside the app's own (lib/activity/activity_ring.dart; docs/ACTIVITY.md):
+  /// handed only while there is something to show, so an idle bar is the bar it was.
+  final Widget? activity;
 
   /// Whether the pointer is a mouse (`(hover: hover) and (pointer: fine)`): a longer fade at the row's ends, flyouts
   /// in the menus where they fit. The device's answer unless a test says.
@@ -500,6 +505,7 @@ class _NoteTabsState extends State<NoteTabs> {
           child: NoteTab(
             shape: shape,
             title: title,
+            note: note,
             active: active,
             space: space,
             group: group,
@@ -624,6 +630,7 @@ class _NoteTabsState extends State<NoteTabs> {
           ? null
           : HeaderAct(id: 'aside', label: 'Side panel', word: 'Side panel', hue: 'mint', icon: Lucide.panelLeft, mirrored: true, onPress: w.onAside, on: w.asideOpen, expanded: w.asideOpen, toggle: asideToggle),
       presence: w.presence,
+      activity: w.activity,
       filters: w.filters,
       // A screen with no model is drawn from its widgets; a note's are redrawn from its model.
       tools: model == null ? w.tools : null,
@@ -690,7 +697,7 @@ class _NoteTabsState extends State<NoteTabs> {
         ),
         child: version != null
             ? _versionLine(version, gap)
-            : _toolRow(gap, 0, [_sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
+            : _toolRow(gap, 0, [_sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
       );
     } else {
       // The Mac's three window buttons sit at this row's start: the first control begins after their room.
@@ -699,8 +706,8 @@ class _NoteTabsState extends State<NoteTabs> {
       final controls = version != null
           ? Padding(padding: EdgeInsets.only(right: end), child: _versionLine(version, gap))
           : style == TopBarStyle.masthead
-          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), _foldersWord(), ..._arrowWords()], [widget.presence, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
-          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
+          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), _foldersWord(), ..._arrowWords()], [widget.presence, widget.activity, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
+          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
       top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
     }
 
@@ -757,7 +764,7 @@ class _NoteTabsState extends State<NoteTabs> {
     // A version's line in the Islands: its start in the first capsule, its end in the last, its middle between them.
     final Widget capsule = version != null ? BarCapsule(children: version.lead) : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ?_foldersRing(), ..._arrows()]);
     final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
-    final own = <Widget>[?widget.presence, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
+    final own = <Widget>[?widget.presence, ?widget.activity, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
     final tools = widget.tools;
     // The slot is a place in the capsule's row whether or not the screen has put anything in it.
     final ownCapsule = version != null

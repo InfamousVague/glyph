@@ -72,6 +72,12 @@
 	     before. Read on the phone only. -->
 	<key>NSContactsUsageDescription</key>
 	<string>Ghost.md shows the picture of a person named on a to-do and lets you call, text or email them. Your contacts stay on this iPhone.</string>
+	<!-- The app's running work on the lock screen and in the Dynamic Island (docs/ACTIVITY.md, OS surfaces): a
+	     meeting's write-up, a summary and a recording's upload, drawn by the GhostActivity extension
+	     (ios/GhostActivity) and started by the app (JobsChannel.swift). From iOS 16.2; the person can turn them off
+	     for the app in Settings. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

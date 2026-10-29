@@ -201,6 +201,7 @@ class HeaderParts {
     this.settings,
     this.aside,
     this.presence,
+    this.activity,
     this.filters,
     this.tools,
     this.tail,
@@ -232,6 +233,11 @@ class HeaderParts {
 
   /// Who else is here: the Claude chip, drawn as it comes.
   final Widget? presence;
+
+  /// The ring of the app's running work (lib/activity/activity_ring.dart; docs/ACTIVITY.md), drawn as it comes beside
+  /// the button for you, or where a version has none, before the app's own; null while nothing runs, so an idle row
+  /// is the row it was.
+  final Widget? activity;
 
   /// The home page's Filters, handed to the bar to draw in its own look; null off the home page, and for a version
   /// that leaves them on the page (all but Grouped command).

@@ -205,10 +205,11 @@ class MeetingClaude {
     };
   }
 
-  /// One generation: [system] and [prompt], answered with the text Claude wrote.
-  ClaudeWriting write({required String system, required String prompt}) {
+  /// One generation: [system] and [prompt], answered with the text Claude wrote; [onText] is told the words so far as
+  /// they stream (the summary drawn writing itself in its note, docs/ACTIVITY.md, In place).
+  ClaudeWriting write({required String system, required String prompt, void Function(String sofar)? onText}) {
     final other = _other;
-    if (other != null && choice?.meetingsBy != claudeAssistantId) return _writeOther(other, system: system, prompt: prompt);
+    if (other != null && choice?.meetingsBy != claudeAssistantId) return _writeOther(other, system: system, prompt: prompt, onText: onText);
     final key = settings.key;
     if (key == null) return ClaudeWriting(Future<String>.error(const ClaudeError('Add your Anthropic API key in Settings › Claude.')), () {});
     if (settings.spend.reached) return ClaudeWriting(Future<String>.error(claudeLimitError(settings.spend)), () {});
@@ -217,7 +218,7 @@ class MeetingClaude {
     final call = meterClaude(asked, model: body['model']! as String, spend: settings.spend);
     _asking += 1;
     if (_asking == 1) unawaited(background.running(claudeWriteUpJobId, title: 'Writing up with Claude', text: 'A meeting’s summary'));
-    final read = _read(call).whenComplete(() {
+    final read = _read(call, onText).whenComplete(() {
       _asking -= 1;
       if (_asking == 0) unawaited(background.ended(claudeWriteUpJobId, title: 'Written up', quiet: true));
     });
@@ -225,7 +226,7 @@ class MeetingClaude {
   }
 
   /// [write], for another provider (see the header): the same request, through its client, counted by its meter.
-  ClaudeWriting _writeOther(AiRoute other, {required String system, required String prompt}) {
+  ClaudeWriting _writeOther(AiRoute other, {required String system, required String prompt, void Function(String sofar)? onText}) {
     final provider = other.by.settings;
     if (!provider.ready) return ClaudeWriting(Future<String>.error(ClaudeError('Set up ${other.name} in Settings › ${other.name}.')), () {});
     if (provider.spend.reached) return ClaudeWriting(Future<String>.error(claudeLimitError(provider.spend)), () {});
@@ -240,7 +241,7 @@ class MeetingClaude {
     final call = meterClaude(other.api().stream(body), model: other.model, spend: provider.spend);
     _asking += 1;
     if (_asking == 1) unawaited(background.running(claudeWriteUpJobId, title: 'Writing up with ${other.name}', text: 'A meeting’s summary'));
-    final read = aiText(call, who: other.name).whenComplete(() {
+    final read = aiText(call, who: other.name, onText: onText).whenComplete(() {
       _asking -= 1;
       if (_asking == 0) unawaited(background.ended(claudeWriteUpJobId, title: 'Written up', quiet: true));
     });
@@ -248,5 +249,5 @@ class MeetingClaude {
   }
 
   /// One generation read whole (lib/assistant/provider.dart [aiText]), in Claude's words.
-  static Future<String> _read(ClaudeCall call) => aiText(call, who: 'Claude');
+  static Future<String> _read(ClaudeCall call, [void Function(String sofar)? onText]) => aiText(call, who: 'Claude', onText: onText);
 }

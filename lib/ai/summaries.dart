@@ -151,6 +151,7 @@ import '../claude/messages_api.dart' show ClaudeCancelled, ClaudeError;
 import '../capture/meeting_live.dart' show ExternalStore;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/note.dart' show Note, Segment;
+import '../core/background_jobs.dart';
 import '../core/note_text.dart' show noteTitle;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
@@ -395,6 +396,9 @@ const String _queueKey = 'glyph-summary-queue';
 const String _transcribingKey = 'glyph-summary-transcribing';
 const int _maxTries = 3;
 
+/// A note's summary as a job on the app's record of running work (lib/core/background_jobs.dart).
+String summaryJobId(String noteId) => 'summary:$noteId';
+
 /// How long to wait before trying again after "busy", "cancelled" or a failure (`RETRY_MS`).
 const int _retryMs = 20000;
 
@@ -573,6 +577,9 @@ class Summaries implements HandoffQueue {
 
   /// Why Claude did not write a meeting this device's model is writing instead (kept for this run of the app).
   final Map<String, String> _fellBack = <String, String>{};
+
+  /// The title of each note being summarized now, for its chip as it lands.
+  final Map<String, String> _titles = <String, String>{};
 
   /// The meetings summarized from their captions whose transcript is still being made ([_transcribingKey]).
   List<String> _transcribing() => stored.read<List<String>>(_transcribingKey, const <String>[], (raw) => raw is List ? [for (final id in raw) if (id is String) id] : const <String>[]);
@@ -1177,13 +1184,28 @@ class Summaries implements HandoffQueue {
       }
       _patch(job.id, (j) => j.copyWith(started: true));
       _cut = false;
+      // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): the ring and the tray
+      // while it is written, "Writing the summary, 2 of 3 parts", and "Summarized “Standup” · Open" as it lands where
+      // the note is not on screen (it was the root's toast).
+      final shown = activity.begin(
+        summaryJobId(job.id),
+        kind: JobKind.ai,
+        title: 'Summary',
+        line: viaClaude ? 'Writing the summary with Claude' : 'Writing the summary',
+        onOpen: activityRoutes.noteOpener(job.id),
+        shownHere: activityRoutes.noteShown(job.id),
+      );
       final outcome = await _summarize(job, model, viaClaude: viaClaude);
       if (outcome == _Outcome.written) {
+        final title = _titles.remove(job.id);
+        shown.done(result: JobResult(title == null || title.isEmpty ? 'Summary ready' : 'Summarized “$title”', action: 'Open', onOpen: activityRoutes.noteOpener(job.id)), tally: const JobTally('summary', 'summaries'));
         _finish(job);
         _onChanged?.call();
       } else if (outcome == _Outcome.left) {
+        shown.stopped();
         _finish(job);
       } else {
+        shown.stopped();
         next = _retryMs;
       }
     } catch (error) {
@@ -1203,10 +1225,17 @@ class Summaries implements HandoffQueue {
         if (error is ClaudeError) _reasons[job.id] = message;
         final tries = claudeLasting(error) ? _maxTries : job.tries + 1;
         _patch(job.id, (j) => j.copyWith(tries: tries, failed: tries >= _maxTries ? true : null));
-        // Given up on here: another of the account's devices may take it.
-        if (tries >= _maxTries) handoff?.release(job.id);
+        // Given up on here: another of the account's devices may take it. Red in the tray, with Retry, which is the
+        // shelf's own (retrySummary).
+        if (tries >= _maxTries) {
+          handoff?.release(job.id);
+          activity.handle(summaryJobId(job.id))?.failed(message, fix: JobFix(JobFixKind.retry, () => retrySummary(job.id)));
+        }
       }
     } finally {
+      // Whatever did not end it above (a pause, Claude's limit, a blip, falling back to this device's model) ends its
+      // turn quietly: the next turn is a job again.
+      activity.handle(summaryJobId(job.id))?.stopped();
       if (_readQueue().any((j) => j.id == job.id && j.started == true)) _patch(job.id, (j) => j.copyWith(started: false));
       _running = false;
       _runningId = null;
@@ -1427,6 +1456,9 @@ class Summaries implements HandoffQueue {
   Future<_Outcome> _summarize(SummaryJob job, String model, {bool viaClaude = false}) async {
     final note = await getNote(job.id);
     if (note == null) return _Outcome.left;
+    final title = noteTitle(note.body);
+    _titles[job.id] = title;
+    activity.handle(summaryJobId(job.id))?.update(title: title.isEmpty ? 'Summary' : 'Summary of $title');
     var plain = meetingWords(note) ?? renderNote(note.segments ?? const <Segment>[]).plain;
     // A meeting whose phrases are not on this device (one handed on from another, from a build before its phrases
     // synced) is summarized from the transcript its note keeps.
@@ -1444,6 +1476,8 @@ class Summaries implements HandoffQueue {
       final notes = [...?job.pieces].take(pieces.length).toList();
       for (var n = notes.length; n < pieces.length; n += 1) {
         final piece = pieces[n];
+        // "Reading the meeting, 2 of 3 parts": each part read before the summary is written from them.
+        activity.handle(summaryJobId(job.id))?.progress(done: n, total: pieces.length + 1, steps: '${n + 1} of ${pieces.length} parts', line: 'Reading the meeting');
         final output = await _run(
           model: model,
           system: recordingNotesPrompt,
@@ -1461,12 +1495,13 @@ class Summaries implements HandoffQueue {
       words = notes.join('\n\n');
       context = fill(notesContext, {'words': _counted(plain.split(_spaces).where((word) => word.isNotEmpty).length)});
     }
+    if (pieces.length > 1) activity.handle(summaryJobId(job.id))?.progress(done: pieces.length, total: pieces.length + 1, steps: 'from ${pieces.length} parts', line: 'Writing the summary');
     final ask = SummaryAsk(words: words, context: context, model: model, maxTokens: budget, replace: job.replace == true);
     final starter = _starters[job.id];
     // An open note's run is the phone's model's, in its editor. Claude's answer is asked here and handed to the
     // editor whole, which lands it at once as a run's lines land, with Keep and Revert.
     if (starter != null && !viaClaude) return _throughEditor(job, starter, job.text == null ? ask : ask.withText(job.text!));
-    final text = job.text ?? (await _run(model: model, system: recordingSummaryPrompt, prompt: context != null && context.isNotEmpty ? '$context\n\n$words' : words, maxTokens: budget, viaClaude: viaClaude));
+    final text = job.text ?? (await _run(model: model, system: recordingSummaryPrompt, prompt: context != null && context.isNotEmpty ? '$context\n\n$words' : words, maxTokens: budget, viaClaude: viaClaude, onText: activity.handle(summaryJobId(job.id))?.write));
     _patch(job.id, (j) => j.copyWith(text: text));
     // A long tape's context is the largest the page asks for: the engine may let it go now rather than in five
     // minutes.
@@ -1477,14 +1512,15 @@ class Summaries implements HandoffQueue {
   }
 
   /// One generation, cancellable by the recorder, and not started once it is up: the phone's model's, or with
-  /// [viaClaude] Claude's (whose room is its own, not [maxTokens]: ai/summary_claude.dart).
-  Future<String> _run({required String model, required String system, required String prompt, required int maxTokens, bool viaClaude = false}) async {
+  /// [viaClaude] Claude's (whose room is its own, not [maxTokens]: ai/summary_claude.dart). [onText] is told the words
+  /// so far as they come: the summary's own words, drawn writing themselves in the note (docs/ACTIVITY.md, In place).
+  Future<String> _run({required String model, required String system, required String prompt, required int maxTokens, bool viaClaude = false, void Function(String sofar)? onText}) async {
     if (_paused) throw const AiFailure('cancelled');
     if (viaClaude) {
       final claude = this.claude!;
       // A piece not yet asked once the limit is reached is left, the job uncounted, for the queue to hold.
       if (!claude.enabled || claude.limited) throw const AiFailure('cancelled');
-      final writing = _activeClaude = claude.write(system: system, prompt: prompt);
+      final writing = _activeClaude = claude.write(system: system, prompt: prompt, onText: onText);
       try {
         return await writing.done;
       } on ClaudeCancelled {
@@ -1493,7 +1529,7 @@ class Summaries implements HandoffQueue {
         _activeClaude = null;
       }
     }
-    final run = generate(RunOptions(model: model, system: system, prompt: prompt, maxTokens: maxTokens, temperature: temperature, onProgress: (_) {}));
+    final run = generate(RunOptions(model: model, system: system, prompt: prompt, maxTokens: maxTokens, temperature: temperature, onProgress: onText == null ? (_) {} : (progress) => onText(progress.partial)));
     _activeRun = run;
     try {
       return (await run.done).text;

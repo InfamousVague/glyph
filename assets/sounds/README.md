@@ -16,7 +16,7 @@ assets/sounds/<pack>/<event>.caf   the Mac and the iPhone (AVAudioPlayer, and a 
 A pack folder must be listed in `pubspec.yaml` under `flutter: assets:` (Ghostly's is), and named in `soundPacks`
 in lib/sounds/sound_pack.dart and `soundPackChoices` in lib/core/preferences.dart.
 
-## The eleven files of a pack
+## The twelve files of a pack
 
 | File | When | Kind | Length |
 | --- | --- | --- | --- |
@@ -30,6 +30,7 @@ in lib/sounds/sound_pack.dart and `soundPackChoices` in lib/core/preferences.dar
 | `team-comment` | a comment or mention from the team | notification | under 1 s |
 | `lovart-ready` | Lovart's picture is ready | notification | under 1 s |
 | `failed` | something failed | interface | under 0.4 s |
+| `job-done` | a long job you started is done (docs/ACTIVITY.md) | interface | under 0.8 s |
 | `saved` | a note saved | interface | under 0.3 s |
 
 ## Specs

@@ -25,6 +25,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../account/api.dart' show FetchRequest, Fetcher, ioFetcher;
+import '../core/background_jobs.dart';
 import '../core/open_link.dart' show openLink;
 import '../core/preferences.dart';
 import '../core/query/records.dart' show QueryEvent, QueryNote, libraryOf;
@@ -304,10 +305,22 @@ class CalendarService extends ChangeNotifier {
 
   /// Reads every address that is due (each not read in [icalEvery], or all of them where [force] says), one after
   /// another. A pass already running is the one answered.
-  Future<void> syncIcal({bool force = false}) => _icalPass ??= _ical(force).whenComplete(() {
+  Future<void> syncIcal({bool force = false}) => _icalPass ??= _onRecord('ical', 'Reading your calendars', _ical(force)).whenComplete(() {
         _icalPass = null;
         notifyListeners();
       });
+
+  /// A pass on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md: "the
+  /// Notion/GitHub/Calendar fetches"): kept out of the ring unless it takes over a second, never counted in the log;
+  /// what it found wrong is the calendar page's to say, as it was.
+  Future<void> _onRecord(String which, String title, Future<void> pass) async {
+    final job = activity.begin('calendar:$which', kind: JobKind.sync, title: title, line: 'Reading events', showAfter: const Duration(seconds: 1));
+    try {
+      await pass;
+    } finally {
+      job.done();
+    }
+  }
 
   Future<void> _ical(bool force) async {
     if (_localOnly || !active) return;
@@ -583,7 +596,7 @@ class CalendarService extends ChangeNotifier {
 
   /// Lists the calendars, reads the ticked ones, and puts the to-dos on theirs when that is on. A pass already
   /// running is the one answered.
-  Future<void> syncGoogle() => _googlePass ??= _google().whenComplete(() {
+  Future<void> syncGoogle() => _googlePass ??= _onRecord('google', 'Reading Google Calendar', _google()).whenComplete(() {
         _googlePass = null;
         notifyListeners();
       });

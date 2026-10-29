@@ -33,7 +33,10 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
+import '../../activity/activity_look.dart' show kindColour;
+import '../../activity/activity_tray.dart' show JobBar;
 import '../../art/art.dart';
+import '../../core/background_jobs.dart';
 import '../../core/note.dart';
 import '../../sheet/css.dart';
 import '../../sheet/flow.dart';
@@ -105,6 +108,7 @@ class _ShareRowsState extends State<ShareRows> {
     super.initState();
     widget.services?.changes.addListener(_changed);
     _shares?.audioSending.addListener(_changed);
+    activity.addListener(_heardRecord);
     _readHeld();
   }
 
@@ -130,6 +134,7 @@ class _ShareRowsState extends State<ShareRows> {
   void dispose() {
     widget.services?.changes.removeListener(_changed);
     _shares?.audioSending.removeListener(_changed);
+    activity.removeListener(_heardRecord);
     super.dispose();
   }
 
@@ -137,6 +142,15 @@ class _ShareRowsState extends State<ShareRows> {
     if (!mounted) return;
     setState(() {});
     _readHeld();
+  }
+
+  /// The recording's job as last drawn: drawn again only as it moves, not for every other job on the record.
+  Job? _sending;
+
+  void _heardRecord() {
+    final job = activity['share-audio:${widget.noteId}'];
+    if (!mounted || (job?.state == _sending?.state && job?.fraction == _sending?.fraction)) return;
+    setState(() => _sending = job);
   }
 
   /// Whether the pages have a tag, and places in their words, to share: read once the note is shared, from the
@@ -289,15 +303,36 @@ class _ShareRowsState extends State<ShareRows> {
             onPress: () => unawaited(_run(() => shares.shareWithPlaces(id, on: !withPlaces))),
           ),
         if (_recorded.meeting)
-          SheetRow(
-            key: const ValueKey('share-recording'),
-            icon: recordingMark,
-            label: 'Include the recording',
-            hint: recordingLine(on: withRecording, here: _recorded.here, sent: shares.recordingSent(id), sending: shares.audioSending.value[id], problem: shares.audioProblem(id)),
-            disabled: _busy,
-            chosen: withRecording,
-            onPress: () => unawaited(_run(() => shares.shareWithRecording(id, on: !withRecording))),
-          ),
+          () {
+            // How far the recording is, from the record of running work (its job, `share-audio:<note>`; lib/share/
+            // share.dart) or the share's own count: a thin bar in the audio's colour under the line while it goes
+            // (docs/ACTIVITY.md, In place).
+            final job = activity['share-audio:$id'];
+            final going = job != null && job.state.live;
+            final sending = going ? (job.fraction ?? shares.audioSending.value[id] ?? 0) : shares.audioSending.value[id];
+            final line = recordingLine(on: withRecording, here: _recorded.here, sent: shares.recordingSent(id), sending: sending, problem: shares.audioProblem(id));
+            void press() => unawaited(_run(() => shares.shareWithRecording(id, on: !withRecording)));
+            if (sending == null || !withRecording) {
+              return SheetRow(key: const ValueKey('share-recording'), icon: recordingMark, label: 'Include the recording', hint: line, disabled: _busy, chosen: withRecording, onPress: press);
+            }
+            return SheetRow.rich(
+              key: const ValueKey('share-recording'),
+              icon: recordingMark,
+              label: const Text('Include the recording'),
+              hint: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(line),
+                  SizedBox(height: context.tokens.space(1) * 1.5),
+                  JobBar(key: const ValueKey('share-recording:bar'), fraction: sending, colour: kindColour(context.tokens, JobKind.audio), moving: going && job.state == JobState.running, dim: going && job.state != JobState.running),
+                ],
+              ),
+              disabled: _busy,
+              chosen: withRecording,
+              onPress: press,
+            );
+          }(),
         if (send != null) SheetRow(key: const ValueKey('share-send'), icon: const AppIcon(Lucide.share2, size: 18, strokeWidth: 2.2), label: 'Send the link', onPress: () => send(link)),
         SheetRow(
           key: const ValueKey('share-stop'),

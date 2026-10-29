@@ -24,6 +24,7 @@ import 'package:ghost_md/core/note_json.dart';
 import 'package:ghost_md/orgs/types.dart';
 import 'package:ghost_md/sync/engine.dart' show TeamPass;
 import 'package:ghost_md/sync/notes.dart' show FileKind;
+import 'package:ghost_md/sync/sync_marks.dart';
 import 'package:ghost_md/team/crdt.dart';
 import 'package:ghost_md/team/docs.dart';
 import 'package:ghost_md/team/sync.dart';
@@ -469,6 +470,25 @@ void main() {
   });
 
   group('this port\'s own', () {
+    test('each note\'s mark by its title (lib/sync/sync_marks.dart): a tick as its row goes, an arrow for a change since, a tick as the change goes', () async {
+      final marks = NoteSyncMarks()
+        ..syncing = (() => true)
+        ..teamNote = ((_) => true);
+      useNoteSyncMarks(marks);
+      addTearDown(() => useNoteSyncMarks(NoteSyncMarks()));
+      final phone = device();
+      phone.put('n1', '# Plan\n- a');
+      expect(marks.of(phone.notes['n1']!).look, NoteSyncLook.none, reason: 'the channel has not seen to it yet');
+      await phone.sync();
+      expect(marks.of(phone.notes['n1']!).look, NoteSyncLook.sent);
+      phone.clock += 10;
+      phone.notes['n1'] = phone.notes['n1']!.copyWith(body: '# Plan\n- a\n- b', updatedAt: phone.clock);
+      expect(marks.of(phone.notes['n1']!).look, NoteSyncLook.waiting);
+      await phone.sync();
+      expect(marks.of(phone.notes['n1']!).look, NoteSyncLook.sent, reason: 'its words went as an update');
+      expect(service.teamUpdates(orgId, 'n1'), hasLength(1));
+    }, skip: skip);
+
     test('the engine\'s hook runs a pass from what it is handed, keeps the channel\'s state where the engine keeps it, and re-seals when told', () async {
       service.orgs[orgId]!.generation = 1;
       final phone = device(), mac = device();

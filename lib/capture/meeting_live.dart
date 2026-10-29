@@ -40,6 +40,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/background_jobs.dart';
+
 /// A value with listeners (`core/externalStore.ts`): the web's store, without React.
 class ExternalStore<T> implements ValueListenable<T> {
   ExternalStore(T initial) : _current = initial;
@@ -78,6 +80,10 @@ class ExternalStore<T> implements ValueListenable<T> {
   @override
   void removeListener(VoidCallback listener) => _listeners.remove(listener);
 }
+
+/// The meeting being recorded, and a meeting being written up, on the app's record of running work.
+const String meetingRecordingJobId = 'meeting-recording';
+String writeUpJobId(String noteId) => 'write-up:$noteId';
 
 /// The service's state, as it answers it.
 @immutable
@@ -370,6 +376,50 @@ class MeetingLive {
     return () {
       _notifiedListeners.remove(listener);
     };
+  }
+
+  /// Follows the meeting onto the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): while
+  /// the service records, the job [meetingRecordingJobId] ("Recording Standup", "Recording, 12 min", the tray's Stop
+  /// the notification's Done, [stop]); while it writes one up, `write-up:<note>` ("Writing up Standup", "Transcribing"),
+  /// ending as "Written up · Open" where the note is not on screen. [titleOf] names a note the service does not.
+  /// Answers the way to stop following.
+  VoidCallback followOnRecord({VoidCallback? stop, String Function(String noteId)? titleOf}) {
+    String? writing;
+    void look() {
+      final state = _state.get();
+      final recording = state != null && state.recording;
+      if (recording) {
+        final id = state.noteId;
+        final title = state.title ?? (id == null ? '' : titleOf?.call(id) ?? '');
+        final minutes = (state.elapsedMs / 60000).floor();
+        activity.begin(
+          meetingRecordingJobId,
+          kind: JobKind.audio,
+          title: title.isEmpty ? 'Recording a meeting' : 'Recording $title',
+          line: state.silenced ? 'Recording, another app has the microphone' : (minutes < 1 ? 'Recording' : 'Recording, $minutes min'),
+          onStop: stop,
+          onOpen: id == null ? null : activityRoutes.noteOpener(id),
+          personStarted: true,
+        );
+      } else {
+        activity.handle(meetingRecordingJobId)?.done(tally: const JobTally('meeting recorded', 'meetings recorded'), quiet: true);
+      }
+      final next = state?.writingUp;
+      if (next == writing) return;
+      final was = writing;
+      writing = next;
+      if (was != null) {
+        activity.handle(writeUpJobId(was))?.done(result: JobResult('Written up', action: 'Open', onOpen: activityRoutes.noteOpener(was)), tally: const JobTally('meeting written up', 'meetings written up'));
+      }
+      if (next != null) {
+        final title = titleOf?.call(next) ?? '';
+        activity.begin(writeUpJobId(next), kind: JobKind.audio, title: title.isEmpty ? 'Writing up the meeting' : 'Writing up $title', line: 'Transcribing', onOpen: activityRoutes.noteOpener(next), shownHere: activityRoutes.noteShown(next));
+      }
+    }
+
+    final off = _state.subscribe(look);
+    look();
+    return off;
   }
 
   /// Whether a write-up is running, by the last look at the jobs and the service: the refine queue holds while one

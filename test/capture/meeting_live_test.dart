@@ -4,6 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/capture/meeting_live.dart';
+import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 
 /// The one store of the meeting being recorded (lib/capture/meeting_live.dart): what the service's JSON becomes,
 /// what a push from it does to the state and to whoever asked to hear it, and the poll that runs once a second while
@@ -300,6 +302,38 @@ void main() {
       for (final reason in reasons) {
         expect(named, contains(reason));
       }
+    });
+  });
+
+  group('on the app\'s record of running work (docs/ACTIVITY.md)', () {
+    late Activity record;
+    setUp(() => useActivity(record = Activity(store: () => MemoryStored())));
+    tearDown(() => useActivity(Activity()));
+
+    test('the recording is a job with the notification\'s Done as its Stop, and its write-up one that ends as Written up', () {
+      var stopped = 0;
+      host({...recordingJson, 'elapsedMs': 125000});
+      final unfollow = live.followOnRecord(stop: () => stopped += 1, titleOf: (id) => 'Standup');
+      live.readMeetingState();
+      final recordingJob = record[meetingRecordingJobId]!;
+      expect((recordingJob.kind, recordingJob.title, recordingJob.liveLine), (JobKind.audio, 'Recording Meeting, 26 Sep 14:05', 'Recording, 2 min'));
+      recordingJob.onStop!();
+      expect(stopped, 1);
+      final ended = <Job>[];
+      final hearing = record.events.where((e) => e.kind == JobEventKind.ended).listen((e) => ended.add(e.job!));
+      theHost.state = {...recordingJson, 'recording': false, 'noteId': null, 'title': null, 'startedAt': null, 'elapsedMs': 0, 'writingUp': 'm1'};
+      push({'event': 'stopped', 'noteId': 'm1', 'elapsedMs': 130000});
+      expect(record[meetingRecordingJobId], isNull);
+      expect(ended.single.result, isNull, reason: 'the person pressed Done: no chip for it');
+      final writing = record[writeUpJobId('m1')]!;
+      expect((writing.title, writing.liveLine), ('Writing up Standup', 'Transcribing'));
+      theHost.state = {...recordingJson, 'recording': false, 'noteId': null, 'writingUp': null};
+      live.readMeetingState();
+      expect(record.value, isEmpty);
+      expect(ended.last.result!.words, 'Written up');
+      expect(record.log.today.words, '1 meeting recorded, 1 meeting written up');
+      hearing.cancel();
+      unfollow();
     });
   });
 }

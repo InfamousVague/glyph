@@ -24,6 +24,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/background_jobs.dart';
+
 /// Where the voice model is.
 sealed class VoiceModelState {
   const VoiceModelState();
@@ -154,14 +156,28 @@ class VoiceModel extends ChangeNotifier implements ValueListenable<VoiceModelSta
   Future<void> _fetchModel() async {
     if (!native || !recordsVoice || _running || _ready) return;
     _running = true;
+    // On the app's record of running work once it is really downloading (a model already here is no job): a ring
+    // filling, green, as far as it has come (lib/core/background_jobs.dart; docs/ACTIVITY.md).
+    JobHandle? job;
     try {
-      await ensureModel((received, total) => _setState(VoiceModelStateDownloading(received: received, total: total)));
+      await ensureModel((received, total) {
+        _setState(VoiceModelStateDownloading(received: received, total: total));
+        job ??= activity.begin(voiceModelJobId, kind: JobKind.downloads, title: 'Downloading the voice model', line: 'Downloading', fraction: 0);
+        if (total > 0) job!.progress(fraction: received / total, steps: downloadSteps(received, total));
+      });
       _ready = true;
       _setState(const VoiceModelStateReady());
+      job?.done(tally: const JobTally('model downloaded', 'models downloaded'));
     } catch (error) {
       final message = _failureText(error);
       warn?.call('[glyph] voice model download failed: $message');
       _setState(VoiceModelStateFailed(message: message));
+      // Tried again each time the app comes back to the screen, so a blip goes quietly; Retry is the screen's own.
+      if (job != null && isNetworkBlip(error)) {
+        job!.stopped();
+      } else {
+        job?.failed(message, fix: JobFix(JobFixKind.retry, retry));
+      }
     } finally {
       _running = false;
     }
@@ -184,6 +200,9 @@ class VoiceModel extends ChangeNotifier implements ValueListenable<VoiceModelSta
   /// The retry the screen offers.
   void retry() => unawaited(_fetchModel());
 }
+
+/// The voice model's download on the app's record of running work.
+const String voiceModelJobId = 'voice-model';
 
 /// A caught thing as words (`core/failure.ts` `failureText`): an error's message, or the thing itself as text.
 String _failureText(Object failure) {

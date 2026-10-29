@@ -6,6 +6,7 @@ import 'package:ghost_md/capture/engine.dart' show CaptureEventRefineProgress;
 import 'package:ghost_md/capture/refine.dart';
 import 'package:ghost_md/capture/refine_text.dart' show refinedBody;
 import 'package:ghost_md/capture/take_types.dart' show Span;
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart' show Preferences;
 import 'package:ghost_md/core/stored.dart';
@@ -137,6 +138,24 @@ void main() {
       expect(calls('set_note_recording')[0]['args'], {'id': 'n1', 'recordingMs': 2400, 'segments': better});
       expect(queued(), isEmpty);
       expect(changed, 1);
+    });
+
+    refineTest('are a job on the app\'s record of running work while the larger model listens, and its download one too', (tester) async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final seen = <String>[];
+      final hearing = record.events.listen((e) {
+        if (e.kind == JobEventKind.started) seen.add('${e.job!.id} ${e.job!.kind.name}');
+      });
+      addTearDown(hearing.cancel);
+      backend.answers['capture_refine_model_status'] = (_) => (present: false, bytes: 190000000);
+      backend.answers['capture_fetch_refine_model'] = (_) => (present: true, bytes: 190000000);
+      refining.enqueueRefine(job());
+      await tester.advance(0);
+      expect(seen, ['refine-model downloads', 'refine:n1 audio']);
+      expect(record.value, isEmpty);
+      expect(record.log.today.words, '1 model downloaded, 1 recording heard again');
     });
 
     refineTest('leave a note someone changed since Done as they left it, and still put the better phrases on its tape', (tester) async {

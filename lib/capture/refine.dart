@@ -45,6 +45,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/background_jobs.dart';
 import '../core/note.dart' show Note;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
@@ -458,14 +459,21 @@ class Refining {
     // Local only: the better words wait until the model is on the phone.
     if (preferences().localOnly) return false;
     _publishDownload((received: 0, total: status.bytes));
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): a ring filling, green.
+    // Asked for again by the next pass when it does not come, so a failure goes quietly here.
+    final job = activity.begin(refineModelJobId, kind: JobKind.downloads, title: 'Downloading the better-words model', line: 'Downloading', fraction: 0);
     final unlisten = backend.events.listen((event) {
-      if (event is CaptureEventRefineModelProgress) _publishDownload((received: event.receivedBytes, total: event.totalBytes));
+      if (event is! CaptureEventRefineModelProgress) return;
+      _publishDownload((received: event.receivedBytes, total: event.totalBytes));
+      if (event.totalBytes > 0) job.progress(fraction: event.receivedBytes / event.totalBytes, steps: downloadSteps(event.receivedBytes, event.totalBytes));
     });
     try {
       final fetched = await backend.fetchRefineModel();
+      fetched.present ? job.done(tally: const JobTally('model downloaded', 'models downloaded')) : job.stopped();
       return fetched.present;
     } catch (error) {
       warn('[glyph] the larger voice model did not download: $error');
+      job.stopped();
       return false;
     } finally {
       unawaited(unlisten.cancel());
@@ -505,9 +513,12 @@ class Refining {
         return;
       }
       _mark(mine, true);
+      // Better words on the app's record of running work: the teal reels while the larger model listens again.
+      activity.begin(refineJobId(mine.id), kind: JobKind.audio, title: 'Better words', line: 'Listening again with the larger model', onOpen: activityRoutes.noteOpener(mine.id));
       final refined = await backend!.refine(id: mine.id, fromMs: mine.fromMs, promptTail: mine.promptTail);
       await _apply(mine, refined);
       _finish(mine);
+      activity.handle(refineJobId(mine.id))?.done(tally: const JobTally('recording heard again', 'recordings heard again'));
       _onChanged?.call();
     } catch (error) {
       final message = _failureText(error);
@@ -523,6 +534,8 @@ class Refining {
         }
       }
     } finally {
+      // Tried again after a wait, or given up on after its tries, as before: either way quietly.
+      activity.handle(refineJobId(mine.id))?.stopped();
       _mark(mine, false);
       _running = false;
       if (_readQueue().isNotEmpty) _kick(next);
@@ -604,6 +617,10 @@ class Refining {
   /// No queued pass runs while a review is on screen: the review's own pass and its model want the cores.
   void holdRefining(bool on) => _hold(on);
 }
+
+/// The better words of a note, and the larger model's download, on the app's record of running work.
+String refineJobId(String noteId) => 'refine:$noteId';
+const String refineModelJobId = 'refine-model';
 
 /// A caught thing as words (`core/failure.ts` `failureText`): an error's message, or the thing itself as text.
 String _failureText(Object failure) {

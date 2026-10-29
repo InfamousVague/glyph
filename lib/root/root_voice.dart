@@ -178,23 +178,12 @@ extension _RootVoice on _GhostRootState {
         unawaited(_library.refresh().catchError((Object _) {}));
         _settleTags();
       },
-      // A summary landed with the app on screen: said, with the way to the note.
+      // A summary landed with the app on screen: heard, where its sound is on (Settings › Sounds; Matt, 2026-10-27).
+      // It is said by its chip, "Summarized “Standup” · Open", from the app's record of running work (lib/ai/summaries.dart,
+      // lib/activity/activity_chips.dart; docs/ACTIVITY.md), where it was a toast of ten seconds here.
       summarized: (done) {
         if (!mounted) return;
-        // Heard as well as said, where its sound is on (Settings › Sounds; Matt, 2026-10-27).
         sounds.play(SoundEvent.writeupReady);
-        // `Summarized “${title}”`, for ten seconds, and Open goes to the note where it was left.
-        GlacierToast.of(context).toast(
-          message: Text('Summarized “${done.title}”'),
-          duration: const Duration(seconds: 10),
-          action: GlacierToastAction(
-            label: 'Open',
-            onPress: () {
-              final shell = _shell.currentState;
-              if (shell != null) _openWhereLeft(shell, done.id);
-            },
-          ),
-        );
       },
       // Sorted first, then posted to Slack and to Discord where meetings post here, so each post names the team whose
       // workspace it was filed in; then, for a design meeting, Lovart's inspiration, which takes minutes.

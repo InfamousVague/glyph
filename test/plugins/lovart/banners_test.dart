@@ -12,6 +12,7 @@ import 'package:ghost_md/core/book.dart' show bookNoteBody;
 import 'package:ghost_md/core/images.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/sync/prefs.dart' show merged;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/lovart/lovart.dart';
@@ -169,6 +170,43 @@ void main() {
       note('t1', '# Trip\n\n$_words', revision: 5);
       expect(await banners.noteLeft('t1'), isFalse);
       expect(fake.asked, hasLength(1));
+    });
+
+    test('is a job of its own on the app\'s record: "Header image for Trip", then "Banner ready · View" where the note is not on screen', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final opened = <String>[];
+      activityRoutes
+        ..openNote = opened.add
+        ..showing = ((id) => false);
+      addTearDown(() => activityRoutes
+        ..openNote = null
+        ..showing = null);
+      await keys();
+      final seen = <Job>[];
+      final hearing = record.events.listen((e) => seen.add(e.job ?? seen.last));
+      fake.onAsk = () => expect(record['banner:t1']?.title, 'Header image for Trip');
+      note('t1', '# Trip\n\n$_words');
+      expect(await banners.noteLeft('t1'), isTrue);
+      await hearing.cancel();
+      final ended = seen.lastWhere((job) => job.state == JobState.done);
+      expect(ended.result!.words, 'Banner ready');
+      expect(ended.shownHere!(), isFalse);
+      ended.result!.onOpen!();
+      expect(opened, ['t1']);
+      expect(record.log.today.words, '1 banner');
+      fake.onAsk = null;
+      // Credits gone: red, with Top up; Lovart busy a moment is no failure.
+      fake.fails = const LovartFailure('Your Lovart credits have run out.', code: 2012);
+      note('t2', '# Trip two\n\n$_words');
+      expect(await banners.noteLeft('t2'), isFalse);
+      expect(record['banner:t2']!.state, JobState.failed);
+      expect(record['banner:t2']!.fix!.kind, JobFixKind.topUp);
+      fake.fails = const LovartFailure('Concurrent job limit reached.', code: 2011);
+      note('t3', '# Trip three\n\n$_words');
+      expect(await banners.noteLeft('t3'), isFalse);
+      expect(record['banner:t3'], isNull);
     });
 
     test('keeps only the first picture when Lovart makes more', () async {
@@ -391,6 +429,11 @@ void main() {
       await tester.ensureVisible(row);
       await tester.tap(find.descendant(of: row, matching: find.text('Make them')));
       await tester.pump();
+      // Five at about 6 credits each is over 20: asked first, with what it should cost and take (docs/ACTIVITY.md).
+      expect(lovartBannerRun.value, isNull, reason: 'nothing started before Start');
+      expect(find.text('5 header images · ~30 Lovart credits · ~2 min'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('cost-ask-start')));
+      await tester.pump();
       expect(lovartBannerRun.value!.running, isTrue);
       await tester.pump();
       expect(find.descendant(of: row, matching: find.text('Stop')), findsOneWidget);
@@ -442,6 +485,71 @@ void main() {
       expect(keptBannerQueue(), isNull);
       // The two it did not reach are the next run's.
       expect(bannerCandidates(notes.values.toList()).map((n) => n.id), unorderedEquals(['n0', 'n1']));
+    });
+
+    group('on the app\'s record of running work (docs/ACTIVITY.md)', () {
+      late Activity record;
+      setUp(() => useActivity(record = Activity(store: () => MemoryStored())));
+      tearDown(() => useActivity(Activity()));
+
+      test('one job for the run: begun, how far, the credits it should cost and has spent, one chip as it ends', () async {
+        five();
+        final running = job.start();
+        await pumpEvents();
+        final begun = record[bannerJobId]!;
+        expect((begun.kind, begun.title, begun.personStarted, begun.estimate!.credits), (JobKind.images, 'Making header images', true, 30));
+        expect(begun.liveLine, 'Making header images, 0 of 5');
+        gated.openOne();
+        await pumpEvents();
+        expect(record[bannerJobId]!.fraction, closeTo(1 / 5, 1e-9));
+        expect(record[bannerJobId]!.spent, lovartCreditsPerImage);
+        final ended = <Job>[];
+        final hearing = record.events.where((e) => e.kind == JobEventKind.ended).listen((e) => ended.add(e.job!));
+        gated.openAll();
+        await running;
+        await hearing.cancel();
+        expect(record.value, isEmpty);
+        expect(ended.single.result!.words, 'Header images made for 5 notes · about 30 credits');
+        expect(record.log.today.words, '5 banners');
+      });
+
+      test('the tray\'s Stop is the same Stop, and a stopped run goes quietly', () async {
+        five();
+        final running = job.start();
+        await pumpEvents();
+        record[bannerJobId]!.onStop!();
+        gated.openAll();
+        await running;
+        expect(lovartBannerRun.value!.asked, isTrue);
+        expect(record.value, isEmpty, reason: 'no failure for a Stop');
+        expect(record.log.today.words, '3 banners');
+      });
+
+      test('credits spent: a red row with Lovart\'s words and Top up', () async {
+        five();
+        gated
+          ..open = true
+          ..fails = const LovartFailure('Your Lovart credits have run out.', code: 2012);
+        await job.start();
+        final failed = record[bannerJobId]!;
+        expect(failed.state, JobState.failed);
+        expect(failed.cause, contains('credits'));
+        expect(failed.fix!.kind, JobFixKind.topUp);
+        expect(record.needsYou, isTrue);
+      });
+
+      test('picked up at launch, it is the app\'s own: no chime', () async {
+        five();
+        unawaited(job.start());
+        await pumpEvents();
+        lovartBannerMaking.value = const {};
+        record.clear();
+        final fresh = GatedClient()..open = true;
+        lovartClient = () => fresh;
+        await made().resume();
+        expect(record.log.today.words, isNotEmpty);
+        expect(record.lastEnded!.personStarted, isFalse);
+      });
     });
 
     test('the phone\'s Stop is the same Stop', () async {
@@ -603,6 +711,9 @@ void main() {
         final row = find.byKey(const ValueKey('lovart-banner-run'));
         await tester.ensureVisible(row);
         await tester.tap(find.descendant(of: row, matching: find.text('Make them')));
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('cost-ask-start')));
+        await tester.pump();
         for (var i = 0; i < 20 && job.running; i += 1) {
           await tester.pump(const Duration(milliseconds: 10));
         }
@@ -645,9 +756,18 @@ void main() {
         expect(await job.start(), 'Header images are being made on your Mac · 12 of 100.');
         expect(gated.asked, isEmpty);
         expect(job.elsewhere()!.name, 'Mac');
+        // On the app's record of running work: the Mac's job, as far as it said (docs/ACTIVITY.md, Other devices).
+        final record = Activity(store: () => MemoryStored());
+        useActivity(record);
+        addTearDown(() => useActivity(Activity()));
+        job.tellElsewhere();
+        final theirs = record.value.single;
+        expect((theirs.here, theirs.deviceWords, theirs.liveLine, theirs.fraction), (false, 'on your Mac', 'Making header images, 12 of 100', 0.12));
         // Once its claim has run out (the Mac went mid-run), this device may.
         at += bannerClaimMs;
         expect(job.elsewhere(), isNull);
+        job.tellElsewhere();
+        expect(record.value, isEmpty);
         expect(await job.start(), isNull);
         expect(gated.asked, hasLength(5));
       });

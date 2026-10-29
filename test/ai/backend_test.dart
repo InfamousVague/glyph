@@ -8,6 +8,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/guide/guide_models.dart' show PhoneGuideModels;
 import 'package:ghost_md/ai/backend.dart';
 import 'package:ghost_md/ai/support/failure.dart';
@@ -129,6 +131,31 @@ void main() {
       expect(page.present(away.id), isTrue);
       expect(page.problem, isNull);
       page.dispose();
+    });
+
+    test('a download is a job on the app\'s record of running work: how far, then ready, or red with Retry', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final finish = Completer<void>();
+      engine.answers['ai_fetch_model'] = (Object? args) => finish.future;
+      unawaited(models.refresh());
+      await flush();
+      final fetching = models.fetch('qwen3.5-4b');
+      await flush();
+      final job = record['model:qwen3.5-4b']!;
+      expect((job.kind, job.personStarted, job.fraction), (JobKind.downloads, true, 0.0));
+      engine.emit('ai://model-progress', {'id': 'qwen3.5-4b', 'receivedBytes': 1000000, 'totalBytes': 4000000});
+      expect(record['model:qwen3.5-4b']!.fraction, 0.25);
+      expect(record['model:qwen3.5-4b']!.liveLine, 'Downloading, 1 MB of 4 MB');
+      finish.complete();
+      await fetching;
+      expect(record.value, isEmpty);
+      expect(record.log.today.words, '1 model downloaded');
+      engine.answers['ai_fetch_model'] = (Object? args) => throw StateError('The phone ran out of room.');
+      await models.fetch('qwen3.5-4b');
+      expect(record['model:qwen3.5-4b']!.cause, 'The phone ran out of room.');
+      expect(record['model:qwen3.5-4b']!.fix!.kind, JobFixKind.retry);
     });
 
     test('says why a download or a removal failed, and downloads nothing with Nothing leaves the phone on', () async {

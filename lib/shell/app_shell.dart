@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../activity/activity_chips.dart';
+import '../activity/activity_ring.dart';
 import '../core/back.dart';
 import '../core/live_titles.dart';
 import '../core/note.dart';
@@ -821,6 +823,15 @@ class AppShellState extends State<AppShell> {
             right: 0,
             child: banner,
           ),
+        // Simple mode's plain places have no bar: the ring of running work floats at the top end while there is
+        // something to show (docs/ACTIVITY.md, Simple mode), and is nothing at rest.
+        if (plain) _floatingRing(context),
+        // The result chips, hung under the header at the end, clear of the dock and the keyboard at the foot.
+        PositionedDirectional(
+          top: (tabBar ? (split ? 0 : context.tokens.len('app-inset-top')) + AppTabBar.heightOf(context.tokens) : context.tokens.len('app-inset-top') + context.tokens.len('app-bar-ring') + context.tokens.space(4)) + context.tokens.space(2),
+          end: context.tokens.space(3),
+          child: const ActivityChips(),
+        ),
         // The notifications, a card at the right under the bell.
         if (_notificationsOpen)
           OnBack(
@@ -857,6 +868,21 @@ class AppShellState extends State<AppShell> {
       ],
     );
   }
+
+  /// The ring over simple mode's plain places, which have no bar to hold it: only while [activityShown] holds.
+  Widget _floatingRing(BuildContext context) => ValueListenableBuilder<bool>(
+        valueListenable: activityShown,
+        builder: (context, shown, _) {
+          if (!shown) return const Positioned(top: 0, left: 0, child: SizedBox.shrink());
+          final t = context.tokens;
+          return PositionedDirectional(
+            key: const ValueKey('activity-ring:floating'),
+            top: t.len('app-inset-top') + t.space(2),
+            end: t.space(3),
+            child: ActivityRing(fine: _mouse, simple: true),
+          );
+        },
+      );
 
   /// Simple mode's frame for a place (GHST-105; Matt, 2026-10-18: "it still is a bit complex with the tabs and
   /// such"): the place alone, the whole window, as a phone has it, with nothing of the shell's drawn over it. The
@@ -961,7 +987,8 @@ class AppShellState extends State<AppShell> {
     final simple = widget.simple;
     final named = widget.headerToolbar;
     return ListenableBuilder(
-      listenable: Listenable.merge([_barTools, ?chip?.changes, if (named == null) headerToolbarChoice]),
+      // The ring of running work comes and goes as there is something to show (lib/activity/activity_ring.dart).
+      listenable: Listenable.merge([_barTools, ?chip?.changes, if (named == null) headerToolbarChoice, activityShown]),
       builder: (context, _) => AppTabBar(
         style: widget.topBar,
         child: NoteTabs(
@@ -982,6 +1009,7 @@ class AppShellState extends State<AppShell> {
           tools: _barTools.tools,
           tail: _barTools.tail,
           presence: chip?.build(context),
+          activity: activityShown.value ? ActivityRing(fine: _mouse, simple: simple) : null,
           onOpen: openNote,
           onClose: closeTab,
           onNew: widget.onNew,

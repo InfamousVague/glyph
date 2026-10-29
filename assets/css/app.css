@@ -775,3 +775,60 @@ body:has(.app-headerPane) .app-statusScrim {
   overflow: hidden;
   border-inline-start: 1px solid var(--glacier-border-subtle);
 }
+
+/*
+ * The colours of the app's running work (docs/ACTIVITY.md; Matt, 2026-10-29: "better show users what background
+ * processes are happening with vivid colors and iconography"): the ring in the header, the tray under it and the
+ * result chips (lib/activity/). Drawn from the Market's plugin tiles (lib/market/market_items.dart `marketHues`):
+ * sync the blue, AI writing the violet, pictures rose into amber, audio the teal, meetings the orange, downloads the
+ * green, and red for what needs the person. On paper each is the tile's deep end, darkened where it was under 3:1
+ * against white; in the dark, the tile's bright end. Waiting is the ink's quietest grey. The app is monochrome at
+ * rest, so none of these shows unless something runs.
+ */
+:root {
+  --activity-sync: #0a6fe0;
+  --activity-ai: #8a3dbf;
+  --activity-images: #d6336c;
+  --activity-images-2: #b86f00;
+  --activity-audio: #14806f;
+  --activity-meetings: #c9560b;
+  --activity-downloads: #23873f;
+  --activity-needs-you: #d1342b;
+  --activity-waiting: var(--app-ink-3);
+}
+
+[data-theme='dark'] {
+  --activity-sync: #4ea1ff;
+  --activity-ai: #c77dff;
+  --activity-images: #ff7aa8;
+  --activity-images-2: #ffb84d;
+  --activity-audio: #5fe0cf;
+  --activity-meetings: #ff9a4d;
+  --activity-downloads: #4cd571;
+  --activity-needs-you: #ff6b61;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --activity-sync: #4ea1ff;
+    --activity-ai: #c77dff;
+    --activity-images: #ff7aa8;
+    --activity-images-2: #ffb84d;
+    --activity-audio: #5fe0cf;
+    --activity-meetings: #ff9a4d;
+    --activity-downloads: #4cd571;
+    --activity-needs-you: #ff6b61;
+  }
+}
+
+/* Calm (Settings › Appearance): every one of them ink, the motion kept; what waits stays the quiet grey. */
+:root:root[data-calm] {
+  --activity-sync: var(--app-ink);
+  --activity-ai: var(--app-ink);
+  --activity-images: var(--app-ink);
+  --activity-images-2: var(--app-ink);
+  --activity-audio: var(--app-ink);
+  --activity-meetings: var(--app-ink);
+  --activity-downloads: var(--app-ink);
+  --activity-needs-you: var(--app-ink);
+}

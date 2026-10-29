@@ -171,7 +171,9 @@ import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../ai/summary_handoff.dart' show thisDevice;
-import '../core/background_jobs.dart' show ChannelBackgroundJobs;
+import '../activity/activity_chime.dart' show startActivityChime;
+import '../activity/activity_surfaces.dart' show startActivitySurfaces;
+import '../core/background_jobs.dart' show ChannelBackgroundJobs, activityRoutes;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
@@ -458,7 +460,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Matt, 2026-10-26: "Make the header generation async and a background task that runs while the app is generating
   /// the images"): the root's, so it goes on whatever page is up; claimed in the synced settings, so two of the
   /// account's devices never make the same notes' pictures; held up by the phone's foreground service and kept out of
-  /// the Mac's App Nap while it runs; said by a toast as it ends.
+  /// the Mac's App Nap while it runs; said by its chip as it ends (lib/activity/activity_chips.dart).
   // Any other picture Lovart is making (a header as a note is left, an {image: …}, a moodboard) holds the device as
   // the run does, so the app is not frozen behind another (lib/plugins/lovart/lovart_hold.dart).
   late final LovartHold _lovartHold = LovartHold(background: ChannelBackgroundJobs());
@@ -486,7 +488,8 @@ class _GhostRootState extends State<GhostRoot> {
       final look = await bannerLook(store, name);
       return !identical(look, BannerLook.unread) && bannerToRedo(colour: look.colour, aspect: look.aspect);
     },
-    ended: _bannerRunEnded,
+    // How it ended is the run's chip now, from the app's record of running work (docs/ACTIVITY.md, Results), where it
+    // was a toast of the root's.
   );
 
   /// Whether the line for the run shows on home and in the sidebar (root_parts.dart `_bannerNotice`): while it runs,
@@ -500,10 +503,6 @@ class _GhostRootState extends State<GhostRoot> {
     if (shows != _bannerShown && mounted) _told(() => _bannerShown = shows);
   }
 
-  void _bannerRunEnded(BannerRun run) {
-    if (!mounted) return;
-    GlacierToast.of(context).toast(message: Text(bannerRunEndWords(run)), duration: const Duration(seconds: 6));
-  }
   late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces, keeper: () => _services?.session?.handle);
 
   /// The kept pictures, where there is a core to keep them.
@@ -1681,6 +1680,7 @@ class _GhostRootState extends State<GhostRoot> {
     if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
     if (identical(lovartBannerJob, _bannerJob)) lovartBannerJob = null;
     lovartBannerRun.removeListener(_bannerMoved);
+    preferences.removeListener(_bannerJob.tellElsewhere);
     _bannerJob.dispose();
     _lovartHold.dispose();
     _voiceOverHold.dispose();
@@ -1765,6 +1765,24 @@ class _GhostRootState extends State<GhostRoot> {
     // Settings › Lovart's run over the recent notes, the root's job: one the app went under goes on, once Lovart is
     // on and its keys are read.
     lovartBannerJob = _bannerJob;
+    // How the app's running work opens what it made and fixes what stopped it (lib/core/background_jobs.dart; the ring,
+    // the tray and the chips, docs/ACTIVITY.md): a note where it was left, a link the app's way, a plugin's page; and
+    // the chime as a long job of the person's ends.
+    activityRoutes
+      ..openNote = ((id) {
+        final shell = _shell.currentState;
+        if (shell != null) _openWhereLeft(shell, id);
+      })
+      ..showing = ((id) => _shell.currentState?.shown == id)
+      ..openLink = ((link) => widget.openLink?.call('$link'))
+      ..openPlugin = ((id) => _openSettingsAt('plugin:$id'));
+    startActivityChime();
+    // And the device's own surfaces of it: a phone's progress notifications, the Mac's Dock ring and menu bar item,
+    // an iPhone's Live Activities (lib/activity/activity_surfaces.dart).
+    startActivitySurfaces();
+    // Another device's run over the recent notes, claimed in the synced settings: its job, "on your Mac".
+    preferences.addListener(_bannerJob.tellElsewhere);
+    _bannerJob.tellElsewhere();
     lovartBannerRun.addListener(_bannerMoved);
     _bannerMoved();
     unawaited(_bannerJob.resume(changes: _pluginsHeard));

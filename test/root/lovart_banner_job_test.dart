@@ -78,7 +78,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   }
 
-  testWidgets('the run is the root\'s: its line on home with Stop while it runs, and a toast as it ends', (tester) async {
+  testWidgets('the run is the root\'s: its line on home with Stop while it runs, the ring in the header, and nothing said of a run the person stopped', (tester) async {
     for (var i = 0; i < 6; i += 1) {
       library.create('# Trip $i\n\n$_words');
     }
@@ -91,6 +91,8 @@ void main() {
     gated.openOne();
     await settle(tester, 2);
     expect(find.textContaining('Making header images · 1 of 6', findRichText: true), findsOneWidget);
+    // On the app's record of running work: the ring in the header (docs/ACTIVITY.md).
+    expect(find.byKey(const ValueKey('header:activity')), findsOneWidget);
     // Its Stop, on the line.
     await tester.tap(find.byKey(const ValueKey('job-notice-action')));
     gated.openAll();
@@ -98,7 +100,21 @@ void main() {
     await settle(tester, 3);
     expect(lovartBannerRun.value!.asked, isTrue);
     expect(find.byKey(const ValueKey('job-notice')), findsNothing, reason: 'a run the person stopped leaves no line');
-    expect(find.text('Header images stopped · 4 made · about 24 credits'), findsOneWidget, reason: 'the toast');
+    // It was a toast; a Stop the person pressed is said by nothing now, and its chip is not drawn.
+    expect(find.text('Header images stopped · 4 made · about 24 credits'), findsNothing);
+    await leave(tester);
+  });
+
+  testWidgets('a run that ends says so by its chip, once for the whole run (docs/ACTIVITY.md, Results)', (tester) async {
+    for (var i = 0; i < 3; i += 1) {
+      library.create('# Trip $i\n\n$_words');
+    }
+    await pumpRoot(tester);
+    gated.open = true;
+    await lovartBannerJob!.start();
+    await settle(tester, 3);
+    expect(find.text('Header images made for 3 notes · about 18 credits'), findsOneWidget);
+    expect(find.byKey(const ValueKey('activity-chips')), findsOneWidget);
     await leave(tester);
   });
 

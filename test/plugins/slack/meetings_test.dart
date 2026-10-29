@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/slack/slack.dart';
@@ -248,6 +250,33 @@ void main() {
       await poster(share: (_) async => throw const ShareError('Sign in under Settings > Account to share.')).meetingSummarized('n2', meeting);
       expect(slack.posts, hasLength(2));
       expect(slack.posts.last.text, endsWith('<ghostmd://note/n2|Open in Ghost.md>'));
+    });
+
+    test('is a job on the app\'s record of running work: "Posted to #launch" as it lands; quiet while tries are left, then red with Retry', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final ended = <Job>[];
+      final hearing = record.events.where((e) => e.kind == JobEventKind.ended).listen((e) => ended.add(e.job!));
+      addTearDown(hearing.cancel);
+      await addChannel('#launch', hook);
+      setMeetingPosts(true);
+      slack.refuse = (404, 'no_service');
+      expect(await poster().meetingSummarized('n1', meeting), isFalse);
+      expect(record.value, isEmpty, reason: 'tried again as the app next runs: quietly');
+      for (var run = 2; run <= meetingPostTriesMost; run++) {
+        await poster().resume();
+      }
+      final failed = record['slack:n1']!;
+      expect((failed.state, failed.kind, failed.title), (JobState.failed, JobKind.meetings, 'Posting Launch sync to Slack'));
+      expect(failed.cause, contains('Slack no longer knows this webhook'));
+      expect(failed.fix!.kind, JobFixKind.retry);
+      slack.refuse = null;
+      failed.fix!.onPress();
+      await pumpEventQueue();
+      expect(record['slack:n1'], isNull, reason: 'posted on Retry');
+      expect(ended.last.result!.words, 'Posted to #launch');
+      expect(record.log.today.words, '1 Slack post, 1 failed');
     });
 
     test('keeps a failure with Slack’s reason, tries again when the app runs, and stops after five tries', () async {

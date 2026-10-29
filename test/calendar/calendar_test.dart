@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/calendar/calendar.dart';
 import 'package:ghost_md/calendar/setup.dart';
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -94,6 +95,25 @@ void main() {
       expect(fetched, hasLength(2));
       await calendar.syncIcal(force: true);
       expect(fetched, hasLength(3));
+    });
+
+    test('a pass is a job on the app\'s record of running work, out of sight unless slow, never counted', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final begun = <String>[];
+      final hearing = record.events.listen((e) => begun.add('${e.kind.name} ${e.job?.id}'));
+      addTearDown(hearing.cancel);
+      final calendar = service();
+      await calendar.addAddress(work);
+      final slow = calendar.syncIcal(force: true);
+      expect(record['calendar:ical'], isNotNull);
+      expect(record['calendar:ical']!.kind, JobKind.sync);
+      expect(record.value, isEmpty, reason: 'a quick pass is never seen');
+      await slow;
+      expect(record['calendar:ical'], isNull);
+      expect(begun, isEmpty);
+      expect(record.log.today.isEmpty, isTrue);
     });
 
     test('is never fetched with Local only on', () async {

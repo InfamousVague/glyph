@@ -74,6 +74,7 @@ HeaderRow labelledRow(BuildContext context, HeaderParts parts) {
           ],
         ),
       ),
+      ?parts.activity,
       if (parts.you.isNotEmpty) filled(_You(parts: parts)),
     ],
   );

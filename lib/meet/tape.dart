@@ -28,6 +28,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../core/background_jobs.dart';
 import '../core/native/core.dart' show CoreInvoke;
 import '../core/native/files.dart';
 import 'meet_in.dart';
@@ -116,6 +117,9 @@ class CoreWriteUps {
     final id = _asked.keys.first;
     final asked = _asked.remove(id)!;
     _running = true;
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): the teal reels while the
+    // Mac writes it up, "Written up · Open" as it ends where the note is not on screen; a hold goes quietly.
+    final job = activity.begin('write-up:$id', kind: JobKind.audio, title: 'Writing up the meeting', line: 'Transcribing', onOpen: activityRoutes.noteOpener(id), shownHere: activityRoutes.noteShown(id));
     try {
       final done = await startJob('write_up_run', {
         'id': id,
@@ -123,6 +127,7 @@ class CoreWriteUps {
       });
       final answer = await done;
       if (answer is Map && (answer['done'] == true || answer['alreadyDone'] == true)) {
+        job.done(result: JobResult('Written up', action: 'Open', onOpen: activityRoutes.noteOpener(id)), tally: const JobTally('meeting written up', 'meetings written up'));
         onDone(id);
       } else if (answer is Map && answer['retry'] != null) {
         _again[id] = Timer(retry, () {
@@ -133,6 +138,7 @@ class CoreWriteUps {
     } catch (failure) {
       debugPrint('[meet] the write-up did not run: $failure');
     } finally {
+      job.stopped();
       _running = false;
       unawaited(_next());
     }

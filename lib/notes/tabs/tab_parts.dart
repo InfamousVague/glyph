@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../activity/sync_mark.dart' show NoteSyncMarked;
+import '../../core/note.dart' show Note;
 import '../../core/tabs.dart';
 import '../../core/workspaces.dart';
 import '../../shell/pop_menu.dart';
@@ -266,6 +268,7 @@ class NoteTab extends StatefulWidget {
     required this.anchorKey,
     required this.closeKey,
     this.menu,
+    this.note,
   });
 
   final TabShape shape;
@@ -298,6 +301,9 @@ class NoteTab extends StatefulWidget {
 
   /// The tab's menu, while it is open.
   final Widget? menu;
+
+  /// The note it is: its sync after its name while it has one to say (lib/activity/sync_mark.dart).
+  final Note? note;
 
   @override
   State<NoteTab> createState() => _NoteTabState();
@@ -409,7 +415,7 @@ class _NoteTabState extends State<NoteTab> {
                     spacing: t.space(2),
                     children: [
                       if (space != null) SpacePill(space),
-                      Flexible(child: BarLine(widget.title, style: style)),
+                      Flexible(child: widget.note == null ? BarLine(widget.title, style: style) : NoteSyncMarked(note: widget.note!, size: ((style.fontSize ?? 14) * 0.8).roundToDouble(), expand: false, child: BarLine(widget.title, style: style))),
                     ],
                   ),
                 ),

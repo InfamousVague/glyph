@@ -96,7 +96,7 @@ import '../ai/note_ai.dart';
 import '../ai/note_review.dart' show ReviewHost;
 import '../ai/review.dart' show ReviewHandoff;
 import '../ai/runs.dart' show RunState, ended, useRun;
-import '../ai/summaries.dart' show SummariesState, SummaryStarter;
+import '../ai/summaries.dart' show SummariesState, SummaryStarter, summaryJobId;
 import '../ai/summary_handoff.dart' show meetingWaitWords;
 import '../ai/summary_keep.dart' show summaryBehind;
 import '../capture/refine.dart' show RefineState;
@@ -117,6 +117,7 @@ import '../canvas/canvas_view.dart';
 import '../capture/landing.dart';
 import '../comments/ui/note_colours.dart';
 import '../comments/ui/note_comments.dart';
+import '../core/background_jobs.dart' show activity;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show CommandUndoResult;
@@ -167,6 +168,7 @@ import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../editor/queries/queries.dart';
 import '../editor/ai/blanks.dart' show blanks;
 import '../editor/ai/lovart_cues.dart' show LovartCueHooks, lovartCues;
+import '../editor/ai/summary_writing.dart' show SummaryWritingHooks, summaryWriting;
 import '../editor/ai/wisp_arrivals.dart' show wispArrivals;
 import '../editor/focus/focus_mode.dart' show FocusModeHooks, focusMode;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
@@ -857,6 +859,9 @@ class NoteDeskState extends State<NoteDesk> {
         making: (cueText) => lovartIsMaking(widget.noteId, cueText),
         changes: Listenable.merge(<Listenable>[lovartMaking, plugins]),
       )),
+    // A meeting's summary being written, drawn where it will land, its words streaming in, until the section lands
+    // (lib/editor/ai/summary_writing.dart; docs/ACTIVITY.md, In place): read from the record, never written into the note.
+    summaryWriting(SummaryWritingHooks(jobId: () => summaryJobId(widget.noteId))),
     // Claude typing as it writes, with its caret (lib/claude/live_typing.dart, docs/CLAUDE_APP.md).
     claudeTyping,
     mediaExtensions(
@@ -2157,12 +2162,14 @@ class NoteDeskState extends State<NoteDesk> {
         return team == null ? view(context, body, onChange) : TeamCanvasHost(key: ObjectKey(team.doc), team: team, body: body, onChange: onChange, draw: view);
       },
       // Its header banner (lib/note/note_banner.dart), or Lovart at work on one while it is made.
-      banner: (context, noteId, name) => ValueListenableBuilder<Set<String>>(
-        valueListenable: lovartBannerMaking,
-        builder: (context, making, _) => NoteBannerView(
+      // Being made, alone or in a notebook's run: the band where it will land (docs/ACTIVITY.md, In place), while
+      // Lovart is at work on this note's (a run's banners are not jobs of their own) or its `banner:` job is live.
+      banner: (context, noteId, name) => ListenableBuilder(
+        listenable: Listenable.merge([lovartBannerMaking, activity]),
+        builder: (context, _) => NoteBannerView(
           name: name,
           store: _world.pictures,
-          making: making.contains(noteId),
+          making: lovartBannerMaking.value.contains(noteId) || (activity['banner:$noteId']?.state.live ?? false),
           prompt: noteId,
         ),
       ),

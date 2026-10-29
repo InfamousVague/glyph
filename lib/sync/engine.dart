@@ -50,6 +50,7 @@ import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../account/enc_key.dart';
 import '../account/keystore.dart';
+import '../core/background_jobs.dart';
 import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
@@ -67,12 +68,18 @@ import 'notes.dart';
 import 'prefs.dart';
 import 'record.dart';
 import 'sealed_keys.dart';
+import 'sync_marks.dart';
 
 /// How long after the last change a sync follows (`QUIET_MS`).
 const Duration quietWait = Duration(seconds: 4);
 
 /// How often a sync runs while the app is open (`EVERY_MS`).
 const Duration everyWait = Duration(minutes: 5);
+
+/// The sync's job on the app's record of running work (docs/ACTIVITY.md), and how long a pass that has moved nothing
+/// runs before the ring shows it (Matt, 2026-10-29: "only when a pass actually moves something or takes over ~1 s").
+const String syncJobId = 'sync';
+const Duration syncShownAfter = Duration(seconds: 1);
 
 // --- status ----------------------------------------------------------------------------------------------------------
 
@@ -208,6 +215,7 @@ class TeamPass {
     this.leftTeam,
     this.keptOut,
     this.agreed,
+    this.leftAt,
     required this.file,
     this.folders,
     required this.pulled,
@@ -251,9 +259,14 @@ class TeamPass {
   /// keeps it from an old build's deletion for a while ([LeftTeams]).
   final void Function(String noteId)? keptOut;
 
-  /// The words this device last agreed on with the account for a note (lib/sync/notes.dart [agreedWords]): what a
-  /// note it had of its own is merged from when the team's row first lands (lib/team/sync.dart `_ownWords`).
-  final String? Function(String noteId)? agreed;
+  /// The words this device and the account last both acknowledged for a note, and the account's revision they were
+  /// at (lib/sync/notes.dart [agreedOf]): what a note it had of its own is merged from when the team's row first lands
+  /// (lib/team/sync.dart `_ownWords`).
+  final ({String words, int rev})? Function(String noteId)? agreed;
+
+  /// The account's revision a note's words were at when this device took it out of the account's feed for the team
+  /// ([SyncState.teams]), which its team's row carries for the account's other devices; null where it did not.
+  final int? Function(String noteId)? leftAt;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
@@ -335,6 +348,18 @@ class SyncEngine {
         _orgsPass = orgsPass ?? orgs.syncOrgs {
     final session = account.session;
     if (session != null) _bridgeFor(session.accountId);
+    // Each note's mark by its title (lib/sync/sync_marks.dart): only while this device syncs, a team's note by its
+    // channel's word, nothing for a note live with another device. The account's fingerprints are told at each pass.
+    noteSyncMarks
+      ..syncing = (() => account.session != null && !prefs.value.localOnly)
+      ..teamNote = _inTeam
+      ..live = ((id) => sharedLive?.call(id) ?? false);
+  }
+
+  /// Whether a note is filed in an organization's workspace, or a folder under it: the team's (docs/SHARED.md, S1).
+  bool _inTeam(String id) {
+    final space = _workspaces.workspaceOf(id);
+    return space != null && _workspaces.orgOf(space.id) != null;
   }
 
   final SyncAccount account;
@@ -399,6 +424,11 @@ class SyncEngine {
 
   SyncState _loadNotes(int accountId) => _device.read<SyncState>(_stateKey(accountId, 'notes'), emptyState(), SyncState.fromJson);
 
+  SyncState _toldMarks(SyncState state) {
+    noteSyncMarks.account(state);
+    return state;
+  }
+
   PrefsBridge? _bridge;
   int? _bridgeAccount;
 
@@ -446,6 +476,7 @@ class SyncEngine {
       _device.write(_stateKey(accountId, 'team-${row.id}'), null);
     }
     forgetTeams?.call();
+    noteSyncMarks.forget();
     feed.forgetNotifications(accountId);
     orgs.forgetOrgs(accountId);
     orgKeys.forgetOrgKeys();
@@ -476,6 +507,39 @@ class SyncEngine {
   /// The pass asked for while one was running, if any: one more, covering the most anybody asked.
   _Parts? _queued;
 
+  /// The sync on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md, Matt 2026-10-29):
+  /// one rolling "Syncing" for a pass and the passes queued behind it, kept out of the ring and the tray unless it moves
+  /// something or takes over [syncShownAfter]; a look at the notifications alone is never one. [_moved] is what it
+  /// brought or sent so far, its tally ("40 notes synced"); [_failure] the first thing that went wrong in its last pass.
+  JobHandle? _job;
+  int _moved = 0;
+  ({String words, Object error})? _failure;
+
+  void _movedSome(int count) {
+    if (count <= 0) return;
+    _moved += count;
+    _job?.show();
+  }
+
+  /// Whether [failure] is the network blinking, or the service a moment away (a 5xx): the next pass, minutes away or
+  /// at the next change, is its try again, so the job goes quietly rather than red.
+  static bool _passing(Object failure) => isNetworkBlip(failure) || (failure is ApiError && failure.status >= 500);
+
+  /// The rolling job ended, as the last pass it covered ended.
+  void _endJob() {
+    final job = _job, moved = _moved, failure = _failure;
+    _job = null;
+    _moved = 0;
+    _failure = null;
+    if (job == null) return;
+    final tally = JobTally('note synced', 'notes synced', moved);
+    if (failure != null && !_passing(failure.error)) {
+      job.failed(failure.words, fix: JobFix(JobFixKind.retry, () => unawaited(syncNow())), tally: tally);
+    } else {
+      job.done(tally: tally);
+    }
+  }
+
   /// One pass of [parts] now, or right after the pass already running.
   Future<void> _run(_Parts parts) {
     final running = _running;
@@ -498,6 +562,7 @@ class SyncEngine {
       } finally {
         _running = null;
         _queued = null;
+        _endJob();
         done.complete();
       }
     }());
@@ -557,6 +622,8 @@ class SyncEngine {
       return;
     }
     final accountKey = key;
+    if (parts != _Parts.notifications) _job ??= activity.begin(syncJobId, kind: JobKind.sync, title: 'Syncing', showAfter: syncShownAfter);
+    _failure = null;
     // The notes lately out of a team here, kept from an old build's deletion and put again for it (lib/sync/notes.dart
     // [LeftTeams]): told by the team's channels, read by the account's own sync.
     final leftTeams = _LeftTeamsKept(_device, _stateKey(session.accountId, 'left-teams'), _now);
@@ -623,7 +690,11 @@ class SyncEngine {
               },
               keptOut: leftTeams.keep,
               // Read as the note's row lands: the account's step of this pass may have answered a deletion with it.
-              agreed: (id) => agreedWords(_loadNotes(accountId).notes[id]),
+              agreed: (id) {
+                final state = _loadNotes(accountId);
+                return agreedOf(state.notes[id]) ?? state.teams[id]?.agreed;
+              },
+              leftAt: (id) => _loadNotes(accountId).teams[id]?.rev,
               file: (id) => _workspaces.fileNote(id, workspace),
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.
@@ -635,6 +706,7 @@ class SyncEngine {
             );
         try {
           final team = await channel(pass(key: orgKey, generation: orgKeys.orgKeyGeneration(row.id)));
+          _movedSome(team.changed + team.sent);
           if (team.changed > 0) await _changed();
           // Written to the organization: its other devices fetch now, not at their next pass.
           if (team.sent > 0) tellChanged?.call(row.id);
@@ -718,6 +790,7 @@ class SyncEngine {
         if (failure is ApiError && failure.status == 401) rethrow;
         debugPrint('[sync] $name failed: $failure');
         failed ??= '$name: ${failureText(failure)}';
+        _failure ??= (words: failed!, error: failure);
         return null;
       }
     }
@@ -743,6 +816,7 @@ class SyncEngine {
             now: _now,
           )),
         );
+        _movedSome(filed ?? 0);
         if ((filed ?? 0) > 0) await _changed();
       }
 
@@ -762,6 +836,7 @@ class SyncEngine {
             now: _now,
           )),
         );
+        _movedSome(filed ?? 0);
         if ((filed ?? 0) > 0) await _changed();
       }
 
@@ -781,6 +856,7 @@ class SyncEngine {
             kept: _device,
           )),
         );
+        _movedSome(added ?? 0);
         if ((added ?? 0) > 0) await _changed();
       }
 
@@ -792,8 +868,12 @@ class SyncEngine {
           key: accountKey,
           notes: notes,
           files: files,
-          state: _loadNotes(accountId),
-          save: (state) => _device.write(notesKey, state.toJson()),
+          // Told to the notes' marks as it is read and as it is saved: what each note was last sent or taken at.
+          state: _toldMarks(_loadNotes(accountId)),
+          save: (state) {
+            _device.write(notesKey, state.toJson());
+            noteSyncMarks.account(state);
+          },
           api: api,
           crypto: crypto,
           now: _now,
@@ -806,14 +886,12 @@ class SyncEngine {
           onConflict: (copy) => unawaited(record?.record('sync-conflict', {'noteId': copy.noteId, 'title': copy.title})),
           // A note filed in an organization's workspace, or a folder under it, is the team's (docs/SHARED.md, S1):
           // the channel's below.
-          teamNote: (id) {
-            final space = _workspaces.workspaceOf(id);
-            return space != null && _workspaces.orgOf(space.id) != null;
-          },
+          teamNote: _inTeam,
           sharedLive: sharedLive,
           leftTeams: leftTeams,
         )),
       );
+      _movedSome(synced?.changed ?? 0);
       if ((synced?.changed ?? 0) > 0) await _changed();
       final outcome = Outcome(conflicts: synced?.conflicts ?? 0, unsent: synced?.unsent ?? 0, reason: synced?.reason);
 

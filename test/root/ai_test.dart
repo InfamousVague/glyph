@@ -437,7 +437,32 @@ void main() {
 
   // Differs 15 (docs/PARITY.md): a summary that landed was said as "Summarized", with no title, for the kit's own
   // few seconds (shell/useHousekeeping.ts: `Summarized “${title}”`, ten seconds, Open).
-  testWidgets('a summary that lands with the app on screen is said by the note\'s name, for ten seconds, with Open', (tester) async {
+  // Said by its result chip since 2026-10-29 (lib/activity/activity_chips.dart; docs/ACTIVITY.md), where it was a toast
+  // of ten seconds: on the screen while the note is not, gone after its six, Open going to the note.
+  testWidgets('a summary that lands with the app on screen, the note not open, is said by its chip with the note\'s name and Open', (tester) async {
+    late Summaries queue;
+    final library = await open(tester, engine: true, summaries: (notes, kept) => queue = summariesOver(notes, kept), tapePlayer: FakeTapePlayer(lengths: const {}));
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    await tester.runAsync(() => library.apply(Note(id: note.id, body: note.body, createdAt: note.createdAt, updatedAt: note.updatedAt, source: NoteSource.capture, recordingMs: 4000, segments: const [Segment(text: 'Bring the long lens', startMs: 0, endMs: 2000)], revision: note.revision)));
+    await settle(tester, 2);
+    backend.script('Pack the long lens.');
+    queue.enqueueSummary(note.id, SummaryKind.recording);
+    for (var i = 0; i < 30 && find.text('Summarized “Packing”').evaluate().isEmpty; i++) {
+      await settle(tester, 2);
+    }
+    expect(find.text('Summarized “Packing”'), findsOneWidget);
+    expect(find.byKey(ValueKey('activity-chip:action:summary:${note.id}')), findsOneWidget);
+    // Slid in from the edge.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(ValueKey('activity-chip:action:summary:${note.id}')));
+    await settle(tester);
+    expect(shellOf(tester).shown, note.id, reason: 'Open goes to the note');
+    expect(find.text('Summarized “Packing”'), findsNothing);
+    await close(tester);
+  });
+
+  testWidgets('a summary that lands in the note on screen says nothing over it: it is there', (tester) async {
     late Summaries queue;
     final library = await open(tester, engine: true, summaries: (notes, kept) => queue = summariesOver(notes, kept), tapePlayer: FakeTapePlayer(lengths: const {}));
     final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
@@ -447,16 +472,10 @@ void main() {
     await settle(tester);
     backend.script('Pack the long lens.');
     queue.enqueueSummary(note.id, SummaryKind.recording);
-    for (var i = 0; i < 30 && find.text('Summarized “Packing”').evaluate().isEmpty; i++) {
+    for (var i = 0; i < 30 && queue.summariesNow().pending.isNotEmpty; i++) {
       await settle(tester, 2);
     }
-    expect(find.text('Summarized “Packing”'), findsOneWidget);
-    expect(find.text('Open'), findsOneWidget);
-    // Still there after the kit's own few seconds, and gone after its ten.
-    await tester.pump(const Duration(seconds: 7));
-    expect(find.text('Summarized “Packing”'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pump(const Duration(seconds: 1));
+    await settle(tester, 2);
     expect(find.text('Summarized “Packing”'), findsNothing);
     await close(tester);
   });

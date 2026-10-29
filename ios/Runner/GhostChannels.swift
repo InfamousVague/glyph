@@ -45,6 +45,8 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
   private let tape: TapeChannel
   private let clips: TapeChannel
   private let day: DayChannel
+  /// The app's running work as Live Activities (JobsChannel.swift).
+  private let jobs: JobsChannel
   private var held: [FlutterMethodChannel] = []
   private var links: FlutterMethodChannel?
   private var keptLinks: [String] = []
@@ -54,6 +56,7 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
     tape = TapeChannel(messenger: messenger)
     clips = TapeChannel(messenger: messenger, name: "ghost_md/clip")
     day = DayChannel(messenger: messenger)
+    jobs = JobsChannel(messenger: messenger)
     super.init()
 
     listen("ghost_md/device_paths", messenger) { call, result in
@@ -161,6 +164,8 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
   /// A link the system handed the app. Only the app's own scheme is kept.
   func arrived(_ url: URL) {
     guard url.scheme?.lowercased() == "ghostmd" else { return }
+    // A Live Activity tapped: its job's Open, not a link for the page.
+    if jobs.opened(url) { return }
     keptLinks.append(url.absoluteString)
     links?.invokeMethod("arrived", arguments: nil)
   }

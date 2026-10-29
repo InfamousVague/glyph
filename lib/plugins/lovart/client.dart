@@ -151,6 +151,10 @@ String? pictureExtension(Uint8List bytes) {
 /// change it.
 const int lovartCreditsPerImage = 6;
 
+/// Where a person tops up Lovart's credits, or approves what its agent asks: Lovart's own home, where the plan and the
+/// credits are (the Top up of a run stopped for them, docs/ACTIVITY.md).
+const String lovartBillingUrl = 'https://www.lovart.ai/home';
+
 /// "about 144 credits", for [images] images at [lovartCreditsPerImage] each.
 String aboutCredits(int images) => 'about ${images * lovartCreditsPerImage} credits';
 

@@ -62,6 +62,7 @@ HeaderRow tilesRow(BuildContext context, HeaderParts parts) {
         filled(Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [for (final act in [?parts.view, ...shownActs]) _Tile(act: act, fine: parts.fine, word: wide)]))
       else
         ...fallbackTools(parts),
+      ?parts.activity,
       if (you.isNotEmpty) filled(Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [for (final act in you) _Tile(act: act, fine: parts.fine)])),
       if (entries.isNotEmpty)
         filled(

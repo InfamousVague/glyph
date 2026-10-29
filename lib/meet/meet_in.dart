@@ -44,6 +44,7 @@ import '../account/crypto_api.dart';
 import '../account/enc_key.dart';
 import '../account/keystore.dart';
 import '../account/session.dart';
+import '../core/background_jobs.dart';
 import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
@@ -272,6 +273,28 @@ String meetDetailWords(String? detail) => switch ((detail ?? '').toLowerCase().r
       'restarted' => 'Ghost restarted during the call',
       _ => '',
     };
+
+/// The source the meeting bot's meetings are told to the app's record of running work under.
+const String meetBotJobsSource = 'meet-bot';
+
+/// The meetings Ghost's bot is joining, in, or leaving now, as its jobs on the app's record of running work (docs/
+/// ACTIVITY.md: "the Meet/Zoom bot's state for a booked meeting"): the orange people in the ring, a little dimmed since
+/// the bot is no device of this one, and in the tray "Ghost in Standup", "In the meeting · with Ghost's meeting bot".
+/// A meeting booked and not begun, and one over, is none; how it went is the card's and the write-up's.
+List<Job> meetBotJobs(List<MeetBooking> meetings) => [
+      for (final m in meetings)
+        if (m.state == MeetState.joining || m.state == MeetState.inCall || m.state == MeetState.leave)
+          Job(
+            id: 'meet:${m.id}',
+            kind: JobKind.meetings,
+            title: (m.title ?? '').isEmpty ? 'Ghost in a meeting' : 'Ghost in ${m.title}',
+            line: meetStateWords(m),
+            device: meetBotJobsSource,
+            deviceName: 'meeting bot',
+            placeWords: 'with Ghost’s meeting bot',
+            startedAt: DateTime.fromMillisecondsSinceEpoch(m.startsAt),
+          ),
+    ];
 
 /// A meeting's state in a person's words, as the card shows it.
 String meetStateWords(MeetBooking meeting) {
@@ -592,6 +615,7 @@ class MeetIn extends ChangeNotifier {
       final below = [for (final m in kept.values) if (!ids.contains(m.id) && edge != null && _older(m, edge)) m];
       _meetings = _sorted([for (final m in first) kept[m.id]?.followedBy(m) ?? m, ...below]);
     }
+    activity.elsewhere(meetBotJobsSource, meetBotJobs(_meetings!));
     notifyListeners();
     return _meetings!;
   }

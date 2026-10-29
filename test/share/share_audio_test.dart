@@ -6,9 +6,11 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/bytes.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 import 'package:ghost_md/share/share.dart';
 import 'package:ghost_md/share/share_audio.dart';
 import 'package:ghost_md/tapes/tape_art.dart' show tapeHue;
@@ -180,6 +182,30 @@ void main() {
       expect(await here.heard('m1'), bytes);
       expect(here.shares.recordingSent('m1'), isTrue);
       expect(here.shares.audioSending.value, isEmpty);
+    });
+
+    test('its recording is a job on the app\'s record of running work: a bar as its parts go, then "Recording shared"', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      final seen = <Job>[];
+      final hearing = record.events.listen((e) {
+        if (e.job != null) seen.add(e.job!);
+      });
+      await here.shares.shareNote(here.notes[0], here.notes);
+      await here.shares.audioSent('m1');
+      await hearing.cancel();
+      expect(seen.first.id, 'share-audio:m1');
+      expect((seen.first.kind, seen.first.liveLine), (JobKind.audio, 'Sending the recording'));
+      expect(seen.where((job) => job.state == JobState.running).map((job) => job.fraction), containsAllInOrder([0.5, 1.0]));
+      expect(seen.last.state, JobState.done);
+      expect(seen.last.result!.words, 'Recording shared');
+      expect(record.log.today.words, '1 recording shared');
+      // Sent as it is, it is not sent again, and no job is begun for it.
+      seen.clear();
+      await here.shares.refreshShares();
+      await here.shares.audioSent('m1');
+      expect(record.log.today.words, '1 recording shared');
     });
 
     test('writes the words again after an edit, and never the recording, until the recording grows', () async {
