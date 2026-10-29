@@ -97,8 +97,40 @@ failed"). Eight days kept, 12 counts a day at most.
 ### The device half
 
 `BackgroundJobs` / `ChannelBackgroundJobs` (`ghost_md/jobs`: Android's foreground service, the Mac's App Nap) is as
-it was, and still told by the banner run, Lovart's and ElevenLabs' holds and Claude's write-up. The OS surfaces may
-move it onto `activity.events`.
+it was, and still told by the banner run, Lovart's and ElevenLabs' holds and Claude's write-up. What the device says
+back on the channel is heard by `JobsHeard` (one handler per channel, so every `ChannelBackgroundJobs.onStop` and the
+OS surfaces each hear it; before, the last instance to set the handler took it).
+
+### The OS surfaces
+
+`lib/activity/activity_surfaces.dart` (`ActivitySurfaces`, started by the root with `startActivitySurfaces()`) hears
+`activity.events` and tells the device over the same `ghost_md/jobs`:
+
+- `activityLook {calm, menuBarAlways}` first, and as either changes (a device drops what an earlier run left then);
+- `activity {event, job?, jobs}`: `event` is `started`, `changed`, `ended` or `allDone`; `job` is `surfaceJob(job)`
+  (`id`, `kind`, `look`, `state`, `title`, `line` (the live line), `fraction`, `steps`, `colour` / `colourDark`
+  (0xAARRGGBB, `surfaceColours`, left out in Calm), `stoppable`, `openable`, `here`, `device`, `personStarted`,
+  `startedAt` (ms), `cause`, `result`); `jobs` is every job that surface shows now, so a device can always be made
+  what it is told. A job's moves are told at most every 500 ms; a change of state, look, title or Stop at once.
+- back: `activityStop {id}` (the job's `onStop`) and `activityOpen {id}` (its `onOpen`, or its result's once ended).
+
+Which jobs (`onSurface`): **Android** the banner run, `share-audio:*`, and any job the person started that has run
+10 s (`promotable`), never sync nor `meeting-recording` / `write-up:*` (the meeting service's own notification says
+those); **the Mac** everything the ring shows, other devices' too, and a failed job until dismissed; **an iPhone**
+`write-up:*`, `summary:*` and `share-audio:*`.
+
+- Android (`ActivityNotices.kt`, `ActivityNoticeModel.kt`): one notification per job on the "Activity" channel (low,
+  silent), grouped under a summary from two, the kind's glyph (`res/drawable/ghost_job_*`) and colour, a bar, Stop
+  (`ActivityStopReceiver`) and a tap that opens the job (`MainActivity.onNewIntent`). API 36 and later:
+  `Notification.ProgressStyle`, asked to be promoted (a Live Update: the status bar chip, Samsung's Now Bar; the
+  manifest has `POST_PROMOTED_NOTIFICATIONS`); below, an ongoing notification with `setProgress`. A failure is a
+  notification with its cause. The foreground service holds the app up by one of these where any shows.
+- Mac (`macos/Runner/ActivitySurfaces.swift`): the ring and badge on the Dock icon while work runs; the menu bar's
+  ring (while work runs, or always with Settings › Appearance › Activity › Always show in the menu bar,
+  `Preferences.menuBarAlways`, which stays on the Mac) and its mini tray: each job, its bar, Stop, Open Ghost.md.
+- iPhone (`ios/Runner/JobsChannel.swift`, the `GhostActivity` widget extension in `ios/GhostActivity`, the shared
+  `ios/Runner/GhostJobAttributes.swift`): a Live Activity per job, lock screen and Dynamic Island, from iOS 16.2; a
+  tap is `ghostmd://activity?id=…`.
 
 ### What draws it
 
