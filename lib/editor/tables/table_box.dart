@@ -19,6 +19,14 @@
 /// - `cursor: text` on the wrap and `pointer` on a button are a `MouseRegion`'s.
 /// - A table that does not parse (`wrap.textContent = this.text`) is its text in the note's face; the syntax tree
 ///   does not name such a thing a Table, so it is not expected.
+/// - ADDED: a cell's links are links (Matt, 2026-10-29: "I can't open links in ghost markdown on the deep link
+///   test spot", a table of `[hello.trade/waitlist?ref=…](https://hello.trade/waitlist?ref=…)`). On the page a cell
+///   is its plain words and a press anywhere on the table opens its pipes, so a link in a cell could not be opened.
+///   Here a `[words](address)`'s words, an address said bare and a `[[link]]` are drawn in a paragraph's link look
+///   (table_layout.dart [TableLook.linkLook]) and a tap on one opens it as a tap on a link in the words does
+///   (media/links.dart [linkTapOpener]; a `[[link]]` by the editor's `wikiOptions`), with Cmd or Ctrl or without,
+///   since a drawn table is never the lines being written. A tap anywhere else on the table opens its pipes, as
+///   before; the mouse's pointer is a hand over a link and the text cursor over the rest.
 /// - The Fill pill after the last row is `tablePill` (lib/editor/ai/blanks.dart), drawn where the table holds
 ///   blanks for the model. **A blank or a filled answer in a cell** is `drawCell`'s widget, held by the table in
 ///   place of that cell's words ([GlyphTable.cells], [HeldCell]): the table paints every other cell's words itself
@@ -26,15 +34,21 @@
 ///   filled the cell's own element.
 library;
 
+import 'package:flutter/foundation.dart' show Diagnosticable;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show MouseTrackerAnnotation, PointerEnterEventListener, PointerExitEventListener;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../core/open_link.dart' show canOpenLink;
 import '../ai/blanks.dart' show drawCell, tablePill;
 import '../commands/inserts.dart' show Plan, applyPlan;
 import '../commands/tables.dart';
+import '../items/wiki_links.dart' show wikiLinksIn, wikiOptions;
 import '../looks/look.dart';
 import '../looks/peek_look.dart';
+import '../media/links.dart' show linkTapOpener;
 import '../state/change.dart';
 import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
@@ -125,11 +139,51 @@ class DrawnTable extends StatelessWidget {
         ruleColor: t.color('glacier-border-subtle'),
         headGround: peek ? null : t.color('app-paper-2'),
         devicePixelRatio: ratio,
+        linkInk: t.color('glacier-accent-text'),
+        urlInk: t.color('glacier-text-muted'),
+        waitingInk: t.color('app-ink-3'),
       );
-      final rows = <List<String>>[
-        <String>[for (final cell in parsed.header) plainCell(cell)],
-        for (final row in parsed.rows) <String>[for (final cell in row) plainCell(cell)],
+      // Each cell's words as drawn and the links among them: its `[words](address)`s and addresses said bare, and
+      // its `[[links]]` where the editor can open a note (as a paragraph draws them only there).
+      final wiki = view?.state.facet(wikiOptions);
+      ({String text, List<CellLink> links}) read(String raw) {
+        final cell = readCell(raw);
+        if (wiki == null || !cell.text.contains('[[')) return cell;
+        final links = <CellLink>[...cell.links];
+        for (final link in wikiLinksIn(cell.text)) {
+          if (links.any((other) => other.from < link.to && link.from < other.to)) continue;
+          links.add(CellLink(from: link.from, to: link.to, title: link.title, anchor: link.anchor, waiting: !wiki.known(link.title)));
+        }
+        links.sort((a, b) => a.from - b.from);
+        return (text: cell.text, links: links);
+      }
+
+      final cells = <List<({String text, List<CellLink> links})>>[
+        <({String text, List<CellLink> links})>[for (final cell in parsed.header) read(cell)],
+        for (final row in parsed.rows) <({String text, List<CellLink> links})>[for (final cell in row) read(cell)],
       ];
+      final rows = <List<String>>[
+        for (final row in cells) <String>[for (final cell in row) cell.text],
+      ];
+      final links = <List<List<CellLink>>>[
+        for (final row in cells) <List<CellLink>>[for (final cell in row) cell.links],
+      ];
+      // A tap on a link opens it where the editor has a way to: an address by the note's opener, a note by title.
+      void Function(CellLink link)? onLink;
+      final opener = view?.state.facet(linkTapOpener);
+      if (view != null && (opener != null || wiki != null)) {
+        onLink = (link) {
+          final title = link.title, url = link.url;
+          if (title != null) {
+            view.state.facet(wikiOptions)?.open(title, link.anchor);
+          } else if (url != null && canOpenLink(url)) {
+            view.state.facet(linkTapOpener)?.call(url);
+          }
+        };
+      }
+      // Whether a tap on `link` is one that opens something: a note where notes open, an address an app may be
+      // handed where there is an opener.
+      bool opens(CellLink link) => link.title != null ? wiki != null : (opener != null && link.url != null && canOpenLink(link.url!));
       // Each cell's raw words and where they start, for a blank or a filled answer drawn in it: the header is the
       // text's first line, the divider its second, and the rows follow (`draw(td, value, r + 2, i)`).
       final held = <HeldCell>[];
@@ -149,7 +203,7 @@ class DrawnTable extends StatelessWidget {
         }
       }
       // The table's room is the wrap's, however wide the table itself comes out.
-      inside = (room) => GlyphTable(rows: rows, align: parsed.align, look: tableLook, room: room < 0 ? 0 : room, cells: held);
+      inside = (room) => GlyphTable(rows: rows, align: parsed.align, look: tableLook, room: room < 0 ? 0 : room, cells: held, links: links, onLink: onLink, opens: opens);
     }
     Widget? tools;
     if (growable && parsed != null && view != null) {
@@ -252,7 +306,16 @@ class HeldCellParentData extends ContainerBoxParentData<RenderBox> {
 
 /// `table.cm-glyphTable`: the header, the rows and the grid.
 class GlyphTable extends MultiChildRenderObjectWidget {
-  const GlyphTable({super.key, required this.rows, required this.align, required this.look, required this.room, List<HeldCell> cells = const <HeldCell>[]}) : super(children: cells);
+  const GlyphTable({super.key, required this.rows, required this.align, required this.look, required this.room, List<HeldCell> cells = const <HeldCell>[], this.links = const <List<List<CellLink>>>[], this.onLink, this.opens}) : super(children: cells);
+
+  /// Each cell's links among its words, by row and column as [rows] (commands/tables.dart `readCell`).
+  final List<List<List<CellLink>>> links;
+
+  /// Told the link a tap lands on; without it a tap on a link is the table's like any other.
+  final void Function(CellLink link)? onLink;
+
+  /// Whether a tap on a link opens anything; every link does where it is not given.
+  final bool Function(CellLink link)? opens;
 
   /// The header's cells, then each row's: the words as they are drawn.
   final List<List<String>> rows;
@@ -267,31 +330,97 @@ class GlyphTable extends MultiChildRenderObjectWidget {
   List<HeldCell> get cells => children.cast<HeldCell>();
 
   @override
-  RenderGlyphTable createRenderObject(BuildContext context) => RenderGlyphTable(rows, align, look, room);
+  RenderGlyphTable createRenderObject(BuildContext context) => RenderGlyphTable(rows, align, look, room, links)
+    ..onLink = onLink
+    ..opens = opens;
 
   @override
-  void updateRenderObject(BuildContext context, RenderGlyphTable renderObject) => renderObject.update(rows, align, look, room);
+  void updateRenderObject(BuildContext context, RenderGlyphTable renderObject) => renderObject
+    ..update(rows, align, look, room, links)
+    ..onLink = onLink
+    ..opens = opens;
+}
+
+/// The mouse's hand over a link in a cell: what a link's `TextSpan` is to a paragraph, added to a hit test over it.
+class _LinkHand with Diagnosticable implements HitTestTarget, MouseTrackerAnnotation {
+  const _LinkHand();
+
+  @override
+  MouseCursor get cursor => SystemMouseCursors.click;
+
+  @override
+  PointerEnterEventListener? get onEnter => null;
+
+  @override
+  PointerExitEventListener? get onExit => null;
+
+  @override
+  bool get validForMouseTracker => true;
+
+  @override
+  void handleEvent(PointerEvent event, HitTestEntry entry) {}
 }
 
 /// The table's box: as wide and as tall as the page's `<table>`, which may be wider than the room it was given.
 class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderBox, HeldCellParentData>, RenderBoxContainerDefaultsMixin<RenderBox, HeldCellParentData> {
-  RenderGlyphTable(this._rows, this._align, this._look, this._room);
+  RenderGlyphTable(this._rows, this._align, this._look, this._room, [this._links = const <List<List<CellLink>>>[]]);
 
   List<List<String>> _rows;
   List<TableAlign?> _align;
   TableLook _look;
   double _room;
+  List<List<List<CellLink>>> _links;
   TableLayout? _layout;
 
-  void update(List<List<String>> rows, List<TableAlign?> align, TableLook look, double room) {
-    if (identical(rows, _rows) && identical(align, _align) && look.same(_look) && room == _room) return;
+  /// Told the link a tap lands on ([GlyphTable.onLink]).
+  void Function(CellLink link)? onLink;
+
+  /// Whether a tap on a link opens anything ([GlyphTable.opens]).
+  bool Function(CellLink link)? opens;
+
+  void update(List<List<String>> rows, List<TableAlign?> align, TableLook look, double room, [List<List<List<CellLink>>> links = const <List<List<CellLink>>>[]]) {
+    if (identical(rows, _rows) && identical(align, _align) && look.same(_look) && room == _room && identical(links, _links)) return;
     _rows = rows;
     _align = align;
     _look = look;
     _room = room;
+    _links = links;
     _drop();
     markNeedsLayout();
     markNeedsSemanticsUpdate();
+  }
+
+  List<CellLink> _linksOf(int row, int column) => row < _links.length && column < _links[row].length ? _links[row][column] : const <CellLink>[];
+
+  /// How far either side of a link's words a press still lands on it, in px.
+  static const double _slop = 3;
+
+  /// The link a tap at `local` would open, if any.
+  CellLink? _openable(Offset local) {
+    final link = _layout?.linkAt(local, slop: _slop);
+    if (link == null || onLink == null) return null;
+    return opens == null || opens!(link) ? link : null;
+  }
+
+  // A tap on a link: it joins the arena only for a press that lands on one, and being nearer the finger than the
+  // table's own tap (which opens its pipes) and its wrap's sideways scroll, it wins a tap and loses a drag.
+  TapGestureRecognizer? _tap;
+  CellLink? _pressed;
+
+  @override
+  void handleEvent(PointerEvent event, BoxHitTestEntry entry) {
+    if (event is! PointerDownEvent) return;
+    if (event.kind == PointerDeviceKind.mouse && event.buttons != kPrimaryButton) return;
+    final link = _openable(entry.localPosition);
+    if (link == null) return;
+    _pressed = link;
+    (_tap ??= TapGestureRecognizer(debugOwner: this)..onTap = _tapped).addPointer(event);
+  }
+
+  void _tapped() {
+    final link = _pressed;
+    _pressed = null;
+    if (link != null) onLink?.call(link);
   }
 
   void _drop() {
@@ -310,7 +439,7 @@ class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   void performLayout() {
     if (firstChild == null) {
-      final layout = _layout ??= TableLayout(_rows, _align, _look, _room);
+      final layout = _layout ??= TableLayout(_rows, _align, _look, _room, links: _linksOf);
       // Its own width, whatever the room: a table too wide for the room runs out of it, and its wrap scrolls.
       size = constraints.constrain(layout.size);
       return;
@@ -328,6 +457,7 @@ class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderB
       _align,
       _look,
       _room,
+      links: _linksOf,
       hosts: (row, column) {
         final child = held[(row, column)];
         if (child == null) return null;
@@ -355,7 +485,12 @@ class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderB
   bool hitTestSelf(Offset position) => true;
 
   @override
-  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => defaultHitTestChildren(result, position: position);
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    if (defaultHitTestChildren(result, position: position)) return true;
+    // Over a link that opens, the hand, ahead of the wrap's text cursor.
+    if (_openable(position) != null) result.add(HitTestEntry(const _LinkHand()));
+    return false;
+  }
 
   @override
   void paint(PaintingContext context, Offset offset) {
@@ -381,6 +516,8 @@ class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   void dispose() {
     _drop();
+    _tap?.dispose();
+    _tap = null;
     super.dispose();
   }
 }

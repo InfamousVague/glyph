@@ -44,7 +44,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
 
-import '../commands/tables.dart' show TableAlign;
+import '../commands/tables.dart' show CellLink, TableAlign;
 import '../looks/look.dart';
 import '../view/line_breaks.dart';
 
@@ -138,8 +138,13 @@ List<String> breakPieces(String text) {
 }
 
 /// `text` with the paragraph told where the page breaks a line and it would not, and the other way round.
-String fixBreaks(String text) {
+String fixBreaks(String text) => _fixBreaks(text).shown;
+
+/// [fixBreaks], and after which of the text's characters a mark was put in: where a range of the text is in what
+/// is shown.
+({String shown, List<int> after}) _fixBreaks(String text) {
   StringBuffer? out;
+  final after = <int>[];
   var from = 0;
   for (var i = 0; i + 1 < text.length; i += 1) {
     final fix = breakFix(i > 0 ? text.codeUnitAt(i - 1) : -1, text.codeUnitAt(i), text.codeUnitAt(i + 1));
@@ -147,12 +152,16 @@ String fixBreaks(String text) {
     (out ??= StringBuffer())
       ..write(text.substring(from, i + 1))
       ..write(fix == BreakFix.allow ? zeroWidthSpace : wordJoiner);
+    after.add(i);
     from = i + 1;
   }
-  if (out == null) return text;
+  if (out == null) return (shown: text, after: after);
   out.write(text.substring(from));
-  return out.toString();
+  return (shown: out.toString(), after: after);
 }
+
+/// A stretch of a cell's words in a look of its own (a link's), over the face's: `from`-`to` of the words.
+typedef WordsRun = ({int from, int to, TextStyle style});
 
 /// The width of `text` on one line in `face`.
 double measureWords(String text, WordsFace face) {
@@ -165,12 +174,33 @@ double measureWords(String text, WordsFace face) {
 /// Words set as the page sets them: on lines of the face's line height, each baseline where Blink puts it.
 class SetWords {
   /// `width` null sets the words on one line however long (`white-space: nowrap`); otherwise they wrap in it and
-  /// are aligned in it.
-  SetWords(this.text, this.face, {double? width, TextAlign align = TextAlign.left}) {
+  /// are aligned in it. `runs` are stretches in a look of their own over the face's, which must not change how wide
+  /// a letter is (a colour, an underline): the words are measured in the face alone.
+  SetWords(this.text, this.face, {double? width, TextAlign align = TextAlign.left, List<WordsRun> runs = const <WordsRun>[]}) {
     final wraps = width != null;
-    final shown = wraps ? fixBreaks(text) : text;
+    final fixed = wraps ? _fixBreaks(text) : (shown: text, after: const <int>[]);
+    final shown = fixed.shown;
+    // Where each run is in what is shown: a mark put in after a character before a position moves it on by one.
+    int moved(int at) => at + fixed.after.where((i) => i < at).length;
+    final shownRuns = <WordsRun>[for (final run in runs) (from: moved(run.from), to: moved(run.to), style: run.style)];
+    // The words from `start` to `end` of what is shown, each run in its own look. With no runs, the one span.
+    TextSpan spanOf(int start, int end) {
+      if (shownRuns.isEmpty) return TextSpan(text: start == 0 && end == shown.length ? shown : shown.substring(start, end), style: face.style);
+      final children = <TextSpan>[];
+      var at = start;
+      for (final run in shownRuns) {
+        final from = math.max(run.from, start), to = math.min(run.to, end);
+        if (to <= from) continue;
+        if (from > at) children.add(TextSpan(text: shown.substring(at, from)));
+        children.add(TextSpan(text: shown.substring(from, to), style: run.style));
+        at = to;
+      }
+      if (at < end) children.add(TextSpan(text: shown.substring(at, end)));
+      return TextSpan(style: face.style, children: children);
+    }
+
     _painter = TextPainter(
-      text: TextSpan(text: shown, style: face.style),
+      text: spanOf(0, shown.length),
       textDirection: TextDirection.ltr,
       textAlign: wraps ? align : TextAlign.left,
       textScaler: TextScaler.noScaling,
@@ -178,6 +208,21 @@ class SetWords {
     )..layout(minWidth: width ?? 0, maxWidth: width ?? double.infinity);
     final metrics = _painter.computeLineMetrics();
     lines = metrics.length;
+    for (var i = 0; i < shownRuns.length; i += 1) {
+      runBoxes.add(<Rect>[]);
+    }
+    // Each run's boxes on a line: across, where the line's own paragraph has its letters; down, the whole line.
+    void boxRuns(TextPainter painter, int start, int end, double left, int lineNumber) {
+      for (var i = 0; i < shownRuns.length; i += 1) {
+        final from = math.max(shownRuns[i].from, start), to = math.min(shownRuns[i].to, end);
+        if (to <= from) continue;
+        final base = identical(painter, _painter) ? 0 : start;
+        for (final box in painter.getBoxesForSelection(TextSelection(baseOffset: from - base, extentOffset: to - base))) {
+          runBoxes[i].add(Rect.fromLTRB(left + box.left, lineNumber * face.lineHeight, left + box.right, (lineNumber + 1) * face.lineHeight));
+        }
+      }
+    }
+
     var widest = 0.0, start = 0;
     for (final line in metrics) {
       if (line.width > widest) widest = line.width;
@@ -190,11 +235,13 @@ class SetWords {
       // it says its baseline is (`inkBaseline`).
       if (metrics.length == 1) {
         _lines.add((painter: _painter, left: 0, baseline: inkBaseline(line.ascent), to: top + face.ascent));
+        boxRuns(_painter, 0, shown.length, 0, 0);
       } else {
         final range = _painter.getLineBoundary(TextPosition(offset: start));
-        final one = TextPainter(text: TextSpan(text: shown.substring(range.start, range.end), style: face.style), textDirection: TextDirection.ltr, textScaler: TextScaler.noScaling, maxLines: 1)..layout();
+        final one = TextPainter(text: spanOf(range.start, range.end), textDirection: TextDirection.ltr, textScaler: TextScaler.noScaling, maxLines: 1)..layout();
         final own = one.computeLineMetrics();
         _lines.add((painter: one, left: line.left, baseline: own.isEmpty ? face.ascent : inkBaseline(own.first.ascent), to: top + face.ascent));
+        boxRuns(one, range.start, range.end, line.left, line.lineNumber);
         start = range.end;
       }
     }
@@ -217,6 +264,9 @@ class SetWords {
 
   /// Each line's words' box, from the top left of the first line.
   final List<Rect> boxes = <Rect>[];
+
+  /// Where each run's words are, as [boxes] are: a box for each line it is on, as tall as the line.
+  final List<List<Rect>> runBoxes = <List<Rect>>[];
 
   double get height => lines * face.lineHeight;
 
@@ -251,6 +301,9 @@ class TableLook {
     required this.headGround,
     this.least = 0.6,
     this.devicePixelRatio = 1,
+    this.linkInk,
+    this.urlInk,
+    this.waitingInk,
   });
 
   /// A header cell's face (`font-weight: 700`) and a body cell's.
@@ -279,6 +332,31 @@ class TableLook {
   /// Device pixels to the logical one, for the rules to sit on whole ones.
   final double devicePixelRatio;
 
+  /// A link's words in a cell, as a paragraph draws them (looks/markdown_look.dart `.link`):
+  /// `var(--glacier-accent-text)`, underlined. The face's own ink where none is given.
+  final Color? linkInk;
+
+  /// An address said bare, as a paragraph draws one (`.url`): `var(--glacier-text-muted)`, not underlined.
+  final Color? urlInk;
+
+  /// A `[[link]]` to a note not written yet (items/wiki_links.dart `.cm-wikiNew`): `var(--app-ink-3)`.
+  final Color? waitingInk;
+
+  /// The look of `link`'s words over a cell's face `base`. Only colours and an underline: the cell is measured in
+  /// its face, so the table's columns stay as the page has them (a paragraph's link is also medium weight, which
+  /// is not drawn here).
+  TextStyle linkLook(CellLink link, TextStyle base) {
+    final ink = base.color ?? const Color(0xFF000000);
+    if (link.title != null) {
+      // '.cm-wiki': underlined, the underline the words' own ink at 45 in a hundred; '.cm-wikiNew': dashed, ink-3.
+      final words = link.waiting ? (waitingInk ?? ink) : ink;
+      return TextStyle(color: words, decoration: TextDecoration.underline, decorationStyle: link.waiting ? TextDecorationStyle.dashed : TextDecorationStyle.solid, decorationColor: words.withValues(alpha: words.a * 0.45));
+    }
+    if (link.bare) return TextStyle(color: urlInk ?? ink, decoration: TextDecoration.none);
+    final words = linkInk ?? ink;
+    return TextStyle(color: words, decoration: TextDecoration.underline, decorationColor: words);
+  }
+
   bool same(TableLook other) =>
       head.same(other.head) &&
       body.same(other.body) &&
@@ -289,7 +367,10 @@ class TableLook {
       ruleColor == other.ruleColor &&
       headGround == other.headGround &&
       least == other.least &&
-      devicePixelRatio == other.devicePixelRatio;
+      devicePixelRatio == other.devicePixelRatio &&
+      linkInk == other.linkInk &&
+      urlInk == other.urlInk &&
+      waitingInk == other.waitingInk;
 }
 
 /// A cell's own box in place of its words: how wide it is on one line, and a way to lay it out in a width that
@@ -319,6 +400,9 @@ class DrawnCell {
   final String text;
   final TableAlign? align;
 
+  /// The links among the words (commands/tables.dart `readCell`), drawn in a link's look and opened by a tap.
+  List<CellLink> links = const <CellLink>[];
+
   bool get head => row == 0;
 
   /// Its box in the table: the rules' halves that are its own included, as the page measures a `<td>`.
@@ -332,6 +416,21 @@ class DrawnCell {
 
   /// Each line of its words, in the table.
   List<Rect> get wordBoxes => <Rect>[for (final box in words?.boxes ?? const <Rect>[]) box.shift(at)];
+
+  /// Where each of [links] is drawn, in the table: a box for each line it is on.
+  List<List<Rect>> get linkBoxes => <List<Rect>>[for (final boxes in words?.runBoxes ?? const <List<Rect>>[]) <Rect>[for (final box in boxes) box.shift(at)]];
+
+  /// The link drawn at `point` of the table, or within `slop` of it across.
+  CellLink? linkAt(Offset point, {double slop = 0}) {
+    final words = this.words;
+    if (words == null || links.isEmpty || !rect.contains(point)) return null;
+    for (var i = 0; i < words.runBoxes.length && i < links.length; i += 1) {
+      for (final box in words.runBoxes[i]) {
+        if (Rect.fromLTRB(box.left - slop, box.top, box.right + slop, box.bottom).shift(at).contains(point)) return links[i];
+      }
+    }
+    return null;
+  }
 }
 
 TextAlign _textAlign(TableAlign? align) => switch (align) {
@@ -343,7 +442,8 @@ TextAlign _textAlign(TableAlign? align) => switch (align) {
 /// A table laid out in `room`, the width its wrap has for it. `rows` are the header's cells and then each body
 /// row's, every row as wide as the header.
 class TableLayout {
-  TableLayout(List<List<String>> rows, List<TableAlign?> align, this.look, this.room, {CellHost? Function(int row, int column)? hosts}) {
+  /// `links` are each cell's links among its words (commands/tables.dart `readCell`), drawn in the link's look.
+  TableLayout(List<List<String>> rows, List<TableAlign?> align, this.look, this.room, {CellHost? Function(int row, int column)? hosts, List<CellLink> Function(int row, int column)? links}) {
     final count = rows.isEmpty ? 0 : rows.first.length;
     // What a cell's box is beside its words.
     final extra = 2 * look.padX + look.rule;
@@ -353,6 +453,7 @@ class TableLayout {
       final row = <DrawnCell>[];
       for (var c = 0; c < count; c += 1) {
         final cell = DrawnCell(r, c, c < rows[r].length ? rows[r][c] : '', c < align.length ? align[c] : null);
+        if (links != null) cell.links = links(r, c);
         row.add(cell);
         final host = cell.host = hosts?.call(r, c);
         if (host != null) {
@@ -414,7 +515,8 @@ class TableLayout {
         final width = columnEdges[cell.column + 1] - columnEdges[cell.column] - extra;
         final face = cell.head ? look.head : look.body;
         // A twentieth of a pixel to spare: a column at exactly its words' width must not wrap them for a rounding.
-        final words = cell.words = cell.head ? SetWords(cell.text, face) : SetWords(cell.text, face, width: math.max(0, width) + 0.05, align: _textAlign(cell.align));
+        final runs = <WordsRun>[for (final link in cell.links) (from: link.from, to: link.to, style: look.linkLook(link, face.style))];
+        final words = cell.words = cell.head ? SetWords(cell.text, face, runs: runs) : SetWords(cell.text, face, width: math.max(0, width) + 0.05, align: _textAlign(cell.align), runs: runs);
         if (words.lines > lines) lines = words.lines;
       }
       final height = math.max(lines * look.body.lineHeight, layoutUnitCeil(tall)) + 2 * look.padY + look.rule;
@@ -457,6 +559,17 @@ class TableLayout {
 
   /// The table's own box.
   late final Size size;
+
+  /// The link drawn at `point` of the table, or within `slop` of it across.
+  CellLink? linkAt(Offset point, {double slop = 0}) {
+    for (final row in cells) {
+      for (final cell in row) {
+        final link = cell.linkAt(point, slop: slop);
+        if (link != null) return link;
+      }
+    }
+    return null;
+  }
 
   /// Draws the table with its corner at `offset`; `screen` as [SetWords.paint] takes it.
   void paint(Canvas canvas, Offset offset, {Offset screen = Offset.zero}) {

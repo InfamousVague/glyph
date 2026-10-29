@@ -32,6 +32,23 @@ void main() {
     expect(openLinkChannel.name, 'ghost_md/open');
   });
 
+  // Matt, 2026-10-29: links in a note tapped on the Fold must open their own app through Android's App Links (a
+  // verified hello.trade opens HelloTrade Staging), not a page in a browser inside Ghost. The phone is handed the
+  // address alone, as `open {url}`: its half starts a plain ACTION_VIEW with no app named (OpenLink.kt), which
+  // the phone's own resolver sends to the app verified for the address, or to the default browser. Nothing here
+  // asks for an in-app browser or a Custom Tab, which would skip App Links.
+  test('hands an App Link and a LAN address to the phone as written, and asks for nothing but `open`', () async {
+    final calls = phone();
+    const hello = 'https://hello.trade/waitlist?ref=EXU6LYUP5K', lan = 'http://192.168.18.21:3120';
+    await openLink(hello);
+    await openLink(lan);
+    expect(calls.map((call) => call.method), <String>['open', 'open']);
+    expect(calls.map((call) => call.arguments), <Object?>[
+      <String, Object?>{'url': hello},
+      <String, Object?>{'url': lan},
+    ]);
+  });
+
   test('is a LinkOpener, and opens a tapped map in the phone’s maps', () async {
     final calls = phone();
     const LinkOpener opener = openLink;

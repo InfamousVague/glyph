@@ -70,8 +70,9 @@ class Pixels {
 
   /// How much ink is on each row from `top` to `bottom`: for every pixel of the row, how far it is from the
   /// row's own ground (its commonest colour), from none to one. A column inked on nearly every row is a rule down
-  /// the line (a quote's bar), not words, and is left out.
-  List<double> ink(int top, int bottom) {
+  /// the line (a quote's bar), not words, and is left out. So are the columns `skip` names, first to last: ink
+  /// one picture has there and the other has not (a link's underline in a table's cell, which the page draws plain).
+  List<double> ink(int top, int bottom, {List<(int, int)> skip = const <(int, int)>[]}) {
     final rows = bottom - top;
     final per = List<Float64List>.generate(rows, (_) => Float64List(width));
     for (var r = 0; r < rows; r++) {
@@ -105,6 +106,11 @@ class Pixels {
           if (per[r][x] > 0.2) inked += 1;
         }
         ruled[x] = inked >= rows * 0.9;
+      }
+    }
+    for (final (first, last) in skip) {
+      for (var x = first < 0 ? 0 : first; x <= last && x < width; x++) {
+        ruled[x] = true;
       }
     }
     return <double>[

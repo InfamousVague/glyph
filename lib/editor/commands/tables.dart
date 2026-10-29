@@ -3,12 +3,14 @@
 /// A GFM table in a note is rows of pipes and dashes, which is how it is kept and how it is edited, but not how
 /// anyone wants to read it on a phone. So a table the caret is not in is drawn as a real table; that drawing (the
 /// widget, its field, its theme) is the view's piece (docs/STAGE4.md, G), and reads the table through what is here:
-/// [parseTable], the cells' own places ([cellSpans]), a cell's words without their markup ([plainCell]), and the two
-/// edits its + buttons make ([addTableColumn], [addTableRow]).
+/// [parseTable], the cells' own places ([cellSpans]), a cell's words without their markup ([plainCell]) and the links
+/// among them ([readCell]), and the two edits its + buttons make ([addTableColumn], [addTableRow]).
 ///
 /// What differs: `Parsed` is [ParsedTable] and an alignment a [TableAlign]; `plainCell` and `cellSpans`, private
 /// to the web's file because the widget lives in it, are public here for the widget that will live elsewhere.
 library;
+
+import 'package:flutter/foundation.dart' show immutable;
 
 import '../../core/item_syntax.dart' show jsTrim;
 
@@ -94,6 +96,107 @@ String plainCell(String text) => text
     .replaceAllMapped(_strong, (m) => m.group(2)!)
     .replaceAllMapped(_emphasis, (m) => m.group(2)!)
     .replaceAllMapped(_code, (m) => m.group(1)!);
+
+/// A link in a cell's words as they are drawn ([readCell]): where its words stand in [plainCell]'s text, and what
+/// a tap on them opens. A web address ([url]) or, put there by the drawing, a note by its title ([title]).
+@immutable
+class CellLink {
+  const CellLink({required this.from, required this.to, this.url, this.bare = false, this.title, this.anchor, this.waiting = false});
+
+  /// Where its words start and end in the cell's drawn text.
+  final int from;
+  final int to;
+
+  /// The address a `[words](address)` or a bare `https://…` opens.
+  final String? url;
+
+  /// Whether it is an address said bare, which a paragraph draws in the address's own look, not the link's.
+  final bool bare;
+
+  /// The note a `[[Title]]` opens, and what followed its `#`.
+  final String? title;
+  final String? anchor;
+
+  /// Whether no note has that title yet: drawn as a name waiting to be written.
+  final bool waiting;
+
+  @override
+  bool operator ==(Object other) => other is CellLink && other.from == from && other.to == to && other.url == url && other.bare == bare && other.title == title && other.anchor == anchor && other.waiting == waiting;
+
+  @override
+  int get hashCode => Object.hash(from, to, url, bare, title, anchor, waiting);
+
+  @override
+  String toString() => 'CellLink($from-$to, ${url ?? '[[$title]]'})';
+}
+
+/// A web address said bare, as the note's own parser finds one (GFM's autolinks): `http://` or `https://` and up
+/// to the next space or `<`, without the punctuation that ends a sentence after it.
+final RegExp _bareUrl = RegExp(r'https?:\/\/[^\s<]+');
+final RegExp _bareTail = RegExp(r'''[.,;:!?'"*_~]+$''');
+
+// What stands round a link's words while the cell's marks are taken off, so the words can be found after.
+const String _open = '', _close = '';
+
+/// A cell's words as [plainCell] draws them, and the links among them: a `[words](address)`'s words and an
+/// address said bare (Matt, 2026-10-29: "I can't open links in ghost markdown on the deep link test spot", a table
+/// of `[hello.trade/waitlist?ref=…](https://hello.trade/waitlist?ref=…)`). The text is [plainCell]'s, letter for
+/// letter: the links' words are marked while the marks round them come off, and the markers taken out after.
+({String text, List<CellLink> links}) readCell(String raw) {
+  if (raw.contains(_open) || raw.contains(_close)) return (text: plainCell(raw), links: const <CellLink>[]);
+  final targets = <({String url, bool bare})>[];
+  final linked = raw.replaceAllMapped(_link, (m) {
+    final target = RegExp(r'\]\(\s*<?([^)\s>]*)').firstMatch(m.group(0)!)?.group(1) ?? '';
+    targets.add((url: target, bare: false));
+    return '$_open${m.group(1)!}$_close';
+  });
+  // Addresses said bare, outside the links' words: what is between one link's close and the next one's open.
+  final pieces = linked.split(RegExp('(?=$_open)|(?<=$_close)'));
+  final out = StringBuffer();
+  final order = <({String url, bool bare})>[];
+  var link = 0;
+  for (final piece in pieces) {
+    if (piece.startsWith(_open)) {
+      order.add(targets[link++]);
+      out.write(piece);
+      continue;
+    }
+    out.write(piece.replaceAllMapped(_bareUrl, (m) {
+      var url = m.group(0)!;
+      url = url.replaceFirst(_bareTail, '');
+      // A closing bracket the address did not open is the sentence's.
+      while (url.endsWith(')') && ')'.allMatches(url).length > '('.allMatches(url).length) {
+        url = url.substring(0, url.length - 1).replaceFirst(_bareTail, '');
+      }
+      if (Uri.tryParse(url)?.host.isNotEmpty != true) return m.group(0)!;
+      order.add((url: url, bare: true));
+      return '$_open$url$_close${m.group(0)!.substring(url.length)}';
+    }));
+  }
+  final marked = out
+      .toString()
+      .replaceAllMapped(_strong, (m) => m.group(2)!)
+      .replaceAllMapped(_emphasis, (m) => m.group(2)!)
+      .replaceAllMapped(_code, (m) => m.group(1)!);
+  final text = StringBuffer();
+  final links = <CellLink>[];
+  var start = -1, at = 0;
+  for (final unit in marked.split('')) {
+    if (unit == _open) {
+      start = text.length;
+    } else if (unit == _close) {
+      if (start >= 0 && at < order.length) {
+        final target = order[at];
+        if (text.length > start && target.url.isNotEmpty) links.add(CellLink(from: start, to: text.length, url: target.url, bare: target.bare));
+      }
+      at += 1;
+      start = -1;
+    } else {
+      text.write(unit);
+    }
+  }
+  return (text: text.toString(), links: links);
+}
 
 final RegExp _pipe = RegExp(r'(?<!\\)\|');
 final RegExp _leadingSpace = RegExp(r'^\s+');

@@ -17,6 +17,8 @@
 /// reached for itself (the network, the files, the players, the switches) given as [MediaSeams].
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/images.dart';
@@ -88,10 +90,11 @@ class MediaSeams {
   /// What plays a rich embed: the device's web views (rich_embeds/players.dart).
   final EmbedPlayers embedPlayers;
 
-  /// Opens a web address: a link card's tap.
+  /// Opens a web address: a link card's tap, and a tap on a link in the words or a drawn table's cell where
+  /// [onLinkTap] is not given.
   final LinkOpener? openLink;
 
-  /// A tap on an address in the words of a view that cannot be edited.
+  /// A tap on a link in the words or in a drawn table's cell (links.dart [linkTapOpener]); [openLink] when absent.
   final void Function(String url)? onLinkTap;
 
   /// The Link previews switch (`preferences().linkPreviews`).
@@ -130,6 +133,9 @@ class MediaSeams {
   final ClipPlayer? clipPlayer;
 }
 
+/// A tapped link handed to `open`, which fails quietly as every caller of `openLink` lets it (lib/core/open_link.dart).
+void Function(String url)? _opener(LinkOpener? open) => open == null ? null : (url) => unawaited(open(url).catchError((Object _) {}));
+
 /// Editor.tsx's lines for this piece, in its order: pictures, places, films, short links, link cards (none in a
 /// note drawn small: `peek`), the rows under linked lines, and voice memos with the note's tape.
 ///
@@ -144,7 +150,8 @@ Extension mediaExtensions({MediaSeams seams = const MediaSeams(), PlaceMode plac
   // neither drawn in a note drawn small, where a file's line reads as its name.
   attachmentCards(cards: !peek),
   if (!peek) pictureWords(),
-  shortLinks(still: peek, onOpen: seams.onLinkTap),
+  // A note drawn small on a card opens nothing of its own: a tap there is the card's.
+  shortLinks(still: peek, onOpen: peek ? null : seams.onLinkTap ?? _opener(seams.openLink)),
   if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead ?? pluginReadsLink, embeds: seams.embeds, players: seams.embedPlayers),
   linkedRows(seams.linkMenus),
   clips(),

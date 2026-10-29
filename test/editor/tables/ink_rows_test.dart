@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/editor/tables/tables.dart' show GlyphTable, RenderGlyphTable;
 
 import '../../support/ink.dart';
 import '../../support/render.dart';
@@ -28,11 +29,21 @@ void main() {
       final own = await Pixels.screen(tester);
       final page = await Pixels.file(tester, 'test/editor/tables/fixtures/$name.png');
       final height = page.height < own.height ? page.height : own.height;
+      // A link in a cell is underlined here and plain on the page (table_box.dart: links in cells are added), so
+      // the columns under a link are left out of both pictures: the words beside it are what is compared.
+      final scale = own.width / (tester.view.physicalSize.width / tester.view.devicePixelRatio);
+      final skip = <(int, int)>[
+        for (final table in tester.renderObjectList<RenderGlyphTable>(find.byType(GlyphTable)))
+          for (final row in table.table.cells)
+            for (final cell in row)
+              for (final boxes in cell.linkBoxes)
+                for (final box in boxes) (((table.localToGlobal(box.topLeft).dx) * scale).floor() - 2, ((table.localToGlobal(box.topRight).dx) * scale).ceil() + 2),
+      ];
       var worst = 0.0, count = 0;
       final faults = <String>[];
       for (final band in bands(page, 0, height)) {
         final top = band.first - 3 < 0 ? 0 : band.first - 3, bottom = band.last + 4 > height ? height : band.last + 4;
-        final theirs = inked(page.ink(top, bottom), top), ours = inked(own.ink(top, bottom), top);
+        final theirs = inked(page.ink(top, bottom, skip: skip), top), ours = inked(own.ink(top, bottom, skip: skip), top);
         if (theirs == null || ours == null) continue;
         count += 1;
         final by = ours.centre - theirs.centre;

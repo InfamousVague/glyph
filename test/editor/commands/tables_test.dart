@@ -42,6 +42,40 @@ void main() {
       expect(plainCell('Seek **bar** and _drift_ in `code` at [here](https://x.y)'), 'Seek bar and drift in code at here');
     });
 
+    test('its links: a `[words](address)`’s words and an address said bare, where they stand in the words drawn', () {
+      const hello = 'https://hello.trade/waitlist?ref=EXU6LYUP5K';
+      var read = readCell('[hello.trade/waitlist?ref=EXU6LYUP5K]($hello)');
+      expect(read.text, 'hello.trade/waitlist?ref=EXU6LYUP5K');
+      expect(read.links, <CellLink>[const CellLink(from: 0, to: 35, url: hello)]);
+      read = readCell('**Open** [the waitlist]($hello) or http://192.168.18.21:3120, then _wait_.');
+      expect(read.text, 'Open the waitlist or http://192.168.18.21:3120, then wait.');
+      expect(read.links, <CellLink>[const CellLink(from: 5, to: 17, url: hello), const CellLink(from: 21, to: 46, url: 'http://192.168.18.21:3120', bare: true)]);
+      expect(read.text.substring(5, 17), 'the waitlist');
+      // An address the brackets of a sentence close round.
+      read = readCell('(see https://x.y/a)');
+      expect(read.links.single.url, 'https://x.y/a');
+      expect(read.text.substring(read.links.single.from, read.links.single.to), 'https://x.y/a');
+      // A link's words in a mark of their own, and a mark round the link: the words are where they are drawn.
+      read = readCell('**[bold words](https://x.y)** and `code`');
+      expect(read.text, 'bold words and code');
+      expect(read.links.single, const CellLink(from: 0, to: 10, url: 'https://x.y'));
+    });
+
+    test('its words are plainCell’s, letter for letter, whatever it holds', () {
+      for (final raw in <String>[
+        'Seek **bar** and _drift_ in `code` at [here](https://x.y)',
+        'a_b [c_d](https://x.y/e_f) g_h https://x.y/i_j_k',
+        '[[A note]] and [x](<https://x.y>) and <https://a.b>',
+        'https:// and http://',
+        'nothing at all',
+        '',
+      ]) {
+        expect(readCell(raw).text, plainCell(raw), reason: raw);
+      }
+      expect(readCell('https:// and http://').links, isEmpty);
+      expect(readCell('[x](<https://x.y>)').links.single.url, 'https://x.y');
+    });
+
     test('where each cell starts in the table’s text, blank lines skipped, a left-aligned divider read', () {
       const text = '| a | bb |\n\n| :-- | --- |\n|  c |';
       final spans = cellSpans(text);

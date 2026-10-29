@@ -27,23 +27,40 @@
 ///   are told through, and it is the one this file reads.
 /// - `markReads({still})` (items/mark_reads.dart: the reads that keep the rows under linked lines current) comes
 ///   with [shortLinks], as on the page, and the marks are drawn again on its `detailsArrived`.
-/// - ADDED, at the port's brief: `onOpen`. On the page a tap on a link in the words never opens it (it lands the
-///   caret); only a card's tap does. With `onOpen`, a tap on an address in a view that cannot be edited is handed
-///   to the caller. A view being written in keeps the page's behaviour.
+/// - ADDED: a tap on a link opens it ([linkTapOpener], given by `shortLinks(onOpen:)`). On the page a tap on a link
+///   in the words never opens it (it lands the caret); only a card's tap does, and a card is drawn only under a line
+///   that is nothing but a link. So a link among words could not be opened at all, in a note or in a table (Matt,
+///   2026-10-29: "I can't open links in ghost markdown on the deep link test spot", a note of links to tap on a
+///   phone so they open their app; and "Clicking links still opens the link for editing instead of opening the
+///   link"). Now a plain tap or click on a link's words or its address opens it, as a `[[link]]` opens its note,
+///   on the phone and the Mac alike, except where that link is being written: with the caret (or the selection)
+///   already inside it, or at its edge, in a note that has the keyboard, a tap there is the caret's, unless the
+///   press holds Cmd on a Mac (Ctrl elsewhere), which opens it wherever it is. A link is edited by getting the
+///   caret into it some other way: a tap just after it, the arrow keys, a press held (which takes the word under
+///   it) or the other button (which puts the caret there and opens the note's menu). An item's mark is not a link
+///   here (a tap on its pill lands the caret, which writes it out), and an address no app may be handed
+///   (lib/core/open_link.dart `canOpenLink`: a relative path, an `#anchor`) is left to the caret too. A drawn
+///   table's links open the same way (tables/table_box.dart).
 library;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kPrimaryButton;
+import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../../core/item_links.dart';
 import '../../core/item_syntax.dart' show afterMark;
+import '../../core/open_link.dart' show canOpenLink;
 import '../../core/short_url.dart';
 import '../../core/text.dart';
 import '../../plugins/mark_details.dart' show hasMarkDetails;
 import '../editor.dart';
 import '../items/mark_reads.dart';
 import '../looks/look.dart';
+import '../semantics/line_semantics.dart' show linksOn;
 import '../syntax/tree.dart' show SyntaxNode;
+import '../view/editor_view.dart' show EditorView;
 import '../view/line.dart' show EditorRunScope;
 import '../view/lines.dart';
 import '../view/syntax_tree.dart';
@@ -164,6 +181,15 @@ class ShortLinkWidget extends EditorWidget {
 /// mark.
 bool _lastOnLine(String after) => afterMark.hasMatch(after);
 
+/// The item's mark the link at `from`-`to` is, if it is one: the last thing on an item's line, its words one name.
+({String name, String url})? _itemMark(EditorState state, int from, int to) {
+  final text = state.sliceDoc(from, to);
+  final mark = markOf(text);
+  if (mark == null || text != '[${mark.name}](${mark.url})') return null;
+  final line = state.doc.lineAt(from);
+  return _lastOnLine(line.text.substring(to - line.from)) && itemWords(line.text) != null ? (name: mark.name, url: mark.url) : null;
+}
+
 DecorationSet _decorate(EditorViewLike view) {
   final builder = RangeSetBuilder<Decoration>();
   final state = view.state;
@@ -179,11 +205,9 @@ DecorationSet _decorate(EditorViewLike view) {
       enter: (node) {
         if (node.name == 'Link') {
           // A mark: the link is the last thing on an item's line and its words are one name.
-          final text = state.sliceDoc(node.from, node.to);
-          final mark = markOf(text);
-          final line = state.doc.lineAt(node.from);
-          if (mark != null && text == '[${mark.name}](${mark.url})' && _lastOnLine(line.text.substring(node.to - line.from)) && itemWords(line.text) != null) {
-            if (!active.contains(line.number)) {
+          final mark = _itemMark(state, node.from, node.to);
+          if (mark != null) {
+            if (!active.contains(state.doc.lineAt(node.from).number)) {
               final EditorWidget widget = hasMarkDetails(mark.name) || reads.any((read) => read(mark.name)) ? const HiddenMark() : ItemMarkWidget(mark.name, mark.url);
               builder.add(node.from, node.to, Decoration.replace(widget: widget));
             }
@@ -232,39 +256,88 @@ class _ShortLinks extends PluginValue {
   }
 }
 
-final ViewPlugin<_ShortLinks> _shortLinksPlugin = ViewPlugin.define<_ShortLinks>(_ShortLinks.new, decorations: (plugin) => plugin.decorations);
+final ViewPlugin<_ShortLinks> _shortLinksPlugin = ViewPlugin.define<_ShortLinks>(_ShortLinks.new, decorations: (plugin) => plugin.decorations, eventHandlers: const EditorEventHandlers(mouseDown: _pressLink));
 
-/// The address at `pos`, where a link's address is: for a tap.
-String? linkAt(EditorState state, int pos) {
-  String? found;
-  syntaxTree(state).iterate(
-    from: pos,
-    to: pos,
-    enter: (node) {
-      if (node.name == 'URL') found = state.sliceDoc(node.from, node.to);
-      return found == null ? null : false;
-    },
-  );
-  return found;
+/// How a tapped link's address is opened in this editor: the app's own way of handing an address to the phone
+/// (lib/core/open_link.dart `openLink`, given by the note's desk through `shortLinks(onOpen:)`). Absent, a tap on
+/// a link is the caret's, as on the page. A drawn table's links are opened by it too.
+final Facet<void Function(String url), void Function(String url)?> linkTapOpener = Facet.define<void Function(String url), void Function(String url)?>(
+  combine: (values) => values.isEmpty ? null : values.first,
+);
+
+/// How far outside a link's words a press still lands on it, in px.
+const double _slop = 3;
+
+/// Whether the press asks for a link to be opened even where it is being written: Cmd on a Mac or an iPad's
+/// keyboard, Ctrl elsewhere, as in a browser's editor.
+bool opensAnyway() {
+  final keys = HardwareKeyboard.instance;
+  final apple = defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS;
+  return apple ? keys.isMetaPressed : keys.isControlPressed;
+}
+
+/// Whether a press with these keys held may open a link at all: Shift extends the selection and Alt is the
+/// keyboard's own, and on a Mac Ctrl with a press is the other button's.
+bool _pressOpens() {
+  final keys = HardwareKeyboard.instance;
+  if (keys.isShiftPressed || keys.isAltPressed) return false;
+  final apple = defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS;
+  return !(apple && keys.isControlPressed);
+}
+
+/// The link a press at `global` lands on: its words or its address (`[words](address)`, an address said bare, an
+/// `<address>`), on a line of the note's text and not a block drawn over its lines.
+({int from, int to, String url})? linkUnder(EditorViewLike view, Offset global) {
+  final pos = view.posAtCoords(global);
+  if (pos == null) return null;
+  final state = view.state;
+  final line = state.doc.lineAt(pos);
+  for (final link in linksOn(state, line.from, line.to)) {
+    if (pos < link.from || pos > link.to) continue;
+    if (!_landsOn(view, global, link.from, link.to)) continue;
+    return (from: link.from, to: link.to, url: link.url);
+  }
+  return null;
+}
+
+/// Whether `global` is on the drawn words of `from`-`to` (a link wrapped over two rows is on both), not only
+/// nearest to them: past a line's end the nearest position is the line's last, which may be a link's.
+bool _landsOn(EditorViewLike view, Offset global, int from, int to) {
+  if (view is! EditorView) return true;
+  final hit = view.hitAt(global);
+  final line = hit?.line;
+  if (hit == null || !hit.inside || line == null) return false;
+  final local = line.globalToLocal(global);
+  return line.rectsForRange(from - line.from, to - line.from).any((rect) => rect.inflate(_slop).contains(local));
+}
+
+/// Whether the link at `from`-`to` is being written: the caret or the selection in it or at its edge, in a note
+/// that has the keyboard. Elsewhere on its line (where it is shown whole) it is only being read.
+bool _writing(EditorViewLike view, int from, int to) {
+  final state = view.state;
+  return state.facet(EditorViewLike.editable) && view.hasFocus && state.selection.ranges.any((range) => range.from <= to && range.to >= from);
+}
+
+/// A press on a link opens it, before the caret moves (see the header). Asked when a browser would send its
+/// `mousedown`: a mouse's as it lands, a finger's once its tap is done, so a finger that scrolls opens nothing.
+bool _pressLink(PointerDownEvent event, EditorViewLike view) {
+  final open = view.state.facet(linkTapOpener);
+  if (open == null) return false;
+  if (event.kind == PointerDeviceKind.mouse && event.buttons != kPrimaryButton) return false;
+  if (!_pressOpens()) return false;
+  final link = linkUnder(view, event.position);
+  if (link == null || !canOpenLink(link.url) || _itemMark(view.state, link.from, link.to) != null) return false;
+  if (_writing(view, link.from, link.to) && !opensAnyway()) return false;
+  open(link.url);
+  return true;
 }
 
 /// Link addresses shown short, and item marks as pills, away from the caret's line. With them come the reads that
 /// keep the rows under linked lines current (items/mark_reads.dart), which `still` stops: a note drawn small on a
-/// card is drawn from what is already known. `onOpen`
-/// is told the address a tap lands on in a view that cannot be edited.
+/// card is drawn from what is already known. `onOpen` is how a tapped link is opened ([linkTapOpener]); without
+/// it a tap on a link is the caret's.
 Extension shortLinks({bool still = false, void Function(String url)? onOpen}) => Extension.list(<Extension>[
   _shortLinksPlugin,
   markReads(still: still),
-  if (onOpen != null)
-    EditorViewLike.eventHandlers(
-      EditorEventHandlers(
-        tap: (tap, view) {
-          if (view.state.facet(EditorViewLike.editable) || tap.pos == null) return false;
-          final url = linkAt(view.state, tap.pos!);
-          if (url == null) return false;
-          onOpen(url);
-          return true;
-        },
-      ),
-    ),
+  if (onOpen != null) linkTapOpener.of(onOpen),
 ]);

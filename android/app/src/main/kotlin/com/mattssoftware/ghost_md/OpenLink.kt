@@ -25,6 +25,10 @@ import io.flutter.plugin.common.MethodChannel
  * and Back from it comes home. No chooser and no package named: the phone's default for the address is the
  * person's choice. Nothing is asked of the package manager first (Android 11 hides other apps from it unless the
  * manifest lists what it looks for): the start itself says whether anything took it.
+ *
+ * Which is also what lets an Android App Link open its app: a web address an app is verified for (hello.trade for
+ * HelloTrade, with "Open supported links" on) goes to that app, not a page. Never a Custom Tab or a browser view
+ * inside Ghost, which would open every address as a page (Matt, 2026-10-29, the deep link test note).
  */
 class OpenLink(private val activity: Activity) {
   fun register(messenger: BinaryMessenger) {

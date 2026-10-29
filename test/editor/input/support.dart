@@ -232,6 +232,7 @@ Future<Rig> pumpEditor(
   bool focus = true,
   int? caret,
   double footClear = 0,
+  Size size = const Size(390, 844),
 }) async {
   late final Rig rig;
   final view = EditorView(
@@ -257,7 +258,7 @@ Future<Rig> pumpEditor(
   rig = Rig(tester, view, scroll, controller);
   addTearDown(view.destroy);
   addTearDown(scroll.dispose);
-  await pumpApp(tester, prefs: const AppPreferences(theme: 'light'), ratio: 2, home: Page(view, scroll, controller: controller, onHold: rig.held.add, footClear: footClear));
+  await pumpApp(tester, size: size, prefs: const AppPreferences(theme: 'light'), ratio: 2, home: Page(view, scroll, controller: controller, onHold: rig.held.add, footClear: footClear));
   tester.view.padding = FakeViewPadding.zero;
   tester.view.viewPadding = FakeViewPadding.zero;
   await tester.pump();

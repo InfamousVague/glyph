@@ -1,6 +1,6 @@
 // editor/links.test.ts and editor/linkCards.test.ts, case for case. Not ported: "reading the tasks on a board" (two
 // cases), which is editor/markReads.ts and the boards, stages 9 and 5.
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerDownEvent;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/link_preview.dart';
@@ -97,17 +97,25 @@ void main() {
   });
 
   group('a tap on an address (added here: the page opens no link from the words)', () {
-    testWidgets('is handed to the caller in a view that cannot be edited, and is the caret’s in one that can', (tester) async {
+    testWidgets('is handed to the caller, in a view that cannot be edited and in one that can, but not with the caret in it', (tester) async {
       final opened = <String>[];
       const doc = 'see https://example.com/a/long/path/here now';
-      EditorTap tap(int pos) => EditorTap(global: Offset.zero, local: Offset.zero, kind: PointerDeviceKind.touch, pos: pos);
+      bool press(EditorView view, int pos) => view.eventHandlers.any((h) => h.mouseDown?.call(PointerDownEvent(position: view.coordsAtPos(pos)!.center, kind: PointerDeviceKind.touch), view) ?? false);
       var view = await pumpNote(tester, doc, more: <Extension>[shortLinks(onOpen: opened.add)], readOnly: true);
-      expect(view.eventHandlers.any((h) => h.tap?.call(tap(10), view) ?? false), isTrue);
-      expect(view.eventHandlers.any((h) => h.tap?.call(tap(1), view) ?? false), isFalse);
+      expect(press(view, 1), isFalse);
+      expect(press(view, 10), isTrue);
       expect(opened, <String>['https://example.com/a/long/path/here']);
       view = await pumpNote(tester, doc, more: <Extension>[shortLinks(onOpen: opened.add)]);
-      expect(view.eventHandlers.any((h) => h.tap?.call(tap(10), view) ?? false), isFalse);
-      expect(opened, hasLength(1));
+      expect(press(view, 10), isTrue);
+      expect(opened, hasLength(2));
+      // The caret elsewhere on its line, in a note that has the keyboard: the address is written out, and opens.
+      view = await pumpNote(tester, doc, more: <Extension>[shortLinks(onOpen: opened.add)], caret: 1);
+      expect(press(view, 10), isTrue);
+      expect(opened, hasLength(3));
+      // The caret in the address: it is being edited, and a press is the caret's.
+      view = await pumpNote(tester, doc, more: <Extension>[shortLinks(onOpen: opened.add)], caret: 20);
+      expect(press(view, 10), isFalse);
+      expect(opened, hasLength(3));
     });
   });
 
