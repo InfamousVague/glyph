@@ -20,6 +20,32 @@ const String notificationsToggle = '[data-notifications-toggle]';
 /// The mirrored sidebar icon's, for the aside's card (`[data-aside-toggle]`).
 const String asideToggle = '[data-aside-toggle]';
 
+/// The control a card is being opened from, where it was pressed, and when: told by the header toolbar's versions
+/// (lib/shell/header/header_kit.dart `HeaderPress`, and a menu's row by the button the menu hangs from), so a card
+/// opened by a press there hangs under that control and not under the whole bar ([FloatingCard]). Matt, 2026-10-29, of
+/// History in Grouped command on a note: "the history dropdown starts too low not under the buttons as expected".
+Rect? _openedFrom;
+int _openedAt = 0;
+
+/// How long after a press a card opening counts as opened by it.
+const int _openedWithin = 1000;
+
+/// Says that [context]'s control is being pressed, and may open a card.
+void cardOpenedFrom(BuildContext context) {
+  final box = context.findRenderObject();
+  if (box is! RenderBox || !box.attached || !box.hasSize) return;
+  _openedFrom = box.localToGlobal(Offset.zero) & box.size;
+  _openedAt = DateTime.now().millisecondsSinceEpoch;
+}
+
+/// The control the card opening now was opened from, if one was pressed a moment ago; once.
+Rect? _takeOpenedFrom() {
+  final from = _openedFrom;
+  _openedFrom = null;
+  if (from == null || DateTime.now().millisecondsSinceEpoch - _openedAt > _openedWithin) return null;
+  return from;
+}
+
 /// Which edge of the window a [FloatingCard] hangs at: the start for the drawer, the end for the aside and the bell.
 enum FloatingCardSide { start, end }
 
@@ -82,6 +108,10 @@ class FloatingCard extends StatefulWidget {
 class _FloatingCardState extends State<FloatingCard> with SingleTickerProviderStateMixin {
   final OverlayPortalController _portal = OverlayPortalController()..show();
 
+  /// The control that opened it, where a version of the header toolbar says so ([cardOpenedFrom]); null for today's
+  /// bar, whose rings do not, and for a card opened by a key: it then hangs under the whole bar, as the page's does.
+  final Rect? _from = _takeOpenedFrom();
+
   /// `animation: drawerIn 180ms var(--glacier-ease-out)`.
   late final AnimationController _enter = AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
   CurvedAnimation? _eased;
@@ -126,12 +156,16 @@ class _FloatingCardState extends State<FloatingCard> with SingleTickerProviderSt
         : t.lenOf('min(20rem, calc(100vw - var(--glacier-space-10)))');
     // `max-block-size: calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - var(--glacier-space-2) - var(--glacier-space-3))`
     final dvh = media.size.height - media.viewInsets.bottom;
-    final tallest = math.max(0.0, dvh - t.len('app-safe-top') - t.len('app-safe-bottom') - t.space(2) - t.space(3));
-    // `inset-block-start: calc(var(--app-safe-top) + var(--glacier-space-2))`
-    final top = t.len('app-safe-top') + t.space(2);
+    // `inset-block-start: calc(var(--app-safe-top) + var(--glacier-space-2))`; or, opened from a control of the bar's
+    // line, the same gap under that control, its end under the control's end where the window has the room.
+    final from = _from;
+    final top = from == null ? t.len('app-safe-top') + t.space(2) : from.bottom + t.space(2);
+    final tallest = math.max(0.0, dvh - top - t.len('app-safe-bottom') - t.space(3));
     // `inset-inline-start: calc(var(--app-safe-left) + var(--glacier-space-3))`, or at the end
     // `inset-inline-end: calc(var(--app-safe-right) + var(--glacier-space-3))`.
-    final inset = (end ? t.len('app-safe-right') : t.len('app-safe-left')) + t.space(3);
+    final edge = (end ? t.len('app-safe-right') : t.len('app-safe-left')) + t.space(3);
+    final room = math.max(edge, media.size.width - width - edge);
+    final inset = from == null ? edge : (atRight ? media.size.width - from.right : from.left).clamp(edge, room);
 
     final Widget surface = CustomPaint(
       // `box-shadow: var(--app-float-shadow)`, outside the box only: the card is see-through, and a shadow under it

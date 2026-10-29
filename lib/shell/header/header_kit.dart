@@ -22,7 +22,7 @@ import '../../art/icons.dart' show HouseIcon;
 import '../../art/lucide.g.dart';
 import '../../core/workspaces.dart' show OrgLike;
 import '../../market/market_items.dart' show marketHues;
-import '../../notes/floating_card.dart' show FloatingCardToggle;
+import '../../notes/floating_card.dart' show FloatingCardToggle, cardOpenedFrom;
 import '../../notes/tabs/bar_parts.dart' show HueDot;
 import '../header_toolbar.dart';
 import '../pop_menu.dart';
@@ -85,7 +85,13 @@ class HeaderPress extends StatelessWidget {
       expanded: expanded ?? act.expanded,
       selected: act.current ? true : null,
       child: GlacierPressable(
-        onPressed: press,
+        // A card this opens hangs under this control (lib/notes/floating_card.dart `cardOpenedFrom`).
+        onPressed: press == null
+            ? null
+            : () {
+                cardOpenedFrom(context);
+                press();
+              },
         semanticLabel: act.label,
         toggled: act.toggled,
         pressScale: null,
@@ -328,7 +334,13 @@ class _HeaderMenuButtonState extends State<HeaderMenuButton> {
         // with the card open closes it, rather than the press closing it and the row opening it again.
         final row = GlacierMenuItem(
           key: act.key,
-          onSelect: act.onPress,
+          // A card the row opens hangs under the button the menu hangs from.
+          onSelect: act.onPress == null
+              ? null
+              : () {
+                  if (_anchor.currentContext case final from?) cardOpenedFrom(from);
+                  act.onPress!();
+                },
           disabled: act.onPress == null,
           ariaLabel: act.label,
           icon: icon ?? HeaderGlyph(act, size: 16, color: widget.glyphInk ?? t.color('glacier-text-muted')),

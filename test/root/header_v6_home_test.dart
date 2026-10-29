@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
@@ -197,6 +198,83 @@ void main() {
     await launch(tester, size: unfolded, version: HeaderToolbarVersion.groupedCommand.id, experience: 'simple');
     expect(find.byType(SimpleHome), findsOneWidget);
     expect(find.byKey(const ValueKey('simple-new')), findsOneWidget);
+    await close(tester);
+  });
+
+  // Matt, 2026-10-29, on 2.3.66, of History in Grouped command's note pill: "the history dropdown starts too low not
+  // under the buttons as expected". The side panel's card hangs from the control that opened it.
+  for (final version in [HeaderToolbarVersion.groupedCommand, HeaderToolbarVersion.grouped]) {
+    for (final size in [unfolded, const Size(1280, 800)]) {
+      // History opens the side panel on a desktop (on a phone it is the note's sheet, lib/root/ghost_root.dart
+      // `_asideHistoryOf`); the side panel's own toggle opens it anywhere.
+      final mac = size.width > 1000;
+      testWidgets('${version.number} ${version.label} on a note, ${mac ? 'the Mac' : 'the opened Fold'}: the side panel hangs just under the control that opened it${mac ? ', History' : ''}', (tester) async {
+        if (mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        await launch(tester, size: size, version: version.id);
+        final shell = tester.state<AppShellState>(find.byType(AppShell));
+        shell.openNote(shell.notes.first.id);
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        Future<void> opens(Finder control, {Finder? menu}) async {
+          final button = tester.getRect(control);
+          await tester.tap(control);
+          for (var i = 0; i < 4; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          if (menu != null) {
+            await tester.tap(menu);
+            for (var i = 0; i < 4; i++) {
+              await tester.pump(const Duration(milliseconds: 100));
+            }
+          }
+          final card = tester.getRect(find.byKey(const ValueKey('floating-card')));
+          expect(card.top - button.bottom, inInclusiveRange(0, 12), reason: 'the card at $card, the button at $button');
+          expect(card.left >= 0 && card.right <= size.width, isTrue, reason: 'the card at $card in a ${size.width} window');
+          // Shut again by the back gesture, for the next.
+          await tester.binding.handlePopRoute();
+          for (var i = 0; i < 4; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          expect(find.byKey(const ValueKey('floating-card')), findsNothing);
+        }
+
+        if (mac) {
+          final history = find.byKey(HeaderAct.keyOf('history'));
+          if (history.evaluate().isNotEmpty) {
+            await opens(history);
+          } else {
+            // Where History is under •••, its card hangs from •••.
+            await opens(find.byKey(HeaderAct.keyOf('overflow')).last, menu: find.byKey(HeaderAct.keyOf('history')).last);
+          }
+        }
+        // The side panel itself: the aside's own circle, or its row under •••.
+        final aside = find.byKey(HeaderAct.keyOf('aside'));
+        if (aside.evaluate().isNotEmpty) {
+          await opens(aside);
+        } else {
+          await opens(find.byKey(HeaderAct.keyOf('overflow')).last, menu: find.byKey(HeaderAct.keyOf('aside')).last);
+        }
+        await close(tester);
+        debugDefaultTargetPlatformOverride = null;
+      });
+    }
+  }
+
+  testWidgets('1 Today’s bar keeps the side panel’s card under the whole bar, as before', (tester) async {
+    await launch(tester, size: unfolded, version: HeaderToolbarVersion.today.id);
+    final shell = tester.state<AppShellState>(find.byType(AppShell));
+    shell.openNote(shell.notes.first.id);
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    shell.showAside();
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final t = GlacierTheme.of(tester.element(find.byKey(const ValueKey('floating-card'))));
+    expect(tester.getRect(find.byKey(const ValueKey('floating-card'))).top, moreOrLessEquals(t.len('app-safe-top') + t.space(2), epsilon: 0.5));
     await close(tester);
   });
 
