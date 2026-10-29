@@ -52,13 +52,24 @@
   font-size: var(--glacier-font-size-lg);
 }
 
+/*
+ * Every item's mark sits in one gutter, `--mark` wide, left of its words: a bullet's dot and a to-do's box are both
+ * drawn centred in it on the item's first line, so in a list of either or both (or one inside another) the marks line
+ * up, and the words all start at the gutter's edge. A numbered list keeps the browser's numbers in the same gutter.
+ */
 .rendered ul,
 .rendered ol {
+  --mark: 1.6em;
   margin: 0 0 0.85em;
-  padding-inline-start: 1.4em;
+  padding-inline-start: var(--mark);
+}
+
+.rendered ul {
+  list-style: none;
 }
 
 .rendered li {
+  position: relative;
   margin-block: 0.2em;
 }
 
@@ -71,28 +82,35 @@
   margin-block: 0.2em 0;
 }
 
-.rendered li::marker {
+.rendered ol > li::marker {
   color: var(--app-ink-3);
 }
 
-/* A to-do: its box where the dash would be. */
-.task {
-  list-style: none;
-  margin-inline-start: -1.4em;
+/* A bullet: a dot in the gutter, the height of the item's first line. */
+.rendered ul > li:not(.task)::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--mark));
+  inset-block-start: 0;
+  inline-size: var(--mark);
+  block-size: 1lh;
+  background: radial-gradient(circle at center, var(--app-ink-3) 0.16em, transparent 0.17em);
 }
 
-.task > p {
-  display: flex;
-  align-items: baseline;
-  gap: 0.55em;
+/* A to-do: its box where the dot would be, its words where an item's words are. */
+.task {
+  list-style: none;
 }
 
 .task input {
-  flex: none;
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--mark) + (var(--mark) - 1em) / 2);
+  inset-block-start: calc((1lh - 1em) / 2);
   inline-size: 1em;
   block-size: 1em;
   margin: 0;
-  transform: translateY(0.12em);
+  font: inherit;
+  line-height: inherit;
   accent-color: var(--app-ink);
 }
 

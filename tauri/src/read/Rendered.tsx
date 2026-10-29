@@ -270,7 +270,7 @@ function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
     case 'ListItem': {
       const task = children(node).some((c) => c.name === 'Task');
       return (
-        <li key={key} className={task ? styles.task : undefined}>
+        <li key={key} className={task ? styles.task : undefined} data-task={task ? '' : undefined}>
           {blocks(node, d, key)}
         </li>
       );

@@ -151,6 +151,32 @@ describe('Read | Markdown', () => {
     expect(document.body.textContent).toContain('See Trees and Not shared.');
   });
 
+  it('draws a to-do as a list’s item like any other, its box first in its line, in mixed, to-do-only and nested lists', async () => {
+    // Where the box and the words land is Rendered.module.css's: every item's mark in one gutter left of its words
+    // (measured in a browser by build/feature-shots/shared-read/shots.mjs). What it needs of the page is this shape.
+    const body = ['# Lists', '', '- A bullet', '- [ ] A to-do', '  - A nested bullet', '  - [x] A nested to-do', '', 'Between.', '', '- [ ] Only', '- [ ] To-dos'].join('\n');
+    vi.mocked(readShared).mockResolvedValueOnce(shared(body));
+    await opened();
+    await waitUntil(() => expect(document.querySelector('main h1')?.textContent).toBe('Lists'));
+    const lists = [...document.querySelectorAll('main ul')];
+    expect(lists).toHaveLength(3);
+    const [mixed, nested, only] = lists as [HTMLUListElement, HTMLUListElement, HTMLUListElement];
+    const items = (list: Element) => [...list.children].map((li) => [li.tagName, li.hasAttribute('data-task')]);
+    expect(items(mixed)).toEqual([['LI', false], ['LI', true]]);
+    expect(nested.parentElement?.hasAttribute('data-task')).toBe(true);
+    expect(items(nested)).toEqual([['LI', false], ['LI', true]]);
+    expect(items(only)).toEqual([['LI', true], ['LI', true]]);
+    for (const task of document.querySelectorAll('main li[data-task]')) {
+      // The box first in the item's first line, then the words, and no margin of its own pulling it out of the list.
+      const line = task.firstElementChild!;
+      expect(line.tagName).toBe('P');
+      expect(line.firstElementChild?.matches('input[type="checkbox"]')).toBe(true);
+      expect(line.children[1]?.tagName).toBe('SPAN');
+      expect((task as HTMLElement).style.marginInlineStart).toBe('');
+    }
+    expect([...document.querySelectorAll('main li:not([data-task]) > p > input')]).toHaveLength(0);
+  });
+
   it('opens a notebook’s chapter by its wiki link, and has the toggle over a chapter too', async () => {
     const index = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n- [[Birds]]\n';
     vi.mocked(readShared).mockResolvedValueOnce({
