@@ -28,7 +28,7 @@ class FakeProvider implements AiProvider {
 
 class ProviderTest {
   ProviderTest(AiProviderPage base) {
-    settings = AiProviderSettings(MemorySecureStore(), prefix: base.settings.prefix, name: base.settings.name, keyOptional: base.settings.keyOptional, needsBase: base.settings.needsBase, fallbackModels: base.settings.fallbackModels);
+    settings = AiProviderSettings(MemorySecureStore(), prefix: base.settings.prefix, name: base.settings.name, keyOptional: base.settings.keyOptional, needsBase: base.settings.needsBase, fallbackModels: base.settings.fallbackModels, ratesFor: base.settings.ratesFor);
     page = base.copyWith(settings: settings, client: (settings, {key}) {
       keys.add(key ?? settings.key);
       return FakeProvider(this);

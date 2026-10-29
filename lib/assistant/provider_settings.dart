@@ -2,7 +2,7 @@
 /// it, the model, the address for an OpenAI-compatible endpoint, whether it may write meetings up, whether its model
 /// takes tools, the prices its spending limit counts at, and the limit itself. Claude's own are
 /// lib/claude/claude_settings.dart, as they were; these are the other providers', one class for all of them, each
-/// under its own [prefix] (`openai`, `gemini`, `custom-ai`).
+/// under its own [prefix] (`openai`, `gemini`, `custom-ai`, `aster`).
 ///
 /// **Kept as Claude's are**: in the device's secure storage (lib/account/device_keys.dart [SecureStore]), never in the
 /// preferences in the clear, never in the library folder a backup copies; and **they follow the account** as Claude's
@@ -38,6 +38,7 @@ class AiProviderSettings extends ChangeNotifier {
     this.needsBase = false,
     this.fallbackModels = const [],
     this.defaultRates = aiCautiousRates,
+    this.ratesFor,
     DateTime Function()? now,
   }) {
     spend = ClaudeSpend(_store, now: now, spendName: spendName, limitName: limitName, price: (model, usage) => aiCost(rates, input: usage.input + usage.cacheWrite5m + usage.cacheWrite1h, cached: usage.cacheRead, output: usage.output), who: name, place: 'Settings › $name');
@@ -65,6 +66,10 @@ class AiProviderSettings extends ChangeNotifier {
 
   /// The rates counted at until others are set (see [rates]).
   final AiRates defaultRates;
+
+  /// The provider's published prices for a model, by its id, where the plugin knows them (Aster's three); null for a
+  /// model it doesn't, which is counted at [defaultRates].
+  final AiRates? Function(String model)? ratesFor;
 
   /// What this provider has spent this month on this device, and the limit on it.
   late final ClaudeSpend spend;
@@ -129,11 +134,17 @@ class AiProviderSettings extends ChangeNotifier {
   bool get tools => _tools;
 
   /// The rates the limit counts at: the person's, else the listing's for the model where it says (OpenRouter's), else
-  /// [defaultRates].
-  AiRates get rates => _rates ?? _listed.where((m) => m.id == model).firstOrNull?.rates ?? defaultRates;
+  /// the plugin's published prices for it ([ratesFor]), else [defaultRates].
+  AiRates get rates => _rates ?? _knownRates ?? defaultRates;
+
+  AiRates? get _knownRates => _listed.where((m) => m.id == model).firstOrNull?.rates ?? ratesFor?.call(model);
 
   /// Whether the person set the rates.
   bool get ratesChosen => _rates != null;
+
+  /// Whether the rates counted at are the model's own, as the listing or the plugin has them, rather than the person's
+  /// or the high guess.
+  bool get ratesKnown => _rates == null && _knownRates != null;
 
   /// The models listed last, or the fallback's where none were.
   List<AiModelInfo> get listed => _listed;

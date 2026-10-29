@@ -502,7 +502,7 @@ void main() {
       await openPane(tester, 'ai', size: const Size(390, 1200));
       // And under it, which AI answers the chat and which writes meetings up (docs/AI_PROVIDERS.md; Matt, 2026-10-29).
       expect(cardTitles(tester), ['Model', 'Assistant', 'Meeting summaries']);
-      const ais = ['Automatic', 'Claude', 'OpenAI', 'Gemini', 'Custom AI model'];
+      const ais = ['Automatic', 'Claude', 'OpenAI', 'Gemini', 'Custom AI model', 'Aster'];
       expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own', ...ais, ...ais, 'On this device']);
       expect(hintOf(tester, 'Qwen3.5 4B'), 'The balance. Fits most phones; check a fact it answers from memory. 2.7 GB.');
       expect(find.text('Get'), findsNWidgets(4));

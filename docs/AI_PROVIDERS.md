@@ -1,8 +1,8 @@
-# AI providers: Claude, OpenAI, Gemini and any OpenAI-compatible model
+# AI providers: Claude, OpenAI, Gemini, Aster and any OpenAI-compatible model
 
-Matt, 2026-10-29: "Add support for aster 6 and other Ai models as plugins in addition to claude like openAI google gemini etc".
+Matt, 2026-10-29: "Add support for aster 6 and other Ai models as plugins in addition to claude like openAI google gemini etc", then "aster 6 is OpenAI-compatible, add it as a plugin".
 
-The app's own AI assistant (the dock's chat, Ask, talking to it, the "Ask Claude" note's runner, meeting summaries) was Claude's alone (docs/CLAUDE_APP.md). It is now one seam with a provider behind it, Claude one of four. Claude's path is the one it always was; every existing Claude test passes untouched.
+The app's own AI assistant (the dock's chat, Ask, talking to it, the "Ask Claude" note's runner, meeting summaries) was Claude's alone (docs/CLAUDE_APP.md). It is now one seam with a provider behind it, Claude one of five. Claude's path is the one it always was; every existing Claude test passes untouched.
 
 ## The seam
 
@@ -22,8 +22,9 @@ The app's own AI assistant (the dock's chat, Ask, talking to it, the "Ask Claude
 | OpenAI (`openai`) | `lib/plugins/openai/chat_api.dart` | `POST api.openai.com/v1/chat/completions`, `stream: true`, `stream_options.include_usage`, `max_completion_tokens`, function tools | `GET /v1/models`, cut to chat models | the newest plain `gpt-N` in the list (`openAiFlagship`) |
 | Gemini (`gemini`) | `lib/plugins/gemini/gemini_api.dart` | `POST generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse`, key in `x-goog-api-key`, `functionDeclarations` | `GET /v1beta/models` (pages), cut to `generateContent` Gemini models | the newest stable Pro, else Flash (`geminiDefault`) |
 | Custom AI model (`custom-ai`) | OpenAI's client at the given address | `POST {base}/chat/completions`, `max_tokens` | `GET {base}/models`; none is fine, the model is typed | the first listed, or typed |
+| Aster (`aster`) | OpenAI's client at `https://api.asterlab.ai/v1` (`AsterApi`) | `POST /v1/chat/completions`, `max_tokens` | `GET /v1/models`; where that is missing (404/405), one token of a chat with the chosen model | the first listed, else `gpt-oss-120b-fast`, or typed |
 
-**Model ids are read, not written.** Each plugin keeps a small fallback list, said on its page to be possibly out of date (OpenAI: `gpt-5`, `gpt-5-mini`, `gpt-4.1`; Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`). When a list is read and no model is chosen yet, the first listed is kept as the choice, so the default holds after a restart until the person chooses another.
+**Model ids are read, not written.** Each plugin keeps a small fallback list, said on its page to be possibly out of date (OpenAI: `gpt-5`, `gpt-5-mini`, `gpt-4.1`; Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`; Aster: `gpt-oss-120b-fast`). When a list is read and no model is chosen yet, the first listed is kept as the choice, so the default holds after a restart until the person chooses another.
 
 **Translation, OpenAI-compatible.** System prompt → a `system` message; a user turn's `tool_result` blocks → `tool` messages (in order, before the turn's words); `tool_use` blocks → `tool_calls` with JSON arguments; thinking blocks, `thinking` and `output_config` dropped. Back: `delta.content` → text; `delta.reasoning_content`/`reasoning` → a thinking block; each `tool_calls[i]` → a `tool_use` block opened once its name is known and fed its arguments however they were cut; `finish_reason` `tool_calls` → `tool_use`, `length` → `max_tokens`, `content_filter` → `refusal`, and `stop` after tool calls → `tool_use` (some local servers); usage from the last chunk (cached tokens as cache reads). A server that knows no `stream_options` is asked again without.
 
@@ -33,17 +34,17 @@ The app's own AI assistant (the dock's chat, Ask, talking to it, the "Ask Claude
 
 ## The key, the settings, the sync
 
-`lib/assistant/provider_settings.dart`, one class for the three, each under its prefix (`openai`, `gemini`, `custom-ai`) in the device's secure store: `-api-key`, `-model`, `-base-url` (custom), `-meetings`, `-tools`, `-rates`, `-spend`, `-limit`. All but `-spend` (this month's count, each device's own) follow the account sealed, as Claude's do (`lib/sync/connections.dart`), with the three plugins' switches and the assistant's two choices.
+`lib/assistant/provider_settings.dart`, one class for the four, each under its prefix (`openai`, `gemini`, `custom-ai`, `aster`) in the device's secure store: `-api-key`, `-model`, `-base-url` (custom), `-meetings`, `-tools`, `-rates`, `-spend`, `-limit`. All but `-spend` (this month's count, each device's own) follow the account sealed, as Claude's do (`lib/sync/connections.dart`), with the four plugins' switches and the assistant's two choices.
 
 ## Spending limit
 
-Each provider has Claude's limit (`ClaudeSpend`, under its own names, its own words "Settings › OpenAI"). No provider's API says its prices, so the meter counts at the page's **Prices** (US dollars a million tokens, input and output): $10 / $40 until the person sets their model's, a high guess so the limit is reached early rather than late. OpenRouter's listing gives prices per model, and those are used where the person set none.
+Each provider has Claude's limit (`ClaudeSpend`, under its own names, its own words "Settings › OpenAI"). No provider's API says its prices, so the meter counts at the page's **Prices** (US dollars a million tokens, input and output): $10 / $40 until the person sets their model's, a high guess so the limit is reached early rather than late. OpenRouter's listing gives prices per model, and those are used where the person set none; a plugin may know its provider's published prices by model id (`ratesFor`), as Aster's does (below). The Prices row says which it is counting at: the person's, the model's published ones, or the high guess.
 
 ## The assistant
 
 `lib/assistant/assistant.dart`, the app's instance `lib/assistant/app_assistant.dart`. Settings › AI › Assistant has two choices:
 
-- **Chat and Ask**: Automatic (default), Claude, OpenAI, Gemini or Custom AI model. Automatic is Claude where its plugin is on and a key kept, else the first other provider set up (Market order), else nobody (the dock has no chat, as with no key today). A provider chosen by name answers while it can; when it can't, Automatic stands in.
+- **Chat and Ask**: Automatic (default), Claude, OpenAI, Gemini, Custom AI model or Aster. Automatic is Claude where its plugin is on and a key kept, else the first other provider set up (Market order), else nobody (the dock has no chat, as with no key today). A provider chosen by name answers while it can; when it can't, Automatic stands in.
 - **Meeting summaries**: the same, plus On this device. Each provider's own "Write meeting summaries with (name)" switch says whether it may; Automatic is Claude where it may (exactly as before), else the first other provider that may, else the device's model. Local only holds a chosen provider (the job waits), as it holds Claude.
 
 The runner (`lib/claude/claude_runner.dart`, `route:`) and the meetings' write-up (`lib/ai/summary_claude.dart`, `choice:`) read it; with none given they are Claude's as before. A conversation is one provider's: an ask after the answer moved starts afresh. Another provider is asked with the same tools and a system prompt that calls it "an AI assistant"; Claude's still says "You are Claude". The chat, the bar and the dock name whoever answers; Claude's model and effort picker show only for Claude. Another model's room is not known, so a meeting goes to it in pieces past 120,000 characters (Claude's one pass is 800,000).
@@ -64,9 +65,18 @@ Each plugin's permission, page, setup and Market card say it: what you ask, the 
 - The watch's To Claude switch and the phone-assistant card live on Claude's page.
 - The "Claude rules" note is read as the standing instructions for every provider.
 
-## Aster 6
+## Aster
 
-TODO: Matt named "Aster 6"; its provider isn't known yet. Until it is, it is reached through Custom AI model if it offers an OpenAI-compatible endpoint. No Aster-branded plugin was added.
+Matt, 2026-10-29: "aster 6 is OpenAI-compatible, add it as a plugin". `lib/plugins/aster/aster.dart`: Custom AI model's shape, preset, with no HTTP of its own. Off until added; after Custom AI model in the list and in Automatic's order.
+
+What Aster's public site says (https://www.asterlab.ai/inference and /pricing, read 2026-10-29, not opened by the app's tests): OpenAI-compatible, at `https://api.asterlab.ai/v1`; "pass your Aster key", with no header named, so the OpenAI client's `Authorization: Bearer` is sent; keys are made in the console (https://www.asterlab.ai/inference/console), where credits are added; zero data retention by default. Plans: Free, Pro $20 a month, Max $100. Nothing on the site names "Aster 6": that is Matt's name for it, said once in the plugin's description.
+
+- **Models** are read from `GET /v1/models`; the fallback, said to be possibly out of date, is `gpt-oss-120b-fast`, the one model the site shows by what looks like its id. The others it shows ("Kimi K3", "GLM 5.2") are display names, so the page and the setup let a model's id be typed (`AiProviderPage.typedModel`).
+- **The check**: the models list, as OpenAI's. The site doesn't say there is one; where it answers 404 or 405, `AsterApi.check` asks the chosen model for one token instead (`max_tokens: 1`, through the same client), which Aster bills, a few tokens.
+- **Prices** (`asterRatesFor`, US dollars a million tokens, in / out): `gpt-oss-120b-fast` exactly $0.30 / $1.20; any id containing `kimi` Kimi K3's $2.50 / $12.50; any containing `glm` GLM 5.2's $1.00 / $4.00; anything else the high guess.
+- **Tools** aren't mentioned on the site: a model that refuses them is asked again without them, as any other's.
+- **Setup**: intro → account (the console and the pricing page) → key (the console) → paste → check → settings. Links marked unverified. Words in `setupVoice` (`aster-*`), clips made by `tool/plugin_setup_voice.py`; "Aster" needed no SAID.
+- **Privacy**: its permission, page, setup and Market card say what you ask and the notes it reads go to Aster under your key, and nowhere else.
 
 ## Store
 
@@ -74,4 +84,4 @@ In-app naming of providers is fine. No store metadata or screenshots changed (do
 
 ## Tests
 
-Fake HTTP only (`test/assistant/fake_http.dart`): `test/assistant/assistant_test.dart` (the seam, the choice, the runner's and the write-ups' routing), `test/plugins/openai/chat_api_test.dart`, `test/plugins/gemini/gemini_api_test.dart`, `test/plugins/ai_providers/setup_test.dart` (setups, pages, privacy words), `test/settings/ai_assistant_test.dart`, the sealed sync in `test/sync/sealed_keys_test.dart`. Pictures: `flutter test --no-pub --update-goldens test/plugins/ai_providers/shots_test.dart` → `build/feature-shots/ai-providers/`.
+Fake HTTP only (`test/assistant/fake_http.dart`): `test/assistant/assistant_test.dart` (the seam, the choice, the runner's and the write-ups' routing), `test/plugins/openai/chat_api_test.dart`, `test/plugins/gemini/gemini_api_test.dart`, `test/plugins/ai_providers/setup_test.dart` (setups, pages, privacy words), `test/plugins/aster/aster_test.dart` (Aster's address and header, the check's fallback, its prices, its setup and page), `test/settings/ai_assistant_test.dart`, the sealed sync in `test/sync/sealed_keys_test.dart`. Pictures: `flutter test --no-pub --update-goldens test/plugins/ai_providers/shots_test.dart` → `build/feature-shots/ai-providers/`.

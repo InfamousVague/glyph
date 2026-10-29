@@ -15,6 +15,7 @@ import 'package:ghost_md/assistant/provider_pane.dart';
 import 'package:ghost_md/assistant/provider_settings.dart';
 import 'package:ghost_md/assistant/provider_setup.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/plugins/aster/aster.dart';
 import 'package:ghost_md/plugins/custom_ai/custom_ai.dart';
 import 'package:ghost_md/plugins/gemini/gemini.dart';
 import 'package:ghost_md/plugins/onboarding/setup_card.dart';
@@ -230,7 +231,7 @@ void main() {
     });
 
     testWidgets('the app’s page builders put Set up on each page', (tester) async {
-      for (final plugin in [openAiPlugin, geminiPlugin, customAiPlugin]) {
+      for (final plugin in [openAiPlugin, geminiPlugin, customAiPlugin, asterPlugin]) {
         await pumpSettings(tester, SingleChildScrollView(key: UniqueKey(), child: Builder(builder: plugin.settings!.pane)), size: const Size(390, 4000));
         expect(find.byType(PluginSetupCard), findsOneWidget, reason: plugin.manifest.id);
         await endSettings(tester);
@@ -239,7 +240,7 @@ void main() {
   });
 
   test('each plugin says plainly where the words go, under whose key, and is off until added', () {
-    for (final (plugin, page, to) in [(openAiPlugin, openAiPage, 'OpenAI'), (geminiPlugin, geminiPage, 'Google'), (customAiPlugin, customAiPage, 'the address you give')]) {
+    for (final (plugin, page, to) in [(openAiPlugin, openAiPage, 'OpenAI'), (geminiPlugin, geminiPage, 'Google'), (customAiPlugin, customAiPage, 'the address you give'), (asterPlugin, asterPage, 'Aster')]) {
       final manifest = plugin.manifest;
       expect(manifest.standard, isFalse, reason: manifest.id);
       expect(manifest.permissions.last.why, contains('go from this device to $to'), reason: manifest.id);
@@ -250,5 +251,6 @@ void main() {
     expect(openAiManifest.hosts, ['api.openai.com']);
     expect(geminiManifest.hosts, ['generativelanguage.googleapis.com']);
     expect(customAiManifest.hosts, isEmpty);
+    expect(asterManifest.hosts, ['api.asterlab.ai']);
   });
 }

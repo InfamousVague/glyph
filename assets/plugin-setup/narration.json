@@ -5,6 +5,69 @@
     "name": "Jessica"
   },
   "files": {
+    "aster-account": {
+      "words": "09cc78b26b5b1711",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 89487,
+      "seconds": 11.11
+    },
+    "aster-check": {
+      "words": "d5d469d9479c6d25",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 106205,
+      "seconds": 13.2
+    },
+    "aster-done": {
+      "words": "8cd88db9fba648eb",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 95756,
+      "seconds": 11.91
+    },
+    "aster-done-simple": {
+      "words": "ecc5cf41484f069e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 37033,
+      "seconds": 4.55
+    },
+    "aster-intro": {
+      "words": "0dd538316e75ce96",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 154270,
+      "seconds": 19.2
+    },
+    "aster-intro-simple": {
+      "words": "c082fdc37bbfda01",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 66917,
+      "seconds": 8.3
+    },
+    "aster-key": {
+      "words": "d0fe169acac23437",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 65245,
+      "seconds": 8.08
+    },
+    "aster-paste": {
+      "words": "be3f2bc7842e1764",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 61275,
+      "seconds": 7.59
+    },
+    "aster-paste-simple": {
+      "words": "5264197985158951",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 29928,
+      "seconds": 3.68
+    },
     "calendar-check": {
       "words": "dc5760ec2ec084a9",
       "model": "eleven_v4",

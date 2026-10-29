@@ -238,7 +238,7 @@ class _ProviderSetupChoicesState extends State<ProviderSetupChoices> {
                     ),
                 ],
               ),
-            if (page.custom) ...[
+            if (page.typesModel) ...[
               PlainField(label: 'Model name', controller: _typed, placeholder: chosen.isEmpty ? 'The model’s name' : chosen, onSubmitted: _keepTyped),
               SheetGroup(children: [SheetRow(key: ValueKey('${page.id}-setup-model-typed'), label: 'Use the name typed', onPress: _keepTyped)]),
             ],

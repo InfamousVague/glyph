@@ -20,12 +20,13 @@
 /// reason the list is here. And the list is longer: the web's five, then the integrations the app has of its own,
 /// each made a plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): Calendar,
 /// Contacts, Rich embeds, Todoist and Things; then Lovart and Discord; then Google Meet and Zoom, which were Settings ›
-/// Meetings; then ElevenLabs; then the other AI providers, OpenAI, Gemini and a custom OpenAI-compatible endpoint
-/// (docs/AI_PROVIDERS.md); then Keyboard modes. The app's own Claude is the Claude plugin's other half.
+/// Meetings; then ElevenLabs; then the other AI providers, OpenAI, Gemini, a custom OpenAI-compatible endpoint and
+/// Aster (docs/AI_PROVIDERS.md); then Keyboard modes. The app's own Claude is the Claude plugin's other half.
 library;
 
 import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
 import '../sync/arrived.dart' show onArrived;
+import 'aster/aster.dart' show asterPlugin;
 import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
@@ -79,6 +80,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   openAiPlugin,
   geminiPlugin,
   customAiPlugin,
+  // Matt, 2026-10-29: "aster 6 is OpenAI-compatible, add it as a plugin": Custom AI model's shape at Aster's address
+  // (aster/aster.dart).
+  asterPlugin,
   // Matt, 2026-10-29: "add vim controls to the app via a plugin as well", then "add a vim / emac controls via a
   // plugin": a note typed from a hardware keyboard as Vim or Emacs types (keymaps/keymaps.dart).
   keymapsPlugin,

@@ -85,7 +85,7 @@ void main() {
       expect(createRegistry([linked, optional], store: MemorySwitches()).storageKeys(), ['glyph-plugins', 'glyph-optional']);
     });
 
-    test('ships Notion, GitHub, Marks, Claude and Rich embeds as standard, and Slack, Place reminders, Webhooks, Calendar, Contacts, Todoist, Things, Lovart and Discord off until switched on, Google Meet and Zoom on, ElevenLabs off, OpenAI, Gemini and Custom AI model off, and Keyboard modes off, each within its manifest', () {
+    test('ships Notion, GitHub, Marks, Claude and Rich embeds as standard, and Slack, Place reminders, Webhooks, Calendar, Contacts, Todoist, Things, Lovart and Discord off until switched on, Google Meet and Zoom on, ElevenLabs off, OpenAI, Gemini, Custom AI model and Aster off, and Keyboard modes off, each within its manifest', () {
       expect([for (final p in builtIn) (p.manifest.id, p.manifest.standard)], [
         ('notion', true),
         ('github', true),
@@ -110,6 +110,8 @@ void main() {
         ('openai', false),
         ('gemini', false),
         ('custom-ai', false),
+        // Aster's models at its OpenAI-compatible address (lib/plugins/aster/; Matt, 2026-10-29): off until added.
+        ('aster', false),
         // Vim or Emacs keys from a hardware keyboard (lib/plugins/keymaps/; Matt, 2026-10-29): off, it changes what the letters do.
         ('keyboard-modes', false),
       ]);
@@ -125,7 +127,7 @@ void main() {
       final web = webBuiltIn();
       // The page's five, then this app's own, which the page never had.
       expect(ids(builtIn.take(web.length)), ids(web));
-      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'keyboard-modes']);
+      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes']);
       for (final (index, plugin) in builtIn.take(web.length).indexed) {
         final (ours, theirs) = (plugin.manifest, web[index].manifest);
         final id = ours.id;
@@ -166,7 +168,7 @@ void main() {
       addTearDown(() => usePlugins(before));
       final registry = installBuiltInPlugins(store: MemorySwitches(), localOnly: () => true);
       expect(identical(plugins, registry), isTrue);
-      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'keyboard-modes']);
+      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes']);
       // Local only holds off every one that uses the internet; Place reminders, Contacts and Things, which never
       // leave the phone, are only off until switched on.
       expect(ids(registry.enabled()), ['marks']);

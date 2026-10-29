@@ -7,14 +7,14 @@
 ///   asked twice. Under it, plainly, what goes where ([AiProviderPage.sends]).
 /// - **Model**: the provider's own list, read from it as the key is kept and again on Read the list again, never a list
 ///   of ids written here; the plugin's few in its place where the list cannot be read, said to be possibly out of
-///   date. The custom endpoint's model may be typed, as some list none.
+///   date. The custom endpoint's model may be typed, as some list none, and Aster's ([AiProviderPage.typedModel]).
 /// - **Tools**: whether the model is offered Ghost.md's tools (on), for a model the person knows has none. One that
 ///   refuses them is asked without them anyway, and the chat says so once.
 /// - **Meeting summaries**: Write meeting summaries with (its name), on unless turned off, as Claude's; which provider writes
 ///   them, of those that may, is Settings › AI › Assistant.
 /// - **Spending limit**: Claude's card, for this provider's own limit (lib/claude/claude_spend.dart), and the prices it
 ///   counts at, since no provider's API says them: high until the person sets their model's, so the limit is reached
-///   early rather than late; OpenRouter's listed prices where it lists them.
+///   early rather than late; OpenRouter's listed prices where it lists them, and Aster's published ones for its models.
 library;
 
 import 'dart:async';
@@ -310,7 +310,7 @@ class _ProviderPaneState extends State<ProviderPane> {
           ),
         if (shown.length < models.length)
           SettingRow(key: const ValueKey('provider-models-all'), label: 'Show all ${models.length}', onPress: () => setState(() => _all = true)),
-        if (_page.custom || (chosen.isNotEmpty && !models.any((m) => m.id == chosen)))
+        if (_page.typesModel || (chosen.isNotEmpty && !models.any((m) => m.id == chosen)))
           SettingRow(
             key: const ValueKey('provider-model-typed'),
             label: chosen.isEmpty ? 'Model name' : 'Model: $chosen',
@@ -374,7 +374,13 @@ class _ProviderPaneState extends State<ProviderPane> {
         SettingRow(
           key: const ValueKey('provider-spend-rates'),
           label: 'Prices',
-          hint: Text(_settings.ratesChosen ? '$ratesSaid, as you set them.' : '$ratesSaid: a high guess until you set your model’s, so the limit is reached early rather than late.'),
+          hint: Text(
+            _settings.ratesChosen
+                ? '$ratesSaid, as you set them.'
+                : _settings.ratesKnown
+                    ? '$ratesSaid: ${_page.name}’s published prices for ${_settings.model} when this was written. Set your own if they’ve changed.'
+                    : '$ratesSaid: a high guess until you set your model’s, so the limit is reached early rather than late.',
+          ),
           layout: SettingRowLayout.stacked,
           control: Row(
             spacing: context.tokens.space(2),

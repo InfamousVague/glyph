@@ -64,6 +64,16 @@ const Map<String, String> setupVoice = {
   'custom-ai-paste': 'Paste the endpoint’s address, which usually ends in /v1, and its key if it has one. On your own computer, LM Studio’s is http://localhost:1234/v1 and Ollama’s http://localhost:11434/v1, with no key.',
   'custom-ai-check': 'Ghost asks the endpoint for its list of models. Nothing is billed for it, and the list is where the model is chosen from. An endpoint with no list is fine: type the model’s name next.',
   'custom-ai-done': 'Choose the model, or type its name as the endpoint knows it. Meeting summaries can be turned on or off here too.',
+  // ---- Aster (lib/plugins/aster/aster.dart) -----------------------------------------------------------------------
+  'aster-intro': 'Aster’s models answer with your own Aster API key, through its OpenAI-compatible API, and Aster bills the key for what you ask. In Ghost they answer from the dock on any page, write into your notes as you watch, and can write your meetings up. What you ask, and the notes it reads, go to Aster and nowhere else.',
+  'aster-intro-simple': 'Aster’s models answer with your own Aster API key, and Aster bills the key. Your notes’ words go to Aster, and nowhere else.',
+  'aster-account': 'First, an Aster account: open the Aster console and sign up, or sign in. Add credits there before it can answer; the plans and their prices are on Aster’s pricing page.',
+  'aster-key': 'Now a key. In the console, create an API key and give it a name, such as Ghost. Copy all of it.',
+  'aster-paste': 'Paste the key here. It’s kept in this device’s secure storage, and sealed to your other devices while keys and connections sync.',
+  'aster-paste-simple': 'Paste the key here. It’s kept safely on this device.',
+  'aster-check': 'Ghost asks Aster whether the key works, with the list of models it may use, and nothing is billed for it. If Aster has no list, Ghost asks the model for a single word instead, which costs a fraction of a cent.',
+  'aster-done': 'You’re set. Choose the model, or type its name as Aster gives it. Meeting summaries can be turned on or off here too; which AI answers the dock is chosen in Settings, under AI.',
+  'aster-done-simple': 'You’re set. Aster answers from the dock when no other AI is set up.',
   // ---- Notion (lib/plugins/notion/notion_setup.dart) -----------------------------------------------------------------
   'notion-intro': 'Notion turns the list items in your notes into tasks on your Notion boards. Link a note to a board, then swipe an item, or send the whole list, and each becomes a task, its words a link to it. Only the items you send go to Notion.',
   'notion-intro-simple': 'Notion turns the list items in your notes into tasks on your Notion boards. Only the items you send go there.',

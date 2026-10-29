@@ -117,7 +117,7 @@ void main() {
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNWidgets(themes.length));
       expect(find.byType(MarketFontCard, skipOffstage: false), findsNWidgets(typefaces.length));
       expect(onShelf(tester, 'added'), ['claude', 'github', 'google-meet', 'notion', 'zoom', 'marks', 'rich-embeds']);
-      expect(onShelf(tester, 'discover'), ['custom-ai', 'elevenlabs', 'gemini', 'lovart', 'openai', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks', 'keyboard-modes']);
+      expect(onShelf(tester, 'discover'), ['aster', 'custom-ai', 'elevenlabs', 'gemini', 'lovart', 'openai', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks', 'keyboard-modes']);
       expect(find.text('7 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });

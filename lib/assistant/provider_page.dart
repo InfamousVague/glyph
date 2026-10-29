@@ -1,7 +1,7 @@
 /// What one AI provider's plugin says about itself and how its key is checked (docs/AI_PROVIDERS.md, "Its page and its
 /// setup"): one description for the page every provider shares (provider_pane.dart) and the setup every provider
 /// shares (provider_setup.dart), each plugin's own words and addresses held in its folder (lib/plugins/openai/,
-/// lib/plugins/gemini/, lib/plugins/custom_ai/).
+/// lib/plugins/gemini/, lib/plugins/custom_ai/, lib/plugins/aster/).
 ///
 /// **What it says of privacy** is said plainly on its page, in its setup and in the Market ([sends]): what is asked,
 /// the notes read to answer it, and, with meetings on, a meeting's transcript, go from this device to the provider
@@ -41,6 +41,7 @@ class AiProviderPage {
     this.billing,
     this.about = '',
     this.custom = false,
+    this.typedModel = false,
   });
 
   /// The plugin's id: `openai`.
@@ -78,6 +79,13 @@ class AiProviderPage {
   /// Whether this is the OpenAI-compatible endpoint: an address and a model typed, the key optional.
   final bool custom;
 
+  /// Whether a model's id may be typed as well as picked from the list, for a provider at a fixed address whose list
+  /// may not name every model or may not be there at all (Aster's). The custom endpoint's always may ([typesModel]).
+  final bool typedModel;
+
+  /// Whether the page and the setup offer a field for the model's id.
+  bool get typesModel => custom || typedModel;
+
   /// The same page over other settings and another client: a test's, whose provider is its own.
   AiProviderPage copyWith({AiProviderSettings? settings, AiProvider Function(AiProviderSettings settings, {String? key})? client}) => AiProviderPage(
         id: id,
@@ -95,6 +103,7 @@ class AiProviderPage {
         billing: billing,
         about: about,
         custom: custom,
+        typedModel: typedModel,
       );
 
   /// The privacy line (see the header).
