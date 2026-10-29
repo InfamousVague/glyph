@@ -26,7 +26,9 @@
 ///   (table_layout.dart [TableLook.linkLook]) and a tap on one opens it as a tap on a link in the words does
 ///   (media/links.dart [linkTapOpener]; a `[[link]]` by the editor's `wikiOptions`), with Cmd or Ctrl or without,
 ///   since a drawn table is never the lines being written. A tap anywhere else on the table opens its pipes, as
-///   before; the mouse's pointer is a hand over a link and the text cursor over the rest.
+///   before; the mouse's pointer is a hand over a link and the text cursor over the rest. Where the words round the
+///   table keep every press from it (a notebook's page read straight through, lib/book/book_view.dart), the words
+///   ask the table what a tap opens ([RenderGlyphTable.linkTapAt]) and open it themselves.
 /// - The Fill pill after the last row is `tablePill` (lib/editor/ai/blanks.dart), drawn where the table holds
 ///   blanks for the model. **A blank or a filled answer in a cell** is `drawCell`'s widget, held by the table in
 ///   place of that cell's words ([GlyphTable.cells], [HeldCell]): the table paints every other cell's words itself
@@ -48,7 +50,7 @@ import '../commands/tables.dart';
 import '../items/wiki_links.dart' show wikiLinksIn, wikiOptions;
 import '../looks/look.dart';
 import '../looks/peek_look.dart';
-import '../media/links.dart' show linkTapOpener;
+import '../media/links.dart' show ReadLinkTarget, linkTapOpener;
 import '../state/change.dart';
 import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
@@ -362,7 +364,7 @@ class _LinkHand with Diagnosticable implements HitTestTarget, MouseTrackerAnnota
 }
 
 /// The table's box: as wide and as tall as the page's `<table>`, which may be wider than the room it was given.
-class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderBox, HeldCellParentData>, RenderBoxContainerDefaultsMixin<RenderBox, HeldCellParentData> {
+class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderBox, HeldCellParentData>, RenderBoxContainerDefaultsMixin<RenderBox, HeldCellParentData> implements ReadLinkTarget {
   RenderGlyphTable(this._rows, this._align, this._look, this._room, [this._links = const <List<List<CellLink>>>[]]);
 
   List<List<String>> _rows;
@@ -421,6 +423,18 @@ class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderB
     final link = _pressed;
     _pressed = null;
     if (link != null) onLink?.call(link);
+  }
+
+  /// A table in words drawn to be read, which keep every press from it (a notebook's page read straight through):
+  /// what a tap at `global` would open, asked by the words themselves (media/links.dart [readLinkAt]).
+  @override
+  VoidCallback? linkTapAt(Offset global) {
+    final open = onLink;
+    if (open == null || !attached || !hasSize) return null;
+    final local = globalToLocal(global);
+    if (!(Offset.zero & size).inflate(_slop).contains(local)) return null;
+    final link = _openable(local);
+    return link == null ? null : () => open(link);
   }
 
   void _drop() {

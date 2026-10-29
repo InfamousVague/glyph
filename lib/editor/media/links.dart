@@ -41,10 +41,16 @@
 ///   here (a tap on its pill lands the caret, which writes it out), and an address no app may be handed
 ///   (lib/core/open_link.dart `canOpenLink`: a relative path, an `#anchor`) is left to the caret too. A drawn
 ///   table's links open the same way (tables/table_box.dart).
+/// - ADDED: the same tap in words drawn only to be read ([readLinkAt], [ReadLinks]): a notebook's own words and its
+///   pages read straight through (lib/book/book_view.dart), which have no caret, and so no `mousedown` of their own
+///   for a link to hear (Matt, 2026-10-29: "Allow opening web links in the book view"). A tap on a link's words, an
+///   address said bare or a `[[link]]` opens it as in a note, and a drawn table's link where the words keep the
+///   table's own taps from it ([ReadLinkTarget]); a press anywhere else is left to whatever heard it before, and the
+///   mouse's pointer is a hand over a link.
 library;
 
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/gestures.dart' show PointerDeviceKind, kPrimaryButton;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerHoverEvent, TapGestureRecognizer, kPrimaryButton;
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
@@ -57,6 +63,7 @@ import '../../core/text.dart';
 import '../../plugins/mark_details.dart' show hasMarkDetails;
 import '../editor.dart';
 import '../items/mark_reads.dart';
+import '../items/wiki_links.dart' show wikiLinksIn, wikiOptions;
 import '../looks/look.dart';
 import '../semantics/line_semantics.dart' show linksOn;
 import '../syntax/tree.dart' show SyntaxNode;
@@ -330,6 +337,118 @@ bool _pressLink(PointerDownEvent event, EditorViewLike view) {
   if (_writing(view, link.from, link.to) && !opensAnyway()) return false;
   open(link.url);
   return true;
+}
+
+// ---- words drawn to be read --------------------------------------------------------------------------------------
+
+/// Something drawn over a view's lines that has links of its own (a drawn table: tables/table_box.dart), asked by
+/// [readLinkAt] where the words drawn to be read keep the press from it.
+abstract interface class ReadLinkTarget {
+  /// What a tap at `global` opens; null where it is on no link this can open.
+  VoidCallback? linkTapAt(Offset global);
+}
+
+/// What a tap at `global` opens in a view drawn to be read, which takes no caret and so hears no `mousedown`: a
+/// link's address by the view's opener ([linkTapOpener]), unless it is an item's mark or an address no app may be
+/// handed, as [_pressLink] has it; a `[[link]]`'s note by the editor's `wikiOptions`; and, given [blocks] (the box
+/// or sliver the lines are drawn in, where it keeps the press from what is drawn over them), a drawn table's link
+/// ([ReadLinkTarget]). Null where the press is on no link, or on one there is no way to open here.
+VoidCallback? readLinkAt(EditorView view, Offset global, {RenderObject? blocks}) {
+  final hit = view.hitAt(global);
+  if (hit == null || !hit.inside) return null;
+  if (hit.block != null) return blocks == null ? null : _blockLinkAt(blocks, global);
+  final state = view.state;
+  final link = linkUnder(view, global);
+  if (link != null) {
+    final open = state.facet(linkTapOpener);
+    if (open == null || !canOpenLink(link.url) || _itemMark(state, link.from, link.to) != null) return null;
+    return () => open(link.url);
+  }
+  final options = state.facet(wikiOptions);
+  if (options == null) return null;
+  final line = state.doc.lineAt(hit.pos);
+  if (!line.text.contains('[[')) return null;
+  for (final wiki in wikiLinksIn(line.text, line.from)) {
+    if (hit.pos < wiki.from || hit.pos > wiki.to || !_landsOn(view, global, wiki.from, wiki.to)) continue;
+    return () => options.open(wiki.title, wiki.anchor);
+  }
+  return null;
+}
+
+/// The link of a block drawn under `root` that a tap at `global` lands on: the first [ReadLinkTarget] that has one.
+VoidCallback? _blockLinkAt(RenderObject root, Offset global) {
+  VoidCallback? found;
+  void visit(RenderObject child) {
+    if (found != null) return;
+    if (child is ReadLinkTarget) {
+      found = (child as ReadLinkTarget).linkTapAt(global);
+      return;
+    }
+    child.visitChildren(visit);
+  }
+
+  root.visitChildren(visit);
+  return found;
+}
+
+/// Words drawn to be read, whose links open on a tap ([readLinkAt]): it joins the arena only for a press that lands
+/// on a link, so a tap there opens it, a drag from it still scrolls the page, and a press anywhere else is the
+/// page's as it was. The mouse's pointer is a hand over a link. [blocks] says the child keeps every press from what
+/// is drawn over its lines (an `IgnorePointer`), so a drawn table's links are found here; without it the table hears
+/// its own.
+class ReadLinks extends StatefulWidget {
+  const ReadLinks({super.key, required this.view, this.blocks = false, required this.child});
+
+  final EditorView view;
+  final bool blocks;
+  final Widget child;
+
+  @override
+  State<ReadLinks> createState() => _ReadLinksState();
+}
+
+class _ReadLinksState extends State<ReadLinks> {
+  TapGestureRecognizer? _tap;
+  VoidCallback? _pressed;
+  bool _over = false;
+
+  VoidCallback? _at(Offset global) => readLinkAt(widget.view, global, blocks: widget.blocks ? context.findRenderObject() : null);
+
+  void _down(PointerDownEvent event) {
+    if (event.kind == PointerDeviceKind.mouse && event.buttons != kPrimaryButton) return;
+    final open = _at(event.position);
+    if (open == null) return;
+    _pressed = open;
+    (_tap ??= TapGestureRecognizer(debugOwner: this)..onTap = _tapped).addPointer(event);
+  }
+
+  void _tapped() {
+    final open = _pressed;
+    _pressed = null;
+    open?.call();
+  }
+
+  void _hover(PointerHoverEvent event) => _point(_at(event.position) != null);
+
+  void _point(bool over) {
+    if (over != _over && mounted) setState(() => _over = over);
+  }
+
+  @override
+  void dispose() {
+    _tap?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        cursor: _over ? SystemMouseCursors.click : MouseCursor.defer,
+        opaque: false,
+        hitTestBehavior: HitTestBehavior.translucent,
+        onHover: _hover,
+        onExit: (_) => _point(false),
+        child: Listener(behavior: HitTestBehavior.translucent, onPointerDown: _down, child: widget.child),
+      );
 }
 
 /// Link addresses shown short, and item marks as pills, away from the caret's line. With them come the reads that

@@ -35,7 +35,14 @@
 ///   book's words are drawn by what the editor has.
 /// - **The book's own words are a column drawn to be read** ([BookWords]), which takes no caret: a `[[link]]` in
 ///   them is drawn as a link and opens on a tap, which the column is asked about where the page's editor heard it
-///   itself; nothing else in them is pressed.
+///   itself; nothing else in them is pressed but what a note's words would answer itself.
+/// - ADDED: **a link opens on a tap in the book's words and in its pages read straight through** (Matt, 2026-10-29:
+///   "Allow opening web links in the book view"). On the page, and here before, the pages read straight through took
+///   no taps at all (`pointer-events: none`) and the book's words only a `[[link]]`'s, so an address in either could
+///   not be opened. Now a tap on a link's words, an address said bare or a `[[link]]` opens it, as in a note: an
+///   address by the app's opener (`openLink`, so an App Link still goes to its app), a note in this tab; a drawn
+///   table's link too, and the mouse's pointer is a hand over one (lib/editor/media/links.dart `ReadLinks`,
+///   `readLinkAt`). A press anywhere else is what it was, and a drag or a wheel from a link still scrolls.
 /// - **`readBar`'s `position: sticky`** is a sliver of its own, first of the read-through's and over the rest
 ///   (stuck_head.dart): it takes no room, the first run keeping a box of the bar's height where the bar stands, and
 ///   it is drawn there until the page has scrolled it up to the room that page keeps at its top
@@ -52,7 +59,7 @@ library;
 
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show PointerSignalEvent;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerSignalEvent, TapGestureRecognizer, kPrimaryButton;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -74,9 +81,10 @@ import '../core/properties.dart' as properties show isTicket;
 import '../core/stored.dart';
 import '../editor/fields/field_picker.dart';
 import '../editor/fields/field_picks.dart';
-import '../editor/items/wiki_links.dart' show WikiOptions, wikiLinks, wikiLinksIn;
+import '../editor/items/wiki_links.dart' show WikiOptions, wikiLinks;
 import '../editor/looks/look.dart';
 import '../editor/markdown_view.dart';
+import '../editor/media/links.dart' show ReadLinks, readLinkAt;
 import '../editor/state/state.dart';
 import '../editor/syntax/language.dart' show InlineFormatSyntax;
 import '../editor/view/base.dart';
@@ -803,17 +811,6 @@ class _BookWordsState extends State<BookWords> {
     );
   }
 
-  /// A finished tap on the words: a link between notes under it opens (the editor's own `wikiLinks`, which hears the
-  /// press in an editor that takes one).
-  void _tapped(TapUpDetails details) {
-    final pos = _view.posAtCoords(details.globalPosition);
-    if (pos == null) return;
-    final line = _view.state.doc.lineAt(pos);
-    for (final link in wikiLinksIn(line.text, line.from)) {
-      if (pos >= link.from && pos <= link.to) return widget.open?.call(link.title);
-    }
-  }
-
   @override
   void didUpdateWidget(BookWords oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -858,15 +855,12 @@ class _BookWordsState extends State<BookWords> {
       // `margin-block: var(--glacier-space-2) var(--glacier-space-4)`
       margin: EdgeInsets.only(top: t.space(2), bottom: t.space(4)),
       child: widget.drawing != null
-          // Drawn as a note is, the words take a note's taps: a query's row or a link's card is its block's own,
-          // the innermost in the arena. A `[[link]]` is words, which hear nothing in a column with no input (the
-          // editor's `wikiLinks` hears a press only where there is a caret to keep), so it is this one's.
-          ? (_links ? GestureDetector(behavior: HitTestBehavior.translucent, onTapUp: _tapped, child: EditorColumn(view: _view, env: env)) : EditorColumn(view: _view, env: env))
-          : ExcludeSemantics(
-              child: _links
-                  ? GestureDetector(behavior: HitTestBehavior.translucent, onTapUp: _tapped, child: IgnorePointer(child: EditorColumn(view: _view, env: env)))
-                  : IgnorePointer(child: EditorColumn(view: _view, env: env)),
-            ),
+          // Drawn as a note is, the words take a note's taps: a query's row, a link's card or a table's link is its
+          // block's own, the innermost in the arena. A link in the words, an address or a `[[link]]`, is words,
+          // which hear nothing in a column with no input (the editor hears a link's press only where there is a
+          // caret to keep), so it is this one's (Matt, 2026-10-29: "Allow opening web links in the book view").
+          ? ReadLinks(view: _view, child: EditorColumn(view: _view, env: env))
+          : ExcludeSemantics(child: ReadLinks(view: _view, blocks: true, child: IgnorePointer(child: EditorColumn(view: _view, env: env)))),
     );
   }
 }
@@ -1719,6 +1713,7 @@ class BookViewState extends State<BookView> {
           ..add(
             _ReadLines(
               key: ValueKey('book-read-body-$i'),
+              view: view,
               onTouch: touched,
               sliver: SliverPadding(
                 padding: EdgeInsets.only(left: side + inset, right: side),
@@ -1760,7 +1755,7 @@ class BookViewState extends State<BookView> {
                   else if (canvas)
                     cssLines('A canvas: open it to see the cards.', bookText(t, em, color: muted))
                   else if (words != null)
-                    MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false, formats: widget.drawing?.formats ?? const <InlineFormatSyntax>[], extensions: widget.drawing?.extensions ?? const <Extension>[]),
+                    MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false, links: true, formats: widget.drawing?.formats ?? const <InlineFormatSyntax>[], extensions: widget.drawing?.extensions ?? const <Extension>[]),
                 ],
               ),
             ),
@@ -2320,23 +2315,34 @@ class BookPages {
 
 /// A long page's lines, read straight through: drawn, and neither touched nor read out, as a short page's are
 /// (`MarkdownView`: `pointer-events: none`, `aria-hidden`). A press or a wheel over them is told to [onTouch] and
-/// goes no further, as the box round a short page's lines takes it.
+/// goes no further, as the box round a short page's lines takes it; but a tap on a link in them opens it, as on a
+/// short page (media/links.dart `ReadLinks`, `readLinkAt`), and the mouse's pointer is a hand over one.
 class _ReadLines extends SingleChildRenderObjectWidget {
-  const _ReadLines({super.key, required this.onTouch, required Widget sliver}) : super(child: sliver);
+  const _ReadLines({super.key, required this.view, required this.onTouch, required Widget sliver}) : super(child: sliver);
 
+  final EditorView view;
   final VoidCallback onTouch;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderReadLines(onTouch);
+  RenderObject createRenderObject(BuildContext context) => _RenderReadLines(view, onTouch);
 
   @override
-  void updateRenderObject(BuildContext context, covariant _RenderReadLines renderObject) => renderObject.onTouch = onTouch;
+  void updateRenderObject(BuildContext context, covariant _RenderReadLines renderObject) => renderObject
+    ..view = view
+    ..onTouch = onTouch;
 }
 
-class _RenderReadLines extends RenderProxySliver {
-  _RenderReadLines(this.onTouch);
+class _RenderReadLines extends RenderProxySliver implements MouseTrackerAnnotation {
+  _RenderReadLines(this.view, this.onTouch);
 
+  EditorView view;
   VoidCallback onTouch;
+
+  // A tap on a link: joined only for a press that lands on one, so a drag from it is still the page's scroll.
+  TapGestureRecognizer? _tap;
+  VoidCallback? _pressed;
+
+  VoidCallback? _linkAt(Offset global) => child == null ? null : readLinkAt(view, global, blocks: child);
 
   @override
   bool hitTestChildren(SliverHitTestResult result, {required double mainAxisPosition, required double crossAxisPosition}) => false;
@@ -2347,6 +2353,48 @@ class _RenderReadLines extends RenderProxySliver {
   @override
   void handleEvent(PointerEvent event, SliverHitTestEntry entry) {
     if (event is PointerDownEvent || event is PointerSignalEvent) onTouch();
+    if (event is PointerHoverEvent) _point(_linkAt(event.position) != null);
+    if (event is! PointerDownEvent) return;
+    if (event.kind == PointerDeviceKind.mouse && event.buttons != kPrimaryButton) return;
+    final open = _linkAt(event.position);
+    if (open == null) return;
+    _pressed = open;
+    (_tap ??= TapGestureRecognizer(debugOwner: this)..onTap = _tapped).addPointer(event);
+  }
+
+  void _tapped() {
+    final open = _pressed;
+    _pressed = null;
+    open?.call();
+  }
+
+  MouseCursor _cursor = MouseCursor.defer;
+
+  /// The hand over a link, the page's own pointer elsewhere: told to the mouse after the frame this asks for.
+  void _point(bool over) {
+    final cursor = over ? SystemMouseCursors.click : MouseCursor.defer;
+    if (cursor == _cursor) return;
+    _cursor = cursor;
+    markNeedsPaint();
+  }
+
+  @override
+  MouseCursor get cursor => _cursor;
+
+  @override
+  PointerEnterEventListener? get onEnter => null;
+
+  @override
+  PointerExitEventListener? get onExit => (_) => _point(false);
+
+  @override
+  bool get validForMouseTracker => attached;
+
+  @override
+  void dispose() {
+    _tap?.dispose();
+    _tap = null;
+    super.dispose();
   }
 
   @override

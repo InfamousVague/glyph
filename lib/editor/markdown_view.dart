@@ -19,7 +19,10 @@
 /// - `eager`, the one-at-a-time queue, the screen watcher and the kept HTML are there because an editor costs the
 ///   web 25 to 30 ms; here a card's lines are made in well under a millisecond and nothing is queued or kept.
 ///
-/// It says nothing to a screen reader and takes no taps, as the web's (`aria-hidden`, `pointer-events: none`).
+/// It says nothing to a screen reader and takes no taps, as the web's (`aria-hidden`, `pointer-events: none`), but
+/// for one: drawn at the page's own sizes with [MarkdownView.links], a tap on a link in it opens the link
+/// (media/links.dart `ReadLinks`), and every other press goes by it as before. A notebook's pages read straight
+/// through are drawn so (Matt, 2026-10-29: "Allow opening web links in the book view").
 library;
 
 import 'package:flutter/rendering.dart';
@@ -29,6 +32,7 @@ import 'package:glacier/glacier.dart';
 import '../perf/frame_log.dart';
 import 'looks/look.dart';
 import 'looks/peek_look.dart';
+import 'media/links.dart' show ReadLinks;
 import 'state/state.dart';
 import 'syntax/language.dart' show InlineFormatSyntax;
 import 'view/base.dart';
@@ -48,6 +52,7 @@ class MarkdownView extends StatefulWidget {
     this.fill = false,
     this.formats = const <InlineFormatSyntax>[],
     this.extensions = const <Extension>[],
+    this.links = false,
   });
 
   /// The Markdown to draw.
@@ -77,6 +82,10 @@ class MarkdownView extends StatefulWidget {
 
   /// More extensions, after the base ones.
   final List<Extension> extensions;
+
+  /// Drawn at the page's own sizes, a tap on a link opens it, by what [extensions] say opens one (an address by
+  /// `linkTapOpener`, a `[[link]]` by `wikiOptions`). A peek's taps are always its card's.
+  final bool links;
 
   @override
   State<MarkdownView> createState() => _MarkdownViewState();
@@ -152,7 +161,8 @@ class _MarkdownViewState extends State<MarkdownView> {
     final t = context.tokens;
     final ratio = MediaQuery.devicePixelRatioOf(context);
     if (!widget.peek) {
-      return ExcludeSemantics(child: IgnorePointer(child: EditorColumn(view: _view, env: LookEnv.page(t, devicePixelRatio: ratio, tabSize: _view.state.tabSize))));
+      final page = ExcludeSemantics(child: IgnorePointer(child: EditorColumn(view: _view, env: LookEnv.page(t, devicePixelRatio: ratio, tabSize: _view.state.tabSize))));
+      return widget.links ? ReadLinks(view: _view, blocks: true, child: page) : page;
     }
     final env = peekEnv(t, whole: widget.whole, look: widget.look, devicePixelRatio: ratio);
     final em = env.body;
