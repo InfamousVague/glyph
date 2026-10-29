@@ -794,6 +794,12 @@ extension _RootParts on _GhostRootState {
           _ => 0,
         },
         smartNotebooks: [for (final each in _organize.smart.value) (id: each.id, name: each.name)],
+        // Settings and the plugins, as Settings itself reads them (Matt, 2026-10-29: "Add the ability to search
+        // settings and plugins from the command search").
+        settings: () => settingsIndex(
+          settingsFactsFor(context, services: _services, workspaces: _workspaces.value.list.length, updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!), features: _features(_services)),
+          registry: plugins,
+        ),
       ),
       doing: () => paletteDoingFor(
         shell: _shell.currentState!,
@@ -843,6 +849,8 @@ extension _RootParts on _GhostRootState {
         market: _showMarket,
         trash: _openTrash,
         openSmart: _organize.showSmart,
+        settingsAt: _openSettingsAt,
+        marketPlugin: (id) => _showMarket(plugin: id),
       ),
     );
   }

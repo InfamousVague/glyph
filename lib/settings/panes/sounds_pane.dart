@@ -78,7 +78,9 @@ class _SoundsPaneState extends State<SoundsPane> {
       builder: (context, prefs, _) {
         void set(Preferences Function(Preferences now) change) => store.update(change);
         final pack = soundPackOf(prefs.soundPack);
-        // Simple's page is the pack and the switch until More is pressed; Advanced's is all of it.
+        // Simple's page is the pack and the switch until More is pressed, or one of the rest is looked for by name;
+        // Advanced's is all of it.
+        if (!_more && settingsSought(context, ['Volume', for (final event in SoundEvent.values) event.label])) _more = true;
         final full = !prefs.simple || _more;
 
         final packs = PaneSection(

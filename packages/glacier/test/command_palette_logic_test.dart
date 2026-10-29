@@ -357,6 +357,25 @@ void main() {
     test('descriptors are equal by what they say', () {
       expect(const CommandDescriptor(id: 'a', label: 'A'), const CommandDescriptor(id: 'a', label: 'A'));
       expect(const CommandDescriptor(id: 'a', label: 'A'), isNot(const CommandDescriptor(id: 'a', label: 'A', disabled: true)));
+      expect(const CommandDescriptor(id: 'a', label: 'A'), isNot(const CommandDescriptor(id: 'a', label: 'A', band: 1)));
+      expect(const CommandDescriptor(id: 'a', label: 'A'), isNot(const CommandDescriptor(id: 'a', label: 'A', detail: 'Added')));
+    });
+
+    // The port's own band (Matt, 2026-10-29: "Add the ability to search settings and plugins from the command search"):
+    // what is not a command comes after every command, however well it was hit, and the tiers order each band.
+    test('offers a later band after every match of an earlier one, each band tiered', () {
+      const banded = <CommandDescriptor>[
+        CommandDescriptor(id: 'page', label: 'Dark page', group: 'Settings', band: 1),
+        CommandDescriptor(id: 'theme', label: 'Toggle theme', group: 'View', keywords: 'dark light'),
+        CommandDescriptor(id: 'plugin', label: 'Darkroom', group: 'Plugins', band: 2),
+        CommandDescriptor(id: 'row', label: 'Page', group: 'Settings', keywords: 'dark', band: 1),
+        CommandDescriptor(id: 'dim', label: 'Darken', group: 'View'),
+      ];
+      // Band 0 first (Darken's label prefix before the theme's keyword), then 1 (the label before the keyword), then 2.
+      expect(idsOf(matchCommands(banded, 'dark')), ['dim', 'theme', 'page', 'row', 'plugin']);
+      expect([for (final group in groupCommands(matchCommands(banded, 'dark'))) group.group], ['View', 'Settings', 'Plugins']);
+      // With nothing typed every row is offered, the bands still in order.
+      expect(idsOf(matchCommands(banded, '')), ['theme', 'dim', 'page', 'row', 'plugin']);
     });
   });
 }

@@ -790,6 +790,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     );
     final keyword = match.matchedKeyword;
     final shortcut = item.shortcut;
+    final detail = item.detail;
 
     // One node for a screen reader: the row's words, whether it is the selected one, and its tap.
     return MergeSemantics(
@@ -851,6 +852,19 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
                         dpr: t.css.lineDpr,
                       ),
                     ),
+                    // The port's own: where the thing is, or how it stands, small and quiet, and never more than
+                    // 9rem of the row, so the label keeps the rest.
+                    if (detail != null && detail.isNotEmpty) ...[
+                      SizedBox(width: t.space(3)),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: t.lenOf('9rem')),
+                        child: ExactLines.of(
+                          Text(detail, style: kitFont(t, fontSize: t.fontSize('xs'), color: subtle), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis),
+                          normal: true,
+                          dpr: t.css.lineDpr,
+                        ),
+                      ),
+                    ],
                     if (shortcut != null && shortcut.isNotEmpty) ...[
                       SizedBox(width: t.space(3)),
                       DefaultTextStyle(

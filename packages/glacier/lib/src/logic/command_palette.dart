@@ -9,13 +9,17 @@
 /// - `isCommandShortcut` takes its three fields as named arguments rather than an event object.
 /// - [highlightSegments] slices as JavaScript's `slice` does, clamping to the string, because Dart's `substring`
 ///   throws where a lower-cased haystack is longer than its label (a dotted capital I) and JavaScript shrugs.
+/// - [CommandDescriptor.band] and [CommandDescriptor.detail] are this port's own, for an app that offers more than
+///   its commands in one list (Ghost.md's Settings and plugins after its notes and commands; Matt, 2026-10-29: "Add
+///   the ability to search settings and plugins from the command search"). Left at their defaults, every row is in
+///   band 0 with no detail, and the list is the TypeScript's.
 library;
 
 import 'dart:math' as math;
 
 /// A single runnable command.
 class CommandDescriptor {
-  const CommandDescriptor({required this.id, required this.label, this.group, this.keywords, this.shortcut, this.disabled = false});
+  const CommandDescriptor({required this.id, required this.label, this.group, this.keywords, this.shortcut, this.disabled = false, this.band = 0, this.detail});
 
   /// Stable identity; also what `onRun` reports back.
   final String id;
@@ -36,6 +40,15 @@ class CommandDescriptor {
   /// Listed but not runnable; the cursor skips it.
   final bool disabled;
 
+  /// Which run of the list it is offered in: every match of a lower band comes before any of a higher one, however
+  /// well the query hit each, and the tiers order them within their band ([matchCommands]). For a list that offers
+  /// what is not a command after its commands, so a good hit on a setting's name cannot push a command down.
+  final int band;
+
+  /// Words drawn small at the row's trailing edge, before its shortcut: where the thing is ("Appearance") or how it
+  /// stands ("Added"). Display only: the query never matches it.
+  final String? detail;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -46,10 +59,12 @@ class CommandDescriptor {
           other.group == group &&
           other.keywords == keywords &&
           other.shortcut == shortcut &&
-          other.disabled == disabled;
+          other.disabled == disabled &&
+          other.band == band &&
+          other.detail == detail;
 
   @override
-  int get hashCode => Object.hash(runtimeType, id, label, group, keywords, shortcut, disabled);
+  int get hashCode => Object.hash(runtimeType, id, label, group, keywords, shortcut, disabled, band, detail);
 
   @override
   String toString() => 'CommandDescriptor($id, "$label"${group == null ? '' : ', group: $group'}${disabled ? ', disabled' : ''})';
@@ -200,6 +215,8 @@ class _Scored<T extends CommandDescriptor> {
 /// - **Results are tiered by where the term landed**: label prefix, then a word start inside the label, then
 ///   anywhere in the label, then group or keywords. An item is ranked by its *worst* term, so a command has to be a
 ///   good match for the whole query rather than a great match for one word of it.
+/// - **A band goes before the tiers** ([CommandDescriptor.band]): band 0's matches, tiered, then band 1's. Every row
+///   is band 0 unless it says otherwise.
 ///
 /// This is deliberately not fuzzy scoring. Ties keep the caller's order, so the caller still decides priority within
 /// a tier. An empty query returns everything, in the given order.
@@ -234,7 +251,10 @@ List<CommandMatch<T>> matchCommands<T extends CommandDescriptor>(List<T> items, 
     scored.add(_Scored(item, worst, order, matchedKeyword));
   }
 
-  scored.sort((a, b) => a.rank != b.rank ? a.rank - b.rank : a.order - b.order);
+  scored.sort((a, b) {
+    if (a.item.band != b.item.band) return a.item.band - b.item.band;
+    return a.rank != b.rank ? a.rank - b.rank : a.order - b.order;
+  });
 
   return [
     for (var index = 0; index < scored.length; index++) CommandMatch<T>(item: scored[index].item, matchedKeyword: scored[index].matchedKeyword, index: index),

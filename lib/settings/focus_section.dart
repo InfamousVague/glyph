@@ -3,7 +3,8 @@
 ///
 /// In both modes, it being one switch whose doing is plain to see. In Simple (`Preferences.simple`, GHST-103) the
 /// typewriter scroll waits behind a More row that opens in place, as Simple's rule is; in Advanced it is drawn under
-/// the switch. It is focus mode's own half, so it is drawn as off while focus mode is.
+/// the switch. It is focus mode's own half, so it is drawn as off while focus mode is. Looked for by name (Settings'
+/// search, the command bar), it is shown with More opened.
 library;
 
 import 'package:flutter/widgets.dart';
@@ -30,6 +31,8 @@ class _FocusSectionState extends State<FocusSection> {
   Widget build(BuildContext context) {
     final store = widget.store;
     final prefs = store.value;
+    // Looked for by a search or the command bar, the typewriter scroll is shown, More opened for it.
+    if (!_more && settingsSought(context, const ['Typewriter scroll'])) _more = true;
     final open = !prefs.simple || _more;
     return PaneSection(
       title: 'Focus',

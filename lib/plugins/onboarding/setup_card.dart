@@ -5,6 +5,10 @@
 ///
 /// The sheet (setup_sheet.dart) is built here while it is open, so it stays up as the keys are kept and this turns
 /// from the card to the row under it; it takes no room on the page, being drawn over the app.
+///
+/// The card is found by its title, "Set up Lovart" ([setupFindableName]), as a row is: the command bar's Set up for a
+/// plugin added and not set up lands on it (Matt, 2026-10-29: "Add the ability to search settings and plugins from the
+/// command search"), and the sheet opens over the page at once, as Set up would.
 library;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -19,6 +23,9 @@ import '../../settings/kit/settings_kit.dart';
 import '../../settings/kit/settings_type.dart' show pageText;
 import 'setup_flow.dart';
 import 'setup_sheet.dart';
+
+/// The name the setup card is found by on its page: its title.
+String setupFindableName(String name) => 'Set up $name';
 
 class PluginSetupCard extends StatefulWidget {
   const PluginSetupCard({super.key, required this.setup, this.memory, this.prefs, this.open, this.paste});
@@ -42,6 +49,9 @@ class _PluginSetupCardState extends State<PluginSetupCard> {
   /// Whether the sheet is up, and from its first step.
   bool _open = false;
   bool _fromStart = false;
+
+  /// Whether the card has been looked for by name, which opens the sheet once.
+  bool _sought = false;
 
   @override
   void initState() {
@@ -79,12 +89,18 @@ class _PluginSetupCardState extends State<PluginSetupCard> {
   Widget build(BuildContext context) {
     final setup = widget.setup;
     final ready = setup.ready();
+    // Looked for by its name (the command bar's Set up): the sheet comes up over the page, once, as Set up brings it.
+    if (!_sought && !ready && settingsSought(context, [setupFindableName(setup.name)])) {
+      _sought = true;
+      _open = true;
+      _fromStart = false;
+    }
     return Column(
       key: ValueKey('plugin-setup-${setup.id}'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (ready) _again(context) else _card(context),
+        if (ready) _again(context) else SettingsFindableMark(name: setupFindableName(setup.name), child: _card(context)),
         if (_open)
           PluginSetupSheet(
             setup: setup,

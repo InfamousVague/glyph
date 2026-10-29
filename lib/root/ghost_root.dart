@@ -56,6 +56,7 @@ import '../capture/ui/meeting_screen.dart';
 import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
+import '../commands/settings_places.dart' show settingsIndex;
 import '../comments/ask.dart';
 import '../core/aliases.dart' show aliasesOfNote;
 import '../core/backup.dart' show Backups;
