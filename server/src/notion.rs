@@ -42,7 +42,7 @@ use crate::wire::{base64url, error};
 
 const AUTHORIZE: &str = "https://api.notion.com/v1/oauth/authorize";
 const TOKEN: &str = "https://api.notion.com/v1/oauth/token";
-const DEFAULT_REDIRECT: &str = "https://attack.fm/api/notion/callback";
+const DEFAULT_REDIRECT: &str = "https://ghostmarkdown.com/api/notion/callback";
 
 /// How long a sign-in can take from `start` to `claim`.
 const PENDING_TTL: Duration = Duration::from_secs(10 * 60);
