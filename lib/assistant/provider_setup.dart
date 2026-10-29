@@ -90,7 +90,6 @@ PluginSetup providerSetup(AiProviderPage page, {Future<AiError?> Function(String
         id: 'intro',
         title: page.custom ? 'Any OpenAI-compatible model' : '${page.name}, with your own key',
         icon: page.icon,
-        mark: false,
         points: [
           (Lucide.squarePen, 'Ask from the dock on any page, and watch it write into the note'),
           (Lucide.users, 'Meetings written up, where you let it'),

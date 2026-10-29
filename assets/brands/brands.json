@@ -1,0 +1,98 @@
+{
+  "claude": {
+    "title": "Claude",
+    "hex": "D97757",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/claude.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://claude.ai"
+  },
+  "discord": {
+    "title": "Discord",
+    "hex": "5865F2",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/discord.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://discord.com/branding"
+  },
+  "elevenlabs": {
+    "title": "ElevenLabs",
+    "hex": "000000",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/elevenlabs.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://elevenlabs.io/brand"
+  },
+  "github": {
+    "title": "GitHub",
+    "hex": "181717",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/github.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://github.com/logos"
+  },
+  "googlecalendar": {
+    "title": "Google Calendar",
+    "hex": "4285F4",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/googlecalendar.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://fonts.gstatic.com/s/i/productlogos/calendar_2020q4/v8/192px.svg"
+  },
+  "googlegemini": {
+    "title": "Google Gemini",
+    "hex": "8E75B2",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/googlegemini.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://gemini.google.com"
+  },
+  "googlemeet": {
+    "title": "Google Meet",
+    "hex": "00897B",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/googlemeet.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://about.google/brand-resource-center/logos-list/"
+  },
+  "lovart": {
+    "title": "Lovart",
+    "hex": null,
+    "from": "https://www.lovart.ai/ (the inline <svg> beside the wordmark in the page header, read 2026-10-26; docs/LOVART.md)",
+    "project": "Lovart, its own site",
+    "licence": "none given; Lovart’s mark, used to identify the integration",
+    "brand": "https://www.lovart.ai/"
+  },
+  "notion": {
+    "title": "Notion",
+    "hex": "000000",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/notion.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://www.notion.so"
+  },
+  "things": {
+    "title": "Things",
+    "hex": "2473E7",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/things.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://culturedcode.com/terms/#using_our_service"
+  },
+  "todoist": {
+    "title": "Todoist",
+    "hex": "E44332",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/todoist.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://doist.com/press"
+  },
+  "zoom": {
+    "title": "Zoom",
+    "hex": "0B5CFF",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/zoom.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://brand.zoom.us/usage-legal/"
+  }
+}

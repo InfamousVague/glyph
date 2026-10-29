@@ -74,7 +74,6 @@ PluginSetup githubSetup({Future<String> Function()? login}) => PluginSetup(
           id: 'intro',
           title: 'Notes linked to repos',
           icon: Lucide.gitBranch,
-          mark: false,
           points: [
             (Lucide.link, 'Link a note to a repo, from the cog on the note'),
             (Lucide.listChecks, 'Its list items become issues, ticked off from either side'),

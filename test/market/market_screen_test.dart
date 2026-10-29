@@ -8,6 +8,7 @@ import 'package:ghost_md/market/market_items.dart';
 import 'package:ghost_md/market/market_looks.dart';
 import 'package:ghost_md/market/market_plugins.dart';
 import 'package:ghost_md/market/market_screen.dart';
+import 'package:ghost_md/plugins/brands.dart' show brandOf;
 import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/theme_cards.dart' show ThemeOption, ThemePalette;
@@ -173,9 +174,10 @@ void main() {
     });
   });
 
-  testWidgets('lists Discord among the plugins, found by its name, in its colour and the chat bubble, not a brand’s mark', (tester) async {
+  testWidgets('lists Discord among the plugins, found by its name, in its colour, wearing Discord’s mark', (tester) async {
     final discord = builtIn.singleWhere((p) => p.manifest.id == 'discord');
-    expect(hasBrandMark(discord), isFalse);
+    // Matt, 2026-10-29: "Iconize real company logos ... and use those for the plugin icons" (lib/plugins/brands.dart).
+    expect((featuresFirst(discord), brandOf(discord)?.slug), (false, 'discord'));
     expect(pluginHue(discord), 'indigo');
     expect(pluginsFound(builtIn, 'discord').map((p) => p.manifest.id), ['discord']);
     await pumpMarket(tester);
@@ -184,15 +186,17 @@ void main() {
     expect(card('discord'), findsOneWidget);
     expect(find.descendant(of: card('discord'), matching: find.text('Discord')), findsWidgets);
     expect(find.descendant(of: card('discord'), matching: find.text('Android · Desktop')), findsWidgets);
+    expect(find.descendant(of: card('discord'), matching: find.byKey(const ValueKey('plugin-badge-discord'))), findsOneWidget);
     await endSettings(tester);
   });
 
   // Matt, 2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins".
-  testWidgets('lists Google Meet and Zoom as two plugins, each found by its name, added, in a colour and a plain icon of its own', (tester) async {
-    for (final (id, name, icon, hue) in [('google-meet', 'Google Meet', 'users', 'orange'), ('zoom', 'Zoom', 'laptop', 'mint')]) {
+  testWidgets('lists Google Meet and Zoom as two plugins, each found by its name, added, in a colour and a mark of its own', (tester) async {
+    for (final (id, name, icon, hue, slug) in [('google-meet', 'Google Meet', 'users', 'orange', 'googlemeet'), ('zoom', 'Zoom', 'laptop', 'mint', 'zoom')]) {
       final plugin = builtIn.singleWhere((p) => p.manifest.id == id);
       expect((plugin.manifest.name, plugin.icon, pluginHue(plugin), plugin.manifest.standard), (name, icon, hue, true), reason: id);
-      expect(hasBrandMark(plugin), isFalse, reason: 'no third party’s mark (docs/store/)');
+      // Its company's mark in the app, its plain icon in a store's pictures (test/plugins/brands_test.dart).
+      expect(brandOf(plugin)?.slug, slug, reason: id);
       expect(reachOf(plugin).line, 'Android · Desktop', reason: 'Ghost in meetings is not offered on an iPhone');
       expect(pluginsFound(builtIn, name.toLowerCase()).map((p) => p.manifest.id), contains(id));
     }

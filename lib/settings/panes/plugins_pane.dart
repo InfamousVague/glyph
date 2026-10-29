@@ -6,9 +6,7 @@ import '../../plugins/registry.dart';
 import '../../plugins/types.dart';
 import '../kit/settings_kit.dart';
 import 'settings_host.dart';
-import '../../claude/claude_mark.dart' show ClaudeMark;
-import '../../plugins/lovart/lovart_mark.dart' show LovartMark;
-import '../../plugins/elevenlabs/elevenlabs_mark.dart' show ElevenLabsMark;
+import '../../plugins/brands.dart' show pluginGlyph;
 
 /// What is left in Settings of its Plugins (Matt, 2026-10-26: "move the plugins section out of the settings (leaving
 /// plugin specific settings to own their settings) add the plugins setting to the market page"): the catalogue,
@@ -26,38 +24,12 @@ String pluginsSummary(Registry registry) => '${registry.all().where((p) => regis
 /// on: `plugin:notion`. Links into Settings land on it by this id (the Claude chat's "Add an API key").
 String pluginPageId(String pluginId) => 'plugin:$pluginId';
 
-/// A plugin's icon by the kit's name for it (`GlyphPlugin.icon`), at [size]; the puzzle piece for a name the kit
-/// does not draw.
-Widget pluginIcon(GlyphPlugin plugin, double size) => switch (plugin.manifest.id) {
-      // Claude's and Lovart's own marks as icons, in the icon's one colour (Matt, 2026-10-26: "iconize the lovart logo
-      // so we can use their logo in the settings, same with the Claude logo"): a little under the box, as a Lucide
-      // glyph's drawing sits inside its 24 with room round it, so the marks weigh what the icons beside them do.
-      'claude' => _MarkIcon(size: size, draw: (ink, side) => ClaudeMark(size: side, color: ink)),
-      // Lovart's is a solid round, heavier than a line: a step smaller again.
-      'lovart' => _MarkIcon(size: size, scale: 0.74, draw: (ink, side) => LovartMark(size: side, color: ink)),
-      // ElevenLabs' bars, the plugin's own mark (lib/plugins/elevenlabs/elevenlabs_mark.dart), at the box's whole: two
-      // bars are lighter than a Lucide glyph's lines.
-      'elevenlabs' => _MarkIcon(size: size, scale: 1, draw: (ink, side) => ElevenLabsMark(size: side, color: ink)),
-      _ => AppIcon(Lucide.all[plugin.icon] ?? Lucide.puzzle, size: size),
-    };
-
-/// A brand's mark drawn as an icon: [size] square, the mark at [scale] of it, in the colour an icon there would
-/// take (the settings row's hue, the text's around it).
-class _MarkIcon extends StatelessWidget {
-  const _MarkIcon({required this.size, required this.draw, this.scale = 0.84});
-
-  final double size;
-  final Widget Function(Color ink, double side) draw;
-
-  /// How much of the box the mark takes.
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = IconTheme.of(context).color ?? DefaultTextStyle.of(context).style.color ?? const Color(0xFF000000);
-    return SizedBox.square(dimension: size, child: Center(child: draw(ink, (size * scale).roundToDouble())));
-  }
-}
+/// A plugin's icon on Settings' list, at [size], in the row's ink: its company's mark where it wears one (Matt,
+/// 2026-10-29: "Iconize real company logos for openAI todoist, GitHub, Google meets, zoom etc and use those for the
+/// plugin icons"; lib/plugins/brands.dart), else its glyph by the kit's name for it, the puzzle piece for a name the
+/// kit does not draw. Claude's and Lovart's were marks of their own here from 2026-10-26 ("iconize the lovart logo so
+/// we can use their logo in the settings, same with the Claude logo"); they are two of the brands now.
+Widget pluginIcon(GlyphPlugin plugin, double size) => pluginGlyph(plugin, size);
 
 /// The page behind the Market's row, for when Settings is landed on it with nowhere to send the person (a Settings
 /// drawn by itself): what the Market is, and the way there where the host has one.

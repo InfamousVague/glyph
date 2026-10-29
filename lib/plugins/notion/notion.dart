@@ -21,6 +21,7 @@ import 'package:glacier/glacier.dart' show HapticKind, haptic;
 
 import '../../core/item_links.dart' show unsentItems;
 import '../../settings/settings_search.dart' show SettingsFindable;
+import '../brands.dart' show brandedIcon;
 import '../send_items.dart';
 import '../types.dart';
 import 'board_picker.dart';
@@ -87,7 +88,7 @@ GlyphPlugin _make() {
       NoteLink(
         id: 'notion-board',
         label: 'Notion board',
-        icon: (context, size) => NotionMark(size: size),
+        icon: brandedIcon('notion', (context, size) => NotionMark(size: size)),
         hint: (noteId) {
           final board = boardFor(noteId);
           return board != null ? 'Tasks go to ${board.title}.' : 'Choose where this note’s list items go as tasks.';
@@ -101,7 +102,7 @@ GlyphPlugin _make() {
       NoteAction(
         id: 'notion-send-list',
         label: 'Send list to Notion',
-        icon: (context, size) => NotionMark(size: size),
+        icon: brandedIcon('notion', (context, size) => NotionMark(size: size)),
         visible: (noteId, body) => notionReadyNow() && boardFor(noteId) != null,
         hint: (noteId, body) {
           final unsent = unsentItems(body).length;

@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/art/brand_marks.dart' show BrandMarkIcon;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/claude/claude.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -80,7 +81,8 @@ void main() {
       final held = Held();
       held.block('the page’s name', rectOf(tester, find.byKey(const ValueKey('settings-display'))), page.rect('display'));
       held.rect('the hero’s card', rectOf(tester, surfaceOf(find.byType(PaneSection).first)), page.rect('cards', 0));
-      held.rect('the hero’s glyph chip', rectOf(tester, find.ancestor(of: byLucide(Lucide.bot), matching: find.byType(Container)).first), page.rect('heroGlyph'));
+      // Claude's mark, the plugin's since 2026-10-29 (lib/plugins/brands.dart), where the page has its bot.
+      held.rect('the hero’s glyph chip', rectOf(tester, find.ancestor(of: find.byType(BrandMarkIcon), matching: find.byType(Container)).first), page.rect('heroGlyph'));
       held.block('the hero’s title', rectOf(tester, find.text('Claude, on your notes')), page.rect('heroTitle'));
       held.block('the hero’s words', rectOf(tester, find.textContaining('Read, add to and change your notes from Claude, on any device')), page.rect('heroMeta'));
       held.block('the title Connect', rectOf(tester, find.text('CONNECT')), page.rect('titles', 0), indent: t.space(2));

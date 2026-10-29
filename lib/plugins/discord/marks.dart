@@ -6,6 +6,10 @@
 /// handed it over to be (Claude's and Lovart's, lib/claude/claude_mark.dart, lib/plugins/lovart/lovart_mark.dart),
 /// and never where a store's listing can show it (docs/store/). The Market's tile is the plugin's Lucide icon,
 /// `message-square`, the same bubble.
+///
+/// Since 2026-10-29 the plugin wears Discord's own mark, from Simple Icons, in its places (Matt: "Iconize real company
+/// logos ... and use those for the plugin icons"; lib/plugins/brands.dart), its More sheet's rows among them; this
+/// bubble is what a build for a store's pictures draws there instead.
 library;
 
 import 'package:flutter/widgets.dart';

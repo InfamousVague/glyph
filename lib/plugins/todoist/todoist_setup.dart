@@ -31,7 +31,6 @@ PluginSetup todoistSetup({SetupMemory? memory}) => PluginSetup(
           id: 'intro',
           title: 'Bring Todoist in',
           icon: Lucide.listChecks,
-          mark: false,
           points: [
             (Lucide.folderInput, 'Each project a note, its sections headings and its tasks to-dos'),
             (Lucide.squareCheckBig, 'Dates, priorities, labels and sub-tasks with them'),

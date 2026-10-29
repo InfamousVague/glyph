@@ -14,7 +14,8 @@
 /// Where it shows: "GitHub repo" under Linked to on a note's cog, "Send list to GitHub" beside it, a swipe on a
 /// list item, a quiet "GitHub" after an item not sent yet, and in Settings the repos and the token.
 ///
-/// What differs: the plugin's icon is the kit's by name (`git-branch`); the buzz after a send is [githubFelt],
+/// What differs: the plugin's icon is GitHub's mark (lib/plugins/brands.dart), the kit's `git-branch` in a build for a
+/// store's pictures; the buzz after a send is [githubFelt],
 /// which a test stills; the token and the model are repos.dart's seams ([warmGithub], [githubDistiller]).
 library;
 
@@ -22,6 +23,7 @@ import 'package:glacier/glacier.dart' show HapticFn, HapticKind, fireMotor;
 
 import '../../core/item_links.dart' show unsentItems;
 import '../../settings/settings_search.dart' show SettingsFindable;
+import '../brands.dart' show brandedIcon;
 import '../send_items.dart';
 import '../types.dart';
 import 'details.dart';
@@ -85,7 +87,7 @@ final GlyphPlugin githubPlugin = GlyphPlugin(
     NoteLink(
       id: 'github-repo',
       label: 'GitHub repo',
-      icon: (context, size) => RepoMark(size: size),
+      icon: brandedIcon('github', (context, size) => RepoMark(size: size)),
       hint: (noteId) {
         final project = projectFor(noteId);
         if (project == null) return 'A repo for this note: its list items can go there as issues, and the AI reads it for context.';
@@ -102,7 +104,7 @@ final GlyphPlugin githubPlugin = GlyphPlugin(
     NoteAction(
       id: 'github-send-list',
       label: 'Send list to GitHub',
-      icon: (context, size) => RepoMark(size: size),
+      icon: brandedIcon('github', (context, size) => RepoMark(size: size)),
       visible: (noteId, body) => projectFor(noteId) != null,
       hint: (noteId, body) {
         if (!canWriteIssues()) return needsToken;

@@ -12,15 +12,10 @@ library;
 
 import 'package:flutter/widgets.dart';
 
-import '../art/art.dart';
-import '../claude/claude_mark.dart';
 import '../core/iphone_app.dart' show notOnIPhone;
 import '../core/preferences.dart';
+import '../plugins/brands.dart';
 import '../plugins/catalogue.dart';
-import '../plugins/github/marks.dart';
-import '../plugins/elevenlabs/elevenlabs_mark.dart';
-import '../plugins/lovart/lovart_mark.dart';
-import '../plugins/notion/marks.dart';
 import '../plugins/places/places.dart' show placeRemindersId;
 import '../plugins/types.dart';
 import '../settings/settings_search.dart' show wordsFound;
@@ -104,24 +99,18 @@ Widget tileLight({required double radius}) => IgnorePointer(
       ),
     );
 
-/// A plugin's mark on its tile, in white: the brand's own where Ghost.md draws one (Claude's, Notion's, GitHub's,
-/// Lovart's), else the plugin's Lucide icon. Lovart's mark may be drawn here, inside the app; it is only kept out of
-/// a store's listing (lib/plugins/lovart/lovart_mark.dart).
-Widget pluginMark(GlyphPlugin plugin, double size, {Color color = const Color(0xFFFFFFFF)}) {
-  final Widget mark = switch (plugin.manifest.id) {
-    'claude' => ClaudeMark(size: size, color: color),
-    'notion' => NotionMark(size: size),
-    'github' => RepoMark(size: size),
-    'lovart' => LovartMark(size: size, color: color),
-    // The ElevenLabs plugin's own two bars, not ElevenLabs' artwork: so not a brand mark the featured shelf leads with.
-    'elevenlabs' => ElevenLabsMark(size: size, color: color),
-    _ => AppIcon(Lucide.all[plugin.icon] ?? Lucide.puzzle, size: size, color: color, strokeWidth: 1.8, wash: false),
-  };
-  return IconTheme.merge(data: IconThemeData(color: color, size: size), child: mark);
-}
+/// A plugin's mark on its colour, in white: its company's own where it wears one (lib/plugins/brands.dart; Matt,
+/// 2026-10-29: "Iconize real company logos for openAI todoist, GitHub, Google meets, zoom etc and use those for the
+/// plugin icons"), else the plugin's Lucide icon. A store-shot build draws the icon for every one
+/// (lib/art/brand_marks.dart `brandMarksShown`). Where the mark stands on a badge of its own it is in its brand's
+/// colour instead (lib/market/market_plugins.dart `PluginBadge`).
+Widget pluginMark(GlyphPlugin plugin, double size, {Color color = const Color(0xFFFFFFFF)}) =>
+    IconTheme.merge(data: IconThemeData(color: color, size: size), child: pluginGlyph(plugin, size, color: color, strokeWidth: 1.8, wash: false));
 
-/// Whether Ghost.md draws a plugin's own brand mark, which the featured shelf leads with.
-bool hasBrandMark(GlyphPlugin plugin) => const {'claude', 'notion', 'github', 'lovart'}.contains(plugin.manifest.id);
+/// Whether the featured shelf leads with a plugin: the four it has led with since 2026-10-26 (Claude, Notion,
+/// GitHub, Lovart), whose marks the app drew before any other's, and the site draws still (landing/brands/). Every
+/// company's plugin wears its mark now ([brandOf]); this is the shelf's order alone.
+bool featuresFirst(GlyphPlugin plugin) => const {'claude', 'notion', 'github', 'lovart'}.contains(plugin.manifest.id);
 
 // --- where a plugin works ----------------------------------------------------------------------------------------
 
@@ -196,10 +185,10 @@ List<GlyphPlugin> pluginsFound(Iterable<GlyphPlugin> all, String query) => [
         if (pluginFound(plugin, query)) plugin,
     ];
 
-/// The plugins the featured shelf leads with: those whose brand Ghost.md draws, then those the person has not added,
+/// The plugins the featured shelf leads with: those it puts first ([featuresFirst]), then those the person has not added,
 /// four at most.
 List<GlyphPlugin> featuredPlugins(List<GlyphPlugin> all) => [
-      ...all.where(hasBrandMark),
+      ...all.where(featuresFirst),
     ].take(4).toList();
 
 /// The accent's word, for its swatch's label.

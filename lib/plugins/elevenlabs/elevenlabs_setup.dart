@@ -65,7 +65,6 @@ PluginSetup elevenLabsSetup({PluginHost? via, ElevenLabsClient? Function()? clie
         id: 'intro',
         title: 'Notes read aloud',
         icon: Lucide.audioLines,
-        mark: false,
         points: [
           (Lucide.volume2, 'Voice-over, on any note’s cog: read aloud and kept at its top, to play where it sits'),
           (Lucide.mic, 'A choice of voices, with your own from ElevenLabs beside them, each to hear first'),

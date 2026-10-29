@@ -59,7 +59,6 @@ PluginSetup notionSetup() => PluginSetup(
           id: 'intro',
           title: 'Your lists, as Notion tasks',
           icon: Lucide.squareKanban,
-          mark: false,
           points: [
             (Lucide.link, 'Link a note to a Notion board, from the cog on the note'),
             (Lucide.send, 'Swipe a list item left, or send the whole list, and each becomes a task'),

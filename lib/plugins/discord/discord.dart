@@ -30,6 +30,7 @@ import '../../ai/summary_keep.dart' show keptText;
 import '../../core/iphone_app.dart' show notOnIPhone;
 import '../../core/summary_text.dart' show summarySection;
 import '../../settings/settings_search.dart' show SettingsFindable;
+import '../brands.dart' show brandedIcon;
 import '../details_cache.dart' show failureWords;
 import '../types.dart';
 import 'channels.dart';
@@ -121,7 +122,7 @@ String? _summaryOf(String noteId, String body) => summarySection(body, discordKe
 final NoteAction postNoteToDiscord = NoteAction(
   id: 'discord-post-note',
   label: 'Post to Discord',
-  icon: (context, size) => DiscordMark(size: size),
+  icon: brandedIcon('discord', (context, size) => DiscordMark(size: size)),
   visible: (noteId, body) => _here(),
   hint: (noteId, body) => discordHasWords(body) ? _goes(discordNoteText(body), 'The whole note goes ${_where()}, as it reads now.') : 'Nothing to post yet.',
   enabled: (noteId, body) => discordHasWords(body),
@@ -132,7 +133,7 @@ final NoteAction postNoteToDiscord = NoteAction(
 final NoteAction postSummaryToDiscord = NoteAction(
   id: 'discord-post-summary',
   label: 'Post the summary to Discord',
-  icon: (context, size) => DiscordMark(size: size),
+  icon: brandedIcon('discord', (context, size) => DiscordMark(size: size)),
   visible: (noteId, body) => _here() && _summaryOf(noteId, body) != null,
   hint: (noteId, body) {
     final section = _summaryOf(noteId, body);

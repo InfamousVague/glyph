@@ -34,7 +34,6 @@ import '../onboarding/setup_flow.dart';
 import '../types.dart' show PluginHost;
 import 'banners.dart' show bannersOn, setBanners;
 import 'client.dart';
-import 'lovart_mark.dart';
 import 'manifest.dart' as lovart;
 
 /// Lovart's site, where an account is made: its Get started.
@@ -45,8 +44,6 @@ const String lovartHomeUrl = 'https://www.lovart.ai/home';
 
 /// The cue the last step offers to copy.
 const String lovartSampleCue = '{image: a lighthouse at dawn, in soft watercolour}';
-
-const Color _white = Color(0xFFFFFFFF);
 
 /// What the check said, as the setup says it (see the header). [via] is the host the keys are read through.
 Future<SetupResult> lovartSetupResult({PluginHost? via, LovartClient? Function()? client}) async {
@@ -75,7 +72,6 @@ PluginSetup lovartSetup({PluginHost? via, LovartClient? Function()? client}) {
     name: 'Lovart',
     hues: const ['purple', 'magenta', 'rose'],
     tiles: const [Lucide.image, Lucide.palette, Lucide.wandSparkles, Lucide.sparkles],
-    mark: (size) => LovartMark(size: size, color: _white),
     ready: () => hasLovartKeys(on),
     watch: onPluginStorage,
     prepare: on.secrets.warm,

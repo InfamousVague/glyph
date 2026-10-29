@@ -1,14 +1,16 @@
-/// The ElevenLabs plugin's mark: two upright bars side by side, the "II" of ElevenLabs' own in spirit, drawn here in
-/// one colour, the text's around it unless told.
+/// The ElevenLabs plugin's mark: ElevenLabs' own, its two upright bars, as Simple Icons draws it (Matt, 2026-10-29:
+/// "Iconize real company logos ... and use those for the plugin icons"; lib/art/brand_marks.dart), in one colour, the
+/// text's around it unless told.
 ///
-/// Not ElevenLabs' artwork: their logo is a trademark, and this is a plain mark of the app's own that nods at it. Where
-/// the official mark is to be used (with ElevenLabs' leave, from their brand kit), it goes in as an SVG beside
-/// Lovart's (assets/plugins/elevenlabs/elevenlabs-mark.svg) and is drawn the way lib/plugins/lovart/lovart_mark.dart
-/// draws Lovart's, in this widget's place; nothing else changes. As a third party's mark it would then be drawn in the
-/// plugin's own places only (its page, its action, its tile in the Market), never in a store's listing.
+/// Until then it was a plain mark of the app's own that nodded at theirs: two bars a sixth of the box wide, drawn
+/// here. Those bars are what a build for a store's pictures draws still, where no brand's mark is shown
+/// (`brandMarksShown`).
 library;
 
 import 'package:flutter/widgets.dart';
+
+import '../../art/brand_marks.dart';
+import '../brands.dart' show brandOfId;
 
 class ElevenLabsMark extends StatelessWidget {
   const ElevenLabsMark({super.key, this.size = 16, this.color});
@@ -21,6 +23,8 @@ class ElevenLabsMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = color ?? IconTheme.of(context).color ?? DefaultTextStyle.of(context).style.color ?? const Color(0xFF000000);
+    final mark = brandOfId('elevenlabs');
+    if (mark != null) return BrandMarkIcon(mark, size: size, color: ink);
     return SizedBox.square(dimension: size, child: CustomPaint(painter: _Bars(ink)));
   }
 }

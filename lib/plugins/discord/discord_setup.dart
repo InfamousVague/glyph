@@ -62,7 +62,6 @@ PluginSetup discordSetup({Future<void> Function(DiscordChannel channel, String t
         id: 'intro',
         title: 'Post notes to Discord',
         icon: Lucide.messageSquare,
-        mark: false,
         points: [
           (Lucide.send, 'Post a note, or a meeting’s summary, to a channel, from the note’s cog'),
           (Lucide.users, 'A meeting’s action items to the channel you choose, once it is written up'),

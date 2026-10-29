@@ -5,8 +5,8 @@
 /// Settings once it is added.
 ///
 /// Each wears its colour (lib/market/market_items.dart [pluginTile]): a wash across its hue, the one its page in
-/// Settings wears, with its brand's mark in white where Ghost.md draws one (Claude, Notion, GitHub, Lovart) and its
-/// Lucide icon where not. Each says where it works ([reachOf]): "Mobile · Desktop", "Android · Desktop", "Android
+/// Settings wears, with its Lucide icon in white; a company's plugin wears its company's mark instead, in its brand's
+/// colour on a badge of its own ([PluginBadge]; lib/plugins/brands.dart). Each says where it works ([reachOf]): "Mobile · Desktop", "Android · Desktop", "Android
 /// only".
 ///
 /// Adding one is the registry's switch (`registry.setEnabled`), as the catalogue's Add was, so the switches the
@@ -18,6 +18,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/art.dart';
+import '../art/brand_marks.dart';
+import '../plugins/brands.dart' show brandOf;
 import '../plugins/reach.dart';
 import '../plugins/types.dart';
 import '../settings/kit/settings_type.dart';
@@ -26,7 +28,8 @@ import 'market_items.dart';
 
 const Color _white = Color(0xFFFFFFFF);
 
-/// A plugin's tile: its colour with its mark in the middle, [size] square.
+/// A plugin's tile: its colour with its mark in the middle, [size] square; for a plugin that wears its company's mark,
+/// that mark in its brand's colour on a badge of the page's raised paper ([PluginBadge]).
 class PluginTile extends StatelessWidget {
   const PluginTile({super.key, required this.plugin, required this.size});
 
@@ -36,6 +39,9 @@ class PluginTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = size * 0.28;
+    final brand = brandOf(plugin);
+    // A filled mark on the light badge reads smaller than a white glyph on colour: a little larger.
+    if (brand != null) return PluginBadge(mark: brand, size: size, radius: radius, markSize: size * 0.58);
     return SizedBox.square(
       dimension: size,
       child: DecoratedBox(
@@ -50,6 +56,49 @@ class PluginTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A company's mark on a badge of its own, [size] square (Matt, 2026-10-29: "Iconize real company logos ... and use
+/// those for the plugin icons"): the page's raised paper with its rule round it, and the mark at [markSize] in its
+/// brand's colour (Simple Icons' hex), or in the ink where that colour would not stand out from the paper (a black
+/// or near-black mark on the dark one; lib/art/brand_marks.dart `brandInkOn`). The plugin's tile, and the chip that
+/// holds its mark on a coloured head.
+class PluginBadge extends StatelessWidget {
+  const PluginBadge({super.key, required this.mark, required this.size, required this.radius, required this.markSize});
+
+  final BrandMarkData mark;
+  final double size;
+  final double radius;
+  final double markSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    // On a dark page the raised paper is the card's own black, and the badge would read as a hole in it: a step lighter.
+    final ground = t.color(t.isDark ? 'app-paper-2' : 'app-raised');
+    return Container(
+      key: ValueKey('plugin-badge-${mark.slug}'),
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(radius), border: Border.all(color: t.color('app-rule'))),
+      child: BrandMarkIcon(mark, size: markSize, color: brandInkOn(mark, ground: ground, ink: t.color('app-ink'))),
+    );
+  }
+}
+
+/// The chip that holds a plugin's mark on its coloured head, [size] square: glass with the mark in white, or the
+/// company's mark on its badge ([PluginBadge]).
+Widget _markChip(GlyphPlugin plugin, {required double size, required double radius, required double markSize}) {
+  final brand = brandOf(plugin);
+  if (brand != null) return PluginBadge(mark: brand, size: size, radius: radius, markSize: markSize);
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(color: const Color(0x2EFFFFFF), borderRadius: BorderRadius.circular(radius), border: Border.all(color: const Color(0x40FFFFFF))),
+    alignment: Alignment.center,
+    child: pluginMark(plugin, markSize),
+  );
 }
 
 /// Add, or that it is added: the end of a plugin's card.
@@ -163,7 +212,8 @@ class MarketPluginCard extends StatelessWidget {
                   tileLight(radius: 0),
                   // The mark again, large and faint past the end: the card's picture.
                   Positioned(right: -head * 0.18, bottom: -head * 0.3, child: Opacity(opacity: 0.16, child: pluginMark(plugin, head * 1.15))),
-                  Positioned(left: t.space(3), bottom: t.space(3), child: pluginMark(plugin, head * 0.42)),
+                  // A company's mark on its badge, in its colour; any other in white on the head.
+                  Positioned(left: t.space(3), bottom: t.space(3), child: brandOf(plugin) == null ? pluginMark(plugin, head * 0.42) : PluginTile(plugin: plugin, size: head * 0.52)),
                   if (manifest.category != null)
                     Positioned(top: t.space(2), right: t.space(2), child: MarketTag(label: manifest.category!.label, ground: const Color(0x33000000), ink: _white)),
                 ],
@@ -232,13 +282,7 @@ class FeaturedPluginCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: t.lenOf('2.6rem'),
-                          height: t.lenOf('2.6rem'),
-                          decoration: BoxDecoration(color: const Color(0x2EFFFFFF), borderRadius: BorderRadius.circular(t.lenOf('0.75rem')), border: Border.all(color: const Color(0x40FFFFFF))),
-                          alignment: Alignment.center,
-                          child: pluginMark(plugin, t.lenOf('1.4rem')),
-                        ),
+                        _markChip(plugin, size: t.lenOf('2.6rem'), radius: t.lenOf('0.75rem'), markSize: t.lenOf('1.4rem')),
                         const Spacer(),
                         Text(manifest.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: _white)),
                         SizedBox(height: t.lenOf('0.1rem')),
@@ -366,13 +410,7 @@ class PluginDetail extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Container(
-                            width: t.lenOf('3.6rem'),
-                            height: t.lenOf('3.6rem'),
-                            decoration: BoxDecoration(color: const Color(0x2EFFFFFF), borderRadius: BorderRadius.circular(t.lenOf('1rem')), border: Border.all(color: const Color(0x40FFFFFF))),
-                            alignment: Alignment.center,
-                            child: pluginMark(plugin, t.lenOf('1.9rem')),
-                          ),
+                          _markChip(plugin, size: t.lenOf('3.6rem'), radius: t.lenOf('1rem'), markSize: t.lenOf('1.9rem')),
                           const Spacer(),
                           if (onClose != null)
                             GlacierPressable(

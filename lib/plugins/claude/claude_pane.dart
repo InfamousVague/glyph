@@ -17,6 +17,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/art.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/kit/settings_type.dart' show pageText;
+import '../brands.dart' show pluginHeroGlyph;
 import 'claude_guide.dart';
 import 'steps.dart';
 
@@ -65,7 +66,7 @@ class _ClaudePaneState extends State<ClaudePane> {
         PaneSection(
           children: [
             PaneHero(
-              glyph: const AppIcon(Lucide.bot, size: 22),
+              glyph: pluginHeroGlyph('claude', Lucide.bot),
               title: 'Claude, on your notes',
               meta: Text(
                 inApp == null

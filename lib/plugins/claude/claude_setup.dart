@@ -31,7 +31,6 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
-import '../../claude/claude_mark.dart';
 import '../../claude/claude_settings.dart';
 import '../../claude/messages_api.dart';
 import '../../settings/kit/settings_type.dart' show pageText;
@@ -46,8 +45,6 @@ const String claudeKeysUrl = 'https://console.anthropic.com/settings/keys';
 
 /// The Console's Billing, where credit is added.
 const String claudeBillingUrl = 'https://console.anthropic.com/settings/billing';
-
-const Color _white = Color(0xFFFFFFFF);
 
 /// What is wrong with the shape of a pasted key, or null where it looks like one.
 String? claudeKeyShape(String text) {
@@ -90,7 +87,6 @@ PluginSetup claudeSetup({ClaudeSettings? settings, Future<ClaudeError?> Function
     name: 'Claude',
     hues: const ['coral', 'orange', 'amber'],
     tiles: const [Lucide.sparkles, Lucide.squarePen, Lucide.users, Lucide.listChecks],
-    mark: (size) => ClaudeMark(size: size, color: _white),
     ready: () => claude.hasKey,
     watch: (listener) {
       claude.addListener(listener);

@@ -144,7 +144,7 @@ Map<String, Object?> marketListing({required Iterable<GlyphPlugin> plugins, requ
             'description': manifest.description,
             'category': manifest.category?.name,
             'icon': glyph(Lucide.all[plugin.icon] ?? Lucide.puzzle),
-            'mark': hasBrandMark(plugin) && marks.contains(id) ? id : null,
+            'mark': featuresFirst(plugin) && marks.contains(id) ? id : null,
             'hue': pluginHue(plugin),
             'colours': [_hex(deep), _hex(bright)],
             'platforms': {'android': reach.android, 'iphone': reach.iphone, 'mac': reach.mac},

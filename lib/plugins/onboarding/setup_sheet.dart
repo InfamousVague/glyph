@@ -33,6 +33,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
+import '../../art/brand_marks.dart' show BrandMarkIcon;
 import '../../art/lucide.g.dart';
 import '../../core/preferences.dart';
 import '../../guide/narrator.dart' show VoiceOver;
@@ -42,6 +43,7 @@ import '../../market/market_cards.dart' show MarketButton, MarketButtonLook;
 import '../../market/market_items.dart' show marketHues;
 import '../../settings/kit/settings_type.dart' show pageText;
 import '../../sheet/sheet.dart';
+import '../brands.dart' show brandOfId, pluginBrands;
 import '../github/plain_field.dart';
 import '../host.dart' show pluginGround;
 import 'setup_flow.dart';
@@ -55,6 +57,15 @@ Color setupInk(Tokens t, PluginSetup setup) {
 
 /// The wash, deep shades, white reading on it in either theme.
 List<Color> setupWash(PluginSetup setup) => [for (final hue in setup.hues) (marketHues[hue] ?? marketHues['indigo']!).$1];
+
+/// The mark a setup's band and its card wear, white on its wash: its company's where the plugin wears one (Matt,
+/// 2026-10-29: "Iconize real company logos ... and use those for the plugin icons"; lib/plugins/brands.dart), none
+/// for a company's plugin in a store-shot build, and else the setup's own ([PluginSetup.mark]).
+Widget Function(double size)? setupMarkOf(PluginSetup setup) {
+  if (!pluginBrands.containsKey(setup.id)) return setup.mark;
+  final mark = brandOfId(setup.id);
+  return mark == null ? null : (size) => BrandMarkIcon(mark, size: size, color: const Color(0xFFFFFFFF));
+}
 
 /// What the clipboard holds as text now.
 Future<String?> _clipboard() async => (await Clipboard.getData(Clipboard.kTextPlain))?.text;
@@ -367,7 +378,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
       height: bandHigh,
       tiles: [for (final icon in step.tiles.isEmpty ? _setup.tiles : step.tiles) bandIcon(icon)],
       sign: (height, width) {
-        final mark = _setup.mark;
+        final mark = setupMarkOf(_setup);
         final side = math.min(height * 0.46, width * 0.36);
         if (step is SetupIntro && step.mark && mark != null) return bandDisc(step.icon, height: height, width: width, child: mark(side * 0.5));
         if (step is SetupCheck && _result != null) {
@@ -662,7 +673,7 @@ class SetupTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colours = setupWash(setup);
-    final mark = setup.mark;
+    final mark = setupMarkOf(setup);
     return Container(
       width: size,
       height: size,

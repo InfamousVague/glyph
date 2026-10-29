@@ -684,7 +684,7 @@ class _Band extends StatelessWidget {
     final t = context.tokens;
     final radius = t.radius('lg') * 1.6;
     final height = wide ? t.lenOf('12rem') : t.lenOf('11rem');
-    final tiles = [...plugins.where(hasBrandMark), ...plugins.where((p) => !hasBrandMark(p))].take(wide ? 7 : 4).toList();
+    final tiles = [...plugins.where(featuresFirst), ...plugins.where((p) => !featuresFirst(p))].take(wide ? 7 : 4).toList();
     // Where each tile sits, from the band's end: its offset across and down, its size and its turn.
     const spots = [(0.06, 0.12, 3.6, -0.10), (0.30, 0.46, 3.0, 0.08), (0.03, 0.62, 2.6, 0.14), (0.24, 0.02, 2.4, 0.06), (0.52, 0.10, 2.2, -0.12), (0.47, 0.58, 2.6, -0.04), (0.70, 0.40, 2.0, 0.10)];
     final lineStyle = pageText(t, t.fontSize(wide ? 'md' : 'sm'), height: 1.35, color: const Color(0xEBFFFFFF));

@@ -22,9 +22,10 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../art/art.dart' show AppIcon, Lucide;
+import '../art/art.dart' show Lucide;
 import '../claude/claude_settings.dart' show maskKey;
 import '../claude/claude_spend.dart';
+import '../plugins/brands.dart' show pluginHeroGlyph;
 import '../plugins/github/plain_field.dart';
 import '../settings/kit/settings_kit.dart';
 import '../settings/panes/pane_parts.dart' show armedFor;
@@ -412,7 +413,7 @@ class _ProviderPaneState extends State<ProviderPane> {
             PaneSection(
               children: [
                 PaneHero(
-                  glyph: AppIcon(page.icon, size: 22),
+                  glyph: pluginHeroGlyph(page.id, page.icon),
                   title: page.custom ? 'Any OpenAI-compatible model' : '${page.name}, with your own key',
                   meta: Text(page.about),
                   status: PaneHeroStatus(settings.ready ? 'Ready: ${settings.model}' : (page.custom ? 'Needs an address and a model' : 'Needs a key')),

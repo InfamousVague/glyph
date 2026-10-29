@@ -60,7 +60,6 @@ PluginSetup calendarSetup({CalendarService? service}) {
         id: 'intro',
         title: 'Your calendars in Ghost.md',
         icon: Lucide.calendarDays,
-        mark: false,
         points: [
           (Lucide.calendarDays, 'Your events on the home page’s Today, and in queries'),
           (Lucide.listChecks, 'To-dos with a due date put on a Google calendar, where you switch that on'),

@@ -31,7 +31,7 @@ PluginSetup googleMeetSetup({SetupMemory? memory}) => PluginSetup(
       about: 'Two short steps: what Ghost does in a meeting, and how to invite it.',
       again: 'The steps from the start: what Ghost does, and how to invite it.',
       steps: const [
-        SetupIntro(id: 'intro', title: 'Ghost in your Google Meets', icon: Lucide.users, mark: false, points: _what),
+        SetupIntro(id: 'intro', title: 'Ghost in your Google Meets', icon: Lucide.users, points: _what),
         SetupDone(id: 'done', title: 'Invite Ghost', icon: Lucide.mail),
       ],
     );
@@ -47,7 +47,7 @@ PluginSetup zoomSetup({SetupMemory? memory}) => PluginSetup(
       about: 'Three short steps: what Ghost does in a call, what the host must allow, and how to invite it.',
       again: 'The steps from the start: what Ghost does, what the host must allow, and how to invite it.',
       steps: [
-        const SetupIntro(id: 'intro', title: 'Ghost in your Zoom calls', icon: Lucide.laptop, mark: false, points: _what),
+        const SetupIntro(id: 'intro', title: 'Ghost in your Zoom calls', icon: Lucide.laptop, points: _what),
         SetupIntro(id: 'host', title: 'What the host must allow', icon: Lucide.circleCheck, mark: false, points: [for (final (label, hint) in zoomHostRules) (Lucide.check, '$label: $hint')]),
         const SetupDone(id: 'done', title: 'Invite Ghost', icon: Lucide.mail),
       ],
