@@ -611,7 +611,7 @@ void main() {
       final registry = installPlugins(ground: ground, prefs: PreferencesStore());
       expect(identical(pluginGround, ground), isTrue);
       expect(identical(plugins, registry), isTrue);
-      expect(registry.all().map((plugin) => plugin.manifest.id), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs']);
+      expect(registry.all().map((plugin) => plugin.manifest.id), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'keyboard-modes']);
     });
 
     test('give a note\'s editor, its band and its + their formattings: the switched-on plugins\', read as each is made', () {

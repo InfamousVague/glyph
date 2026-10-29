@@ -763,6 +763,38 @@
       "link": "ghostmd://market/plugin/zoom"
     },
     {
+      "id": "keyboard-modes",
+      "name": "Keyboard modes",
+      "line": "Vim or Emacs keys in your notes",
+      "description": "Type in your notes from a hardware keyboard the way Vim or Emacs does: Vim’s Normal, Insert and Visual modes and its command line, or Emacs’s Control and Meta keys, its kills and its search.",
+      "category": "editor",
+      "icon": "terminal",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Vim’s modes in a note: Normal, Insert, Visual and a command line, with :w and :q",
+        "Or Emacs’s keys: C-a and C-e, C-k and C-y, the mark and C-s",
+        "A small badge at the note’s foot with the mode you are in"
+      ],
+      "settings": true,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/keyboard-modes"
+    },
+    {
       "id": "marks",
       "name": "Marks",
       "line": "Smoke, highlights, asides and effects",
@@ -3444,6 +3476,10 @@
       "M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7",
       "M 7 17h.01",
       "m11 8 2.3-2.3a2.4 2.4 0 0 1 3.404.004L18.6 7.6a2.4 2.4 0 0 1 .026 3.434L9.9 19.8"
+    ],
+    "terminal": [
+      "M12 19h8",
+      "m4 17 6-6-6-6"
     ],
     "type": [
       "M12 4v16",

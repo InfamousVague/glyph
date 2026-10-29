@@ -183,6 +183,7 @@ import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
+import '../plugins/keymaps/keymaps.dart' show KeymapBadge, KeymapHooks, keyboardMode, keyboardModes, vimJk, vimStartsNormal;
 import '../plugins/link_marks.dart';
 import '../plugins/lovart/lovart.dart' show lovartBannerMaking, lovartCuesOn, lovartIsMaking, lovartMaking, makeCue;
 import '../note/note_banner.dart';
@@ -721,6 +722,9 @@ class NoteDeskState extends State<NoteDesk> {
   /// Saves what is typed now, handed over by the note's screen as it is made.
   VoidCallback? _flush;
 
+  /// The screen's way to close the note, as its Back does: Vim's `:q`.
+  VoidCallback? _closeNote;
+
   /// The note's comments (editor/useNoteComments.tsx): what the drawing opens, what Comment starts, and their
   /// sheet; and whose colour each wears where the note is filed.
   late final NoteColours _wears = NoteColours(
@@ -859,6 +863,11 @@ class NoteDeskState extends State<NoteDesk> {
     ),
     // The note's recording, for the voice memos in it: changed when a take is added or the recording removed.
     _tapeSlot.of(tapeSource.of(_tapeFor = _memoTape())),
+    // Vim or Emacs from a hardware keyboard where the Keyboard modes plugin is added (lib/plugins/keymaps; Matt,
+    // 2026-10-29: "add vim controls to the app via a plugin as well", "add a vim / emac controls via a plugin"):
+    // asked at every key, so a choice made on its page is in the note already open. Before the +, so that in Vim's
+    // Normal a `/` is a search and not the palette; while the +'s list is open its keys are its own.
+    keyboardModes(KeymapHooks(mode: keyboardMode, startNormal: vimStartsNormal, jk: vimJk, save: () => _flush?.call(), close: () => _closeNote?.call(), holding: plusOpen)),
     _plus.extension,
     findBarExtensions,
     // The phone's spell checker, asked about the words near the caret a moment after the person stops, and a red
@@ -1803,6 +1812,15 @@ class NoteDeskState extends State<NoteDesk> {
             ),
           ),
         ),
+      // The Keyboard modes plugin's badge, at the foot and above the keyboard where the find bar goes, and not with it:
+      // Vim's mode, or what Emacs holds (lib/plugins/keymaps/mode_badge.dart). Nothing while the plugin is off.
+      if (finding == null)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Builder(builder: (context) => Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: KeymapBadge(view: view))),
+        ),
     ];
   }
 
@@ -2056,6 +2074,7 @@ class NoteDeskState extends State<NoteDesk> {
     final seams = NoteSeams(
       links: _links?.seam,
       saving: (flush) => _flush = flush,
+      closing: (close) => _closeNote = close,
       // A note that wears its tape is talked into from the tape's Add: its own mic steps out.
       hasTape: () => (_tapeNow()?.length ?? 0) > 0 && _world.onSpeak != null,
       beforeSpeak: _beforeSpeak,
