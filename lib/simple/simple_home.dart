@@ -171,7 +171,7 @@ class SimpleHome extends StatefulWidget {
   /// home page since it's redundant", and then "the search bar still shows up on the home page section": on the opened
   /// Fold the home page's notes column, this page, kept its field when the home page's own went). Simple mode, with
   /// no bar, always has it.
-  bool get searchField => !(underBar && headerToolbarVersion == HeaderToolbarVersion.groupedCommand);
+  bool get searchField => !(underBar && headerToolbarVersion.searchPill);
 
   /// Browse files at the start of the column's foot ([pane]): the notes' folder in the phone's Files app
   /// (lib/core/library_files.dart). The root hands it only to advanced mode's sidebar, on a device that can; the old

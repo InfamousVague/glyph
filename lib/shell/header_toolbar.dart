@@ -68,6 +68,12 @@ enum HeaderToolbarVersion {
   /// The word it is kept as.
   String get id => name;
 
+  /// Whether its bar holds a search pill that opens the command palette: Command centre and Grouped command. Their
+  /// home page then has no search field of its own, nor does the opened Fold's notes column, and the home page's
+  /// Filters are a circle of the bar's after the pill (Matt, 2026-10-29, of Command centre on 2.3.68: "the search bar
+  /// and filters is still showing on the homepage on mobile when it shouldn't"; until then only Grouped command did).
+  bool get searchPill => this == command || this == groupedCommand;
+
   /// The version a kept word names; one this build does not know is today's.
   static HeaderToolbarVersion parse(Object? id) {
     for (final version in values) {
@@ -253,6 +259,17 @@ class HeaderRow {
   final Widget? centre;
   final List<Widget> trail;
 }
+
+/// Whether the window is a phone's width, narrower than the opened Fold: where the two versions with a search pill are
+/// a small step larger (Matt, 2026-10-29: "Make the header icons and search bar slightly larger on mobile"), their
+/// glyphs by [phoneGlyphStep] and their rings by the shell's `data-header='phone'` (lib/shell/app_shell.dart).
+bool headerOnPhone(BuildContext context) => MediaQuery.sizeOf(context).width < phoneWidth;
+
+/// The width under which [headerOnPhone] holds.
+const double phoneWidth = 600;
+
+/// How much larger the glyphs of a search pill's bar are on a phone's width.
+const double phoneGlyphStep = 1.5;
 
 /// Draws a version's row from the parts.
 typedef HeaderRowBuilder = HeaderRow Function(BuildContext context, HeaderParts parts);

@@ -20,11 +20,14 @@ import 'package:glacier/glacier.dart';
 import '../../art/icon_packs.dart' show IconStyle;
 import '../../art/lucide.g.dart';
 import '../header_toolbar.dart';
+import '../top_bar_tools.dart' show BarButton;
 import 'grouped_row.dart' show fallbackTools;
 import 'header_kit.dart';
 
 HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   Widget outline(Widget child) => styled(context, IconStyle.outline, child);
+  // A small step larger on a phone (Matt, 2026-10-29: "Make the header icons and search bar slightly larger on mobile").
+  final step = headerOnPhone(context) ? phoneGlyphStep : 0.0;
   // Back where there is a note or a page to come back from; the sidebar's toggle at home.
   final start = parts.atHome ? (parts.sidebar ?? parts.back) : (parts.back ?? parts.sidebar);
   final primary = parts.onNote ? parts.view : parts.newNote;
@@ -46,15 +49,18 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   return HeaderRow(
     lead: [
       // Home is always in the row, whatever the width (Matt, 2026-10-28: "Also always show the home button on the top bar").
-      if (parts.home case final home?) outline(_Plain(act: home, fine: parts.fine)),
-      if (start != null) outline(_Plain(act: start, fine: parts.fine)),
+      if (parts.home case final home?) outline(_Plain(act: home, fine: parts.fine, step: step)),
+      if (start != null) outline(_Plain(act: start, fine: parts.fine, step: step)),
     ],
     centre: outline(CommandField(parts: parts, entries: entries)),
     trail: [
+      // The home page's Filters right after the pill, as Grouped command has them (Matt, 2026-10-29, of this bar: "the
+      // search bar and filters is still showing on the homepage on mobile when it shouldn't").
+      if (parts.filters case final filters?) outline(KeyedSubtree(key: HeaderAct.keyOf('filters'), child: _Filters(filters: filters, step: step))),
       ?parts.presence,
       if (!parts.onNote) ...fallbackTools(parts),
-      if (primary != null) outline(_Primary(act: primary, fine: parts.fine)),
-      if (entries.isNotEmpty) outline(_CommandMenu(parts: parts, entries: entries)),
+      if (primary != null) outline(_Primary(act: primary, fine: parts.fine, step: step)),
+      if (entries.isNotEmpty) outline(_CommandMenu(parts: parts, entries: entries, step: step)),
     ],
   );
 }
@@ -81,8 +87,10 @@ class CommandField extends StatelessWidget {
     final t = context.tokens;
     final search = parts.search;
     final title = parts.title;
-    // A size up on a narrow window leaves the long words no room: the one word there.
-    final words = title == null || title.isEmpty ? (large && !parts.wide ? 'Search' : 'Search or run a command') : title;
+    // On a phone the words are a size up (Matt, 2026-10-29: "Make the header icons and search bar slightly larger on
+    // mobile"), which leaves the long words no room there: the one word.
+    final phone = headerOnPhone(context);
+    final words = title == null || title.isEmpty ? (phone || (large && !parts.wide) ? 'Search' : 'Search or run a command') : title;
     final act = search ?? HeaderAct(id: 'search', label: 'Everything else', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: () {});
     final named = HeaderAct(id: act.id, label: title == null || title.isEmpty ? act.label : '${act.label}: $title', word: act.word, hue: act.hue, icon: act.icon, onPress: act.onPress);
     Widget face(BuildContext context, PressState state, bool open) {
@@ -99,10 +107,10 @@ class CommandField extends StatelessWidget {
               child: Row(
                 spacing: t.space(2),
                 children: [
-                  HeaderGlyph(act, size: large ? 16 : 15, color: muted, strokeWidth: 1.9, wash: false),
+                  HeaderGlyph(act, size: (large ? 16 : 15) + (phone ? phoneGlyphStep : 0), color: muted, strokeWidth: 1.9, wash: false),
                   Expanded(
                     child: ExcludeSemantics(
-                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
+                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text(phone ? 'md' : 'sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
                     ),
                   ),
                   if (parts.fine && search != null)
@@ -142,9 +150,12 @@ class CommandField extends StatelessWidget {
 
 /// A ring with no ground: Back, the sidebar's toggle.
 class _Plain extends StatelessWidget {
-  const _Plain({required this.act, required this.fine});
+  const _Plain({required this.act, required this.fine, this.step = 0});
   final HeaderAct act;
   final bool fine;
+
+  /// A phone's step up.
+  final double step;
 
   @override
   Widget build(BuildContext context) {
@@ -160,18 +171,49 @@ class _Plain extends StatelessWidget {
           width: ring,
           height: ring,
           decoration: BoxDecoration(shape: BoxShape.circle, color: lit ? t.color('app-paper-2') : null),
-          child: Center(child: HeaderGlyph(act, size: 19, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
+          child: Center(child: HeaderGlyph(act, size: 19 + step, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
         );
       },
     );
   }
 }
 
+/// The home page's Filters (lib/home/home_filters.dart `HomeFiltersButton`) as one of this bar's rings: the page's
+/// own button and panel in the bar's face, the round lit while its panel is open, ink while a filter is on.
+class _Filters extends StatelessWidget {
+  const _Filters({required this.filters, required this.step});
+  final BarButton filters;
+  final double step;
+
+  static const HeaderAct _act = HeaderAct(id: 'filters', label: 'Filters', word: 'Filters', hue: 'indigo', icon: Lucide.slidersHorizontal, onPress: null);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ring = t.len('app-bar-ring');
+    return filters((context, state, {required open, required on}) {
+      final lit = state.hovered || state.pressed || open;
+      final ink = on ? t.color('glacier-bg') : (lit ? t.color('glacier-text') : t.color('glacier-text-muted'));
+      return GlacierFocusRing(
+        visible: state.focused,
+        radius: 999,
+        child: Container(
+          width: ring,
+          height: ring,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: on ? t.color('glacier-text') : (lit ? t.color('app-paper-2') : null)),
+          child: Center(child: HeaderGlyph(_act, size: 18 + step, color: ink, strokeWidth: 1.7)),
+        ),
+      );
+    });
+  }
+}
+
 /// The one action that stands out: paper on an ink round.
 class _Primary extends StatelessWidget {
-  const _Primary({required this.act, required this.fine});
+  const _Primary({required this.act, required this.fine, this.step = 0});
   final HeaderAct act;
   final bool fine;
+  final double step;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +230,7 @@ class _Primary extends StatelessWidget {
           width: ring,
           height: ring,
           decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('glacier-text')),
-          child: Center(child: HeaderGlyph(act, size: 16, color: t.color('glacier-bg'), strokeWidth: 2)),
+          child: Center(child: HeaderGlyph(act, size: 16 + step, color: t.color('glacier-bg'), strokeWidth: 2)),
         ),
       ),
     );
@@ -197,9 +239,10 @@ class _Primary extends StatelessWidget {
 
 /// ••• and its sections, with the bell's dot while something is new.
 class _CommandMenu extends StatelessWidget {
-  const _CommandMenu({required this.parts, required this.entries});
+  const _CommandMenu({required this.parts, required this.entries, this.step = 0});
   final HeaderParts parts;
   final List<HeaderMenuEntry> entries;
+  final double step;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +264,7 @@ class _CommandMenu extends StatelessWidget {
             width: ring,
             height: ring,
             decoration: BoxDecoration(shape: BoxShape.circle, color: lit ? t.color('app-paper-2') : null),
-            child: Center(child: HeaderGlyph(act, size: 19, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
+            child: Center(child: HeaderGlyph(act, size: 19 + step, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
           ),
           rim: t.color('glacier-bg'),
           ink: t.color('glacier-text'),

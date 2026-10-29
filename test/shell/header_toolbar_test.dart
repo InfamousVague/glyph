@@ -183,7 +183,7 @@ void main() {
               // The home page's Filters beside the title pill in Grouped command at home, and nowhere else (Matt,
               // 2026-10-29: "when on the homepage add it next to the command search bar in the top bar").
               final filters = find.byKey(HeaderAct.keyOf('filters'));
-              expect(filters, version == HeaderToolbarVersion.groupedCommand && !note ? findsOneWidget : findsNothing, reason: 'Filters ${note ? 'on a note' : 'at home'}');
+              expect(filters, version.searchPill && !note ? findsOneWidget : findsNothing, reason: 'Filters ${note ? 'on a note' : 'at home'}');
               if (filters.evaluate().isNotEmpty) {
                 final rect = tester.getRect(filters);
                 expect(rect.right <= window.size.width + 0.5 && (rect.width - rect.height).abs() < 0.5, isTrue, reason: 'Filters a circle in the window, $rect');
@@ -339,17 +339,20 @@ void main() {
   // dock when smaller" (after 2026-10-28's "a size larger"): Grouped command's rings, glyphs and title pill are the
   // home page's dock's at the scale it shrinks to while the page scrolls.
   for (final window in windows) {
-    barTest('6 Grouped command is the dock’s size when it is smaller, ${window.name}', (tester) async {
+    barTest('6 Grouped command is the dock’s size when it is smaller, a step up on a phone, ${window.name}', (tester) async {
       await pumpShell(tester, version: HeaderToolbarVersion.groupedCommand, window: window, note: false);
       final t = GlacierTheme.of(tester.element(find.byType(AppTabBar)));
-      final ring = t.len('app-ring') * dockScrolledScale;
+      // On a phone a small step larger (Matt, 2026-10-29: "Make the header icons and search bar slightly larger on
+      // mobile"): 2.5px on the rings, 1.5 on the glyphs.
+      final phone = window.size.width < 600;
+      final ring = t.len('app-ring') * dockScrolledScale + (phone ? 2.5 : 0);
       // The circles that stand alone are the ring across: you, Filters, ••• at home; the title pill is the ring high.
       for (final id in ['you', 'filters', 'search']) {
         final rect = tester.getRect(find.byKey(HeaderAct.keyOf(id)));
         expect((rect.height - ring).abs(), lessThan(1), reason: '$id is ${rect.height}, the dock smaller is $ring');
       }
       double glyphIn(String id) => tester.widget<HeaderGlyph>(find.descendant(of: find.byKey(HeaderAct.keyOf(id)), matching: find.byType(HeaderGlyph)).first).size;
-      final glyph = t.lenOf('1.15rem') * dockScrolledScale;
+      final glyph = t.lenOf('1.15rem') * dockScrolledScale + (phone ? 1.5 : 0);
       for (final id in ['home', 'sidebar', 'you']) {
         expect((glyphIn(id) - glyph).abs(), lessThan(0.01), reason: id);
       }
@@ -362,8 +365,29 @@ void main() {
       }
 
       final large = words();
+      // The words a size up on a phone, md, and the small size elsewhere, sm.
+      expect(large, t.fontSize(phone ? 'md' : 'sm'));
       await pumpShell(tester, version: HeaderToolbarVersion.command, window: window, note: false);
       expect(large, words());
+    });
+
+    // Command centre's bar on a phone the same small step larger, its rings with Grouped command's there; elsewhere as
+    // it was.
+    barTest('4 Command centre a step up on a phone and as it was elsewhere, ${window.name}', (tester) async {
+      await pumpShell(tester, version: HeaderToolbarVersion.command, window: window, note: false);
+      final t = GlacierTheme.of(tester.element(find.byType(AppTabBar)));
+      final phone = window.size.width < 600;
+      final ring = phone ? t.len('app-ring') * dockScrolledScale + 2.5 : t.lenOf('calc(var(--glacier-space-10) * 0.68)');
+      for (final id in ['home', 'filters', 'search', 'new', 'overflow']) {
+        final rect = tester.getRect(find.byKey(HeaderAct.keyOf(id)).first);
+        expect((rect.height - ring).abs(), lessThan(1), reason: '$id is ${rect.height}, wanted $ring');
+      }
+      if (phone) expect(ring, greaterThan(t.lenOf('calc(var(--glacier-space-10) * 0.68)') + 2));
+      double glyphIn(String id) => tester.widget<HeaderGlyph>(find.descendant(of: find.byKey(HeaderAct.keyOf(id)), matching: find.byType(HeaderGlyph)).first).size;
+      expect(glyphIn('home'), 19 + (phone ? 1.5 : 0));
+      expect(glyphIn('new'), 16 + (phone ? 1.5 : 0));
+      // Home, Filters and the + always in the row; the pill a word on a phone.
+      expect(find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.text(phone ? 'Search' : 'Search or run a command')), findsOneWidget);
     });
   }
 

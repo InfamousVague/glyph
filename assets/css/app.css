@@ -366,6 +366,15 @@ body {
   --app-bar-ring: calc(var(--app-ring) * 0.8);
 }
 
+/*
+ * The two versions with a search pill, Command centre and Grouped command, on a window narrower than the opened Fold:
+ * a small step larger than the dock's smaller size (Matt, 2026-10-29: "Make the header icons and search bar slightly
+ * larger on mobile"), about 31px on a phone where Grouped command's were 28.6 and Command centre's 27.6.
+ */
+:root[data-header='phone'] {
+  --app-bar-ring: calc(var(--app-ring) * 0.8 + 2.5px);
+}
+
 :root[data-topbar='islands'] {
   --app-bar-extra: 8px;
 }

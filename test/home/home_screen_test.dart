@@ -1137,7 +1137,9 @@ void main() {
       headerToolbarChoice.set(version.id);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      final grouped = version == HeaderToolbarVersion.groupedCommand;
+      // Command centre too since 2.3.68 (Matt, 2026-10-29: "the search bar and filters is still showing on the homepage on
+      // mobile when it shouldn't").
+      final grouped = version.searchPill;
       expect(find.bySemanticsLabel('Search notebooks and notes'), grouped ? findsNothing : findsWidgets, reason: version.label);
       expect(find.bySemanticsLabel('Filters'), findsOneWidget, reason: version.label);
     }

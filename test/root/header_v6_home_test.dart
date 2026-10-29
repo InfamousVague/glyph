@@ -91,13 +91,19 @@ void main() {
     (name: 'the opened Fold’s two panes, the notes column beside the home page', size: unfolded, workspace: null, panes: true),
   ];
 
+  // The two versions whose bar holds a search pill: Grouped command, and Command centre since Matt's 2.3.68 (2026-10-29:
+  // "the search bar and filters is still showing on the homepage on mobile when it shouldn't", his bar Command centre).
+  final pills = [for (final version in HeaderToolbarVersion.values) if (version.searchPill) version];
+
   for (final layout in layouts) {
-    testWidgets('with Grouped command kept before launch: no search field in ${layout.name}, and the filters there', (tester) async {
+    for (final pill in pills) {
+    testWidgets('with ${pill.label} kept before launch: no search field in ${layout.name}, and the filters in the bar', (tester) async {
       final semantics = tester.ensureSemantics();
       final stored = MemoryStored();
       if (layout.panes) writeSidebarShown(true, stored);
-      await launch(tester, size: layout.size, version: HeaderToolbarVersion.groupedCommand.id, stored: stored, workspace: layout.workspace);
-      expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand, reason: 'read from the device before the first frame');
+      await launch(tester, size: layout.size, version: pill.id, stored: stored, workspace: layout.workspace);
+      expect(headerToolbarVersion, pill, reason: 'read from the device before the first frame');
+      expect(find.byKey(HeaderAct.keyOf('home')), findsOneWidget, reason: 'Home always');
       expect(find.byType(HomeScreen), findsOneWidget);
       if (layout.panes) expect(find.byType(SimpleHome), findsOneWidget, reason: 'the notes column beside the home page');
       // The bar's title pill is the search.
@@ -109,6 +115,7 @@ void main() {
       semantics.dispose();
       await close(tester);
     });
+    }
 
     testWidgets('with nothing kept: ${layout.name} keeps its search field', (tester) async {
       final semantics = tester.ensureSemantics();
@@ -127,9 +134,10 @@ void main() {
   // Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it next to the command
   // search bar in the top bar".
   for (final size in [phone, unfolded]) {
-    testWidgets('Grouped command: the bar’s Filters opens the page’s panel under it, and Notebooks filters the list (${size.width.round()})', (tester) async {
+    for (final pill in pills) {
+    testWidgets('${pill.label}: the bar’s Filters opens the page’s panel under it, and Notebooks filters the list (${size.width.round()})', (tester) async {
       final semantics = tester.ensureSemantics();
-      await launch(tester, size: size, version: HeaderToolbarVersion.groupedCommand.id);
+      await launch(tester, size: size, version: pill.id);
       final bar = find.byKey(HeaderAct.keyOf('filters'));
       final button = tester.getRect(bar);
       await tester.tap(bar);
@@ -154,12 +162,14 @@ void main() {
       semantics.dispose();
       await close(tester);
     });
+    }
   }
 
-  for (final version in HeaderToolbarVersion.values.where((each) => each != HeaderToolbarVersion.groupedCommand)) {
-    testWidgets('${version.number} ${version.label}: the filters stay on the page, and the bar has none', (tester) async {
+  for (final version in HeaderToolbarVersion.values.where((each) => !each.searchPill)) {
+    testWidgets('${version.number} ${version.label}: the search field and the filters stay on the page, and the bar has none', (tester) async {
       final semantics = tester.ensureSemantics();
       await launch(tester, size: phone, version: version.id);
+      expect(fields(), findsOneWidget);
       expect(find.descendant(of: find.byType(HomeScreen), matching: filtersButton()), findsOneWidget);
       expect(find.byKey(HeaderAct.keyOf('filters')), findsNothing);
       semantics.dispose();
@@ -167,8 +177,9 @@ void main() {
     });
   }
 
-  testWidgets('Grouped command on a note: no Filters in the bar', (tester) async {
-    await launch(tester, size: unfolded, version: HeaderToolbarVersion.groupedCommand.id);
+  for (final pill in pills) {
+  testWidgets('${pill.label} on a note: no Filters in the bar', (tester) async {
+    await launch(tester, size: unfolded, version: pill.id);
     expect(find.byKey(HeaderAct.keyOf('filters')), findsOneWidget);
     final shell = tester.state<AppShellState>(find.byType(AppShell));
     shell.openNote(shell.notes.first.id);
@@ -179,6 +190,7 @@ void main() {
     expect(find.byKey(HeaderAct.keyOf('filters')), findsNothing);
     await close(tester);
   });
+  }
 
   // Matt, 2026-10-29, of the opened Fold's notes column beside the home page: "remove these icons from the sidebar" -
   // its microphone and its +, which the home page's dock has. In every version, since it is the sidebar, not the bar.

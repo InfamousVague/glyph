@@ -732,7 +732,9 @@ class AppShellState extends State<AppShell> {
       'topbar': topBar == TopBarStyle.classic ? null : topBar.id,
       // Grouped command is a size larger, the bar with it (app.css `[data-header='large']`; Matt, 2026-10-28: "make the
       // elements a size larger"); only where there is a bar for it to draw.
-      'header': tabBar && (widget.headerToolbar ?? headerToolbarVersion) == HeaderToolbarVersion.groupedCommand ? 'large' : null,
+      // And on a phone's width a search pill's bar is a small step larger again, Command centre's with it (Matt,
+      // 2026-10-29: "Make the header icons and search bar slightly larger on mobile"; app.css `[data-header='phone']`).
+      'header': _headerStamp(tabBar, window),
     };
 
     // The page's root is told too: what is drawn outside the shell reads the same attributes (root_stamps.dart).
@@ -760,6 +762,15 @@ class AppShellState extends State<AppShell> {
         ),
       ),
     );
+  }
+
+  /// `data-header`: the bar's size where a version wants another. Grouped command's is the dock's smaller size
+  /// (`large`); on a window narrower than the opened Fold, the two with a search pill are a small step larger (`phone`).
+  String? _headerStamp(bool tabBar, Size window) {
+    if (!tabBar) return null;
+    final version = widget.headerToolbar ?? headerToolbarVersion;
+    if (version.searchPill && window.width < phoneWidth) return 'phone';
+    return version == HeaderToolbarVersion.groupedCommand ? 'large' : null;
   }
 
   /// The screen and everything over it, for one build. [plain] is simple mode's frame (GHST-105): the place, or

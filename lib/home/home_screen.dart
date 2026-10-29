@@ -632,10 +632,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) => _build(context);
 
-  /// Whether the filters' button is the bar's: Grouped command draws the bar, so the button stands beside its title
-  /// pill (Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it next to the
-  /// command search bar in the top bar"). A page with no bar over it, or in simple mode, keeps its own.
-  bool _filtersInBar(BuildContext context) => !widget.simple && headerToolbarVersion == HeaderToolbarVersion.groupedCommand && TopBarTools.maybeOf(context) != null;
+  /// Whether the filters' button is the bar's: a version with a search pill (Command centre, Grouped command) draws the
+  /// bar, so the button stands beside its pill (Matt, 2026-10-29: "also remove this filter button on the home page,
+  /// when on the homepage add it next to the command search bar in the top bar", and of Command centre on 2.3.68: "the
+  /// search bar and filters is still showing on the homepage on mobile when it shouldn't"). A page with no bar over
+  /// it, or in simple mode, keeps its own.
+  bool _filtersInBar(BuildContext context) => !widget.simple && headerToolbarVersion.searchPill && TopBarTools.maybeOf(context) != null;
 
   BarButton? _barButton;
   String? _barKey;
@@ -703,7 +705,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.onNewNote != null ? 262144 : 0) |
           (widget.onAllTapes != null ? 524288 : 0) |
           // The header toolbar's Grouped command takes the search field off a page already drawn.
-          (headerToolbarVersion == HeaderToolbarVersion.groupedCommand ? 1048576 : 0) |
+          (headerToolbarVersion.searchPill ? 1048576 : 0) |
           // And its bar takes the filters' button off the page.
           (inBar ? 2097152 : 0),
       meetings: widget.meetings,
@@ -1022,7 +1024,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // No field of the page's own while the header toolbar's Grouped command draws the bar: its title pill opens
           // the palette, which finds notes by name (Matt, 2026-10-28: "remove the search bar from the home page since
           // it's redundant"). Simple mode has no bar, so it keeps its field.
-          searchField: widget.simple || headerToolbarVersion != HeaderToolbarVersion.groupedCommand,
+          searchField: widget.simple || !headerToolbarVersion.searchPill,
           // And the filters' button is the bar's beside its title pill; the chips of what is chosen stay here.
           filtersButton: (drawn.seams & 2097152) == 0,
         ),

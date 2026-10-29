@@ -50,8 +50,12 @@ import 'header_kit.dart';
 /// after 2026-10-28's "a size larger" and "very slightly" more.
 double dockGlyph(Tokens t) => t.lenOf('1.15rem') * dockScrolledScale;
 
+/// [dockGlyph], and on a phone's width a small step larger (Matt, 2026-10-29: "Make the header icons and search bar
+/// slightly larger on mobile"; the rings with it, app.css `[data-header='phone']`).
+double groupedCommandGlyph(BuildContext context) => dockGlyph(context.tokens) + (headerOnPhone(context) ? phoneGlyphStep : 0);
+
 HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
-  final glyph = dockGlyph(context.tokens);
+  final glyph = groupedCommandGlyph(context);
   Widget solid(Widget child) => styled(context, IconStyle.solid, child);
   final wide = parts.wide;
   // The way around: all four on a wide window; Home, the sidebar and Back on a narrow one, Forward put away. Home is
@@ -127,7 +131,7 @@ class _FiltersCircle extends StatelessWidget {
           return GlacierFocusRing(
             visible: state.focused,
             radius: 999,
-            child: GroupedPill(children: [GroupedSegmentFace(act: _act, state: lit, on: on, glyph: dockGlyph(context.tokens))]),
+            child: GroupedPill(children: [GroupedSegmentFace(act: _act, state: lit, on: on, glyph: groupedCommandGlyph(context))]),
           );
         },
       );
