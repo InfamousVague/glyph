@@ -268,6 +268,12 @@ class FakeService {
   /// seconds. Not in the web's fake, whose share tests stand in for the call itself; here they go through the fetcher.
   final Map<String, ({String blob, int updated})> shares = {};
 
+  /// A shared meeting's recording as kept (server/src/shares.rs): its upload's id and its sealed parts, by share id.
+  final Map<String, ({String upload, List<Uint8List> parts})> shareAudio = {};
+
+  /// The parts of uploads not yet committed, by share id: the upload's id and its parts by number.
+  final Map<String, ({String upload, Map<int, Uint8List> parts})> shareAudioStaging = {};
+
   /// The account's published sites (server/src/sites.rs): each one's sealed blob, what the account's devices sealed
   /// about it, and when it was first and last published, in ms.
   final Map<String, ({String blob, String meta, int created, int updated})> sites = {};
@@ -326,6 +332,8 @@ class FakeService {
     files.clear();
     _prefs = null;
     shares.clear();
+    shareAudio.clear();
+    shareAudioStaging.clear();
     sites.clear();
     mailAddress = null;
     mail.clear();
@@ -531,6 +539,19 @@ class FakeService {
       final kept = shares[Uri.decodeComponent(share[1]!)];
       return kept != null ? _json(200, {'blob': kept.blob}) : _refuse(404, 'No share by that link.');
     }
+    // And its recording: every part as its length, four bytes big-endian, then its bytes.
+    final audio = RegExp(r'^shares/([^/]+)/audio$').firstMatch(path);
+    if (audio != null && method == 'GET') {
+      final kept = shareAudio[Uri.decodeComponent(audio[1]!)];
+      if (kept == null) return _refuse(404, 'This share carries no recording. It may have been taken down.');
+      final out = BytesBuilder(copy: false);
+      for (final part in kept.parts) {
+        out
+          ..add((ByteData(4)..setUint32(0, part.length)).buffer.asUint8List())
+          ..add(part);
+      }
+      return FetchResponse(200, bytes: out.takeBytes());
+    }
 
     // --- a site read by its link, which needs no session (server/src/sites.rs) ---
     final site = RegExp(r'^sites/([^/]+)$').firstMatch(path);
@@ -619,8 +640,44 @@ class FakeService {
       return _json(200, {'ok': true});
     }
     if (share != null && method == 'DELETE') {
-      shares.remove(Uri.decodeComponent(share[1]!));
+      final id = Uri.decodeComponent(share[1]!);
+      shares.remove(id);
+      // The recording goes with its share.
+      shareAudio.remove(id);
+      shareAudioStaging.remove(id);
       return _json(200, {'deleted': true});
+    }
+    // A shared meeting's recording: a part of an upload, the upload made whole, and the recording taken down.
+    final audioPart = RegExp(r'^shares/([^/]+)/audio/([^/]+)/(\d+)$').firstMatch(path);
+    if (audioPart != null && method == 'PUT') {
+      final id = Uri.decodeComponent(audioPart[1]!);
+      if (!shares.containsKey(id)) return _refuse(404, 'There is no share of yours at that link. Share the meeting first.');
+      final upload = audioPart[2]!;
+      final bytes = request.body ?? Uint8List(0);
+      if (bytes.isEmpty) return _refuse(400, 'That part of a recording is empty.');
+      final staged = shareAudioStaging[id];
+      final parts = staged != null && staged.upload == upload ? staged.parts : <int, Uint8List>{};
+      parts[int.parse(audioPart[3]!)] = bytes;
+      shareAudioStaging[id] = (upload: upload, parts: parts);
+      return FetchResponse(204);
+    }
+    if (audio != null && method == 'POST') {
+      final id = Uri.decodeComponent(audio[1]!);
+      if (!shares.containsKey(id)) return _refuse(404, 'There is no share of yours at that link. Share the meeting first.');
+      final staged = shareAudioStaging[id];
+      final count = _num(body['parts']).toInt();
+      if (staged == null || staged.upload != body['upload'] || staged.parts.length != count || !List.generate(count, (n) => n).every(staged.parts.containsKey)) {
+        return _refuse(409, 'Not every part of that recording has arrived. Send it again.');
+      }
+      shareAudio[id] = (upload: staged.upload, parts: [for (var n = 0; n < count; n += 1) staged.parts[n]!]);
+      shareAudioStaging.remove(id);
+      return _json(200, {'upload': staged.upload, 'parts': count, 'size': shareAudio[id]!.parts.fold<int>(0, (sum, p) => sum + p.length + 4)});
+    }
+    if (audio != null && method == 'DELETE') {
+      final id = Uri.decodeComponent(audio[1]!);
+      shareAudio.remove(id);
+      shareAudioStaging.remove(id);
+      return FetchResponse(204);
     }
 
     // --- published sites (server/src/sites.rs) ---

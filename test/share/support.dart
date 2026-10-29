@@ -35,5 +35,31 @@ class Pictures implements SharePictures {
   }
 }
 
+/// This device's meeting recordings, in a map by note id, with every part read counted.
+class HeldRecordings implements ShareRecordings {
+  HeldRecordings([Map<String, Uint8List>? held]) : held = {...?held};
+  final Map<String, Uint8List> held;
+  final List<String> asked = [];
+  int reads = 0;
+
+  @override
+  Future<ShareRecording?> recordingOf(String noteId) async {
+    asked.add(noteId);
+    final bytes = held[noteId];
+    if (bytes == null) return null;
+    return ShareRecording(
+      mime: 'audio/wav',
+      bytes: bytes.length,
+      read: (offset, length) async {
+        reads += 1;
+        return Uint8List.sublistView(bytes, offset, offset + length);
+      },
+    );
+  }
+}
+
+/// A recording's bytes, [size] of them, each its place's low byte, so a part out of place reads differently.
+Uint8List wav(int size) => Uint8List.fromList([for (var i = 0; i < size; i += 1) i & 0xff]);
+
 /// A picture's bytes: [size] of them, all [n].
 Uint8List jpeg(int n, [int size = 8]) => Uint8List(size)..fillRange(0, size, n);

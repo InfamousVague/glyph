@@ -314,7 +314,7 @@ class KeptWorkspaces {
 /// A note shared by a read-only link (share/share.ts): the share's id, its key, and what was last sent.
 @immutable
 class ShareEntry {
-  const ShareEntry({required this.id, required this.key, this.sent = '', this.lacked, this.place = false, this.places = false});
+  const ShareEntry({required this.id, required this.key, this.sent = '', this.lacked, this.place = false, this.places = false, this.recording = true, this.audio});
   final String id;
   final String key;
   final String sent;
@@ -327,6 +327,25 @@ class ShareEntry {
   final bool place;
   final bool places;
 
+  /// Whether a meeting's share carries its recording (the share sheet's "Include the recording"): on unless turned
+  /// off, so only ever written false (lib/share/share_audio.dart).
+  final bool recording;
+
+  /// The recording the share was last sent with, as lib/share/share_audio.dart `SharedAudio` writes it; null for none.
+  /// Kept with the share in the synced settings, so a device without the recording writes the share again naming it.
+  final Map<String, Object?>? audio;
+
+  ShareEntry copyWith({String? sent, List<String>? Function()? lacked, bool? place, bool? places, bool? recording, Map<String, Object?>? Function()? audio}) => ShareEntry(
+        id: id,
+        key: key,
+        sent: sent ?? this.sent,
+        lacked: lacked != null ? lacked() : this.lacked,
+        place: place ?? this.place,
+        places: places ?? this.places,
+        recording: recording ?? this.recording,
+        audio: audio != null ? audio() : this.audio,
+      );
+
   Map<String, Object?> toJson() => {
         'id': id,
         'key': key,
@@ -334,6 +353,8 @@ class ShareEntry {
         if (lacked != null && lacked!.isNotEmpty) 'lacked': lacked,
         if (place) 'place': true,
         if (places) 'places': true,
+        if (!recording) 'recording': false,
+        if (audio != null) 'audio': audio,
       };
 }
 
@@ -404,6 +425,8 @@ Map<String, ShareEntry> _readShares(Object? raw) {
         lacked: lacked != null && lacked.isNotEmpty ? List.unmodifiable(lacked) : null,
         place: k['place'] == true,
         places: k['places'] == true,
+        recording: k['recording'] != false,
+        audio: k['audio'] is Map ? Map.unmodifiable((k['audio'] as Map).map((key, value) => MapEntry('$key', value))) : null,
       );
     }
   }
