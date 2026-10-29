@@ -145,6 +145,7 @@ import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../home/home_organizations.dart' show OrgPresence;
+import '../assistant/app_assistant.dart' show appAssistant;
 import '../claude/claude_chat.dart';
 import '../claude/claude_books.dart' show ClaudeBookProblem, ClaudeBooks, ClaudeShelf;
 import '../claude/claude_folders.dart' show ClaudeFolders;
@@ -942,7 +943,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
   /// real library, and nowhere else. Begun once the notes are read.
   late final PhoneExtras? _extras = _real && !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view, events: calendar.events, calendarOn: calendarOn, scheme: () => themeScheme(preferences.value.theme), lookChanged: preferences, workspaces: _workspaces, claudeOn: () => _claudeOn, claudeKey: () => claudeSettings.hasKey, claudeChanged: Listenable.merge([_pluginsHeard, claudeSettings]))
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view, events: calendar.events, calendarOn: calendarOn, scheme: () => themeScheme(preferences.value.theme), lookChanged: preferences, workspaces: _workspaces, claudeOn: () => _claudeOn, claudeKey: () => claudeSettings.hasKey || appAssistant.chatBy != null, claudeChanged: Listenable.merge([_pluginsHeard, claudeSettings, appAssistant]))
       : null;
 
   /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).
@@ -965,7 +966,21 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// The app's own Claude, with the person's API key (docs/CLAUDE_APP.md): made on first use.
   late final ClaudeFolders _claudeFolders = ClaudeFolders(_workspaces);
-  late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this), allowed: claudeInApp, folders: _claudeFolders, books: ClaudeBooks(_RootClaudeShelf(this), _claudeFolders));
+  ///
+  /// Whoever Settings › AI › Assistant says answers (lib/assistant/app_assistant.dart; Matt, 2026-10-29: "Add support
+  /// for aster 6 and other Ai models as plugins in addition to claude like openAI google gemini etc"): Claude where it
+  /// can, exactly as before, else another provider set up here.
+  late final ClaudeRunner _claude = ClaudeRunner(
+    settings: claudeSettings,
+    notes: _RootClaudeNotes(this),
+    desk: _RootClaudeDesk(this),
+    allowed: claudeInApp,
+    folders: _claudeFolders,
+    books: ClaudeBooks(_RootClaudeShelf(this), _claudeFolders),
+    route: () => appAssistant.chatRoute,
+    routeChanges: appAssistant,
+    loadRoute: appAssistant.load,
+  );
 
   /// The "Ask Claude" note, worked through as requests are written in it.
   late final ClaudeInbox _claudeInbox = ClaudeInbox(
@@ -981,20 +996,26 @@ class _GhostRootState extends State<GhostRoot> {
   /// The registry the root hears (lib/plugins/registry.dart): the app's as the root came up.
   final Registry _pluginsHeard = plugins;
 
-  /// Whether the app's own Claude is on, as the parts last read it (the Claude plugin's switch).
-  bool get _claudeOn => claudeInApp();
+  /// Whether the app's own Claude is on, as the parts last read it (the Claude plugin's switch); or another AI
+  /// provider's plugin (docs/AI_PROVIDERS.md), whose chat is the same chat.
+  bool get _claudeOn => claudeInApp() || appAssistant.anyOn;
 
   /// Whether Claude is shown: on, and an Anthropic API key entered on this device (Matt, 2026-10-19: "the claude icon
   /// should only show up if the user has entered the antrhopic api key"). The dock's Claude and Talk to Claude rings
   /// and Claude's bar wait for the key; Settings › Claude is where it is entered.
-  bool get _claudeShown => _claudeOn && claudeSettings.hasKey;
+  ///
+  /// Or another provider set up to answer (lib/assistant/assistant.dart `chatBy`): its key kept, its plugin on.
+  bool get _claudeShown => _claudeOn && (claudeSettings.hasKey || appAssistant.chatBy != null);
 
   /// Whether a key was there when the parts last read it, so a key entered or removed draws them again.
-  bool _claudeKeyed = false;
+  Object _claudeKeyed = false;
+
+  /// Whether a key is there now: Claude's, or one another provider answers with (who answers, besides).
+  Object get _claudeKeyedNow => (claudeSettings.hasKey, appAssistant.chatBy);
 
   void _claudeKeyMoved() {
-    if (!mounted || claudeSettings.hasKey == _claudeKeyed) return;
-    _claudeKeyed = claudeSettings.hasKey;
+    if (!mounted || _claudeKeyedNow == _claudeKeyed) return;
+    _claudeKeyed = _claudeKeyedNow;
     _pluginsMoved();
     // The parts read again only when the tick says so (lib/root/selected.dart).
     _tick.tell();
@@ -1630,6 +1651,7 @@ class _GhostRootState extends State<GhostRoot> {
     _localOnly.removeListener(_localOnlyMoved);
     _pluginsHeard.removeListener(_pluginsMoved);
     claudeSettings.removeListener(_claudeKeyMoved);
+    appAssistant.removeListener(_claudeKeyMoved);
     _guide?.removeListener(_changed);
     // The updates are the process's, as the core is: let go of, never disposed.
     widget.updates?.removeListener(_updatesChanged);
@@ -1747,8 +1769,9 @@ class _GhostRootState extends State<GhostRoot> {
     discordCanShare = () => _services?.shares != null && (_services?.signedIn ?? false);
     // The plugins' switches, for what the root draws of them: Claude on every dock, its chat and its bar.
     _pluginsHeard.addListener(_pluginsMoved);
-    _claudeKeyed = claudeSettings.hasKey;
+    _claudeKeyed = _claudeKeyedNow;
     claudeSettings.addListener(_claudeKeyMoved);
+    appAssistant.addListener(_claudeKeyMoved);
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
     // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).

@@ -143,7 +143,7 @@ class _ClaudeChatState extends State<ClaudeChat> {
     setState(() => _problem = null);
     _field.clear();
     final runner = widget.runner;
-    if (!runner.settings.hasKey) {
+    if (!runner.ready) {
       final inbox = widget.onInbox;
       if (inbox == null) return;
       try {
@@ -170,7 +170,7 @@ class _ClaudeChatState extends State<ClaudeChat> {
     final panel = Semantics(
       scopesRoute: true,
       explicitChildNodes: true,
-      label: 'Chat with ${widget.agent ?? 'Claude'}',
+      label: 'Chat with ${widget.agent ?? widget.runner.speaker}',
       child: Container(
         key: const ValueKey('claude-chat'),
         decoration: BoxDecoration(
@@ -188,7 +188,7 @@ class _ClaudeChatState extends State<ClaudeChat> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Head(state: this),
-                  if (_choosing && widget.runner.settings.hasKey) _Choices(settings: widget.runner.settings),
+                  if (_choosing && widget.runner.settings.hasKey && widget.runner.claudeAnswers) _Choices(settings: widget.runner.settings),
                   Expanded(child: _Messages(state: this)),
                   _Composer(state: this),
                 ],
@@ -311,13 +311,17 @@ class _Head extends StatelessWidget {
     final runner = chat.runner;
     final run = runner.run;
     final at = run?.at;
+    // Another provider answering (docs/AI_PROVIDERS.md) says its model; its page, not this, is where it is changed.
+    final other = !runner.claudeAnswers;
     final line = run != null && run.working
         ? (at == null ? 'Thinking…' : '${at.doing[0].toUpperCase()}${at.doing.substring(1)} ${at.title.isEmpty ? 'a note' : at.title}')
-        : runner.settings.hasKey
-            ? '${claudeModelLabel(runner.settings.model)} · ${claudeEffortLabel(runner.settings.effort)} effort'
-            : 'No API key on this device';
+        : other
+            ? runner.model
+            : runner.settings.hasKey
+                ? '${claudeModelLabel(runner.settings.model)} · ${claudeEffortLabel(runner.settings.effort)} effort'
+                : 'No API key on this device';
     // The line under the name opens the model and effort pickers, while Claude is not at work.
-    final choosable = runner.settings.hasKey && !(run != null && run.working);
+    final choosable = !other && runner.settings.hasKey && !(run != null && run.working);
     final ink = t.color('app-ink');
     return Container(
       padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
@@ -330,8 +334,8 @@ class _Head extends StatelessWidget {
             width: 30,
             height: 30,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: claudeOrange),
-            child: const ClaudeMark(size: 16, color: claudeIvory),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: other ? claudeSlate : claudeOrange),
+            child: other ? const AppIcon(Lucide.sparkles, size: 16, color: claudeIvory) : const ClaudeMark(size: 16, color: claudeIvory),
           ),
           SizedBox(width: t.space(2)),
           Expanded(
@@ -339,7 +343,7 @@ class _Head extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(chat.agent ?? 'Claude', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)),
+                Text(chat.agent ?? runner.speaker, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)),
                 if (!choosable)
                   Text(line, key: const ValueKey('claude-chat-line'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle')))
                 else
@@ -380,13 +384,13 @@ class _Messages extends StatelessWidget {
     final t = context.tokens;
     final chat = state.widget;
     final runner = chat.runner;
-    final settings = runner.settings;
     final ais = chat.follow?.ais ?? const <AiOnline>[];
     // The agent this chat is with, online now; else every AI online, as the chip's menu listed them.
     final agentName = chat.agent?.toLowerCase();
     final shown = agentName == null ? ais : ais.where((ai) => ai.name.toLowerCase() == agentName).toList();
+    final speaker = runner.speaker;
     final items = <Widget>[
-      if (!settings.hasKey)
+      if (!runner.ready)
         _Card(
           key: const ValueKey('claude-no-key'),
           children: [
@@ -401,15 +405,15 @@ class _Messages extends StatelessWidget {
           ],
         ),
       for (final ai in shown) _AgentCard(ai: ai, chat: chat),
-      if (runner.conversation.isEmpty && state._sent.isEmpty && settings.hasKey)
+      if (runner.conversation.isEmpty && state._sent.isEmpty && runner.ready)
         Padding(
           padding: EdgeInsets.symmetric(vertical: t.space(6)),
           child: Column(
             children: [
-              const ClaudeMark(size: 34),
+              if (runner.claudeAnswers) const ClaudeMark(size: 34) else AppIcon(Lucide.sparkles, size: 34, color: t.color('glacier-text-subtle')),
               SizedBox(height: t.space(3)),
               Text(
-                'Ask Claude to write a note, find something, or change a note. The note it writes in opens, and you watch it type.',
+                'Ask $speaker to write a note, find something, or change a note. The note it writes in opens, and you watch it type.',
                 textAlign: TextAlign.center,
                 style: pageText(t, t.fontSize('sm'), color: t.color('glacier-text-subtle')),
               ),
@@ -681,7 +685,8 @@ class _Composer extends StatelessWidget {
     final chat = state.widget;
     final runner = chat.runner;
     final run = runner.run;
-    final hasKey = runner.settings.hasKey;
+    final hasKey = runner.ready;
+    final speaker = runner.speaker;
     if (!hasKey && chat.onInbox == null) return const SizedBox.shrink();
     // Send is a small round inside the field's trailing end, three fifths of its height (Matt, 2026-10-17: "Make the
     // send / delete smaller"), and Stop the same.
@@ -699,7 +704,7 @@ class _Composer extends StatelessWidget {
               child: Wrap(spacing: t.space(2), children: [
                 _Pill(
                   key: const ValueKey('claude-watch'),
-                  words: run.following ? 'Watch Claude in ${run.at!.title.isEmpty ? 'the note' : run.at!.title}' : 'Watch again',
+                  words: run.following ? 'Watch $speaker in ${run.at!.title.isEmpty ? 'the note' : run.at!.title}' : 'Watch again',
                   // The note opened (the chat makes way), Claude's caret shown where it last typed, scrolled to.
                   onPressed: run.follow,
                 ),
@@ -711,14 +716,14 @@ class _Composer extends StatelessWidget {
           GlacierInput(
             key: const ValueKey('claude-ask'),
             size: GlacierFieldSize.lg,
-            ariaLabel: hasKey ? 'Message Claude' : 'A request for your Ask Claude note',
+            ariaLabel: hasKey ? 'Message $speaker' : 'A request for your Ask Claude note',
             controller: state._field,
             focusNode: state._focus,
             placeholder: !hasKey
                 ? 'A request for the Ask Claude note…'
                 : runner.conversation.isEmpty
-                    ? 'Message Claude'
-                    : 'Reply to Claude',
+                    ? 'Message $speaker'
+                    : 'Reply to $speaker',
             autoFocus: runner.conversation.isEmpty,
             enterKeyHint: TextInputAction.send,
             onSubmitted: (_) => state._send(),

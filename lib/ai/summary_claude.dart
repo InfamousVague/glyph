@@ -43,13 +43,25 @@
 /// **The spending limit** (lib/claude/claude_spend.dart): each request is counted as it ends. Once the month's limit
 /// is reached a write-up is [limited]: the queue holds its job, saying [limitMessage], and asks again next month or
 /// once the limit is raised or the count reset; it is never failed for it.
+///
+/// **Or another provider** (docs/AI_PROVIDERS.md, "The assistant"; Matt, 2026-10-29: "Add support for aster 6 and
+/// other Ai models as plugins in addition to claude like openAI google gemini etc"). Where the app gives a [choice]
+/// (lib/assistant/assistant.dart), meetings are whichever provider it names (Settings › AI › Assistant, Automatic
+/// unless chosen: Claude where it may write them, as above, else the first other provider with a key and its own Write
+/// meeting summaries with (its name) on, else the device). Everything above holds for that provider as for Claude: Local
+/// only holds it, its own spending limit holds the job, a failure falls back to the device's model, and its request is
+/// the same system prompt and transcript in the Messages API's shape, which its client translates
+/// (lib/assistant/provider.dart). Only one pass where it fits is Claude's: another model's room is not known, so a
+/// meeting goes to it in the device model's pieces' size ([otherPieceChars]) past [otherOnePassChars]. With no choice
+/// given, meetings are Claude's or the device's, as they were.
 library;
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../assistant/assistant.dart' show AiRoute, AssistantChoice, claudeAssistantId;
+import '../assistant/provider.dart' show aiText;
 import '../claude/claude_settings.dart' show ClaudeSettings;
 import '../core/background_jobs.dart';
 import '../claude/claude_spend.dart' show claudeLimitError, claudeLimitType, meterClaude;
@@ -69,6 +81,13 @@ const int claudePieceChars = 400000;
 
 /// The beta the server-side fallback is asked for under (`fallbacks: "default"`).
 const String claudeFallbackBeta = 'server-side-fallback-2026-07-01';
+
+/// The most of a meeting sent in one request to another provider's model, whose room is not known: about 30,000
+/// tokens, which every model the providers list today takes.
+const int otherOnePassChars = 120000;
+
+/// The size of a piece of a meeting longer than that, for another provider's model.
+const int otherPieceChars = 60000;
 
 /// The models the server-side fallback is asked for (Haiku 5.5 has none).
 const Set<String> claudeFallbackModels = {'claude-opus-5-5', 'claude-sonnet-5-5'};
@@ -97,9 +116,20 @@ class ClaudeWriting {
 
 /// Claude, as the summary queue asks it for a meeting's write-up.
 class MeetingClaude {
-  MeetingClaude({required this.settings, required this.switchedOn, required this.localOnly, ClaudeApi Function(String key)? api, this.changes, BackgroundJobs? background, this.onePassChars = claudeOnePassChars, this.pieceChars = claudePieceChars})
+  MeetingClaude({required this.settings, required this.switchedOn, required this.localOnly, ClaudeApi Function(String key)? api, this.changes, BackgroundJobs? background, int onePassChars = claudeOnePassChars, int pieceChars = claudePieceChars, this.choice})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
+        _onePassChars = onePassChars,
+        _pieceChars = pieceChars,
         background = background ?? const NoBackgroundJobs();
+
+  /// Which provider writes meetings up (see the header); none, and they are Claude's or the device's as before.
+  final AssistantChoice? choice;
+
+  /// Another provider's route where it writes them; null where Claude does, or nobody.
+  AiRoute? get _other => choice?.meetingsRoute;
+
+  /// The name of who writes them: "Claude", or another provider's.
+  String get name => _other?.name ?? 'Claude';
 
   /// The device, told while a write-up is being asked of Claude, so it goes on with the app behind another (Matt,
   /// 2026-10-27: "Claude times out when the app loses focus please background the activity"): Android's foreground
@@ -124,16 +154,26 @@ class MeetingClaude {
 
   final ClaudeApi Function(String key) _api;
 
-  /// The most of a meeting sent in one request, and the size of a piece past it (see the header).
-  final int onePassChars;
-  final int pieceChars;
+  /// The most of a meeting sent in one request, and the size of a piece past it (see the header): Claude's, or for
+  /// another provider [otherOnePassChars] and [otherPieceChars] where those are less.
+  int get onePassChars => _other == null ? _onePassChars : (_onePassChars < otherOnePassChars ? _onePassChars : otherOnePassChars);
+  int get pieceChars => _other == null ? _pieceChars : (_pieceChars < otherPieceChars ? _pieceChars : otherPieceChars);
+  final int _onePassChars;
+  final int _pieceChars;
 
-  /// Reads the settings, once.
-  Future<void> load() => settings.load();
+  /// Reads the settings, once (and the choice's, where there is one).
+  Future<void> load() async {
+    await settings.load();
+    await choice?.load();
+  }
 
   /// Meetings are Claude's: the plugin switched on, a key kept, and Write meeting summaries with Claude on (see the
-  /// header).
-  bool get chosen => switchedOn() && settings.hasKey && settings.meetings;
+  /// header). With a [choice], whether any provider writes them.
+  bool get chosen {
+    final choice = this.choice;
+    if (choice == null) return switchedOn() && settings.hasKey && settings.meetings;
+    return choice.meetingsBy != null;
+  }
 
   /// Chosen, and held off by Local only: the write-up waits.
   bool get held => chosen && localOnly();
@@ -142,13 +182,13 @@ class MeetingClaude {
   bool get enabled => chosen && !localOnly();
 
   /// Chosen, and this month's spending limit reached: the write-up waits, as it does for Local only.
-  bool get limited => chosen && settings.spend.reached;
+  bool get limited => chosen && (_other?.spend ?? settings.spend).reached;
 
   /// What a write-up held by the limit says.
-  String get limitMessage => settings.spend.limitMessage;
+  String get limitMessage => (_other?.spend ?? settings.spend).limitMessage;
 
   /// The model the person chose, which a write-up is kept as having been made by.
-  String get model => settings.model;
+  String get model => _other?.model ?? settings.model;
 
   /// The request for one generation: [system] and [prompt] as the on-device model would be given them.
   Map<String, Object?> requestFor({required String system, required String prompt}) {
@@ -167,6 +207,8 @@ class MeetingClaude {
 
   /// One generation: [system] and [prompt], answered with the text Claude wrote.
   ClaudeWriting write({required String system, required String prompt}) {
+    final other = _other;
+    if (other != null && choice?.meetingsBy != claudeAssistantId) return _writeOther(other, system: system, prompt: prompt);
     final key = settings.key;
     if (key == null) return ClaudeWriting(Future<String>.error(const ClaudeError('Add your Anthropic API key in Settings › Claude.')), () {});
     if (settings.spend.reached) return ClaudeWriting(Future<String>.error(claudeLimitError(settings.spend)), () {});
@@ -182,39 +224,29 @@ class MeetingClaude {
     return ClaudeWriting(read, call.cancel);
   }
 
-  static Future<String> _read(ClaudeCall call) async {
-    final text = StringBuffer();
-    String? stop;
-    Object? failure;
-    await for (final event in call.events.handleError((Object error) => failure ??= error)) {
-      final data = _json(event.data);
-      switch (event.event) {
-        case 'content_block_delta':
-          final delta = data['delta'];
-          if (delta is Map && delta['type'] == 'text_delta') text.write(delta['text'] as String? ?? '');
-        case 'message_delta':
-          final delta = data['delta'];
-          if (delta is Map && delta['stop_reason'] is String) stop = delta['stop_reason'] as String;
-        case 'error':
-          final error = data['error'];
-          failure ??= ClaudeError(error is Map ? (error['message'] as String? ?? 'Claude stopped with an error.') : 'Claude stopped with an error.', type: error is Map ? error['type'] as String? : null);
-      }
-    }
-    if (failure != null) throw failure!;
-    // A decline is checked before the words: what streamed before it is not the answer.
-    if (stop == 'refusal') throw const ClaudeError('Claude declined to write this one up.', type: 'refusal');
-    if (stop == 'max_tokens') throw const ClaudeError('Claude’s write-up ran out of room and was cut off.');
-    final said = text.toString().trim();
-    if (said.isEmpty) throw const ClaudeError('Claude answered with nothing.');
-    return said;
+  /// [write], for another provider (see the header): the same request, through its client, counted by its meter.
+  ClaudeWriting _writeOther(AiRoute other, {required String system, required String prompt}) {
+    final provider = other.by.settings;
+    if (!provider.ready) return ClaudeWriting(Future<String>.error(ClaudeError('Set up ${other.name} in Settings › ${other.name}.')), () {});
+    if (provider.spend.reached) return ClaudeWriting(Future<String>.error(claudeLimitError(provider.spend)), () {});
+    final body = {
+      'model': other.model,
+      'max_tokens': claudeSummaryMaxTokens,
+      'system': system,
+      'messages': [
+        {'role': 'user', 'content': prompt},
+      ],
+    };
+    final call = meterClaude(other.api().stream(body), model: other.model, spend: provider.spend);
+    _asking += 1;
+    if (_asking == 1) unawaited(background.running(claudeWriteUpJobId, title: 'Writing up with ${other.name}', text: 'A meeting’s summary'));
+    final read = aiText(call, who: other.name).whenComplete(() {
+      _asking -= 1;
+      if (_asking == 0) unawaited(background.ended(claudeWriteUpJobId, title: 'Written up', quiet: true));
+    });
+    return ClaudeWriting(read, call.cancel);
   }
 
-  static Map<String, Object?> _json(String data) {
-    try {
-      final parsed = jsonDecode(data);
-      return parsed is Map ? parsed.cast<String, Object?>() : const {};
-    } catch (_) {
-      return const {};
-    }
-  }
+  /// One generation read whole (lib/assistant/provider.dart [aiText]), in Claude's words.
+  static Future<String> _read(ClaudeCall call) => aiText(call, who: 'Claude');
 }

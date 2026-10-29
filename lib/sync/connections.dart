@@ -32,6 +32,12 @@
 ///   API key that works from any number of devices, as Lovart's do, and the voice and the model a voice-over is read
 ///   with (`glyph-elevenlabs-voice`, `glyph-elevenlabs-model`), so a note read on the Mac sounds as one read on the
 ///   Fold. The person's own voices as last listed (`glyph-elevenlabs-own-voices`) stay: each device asks ElevenLabs.
+/// - **The other AI providers** (lib/assistant/provider_settings.dart; Matt, 2026-10-29: "Add support for aster 6 and
+///   other Ai models as plugins in addition to claude like openAI google gemini etc"): OpenAI's, Gemini's and the custom
+///   endpoint's key, model, address, Write meeting summaries with it, tools switch, prices and spending limit, each by
+///   its secure store name (`openai-api-key`, ...), as Claude's; their plugins' switches; and Settings › AI ›
+///   Assistant's two choices ([assistantChatName], [assistantMeetingsName]). What each has spent this month stays each
+///   device's, as Claude's count does.
 ///
 /// ALREADY TRAVELLING, in the settings sealed as a whole (lib/sync/prefs.dart): the calendars' iCal addresses and
 /// Google's sign-in (`calendars`), and the webhooks with their secrets (`webhooks`). **Google's refresh token** may be
@@ -63,6 +69,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../assistant/app_assistant.dart' show aiProviders, appAssistant;
+import '../assistant/assistant.dart';
+import '../assistant/provider_settings.dart';
 import '../claude/claude_settings.dart';
 import '../claude/claude_spend.dart' show claudeLimitName;
 import '../core/iphone_app.dart' show notOnIPhone;
@@ -80,7 +89,7 @@ import 'sealed_keys.dart';
 const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeMeetingsName, claudeLimitName];
 
 /// The plugins whose switch travels.
-const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs'];
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai'];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';
@@ -103,8 +112,12 @@ List<SyncedItem> connectionItems(
   PluginHost? elevenHost,
   Registry Function()? registry,
   TargetPlatform? platform,
+  List<AiProviderSettings>? providers,
+  AssistantChoice? assistant,
 }) {
   final settings = claude ?? claudeSettings;
+  final others = providers ?? [for (final plugged in aiProviders) plugged.settings];
+  final choice = assistant ?? appAssistant;
   final reg = (registry ?? () => plugins)();
   final slackHere = notOnIPhone('slack', platform: platform) == null;
   final discordHere = notOnIPhone('discord', platform: platform) == null;
@@ -118,6 +131,28 @@ List<SyncedItem> connectionItems(
           await settings.reload();
         },
         peek: () => _claudePeek(settings, name),
+      ),
+    for (final provider in others)
+      for (final name in provider.syncedNames)
+        SyncedItem(
+          name: name,
+          read: () => provider.store.read(name),
+          write: (value) async {
+            await provider.store.write(name, value);
+            await provider.reload();
+          },
+          peek: () => provider.peek(name),
+        ),
+    for (final name in AssistantChoice.syncedNames)
+      SyncedItem(
+        name: name,
+        read: () => choice.store.read(name),
+        write: (value) async {
+          await choice.store.write(name, value);
+          await choice.reload();
+        },
+        peek: () => choice.peek(name),
+        order: 1,
       ),
     if (slackHere) ..._slackItems(named, slackHost ?? slack.host),
     if (discordHere) ..._discordItems(named, discordHost ?? discord.host),
@@ -222,12 +257,15 @@ SyncedItem _switchItem(Registry reg, String id) => SyncedItem(
 
 /// What the items' owners tell of a change ([SealedKeys.heard]): Claude's settings, any plugin's storage or secrets,
 /// and the plugins' switches, the registry as it is when something first listens.
-Listenable connectionChanges({ClaudeSettings? claude, Registry Function()? registry}) => _Owners(claude ?? claudeSettings, registry ?? () => plugins);
+Listenable connectionChanges({ClaudeSettings? claude, Registry Function()? registry, AssistantChoice? assistant}) => _Owners(claude ?? claudeSettings, registry ?? () => plugins, assistant ?? appAssistant);
 
 class _Owners extends ChangeNotifier {
-  _Owners(this._claude, this._registry);
+  _Owners(this._claude, this._registry, this._assistant);
 
   final ClaudeSettings _claude;
+
+  /// The other providers' settings and the assistant's choices, heard through the choice, which hears them all.
+  final AssistantChoice _assistant;
   final Registry Function() _registry;
   VoidCallback? _stopStorage;
   Registry? _switches;
@@ -236,6 +274,7 @@ class _Owners extends ChangeNotifier {
   void addListener(VoidCallback listener) {
     if (!hasListeners) {
       _claude.addListener(_told);
+      _assistant.addListener(_told);
       _stopStorage = onPluginStorage(_told);
       _switches = _registry()..addListener(_told);
     }
@@ -247,6 +286,7 @@ class _Owners extends ChangeNotifier {
     super.removeListener(listener);
     if (!hasListeners) {
       _claude.removeListener(_told);
+      _assistant.removeListener(_told);
       _stopStorage?.call();
       _stopStorage = null;
       _switches?.removeListener(_told);

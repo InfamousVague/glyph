@@ -168,11 +168,12 @@ final List<Map<String, Object?>> claudeTools = [
   ),
 ];
 
-/// The system prompt: who Claude is here and how to write into a note someone is watching.
-String claudeSystem({required DateTime now, String? rules, bool folders = false, bool books = false}) {
+/// The system prompt: who Claude is here and how to write into a note someone is watching. [who] is said in its first
+/// line: Claude, or another provider's model asked the same way (docs/AI_PROVIDERS.md), "an AI assistant".
+String claudeSystem({required DateTime now, String? rules, bool folders = false, bool books = false, String who = 'Claude'}) {
   final day = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   return [
-    'You are Claude, working inside Ghost.md, a markdown notes app, on the person’s own phone or computer. Today is $day.',
+    'You are $who, working inside Ghost.md, a markdown notes app, on the person’s own phone or computer. Today is $day.',
     'You can list, search and read their notes, and make and change notes with your tools. The note you write in is open on their screen and your words appear in it as you write them, so write as you would want to be watched: in order, from the top, and in finished sentences.',
     'Notes are plain markdown. A note’s first line is its title, as a `# Title` heading. Keep a note’s front matter (the `---` block at its top) as it is unless asked to change it.',
     'Find a note before changing it: search or list, then read it. To change part of a note use replace_in_note; to add to it, append_to_note; rewrite_note only when most of it changes.',

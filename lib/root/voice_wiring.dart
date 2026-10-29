@@ -42,6 +42,7 @@ import '../ai/native_backend.dart';
 import '../ai/review.dart' show reviewAvailable;
 import '../ai/summaries.dart';
 import '../ai/summary_claude.dart' show MeetingClaude;
+import '../assistant/app_assistant.dart' show appAssistant;
 import '../ai/summary_handoff.dart' show SummaryHandoff, thisDevice;
 import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
 import '../capture/audio.dart';
@@ -456,9 +457,12 @@ class Voice {
       settings: claudeSettings,
       switchedOn: () => plugins.all().isEmpty ? claudeManifest.standard : plugins.switchedOn(claudeManifest.id),
       localOnly: () => preferences.value.localOnly,
-      changes: Listenable.merge([claudeSettings, plugins, preferences]),
+      changes: Listenable.merge([claudeSettings, plugins, preferences, appAssistant]),
       // Held up while it is asked, so a write-up goes on with the app behind another (lib/core/background_jobs.dart).
       background: ChannelBackgroundJobs(),
+      // Or whichever provider Settings › AI › Assistant names for meetings (docs/AI_PROVIDERS.md): Claude where it may
+      // write them, as before, else another set up here, else the device's own model.
+      choice: appAssistant,
     );
     Future<void> sendConfig() async {
       try {
@@ -713,7 +717,7 @@ class Voice {
     );
     // And Claude's settings and the plugins' switches: a key or the switch that arrived from another device makes this
     // one able to write a meeting up (lib/sync/sealed_keys.dart), and it looks again then.
-    voice._handoffHears = Listenable.merge([preferences, library, claudeSettings, plugins]);
+    voice._handoffHears = Listenable.merge([preferences, library, claudeSettings, plugins, appAssistant]);
     made = true;
     return voice;
   }

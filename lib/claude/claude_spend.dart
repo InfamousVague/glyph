@@ -24,6 +24,13 @@
 /// **The limit** (off by default): once this month's total reaches it, no request is sent ([ClaudeSpend.reached],
 /// [claudeLimitMessage]); a run that crosses it finishes the request it is in and starts no other. "Warn me at 80%"
 /// shows a notice in the chat once a month ([ClaudeSpend.takeNotice]).
+///
+/// **The other providers' limits are this one too** (docs/AI_PROVIDERS.md, "Spending limit"; Matt, 2026-10-29: "Add
+/// support for aster 6 and other Ai models as plugins in addition to claude like openAI google gemini etc"): a
+/// [ClaudeSpend] each, made by lib/assistant/provider_settings.dart under that provider's own names in the secure store
+/// ([ClaudeSpend.spendName], [ClaudeSpend.limitName]), priced by its own rates ([ClaudeSpend.price]) and saying its
+/// own name and page ([ClaudeSpend.who], [ClaudeSpend.place]). Claude's is made with none of those said, and is the
+/// one it always was.
 library;
 
 import 'dart:async';
@@ -196,17 +203,29 @@ String claudeDollars(double amount) => '\$${amount.toStringAsFixed(2)}';
 /// A limit as Settings shows it: `$10`, or `$12.50` where it has cents.
 String claudeLimitWords(double limit) => limit == limit.roundToDouble() ? '\$${limit.toStringAsFixed(0)}' : claudeDollars(limit);
 
-/// What is said where a request is not sent for the limit.
-String claudeLimitMessage(double limit) => 'Monthly spending limit reached (${claudeLimitWords(limit)}). Change it in Settings › Claude.';
+/// What is said where a request is not sent for the limit; [place] is the page it is changed on.
+String claudeLimitMessage(double limit, {String place = 'Settings › Claude'}) => 'Monthly spending limit reached (${claudeLimitWords(limit)}). Change it in $place.';
 
 /// This month as a key: `2026-10`, local time.
 String claudeMonthOf(DateTime when) => '${when.year.toString().padLeft(4, '0')}-${when.month.toString().padLeft(2, '0')}';
 
 /// The count and the limit, on this device (see the header).
 class ClaudeSpend extends ChangeNotifier {
-  ClaudeSpend(this._store, {DateTime Function()? now}) : now = now ?? DateTime.now;
+  ClaudeSpend(this._store, {DateTime Function()? now, this.spendName = claudeSpendName, this.limitName = claudeLimitName, this.price, this.who = 'Claude', this.place = 'Settings › Claude'}) : now = now ?? DateTime.now;
 
   final SecureStore _store;
+
+  /// The names the count and the limit are kept under: [claudeSpendName] and [claudeLimitName] for Claude's, another
+  /// provider's own for its (see the header).
+  final String spendName;
+  final String limitName;
+
+  /// What a request cost on a model, where it is not Claude's table ([claudeCost]) that prices it.
+  final double Function(String model, ClaudeUsage usage)? price;
+
+  /// Who is counted, and the page the limit is changed on, in what the limit and its warning say.
+  final String who;
+  final String place;
 
   /// The clock the month is read from.
   @visibleForTesting
@@ -250,7 +269,7 @@ class ClaudeSpend extends ChangeNotifier {
   bool get reached => _on && spent >= _limit;
 
   /// What is said where a request is not sent.
-  String get limitMessage => claudeLimitMessage(_limit);
+  String get limitMessage => claudeLimitMessage(_limit, place: place);
 
   /// A new month: the count starts again.
   void _roll() {
@@ -269,7 +288,7 @@ class ClaudeSpend extends ChangeNotifier {
 
   Future<void> _load() async {
     try {
-      final kept = await _store.read(claudeSpendName);
+      final kept = await _store.read(spendName);
       final json = kept == null ? null : jsonDecode(kept);
       if (json is Map) {
         if (!_setEarly) {
@@ -293,7 +312,7 @@ class ClaudeSpend extends ChangeNotifier {
       }
       // The limit's own copy, which another device's may have been written over (see the header). A limit turned on
       // before there was one is a choice made all the same: its copy is made now, so it travels.
-      final own = await _store.read(claudeLimitName);
+      final own = await _store.read(limitName);
       if (!_setEarly) _takeLimit(own);
       if (own == null && json is Map && json['on'] == true) await _saveLimit();
     } catch (_) {
@@ -331,7 +350,7 @@ class ClaudeSpend extends ChangeNotifier {
   /// Keeps the limit's own copy, after the person set it.
   Future<void> _saveLimit() async {
     try {
-      await _store.write(claudeLimitName, limitText);
+      await _store.write(limitName, limitText);
     } catch (_) {
       // Kept in the whole count's copy all the same.
     }
@@ -342,7 +361,7 @@ class ClaudeSpend extends ChangeNotifier {
     if (!_loaded) await load();
     String? kept;
     try {
-      kept = await _store.read(claudeLimitName);
+      kept = await _store.read(limitName);
     } catch (_) {
       return;
     }
@@ -357,7 +376,7 @@ class ClaudeSpend extends ChangeNotifier {
     // Read first, so a write never puts this run's count over what was kept before it.
     if (!_loaded) await load();
     try {
-      await _store.write(claudeSpendName, jsonEncode(_json()));
+      await _store.write(spendName, jsonEncode(_json()));
     } catch (_) {
       // Kept in memory.
     }
@@ -366,7 +385,7 @@ class ClaudeSpend extends ChangeNotifier {
   /// Counts one request: [usage] on [model]. Answers what it cost.
   double record(String model, ClaudeUsage usage) {
     _roll();
-    final cost = claudeCost(model, usage);
+    final cost = (price ?? claudeCost)(model, usage);
     _spent += cost;
     _requests += 1;
     unawaited(_save());
@@ -383,7 +402,7 @@ class ClaudeSpend extends ChangeNotifier {
     _warned = true;
     unawaited(_save());
     notifyListeners();
-    return 'You’ve used ${claudeDollars(spent)} of your ${claudeLimitWords(_limit)} monthly limit for Claude (${(spent / _limit * 100).floor()}%). Change it in Settings › Claude.';
+    return 'You’ve used ${claudeDollars(spent)} of your ${claudeLimitWords(_limit)} monthly limit for $who (${(spent / _limit * 100).floor()}%). Change it in $place.';
   }
 
   Future<void> setOn(bool on) async {

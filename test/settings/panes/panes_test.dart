@@ -500,8 +500,10 @@ void main() {
   group('AI', () {
     testWidgets('lists the catalogue, with Get waiting for a downloader, and keeps Fill blanks on their own', (tester) async {
       await openPane(tester, 'ai', size: const Size(390, 1200));
-      expect(cardTitles(tester), ['Model']);
-      expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own']);
+      // And under it, which AI answers the chat and which writes meetings up (docs/AI_PROVIDERS.md; Matt, 2026-10-29).
+      expect(cardTitles(tester), ['Model', 'Assistant', 'Meeting summaries']);
+      const ais = ['Automatic', 'Claude', 'OpenAI', 'Gemini', 'Custom AI model'];
+      expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own', ...ais, ...ais, 'On this device']);
       expect(hintOf(tester, 'Qwen3.5 4B'), 'The balance. Fits most phones; check a fact it answers from memory. 2.7 GB.');
       expect(find.text('Get'), findsNWidgets(4));
       expect([for (final get in tester.widgetList<RowAction>(find.byType(RowAction))) get.disabled], everyElement(isTrue));
@@ -524,7 +526,7 @@ void main() {
       );
       expect(find.text('7.0 GB on the phone.').evaluate().isEmpty && find.text('4.0 GB on the phone.').evaluate().length == 1, isTrue);
       expect(find.descendant(of: rowCalled('Qwen3.5 4B'), matching: find.text('In use')), findsOneWidget);
-      expect([for (final pick in tester.widgetList<Pick>(find.byType(Pick))) (pick.label, pick.checked)], [('Use Qwen3.5 2B', false), ('Use Qwen3.5 4B', true)]);
+      expect([for (final pick in tester.widgetList<Pick>(find.byType(Pick))) if (pick.label.startsWith('Use ')) (pick.label, pick.checked)], [('Use Qwen3.5 2B', false), ('Use Qwen3.5 4B', true)]);
       await tapOn(tester, find.text('Get').first);
       expect(got, ['qwen3.5-9b']);
       // The one not in use has Remove, asked twice.

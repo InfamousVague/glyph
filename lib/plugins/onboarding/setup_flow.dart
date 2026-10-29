@@ -52,7 +52,7 @@ class SetupLink {
 /// A field a key is pasted into.
 @immutable
 class SetupField {
-  const SetupField({required this.id, required this.label, required this.placeholder, this.shape});
+  const SetupField({required this.id, required this.label, required this.placeholder, this.shape, this.optional = false});
 
   /// The key it is handed to [SetupPaste.save] under.
   final String id;
@@ -64,6 +64,10 @@ class SetupField {
   /// What is wrong with the shape of [text] (already trimmed), in a sentence; null where it looks right. Nothing is
   /// asked of the plugin's service for this: a key that looks right is checked by [SetupCheck].
   final String? Function(String text)? shape;
+
+  /// Whether it may be left empty (an endpoint on the person's own computer needs no key: lib/plugins/custom_ai/). An
+  /// empty one is handed to [SetupPaste.save] as ''.
+  final bool optional;
 }
 
 /// How a check went.
