@@ -8,6 +8,7 @@ import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_folders.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/trash.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/notes/folder_drag.dart';
 import 'package:ghost_md/notes/folder_strip.dart';
@@ -58,34 +59,70 @@ void main() {
   FolderCarry folder(WorkspaceStore store, String id) => FolderCarry.folder(id, store.value.list.firstWhere((w) => w.id == id).name);
 
   group('the rules', () {
-    test('a note moves among the personal folders, or among one organization’s, never across', () {
+    test('a note moves among the personal folders, or among one organization’s, and across only once asked', () {
       final store = storeOf();
       FolderLanding at(String id, String? to) => folderVerdict(store, note(id), to).landing;
-      // Personal: to another personal folder, or to the top; never into an organization.
+      // Personal: to another personal folder, or to the top; into an organization once asked.
       expect(at('todo', 'home'), FolderLanding.moves);
       expect(at('todo', 'kiln'), FolderLanding.moves);
       expect(at('todo', null), FolderLanding.moves);
       expect(at('todo', 'work'), FolderLanding.stays);
-      expect(at('todo', 'clients'), FolderLanding.refused);
-      expect(at('todo', ghost), FolderLanding.refused);
-      // Filed nowhere is personal: into a personal folder, not into a team's.
+      expect(at('todo', 'clients'), FolderLanding.asks);
+      expect(at('todo', ghost), FolderLanding.asks);
+      // Filed nowhere is personal: into a personal folder at once, into a team's once asked.
       expect(at('loose', 'home'), FolderLanding.moves);
       expect(at('loose', null), FolderLanding.stays);
-      expect(at('loose', 'acme'), FolderLanding.refused);
-      // The team's: to another of its organization's folders, or to the organization's own workspace; never out to
-      // a personal folder, never to the top, never into another organization.
+      expect(at('loose', 'acme'), FolderLanding.asks);
+      // The team's: to another of its organization's folders, or to the organization's own workspace, at once; out to
+      // a personal folder or to the top once asked; never straight into another organization.
       expect(at('brief', 'acme'), FolderLanding.moves);
       expect(at('brief', ghost), FolderLanding.moves);
       expect(at('plan', 'clients'), FolderLanding.moves);
-      expect(at('brief', 'work'), FolderLanding.refused);
+      expect(at('brief', 'work'), FolderLanding.asks);
       expect(at('brief', null), FolderLanding.refused);
       expect(at('brief', 'designs'), FolderLanding.refused);
       expect(at('sketch', hello), FolderLanding.moves);
-      expect(folderVerdict(store, note('brief'), 'work').why, '“Brief” is Ghost.md’s: it moves only between Ghost.md’s folders.');
-      expect(folderVerdict(store, note('todo'), 'clients').why, contains('would share it with the team'));
+      // What each asks, in the words of what the sync then does.
+      FolderAsk ask(String id, String? to) => folderVerdict(store, note(id), to).ask!;
+      expect(ask('todo', 'clients').title, 'Move “Todo” to Ghost.md › Clients?');
+      expect(ask('todo', 'clients').note, 'Everyone in Ghost.md will be able to read and edit it.');
+      expect(ask('brief', 'work').title, 'Move “Brief” to Work?');
+      expect(ask('brief', 'work').note, 'It will no longer be shared with Ghost.md: it is taken out of the team and deleted for everyone else in Ghost.md. You keep it.');
+      // Filed nowhere is no evidence it left the team (ddeb6141): out of it, a note goes into a folder of the person's.
+      expect(folderVerdict(store, note('brief'), null).why, '“Brief” is Ghost.md’s: to take it out of the team, move it into one of your own folders.');
+      expect(folderVerdict(store, note('brief'), 'designs').why, '“Brief” is Ghost.md’s. Move it into one of your own folders first; once that has synced, it can go into HelloTrade.');
+      // Moves that need no asking ask nothing.
+      expect(folderVerdict(store, note('brief'), 'acme').ask, isNull);
     });
 
-    test('a folder moves into another of its own space, never into itself or one inside it, never across', () {
+    test('a folder carried across an organization’s edge asks, saying how many notes go with it', () {
+      final store = WorkspaceStore(
+        storage: MemoryWorkspaceStorage(WorkspaceSheet(list: sheet().list, notes: {...sheet().notes, 'a': 'work', 'b': 'kiln', 'c': 'work'})),
+      );
+      FolderVerdict at(String id, String? to) => folderVerdict(store, folder(store, id), to);
+      // Work and Kiln inside it hold Todo, A, B and C.
+      expect(at('work', hello).landing, FolderLanding.asks);
+      expect(at('work', hello).ask!.title, 'Move Work and its 4 notes to HelloTrade?');
+      expect(at('work', hello).ask!.note, 'Everyone in HelloTrade will be able to read and edit them.');
+      expect(at('kiln', 'designs').ask!.title, 'Move Kiln and its note to HelloTrade › Designs?');
+      expect(at('kiln', 'designs').ask!.note, 'Everyone in HelloTrade will be able to read and edit it.');
+      expect(at('home', ghost).ask!.title, 'Move Home to Ghost.md?');
+      expect(at('home', ghost).ask!.note, 'Everyone in Ghost.md will be able to read and edit the notes you put in it.');
+      // Out of an organization, to the top or a personal folder; and into another.
+      expect(at('clients', null).ask!.title, 'Move Clients and its note to the top of your own notes?');
+      expect(at('clients', null).ask!.note, 'It will no longer be shared with Ghost.md: it is taken out of the team and deleted for everyone else in Ghost.md. You keep it.');
+      expect(at('acme', 'home').ask!.title, 'Move Acme to Home?');
+      expect(at('acme', 'home').ask!.note, 'It has no notes, so nothing is taken from anyone in Ghost.md.');
+      expect(at('designs', 'work').ask!.title, 'Move Designs and its note to Work?');
+      // From one organization into another: an empty folder once asked; one with notes in it never straight across.
+      expect(at('acme', 'designs').ask!.note, 'It has no notes, so nothing is taken from anyone in Ghost.md. Everyone in HelloTrade will be able to read and edit the notes you put in it.');
+      expect(at('clients', hello).why, 'Clients holds Ghost.md’s notes. Move it into one of your own folders first; once that has synced, it can go into HelloTrade.');
+      // Still never into itself, and an organization's own workspace never at all.
+      expect(at('work', 'kiln').landing, FolderLanding.refused);
+      expect(at(ghost, 'work').landing, FolderLanding.refused);
+    });
+
+    test('a folder moves into another of its own space, never into itself or one inside it, and across only once asked', () {
       final store = storeOf();
       FolderVerdict at(String id, String? to) => folderVerdict(store, folder(store, id), to);
       expect(at('kiln', 'home').landing, FolderLanding.moves);
@@ -96,13 +133,15 @@ void main() {
       expect(at('work', 'work').why, 'A folder can’t go inside itself.');
       expect(at('work', 'kiln').why, 'A folder can’t go inside itself.');
       expect(at('clients', 'acme').why, 'A folder can’t go inside itself.');
-      // Within its organization, up to its workspace; never to the top, out to a personal folder or into another.
+      // Within its organization, up to its workspace, at once; to the top, out to a personal folder or into another
+      // once asked.
       expect(at('acme', ghost).landing, FolderLanding.moves);
       expect(at('clients', ghost).landing, FolderLanding.stays);
-      expect(at('acme', null).why, 'Acme is Ghost.md’s: it moves only within Ghost.md.');
-      expect(at('acme', 'work').landing, FolderLanding.refused);
-      expect(at('acme', 'designs').landing, FolderLanding.refused);
-      expect(at('kiln', 'clients').why, 'Moving Kiln into Ghost.md would share its notes with the team.');
+      expect(at('acme', null).landing, FolderLanding.asks);
+      expect(at('acme', 'work').landing, FolderLanding.asks);
+      expect(at('acme', 'designs').landing, FolderLanding.asks);
+      expect(at('clients', 'designs').landing, FolderLanding.refused);
+      expect(at('kiln', 'clients').landing, FolderLanding.asks);
       // An organization's own workspace is never moved.
       expect(at(ghost, 'work').why, 'An organization’s workspace stays at the top.');
     });
@@ -121,22 +160,71 @@ void main() {
       final moved = moveCarried(store, note('brief'), 'acme')!;
       expect(moved.said, 'Moved “Brief” to Ghost.md › Clients › Acme');
       expect(store.value.of['brief'], 'acme');
-      moved.undo();
+      moved.undo!();
       expect(store.value.of['brief'], 'clients');
       final out = moveCarried(store, note('todo'), null)!;
       expect(out.said, 'Took “Todo” out of Work');
       expect(store.value.of['todo'], isNull);
-      out.undo();
+      out.undo!();
       expect(store.value.of['todo'], 'work');
       final up = moveCarried(store, folder(store, 'kiln'), null)!;
       expect(up.said, 'Moved Kiln to the top level');
       expect(store.value.list.firstWhere((w) => w.id == 'kiln').parent, isNull);
-      up.undo();
+      up.undo!();
       expect(store.value.list.firstWhere((w) => w.id == 'kiln').parent, 'work');
-      // A refused move moves nothing.
+      // A refused move moves nothing; nor does one across an organization's edge that was not asked about.
       expect(moveCarried(store, note('brief'), 'work'), isNull);
       expect(moveCarried(store, folder(store, 'work'), 'kiln'), isNull);
+      expect(moveCarried(store, folder(store, 'work'), 'kiln', asked: true), isNull);
+      expect(moveCarried(store, folder(store, 'kiln'), 'clients'), isNull);
       expect(store.value.of['brief'], 'clients');
+      expect(store.value.list.firstWhere((w) => w.id == 'kiln').parent, 'work');
+    });
+
+    test('a move across an organization’s edge, once asked, is the note’s filing alone, says so, and has no Undo', () {
+      final store = storeOf();
+      final into = moveCarried(store, note('todo'), 'clients', asked: true)!;
+      expect(into.said, 'Moved “Todo” to Ghost.md › Clients');
+      expect(into.undo, isNull);
+      expect(store.value.of['todo'], 'clients');
+      expect(store.orgOf('clients'), 'ghost');
+      // Never straight on into another, asked or not.
+      expect(moveCarried(store, note('todo'), 'designs', asked: true), isNull);
+      expect(store.value.of['todo'], 'clients');
+      // Nor out to the top level, where it would still be the team's.
+      expect(moveCarried(store, note('todo'), null, asked: true), isNull);
+      final out = moveCarried(store, note('todo'), 'home', asked: true)!;
+      expect(out.said, 'Moved “Todo” to Home');
+      expect(store.value.of['todo'], 'home');
+      // Nothing else moved, nothing was lost: every other filing is as it was.
+      expect(store.value.of, {'plan': ghost, 'brief': 'clients', 'sketch': 'designs', 'todo': 'home'});
+    });
+
+    test('a folder carried across takes its notes and its folders, and leaves its trashed notes on the side they were on', () {
+      final trash = MemoryTrash();
+      final store = WorkspaceStore(
+        storage: MemoryWorkspaceStorage(WorkspaceSheet(list: sheet().list, notes: {...sheet().notes, 'a': 'kiln', 'gone': 'kiln', 'old': 'acme'})),
+        trash: trash,
+      );
+      trash.trashNote('gone', 5);
+      trash.trashNote('old', 5);
+      final into = moveCarried(store, folder(store, 'work'), hello, asked: true)!;
+      expect(into.said, 'Moved Work to HelloTrade');
+      expect(into.undo, isNull);
+      expect(store.value.list.firstWhere((w) => w.id == 'work').parent, hello);
+      // Todo and A are HelloTrade's now, Kiln with them; Gone, in the trash, stays the account's, at the top.
+      expect(store.orgOf('work'), 'hello');
+      expect(store.orgOf('kiln'), 'hello');
+      expect(store.value.of['todo'], 'work');
+      expect(store.value.of['a'], 'kiln');
+      expect(store.value.of.containsKey('gone'), isFalse);
+      // Clients out of Ghost.md, to the top: Brief goes with it; Old, trashed in Acme, stays in Ghost.md's workspace.
+      moveCarried(store, folder(store, 'clients'), null, asked: true);
+      expect(store.value.list.firstWhere((w) => w.id == 'clients').parent, isNull);
+      expect(store.orgOf('acme'), isNull);
+      expect(store.value.of['brief'], 'clients');
+      expect(store.value.of['old'], ghost);
+      expect(store.value.of['plan'], ghost);
     });
 
     test('a note moved keeps its id, its words and its file’s name: only its folder changes', () async {
@@ -266,17 +354,6 @@ void main() {
       await down(tester);
     });
 
-    testWidgets('an organization’s folder refuses a personal note, says why, and moves nothing', (tester) async {
-      final store = storeOf();
-      await page(tester, icons(store, []));
-      // Loose is filed nowhere: Ghost.md's tile refuses it, faded, with the forbidden pointer.
-      final refused = await hold(tester, 'tile-note-loose', 'tile-folder-$ghost', during: () => refusing('drop-$ghost'));
-      expect(refused, isTrue);
-      expect(store.value.of['loose'], isNull);
-      expect(find.textContaining('would share it with the team'), findsOneWidget);
-      await down(tester);
-    });
-
     testWidgets('a mouse drags a folder’s chip onto another’s, and onto the line above to go back up', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -315,7 +392,7 @@ void main() {
           child: NoteTree(notes: notes(), activeId: null, onOpen: (_) {}, onNew: () {}, workspaces: store, stored: MemoryStored()..writeText('glyph-tree-compact', '1')),
         );
 
-    testWidgets('the sidebar refuses a folder into itself or one inside it, and across an organization’s line, saying why', (tester) async {
+    testWidgets('the sidebar refuses a folder into itself or one inside it, saying why, and moves a team note within its organization at once', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
       final store = storeOf();
@@ -324,20 +401,13 @@ void main() {
       expect(await drag(tester, 'folder-row-work', 'folder-row-kiln', during: () => refusing('drop-kiln')), isTrue);
       expect(store.value.list.firstWhere((w) => w.id == 'work').parent, isNull);
       expect(find.text('A folder can’t go inside itself.'), findsOneWidget);
-      // Acme onto Designs, another organization's: refused. Kiln onto Clients, the team's: refused.
-      await tester.pump(const Duration(seconds: 6));
-      await drag(tester, 'folder-row-acme', 'folder-row-designs');
-      expect(store.value.list.firstWhere((w) => w.id == 'acme').parent, 'clients');
-      expect(find.text('Acme is Ghost.md’s: it moves only within Ghost.md.'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 6));
-      await drag(tester, 'folder-row-kiln', 'folder-row-clients');
-      expect(store.value.list.firstWhere((w) => w.id == 'kiln').parent, 'work');
-      expect(find.text('Moving Kiln into Ghost.md would share its notes with the team.'), findsOneWidget);
-      // A team note into another of its organization's folders: filed, and the folder it went to opens.
+      // A team note into another of its organization's folders: filed at once, nothing asked, and the folder it went
+      // to opens. (Across an organization's line it asks: test/notes/folder_ask_test.dart.)
       await tester.pump(const Duration(seconds: 6));
       expect(await drag(tester, 'note-row-brief', 'folder-row-acme', during: () => taking('drop-acme')), isTrue);
       expect(store.value.of['brief'], 'acme');
       expect(find.text('Moved “Brief” to Ghost.md › Clients › Acme'), findsOneWidget);
+      expect(find.byKey(const ValueKey('move-ask')), findsNothing);
       debugDefaultTargetPlatformOverride = null;
       await down(tester);
     });
@@ -348,11 +418,11 @@ void main() {
       final store = storeOf();
       await page(tester, tree(store));
       expect(find.byKey(const ValueKey('drop-top')), findsNothing);
-      // An organization's folder has no top level to go to: none is offered.
+      // An organization's folder is offered it too, as a move out of the organization that asks first.
       final gesture = await tester.startGesture(centre(tester, 'folder-row-acme'), kind: PointerDeviceKind.mouse);
       await gesture.moveBy(const Offset(0, 12));
       await tester.pump();
-      expect(find.byKey(const ValueKey('drop-top')), findsNothing);
+      expect(find.byKey(const ValueKey('drop-top')), findsOneWidget);
       await gesture.up();
       await tester.pump();
       // Kiln, inside Work: the top level is offered while it is carried, and it lands there.

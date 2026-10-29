@@ -431,21 +431,26 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   /// in none, so a folder is never dragged into an organization or out of one (GHST-107: its notes would change
   /// hands). A folder of an organization's may go to any folder of the same, or to the organization's workspace,
   /// never to the top.
-  bool canMove(String id, String? parent) {
+  ///
+  /// [acrossOrgs] lets it cross an organization's edge too, into one, out of one or from one to another, for a move
+  /// the person has been asked about and said yes to (lib/notes/folder_drag.dart `askToMove`; Matt, 2026-10-29); the
+  /// rest of the rule stands. Nothing else asks for it: the connector and the in-app AI never do.
+  bool canMove(String id, String? parent, {bool acrossOrgs = false}) {
     if (isOrgWorkspace(id)) return false;
     final list = _current.list;
     if (!list.any((w) => w.id == id)) return false;
     final org = orgOfWorkspace(list, id);
-    if (parent == null) return org == null;
-    if (!list.any((w) => w.id == parent) || orgOfWorkspace(list, parent) != org) return false;
+    if (parent == null) return org == null || acrossOrgs;
+    if (!list.any((w) => w.id == parent) || (!acrossOrgs && orgOfWorkspace(list, parent) != org)) return false;
     return !workspaceFamily(list, id).contains(parent);
   }
 
   /// Puts workspace [id] inside [parent], or at the top with null: its folder, and every folder inside it, move with
   /// it on disk, and their notes with them. Not an organization's own; never into itself or a folder inside it;
-  /// never into or out of an organization ([canMove]).
-  void moveWorkspace(String id, String? parent) {
-    if (!canMove(id, parent)) return;
+  /// never into or out of an organization ([canMove]) unless [acrossOrgs] says the person was asked: then its notes
+  /// are the destination's, as a note filed there one by one would be.
+  void moveWorkspace(String id, String? parent, {bool acrossOrgs = false}) {
+    if (!canMove(id, parent, acrossOrgs: acrossOrgs)) return;
     final sheet = _current;
     final was = sheet.list.firstWhere((w) => w.id == id);
     if (was.parent == parent) return;

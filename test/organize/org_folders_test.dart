@@ -98,6 +98,18 @@ void main() {
       expect(it.store.value.list.firstWhere((w) => w.id == acme.id).parent, root);
       // The personal folder is as free as before.
       expect(it.store.canMove(sub.id, null), isTrue);
+      // Only a move the person was asked about crosses the line (lib/notes/folder_drag.dart): out, in and across,
+      // never into itself, and never the organization's own workspace. The notes' files follow.
+      expect(it.store.canMove(acme.id, null, acrossOrgs: true), isTrue);
+      expect(it.store.canMove(sub.id, clients.id, acrossOrgs: true), isTrue);
+      expect(it.store.canMove(acme.id, other.id, acrossOrgs: true), isTrue);
+      expect(it.store.canMove(mine.id, sub.id, acrossOrgs: true), isFalse);
+      expect(it.store.canMove(root, mine.id, acrossOrgs: true), isFalse);
+      it.filed.clear();
+      it.store.moveWorkspace(acme.id, mine.id, acrossOrgs: true);
+      expect(it.store.value.list.firstWhere((w) => w.id == acme.id).parent, mine.id);
+      expect(it.store.orgOf(acme.id), isNull);
+      expect(it.filed, ['n1 to workspaces/Mine/Acme']);
     });
 
     test('a folder of the organization’s is renamed, recoloured, removed and deleted like any; the organization’s own is not', () {
@@ -301,7 +313,7 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('the sidebar takes a note into a folder of its own organization, and nothing across the line', (tester) async {
+    testWidgets('the sidebar takes a note into a folder of its own organization, and across the line only once asked', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
       final spaces = WorkspaceStore(storage: MemoryWorkspaceStorage(const WorkspaceSheet(
@@ -329,27 +341,47 @@ void main() {
         await gesture.moveTo(tester.getCenter(find.byKey(ValueKey(toKey))));
         await tester.pump();
         await gesture.up();
-        await tester.pump();
+        for (var i = 0; i < 4; i += 1) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+
+      /// Whether a sheet asks, and its Cancel pressed: nothing across the line moves until its Move is.
+      Future<bool> askedAndCancelled() async {
+        final asked = find.byKey(const ValueKey('move-ask-no')).evaluate().isNotEmpty;
+        if (asked) {
+          await tester.tap(find.byKey(const ValueKey('move-ask-no')));
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+        return asked;
       }
 
       // Plan, at the organization's own folder, into Acme: filed there. Back onto the organization's row: filed there.
       await drag('note-row-plan', 'folder-row-acme');
       expect(spaces.value.of['plan'], 'acme');
+      expect(await askedAndCancelled(), isFalse);
       await drag('note-row-plan', 'folder-row-$root');
       expect(spaces.value.of['plan'], root);
-      // Todo, personal, onto Clients: refused. Brief, the team's, onto Mine: refused. Loose, unfiled, onto Acme: refused.
+      // Todo, personal, onto Clients; Brief, the team's, onto Mine; Loose, unfiled, onto Acme: each asks, and
+      // cancelled stays.
       await drag('note-row-todo', 'folder-row-clients');
+      expect(await askedAndCancelled(), isTrue);
       expect(spaces.value.of['todo'], 'mine');
       await drag('note-row-brief', 'folder-row-mine');
+      expect(await askedAndCancelled(), isTrue);
       expect(spaces.value.of['brief'], 'clients');
       await drag('note-row-loose', 'folder-row-acme');
+      expect(await askedAndCancelled(), isTrue);
       expect(spaces.value.of['loose'], isNull);
-      // Acme onto the organization's row: moved up, within it. Acme onto Mine, and Mine onto Clients: refused.
+      // Acme onto the organization's row: moved up, within it. Acme onto Mine, and Mine onto Clients: asked, and
+      // cancelled.
       await drag('folder-row-acme', 'folder-row-$root');
       expect(spaces.value.list.firstWhere((w) => w.id == 'acme').parent, root);
       await drag('folder-row-acme', 'folder-row-mine');
+      expect(await askedAndCancelled(), isTrue);
       expect(spaces.value.list.firstWhere((w) => w.id == 'acme').parent, root);
       await drag('folder-row-mine', 'folder-row-clients');
+      expect(await askedAndCancelled(), isTrue);
       expect(spaces.value.list.firstWhere((w) => w.id == 'mine').parent, isNull);
       debugDefaultTargetPlatformOverride = null;
       await away(tester);

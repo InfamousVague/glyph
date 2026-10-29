@@ -248,12 +248,19 @@ void scenarios(World Function() world, GhostCore Function() core, {required bool
     await again.sync();
     expect(again.notes.containsKey('t1'), isTrue);
 
-    // Filed in a workspace of the account's own on the mac: gone from the team, and from the phone.
+    // Filed in a workspace of the account's own on the mac: gone from the team, which deletes it for its other
+    // members; the phone, the account's own, keeps it, filed where the mac put it (2026-10-29: the team's deletion
+    // took it from the phone too, the account's own note gone from one of its devices).
     final mine = mac.workspaces.addWorkspace('Mine', 'sea')!;
     mac.workspaces.fileNote('t1', mine.id);
     await mac.sync();
     await again.sync();
-    expect(again.notes.containsKey('t1'), isFalse);
+    await mac.sync();
+    await again.sync();
+    expect(again.notes['t1']?.body, '$merged\nfour');
+    expect(again.workspaces.workspaceOf('t1')?.id, mine.id);
+    expect(mac.notes['t1']?.body, '$merged\nfour');
+    expect(again.engine.status.value.conflicts + mac.engine.status.value.conflicts, 0);
   }, skip: skip);
 
   test('two accounts in one organization: invited by handle, the key wrapped for the member, a team note edited by both, and the key turned when the member goes', () async {

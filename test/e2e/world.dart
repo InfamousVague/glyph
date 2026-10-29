@@ -26,6 +26,7 @@ import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/core/kept_workspaces.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/note_folders.dart' show folderFor;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
@@ -159,7 +160,9 @@ class Device {
   /// [live]: with live sync too (lib/live/live.dart), over a real socket to the relay beside the service; only in
   /// a [LocalWorld], which has one.
   /// [mailIn]: with email to a note's step in the pass (lib/mail/mail_in.dart `syncMail`).
-  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false, MailPass? mailIn})
+  /// [folders]: a note's file follows its filing, as the app's `NoteFolders` moves it (lib/core/note_folders.dart): its
+  /// path is moved into the folder its workspace names, at once, so a team note's row carries its folder (GHST-107).
+  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false, MailPass? mailIn, this.folders = false})
       : disk = disk ?? Disk(),
         api = world.api() {
     crypto = CoreCrypto(core.invoke);
@@ -167,7 +170,7 @@ class Device {
     prefs = PreferencesStore()..startWithoutStorage();
     account = Account(keys: keys, api: api, crypto: crypto, iterations: e2eRounds, label: label);
     feed = NotificationFeed(account: account, crypto: crypto, kept: kept);
-    workspaces = WorkspaceStore(storage: KeptWorkspaceStorage(prefs: prefs, stored: kept));
+    workspaces = WorkspaceStore(storage: KeptWorkspaceStorage(prefs: prefs, stored: kept), onFiled: folders ? _refile : null);
     orgs = Orgs(account: account, api: api, workspaces: workspaces, kept: kept);
     orgKeys = OrgKeys(crypto: crypto, api: api);
     record = SelfNotifications(feed: feed, api: api);
@@ -202,6 +205,21 @@ class Device {
   final GhostCore core;
   final Disk disk;
   final Api api;
+  final bool folders;
+
+  /// The notes' paths moved to the folder their workspace names, as lib/core/note_folders.dart moves their files:
+  /// into `<folder>/<file name>`, the inbox for none, unless already in that folder.
+  void _refile(List<String> ids, Workspace? workspace) {
+    final folder = folderFor(workspace, workspaces.value.list);
+    if (folder == null) return;
+    for (final id in ids) {
+      final note = notes[id];
+      if (note == null) continue;
+      final from = note.path ?? '$id.md';
+      final path = '$folder/${from.substring(from.lastIndexOf('/') + 1)}';
+      if (path != from) notes[id] = note.copyWith(path: () => path);
+    }
+  }
   late final CoreCrypto crypto;
   late final DeviceKeyStore keys;
   late final PreferencesStore prefs;
@@ -244,7 +262,7 @@ class Device {
   /// Nothing is asked of the service until [Account.resume] or a pass.
   Future<Device> relaunched({String label = 'a device'}) async {
     await close();
-    final next = Device(world, core, label: label, disk: disk);
+    final next = Device(world, core, label: label, disk: disk, folders: folders);
     final settings = prefs.value;
     next.prefs.update((_) => settings);
     await next.account.restore();

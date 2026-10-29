@@ -61,8 +61,8 @@ import '../shell/wide_screen.dart' show hoverPointer;
 ///   now ([smart]); folders inside folders, each folding on its own, its count its notes and those of the folders
 ///   in it; and a note or a folder dragged onto a folder is filed or moved there (a finger holds first, a mouse
 ///   just drags; 2026-10-20, every width), or onto the top level that stands over the tools while one is carried,
-///   by the rules and the moves of lib/notes/folder_drag.dart. Nothing crosses into or out of an organization by
-///   a drag: that is asked about twice, in the note's own Workspace picker.
+///   by the rules and the moves of lib/notes/folder_drag.dart. A drag into or out of an organization, or from one
+///   into another, asks first in a sheet that says what it does (2026-10-29), and moves only on its Move.
 class NoteTree extends StatefulWidget {
   const NoteTree({
     super.key,
@@ -306,7 +306,8 @@ class _NoteTreeState extends State<NoteTree> {
         softWrap: !compact,
         overflow: TextOverflow.ellipsis,
       );
-      // An organization's note is dragged too, to another folder of the same organization ([folderVerdict]).
+      // An organization's note is dragged too: to another folder of the same organization, or once asked out of it
+      // or into another ([folderVerdict]).
       return _draggable(
         FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title),
         CssFlow.block(

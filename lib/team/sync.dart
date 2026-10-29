@@ -6,7 +6,8 @@
 /// document - its state, and the note's words and particulars as they stood - and the log beside it carries every
 /// update since, so a pass is:
 ///
-/// 1. **Pull** every row written since the cursor: a deletion takes the note and its document; a row is adopted
+/// 1. **Pull** every row written since the cursor: a deletion takes the note and its document (the document only,
+///    for a note this device has filed outside the organization: the person moved it out); a row is adopted
 ///    into the document held here (merged, never doubled), its words written to the note, the note filed in the
 ///    organization's workspace, and its files - the versions file merged, the pictures, the recording - fetched
 ///    where this device lacks them. A note this device had of its own before the team did keeps its words: they
@@ -439,7 +440,13 @@ Future<void> _writeWords(TeamSyncContext ctx, TeamDoc doc, _Tally tally) async {
 Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally) async {
   final blob = item.blob;
   if (item.deleted || blob == null) {
-    if (local != null) {
+    // Kept where this device has it filed outside the organization ([TeamSyncContext.leftTeam]): the person moved it
+    // out, on this device or on another of theirs whose settings have reached this one, and the deletion is the
+    // team's row going, not the note (Matt, 2026-10-29, a note dragged out of an organization; the Workspace picker
+    // also moves one into another). Read as gone, the note left the person's own devices too
+    // (test/team_sync/move_across_test.dart), and one moved into another organization whose row this pass had just
+    // taken was then deleted from that team as well, by the next push here.
+    if (local != null && !(ctx.leftTeam?.call(item.id) ?? false)) {
       await ctx.notes.remove(item.id);
       tally.changed += 1;
     }
@@ -471,6 +478,13 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   });
   // The words are the document's; or, open in an editor bound to it, the ones the editor last saved.
   var theirs = _withWords(payload.note, doc.editing && local != null ? local.body : doc.words);
+  // Moved out of the organization here ([TeamSyncContext.leftTeam]) and the row put again by a member before this
+  // pass's push takes it away: their words are merged in, but the note stays where the person put it, its file
+  // where its filing says. Filed back by the row, and its path the row's, a move out of the team or into another
+  // was undone by any edit that crossed it, and one into another organization's folder landed at that
+  // organization's top (Matt, 2026-10-29, a note dragged out of an organization).
+  final movedOut = local != null && (ctx.leftTeam?.call(item.id) ?? false);
+  if (movedOut) theirs = theirs.copyWith(path: () => local.path);
   // The phrases too, where only those moved: a write-up made on another member's device after the row last went.
   final known = ctx.state.notes[item.id];
   final whole = local == null ? null : await ctx.notes.get(item.id);
@@ -483,7 +497,9 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   }
   // Filed where its path says: the file is already there, so the folders only catch up with it.
   final folders = ctx.folders, inFolders = orgFolderNames(theirs.path);
-  if (folders != null && inFolders.isNotEmpty) {
+  if (movedOut) {
+    // Where the person put it.
+  } else if (folders != null && inFolders.isNotEmpty) {
     folders.fileAt(item.id, inFolders);
   } else {
     ctx.file(item.id);
