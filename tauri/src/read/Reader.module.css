@@ -9,6 +9,13 @@
   min-block-size: 100dvh;
 }
 
+/* A shared meeting (MeetingRead.tsx) at a phone's width: a 16px gutter, the width a transcript wants. */
+@media (max-width: 34rem) {
+  .page[data-meeting] {
+    padding-inline: 16px;
+  }
+}
+
 /* The banner across the top: the name, a word for the app, and the two ways to keep what's shared, small. */
 .banner {
   position: sticky;

@@ -108,6 +108,56 @@ Sharing needs an account (Settings › Account), since the server keeps a share 
 
 The `shares` table cascades on the account, so deleting an account deletes its shares.
 
+## A meeting's recording
+
+Matt, 2026-10-29: "Update the web version of the meeting transcripts to include the casette tape and the per user
+transcript so we can listen along make a segmented toggle to switch between summary and transcript".
+
+**What the words carry.** A meeting's share (a note in `preferences.meetings`, or one Ghost was in) has a `meeting`
+beside its pages (lib/share/share_audio.dart `sharedMeeting`): `ms`, `hue` (the cassette's colour in the app,
+`tapeHue` of the note), `at`, `speakers`, and `turns`, each `{s: speaker index or -1, p: [[startMs, endMs, text], ...]}`.
+The turns are Whisper's phrases named by `phraseSpeakers` where they carry the words, a phrase each where nobody is
+named; otherwise the timed paragraphs of `## Transcript` or `## Captions`, and plain ones (times -1) where none are
+timed. `v` stays 1: an older reader ignores `meeting` and reads the note as before.
+
+**The recording** goes only with **Include the recording** on in the share sheet (ticked by default for a meeting,
+shown in simple mode as in advanced; `ShareEntry.recording`, written only when false), and only from a device that has
+it (a meeting's sound stays on the device that recorded it). It is the WAV as the app keeps it (16 kHz mono 16-bit,
+115 MB an hour): the app has no sound encoder, only decoders, so nothing is re-encoded. It is sent beside the share
+as its own object, a megabyte a part, each sealed under the share's key (`1 ‖ iv ‖ AES-GCM`) in the context
+`glyph/v1/share-audio/<upload>/<n>/<parts>`, so a part cannot be moved, dropped, or swapped for another upload's
+unseen. Then a commit makes the upload the recording, and the words are written again naming it in `meeting.audio`
+(`upload`, `parts`, `bytes`, `mime`, `ms`, `chunk`). The share remembers what it sent (`ShareEntry.audio.sent`, the
+file's length and the recording's), synced, so writing the share again after an edit sends the words alone, a device
+without the recording keeps naming it, and only a grown recording goes again, as a new upload replacing the old whole.
+Over 200 MB (1 h 48 min) the link goes without it, and the sheet says so. Turning the switch off takes it down.
+
+| Route | Who | Does |
+| --- | --- | --- |
+| `PUT /api/v1/shares/{id}/audio/{upload}/{n}` | the share's owner | keeps part n of an upload, its sealed bytes as they are |
+| `POST /api/v1/shares/{id}/audio` `{upload, parts}` | the share's owner | makes that upload the recording once every part is there |
+| `DELETE /api/v1/shares/{id}/audio` | the share's owner | takes it down; another account's does nothing |
+| `GET /api/v1/shares/{id}/audio` | anyone | every part as its length (4 bytes, big-endian) then its bytes, streamed, `no-store` |
+
+| Limit | Value |
+| --- | --- |
+| A part | 4 MB |
+| Parts | 1024 |
+| A recording | 200 MB, as kept |
+| An account's recordings | 2 GB, kept and still being sent |
+| Plays per IP | 20 a minute, apart from the words' 240 |
+
+The file is under the account's recordings folder (`share-audio/<share>.bin`, `server/src/store/share_audio.rs`), with
+a row in `share_audio`; taking the share down, or the account, takes it and any unfinished upload.
+
+**The page** (`src/read/MeetingRead.tsx`): Summary | Transcript (the kit's segmented control, Summary first), the
+cassette as the player where there is a recording (the app's tape in the meeting's hue, Play, the time, a scrubber,
+1×/1.5×/2×, Space plays and pauses, a bar at the foot once it is scrolled away), and the turns with their speakers and
+times, the phrase being heard lit and kept in view while it plays; scrolling away stops that and **Back to now** takes
+it back; a tap on a phrase plays from it. Nothing is fetched until the first Play. The recording is read as it streams
+(`src/read/shareAudio.ts`): each part is opened with WebCrypto as it arrives and the sound so far is a WAV the page
+plays, given more as it nears the end of what it has, so playback starts on the first half minute.
+
 ## The reader page
 
 read.html is a second Vite entry (`src/read/`). It is built only from the app's own parts:
