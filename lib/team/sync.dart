@@ -185,6 +185,7 @@ class TeamSyncContext {
     required this.crypto,
     required this.isTeamNote,
     this.leftTeam,
+    this.keptOut,
     required this.file,
     this.folders,
     this.now,
@@ -217,6 +218,11 @@ class TeamSyncContext {
   /// is still on the device keeps its row: the team's notes are never taken from every member because this device
   /// could not place a folder.
   final bool Function(String id)? leftTeam;
+
+  /// Told of a note that stays on this device as its team's row goes: the person moved it out of the organization,
+  /// here or on another of their devices. The account's own sync keeps it from an old build's deletion for a while
+  /// after (lib/sync/notes.dart [LeftTeams]).
+  final void Function(String id)? keptOut;
 
   /// A note from the team, filed in the organization's workspace on this device: one at the organization's own
   /// folder, or any, where this device has no [folders].
@@ -449,6 +455,8 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
     if (local != null && !(ctx.leftTeam?.call(item.id) ?? false)) {
       await ctx.notes.remove(item.id);
       tally.changed += 1;
+    } else if (local != null) {
+      ctx.keptOut?.call(item.id);
     }
     await ctx.docs.drop(item.id);
     ctx.state.notes.remove(item.id);
@@ -776,6 +784,8 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
       ctx.state.notes.remove(id);
       _forgetRecording(ctx, id);
       await ctx.docs.drop(id);
+      // Still here, the person's own note now: its team's row gone by this device's hand.
+      if (onDevice.contains(id)) ctx.keptOut?.call(id);
     });
   }
   ctx.save(ctx.state);
@@ -885,6 +895,7 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       now: now,
       isTeamNote: pass.isTeamNote,
       leftTeam: pass.leftTeam,
+      keptOut: pass.keptOut,
       file: pass.file,
       folders: pass.folders,
       pulled: pass.pulled,

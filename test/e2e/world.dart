@@ -162,7 +162,9 @@ class Device {
   /// [mailIn]: with email to a note's step in the pass (lib/mail/mail_in.dart `syncMail`).
   /// [folders]: a note's file follows its filing, as the app's `NoteFolders` moves it (lib/core/note_folders.dart): its
   /// path is moved into the folder its workspace names, at once, so a team note's row carries its folder (GHST-107).
-  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false, MailPass? mailIn, this.folders = false})
+  /// [teamPass]: the team channel the engine is handed, lib/team/sync.dart's [teamNotesPass] unless an old build's is
+  /// played (test/team_sync/old/). [clock]: the engine's time, in ms, the wall's where none is given.
+  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false, MailPass? mailIn, this.folders = false, this.teamPass, this.clock})
       : disk = disk ?? Disk(),
         api = world.api() {
     crypto = CoreCrypto(core.invoke);
@@ -192,7 +194,8 @@ class Device {
       record: record,
       kept: kept,
       onNotesChanged: () => told += 1,
-      teamNotes: teamNotesPass(docs),
+      teamNotes: (teamPass ?? teamNotesPass)(docs),
+      now: clock,
       forgetTeams: docs.forget,
       sharedLive: this.live?.shared.isShared,
       tellChanged: this.live?.nudges.tellChanged,
@@ -206,6 +209,8 @@ class Device {
   final Disk disk;
   final Api api;
   final bool folders;
+  final TeamNotesPass Function(TeamDocs docs)? teamPass;
+  final int Function()? clock;
 
   /// The notes' paths moved to the folder their workspace names, as lib/core/note_folders.dart moves their files:
   /// into `<folder>/<file name>`, the inbox for none, unless already in that folder.
@@ -262,7 +267,7 @@ class Device {
   /// Nothing is asked of the service until [Account.resume] or a pass.
   Future<Device> relaunched({String label = 'a device'}) async {
     await close();
-    final next = Device(world, core, label: label, disk: disk, folders: folders);
+    final next = Device(world, core, label: label, disk: disk, folders: folders, teamPass: teamPass, clock: clock);
     final settings = prefs.value;
     next.prefs.update((_) => settings);
     await next.account.restore();
