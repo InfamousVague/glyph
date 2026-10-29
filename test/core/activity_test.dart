@@ -25,6 +25,23 @@ void main() {
 
   tearDown(() => listening.cancel());
 
+  test('the words a job writes as it goes are kept off the job: no change told, nothing once it ends or begins again', () {
+    final job = record.begin('summary:n1', kind: JobKind.ai, title: 'Summary of Standup');
+    final told = heard.length;
+    var drawn = 0;
+    record.addListener(() => drawn += 1);
+    job.write('We agreed');
+    job.write('We agreed to ship');
+    expect(record.wordsOf('summary:n1').value, 'We agreed to ship');
+    expect((heard.length, drawn), (told, 0), reason: 'neither the stream nor the ring hears each piece');
+    job.done();
+    expect(record.wordsOf('summary:n1').value, '');
+    job.write('late');
+    expect(record.wordsOf('summary:n1').value, '', reason: 'a handle whose job has ended does nothing');
+    record.begin('summary:n1', kind: JobKind.ai, title: 'Summary of Standup').write('afresh');
+    expect(record.wordsOf('summary:n1').value, 'afresh');
+  });
+
   test('a job goes through its states, and the listenable and the stream say each', () {
     var told = 0;
     record.addListener(() => told += 1);

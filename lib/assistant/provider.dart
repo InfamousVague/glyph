@@ -110,8 +110,10 @@ double aiCost(AiRates rates, {required int input, required int output, int cache
 
 /// One completion read whole from [call]: the text of every text block joined, thinking left alone. [who] names the
 /// model in what is said when it did not answer ("Claude declined to write this one up."). Throws the stream's
-/// [AiError], or one for a stream that ended in a refusal, out of room, or with no words.
-Future<String> aiText(AiCall call, {String who = 'Claude'}) async {
+/// [AiError], or one for a stream that ended in a refusal, out of room, or with no words. [onText] is told the words so
+/// far as each piece of them arrives, for what draws them as they come (a meeting's summary being written, in its note:
+/// lib/editor/ai/summary_writing.dart).
+Future<String> aiText(AiCall call, {String who = 'Claude', void Function(String sofar)? onText}) async {
   final text = StringBuffer();
   String? stop;
   Object? failure;
@@ -120,7 +122,10 @@ Future<String> aiText(AiCall call, {String who = 'Claude'}) async {
     switch (event.event) {
       case 'content_block_delta':
         final delta = data['delta'];
-        if (delta is Map && delta['type'] == 'text_delta') text.write(delta['text'] as String? ?? '');
+        if (delta is Map && delta['type'] == 'text_delta') {
+          text.write(delta['text'] as String? ?? '');
+          onText?.call(text.toString());
+        }
       case 'message_delta':
         final delta = data['delta'];
         if (delta is Map && delta['stop_reason'] is String) stop = delta['stop_reason'] as String;

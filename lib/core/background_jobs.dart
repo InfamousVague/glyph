@@ -504,6 +504,11 @@ class JobHandle {
     _change((job) => job.copyWith(hiddenUntil: () => null));
   }
 
+  /// The words it has written so far, where it writes as it goes (Claude streaming a meeting's summary): read in place,
+  /// by what draws the work where it lands ([Activity.wordsOf]; lib/editor/ai/summary_writing.dart). Kept off the [Job]:
+  /// a change every few letters would be told to the ring, the tray and the OS surfaces each time.
+  void write(String sofar) => _activity._write(id, sofar);
+
   /// Whether the ring and the tray show it now.
   bool get shown => job != null && _activity._shows(job!);
 
@@ -602,6 +607,17 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
 
   final Map<String, Timer> _showing = {};
 
+  /// What each live job has written so far ([JobHandle.write]), by id: '' for nothing yet, and once it ends.
+  final Map<String, ValueNotifier<String>> _words = {};
+
+  /// The words the job [id] has written so far, as they come: '' until it writes, and again once it ends.
+  ValueListenable<String> wordsOf(String id) => _words.putIfAbsent(id, () => ValueNotifier<String>(''));
+
+  void _write(String id, String sofar) {
+    if (!(_jobs[id]?.state.live ?? false)) return;
+    (_words[id] ??= ValueNotifier<String>('')).value = sofar;
+  }
+
   /// Shows a job kept back once its while is up, if it is still running then.
   void _showLater(String id, Duration after) {
     _showing.remove(id)?.cancel();
@@ -647,6 +663,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     Duration? showAfter,
   }) {
     final had = _jobs[id];
+    if (had == null || !had.state.live) _words[id]?.value = '';
     if (had != null && had.state.live) {
       _put(had.copyWith(title: title, line: line == null ? null : () => line, onStop: onStop == null ? null : () => onStop, onOpen: onOpen == null ? null : () => onOpen, estimate: estimate, personStarted: personStarted || had.personStarted), JobEventKind.changed);
       return JobHandle._(this, id);
@@ -719,6 +736,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     final had = _jobs[id];
     if (had == null || !had.state.live) return;
     _showing.remove(id)?.cancel();
+    _words[id]?.value = '';
     // One kept back and never shown ends unseen, unless it failed: counted, told of to nobody, and no bloom for it.
     final seen = _shows(had) || state == JobState.failed;
     final ended = had.copyWith(
@@ -764,6 +782,9 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
       timer.cancel();
     }
     _showing.clear();
+    for (final words in _words.values) {
+      words.value = '';
+    }
     _jobs.clear();
     _elsewhere.clear();
     _changed();

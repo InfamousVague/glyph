@@ -389,6 +389,22 @@ void main() {
       expect(record.log.today.words, '1 summary');
     });
 
+    claudeTest('the summary\'s words stream onto the record as Claude writes them, for the note to draw; none once it lands', (tester) async {
+      listen();
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      final heard = <String>[];
+      final words = record.wordsOf('summary:n1');
+      void hear() => heard.add(words.value);
+      words.addListener(hear);
+      addTearDown(() => words.removeListener(hear));
+      final answer = q.answer;
+      api.asked.single.answer(answer);
+      await advance(tester, 0);
+      expect(heard.take(2), [answer.substring(0, answer.length ~/ 2), answer], reason: 'the words so far, piece by piece');
+      expect(words.value, '', reason: 'nothing once the write has landed');
+    });
+
     claudeTest('a long meeting says its parts: "Reading the meeting, 1 of 2 parts", then writing from them', (tester) async {
       listen();
       q.notes['n1'] = q.note('n1', '# Long', recordingMs: 600000, segments: q.longTape());

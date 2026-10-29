@@ -22,7 +22,8 @@ import '../core/banner.dart' show bannerAspect;
 import '../core/images.dart' show PictureStore;
 import '../editor/media/images.dart' show KeptPicture;
 import '../editor/media/lovart_badge.dart' show LovartBadged;
-import '../editor/media/lovart_pending.dart' show LovartPending;
+import '../activity/activity_look.dart' show activityMoves;
+import '../activity/banner_shimmer.dart';
 
 /// The tallest a banner is drawn, past which a wide window's banner keeps this height and is cropped to its middle.
 const double noteBannerMaxHeight = 420;
@@ -160,7 +161,10 @@ void forgetBannerColours() {
   _reading.clear();
 }
 
-/// The banner [name] of the note, from [store]; while [making], Lovart's stand-in in its place; with neither, nothing.
+/// The banner [name] of the note, from [store]; while [making], the band where it will land (lib/activity/
+/// banner_shimmer.dart; docs/ACTIVITY.md, In place: Lovart's blurred stand-in was here before), at the shape the
+/// banner it replaces is drawn at or, with none, the shape a banner is drawn at before it is read, the picture fading in
+/// over it as it lands; with neither, nothing.
 class NoteBannerView extends StatelessWidget {
   const NoteBannerView({super.key, required this.name, required this.store, this.making = false, this.prompt = '', this.start});
 
@@ -168,7 +172,7 @@ class NoteBannerView extends StatelessWidget {
   final PictureStore? store;
   final bool making;
 
-  /// What the stand-in's colours are picked by while it is made.
+  /// What Lovart was asked for, while it is made (the blurred stand-in's colours were picked by it; the band is the images' own).
   final String prompt;
 
   /// The column's own left edge where the page reads as a column; the gutter otherwise.
@@ -186,18 +190,75 @@ class NoteBannerView extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final width = box.maxWidth;
-          if (name == null) {
-            final height = math.min(width / bannerAspect, noteBannerMaxHeight);
-            return SizedBox(
+          final look = (name == null ? null : bannerLookKnown(name)) ?? BannerLook.unread;
+          final height = math.min(width / look.shape, noteBannerMaxHeight);
+          return _Landing(
+            making: making,
+            band: SizedBox(
               key: const ValueKey<String>('note-banner-making'),
               width: width,
               height: height,
-              child: LovartPending(prompt: prompt, maxHeight: height),
-            );
-          }
-          return _BannerPicture(name: name, store: store, width: width, radius: radius);
+              child: BannerShimmer(width: width, height: height, radius: radius),
+            ),
+            picture: name == null ? null : _BannerPicture(name: name, store: store, width: width, radius: radius),
+          );
         },
       ),
+    );
+  }
+}
+
+/// The band while the banner is made, and the [picture] once it lands, the band fading away over it (at once where
+/// the device asks for less motion). At rest it is the picture alone, drawn as it always was: no layer of its own.
+class _Landing extends StatefulWidget {
+  const _Landing({required this.making, required this.band, required this.picture});
+
+  final bool making;
+  final Widget band;
+  final Widget? picture;
+
+  @override
+  State<_Landing> createState() => _LandingState();
+}
+
+class _LandingState extends State<_Landing> with SingleTickerProviderStateMixin {
+  late final AnimationController _out = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+
+  /// The band as it was when the picture landed, while it fades.
+  Widget? _leaving;
+
+  @override
+  void didUpdateWidget(_Landing old) {
+    super.didUpdateWidget(old);
+    if (old.making && !widget.making && widget.picture != null && activityMoves(context)) {
+      _leaving = old.band;
+      _out.value = 1;
+      _out.animateTo(0).whenCompleteOrCancel(() {
+        if (mounted) setState(() => _leaving = null);
+      });
+    } else if (widget.making) {
+      _out.stop();
+      _leaving = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _out.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.making) return widget.band;
+    final picture = widget.picture ?? const SizedBox.shrink();
+    final leaving = _leaving;
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        picture,
+        if (leaving != null) Positioned(top: 0, left: 0, right: 0, child: IgnorePointer(child: FadeTransition(key: const ValueKey<String>('note-banner-landing'), opacity: _out, child: leaving))),
+      ],
     );
   }
 }

@@ -1498,7 +1498,7 @@ class Summaries implements HandoffQueue {
     // An open note's run is the phone's model's, in its editor. Claude's answer is asked here and handed to the
     // editor whole, which lands it at once as a run's lines land, with Keep and Revert.
     if (starter != null && !viaClaude) return _throughEditor(job, starter, job.text == null ? ask : ask.withText(job.text!));
-    final text = job.text ?? (await _run(model: model, system: recordingSummaryPrompt, prompt: context != null && context.isNotEmpty ? '$context\n\n$words' : words, maxTokens: budget, viaClaude: viaClaude));
+    final text = job.text ?? (await _run(model: model, system: recordingSummaryPrompt, prompt: context != null && context.isNotEmpty ? '$context\n\n$words' : words, maxTokens: budget, viaClaude: viaClaude, onText: activity.handle(summaryJobId(job.id))?.write));
     _patch(job.id, (j) => j.copyWith(text: text));
     // A long tape's context is the largest the page asks for: the engine may let it go now rather than in five
     // minutes.
@@ -1509,14 +1509,15 @@ class Summaries implements HandoffQueue {
   }
 
   /// One generation, cancellable by the recorder, and not started once it is up: the phone's model's, or with
-  /// [viaClaude] Claude's (whose room is its own, not [maxTokens]: ai/summary_claude.dart).
-  Future<String> _run({required String model, required String system, required String prompt, required int maxTokens, bool viaClaude = false}) async {
+  /// [viaClaude] Claude's (whose room is its own, not [maxTokens]: ai/summary_claude.dart). [onText] is told the words
+  /// so far as they come: the summary's own words, drawn writing themselves in the note (docs/ACTIVITY.md, In place).
+  Future<String> _run({required String model, required String system, required String prompt, required int maxTokens, bool viaClaude = false, void Function(String sofar)? onText}) async {
     if (_paused) throw const AiFailure('cancelled');
     if (viaClaude) {
       final claude = this.claude!;
       // A piece not yet asked once the limit is reached is left, the job uncounted, for the queue to hold.
       if (!claude.enabled || claude.limited) throw const AiFailure('cancelled');
-      final writing = _activeClaude = claude.write(system: system, prompt: prompt);
+      final writing = _activeClaude = claude.write(system: system, prompt: prompt, onText: onText);
       try {
         return await writing.done;
       } on ClaudeCancelled {
@@ -1525,7 +1526,7 @@ class Summaries implements HandoffQueue {
         _activeClaude = null;
       }
     }
-    final run = generate(RunOptions(model: model, system: system, prompt: prompt, maxTokens: maxTokens, temperature: temperature, onProgress: (_) {}));
+    final run = generate(RunOptions(model: model, system: system, prompt: prompt, maxTokens: maxTokens, temperature: temperature, onProgress: onText == null ? (_) {} : (progress) => onText(progress.partial)));
     _activeRun = run;
     try {
       return (await run.done).text;
