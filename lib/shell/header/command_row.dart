@@ -69,6 +69,8 @@ class CommandField extends StatelessWidget {
   final HeaderParts parts;
 
   /// A size up: the title's words in the page's own size, the glyph with them (Grouped command's).
+  /// Grouped command's pill (version 6): the bar's larger ring, and "Search" alone where it is narrow. Its words
+  /// are the small size as the other pill's are (Matt, 2026-10-29: "the text in the top searchbar is a bit too large").
   final bool large;
 
   /// The menu of •••, which the pill opens where there is no palette.
@@ -97,10 +99,10 @@ class CommandField extends StatelessWidget {
               child: Row(
                 spacing: t.space(2),
                 children: [
-                  HeaderGlyph(act, size: large ? 17 : 15, color: muted, strokeWidth: 1.9, wash: false),
+                  HeaderGlyph(act, size: large ? 16 : 15, color: muted, strokeWidth: 1.9, wash: false),
                   Expanded(
                     child: ExcludeSemantics(
-                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text(large ? 'md' : 'sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
+                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
                     ),
                   ),
                   if (parts.fine && search != null)
@@ -114,10 +116,10 @@ class CommandField extends StatelessWidget {
                           spacing: 2,
                           children: [
                             if (defaultTargetPlatform == TargetPlatform.macOS)
-                              CustomPaint(size: Size.square(t.fontSize(large ? 'sm' : 'xs') * 0.85), painter: _CommandKey(muted))
+                              CustomPaint(size: Size.square(t.fontSize('xs') * 0.85), painter: _CommandKey(muted))
                             else
-                              Text('Ctrl', style: t.text(large ? 'sm' : 'xs', weight: 'medium', color: muted)),
-                            Text('K', style: t.text(large ? 'sm' : 'xs', weight: 'medium', color: muted)),
+                              Text('Ctrl', style: t.text('xs', weight: 'medium', color: muted)),
+                            Text('K', style: t.text('xs', weight: 'medium', color: muted)),
                           ],
                         ),
                       ),

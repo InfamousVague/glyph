@@ -353,7 +353,8 @@ void main() {
       for (final id in ['home', 'sidebar', 'you']) {
         expect((glyphIn(id) - glyph).abs(), lessThan(0.01), reason: id);
       }
-      // A touch smaller than it was (34-42px), and its title's words still a size up from Command centre's.
+      // A touch smaller than it was (34-42px), and its title's words the small size, as Command centre's are (Matt,
+      // 2026-10-29: "the text in the top searchbar is a bit too large").
       expect(ring, lessThan(t.lenOf('calc(var(--glacier-space-10) * 0.85)')));
       double words() {
         final found = find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.byType(RichText));
@@ -362,7 +363,7 @@ void main() {
 
       final large = words();
       await pumpShell(tester, version: HeaderToolbarVersion.command, window: window, note: false);
-      expect(large, greaterThan(words()));
+      expect(large, words());
     });
   }
 
