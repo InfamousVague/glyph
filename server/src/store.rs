@@ -10,7 +10,7 @@
 //!
 //! This file owns the schema, the one connection, and what every query goes through. Each table's queries are in the
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
-//! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
+//! `store/prefs.rs`, `store/shares.rs` (and a shared meeting's recording, `store/share_audio.rs`), `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
 //! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md), `store/notifications.rs`
 //! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note), `store/hooks.rs` (incoming hooks) and `store/meet.rs` (Ghost
 //! in a Google Meet: its bookings, and its recordings sealed as files beside the recordings) and `store/discord.rs` (Ghost in a
@@ -37,6 +37,7 @@ mod org_links;
 mod orgs;
 mod prefs;
 mod recordings;
+mod share_audio;
 mod shares;
 mod sites;
 
@@ -54,6 +55,7 @@ pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use mail::{MailClaim, MailStanding, MailWrite, SealedMail};
 pub use meet::{MeetBooking, SERIES as MEET_SERIES};
+pub use share_audio::AudioWrite;
 pub use shares::ShareWrite;
 pub use sites::SiteWrite;
 
@@ -121,6 +123,17 @@ CREATE TABLE IF NOT EXISTS shares (
     updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS shares_by_owner ON shares(account_id);
+-- A shared meeting's recording (store/share_audio.rs): which upload it is, in how many parts, how many bytes, and its
+-- file beside the account's recordings. Goes with its share, and with its owner's account.
+CREATE TABLE IF NOT EXISTS share_audio (
+    share_id   TEXT PRIMARY KEY REFERENCES shares(id) ON DELETE CASCADE,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    upload     TEXT NOT NULL,
+    parts      INTEGER NOT NULL,
+    size       INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS share_audio_by_owner ON share_audio(account_id);
 CREATE TABLE IF NOT EXISTS recordings (
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     id         TEXT NOT NULL,

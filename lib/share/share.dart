@@ -48,9 +48,13 @@ import '../core/front_matter.dart';
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
+import '../meet/meet_note.dart' show ghostLineStart;
 import '../sync/notes.dart' show imageNames;
 import 'carried.dart';
+import 'share_audio.dart';
 import 'zip.dart';
+
+export 'share_audio.dart' show ShareRecording, ShareRecordings, SharedAudio, audioTooLong;
 
 /// One page of a share.
 @immutable
@@ -74,7 +78,7 @@ class SharedPage {
 /// What a share holds, sealed (`Shared`). A note is one page; a book is its index first, then its chapters in order.
 @immutable
 class Shared {
-  const Shared({required this.kind, required this.title, required this.pages, required this.at, this.pictures});
+  const Shared({required this.kind, required this.title, required this.pages, required this.at, this.pictures, this.meeting});
 
   /// `note` or `book`.
   final String kind;
@@ -88,10 +92,17 @@ class Shared {
   /// and the server keeps the share whole or not at all.
   final Map<String, Uint8List>? pictures;
 
-  Shared withPictures(Map<String, Uint8List>? pictures) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures);
+  /// A meeting's recording length, its colour, who spoke and its turns, and the recording it carries where it carries
+  /// one (lib/share/share_audio.dart `sharedMeeting`): what the page draws its tape and transcript from. Null for
+  /// everything but a meeting, and for a share made by an older build.
+  final Map<String, Object?>? meeting;
+
+  Shared withPictures(Map<String, Uint8List>? pictures) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures, meeting: meeting);
+
+  Shared withMeeting(Map<String, Object?>? meeting) => Shared(kind: kind, title: title, pages: pages, at: at, pictures: pictures, meeting: meeting);
 
   /// The share's words, as they are sealed: everything but the pictures.
-  Map<String, Object?> toJson() => {'v': 1, 'kind': kind, 'title': title, 'pages': [for (final page in pages) page.toJson()], 'at': at};
+  Map<String, Object?> toJson() => {'v': 1, 'kind': kind, 'title': title, 'pages': [for (final page in pages) page.toJson()], 'at': at, if (meeting != null) 'meeting': meeting};
 
   @override
   String toString() => 'Shared($kind, $title, ${pages.length} pages, ${pictures?.length ?? 0} pictures)';
@@ -203,6 +214,7 @@ Future<Shared> openShare(AccountCrypto crypto, String blob, String key, {String 
     ]),
     at: words['at'] is num ? (words['at'] as num).toInt() : 0,
     pictures: pictures,
+    meeting: words['meeting'] is Map ? (words['meeting'] as Map).cast<String, Object?>() : null,
   );
 }
 
@@ -332,8 +344,9 @@ bool sharesPlaces(Note note, List<Note> notes) => sharedOf(note, notes, place: t
 /// A short digest of what a share holds, pages only: when it was written does not make it different (`digest`).
 String shareDigest(Shared shared) {
   // "p2": pictures travel with a share, and a share remembers which it lacked. A share sent before either reads as
-  // changed, so it is sent again, with them and with that list.
-  final text = jsonEncode(['p2', shared.kind, shared.title, [for (final page in shared.pages) page.toJson()]]);
+  // changed, so it is sent again, with them and with that list. A meeting's turns and the recording it names are
+  // what it holds too; anything else digests as it did, so it is not sent again for them.
+  final text = jsonEncode(['p2', shared.kind, shared.title, [for (final page in shared.pages) page.toJson()], if (shared.meeting != null) shared.meeting]);
   var h = 2166136261;
   for (var i = 0; i < text.length; i += 1) {
     h = ((h ^ text.codeUnitAt(i)) * 16777619) & 0xffffffff;
@@ -352,7 +365,9 @@ const Duration followWait = Duration(milliseconds: 3000);
 /// device (`onShares`).
 class Shares extends ChangeNotifier {
   /// [listNotes] reads this device's notes (`listNotes`); [prefs] is where the shares are kept.
-  Shares({required this.account, required this.api, required this.crypto, required this.prefs, required this.pictures, required this.listNotes}) {
+  /// [recordings] reads this device's meeting recordings, for a share that carries one (lib/share/share_audio.dart);
+  /// without it no share carries a recording, though one sent from another device is still named.
+  Shares({required this.account, required this.api, required this.crypto, required this.prefs, required this.pictures, required this.listNotes, this.recordings}) {
     prefs.addListener(notifyListeners);
   }
 
@@ -362,6 +377,20 @@ class Shares extends ChangeNotifier {
   final PreferencesStore prefs;
   final SharePictures pictures;
   final Future<List<Note>> Function() listNotes;
+  final ShareRecordings? recordings;
+
+  /// The recordings being sent, by note id, with how much of each has gone (0 to 1).
+  final ValueNotifier<Map<String, double>> audioSending = ValueNotifier(const {});
+
+  /// Why a note's recording did not go with its share, by note id, until it goes.
+  final Map<String, String> _audioProblems = {};
+
+  /// Why [noteId]'s recording did not go with its share, or null.
+  String? audioProblem(String noteId) => _audioProblems[noteId];
+
+  /// Whether [note] is a meeting: one recorded as a meeting here or on another of the account's devices, or one Ghost
+  /// was in. Its share carries its turns, and its recording where it has one ([sharingRecording]).
+  bool isMeeting(Note note) => prefs.value.meetings.containsKey(note.id) || note.body.contains(ghostLineStart);
 
   Map<String, ShareEntry> _readKept() => {...prefs.value.shares};
 
@@ -405,20 +434,39 @@ class Shares extends ChangeNotifier {
     return kept != null ? shareLink(kept.id, kept.key) : null;
   }
 
-  static ShareEntry _sent(ShareEntry kept, String sent, List<String> lacked) =>
-      ShareEntry(id: kept.id, key: kept.key, sent: sent, lacked: lacked.isEmpty ? null : List.unmodifiable(lacked), place: kept.place, places: kept.places);
+  /// Records that [noteId]'s share went as [sent], lacking [lacked], on the entry as it is NOW: a recording sent
+  /// meanwhile, or a switch turned, is kept, where writing back the entries read before the share went would lose it.
+  void _markSent(String noteId, String sent, List<String> lacked) {
+    final all = _readKept();
+    final kept = all[noteId];
+    if (kept == null) return;
+    all[noteId] = kept.copyWith(sent: sent, lacked: () => lacked.isEmpty ? null : List.unmodifiable(lacked));
+    _writeKept(all);
+  }
+
+  /// What [note]'s share holds: its pages, and a meeting's turns and the recording it names.
+  Shared _sharedOf(Note note, List<Note> notes, ShareEntry kept) {
+    final shared = sharedOf(note, notes, place: kept.place, places: kept.places);
+    if (shared.kind != 'note' || !isMeeting(note)) return shared;
+    final audio = kept.recording ? SharedAudio.fromJson(kept.audio) : null;
+    return shared.withMeeting(sharedMeeting(note, at: prefs.value.meetings[note.id]?.toInt() ?? note.createdAt, audio: audio));
+  }
 
   /// Shares [note] (and, for a book, its chapters among [notes]), or writes its share again; answers the link
-  /// (`shareNote`).
-  Future<String> shareNote(Note note, List<Note> notes) async {
+  /// (`shareNote`). A meeting's share made here carries its recording unless [recording] is false (the sheet's
+  /// "Include the recording"): the words go first, and the link with them, and the recording follows on its own,
+  /// [audioSending] saying how far it is.
+  Future<String> shareNote(Note note, List<Note> notes, {bool? recording}) async {
     final auth = _token();
-    final all = _readKept();
-    final kept = all[note.id] ?? ShareEntry(id: newShareId(crypto), key: newShareKey(crypto));
-    final shared = sharedOf(note, notes, place: kept.place, places: kept.places);
+    final made = _readKept()[note.id] ?? ShareEntry(id: newShareId(crypto), key: newShareKey(crypto));
+    final kept = recording == null || recording == made.recording ? made : made.copyWith(recording: recording);
+    final shared = _sharedOf(note, notes, kept);
     final carried = await withPictures(shared, pictures);
     await api.call('PUT', 'shares/${kept.id}', token: auth, body: {'blob': await _sealForServer(crypto, carried.shared, kept.key)});
-    all[note.id] = _sent(kept, shareDigest(shared), carried.lacked);
+    final all = _readKept();
+    all[note.id] = (all[note.id] ?? kept).copyWith(recording: kept.recording, sent: shareDigest(shared), lacked: () => carried.lacked.isEmpty ? null : List.unmodifiable(carried.lacked));
     _writeKept(all);
+    _sendAudioSoon(note);
     return shareLink(kept.id, kept.key);
   }
 
@@ -431,7 +479,7 @@ class Shares extends ChangeNotifier {
     final all = _readKept();
     final kept = all[noteId];
     if (kept == null) return;
-    all[noteId] = ShareEntry(id: kept.id, key: kept.key, sent: kept.sent, lacked: kept.lacked, place: on, places: kept.places);
+    all[noteId] = kept.copyWith(place: on);
     _writeKept(all);
     await refreshShares();
   }
@@ -445,8 +493,102 @@ class Shares extends ChangeNotifier {
     final all = _readKept();
     final kept = all[noteId];
     if (kept == null) return;
-    all[noteId] = ShareEntry(id: kept.id, key: kept.key, sent: kept.sent, lacked: kept.lacked, place: kept.place, places: on);
+    all[noteId] = kept.copyWith(places: on);
     _writeKept(all);
+    await refreshShares();
+  }
+
+  // ---- a meeting's recording ---------------------------------------------------------------------------------------
+
+  /// Whether [noteId]'s share carries its meeting's recording: on unless turned off.
+  bool sharingRecording(String noteId) => _readKept()[noteId]?.recording ?? true;
+
+  /// Whether [noteId]'s share has a recording on the service, sent from this device or another.
+  bool recordingSent(String noteId) {
+    final kept = _readKept()[noteId];
+    return kept != null && kept.recording && SharedAudio.fromJson(kept.audio) != null;
+  }
+
+  /// Where [note]'s recording is for its share: here to send ([ShareRecording]), or null where this device has none.
+  Future<ShareRecording?> recordingHere(Note note) async {
+    final from = recordings;
+    if (from == null || (note.recordingMs ?? 0) <= 0) return null;
+    try {
+      return await from.recordingOf(note.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Sets whether [noteId]'s share carries its recording. Off, the recording is taken down from the service and the
+  /// share written again without it; on, it is sent from here where this device has it.
+  Future<void> shareWithRecording(String noteId, {required bool on}) async {
+    final all = _readKept();
+    final kept = all[noteId];
+    if (kept == null) return;
+    all[noteId] = kept.copyWith(recording: on, audio: on ? null : () => null);
+    _writeKept(all);
+    _audioProblems.remove(noteId);
+    if (!on) await api.call('DELETE', 'shares/${kept.id}/audio', token: _token());
+    await refreshShares();
+  }
+
+  final Map<String, Future<void>> _audioRuns = {};
+
+  /// Sends [note]'s recording with its share, once, where it wants one this device has and has not sent as it is now
+  /// (lib/share/share_audio.dart says when that is). Nothing is waited for: [audioSending] says how far it is, and
+  /// the share is written again naming it once it is all there.
+  void _sendAudioSoon(Note note) {
+    if (_audioRuns.containsKey(note.id)) return;
+    final run = _sendAudio(note).catchError((Object failure) {
+      _audioProblems[note.id] = 'The recording didn’t go: $failure It is tried again after the next save.';
+      notifyListeners();
+    }).whenComplete(() {
+      _audioRuns.remove(note.id);
+      audioSending.value = {...audioSending.value}..remove(note.id);
+    });
+    _audioRuns[note.id] = run;
+  }
+
+  /// The run [_sendAudioSoon] starts, for the tests to wait on.
+  @visibleForTesting
+  Future<void> audioSent(String noteId) => _audioRuns[noteId] ?? Future<void>.value();
+
+  Future<void> _sendAudio(Note note) async {
+    final first = _readKept()[note.id];
+    if (first == null || !first.recording || !isMeeting(note) || account.session == null) return;
+    final recording = await recordingHere(note);
+    if (recording == null) return;
+    final digest = recordingDigest(recording.bytes, note.recordingMs);
+    if (SharedAudio.fromJson(first.audio)?.sent == digest) return;
+    if (!audioFits(recording.bytes)) {
+      _audioProblems[note.id] = audioTooLong;
+      notifyListeners();
+      return;
+    }
+    _audioProblems.remove(note.id);
+    audioSending.value = {...audioSending.value, note.id: 0};
+    bool wanted() {
+      final now = _readKept()[note.id];
+      return now != null && now.id == first.id && now.recording;
+    }
+
+    final sent = await sendShareAudio(
+      api: api,
+      token: _token(),
+      crypto: crypto,
+      shareId: first.id,
+      key: first.key,
+      recording: recording,
+      ms: note.recordingMs ?? 0,
+      wanted: wanted,
+      progress: (done) => audioSending.value = {...audioSending.value, note.id: done},
+    );
+    if (sent == null || !wanted()) return;
+    final all = _readKept();
+    all[note.id] = all[note.id]!.copyWith(audio: () => sent.toJson());
+    _writeKept(all);
+    // The words again, naming the recording: its descriptor is in what the share holds, so the digest moved.
     await refreshShares();
   }
 
@@ -463,7 +605,8 @@ class Shares extends ChangeNotifier {
     return false;
   }
 
-  /// Stops sharing [noteId]: the share is taken down and its link reads nothing from then on (`stopSharing`).
+  /// Stops sharing [noteId]: the share is taken down and its link reads nothing from then on (`stopSharing`). The
+  /// service takes a meeting's recording down with it, and a recording still being sent stops at its next part.
   Future<void> stopSharing(String noteId) async {
     final all = _readKept();
     final kept = all[noteId];
@@ -490,19 +633,20 @@ class Shares extends ChangeNotifier {
       }
       final kept = all[id];
       if (note == null || kept == null) continue;
-      final shared = sharedOf(note, notes, place: kept.place, places: kept.places);
+      // A meeting's recording, where this device has one the share has not had as it is now: on its own, after.
+      if (kept.recording && isMeeting(note)) _sendAudioSoon(note);
+      final shared = _sharedOf(note, notes, kept);
       // The pages as they were, and every picture they show either sent or still not here: nothing to send.
       if (shareDigest(shared) == kept.sent && !await _lackedArrived(kept)) continue;
       try {
         final carried = await withPictures(shared, pictures);
         await api.call('PUT', 'shares/${kept.id}', token: _token(), body: {'blob': await _sealForServer(crypto, carried.shared, kept.key)});
-        all[id] = _sent(kept, shareDigest(shared), carried.lacked);
+        _markSent(id, shareDigest(shared), carried.lacked);
         sent += 1;
       } on Exception {
         // Offline, or signed out: the next save tries again.
       }
     }
-    if (sent > 0) _writeKept(all);
     return sent;
   }
 
@@ -549,6 +693,7 @@ class Shares extends ChangeNotifier {
     }
     _unfollow.clear();
     prefs.removeListener(notifyListeners);
+    audioSending.dispose();
     super.dispose();
   }
 }

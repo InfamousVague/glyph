@@ -57,9 +57,15 @@ impl Store {
         self.one("SELECT blob, updated_at FROM shares WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))
     }
 
-    /// Takes down an account's share; another's, or none, is left as it is. Answers whether one went.
+    /// Takes down an account's share, with its recording; another's, or none, is left as it is. Answers whether one
+    /// went.
     pub fn delete_share(&self, account: i64, id: &str) -> bool {
-        self.lock().execute("DELETE FROM shares WHERE id = ?1 AND account_id = ?2", params![id, account]).map(|n| n > 0).unwrap_or(false)
+        let gone = self.lock().execute("DELETE FROM shares WHERE id = ?1 AND account_id = ?2", params![id, account]).map(|n| n > 0).unwrap_or(false);
+        // A meeting's recording goes with its share (store/share_audio.rs): its row by the cascade, its file here.
+        if gone {
+            self.delete_share_audio(account, id);
+        }
+        gone
     }
 
     /// An account's shares, newest written first: their ids and when each was written.

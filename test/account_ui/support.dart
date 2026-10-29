@@ -51,7 +51,7 @@ class NoPictures implements SharePictures {
 /// The preferences are the app's own store, which `pumpApp` resets: make the device first, and pump with [pump],
 /// which hands the test's page the preferences as they stand.
 class Device {
-  Device._(this.service, {Fetcher? fetcher, bool engine = true, bool shares = true, bool publishing = false, bool meeting = false, int Function()? now}) {
+  Device._(this.service, {Fetcher? fetcher, bool engine = true, bool shares = true, bool publishing = false, bool meeting = false, int Function()? now, ShareRecordings? recordings}) {
     preferences.startWithoutStorage();
     preferences.value = const Preferences(theme: 'light');
     api = Api(base: 'http://service.test/api', fetcher: fetcher ?? service.fetcher);
@@ -68,7 +68,7 @@ class Device {
     mailIn = publishing ? MailIn(account: account, keys: keys, api: api, crypto: service.crypto) : null;
     // Ghost in meetings (docs/MEET.md), for its own tests: a fake service of its routes in front of this one.
     meetIn = meeting ? MeetIn(account: account, keys: keys, api: api, crypto: service.crypto, kept: kept) : null;
-    this.shares = shares ? Shares(account: account, api: api, crypto: service.crypto, prefs: preferences, pictures: NoPictures(), listNotes: () async => notes.held.values.toList()) : null;
+    this.shares = shares ? Shares(account: account, api: api, crypto: service.crypto, prefs: preferences, pictures: NoPictures(), listNotes: () async => notes.held.values.toList(), recordings: recordings) : null;
     services = AccountServices(
       account: account,
       engine: this.engine,
@@ -89,8 +89,8 @@ class Device {
 
   /// A device of [service], or of a new one seeded with [seeded]. [signedIn] signs it in with the password, as a
   /// person would. [fetcher] stands between the device and the service.
-  static Future<Device> make({FakeService? service, bool signedIn = true, Fetcher? fetcher, bool engine = true, bool shares = true, bool publishing = false, bool meeting = false, List<String> peers = const ['sam'], int Function()? now}) async {
-    final device = Device._(service ?? await FakeService.start(seed: seeded, peers: peers), fetcher: fetcher, engine: engine, shares: shares, publishing: publishing, meeting: meeting, now: now);
+  static Future<Device> make({FakeService? service, bool signedIn = true, Fetcher? fetcher, bool engine = true, bool shares = true, bool publishing = false, bool meeting = false, List<String> peers = const ['sam'], int Function()? now, ShareRecordings? recordings}) async {
+    final device = Device._(service ?? await FakeService.start(seed: seeded, peers: peers), fetcher: fetcher, engine: engine, shares: shares, publishing: publishing, meeting: meeting, now: now, recordings: recordings);
     if (signedIn) await device.account.signIn(seeded.handle, seeded.password);
     return device;
   }

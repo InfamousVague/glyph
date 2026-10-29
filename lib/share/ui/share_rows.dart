@@ -6,6 +6,12 @@
 /// was written", with the kit's tick: the link leaves the location out until it is ticked. One whose words hold a
 /// place gets its own, "Share the places in it", ticked apart, so a tick given for the one never carries the other.
 ///
+/// A meeting with a recording has "Include the recording" (Matt, 2026-10-29: "include the casette tape and the per
+/// user transcript so we can listen along"), ticked unless it is turned off, before the link is made as well as after:
+/// the recording goes with the link, sealed as the words are, and the shared page plays it beside the transcript. It
+/// is drawn in simple mode as it is in advanced, nothing behind a More, since it is a choice about privacy. Its line
+/// says where the recording is: going (how far), there, on another device, or too long for a share.
+///
 /// A notebook's row says its pages go with it. A journal is shared an entry at a time, so one not shared has one
 /// quiet row saying so; a notebook shared before it was kept as a journal goes on being shared as it was.
 ///
@@ -68,11 +74,28 @@ class ShareRows extends StatefulWidget {
   State<ShareRows> createState() => _ShareRowsState();
 }
 
+/// What a meeting's share does with its recording, as the sheet says it: the line under "Include the recording".
+String recordingLine({required bool on, required bool here, required bool sent, double? sending, String? problem}) {
+  if (!on) return 'The link carries the words alone.';
+  if (sending != null) return 'Sending the recording… ${(sending * 100).floor()}%';
+  if (problem != null) return problem;
+  if (sent) return 'Readers can play the meeting and follow its transcript. Sealed like the words: the server can’t hear it.';
+  if (here) return 'The recording goes with the link, sealed like the words, so readers can listen along.';
+  return 'The recording isn’t on this device: it goes with the link from a device that has it.';
+}
+
 class _ShareRowsState extends State<ShareRows> {
   bool _busy = false;
   String? _said;
   ({bool tag, bool places}) _held = (tag: false, places: false);
   String? _heldFor;
+
+  /// Whether the note is a meeting with a recording, and whether this device has the recording.
+  ({bool meeting, bool here}) _recorded = (meeting: false, here: false);
+  String? _recordedFor;
+
+  /// "Include the recording" before the link is made: on unless turned off.
+  bool _withRecording = true;
 
   Shares? get _shares => widget.services?.shares;
   String? get _link => (widget.services?.signedIn ?? false) || _shares?.linkFor(widget.noteId) != null ? _shares?.linkFor(widget.noteId) : null;
@@ -81,16 +104,24 @@ class _ShareRowsState extends State<ShareRows> {
   void initState() {
     super.initState();
     widget.services?.changes.addListener(_changed);
+    _shares?.audioSending.addListener(_changed);
     _readHeld();
   }
 
   @override
   void didUpdateWidget(ShareRows old) {
     super.didUpdateWidget(old);
+    if (old.services?.shares != widget.services?.shares) {
+      old.services?.shares?.audioSending.removeListener(_changed);
+      _shares?.audioSending.addListener(_changed);
+    }
     if (old.noteId != widget.noteId) {
       _said = null;
       _held = (tag: false, places: false);
       _heldFor = null;
+      _recorded = (meeting: false, here: false);
+      _recordedFor = null;
+      _withRecording = true;
       _readHeld();
     }
   }
@@ -98,6 +129,7 @@ class _ShareRowsState extends State<ShareRows> {
   @override
   void dispose() {
     widget.services?.changes.removeListener(_changed);
+    _shares?.audioSending.removeListener(_changed);
     super.dispose();
   }
 
@@ -110,6 +142,7 @@ class _ShareRowsState extends State<ShareRows> {
   /// Whether the pages have a tag, and places in their words, to share: read once the note is shared, from the
   /// library as the share reads it.
   void _readHeld() {
+    _readRecorded();
     final shares = _shares;
     final link = _link;
     final key = '${widget.noteId}:$link';
@@ -125,6 +158,30 @@ class _ShareRowsState extends State<ShareRows> {
         if (mounted && key == _heldFor) setState(() => _held = (tag: note != null && sharesPlace(note, notes), places: note != null && sharesPlaces(note, notes)));
       } catch (_) {
         // The two rows are not offered.
+      }
+    }());
+  }
+
+  /// Whether the note is a meeting with a recording, and whether the recording is on this device: read once, shared
+  /// or not, since the row is offered before the link is made.
+  void _readRecorded() {
+    final shares = _shares;
+    final signedIn = widget.services?.signedIn ?? false;
+    final key = widget.noteId;
+    if (shares == null || !signedIn || key == _recordedFor) return;
+    _recordedFor = key;
+    unawaited(() async {
+      try {
+        final notes = await shares.listNotes();
+        Note? note;
+        for (final each in notes) {
+          if (each.id == widget.noteId) note = each;
+        }
+        final meeting = note != null && shares.isMeeting(note) && (note.recordingMs ?? 0) > 0;
+        final here = meeting && await shares.recordingHere(note) != null;
+        if (mounted && key == _recordedFor) setState(() => _recorded = (meeting: meeting, here: here));
+      } catch (_) {
+        // The row is not offered.
       }
     }());
   }
@@ -159,7 +216,7 @@ class _ShareRowsState extends State<ShareRows> {
           if (each.id == widget.noteId) note = each;
         }
         if (note == null) throw const ShareError('Save the note first: there is nothing to share yet.');
-        await _copy(await shares.shareNote(note, notes));
+        await _copy(await shares.shareNote(note, notes, recording: _recorded.meeting ? _withRecording : null));
       });
 
   @override
@@ -172,6 +229,7 @@ class _ShareRowsState extends State<ShareRows> {
     final said = _said;
     final send = widget.onSend;
     const mark = AppIcon(Lucide.link2, size: 18, strokeWidth: 2.2);
+    const recordingMark = AppIcon(Lucide.audioLines, size: 18, strokeWidth: 2.2);
 
     final List<Widget> rows;
     if (widget.kind == ShareKind.journal && link == null) {
@@ -188,9 +246,19 @@ class _ShareRowsState extends State<ShareRows> {
           disabled: _busy,
           onPress: () => unawaited(_share()),
         ),
+        if (_recorded.meeting)
+          SheetRow(
+            key: const ValueKey('share-recording'),
+            icon: recordingMark,
+            label: 'Include the recording',
+            hint: recordingLine(on: _withRecording, here: _recorded.here, sent: false),
+            disabled: _busy,
+            chosen: _withRecording,
+            onPress: () => setState(() => _withRecording = !_withRecording),
+          ),
       ];
     } else {
-      final withPlace = shares.sharingPlace(id), withPlaces = shares.sharingPlaces(id);
+      final withPlace = shares.sharingPlace(id), withPlaces = shares.sharingPlaces(id), withRecording = shares.sharingRecording(id);
       final carries = linkCarries(tag: _held.tag, places: _held.places, withTag: withPlace, withPlaces: withPlaces);
       rows = [
         SheetRow(
@@ -219,6 +287,16 @@ class _ShareRowsState extends State<ShareRows> {
             disabled: _busy,
             chosen: withPlaces,
             onPress: () => unawaited(_run(() => shares.shareWithPlaces(id, on: !withPlaces))),
+          ),
+        if (_recorded.meeting)
+          SheetRow(
+            key: const ValueKey('share-recording'),
+            icon: recordingMark,
+            label: 'Include the recording',
+            hint: recordingLine(on: withRecording, here: _recorded.here, sent: shares.recordingSent(id), sending: shares.audioSending.value[id], problem: shares.audioProblem(id)),
+            disabled: _busy,
+            chosen: withRecording,
+            onPress: () => unawaited(_run(() => shares.shareWithRecording(id, on: !withRecording))),
           ),
         if (send != null) SheetRow(key: const ValueKey('share-send'), icon: const AppIcon(Lucide.share2, size: 18, strokeWidth: 2.2), label: 'Send the link', onPress: () => send(link)),
         SheetRow(

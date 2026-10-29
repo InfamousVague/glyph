@@ -17,6 +17,8 @@ import { geoTagOf } from '../app/core/geotag.ts';
 import { lookOf } from '../app/core/look.ts';
 import { Byline } from '../app/authors/Byline.tsx';
 import { drawnBody } from './drawn.ts';
+import { meetingOf, summaryOf } from './meeting.ts';
+import { MeetingRead } from './MeetingRead.tsx';
 import { APP_URL, INSTALL_URL } from './places.ts';
 import styles from './Reader.module.css';
 
@@ -195,6 +197,9 @@ function Read({
   const look = lookOf(current.body);
   const link = typeof location !== 'undefined' ? location.href : '';
   const found = readShareLink(link);
+  // A meeting (lib/share/share_audio.dart): its summary and its transcript a toggle apart, and its tape where the share
+  // carries the recording (MeetingRead.tsx). A share from before meetings were shared reads as a note.
+  const meeting = useMemo(() => meetingOf(shared), [shared]);
 
   // A book, or a note with pictures, downloads as a zip: its pages, and the pictures in an image/ folder beside them.
   const zipped = isBook || Object.keys(shared.pictures ?? {}).length > 0;
@@ -224,7 +229,7 @@ function Read({
         <div className={styles.bannerInner}>
           <span className={styles.brand}>Ghost.md</span>
           <span className={styles.pitch}>
-            <span className={styles.pitchMore}>{isBook ? 'A shared notebook.' : 'A shared note.'} </span>
+            <span className={styles.pitchMore}>{isBook ? 'A shared notebook.' : meeting ? 'A shared meeting.' : 'A shared note.'} </span>
             <a className={styles.getApp} href={INSTALL_URL}>
               Get the app
             </a>{' '}
@@ -242,7 +247,7 @@ function Read({
           </span>
         </div>
       </header>
-    <main className={styles.page}>
+    <main className={styles.page} data-meeting={meeting ? '' : undefined}>
       {saving && found ? (
         <section className={styles.save} aria-label="Save a copy">
           <p>
@@ -269,7 +274,33 @@ function Read({
 
       {isBook && page > 0 && place ? <BookBar place={place} open={(t) => (sameTitle(t, shared.title) ? setPage(0) : open(t))} /> : null}
 
-      {isBook && page === 0 ? (
+      {meeting ? (
+        <MeetingRead
+          title={current.title}
+          meeting={meeting}
+          link={found}
+          dark={dark}
+          summary={
+            <div className={styles.note} data-look={look ?? undefined}>
+              <Byline authors={authorsOf(current.body)} />
+              <Editor
+                key={`summary:${current.title}`}
+                value={drawnBody(summaryOf(current.body, current.title))}
+                onChange={readOnly}
+                dark={dark}
+                assist={false}
+                readOnly
+                display={noteView}
+                wiki={{ known: (t) => indexOf(t) >= 0, open }}
+                places="ask"
+                videos="shared"
+                look={look}
+                grow
+              />
+            </div>
+          }
+        />
+      ) : isBook && page === 0 ? (
         <article className={styles.note}>
           <h1 className={styles.title}>{shared.title}</h1>
           {/* The app's own index (book/BookView.tsx), read-only: its numbers, preface, canvas marks and read-through. */}

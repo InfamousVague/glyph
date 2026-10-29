@@ -24,6 +24,8 @@ export const PACK_MAX_R = 44;
 export const REEL_Y = 88;
 export const LEFT_X = 104;
 export const RIGHT_X = 216;
+/** The ramps a cassette can wear (lib/tapes/tape_art.dart `tapeHues`; tapes/TapeArt.tsx `hue`). */
+export const TAPE_HUES = ['red', 'amber', 'green', 'teal', 'blue', 'purple'] as const;
 /** Tape speed, in units per millisecond: a half-full reel turns about once every 2.5 s. */
 const TAPE_SPEED = 0.075;
 

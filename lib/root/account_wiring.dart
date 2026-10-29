@@ -54,6 +54,7 @@ import '../plugins/discord/calls.dart' show discordCallsFollowPlugin;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
+import '../share/share_recordings.dart' if (dart.library.js_interop) '../share/share_recordings_web.dart';
 import '../share/sites.dart';
 import '../sync/connections.dart';
 import '../sync/device.dart';
@@ -197,7 +198,8 @@ class WiredAccount {
     final docs = TeamDocs(crdt: Crdt(core), store: _AccountDocs(making.dataDir, account, making.docsFor));
     final live = LiveServices(base: making.base, account: account, crypto: crypto, crdt: Crdt(core), orgs: orgs, orgKeys: orgKeys, prefs: settings, kept: device);
     // A share's reading copies are JPEGs written by the phone (lib/core/phone_pictures.dart): nothing on a device with no half for it.
-    final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list);
+    // And a meeting's recording, read from where the core keeps it, for a share that carries one (lib/share/share_audio.dart).
+    final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list, recordings: CoreRecordings(files));
     // A note or a notebook published as a site, and email to a note (docs/SITES.md, docs/MAIL.md): not on the iPhone.
     final offered = publishingOffered();
     final sites = offered ? Sites(account: account, api: api, crypto: crypto, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list) : null;

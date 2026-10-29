@@ -90,6 +90,23 @@ describe('the reader page', () => {
   });
 });
 
+describe('a meeting, shared', () => {
+  it('opens on its summary under the toggle, its transcript out of the words and a toggle away', async () => {
+    const body = '# Launch sync\n\nGhost was in this meeting.\n\n## Summary\nWhat the call settled.\n\n- Launch moves.\n\n## Transcript\n\n**Sam Lee (0:00):** Good morning.';
+    const meeting = { ms: 60000, hue: 'teal', at: 1, speakers: ['Sam Lee'], turns: [{ s: 0, p: [[0, 2000, 'Good morning.']] }] };
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'note', title: 'Launch sync', pages: [{ title: 'Launch sync', body }], at: 1, meeting } as Shared);
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('.cm-content')?.textContent).toContain('What the call settled.'));
+    expect(document.querySelector('main')?.hasAttribute('data-meeting')).toBe(true);
+    expect(document.querySelector('h1')?.textContent).toBe('Launch sync');
+    expect(document.querySelector('.cm-content')!.textContent).not.toContain('Good morning.');
+    expect(document.body.textContent).toContain('Transcript');
+    // No recording in this share: no cassette.
+    expect(document.querySelector('[aria-label="The recording"]')).toBeNull();
+  });
+});
+
 describe('a note with a look, shared', () => {
   it('is drawn in its look, without the key it is drawn by, and a map note’s header only with its place', async () => {
     const reading = '---\nlook: reading\n---\n# The long road\n\nIt went on.';

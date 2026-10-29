@@ -4,6 +4,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/shared_links.dart';
@@ -13,6 +14,7 @@ import 'package:ghost_md/sheet/sheet.dart';
 import 'package:glacier/glacier.dart';
 
 import '../account_ui/support.dart';
+import '../share/support.dart' show HeldRecordings;
 
 const String tag = '---\nlocation: 51.5074,-0.1278\n---\n';
 const String cais = '[Cais do Sodré, Lisbon](geo:38.7061,-9.1443)';
@@ -238,6 +240,69 @@ void main() {
       await pressRow(tester, 'Share where it was written');
       expect(carried(tester), 'The link carries where it was written and the places in it.');
       await endSettings(tester);
+    });
+  });
+
+  group('a shared meeting’s recording', () {
+    /// A meeting recorded on [device] (or only named in its settings, without the recording, with [here] false).
+    Future<Device> meetingOn({bool here = true}) async {
+      final device = await Device.make(recordings: HeldRecordings({if (here) 'm': Uint8List.fromList(List.filled(5000, 7))}));
+      preferences.update((now) => now.copyWith(meetings: {'m': 1}));
+      device.notes.held['m'] = const Note(id: 'm', body: '# Standup\n\n## Transcript\n\n**Sam (0:00):** Morning.', createdAt: 0, updatedAt: 0, recordingMs: 60000);
+      return device;
+    }
+
+    testWidgets('is offered before the link is made, ticked, and goes with the link', (tester) async {
+      final device = await meetingOn();
+      Clipped(tester);
+      await rows(tester, device, 'm');
+      expect(row(tester, 'Include the recording')?.chosen, isTrue);
+      expect(hintOf(tester, 'Include the recording'), 'The recording goes with the link, sealed like the words, so readers can listen along.');
+      await pressRow(tester, 'Share a read-only link');
+      await tester.runAsync(() => device.shares!.audioSent('m'));
+      await settle(tester, 12);
+      expect(device.service.shareAudio, hasLength(1));
+      expect(hintOf(tester, 'Include the recording'), startsWith('Readers can play the meeting and follow its transcript.'));
+      // Turned off from the sheet: taken down, and the link goes on with the words.
+      await pressRow(tester, 'Include the recording');
+      expect(device.service.shareAudio, isEmpty);
+      expect(row(tester, 'Include the recording')?.chosen, isFalse);
+      expect(hintOf(tester, 'Include the recording'), 'The link carries the words alone.');
+      expect(device.service.shares, hasLength(1));
+      await endSettings(tester);
+    });
+
+    testWidgets('turned off before the link is made, never goes', (tester) async {
+      final device = await meetingOn();
+      Clipped(tester);
+      await rows(tester, device, 'm');
+      await pressRow(tester, 'Include the recording');
+      expect(row(tester, 'Include the recording')?.chosen, isFalse);
+      await pressRow(tester, 'Share a read-only link');
+      await tester.runAsync(() => device.shares!.audioSent('m'));
+      await settle(tester, 12);
+      expect(device.service.shares, hasLength(1));
+      expect(device.service.shareAudio, isEmpty);
+      expect(device.shares!.sharingRecording('m'), isFalse);
+      expect(row(tester, 'Include the recording')?.chosen, isFalse);
+      await endSettings(tester);
+    });
+
+    testWidgets('says where the recording is when this device does not have it, and is no row for a note that is no meeting', (tester) async {
+      final device = await meetingOn(here: false);
+      await rows(tester, device, 'm');
+      expect(hintOf(tester, 'Include the recording'), 'The recording isn’t on this device: it goes with the link from a device that has it.');
+      await endSettings(tester);
+      device.keep('a', '# Trip');
+      await rows(tester, device, 'a');
+      expect(row(tester, 'Include the recording'), isNull);
+      await endSettings(tester);
+    });
+
+    test('says how far it has gone, and why it did not', () {
+      expect(recordingLine(on: true, here: true, sent: false, sending: 0.42), 'Sending the recording… 42%');
+      expect(recordingLine(on: true, here: true, sent: false, problem: 'Too long.'), 'Too long.');
+      expect(recordingLine(on: false, here: true, sent: true), 'The link carries the words alone.');
     });
   });
 
