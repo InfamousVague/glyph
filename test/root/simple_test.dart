@@ -18,6 +18,7 @@ import 'package:ghost_md/notes/notices.dart' show ExperienceCard;
 import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey, guideSeenValue;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderAct;
 import 'package:ghost_md/shell/page_dock.dart' show PageDock;
 import 'package:ghost_md/simple/simple_todos.dart' show SimpleTodos;
 import 'package:ghost_md/simple/simple_home.dart';
@@ -68,7 +69,9 @@ void main() {
 
   AppShellState shellOf(WidgetTester tester) => tester.state<AppShellState>(find.byType(AppShell));
   AppShell shellWidget(WidgetTester tester) => tester.widget<AppShell>(find.byType(AppShell));
-  Finder bar(String label) => find.descendant(of: find.byType(NoteTabs), matching: find.bySemanticsLabel(label));
+
+  /// The bar's button for you (lib/shell/header/header_kit.dart `youAct`), in the bar's own row.
+  Finder you() => find.descendant(of: find.byType(NoteTabs), matching: find.byKey(HeaderAct.keyOf('you')));
 
   testWidgets('tells the shell, the home page, the sidebars, the + and All notes they are simple, and takes Claude off the docks', (tester) async {
     await open(tester, experience: 'simple');
@@ -144,9 +147,10 @@ void main() {
     await open(tester, experience: 'advanced');
     await settle(tester);
     expect(shellWidget(tester).simple, isFalse);
-    expect(bar('Organizations'), findsOneWidget);
-    expect(bar('Notifications'), findsOneWidget);
-    expect(bar('Forward again'), findsOneWidget);
+    // Advanced's bar, Grouped command's by default: the button for you, which holds the bell, the organizations and
+    // Settings, and Home.
+    expect(you(), findsOneWidget);
+    expect(find.byKey(HeaderAct.keyOf('home')), findsOneWidget);
     expect(tester.widget<HomeScreen>(find.byType(HomeScreen)).simple, isFalse);
     expect(dockOrder(tester, within: find.byType(HomeScreen)).first, 'claude');
     final shell = shellOf(tester);
@@ -183,7 +187,7 @@ void main() {
     preferences.update((now) => now.choosing('advanced'));
     await settle(tester);
     expect(shellWidget(tester).simple, isFalse);
-    expect(bar('Organizations'), findsOneWidget);
+    expect(you(), findsOneWidget);
     expect(find.byType(SimpleHome), findsNothing);
     expect(dockOrder(tester, within: find.byType(HomeScreen)).first, 'claude');
     await close(tester);

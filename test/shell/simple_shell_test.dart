@@ -13,6 +13,7 @@ import 'package:ghost_md/simple/simple_pane.dart';
 import 'package:glacier/glacier.dart';
 
 import '../notes/bar_support.dart';
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 /// Simple mode's plain shell (GHST-105; Matt, 2026-10-18: "The simple mode in the app is not quite right, it still
@@ -127,6 +128,9 @@ void main() {
   });
 
   testWidgets('has every control in advanced, from the same shell, with the tabs and their groups', (tester) async {
+    // Today's bar's rings, by what they say, every one in the row; Grouped command keeps some behind its round
+    // button and •••.
+    pinTodaysBar();
     final it = await shell(tester, simple: false, open: const ['weekend', 'groceries']);
     expect(find.byType(AppTabBar), findsOneWidget);
     expect(find.byType(NoteTab), findsNWidgets(2));

@@ -17,6 +17,7 @@ import 'package:ghost_md/editor/view/syntax_tree.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderAct;
 
 import '../support/render.dart';
 
@@ -55,8 +56,10 @@ void main() {
   /// The tree a state never asleep holds for these words.
   String parsed(String words) => syntaxTree(EditorState.create(doc: words, extensions: noteExtensions())).toString();
 
+  // The view's switch in whichever bar is drawn: today's ring, or the view's segment in Grouped command's note pill.
   Future<void> flip(WidgetTester tester) async {
-    await tester.tap(find.byKey(const ValueKey('tool-switch')).first);
+    final ring = find.byKey(const ValueKey('tool-switch'));
+    await tester.tap(ring.evaluate().isNotEmpty ? ring.first : find.byKey(HeaderAct.keyOf('view')).first);
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

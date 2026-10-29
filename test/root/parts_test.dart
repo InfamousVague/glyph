@@ -31,6 +31,7 @@ import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/simple/simple_home.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 void main() {
@@ -261,6 +262,8 @@ void main() {
     });
 
     testWidgets('takes the home page down under a note and makes it anew on the way back, as the page does: at its top, its search empty, its rows arriving', (tester) async {
+      // The home page's own search field, which it draws under today's bar; Grouped command's pill is the search.
+      pinTodaysBar();
       final library = await open(tester);
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       final state = tester.state(find.byType(HomeScreen));

@@ -7,6 +7,7 @@ import 'package:ghost_md/note/note_settings.dart';
 import 'package:ghost_md/note/note_tools.dart';
 import 'package:ghost_md/sheet/kit.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -15,6 +16,8 @@ import 'support.dart';
 /// editor starts and its first line, and every row of the More sheet, to half a pixel.
 void main() {
   setUpAll(loadAppFonts);
+  // Held to the web page's note, whose bar is today's: its rings, its height and where the page starts under it.
+  setUp(pinTodaysBar);
 
   for (final width in [390, 840]) {
     final web = webNote(width);

@@ -487,7 +487,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     widget.workspaces.addListener(_redraw);
     windowEndCover.addListener(_redraw);
-    // Grouped command's title pill is the search, so the page's field goes while it draws the bar.
+    // Grouped command's title pill is the search, so the page's field goes while it draws the bar, as it does unless
+    // Developer has chosen another.
     headerToolbarChoice.addListener(_redraw);
     if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
   }
@@ -1023,8 +1024,10 @@ class _HomeScreenState extends State<HomeScreen> {
           simple: widget.simple,
           // No field of the page's own while the header toolbar's Grouped command draws the bar: its title pill opens
           // the palette, which finds notes by name (Matt, 2026-10-28: "remove the search bar from the home page since
-          // it's redundant"). Simple mode has no bar, so it keeps its field.
-          searchField: widget.simple || !headerToolbarVersion.searchPill,
+          // it's redundant"). Simple mode has no bar, so it keeps its field, and so does a page with no bar over it, as
+          // the filters' button stays (and as simple's list keeps its field off the bar, SimpleHome.searchField): with
+          // Grouped command the default, a page drawn alone would otherwise have no search at all.
+          searchField: (drawn.seams & 2097152) == 0,
           // And the filters' button is the bar's beside its title pill; the chips of what is chosen stay here.
           filtersButton: (drawn.seams & 2097152) == 0,
         ),

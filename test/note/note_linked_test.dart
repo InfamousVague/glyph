@@ -9,6 +9,7 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/note/note_settings.dart';
 import 'package:ghost_md/plugins/types.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -38,11 +39,8 @@ void main() {
   var made = 0;
   Future<Note> seeded(WidgetTester tester, NoteWorld world, String body) async => (await tester.runAsync(() => seedNote(world, 'linked${made += 1}', body)))!;
 
-  Future<void> more(WidgetTester tester) async {
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
+  // More from whichever bar is drawn: today's ring, or Grouped command's row under its ••• on a phone.
+  Future<void> more(WidgetTester tester) => pressInBar(tester, 'more', label: 'More for this note');
 
   Future<void> press(WidgetTester tester, String row) async {
     await tester.ensureVisible(find.text(row));

@@ -196,17 +196,18 @@ class _DeveloperPaneState extends State<DeveloperPane> {
           ),
         // The header toolbar's six versions (Matt, 2026-10-28: "add a developer setting to switch between 5
         // versions"; lib/shell/header_toolbar.dart): this device's own choice, drawn on the bar at once. Last of all,
-        // so every card above stands where it did.
+        // so every card above stands where it did. Grouped command first, the default since Matt's "make the grouped
+        // command the default header layout" (2026-10-29), and today's bar still there to go back to.
         ValueListenableBuilder<String>(
           valueListenable: headerToolbarChoice,
           builder: (context, chosen, _) => PaneSection(
             title: 'Header toolbar',
             description: const Text('Six ways to draw the controls at the top: what stands out, what is grouped, and in what colour. This device only; a choice shows at once.'),
             children: [
-              for (final version in HeaderToolbarVersion.values)
+              for (final version in HeaderToolbarVersion.offered)
                 SettingRow(
                   key: ValueKey('developer-header-${version.id}'),
-                  label: '${version.number}. ${version.label}',
+                  label: '${version.number}. ${version.label}${version.isDefault ? ' (default)' : ''}',
                   hint: Text(version.hint),
                   control: Pick(checked: chosen == version.id, label: 'Use ${version.label}', onPress: () => headerToolbarChoice.set(version.id)),
                 ),

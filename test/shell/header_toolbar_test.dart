@@ -47,7 +47,7 @@ void main() {
         await body(tester);
         debugDisableShadows = true;
       }, skip: skip);
-  tearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
+  tearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.fallback.id));
 
   const three = ['weekend', 'groceries', 'standup'];
 
@@ -203,6 +203,29 @@ void main() {
     }
   });
 
+  // A Mac's window at a phone's width (it narrows to 360, macos/Runner/MainFlutterWindow.swift), its window buttons at
+  // the bar's start: Grouped command's search pill was squeezed under its glass in the Islands and ran over, which with
+  // Grouped command the default (Matt, 2026-10-29: "make the grouped command the default header layout") is what a
+  // narrowed Mac draws. The two with a pill; the others' rows at this width are their own.
+  const narrowMac = (name: 'mac-narrow', size: Size(390, 700), mobile: false, fine: true);
+  for (final version in [for (final version in HeaderToolbarVersion.values) if (version.searchPill) version]) {
+    for (final style in TopBarStyle.values) {
+      barTest('${version.number} ${version.label}, ${style.label}, a Mac’s window at a phone’s width: a note and home draw inside it, the pill too', (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        try {
+          for (final note in [true, false]) {
+            await pumpShell(tester, version: version, window: narrowMac, style: style, note: note);
+            expect(tester.takeException(), isNull, reason: note ? 'a note' : 'home');
+            final pill = tester.getRect(find.byKey(HeaderAct.keyOf('search')));
+            expect(pill.left >= 0 && pill.right <= narrowMac.size.width, isTrue, reason: 'the pill at $pill');
+          }
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
+  }
+
   group('every control in reach', () {
     for (final version in others) {
       for (final window in windows) {
@@ -303,7 +326,11 @@ void main() {
     }
 
     barTest('Developer’s choice switches the bar to it', (tester) async {
+      // From today's bar, the one choice that draws none of these (chosen once the app is up: a launch reads the
+      // device's word, nothing, the default).
       await pumpShell(tester, window: unfolded);
+      headerToolbarChoice.set(HeaderToolbarVersion.today.id);
+      await tester.pump(const Duration(milliseconds: 100));
       expect(headerKeys(), findsNothing);
       headerToolbarChoice.set(version.id);
       await tester.pump(const Duration(milliseconds: 100));
@@ -420,7 +447,11 @@ void main() {
 
   barTest('Developer’s choice switches the bar at once, nothing restarted', (tester) async {
     final app = await pumpShell(tester, window: unfolded);
-    expect(headerToolbarVersion, HeaderToolbarVersion.today);
+    // Nothing chosen is Grouped command (Matt, 2026-10-29: "make the grouped command the default header layout").
+    expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand);
+    expect(find.byKey(HeaderAct.keyOf('search')), findsOneWidget);
+    headerToolbarChoice.set(HeaderToolbarVersion.today.id);
+    await tester.pump(const Duration(milliseconds: 100));
     expect(headerKeys(), findsNothing);
     final note = tester.state(find.byType(_StandInNote));
     for (final version in others) {
@@ -434,17 +465,28 @@ void main() {
     headerToolbarChoice.set(HeaderToolbarVersion.today.id);
     await tester.pump(const Duration(milliseconds: 100));
     expect(headerKeys(), findsNothing);
+    // And back to the default, as nothing chosen.
+    headerToolbarChoice.set(HeaderToolbarVersion.fallback.id);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(HeaderAct.keyOf('search')), findsOneWidget);
+    expect(tester.state<AppShellState>(find.byType(AppShell)), same(app));
   });
 
-  test('a version is kept by its word, and a word this build does not know is today’s', () {
+  test('a version is kept by its word, and a word this build does not know is the default, Grouped command', () {
     for (final version in HeaderToolbarVersion.values) {
       expect(HeaderToolbarVersion.parse(version.id), version);
     }
-    expect(HeaderToolbarVersion.parse('strip'), HeaderToolbarVersion.today);
-    expect(HeaderToolbarVersion.parse(null), HeaderToolbarVersion.today);
+    expect(HeaderToolbarVersion.fallback, HeaderToolbarVersion.groupedCommand);
+    expect(HeaderToolbarVersion.parse('strip'), HeaderToolbarVersion.groupedCommand);
+    expect(HeaderToolbarVersion.parse(null), HeaderToolbarVersion.groupedCommand);
     headerToolbarChoice.set('nonsense');
-    expect(headerToolbarChoice.value, 'today');
+    expect(headerToolbarChoice.value, 'groupedCommand');
+    expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand);
+    // Today's bar is still a choice, and Matt's numbers stand; Developer lists the default first.
+    headerToolbarChoice.set('today');
+    expect(headerToolbarVersion, HeaderToolbarVersion.today);
     expect([for (final version in HeaderToolbarVersion.values) version.number], [1, 2, 3, 4, 5, 6]);
+    expect(HeaderToolbarVersion.offered, [HeaderToolbarVersion.groupedCommand, HeaderToolbarVersion.today, HeaderToolbarVersion.grouped, HeaderToolbarVersion.tiles, HeaderToolbarVersion.command, HeaderToolbarVersion.labelled]);
   });
 
   // ---- the pictures --------------------------------------------------------------------------------------------

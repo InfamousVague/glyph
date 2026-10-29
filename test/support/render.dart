@@ -7,8 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/app/style_sheets.dart';
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderToolbarVersion, headerToolbarChoice;
 import 'package:glacier/glacier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'header_bar.dart' show todaysBarPinned;
 
 /// A test draws text as boxes unless the faces are loaded by hand. This loads the app's own (pubspec.yaml), so a
 /// picture taken in a test is the picture the phone draws. (The icons are drawn from their paths, lib/art, and
@@ -73,6 +76,8 @@ Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), App
   // them. No storage is asked: a plugin's answer never arrives on a test's clock, and nothing is kept between tests.
   preferences.startWithoutStorage();
   preferences.value = prefs;
+  // A test on today's bar (header_bar.dart's pinTodaysBar) keeps it over the words just put back.
+  if (todaysBarPinned) headerToolbarChoice.set(HeaderToolbarVersion.today.id);
   final sheet = await tester.runAsync(() => loadTokenSheet(more: appStyleSheets));
   await tester.pumpWidget(home == null ? GhostApp(sheet: sheet!) : GhostApp(sheet: sheet!, home: home));
   await tester.pump();

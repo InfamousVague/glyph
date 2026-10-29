@@ -11,6 +11,7 @@ import 'package:ghost_md/notes/tabs/tab_parts.dart';
 import 'package:ghost_md/notes/tabs/tab_row.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart';
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderToolbarVersion;
 import 'package:ghost_md/shell/placeholders.dart';
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/shell/top_bar.dart';
@@ -28,6 +29,16 @@ void main() {
   /// What the shell handed to whoever keeps the preferences, and what it asked of the app.
   final kept = <String>[];
   setUp(kept.clear);
+
+  // The bar's version for the test under way, where it is about today's bar's own rings (the bell, the people icon,
+  // Forward, Settings, the side panel's toggle) as they stand in its row: today's, since Grouped command became the
+  // default (Matt, 2026-10-29: "make the grouped command the default header layout"), which keeps these behind its
+  // round button and •••. Null is the device's choice, the default.
+  HeaderToolbarVersion? version;
+  void onTodaysBar() {
+    version = HeaderToolbarVersion.today;
+    addTearDown(() => version = null);
+  }
 
   Future<AppShellState> shell(
     WidgetTester tester, {
@@ -57,6 +68,7 @@ void main() {
         notes: library,
         workspaces: spaces,
         topBar: topBar,
+        headerToolbar: version,
         sidebarStyle: sidebarStyle,
         sidebarShown: sidebarShown,
         openNotes: open,
@@ -93,6 +105,7 @@ void main() {
 
   group('the screen that is up', () {
     testWidgets('is the home page as the app opens, under a bar one line tall, with the row as it was left', (tester) async {
+      onTodaysBar();
       final app = await shell(tester, open: ['weekend', 'gone', 'groceries']);
       expect(app.screen, const Screen.list());
       expect(find.byType(HomePlaceholder), findsOneWidget);
@@ -114,6 +127,7 @@ void main() {
     });
 
     testWidgets('becomes a note when one is opened, which takes a tab; a phone’s bar goes quiet while it is read', (tester) async {
+      onTodaysBar();
       final app = await shell(tester);
       await tester.tap(find.bySemanticsLabel('Weekend trip'));
       await settle(tester);
@@ -158,6 +172,7 @@ void main() {
     });
 
     testWidgets('is walked back and forward by the arrows, over the places and not the captures', (tester) async {
+      onTodaysBar();
       final app = await shell(tester, mobile: false);
       app.openNote('weekend');
       await settle(tester);
@@ -186,6 +201,7 @@ void main() {
     });
 
     testWidgets('is an organization’s dashboard from the people icon’s picker, a place with the bar and off the trail', (tester) async {
+      onTodaysBar();
       final app = await shell(tester, organizations: const [OrgLike(id: 'o1', name: 'Attic Press', hue: 'moss')]);
       await tester.tap(find.bySemanticsLabel('Organizations'));
       await settle(tester);
@@ -271,6 +287,7 @@ void main() {
 
   group('what the bar asks of the shell', () {
     testWidgets('opens the notes’ card and the notifications, lit while they are open, and one closes the other', (tester) async {
+      onTodaysBar();
       final handle = tester.ensureSemantics();
       final app = await shell(tester);
       await tester.tap(find.bySemanticsLabel('All your notes'));
@@ -297,6 +314,7 @@ void main() {
     });
 
     testWidgets('asks for Settings and a new note, and stands in for Settings where nobody answers', (tester) async {
+      onTodaysBar();
       var asked = 0;
       await shell(tester, open: ['weekend'], onSettings: () => asked += 1);
       await tester.tap(find.bySemanticsLabel('Settings'));
@@ -401,6 +419,7 @@ void main() {
 
   group('a window wide enough for two panes', () {
     testWidgets('says so on the root, and keeps a phone’s quiet bar on the opened Fold', (tester) async {
+      onTodaysBar();
       final app = await shell(tester, size: const Size(840, 900), open: ['weekend']);
       expect(stamps(tester)['split'], 'on');
       // The bar reaches the window's top, glass across it.
@@ -461,6 +480,7 @@ void main() {
     }
 
     testWidgets('opens the column without moving the bar, its controls, or the note, which is the same screen beside it', (tester) async {
+      onTodaysBar();
       final app = await shell(tester, size: const Size(1280, 800), mobile: false, fine: true);
       app.openNote('weekend');
       await settle(tester);
@@ -494,6 +514,7 @@ void main() {
     });
 
     testWidgets('gives the aside a third column beside a docked sidebar, and a toggle only when it has something to hold', (tester) async {
+      onTodaysBar();
       final app = await shell(tester, size: const Size(1280, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
       expect(find.bySemanticsLabel('Side panel'), findsNothing);
       app.openNote('weekend');

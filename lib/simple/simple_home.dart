@@ -167,7 +167,7 @@ class SimpleHome extends StatefulWidget {
   final bool underBar;
 
   /// Whether the page draws its search field: not as advanced mode's sidebar while the header toolbar's Grouped
-  /// command draws the bar over it, whose title pill is the search (Matt, 2026-10-28: "remove the search bar from the
+  /// command (the default) or Command centre draws the bar over it, whose title pill is the search (Matt, 2026-10-28: "remove the search bar from the
   /// home page since it's redundant", and then "the search bar still shows up on the home page section": on the opened
   /// Fold the home page's notes column, this page, kept its field when the home page's own went). Simple mode, with
   /// no bar, always has it.

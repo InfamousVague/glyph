@@ -24,6 +24,7 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 /// Notes over the seeded library that link to Packing, name it without a link, and give it an outline.
@@ -84,9 +85,8 @@ void main() {
     final library = await open(tester);
     tester.state<AppShellState>(find.byType(AppShell)).openNote('packing');
     await settle(tester);
-    // Portugal's index and The ferry link here.
-    expect(find.bySemanticsLabel('Linked from 2 notes'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Linked from 2 notes'));
+    // Portugal's index and The ferry link here: the count is the bar's, a row under its ••• on a phone.
+    await pressInBar(tester, 'links', label: 'Linked from 2 notes');
     await settle(tester);
     expect(find.byType(LinksPanel), findsOneWidget);
     expect(find.text('LINKED FROM 2 NOTES'), findsOneWidget);
@@ -113,7 +113,7 @@ void main() {
     await open(tester);
     tester.state<AppShellState>(find.byType(AppShell)).openNote('packing');
     await settle(tester);
-    await tester.tap(find.bySemanticsLabel('More for this note'));
+    await pressInBar(tester, 'more', label: 'More for this note');
     await settle(tester);
     expect(find.text('Links'), findsOneWidget);
     expect(find.text('Copy link to this line'), findsOneWidget);
@@ -147,7 +147,7 @@ void main() {
     final line = view.state.doc.line(view.state.doc.toString().split('\n').indexOf('Passports and the ferry tickets.') + 1);
     view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from + 3)));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('More for this note'));
+    await pressInBar(tester, 'more', label: 'More for this note');
     await settle(tester);
     await tester.tap(find.text('Copy link to this line'));
     await settle(tester, 12);
@@ -224,7 +224,7 @@ void main() {
 
       shell.openNote('packing');
       await settle(tester);
-      await tester.tap(find.bySemanticsLabel('More for this note'));
+      await pressInBar(tester, 'more', label: 'More for this note');
       await settle(tester);
       await tester.tap(find.text('Local graph'));
       await settle(tester, 6);

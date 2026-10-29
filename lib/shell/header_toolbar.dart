@@ -9,8 +9,9 @@
 /// a pill or a menu, in what weight of glyph and on what ground. So the two go together: any version in any style,
 /// the style saying where the row of controls is and what shape the tabs take, the version saying what the row is.
 ///
-/// - **1, Today's bar** ([HeaderToolbarVersion.today]): the row as it was, every control its own ring. The bar draws
-///   its own code for it and nothing here is asked, so its pictures are exactly what they were.
+/// - **1, Today's bar** ([HeaderToolbarVersion.today]): the row as it was, every control its own ring, the bar's
+///   only look until Grouped command took its place as the default. The bar draws its own code for it and nothing
+///   here is asked, so its pictures are exactly what they were.
 /// - **2, Grouped** (header/grouped_row.dart): the way around as one segmented pill, the note's few most used in a
 ///   second with the rest under •••, and the app's own - the bell, the organizations, Settings - behind one round
 ///   button for you, its dot the bell's.
@@ -25,13 +26,16 @@
 /// - **6, Grouped command** (header/grouped_command_row.dart): Grouped's pills at the ends - the way around, the
 ///   note's own with •••, the button for you - and Command centre's title pill between them, opening the palette. On
 ///   a narrow window the pills keep the sidebar and Back, the view and •••, and the rest is one press away.
+///   The default since 2026-10-29 (Matt: "make the grouped command the default header layout"): a device that has
+///   chosen nothing draws it, and so does one that had chosen today's, which was kept as nothing.
 ///
 /// Every version keeps every control the bar was given within reach: in the row, or in a menu one press away
 /// (test/shell/header_toolbar_test.dart presses for each). A control the bar was not given (simple mode's, a phone
 /// reading a note's) is in no version. The labels a screen reader says are today's, word for word, in every one.
 ///
-/// The choice is a developer's, of this device ([headerToolbarChoice], Settings › Developer › Header toolbar), and
-/// the bar hears it: a change is the bar drawn again at once, nothing restarted.
+/// The choice is a developer's, of this device ([headerToolbarChoice], Settings › Developer › Header toolbar, where
+/// Grouped command is first and today's bar is still there to go back to), and the bar hears it: a change is the bar
+/// drawn again at once, nothing restarted.
 library;
 
 import 'package:flutter/widgets.dart';
@@ -48,9 +52,10 @@ import 'header/labelled_row.dart';
 import 'header/tiles_row.dart';
 import 'top_bar_tools.dart' show BarButton;
 
-/// The six, in the order Developer offers them, each with the line said under its name there.
+/// The six, in Matt's order (Developer offers the default first, then the rest in this order), each with the line
+/// said under its name there.
 enum HeaderToolbarVersion {
-  today('Today’s bar', 'Every control its own ring on one line, as the bar has been.'),
+  today('Today’s bar (the old one)', 'Every control its own ring on one line, as the bar was before Grouped command.'),
   grouped('Grouped', 'The way around in one pill, the note’s most used in another with the rest under •••, and the bell, teams and Settings behind your round button.'),
   tiles('Vibrant tiles', 'Each control a small tile in its own colour with a white glyph, fewer at once and the rest under •••; words beside the note’s on a wide window.'),
   command('Command centre', 'Back, the note’s name in a pill that opens the command palette, one action and •••, with everything else in its menu’s sections.'),
@@ -74,18 +79,30 @@ enum HeaderToolbarVersion {
   /// and filters is still showing on the homepage on mobile when it shouldn't"; until then only Grouped command did).
   bool get searchPill => this == command || this == groupedCommand;
 
-  /// The version a kept word names; one this build does not know is today's.
+  /// The one a device that has chosen nothing draws: Grouped command (Matt, 2026-10-29: "make the grouped command
+  /// the default header layout").
+  static const HeaderToolbarVersion fallback = HeaderToolbarVersion.groupedCommand;
+
+  /// Whether it is [fallback].
+  bool get isDefault => this == fallback;
+
+  /// The six as Developer lists them: the default first, then the rest in their order.
+  static List<HeaderToolbarVersion> get offered => [fallback, for (final version in values) if (version != fallback) version];
+
+  /// The version a kept word names; one this build does not know is the default.
   static HeaderToolbarVersion parse(Object? id) {
     for (final version in values) {
       if (version.name == id) return version;
     }
-    return HeaderToolbarVersion.today;
+    return fallback;
   }
 }
 
-/// This device's choice, kept as `glyph-header-toolbar` and as nothing while it is today's: a developer's look at the
-/// bar on the phone in his hand, so not a preference that travels to the account's other devices.
-final DeviceWord headerToolbarChoice = DeviceWord('glyph-header-toolbar', fallback: HeaderToolbarVersion.today.id, words: {for (final version in HeaderToolbarVersion.values) version.id});
+/// This device's choice, kept as `glyph-header-toolbar` and as nothing while it is the default (Grouped command;
+/// today's was kept as nothing while it was the default, so a device that had chosen it draws Grouped command now): a
+/// developer's look at the bar on the phone in his hand, so not a preference that travels to the account's other
+/// devices.
+final DeviceWord headerToolbarChoice = DeviceWord('glyph-header-toolbar', fallback: HeaderToolbarVersion.fallback.id, words: {for (final version in HeaderToolbarVersion.values) version.id});
 
 /// The version [headerToolbarChoice] says.
 HeaderToolbarVersion get headerToolbarVersion => HeaderToolbarVersion.parse(headerToolbarChoice.value);

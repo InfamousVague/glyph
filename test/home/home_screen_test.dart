@@ -20,6 +20,7 @@ import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/notes/swipe_row.dart';
 import 'package:ghost_md/shell/header_pane.dart';
 import 'package:ghost_md/shell/header_toolbar.dart';
+import 'package:ghost_md/shell/top_bar_tools.dart' show TopBarTools, TopBarToolsScope;
 import 'package:glacier/glacier.dart';
 
 import '../ai/fake_backend.dart';
@@ -1126,31 +1127,41 @@ void main() {
   });
 
   // Matt, 2026-10-28: "remove the search bar from the home page since it's redundant", with the header toolbar's
-  // Grouped command, whose title pill is the search (lib/shell/header/grouped_command_row.dart).
-  testWidgets('the page’s search field goes while Grouped command draws the bar, the filters stay, and the other versions keep it', (tester) async {
+  // Grouped command, whose title pill is the search (lib/shell/header/grouped_command_row.dart), the default since
+  // 2026-10-29 ("make the grouped command the default header layout"). The field and the filters' button go to the
+  // bar only where a bar is over the page to hold them: drawn alone the page keeps both in every version.
+  testWidgets('the page’s search field and filters go while a bar with a search pill is over it, the other versions keep them, and a page alone keeps them', (tester) async {
     final handle = tester.ensureSemantics();
-    addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
+    addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.fallback.id));
     final it = seeded();
-    await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
-    await settle(tester);
-    for (final version in HeaderToolbarVersion.values) {
-      headerToolbarChoice.set(version.id);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      // Command centre too since 2.3.68 (Matt, 2026-10-29: "the search bar and filters is still showing on the homepage on
-      // mobile when it shouldn't").
-      final grouped = version.searchPill;
-      expect(find.bySemanticsLabel('Search notebooks and notes'), grouped ? findsNothing : findsWidgets, reason: version.label);
-      expect(find.bySemanticsLabel('Filters'), findsOneWidget, reason: version.label);
+    final slot = TopBarTools();
+    addTearDown(slot.dispose);
+    for (final under in [true, false]) {
+      final home = Home(library: it.library, workspaces: it.workspaces, asked: it.asked);
+      await pumpHome(tester, under ? TopBarToolsScope(notifier: slot, child: home) : home);
+      await settle(tester);
+      for (final version in HeaderToolbarVersion.values) {
+        headerToolbarChoice.set(version.id);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        // Command centre too since 2.3.68 (Matt, 2026-10-29: "the search bar and filters is still showing on the homepage on
+        // mobile when it shouldn't").
+        final gone = under && version.searchPill;
+        final why = '${version.label}, ${under ? 'under a bar' : 'alone'}';
+        expect(find.bySemanticsLabel('Search notebooks and notes'), gone ? findsNothing : findsWidgets, reason: why);
+        expect(find.bySemanticsLabel('Filters'), gone ? findsNothing : findsOneWidget, reason: why);
+      }
+      if (!under) {
+        // The filters still open from where they stand, with Grouped command chosen and no bar to take them.
+        headerToolbarChoice.set(HeaderToolbarVersion.groupedCommand.id);
+        await tester.pump();
+        await tester.tap(find.bySemanticsLabel('Filters'));
+        await settle(tester);
+        expect(radio('All, 20'), findsOneWidget);
+      }
+      await away(tester);
     }
-    // The filters still open from where they stand, with the search gone.
-    headerToolbarChoice.set(HeaderToolbarVersion.groupedCommand.id);
-    await tester.pump();
-    await tester.tap(find.bySemanticsLabel('Filters'));
-    await settle(tester);
-    expect(radio('All, 20'), findsOneWidget);
     handle.dispose();
-    await away(tester);
   });
 
   group('what a screen reader is told', () {

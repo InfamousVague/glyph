@@ -25,6 +25,7 @@ import 'package:ghost_md/shell/desktop/mac_lights.dart';
 import 'package:ghost_md/shell/wide_screen.dart' show simpleListColumn;
 import 'package:ghost_md/simple/simple_home.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 /// Advanced mode's sidebar on a wide window, in the app put together (Matt, 2026-10-24: "make the sidebar on advanced
@@ -86,6 +87,9 @@ void main() {
 
   group('on the Mac', () {
     testWidgets('starts hidden, and the bar\'s panel icon shows simple\'s list beside the note and hides it, kept to the device', (tester) async {
+      // Today's bar's rings, by what they say, held still while the column opens; Grouped command keeps Settings and
+      // the organizations behind its round button.
+      pinTodaysBar();
       onMac();
       final local = MemoryStored();
       final library = await open(tester, size: mac, stored: local);
@@ -234,6 +238,8 @@ void main() {
 
   // What the tree held that simple's list does not, and where each is in advanced mode on a wide window.
   testWidgets('everything the old tree held is still reached on a wide window', (tester) async {
+    // Today's bar's rings, by what they say; Grouped command keeps them behind its round button and •••.
+    pinTodaysBar();
     onMac();
     final local = MemoryStored();
     writeSidebarShown(true, local);

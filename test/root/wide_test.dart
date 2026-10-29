@@ -23,6 +23,7 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/simple/simple_home.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 /// Stage 10's wide layouts in the app put together (lib/root), at the Fold's unfolded size (704 x 933 at 2.625):
@@ -77,6 +78,8 @@ void main() {
   }
 
   testWidgets('a notebook’s page has the side panel’s icon, and its card is the notebook’s index with the page marked', (tester) async {
+    // The side panel's ring in today's bar; Grouped command keeps it under •••.
+    pinTodaysBar();
     final local = MemoryStored();
     final library = await open(tester, stored: local);
     expect(find.bySemanticsLabel('Side panel'), findsNothing, reason: 'the home page has no use for an aside');
@@ -109,6 +112,8 @@ void main() {
   // in no notebook had no side panel at all and the bar's History opened More's page (App.tsx `asideHistory`,
   // `openHistoryAside`; aside/AsideHistory.tsx).
   testWidgets('on a desktop a note has its version history in the side panel, which the bar\'s History opens at it', (tester) async {
+    // The side panel's ring in today's bar; Grouped command keeps it under •••.
+    pinTodaysBar();
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     try {
       final local = MemoryStored();
@@ -152,6 +157,8 @@ void main() {
   });
 
   testWidgets('a phone opened out keeps a note\'s history in its More sheet: its side panel has the note\'s links and outline, not its history', (tester) async {
+    // The side panel's ring in today's bar; Grouped command keeps it under •••.
+    pinTodaysBar();
     final library = await open(tester);
     shellOf(tester).openNote(titled(library, 'Groceries').id);
     await settle(tester);

@@ -170,8 +170,9 @@ class AppShell extends StatefulWidget {
   /// How the top bar is laid out (Settings › Appearance).
   final TopBarStyle topBar;
 
-  /// Which of the header toolbar's five versions draws the bar's line of controls (lib/shell/header_toolbar.dart).
-  /// Null is this device's own choice, Settings › Developer › Header toolbar, heard as it changes; a test names one.
+  /// Which of the header toolbar's six versions draws the bar's line of controls (lib/shell/header_toolbar.dart).
+  /// Null is this device's own choice, Settings › Developer › Header toolbar, heard as it changes, and Grouped command
+  /// while it has chosen nothing; a test names one.
   final HeaderToolbarVersion? headerToolbar;
   final SidebarStyle sidebarStyle;
 

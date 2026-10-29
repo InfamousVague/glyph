@@ -71,7 +71,7 @@ void main() {
   }
 
   Future<void> close(WidgetTester tester) async {
-    headerToolbarChoice.set(HeaderToolbarVersion.today.id);
+    headerToolbarChoice.set(HeaderToolbarVersion.fallback.id);
     debugDisableShadows = true;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));

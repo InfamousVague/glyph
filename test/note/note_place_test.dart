@@ -12,6 +12,7 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/media/map_card.dart' show MapPicture;
 import 'package:ghost_md/note/note_screen.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -94,9 +95,7 @@ void main() {
     await pumpNote(tester, world, await seeded(tester, world, '---\nlocation: 39.2373,-123.1500\nplace: "Mendocino County, California"\n---\nStanding in the square'), seams: seams(), tags: tags);
     await settle(tester);
     expect(find.text('map Mendocino County, California'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await pressInBar(tester, 'more', label: 'More for this note');
     expect(find.text('Remove location'), findsOneWidget);
     await closeNote(tester);
   });
@@ -154,9 +153,7 @@ void main() {
     await settle(tester);
     expect(tags.autoTagRefusal(), LocateFailure.refused);
     expect(doc(screen), 'Words');
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await pressInBar(tester, 'more', label: 'More for this note');
     expect(find.text('Add my location'), findsOneWidget);
     // A note made since the refusal is told why it was not tagged; one older than it was never going to be.
     expect(tags.refusedFor(DateTime.now().millisecondsSinceEpoch), LocateFailure.refused);

@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -37,8 +38,8 @@ void main() {
         final world = NoteWorld();
         final note = await tester.runAsync(() => seedNote(world, 'lisbon', body));
         await pumpNote(tester, world, note!, size: size, theme: theme, seams: measuredSeams(world.asked), speak: true);
-        await tester.tap(find.bySemanticsLabel('More for this note'));
-        await tester.pump();
+        // More from the default bar, Grouped command: its row under ••• on a phone.
+        await pressInBar(tester, 'more', label: 'More for this note');
         await picture(tester, 'sheet-$width-$theme');
         await closeNote(tester);
         debugDefaultTargetPlatformOverride = null;

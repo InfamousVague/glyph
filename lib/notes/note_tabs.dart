@@ -50,10 +50,10 @@ import 'tabs/tab_row.dart';
 ///
 /// In every way but Classic the cross is drawn on the open tab alone: the rest close from their menu, or once opened.
 ///
-/// **And five versions of the line of controls** ([version]; lib/shell/header_toolbar.dart, Settings › Developer ›
-/// Header toolbar): today's, drawn here as it always was, or one of four that redraw the controls' line - grouped
-/// into pills, as tiles of colour, as a command centre, or labelled - in whichever of the four ways the bar is laid
-/// out. A version is handed the controls as words ([HeaderParts]) and the note's tools as their model
+/// **And six versions of the line of controls** ([version]; lib/shell/header_toolbar.dart, Settings › Developer ›
+/// Header toolbar): today's, drawn here as it always was, or one of five that redraw the controls' line - grouped
+/// into pills, as tiles of colour, as a command centre, labelled, or grouped around a command pill, the default - in
+/// whichever of the four ways the bar is laid out. A version is handed the controls as words ([HeaderParts]) and the note's tools as their model
 /// ([toolsModel]), and answers the line ([HeaderRow]); the tabs are the style's as ever.
 ///
 /// The bar is the app's, not any screen's: shell/app_shell.dart draws it once, in shell/app_tab_bar.dart's box, which
@@ -134,7 +134,8 @@ class NoteTabs extends StatefulWidget {
   /// The home page's Filters, for a version that holds them in the bar ([HeaderParts.filters]).
   final BarButton? filters;
 
-  /// Which of the header toolbar's five versions draws the line of controls; today's unless Developer says.
+  /// Which of the header toolbar's six versions draws the line of controls. The shell always names one, this
+  /// device's choice (Grouped command unless Developer says); today's where a test draws the row alone and names none.
   final HeaderToolbarVersion version;
 
   /// What the screen's [tools] are, as the actions they draw, for a version other than today's.

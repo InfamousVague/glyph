@@ -42,6 +42,7 @@ import 'package:ghost_md/tapes/player.dart' show TapePlayer, markAudioRemoved;
 
 import '../account_ui/support.dart' show Device;
 import '../support/claude_script.dart';
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import '../tapes/fake_player.dart';
 
@@ -334,11 +335,8 @@ void main() {
       return library.noteOf(note.id)!;
     }
 
-    Future<void> more(WidgetTester tester) async {
-      await tester.tap(find.bySemanticsLabel('More for this note'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-    }
+    // More from whichever bar is drawn: today's ring, or Grouped command's row under its ••• on a phone.
+    Future<void> more(WidgetTester tester) => pressInBar(tester, 'more', label: 'More for this note');
 
     testWidgets('has no mic of its own in More: it is talked into from its tape\'s Add, where any other note has the mic', (tester) async {
       await open(tester, tapePlayer: FakeTapePlayer(lengths: const {}));

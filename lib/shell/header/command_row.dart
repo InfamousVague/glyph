@@ -94,6 +94,8 @@ class CommandField extends StatelessWidget {
     final words = title == null || title.isEmpty ? (phone || (large && !parts.wide) ? 'Search' : 'Search or run a command') : title;
     final act = search ?? HeaderAct(id: 'search', label: 'Everything else', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: () {});
     final named = HeaderAct(id: act.id, label: title == null || title.isEmpty ? act.label : '${act.label}: $title', word: act.word, hue: act.hue, icon: act.icon, onPress: act.onPress);
+    final double glyphSize = (large ? 16 : 15) + (phone ? phoneGlyphStep : 0);
+    final hint = parts.fine && search != null;
     Widget face(BuildContext context, PressState state, bool open) {
             final lit = state.hovered || state.pressed || open;
             final muted = t.color('glacier-text-muted');
@@ -105,35 +107,46 @@ class CommandField extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: t.color(lit ? 'glacier-border' : 'glacier-border-subtle'), width: t.len('glacier-hairline')),
               ),
-              child: Row(
-                spacing: t.space(2),
-                children: [
-                  HeaderGlyph(act, size: (large ? 16 : 15) + (phone ? phoneGlyphStep : 0), color: muted, strokeWidth: 1.9, wash: false),
-                  Expanded(
-                    child: ExcludeSemantics(
-                      child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text(phone ? 'md' : 'sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
-                    ),
-                  ),
-                  if (parts.fine && search != null)
-                    ExcludeSemantics(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(5), border: Border.all(color: t.color('glacier-border'), width: 1)),
-                        // The Mac's ⌘ is drawn, not typed: the app's faces have no glyph for it. Ctrl elsewhere.
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 2,
-                          children: [
-                            if (defaultTargetPlatform == TargetPlatform.macOS)
-                              CustomPaint(size: Size.square(t.fontSize('xs') * 0.85), painter: _CommandKey(muted))
-                            else
-                              Text('Ctrl', style: t.text('xs', weight: 'medium', color: muted)),
-                            Text('K', style: t.text('xs', weight: 'medium', color: muted)),
-                          ],
-                        ),
+              // Squeezed below its glass, the gap after it and the key's hint (a Mac's window at its floor of 360 in the
+              // Islands, whose window buttons take the bar's start; or the one frame a screen's own controls stay in the
+              // row after it goes, before they are handed back), the line keeps that much and is cut at the pill's edge.
+              child: ConstraintsTransformBox(
+                alignment: AlignmentDirectional.centerStart,
+                clipBehavior: Clip.hardEdge,
+                constraintsTransform: (box) {
+                  final least = glyphSize + t.space(2) + (hint ? t.space(2) + 48 : 0);
+                  return box.maxWidth >= least ? box : box.copyWith(minWidth: least, maxWidth: least);
+                },
+                child: Row(
+                  spacing: t.space(2),
+                  children: [
+                    HeaderGlyph(act, size: glyphSize, color: muted, strokeWidth: 1.9, wash: false),
+                    Expanded(
+                      child: ExcludeSemantics(
+                        child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.text(phone ? 'md' : 'sm', weight: title == null || title.isEmpty ? 'regular' : 'medium', color: title == null || title.isEmpty ? muted : t.color('glacier-text'))),
                       ),
                     ),
-                ],
+                    if (hint)
+                      ExcludeSemantics(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(5), border: Border.all(color: t.color('glacier-border'), width: 1)),
+                          // The Mac's ⌘ is drawn, not typed: the app's faces have no glyph for it. Ctrl elsewhere.
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 2,
+                            children: [
+                              if (defaultTargetPlatform == TargetPlatform.macOS)
+                                CustomPaint(size: Size.square(t.fontSize('xs') * 0.85), painter: _CommandKey(muted))
+                              else
+                                Text('Ctrl', style: t.text('xs', weight: 'medium', color: muted)),
+                              Text('K', style: t.text('xs', weight: 'medium', color: muted)),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             );
     }

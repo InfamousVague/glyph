@@ -28,8 +28,9 @@ import '../support/render.dart';
 /// choice already kept on the device (Matt, 2026-10-28: "remove the search bar from the home page since it's
 /// redundant", and on 2.3.62: "the search bar still shows up on the home page section"). No search field in any
 /// home layout - the advanced home, the home filtered to a workspace, and the opened Fold's two panes, whose notes
-/// column is simple mode's list with a field of its own - and the filters still there. The same launches with
-/// nothing chosen keep every field, so each check here can fail.
+/// column is simple mode's list with a field of its own - and the filters still there. Nothing chosen is Grouped
+/// command since Matt's "make the grouped command the default header layout" (2026-10-29); the same launches with
+/// today's bar kept keep every field, so each check here can fail.
 void main() {
   setUpAll(() async {
     await loadAppFonts();
@@ -69,7 +70,7 @@ void main() {
   }
 
   Future<void> close(WidgetTester tester) async {
-    headerToolbarChoice.set(HeaderToolbarVersion.today.id);
+    headerToolbarChoice.set(HeaderToolbarVersion.fallback.id);
     debugDisableShadows = true;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));
@@ -120,11 +121,27 @@ void main() {
     });
     }
 
-    testWidgets('with nothing kept: ${layout.name} keeps its search field', (tester) async {
+    // Nothing kept is the default, Grouped command; a device that had chosen today's bar kept nothing too, so it
+    // draws Grouped command now, as Matt wants.
+    testWidgets('with nothing kept: Grouped command, no search field in ${layout.name}, and the filters in the bar', (tester) async {
       final semantics = tester.ensureSemantics();
       final stored = MemoryStored();
       if (layout.panes) writeSidebarShown(true, stored);
       await launch(tester, size: layout.size, version: null, stored: stored, workspace: layout.workspace);
+      expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand);
+      expect(find.byKey(HeaderAct.keyOf('search')), findsOneWidget);
+      expect(fields(), findsNothing);
+      expect(find.byKey(HeaderAct.keyOf('filters')), findsOneWidget);
+      expect(find.descendant(of: find.byType(HomeScreen), matching: filtersButton()), findsNothing);
+      semantics.dispose();
+      await close(tester);
+    });
+
+    testWidgets('with today’s bar kept: ${layout.name} keeps its search field', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final stored = MemoryStored();
+      if (layout.panes) writeSidebarShown(true, stored);
+      await launch(tester, size: layout.size, version: HeaderToolbarVersion.today.id, stored: stored, workspace: layout.workspace);
       expect(headerToolbarVersion, HeaderToolbarVersion.today);
       expect(fields(), layout.panes ? findsNWidgets(2) : findsOneWidget);
       expect(find.descendant(of: find.byType(HomeScreen), matching: filtersButton()), findsOneWidget, reason: 'the page’s own');
@@ -339,7 +356,7 @@ void main() {
     final semantics = tester.ensureSemantics();
     final stored = MemoryStored();
     writeSidebarShown(true, stored);
-    await launch(tester, size: unfolded, version: null, stored: stored);
+    await launch(tester, size: unfolded, version: HeaderToolbarVersion.today.id, stored: stored);
     expect(fields(), findsNWidgets(2));
     headerToolbarChoice.set(HeaderToolbarVersion.groupedCommand.id);
     await tester.pump();
@@ -350,6 +367,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(fields(), findsNWidgets(2));
     semantics.dispose();
+    await close(tester);
+  });
+
+  // Matt, 2026-10-29: "make the grouped command the default header layout". The default is kept as nothing, so the
+  // old one is kept by its word now; any other choice is kept as it was.
+  testWidgets('the default is kept as nothing, today’s bar by its word, and a word kept before is still read', (tester) async {
+    await launch(tester, size: phone, version: null);
+    final kept = (await tester.runAsync(SharedPreferences.getInstance))!;
+    expect(kept.getString('glyph-header-toolbar'), isNull);
+    headerToolbarChoice.set(HeaderToolbarVersion.today.id);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(kept.getString('glyph-header-toolbar'), 'today');
+    expect(find.byKey(HeaderAct.keyOf('search')), findsNothing, reason: 'today’s bar has no pill');
+    headerToolbarChoice.set(HeaderToolbarVersion.groupedCommand.id);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(kept.getString('glyph-header-toolbar'), isNull);
+    expect(find.byKey(HeaderAct.keyOf('search')), findsOneWidget);
+    await close(tester);
+    for (final version in HeaderToolbarVersion.values) {
+      await launch(tester, size: phone, version: version.id);
+      expect(headerToolbarVersion, version, reason: 'kept as ${version.id} before');
+      await close(tester);
+    }
+    await launch(tester, size: phone, version: 'strip');
+    expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand, reason: 'a word this build does not know');
     await close(tester);
   });
 }
