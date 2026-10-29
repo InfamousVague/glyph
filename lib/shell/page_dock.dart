@@ -565,8 +565,16 @@ bool dockHearsScroll(ScrollNotification n) => n.depth == 0 && n.metrics.axis == 
 ///
 /// Shrinks in `--glacier-duration-fast`, grows back in `--glacier-duration-normal`, both `--glacier-ease-out`; under
 /// reduced motion it is one size or the other at once.
+///
+/// **On a desktop it is always the smaller size** (Matt, 2026-10-29: "also on desktop the default size of the dock can
+/// be the size it collapses to"): where the pointer is a mouse ([mousePointer]: the Mac, Windows, Linux) the dock
+/// rests at [dockScrolledScale] and neither shrinks nor grows, the size of Grouped command's bar (lib/shell/header/
+/// grouped_command_row.dart, the dock's ring at the same scale). A phone and the Fold, folded or open, are as they were.
 class DockShrink extends StatefulWidget {
-  const DockShrink({super.key, required this.builder});
+  const DockShrink({super.key, required this.builder, this.desktop});
+
+  /// Whether this is a desktop, where the dock rests small; the device's answer ([mousePointer]) unless a test says.
+  final bool? desktop;
 
   /// The page and its dock, wrapped by [DockShrinking.page] and [DockShrinking.dock].
   final Widget Function(BuildContext context, DockShrinking shrink) builder;
@@ -611,6 +619,15 @@ class _DockShrinkState extends State<DockShrink> with SingleTickerProviderStateM
   /// Where [_small] is going: 0 or 1, so a scroll's every frame does not start the way there again.
   double _goal = 0;
 
+  bool get _desktop => widget.desktop ?? mousePointer;
+
+  @override
+  void initState() {
+    super.initState();
+    // A desktop's dock is small from the first frame, and stays so.
+    if (_desktop) _small.value = _goal = 1;
+  }
+
   // The kit's motion, as it was at the last build.
   bool _still = false;
   Duration _fast = Duration.zero, _normal = Duration.zero;
@@ -641,6 +658,7 @@ class _DockShrinkState extends State<DockShrink> with SingleTickerProviderStateM
   }
 
   void _go(double goal) {
+    if (_desktop) goal = 1;
     if (_goal == goal) return;
     _goal = goal;
     if (_still) {

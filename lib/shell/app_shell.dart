@@ -475,6 +475,13 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenNotes(tapes: tapes);
       });
 
+  /// Every note by folder: All notes in its icon view, the folders first, from the top bar's folder (Matt,
+  /// 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view").
+  void showFolders() => _change(() {
+        _drawer = false;
+        _screen = const ScreenNotes(icons: true);
+      });
+
   /// The Tags page, a tag's notes or a smart notebook's, from the sidebar, the palette or a tag in a note: the notes'
   /// card closes first.
   void showCollection(CollectionKind kind, {String key = '', bool fromTags = false}) => _change(() {
@@ -964,6 +971,8 @@ class AppShellState extends State<AppShell> {
           filters: _barTools.filters,
           onSearch: widget.onSearch,
           onAllNotes: showAllNotes,
+          onFolders: showFolders,
+          atFolders: _screen is ScreenNotes && (_screen as ScreenNotes).icons,
           tabs: _tabs.tabs,
           activeId: shown ?? '',
           workspaces: widget.workspaces,

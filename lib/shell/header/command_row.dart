@@ -38,7 +38,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   ];
   final goRows = <HeaderMenuEntry>[
     // A new note and every note at home; on a note they are the tabs' + and the sidebar's, and the menu is long enough.
-    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ...[?parts.newNote, ?parts.allNotes]], [?parts.home, ?start, ?primary])) HeaderMenuAct(act, icon: colour(act)),
+    for (final act in notShown([...parts.way, ?parts.aside, if (!parts.onNote) ...[?parts.newNote, ?parts.allNotes]], [?parts.home, ?start, ?parts.folders, ?primary])) HeaderMenuAct(act, icon: colour(act)),
   ];
   final youRows = youEntries(parts, icon: colour);
   final entries = <HeaderMenuEntry>[
@@ -51,6 +51,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
       // Home is always in the row, whatever the width (Matt, 2026-10-28: "Also always show the home button on the top bar").
       if (parts.home case final home?) outline(_Plain(act: home, fine: parts.fine, step: step)),
       if (start != null) outline(_Plain(act: start, fine: parts.fine, step: step)),
+      if (parts.folders case final folders?) outline(_Plain(act: folders, fine: parts.fine, step: step)),
     ],
     centre: outline(CommandField(parts: parts, entries: entries)),
     trail: [

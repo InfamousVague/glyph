@@ -240,6 +240,9 @@ class _HomeFiltersButtonState extends State<HomeFiltersButton> {
       ariaLabel: 'Filters',
       // `.panel { min-inline-size: min(17rem, calc(100vw - 2rem)) }`.
       minWidth: t.lenOf('min(17rem, calc(100vw - 2rem))'),
+      // Half the kit's padding here, and the other half inside the body's scroller ([_PanelBody]), so a chosen row's
+      // ring has room within what the scroller clips and every row stands where it did.
+      padding: EdgeInsets.all(t.space(1)),
       trigger: (context, trigger) => GlacierPressable(
         key: _buttonKey,
         focusNode: _button,
@@ -855,6 +858,10 @@ class _PanelBodyState extends State<_PanelBody> {
           // Its body scrolls when it is taller than the room under the button; `70dvh` until that is measured.
           constraints: BoxConstraints(maxHeight: widget.room ?? t.lenOf('70vh')),
           child: SingleChildScrollView(
+            // Room inside the scroller for the chosen row's ring, which stands outside the row: the scroller clips
+            // at its edges, and cut it off on every side (Matt, 2026-10-29: "the filters dropdown clips the selected
+            // items add more padding").
+            padding: EdgeInsets.all(t.space(1)),
             child: _Gapped(children: children),
           ),
         ),

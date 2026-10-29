@@ -161,7 +161,7 @@ class GroupedWay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final here = [for (final act in way) if (act.id == 'home' || act.id == 'sidebar') act];
+    final here = [for (final act in way) if (act.id == 'home' || act.id == 'sidebar' || act.id == 'folders') act];
     final been = notShown(way, here);
     return Row(
       mainAxisSize: MainAxisSize.min,

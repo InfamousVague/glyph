@@ -19,6 +19,7 @@ import 'package:ghost_md/shell/header/header_kit.dart' show HeaderGlyph;
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/shell/page_dock.dart' show dockScrolledScale;
 import 'package:ghost_md/shell/placeholders.dart';
+import 'package:ghost_md/shell/screen.dart' show ScreenNotes;
 import 'package:glacier/glacier.dart' show GlacierPressable, GlacierTheme;
 import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 import 'package:ghost_md/shell/top_bar.dart';
@@ -158,7 +159,7 @@ void main() {
   }
 
   const noteTools = {'view', 'share', 'history', 'links', 'comment', 'bookmark', 'pin', 'archive', 'speak', 'more'};
-  const way = {'home', 'sidebar', 'back', 'forward', 'aside'};
+  const way = {'home', 'sidebar', 'folders', 'back', 'forward', 'aside'};
   const yours = {'organizations', 'org:o1', 'bell', 'settings'};
 
   final others = [for (final version in HeaderToolbarVersion.values) if (version != HeaderToolbarVersion.today) version];
@@ -227,7 +228,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       await pumpShell(tester, version: HeaderToolbarVersion.today, window: mac);
       expect(headerKeys(), findsNothing);
-      for (final label in ['Home', 'All your notes', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications, something new', 'Settings', 'Side panel', 'More for this note', 'Showing the formatted note. Show the marks.']) {
+      for (final label in ['Home', 'All your notes', 'All notes, by folder', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications, something new', 'Settings', 'Side panel', 'More for this note', 'Showing the formatted note. Show the marks.']) {
         expect(find.bySemanticsLabel(label), findsWidgets, reason: label);
       }
       semantics.dispose();
@@ -389,6 +390,32 @@ void main() {
       // Home, Filters and the + always in the row; the pill a word on a phone.
       expect(find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.text(phone ? 'Search' : 'Search or run a command')), findsOneWidget);
     });
+  }
+
+  // Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view".
+  for (final version in HeaderToolbarVersion.values) {
+    for (final window in windows) {
+      barTest('${version.number} ${version.label}, ${window.name}: the folder beside Home and the sidebar opens All notes by folder', (tester) async {
+        final semantics = tester.ensureSemantics();
+        final app = await pumpShell(tester, version: version, window: window, note: false);
+        // In the row itself, never under •••, at every width.
+        final folder = version == HeaderToolbarVersion.today ? find.bySemanticsLabel('All notes, by folder') : find.byKey(HeaderAct.keyOf('folders'));
+        expect(folder, findsOneWidget);
+        expect(find.byType(PopMenu), findsNothing);
+        final at = tester.getRect(folder);
+        expect(at.right <= window.size.width && at.left >= 0, isTrue, reason: '$at');
+        if (version != HeaderToolbarVersion.today) {
+          // Beside Home and the sidebar: after them, and before the title pill where there is one.
+          expect(at.left, greaterThan(tester.getRect(find.byKey(HeaderAct.keyOf('home'))).left));
+          final pill = find.byKey(HeaderAct.keyOf('search'));
+          if (pill.evaluate().isNotEmpty) expect(at.right, lessThan(tester.getRect(pill).left));
+        }
+        await tester.tap(folder);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(app.screen, const ScreenNotes(icons: true));
+        semantics.dispose();
+      });
+    }
   }
 
   barTest('Developer’s choice switches the bar at once, nothing restarted', (tester) async {

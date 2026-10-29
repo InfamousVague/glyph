@@ -168,6 +168,7 @@ class HeaderParts {
   const HeaderParts({
     this.home,
     this.sidebar,
+    this.folders,
     this.back,
     this.forward,
     this.view,
@@ -193,8 +194,8 @@ class HeaderParts {
     required this.room,
   });
 
-  // The way around.
-  final HeaderAct? home, sidebar, back, forward;
+  // The way around: and every note by folder, after the sidebar (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view").
+  final HeaderAct? home, sidebar, folders, back, forward;
 
   /// The note's view switch, its spare actions in today's order (Share, History, Links, Comment, Bookmark, Pin,
   /// Archive, Speak), and its More, the sheet with all of them and the rest; null where no note is up.
@@ -237,7 +238,7 @@ class HeaderParts {
   bool get onNote => view != null;
 
   /// The way around, in today's order.
-  List<HeaderAct> get way => [?home, ?sidebar, ?back, ?forward];
+  List<HeaderAct> get way => [?home, ?sidebar, ?folders, ?back, ?forward];
 
   /// The note's own, the view first.
   List<HeaderAct> get noteActs => [?view, ...actions];

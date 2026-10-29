@@ -124,19 +124,23 @@ class ScreenList extends Screen {
 
 /// The All notes grid (`{ name: 'notes'; tapes? }`).
 class ScreenNotes extends Screen {
-  const ScreenNotes({this.tapes = false});
+  const ScreenNotes({this.tapes = false, this.icons = false});
 
   /// Opened from the Tapes heading's "See all": only the notes with a recording.
   final bool tapes;
+
+  /// Opened from the top bar's folder: in the icon view, the folders as the first tiles (Matt, 2026-10-29:
+  /// "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view").
+  final bool icons;
 
   @override
   String get name => 'notes';
 
   @override
-  bool operator ==(Object other) => other is ScreenNotes && other.tapes == tapes;
+  bool operator ==(Object other) => other is ScreenNotes && other.tapes == tapes && other.icons == icons;
 
   @override
-  int get hashCode => Object.hash(name, tapes);
+  int get hashCode => Object.hash(name, tapes, icons);
 }
 
 /// A note (`{ name: 'note'; note; at?; ask?; review?; landing?; caret?; cursor? }`).

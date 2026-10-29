@@ -253,7 +253,7 @@ extension _RootParts on _GhostRootState {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeShown, _canTalk, preferences.value.simple, _trashed.length),
+        () => (shell.notes, !_read, screen.tapes, screen.icons, _workspaces.value, preferences.value.wispEdge, _claudeShown, _canTalk, preferences.value.simple, _trashed.length),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
@@ -262,6 +262,7 @@ extension _RootParts on _GhostRootState {
           workspaces: _workspaces,
           stored: _stored,
           tapes: screen.tapes,
+          icons: screen.icons,
           clock: widget.clock,
           onOpen: (id) => _openWhereLeft(shell, id),
           onBack: shell.backToList,

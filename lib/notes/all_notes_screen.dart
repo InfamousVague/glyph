@@ -98,6 +98,7 @@ class AllNotesScreen extends StatefulWidget {
     required this.onOpen,
     required this.onBack,
     this.tapes = false,
+    this.icons = false,
     this.onRefresh,
     this.onOrganization,
     this.onOrganizationSettings,
@@ -130,6 +131,10 @@ class AllNotesScreen extends StatefulWidget {
 
   /// Opened with the Tapes word already on, from the home page's Tapes heading, its "See all".
   final bool tapes;
+
+  /// Opened in the icon view, the folders first, from the top bar's folder (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view"),
+  /// whatever this level has chosen; for this visit only, nothing kept, until the toggle chooses again.
+  final bool icons;
 
   /// A pull down from the top (lib/notes/pull_to_refresh.dart): a sync, and the notes read again.
   final Future<void> Function()? onRefresh;
@@ -198,6 +203,9 @@ class AllNotesScreen extends StatefulWidget {
 }
 
 class _AllNotesScreenState extends State<AllNotesScreen> {
+  /// The icon view asked for by the way in ([AllNotesScreen.icons]), until the toggle chooses a view.
+  late bool _iconsAsked = widget.icons;
+
   /// The page with its dock over it, where there is one.
   Widget _docked(Widget page) {
     final dock = widget.dock;
@@ -359,6 +367,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   @override
   void didUpdateWidget(AllNotesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // The bar's folder pressed while the page is up: the icon view, as from anywhere else.
+    if (widget.icons && !oldWidget.icons) _iconsAsked = true;
     if (oldWidget.workspaces != widget.workspaces) {
       oldWidget.workspaces.removeListener(_redraw);
       widget.workspaces.addListener(_redraw);
@@ -528,7 +538,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   /// `chooseBrowseView`): kept on the device, and read by every page that shows these levels.
   void _setView(BrowseView view) {
     chooseBrowseView(widget.workspaces.value.list, widget.workspaces.value.current?.id, view, widget.stored);
-    setState(() {});
+    setState(() => _iconsAsked = false);
   }
 
   @override
@@ -552,7 +562,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // icon view's first tiles; at All, the workspaces at the top as the icon view's first tiles alone (the pills are
     // the strip's part there). None in simple mode, and none while a search is typed (the cards are what it found).
     // Cards or icons at this level: its own choice, or the nearest one above it (lib/notes/icon_browser.dart).
-    final view = browseViewAt(spaces.list, workspace, widget.stored);
+    final view = _iconsAsked ? BrowseView.icons : browseViewAt(spaces.list, workspace, widget.stored);
     final icons = !widget.simple && view == BrowseView.icons;
     final browsing = !widget.simple && !searched && (workspace != null || icons);
     final folders = browsing ? folderTiles(spaces.list, spaces.of, widget.notes, workspace) : const <FolderCount>[];
