@@ -37,15 +37,15 @@ HeaderRow labelledRow(BuildContext context, HeaderParts parts) {
   if (parts.onNote) {
     final second = parts.actions.where((act) => act.id == 'share').firstOrNull ?? parts.actions.firstOrNull;
     // Home first at every width, on every screen (Matt, 2026-10-28: "Also always show the home button on the top bar").
-    lead = [?parts.home, ?parts.sidebar, ?parts.back];
+    lead = [?parts.home, ?parts.sidebar, ?parts.folders, ?parts.back];
     shown = [?parts.view, ?second];
     others = [...notShown(parts.actions, [?second]), ?parts.more, ?parts.forward, ?parts.aside, ?parts.newNote];
   } else if (parts.atHome) {
-    lead = [?parts.home, ?parts.sidebar];
+    lead = [?parts.home, ?parts.sidebar, ?parts.folders];
     shown = [?parts.search, ?parts.newNote, ?parts.allNotes];
     others = [?parts.back, ?parts.forward, ?parts.aside];
   } else {
-    lead = [?parts.home, ?parts.sidebar, ?parts.back];
+    lead = [?parts.home, ?parts.sidebar, ?parts.folders, ?parts.back];
     shown = const [];
     others = [?parts.forward, ?parts.aside, ?parts.search, ?parts.newNote, ?parts.allNotes];
   }

@@ -35,9 +35,18 @@ void main() {
         await pumpNote(tester, world, note!, size: size, seams: measuredSeams(world.asked), speak: true);
         final tools = (frame['tools'] as List).cast<Map<String, dynamic>>();
         final drawn = tester.widgetList<NoteToolButton>(find.byType(NoteToolButton)).toList();
-        expect([for (final tool in drawn) tool.label], [for (final tool in tools) tool['label']], reason: 'which of the spare tools the row has room for');
-        for (final (at, tool) in tools.indexed) {
-          near(tester.getRect(find.byWidget(drawn[at])), webRect(tool['rect'], down: notch), tool['label'] as String);
+        // The bar's folder after the sidebar's icon (Matt, 2026-10-29: "add a folder icon to the top near home and
+        // sidebar to show all notes in the folder / icon view") is the app's own and takes a ring's room on the line:
+        // where the page had room for one spare tool more, that tool is More's alone now (the last of the spares, by
+        // the order they come out of More), and the rest stand where the page's last ones stood. The view switch and
+        // More are the last two, as on the page.
+        final spares = tools.length - 2;
+        final dropped = tools.length - drawn.length;
+        expect(dropped, inInclusiveRange(0, 1), reason: 'a ring’s room, one spare tool at most');
+        final want = [for (final (at, tool) in tools.indexed) if (at < spares - dropped || at >= spares) tool['label']];
+        expect([for (final tool in drawn) tool.label], want, reason: 'which of the spare tools the row has room for');
+        for (final (at, button) in drawn.indexed) {
+          near(tester.getRect(find.byWidget(button)), webRect(tools[at + dropped]['rect'], down: notch), button.label);
         }
         await closeNote(tester);
       });

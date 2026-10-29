@@ -122,7 +122,14 @@ class NoteTabs extends StatefulWidget {
     this.onSearch,
     this.onAllNotes,
     this.filters,
+    this.onFolders,
+    this.atFolders = false,
   });
+
+  /// Every note by folder, All notes in its icon view (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view"): a ring after the sidebar's in
+  /// every version, and whether that page is the one showing.
+  final VoidCallback? onFolders;
+  final bool atFolders;
 
   /// The home page's Filters, for a version that holds them in the bar ([HeaderParts.filters]).
   final BarButton? filters;
@@ -315,6 +322,14 @@ class _NoteTabsState extends State<NoteTabs> {
               toggle: sidebarToggle,
               child: BarWord(word: 'Notes', label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen),
             );
+
+  /// Every note by folder: a folder after the sidebar's icon (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view").
+  Widget? _foldersRing() => widget.onFolders == null
+      ? null
+      : BarRing(glyph: BarGlyph.folder, iconSize: 19, label: 'All notes, by folder', onPressed: widget.onFolders, on: widget.atFolders, current: widget.atFolders);
+
+  /// The Masthead's: the word.
+  Widget? _foldersWord() => widget.onFolders == null ? null : BarWord(word: 'Folders', label: 'All notes, by folder', onPressed: widget.onFolders, on: widget.atFolders, current: widget.atFolders);
 
   /// Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button.
   List<Widget> _arrows() => [
@@ -573,6 +588,9 @@ class _NoteTabsState extends State<NoteTabs> {
       sidebar: w.onSidebar == null
           ? null
           : HeaderAct(id: 'sidebar', label: 'All your notes', word: 'Notes', hue: 'indigo', icon: Lucide.panelLeft, onPress: w.onSidebar, on: w.sidebarOpen, expanded: w.sidebarOpen, toggle: sidebarToggle),
+      folders: w.onFolders == null
+          ? null
+          : HeaderAct(id: 'folders', label: 'All notes, by folder', word: 'Folders', hue: 'amber', icon: Lucide.folder, onPress: w.onFolders, on: w.atFolders, current: w.atFolders),
       back: w.onGoBack == null ? null : HeaderAct(id: 'back', label: 'Back to where you were', word: 'Back', hue: 'cyan', icon: Lucide.arrowLeft, onPress: w.canGoBack ? w.onGoBack : null),
       forward: w.onGoOn == null ? null : HeaderAct(id: 'forward', label: 'Forward again', word: 'Forward', hue: 'cyan', icon: Lucide.arrowRight, onPress: w.canGoOn ? w.onGoOn : null),
       view: note?.view,
@@ -671,7 +689,7 @@ class _NoteTabsState extends State<NoteTabs> {
         ),
         child: version != null
             ? _versionLine(version, gap)
-            : _toolRow(gap, 0, [_sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
+            : _toolRow(gap, 0, [_sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
       );
     } else {
       // The Mac's three window buttons sit at this row's start: the first control begins after their room.
@@ -680,8 +698,8 @@ class _NoteTabsState extends State<NoteTabs> {
       final controls = version != null
           ? Padding(padding: EdgeInsets.only(right: end), child: _versionLine(version, gap))
           : style == TopBarStyle.masthead
-          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), ..._arrowWords()], [widget.presence, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
-          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
+          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), _foldersWord(), ..._arrowWords()], [widget.presence, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
+          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), _foldersRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
       top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
     }
 
@@ -736,7 +754,7 @@ class _NoteTabsState extends State<NoteTabs> {
     final rowH = t.len('app-tab-h') - 4 + 6 + 2 * hairline;
 
     // A version's line in the Islands: its start in the first capsule, its end in the last, its middle between them.
-    final Widget capsule = version != null ? BarCapsule(children: version.lead) : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ..._arrows()]);
+    final Widget capsule = version != null ? BarCapsule(children: version.lead) : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ?_foldersRing(), ..._arrows()]);
     final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
     final own = <Widget>[?widget.presence, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
     final tools = widget.tools;

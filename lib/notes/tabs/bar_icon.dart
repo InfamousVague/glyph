@@ -6,7 +6,7 @@ import '../../art/lucide.g.dart';
 
 /// The glyphs the top bar draws (notes/NoteTabs.tsx: `House` of art/Icons.tsx, and `PanelLeft`, `ArrowLeft`,
 /// `ArrowRight`, `UserGroup`, `Bell`, `Settings`, `Plus` and `X` of @glacier/icons).
-enum BarGlyph { house, panelLeft, arrowLeft, arrowRight, people, bell, settings, plus, close }
+enum BarGlyph { house, panelLeft, folder, arrowLeft, arrowRight, people, bell, settings, plus, close }
 
 /// One glyph of the bar, at the size the web draws it, in the colour of the control it is in.
 ///
@@ -29,6 +29,7 @@ class BarIcon extends StatelessWidget {
   static LucideIcon? drawing(BarGlyph glyph) => switch (glyph) {
         BarGlyph.house => null,
         BarGlyph.panelLeft => Lucide.panelLeft,
+        BarGlyph.folder => Lucide.folder,
         BarGlyph.arrowLeft => Lucide.arrowLeft,
         BarGlyph.arrowRight => Lucide.arrowRight,
         BarGlyph.people => Lucide.userGroup,

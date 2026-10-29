@@ -79,7 +79,7 @@ HeaderRow tilesRow(BuildContext context, HeaderParts parts) {
 }
 
 /// The hue of the bar's own controls, by id; the note's wear theirs ([HeaderAct.hue]).
-const Map<String, String> _hues = {'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'more': 'indigo'};
+const Map<String, String> _hues = {'home': 'blue', 'sidebar': 'indigo', 'folders': 'amber', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'more': 'indigo'};
 
 String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
 

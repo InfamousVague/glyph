@@ -12,7 +12,10 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
+import 'package:ghost_md/notes/all_notes_screen.dart' show AllNotesScreen;
+import 'package:ghost_md/notes/icon_browser.dart' show IconBrowser, browseViewKey;
 import 'package:ghost_md/root/ghost_root.dart';
+import 'package:ghost_md/shell/page_dock.dart' show dockScrolledScale;
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/simple/simple_home.dart';
@@ -289,6 +292,48 @@ void main() {
     expect(tester.getRect(find.byKey(const ValueKey('floating-card'))).top, moreOrLessEquals(t.len('app-safe-top') + t.space(2), epsilon: 0.5));
     await close(tester);
   });
+
+  // Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view".
+  for (final version in [HeaderToolbarVersion.today, HeaderToolbarVersion.groupedCommand, HeaderToolbarVersion.command]) {
+    for (final size in [phone, unfolded]) {
+      testWidgets('${version.number} ${version.label}, ${size.width.round()} wide: the bar’s folder opens All notes in its icon view, nothing kept', (tester) async {
+        final semantics = tester.ensureSemantics();
+        final stored = MemoryStored();
+        await launch(tester, size: size, version: version.id, stored: stored);
+        final folder = version == HeaderToolbarVersion.today ? find.bySemanticsLabel('All notes, by folder') : find.byKey(HeaderAct.keyOf('folders'));
+        expect(folder, findsOneWidget);
+        expect(find.byKey(HeaderAct.keyOf('home')).evaluate().isNotEmpty || version == HeaderToolbarVersion.today, isTrue);
+        await tester.tap(folder);
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(find.byType(AllNotesScreen), findsOneWidget);
+        expect(find.byType(IconBrowser), findsOneWidget, reason: 'the icon view, the folders first');
+        // For this visit: the view the page keeps for itself is as it was.
+        expect(stored.readText(browseViewKey), isNull);
+        semantics.dispose();
+        await close(tester);
+      });
+    }
+  }
+
+  // Matt, 2026-10-29: "also on desktop the default size of the dock can be the size it collapses to".
+  for (final mac in [false, true]) {
+    testWidgets('the home page’s dock rests ${mac ? 'at the smaller size on the Mac' : 'whole on a phone'}', (tester) async {
+      if (mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      await launch(tester, size: mac ? const Size(1280, 800) : phone, version: HeaderToolbarVersion.groupedCommand.id);
+      final scale = tester.widget<ScaleTransition>(find.byKey(const ValueKey('page-dock-scale')).first).scale.value;
+      expect(scale, mac ? dockScrolledScale : 1);
+      if (mac) {
+        // As the bar's own rings, which are the dock's at that scale.
+        final t = GlacierTheme.of(tester.element(find.byType(HomeScreen)));
+        expect((tester.getRect(find.byKey(HeaderAct.keyOf('filters'))).height - t.len('app-ring') * dockScrolledScale).abs(), lessThan(1));
+      }
+      await close(tester);
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
 
   testWidgets('chosen after launch, the opened Fold’s notes column loses its field too, and gets it back', (tester) async {
     final semantics = tester.ensureSemantics();
