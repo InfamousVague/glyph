@@ -73,6 +73,8 @@ const List<String> syncedPrefs = [
   'wisp',
   'wispEdge',
   'ripples',
+  // Calm: the running work's colours as ink (docs/ACTIVITY.md), a look that travels as the motion's switches do.
+  'calm',
   // Focus mode and its typewriter scroll: a way of writing, the same on every device.
   'focusMode',
   'focusTypewriter',

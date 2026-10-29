@@ -111,6 +111,7 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
         ...fallbackTools(parts),
         if (overflow != null) solid(GroupedPill(children: [overflow])),
       ],
+      ?parts.activity,
       if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts, glyph: glyph)),
     ],
   );

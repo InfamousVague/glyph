@@ -38,8 +38,8 @@ void main() {
       expect(soundPackOf('paper').id, 'ghostly');
     });
 
-    test('only the recorder’s start and stop and the to-do’s tick are on until switched', () {
-      expect({for (final event in SoundEvent.values) if (event.on) event}, {SoundEvent.todoTicked, SoundEvent.recordStart, SoundEvent.recordStop});
+    test('only the recorder’s start and stop, the to-do’s tick and the long job’s chime are on until switched', () {
+      expect({for (final event in SoundEvent.values) if (event.on) event}, {SoundEvent.todoTicked, SoundEvent.recordStart, SoundEvent.recordStop, SoundEvent.jobDone});
       for (final event in SoundEvent.values) {
         expect(soundEventOn(Preferences.defaults, event), event.on, reason: event.id);
         expect(SoundEvent.byId(event.id), event);

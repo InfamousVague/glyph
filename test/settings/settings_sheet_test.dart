@@ -76,7 +76,7 @@ void main() {
         // until it is chosen: the choice is the page's first card.
         'Appearance': 'Advanced · Light · Maple Mono',
         // Under Appearance on its card since 2026-10-27: the pack, and how many sounds are on.
-        'Sounds': 'Ghostly · 3 of 11 on',
+        'Sounds': 'Ghostly · 4 of 12 on',
         'Library folder': 'Where your notes are kept',
         'Backup': 'To a USB drive or SD card',
         'Export': 'Everything as one zip',

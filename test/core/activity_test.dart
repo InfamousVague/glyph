@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -97,6 +98,66 @@ void main() {
     expect(record.blooms, 1, reason: 'the last live job ended');
     expect(record.log.today.isEmpty, isTrue);
     expect(heard.map((e) => e.kind), [JobEventKind.started, JobEventKind.ended, JobEventKind.allDone]);
+  });
+
+  group('a job kept back until it has taken a while', () {
+    test('ends unseen when quick: counted, no event, no bloom', () {
+      final pass = record.begin('sync', kind: JobKind.sync, title: 'Syncing', showAfter: const Duration(seconds: 1));
+      expect(record.value, isEmpty);
+      expect(heard, isEmpty);
+      pass.done(tally: const JobTally('note synced', 'notes synced', 0));
+      expect(heard, isEmpty);
+      expect(record.blooms, 0);
+    });
+
+    test('shown once it moves something, told as begun then', () {
+      final pass = record.begin('sync', kind: JobKind.sync, title: 'Syncing', showAfter: const Duration(seconds: 1));
+      pass.show();
+      expect(record.value.single.id, 'sync');
+      expect(heard.map((e) => e.kind), [JobEventKind.started]);
+      pass.done(tally: const JobTally('note synced', 'notes synced', 3));
+      expect(record.blooms, 1);
+      expect(record.log.today.words, '3 notes synced');
+    });
+
+    test('shown on its own once the while is up', () {
+      fakeAsync((async) {
+        final quiet = Activity(clock: () => DateTime(2026, 10, 29).add(async.elapsed), store: () => store);
+        final pass = quiet.begin('fetch', kind: JobKind.sync, title: 'Reading Notion', showAfter: const Duration(seconds: 1));
+        expect(quiet.value, isEmpty);
+        async.elapse(const Duration(milliseconds: 1100));
+        expect(quiet.value.single.id, 'fetch');
+        pass.done();
+        expect(quiet.blooms, 1);
+      });
+    });
+
+    test('a failure is shown even when quick', () {
+      record.begin('sync', kind: JobKind.sync, title: 'Syncing', showAfter: const Duration(seconds: 1)).failed('Signed out');
+      expect(record.value.single.state, JobState.failed);
+      expect(heard.single.kind, JobEventKind.ended);
+    });
+  });
+
+  test('the routes give a job its Open and its fixes', () {
+    final opened = <String>[];
+    activityRoutes
+      ..openNote = opened.add
+      ..showing = ((id) => id == 'n1')
+      ..openLink = ((link) => opened.add('$link'))
+      ..openPlugin = ((id) => opened.add('plugin:$id'));
+    addTearDown(() => activityRoutes
+      ..openNote = null
+      ..showing = null
+      ..openLink = null
+      ..openPlugin = null);
+    activityRoutes.noteOpener('n2')!();
+    expect(activityRoutes.noteShown('n1')(), isTrue);
+    expect(activityRoutes.noteShown('n2')(), isFalse);
+    activityRoutes.topUp(Uri.parse('https://lovart.ai/pricing')).onPress();
+    activityRoutes.signIn('slack').onPress();
+    expect(opened, ['n2', 'https://lovart.ai/pricing', 'plugin:slack']);
+    expect(activityRoutes.signIn('slack').label, 'Sign in again');
   });
 
   test('one bloom when all finish, not one per job', () {

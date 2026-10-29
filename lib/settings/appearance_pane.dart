@@ -44,6 +44,8 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
         // Behind Simple's More, which opens for it when it is looked for (focus_section.dart).
         const SettingsFindable('Typewriter scroll', 'focus centre center middle line caret scroll'),
       ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
+      // In both modes (docs/ACTIVITY.md, Simple mode: the ring, the tray and the chips all show there).
+      calmFindable,
     ];
 
 /// What Advanced's page has after the theme: everything.
@@ -72,6 +74,9 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
       dockFindable,
     ];
+
+/// What finds Calm, the running work's colours as ink (docs/ACTIVITY.md).
+const SettingsFindable calmFindable = SettingsFindable('Calm', 'activity colours colors vivid ink monochrome ring tray chips background work jobs progress');
 
 /// What finds focus mode (lib/settings/focus_section.dart), besides its name.
 const String _focusWords = 'focus dim fade typewriter zen distraction free writing concentrate paragraph';
@@ -183,13 +188,28 @@ class AppearancePane extends StatelessWidget {
         // How much of the app there is, first in either mode: in Simple it is the way to the rest of these cards.
         final mode = modeSection(prefs: prefs, store: store);
 
+        // The colours of the app's running work - the ring in the header, the tray, the result chips - or ink (Matt,
+        // 2026-10-29, docs/ACTIVITY.md: "A Calm setting (Settings › Appearance) turns the colours to ink and keeps the
+        // motion"). In both modes, since simple mode shows the ring too.
+        final activity = PaneSection(
+          title: 'Activity',
+          description: const Text('While Ghost.md works on its own, a ring in the header shows it in colour: blue for sync, violet for writing, rose for pictures, teal for audio, orange for meetings, green for downloads.'),
+          children: [
+            SettingRow(
+              label: 'Calm',
+              hint: const Text('The ring, the tray and the chips in ink instead of colour. They still move.'),
+              control: GlacierSwitch(ariaLabel: 'Calm', checked: prefs.calm, onCheckedChange: (calm) => set((now) => now.copyWith(calm: calm))),
+            ),
+          ],
+        );
+
         // The dock's buttons (Matt, 2026-10-27: "build the dock editor"): in either mode, since Simple's pages have a
         // dock too; Simple's lists Simple's buttons, with the wide window's own dock behind More.
         final dock = DockEditor(store: store);
         // Focus mode, in both modes, after the type it dims (Matt, 2026-10-27: "build ... focus mode").
         final focus = FocusSection(store: store);
 
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), focus, dock]);
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), activity, focus, dock]);
 
         return PaneBody(
           children: [

@@ -29,7 +29,7 @@ void main() {
     expect(spec.group, appearanceGroup);
     expect(settingsSections.indexOf(spec), settingsSections.indexWhere((each) => each.id == 'theme') + 1);
     expect(simpleSections, contains('sounds'));
-    expect(spec.summary!(SettingsFacts(prefs: Preferences.defaults, wide: false, haptics: false, android: true, ios: false, developer: false)), 'Ghostly · 3 of 11 on');
+    expect(spec.summary!(SettingsFacts(prefs: Preferences.defaults, wide: false, haptics: false, android: true, ios: false, developer: false)), 'Ghostly · 4 of 12 on');
     expect(spec.summary!(SettingsFacts(prefs: Preferences.defaults.copyWith(soundPack: 'off'), wide: false, haptics: false, android: true, ios: false, developer: false)), 'Off');
     final names = [for (final found in spec.settings!(SettingsFacts(prefs: Preferences.defaults, wide: false, haptics: false, android: true, ios: false, developer: false))) found.name];
     expect(names, containsAll(['Sound pack', 'Interface sounds', 'Volume', 'To-do ticked', 'Recording starts']));

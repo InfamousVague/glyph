@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The placeholder Ghostly pack (assets/sounds/ghostly): eleven short tones made here, so Settings › Sounds works
+"""The placeholder Ghostly pack (assets/sounds/ghostly): twelve short tones made here, so Settings › Sounds works
 before Matt's own sounds from ElevenLabs drop in (Matt, 2026-10-27: "build ... the sounds settings";
 docs/ideas/CUSTOMIZATION_AND_SOUNDS.md, Sounds). Each is a few soft sine partials under a quick attack and an
 exponential fall, mono at 44.1 kHz, with its peak where the doc puts it: -12 dBFS for a sound inside the app and
@@ -83,6 +83,9 @@ def sounds():
         NOTIFICATION,
     )
     s['failed'] = (note(330, 0, 0.35, 0.37, decay=6, glide=262, partials=((1, 1.0), (2, 0.15))), INTERFACE)
+    # A long job you started is done (lib/activity/activity_chime.dart; docs/ACTIVITY.md, Sound): two soft glass notes
+    # rising a fifth, gentler than the write-up's, since it plays inside the app.
+    s['job-done'] = (note(988, 0.0, 0.42, 0.75, partials=GLASS) + note(1480, 0.14, 0.55, 0.75, partials=GLASS) + breath(0.75, 0.03), INTERFACE)
     # Saved is the quietest of all, a breath with a tap in it: it is off by default and should stay unnoticed.
     s['saved'] = (note(1200, 0, 0.14, 0.16, decay=10, partials=((1, 0.6),)) + breath(0.16, 0.05), INTERFACE - 6)
     return s

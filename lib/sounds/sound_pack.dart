@@ -26,6 +26,9 @@ enum SoundEvent {
   teamComment('team-comment', 'Team comment', 'A comment or a mention from your team.', SoundPlace.notification),
   lovartReady('lovart-ready', 'Lovart picture ready', 'Lovart has drawn what you asked for.', SoundPlace.notification),
   failed('failed', 'Something failed', 'Low and soft, never alarming.', SoundPlace.interface),
+  // A long job you started is done (docs/ACTIVITY.md, Sound; Matt, 2026-10-29): on, as the recorder's are, and heard
+  // only for a job that ran over half a minute (lib/activity/activity_chime.dart).
+  jobDone('job-done', 'Long job finished', 'A soft chime when something you started, that took a while, is done.', SoundPlace.interface, on: true),
   saved('saved', 'Saved', 'A breath when a note is saved. Very quiet.', SoundPlace.interface);
 
   const SoundEvent(this.id, this.label, this.hint, this.place, {this.on = false});
@@ -38,7 +41,7 @@ enum SoundEvent {
 
   /// Whether it plays until it is switched: the recorder's start and stop and the to-do tick alone, as the doc
   /// says ("the recorder's start and stop are the only ones on by default", and the tick is "the one people keep
-  /// on").
+  /// on"); and since 2026-10-29 the long job's chime (docs/ACTIVITY.md, Sound), which is rare by its rule.
   final bool on;
 
   static SoundEvent? byId(String id) {

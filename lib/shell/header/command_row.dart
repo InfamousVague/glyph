@@ -61,6 +61,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
       ?parts.presence,
       if (!parts.onNote) ...fallbackTools(parts),
       if (primary != null) outline(_Primary(act: primary, fine: parts.fine, step: step)),
+      ?parts.activity,
       if (entries.isNotEmpty) outline(_CommandMenu(parts: parts, entries: entries, step: step)),
     ],
   );

@@ -279,6 +279,8 @@ class Job {
     this.attempt = 0,
     this.retryAt,
     this.shownHere,
+    this.placeWords,
+    this.hiddenUntil,
   });
 
   /// Its name, the same for every pass of the same work: `lovart-banners`, `sync`, `summary:<note>`.
@@ -335,6 +337,13 @@ class Job {
   /// Whether the person is looking at what it makes as it ends (the note the banner lands in is open): then no chip.
   final bool Function()? shownHere;
 
+  /// Where it runs, in words, for work that is on no device of the person's: the meeting bot's.
+  final String? placeWords;
+
+  /// Kept from the ring and the tray until then (a sync pass, a fetch: shown only once it has taken a while, or
+  /// [JobHandle.show]n); null is shown from the start.
+  final DateTime? hiddenUntil;
+
   /// Whether it runs on this device.
   bool get here => device == null;
 
@@ -352,7 +361,7 @@ class Job {
   Duration? get took => endedAt?.difference(startedAt);
 
   /// "on your Mac", for a job elsewhere.
-  String? get deviceWords => here ? null : 'on your ${deviceName == null || deviceName!.isEmpty ? 'other device' : deviceName}';
+  String? get deviceWords => placeWords ?? (here ? null : 'on your ${deviceName == null || deviceName!.isEmpty ? 'other device' : deviceName}');
 
   /// The tray's live line: what it is doing and how far ("Writing the summary, 2 of 3 parts"), what it waits on
   /// ("Waiting for Wi-Fi"), or why it failed.
@@ -382,6 +391,7 @@ class Job {
     int? attempt,
     DateTime? Function()? retryAt,
     bool? personStarted,
+    DateTime? Function()? hiddenUntil,
   }) =>
       Job(
         id: id,
@@ -408,6 +418,8 @@ class Job {
         attempt: attempt ?? this.attempt,
         retryAt: retryAt == null ? this.retryAt : retryAt(),
         shownHere: shownHere,
+        placeWords: placeWords,
+        hiddenUntil: hiddenUntil == null ? this.hiddenUntil : hiddenUntil(),
       );
 
   @override
@@ -474,6 +486,16 @@ class JobHandle {
   /// [credits] more spent.
   void spend(int credits) => _change((job) => job.copyWith(spent: (job.spent ?? 0) + credits));
 
+  /// Shown now, though it was begun to be shown only after a while ([Activity.begin]'s `showAfter`): a sync pass
+  /// that has moved something.
+  void show() {
+    if (job?.hiddenUntil == null) return;
+    _change((job) => job.copyWith(hiddenUntil: () => null));
+  }
+
+  /// Whether the ring and the tray show it now.
+  bool get shown => job != null && _activity._shows(job!);
+
   /// It ended well: [result] for its chip and Open, [tally] for the log (a run's 12 banners). [quiet] counts it and
   /// shows no chip and plays no chime.
   void done({JobResult? result, JobTally? tally, bool quiet = false}) => _activity._end(id, JobState.done, result: result, tally: tally, quiet: quiet);
@@ -508,11 +530,13 @@ Future<T> retrying<T>(JobHandle job, Future<T> Function() attempt, {bool Functio
     } catch (error) {
       if (tries >= backoff.length || !blip(error) || !job.live) rethrow;
       final pause = backoff[tries];
+      // What it said before the blip, said again as it tries again.
+      final before = job.job?.line;
       job._change((j) => j.copyWith(attempt: tries + 1));
       job.waiting(WaitingOn.network, line: 'Trying again in ${durationWords(pause)}', retryAt: job._activity.now.add(pause));
       await sleep(pause);
       if (!job.live) rethrow;
-      job.running();
+      job._change((j) => j.copyWith(state: JobState.running, waitingOn: () => null, retryAt: () => null, line: () => before));
     }
   }
 }
@@ -551,12 +575,32 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
   /// How many times every live job has ended, the last well: the ring blooms once each time it grows.
   int get blooms => _blooms;
 
+  /// The job that ended last on this device, as it ended: the bloom wears its colour.
+  Job? get lastEnded => _lastEnded;
+  Job? _lastEnded;
+
   /// The jobs to show, this device's first in the order begun, then the other devices'.
   @override
   List<Job> get value => _shown ??= List.unmodifiable([
-        ..._jobs.values.where((job) => job.state.live || job.state == JobState.failed),
+        ..._jobs.values.where((job) => (job.state.live || job.state == JobState.failed) && _shows(job)),
         for (final jobs in _elsewhere.values) ...jobs,
       ]);
+
+  /// Whether [job] is past the while it was kept back for.
+  bool _shows(Job job) => job.hiddenUntil == null || !now.isBefore(job.hiddenUntil!);
+
+  final Map<String, Timer> _showing = {};
+
+  /// Shows a job kept back once its while is up, if it is still running then.
+  void _showLater(String id, Duration after) {
+    _showing.remove(id)?.cancel();
+    _showing[id] = Timer(after, () {
+      _showing.remove(id);
+      final job = _jobs[id];
+      if (job == null || !job.state.live || job.hiddenUntil == null) return;
+      _put(job.copyWith(hiddenUntil: () => null), JobEventKind.started);
+    });
+  }
 
   /// The live ones alone.
   List<Job> get live => [for (final job in value) if (job.state.live) job];
@@ -589,6 +633,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     bool personStarted = false,
     JobEstimate? estimate,
     bool Function()? shownHere,
+    Duration? showAfter,
   }) {
     final had = _jobs[id];
     if (had != null && had.state.live) {
@@ -596,9 +641,26 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
       return JobHandle._(this, id);
     }
     _put(
-      Job(id: id, kind: kind, title: title, state: state, line: line, waitingOn: waitingOn, fraction: fraction, steps: steps, onStop: onStop, onOpen: onOpen, startedAt: now, personStarted: personStarted, estimate: estimate, shownHere: shownHere),
+      Job(
+        id: id,
+        kind: kind,
+        title: title,
+        state: state,
+        line: line,
+        waitingOn: waitingOn,
+        fraction: fraction,
+        steps: steps,
+        onStop: onStop,
+        onOpen: onOpen,
+        startedAt: now,
+        personStarted: personStarted,
+        estimate: estimate,
+        shownHere: shownHere,
+        hiddenUntil: showAfter == null ? null : now.add(showAfter),
+      ),
       JobEventKind.started,
     );
+    if (showAfter != null) _showLater(id, showAfter);
     return JobHandle._(this, id);
   }
 
@@ -634,14 +696,20 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
   }
 
   void _put(Job job, JobEventKind kind) {
+    final was = _jobs[job.id];
     _jobs[job.id] = job;
     _changed();
-    _events.add(JobEvent(kind, job));
+    // A job kept back is not told of until it shows; shown by [JobHandle.show], it is told as begun.
+    if (!_shows(job)) return;
+    _events.add(JobEvent(kind == JobEventKind.changed && was != null && !_shows(was) ? JobEventKind.started : kind, job));
   }
 
   void _end(String id, JobState state, {JobResult? result, JobTally? tally, String? cause, JobFix? fix, bool quiet = false, bool stopped = false}) {
     final had = _jobs[id];
     if (had == null || !had.state.live) return;
+    _showing.remove(id)?.cancel();
+    // One kept back and never shown ends unseen, unless it failed: counted, told of to nobody, and no bloom for it.
+    final seen = _shows(had) || state == JobState.failed;
     final ended = had.copyWith(
       state: state,
       endedAt: () => now,
@@ -652,6 +720,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
       waitingOn: () => null,
       retryAt: () => null,
       fraction: () => state == JobState.done && !stopped ? 1.0 : had.fraction,
+      hiddenUntil: () => seen ? null : had.hiddenUntil,
     );
     if (state == JobState.done) {
       _jobs.remove(id);
@@ -660,6 +729,8 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     }
     log.record(ended);
     _changed();
+    if (!seen) return;
+    _lastEnded = ended;
     _events.add(JobEvent(JobEventKind.ended, ended));
     if (!quiet && ended.personStarted && ended.kind != JobKind.sync && (ended.took ?? Duration.zero) >= longJob) onChime?.call(ended);
     if (idle && state == JobState.done) _bloom();
@@ -678,6 +749,10 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
 
   /// Everything forgotten but the log: a test's fresh record, and a sign-out's.
   void clear() {
+    for (final timer in _showing.values) {
+      timer.cancel();
+    }
+    _showing.clear();
     _jobs.clear();
     _elsewhere.clear();
     _changed();
@@ -685,10 +760,45 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
 
   @override
   void dispose() {
+    for (final timer in _showing.values) {
+      timer.cancel();
+    }
     _events.close();
     super.dispose();
   }
 }
+
+/// How a job's Open and fix reach the rest of the app, told by the root as it starts (lib/root/ghost_root.dart): so
+/// code deep in a plugin that runs a job need not know how a note is opened. Each is null until told, and a job then
+/// has no Open.
+class ActivityRoutes {
+  /// Opens the note [id].
+  void Function(String id)? openNote;
+
+  /// Whether the note [id] is the one on screen.
+  bool Function(String id)? showing;
+
+  /// Opens a link in the app's own way (a provider's billing page).
+  void Function(Uri link)? openLink;
+
+  /// Opens a plugin's page in Settings (its setup, to sign in again).
+  void Function(String pluginId)? openPlugin;
+
+  /// Open for the note [id], where the app can open one.
+  VoidCallback? noteOpener(String id) => openNote == null ? null : () => openNote?.call(id);
+
+  /// Whether the note [id] is on screen, asked as a job ends.
+  bool Function() noteShown(String id) => () => showing?.call(id) ?? false;
+
+  /// Top up at [billing].
+  JobFix topUp(Uri billing, {String? label}) => JobFix(JobFixKind.topUp, () => openLink?.call(billing), label: label);
+
+  /// Sign in again at [pluginId]'s page.
+  JobFix signIn(String pluginId) => JobFix(JobFixKind.signIn, () => openPlugin?.call(pluginId));
+}
+
+/// The app's routes for its jobs.
+final ActivityRoutes activityRoutes = ActivityRoutes();
 
 /// The app's record. A test puts its own in place ([useActivity]) and back.
 Activity activity = Activity();

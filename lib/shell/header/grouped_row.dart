@@ -39,6 +39,7 @@ HeaderRow groupedRow(BuildContext context, HeaderParts parts) {
     trail: [
       ?parts.presence,
       if (parts.onNote) solid(_NotePill(parts: parts)) else ...fallbackTools(parts),
+      ?parts.activity,
       if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts)),
       if (parts.aside case final aside?) solid(GroupedPill(children: [GroupedSegment(act: aside, fine: parts.fine)])),
     ],
