@@ -28,15 +28,29 @@ String pastDayWords(String day, DateTime today) {
   return '${weekdays[at.weekday - 1]} ${at.day} ${months[at.month - 1]}';
 }
 
-/// What a job costs, in a line under it: its estimate and the credits spent so far ("~72 Lovart credits · 18 spent").
-String? costWords(Job job) {
+/// What a job costs: its estimate and the credits spent so far ("~72 Lovart credits · 18 spent"); [count] false leaves
+/// the estimate's count out, where the line says how far already ("5 of 12").
+String? costWords(Job job, {bool count = true}) {
   final estimate = job.estimate;
   final spent = job.spent;
+  final said = estimate == null ? '' : (count ? estimate.words : JobEstimate(credits: estimate.credits, provider: estimate.provider, duration: estimate.duration).words);
   final words = [
-    if (estimate != null && estimate.words.isNotEmpty) estimate.words,
+    if (said.isNotEmpty) said,
     if (spent != null && spent > 0) '$spent spent',
   ];
   return words.isEmpty ? null : words.join(' · ');
+}
+
+/// A row's line under its title: what the job does now and how far, what it costs and has spent, and where it runs,
+/// in one line ("5 of 12 · ~72 Lovart credits · 30 spent"). A running job with no words of its own for what it does
+/// would say its title again ("Making header images, 5 of 12" under "Making header images"; Matt, 2026-10-29: "make
+/// the line say just 5 of 12 · ~72 Lovart credits · 30 spent"), so it says how far alone, and the estimate leaves out
+/// the count that says. A failed one says its cause, and its cost goes on a line of its own ([costWords]).
+String trayLine(Job job, {String? where}) {
+  final failed = job.state == JobState.failed;
+  final bare = job.state == JobState.running && job.line == null && job.steps != null;
+  final cost = failed ? null : costWords(job, count: job.steps == null);
+  return [bare ? job.steps! : job.liveLine, ?cost, ?where].join(' · ');
 }
 
 /// The tray's rows for [record].
@@ -171,7 +185,7 @@ class ActivityRow extends StatelessWidget {
     final t = context.tokens;
     final failed = job.state == JobState.failed;
     final colour = failed ? jobColour(t, JobLook.needsYou) : kindColour(t, job.kind);
-    final cost = costWords(job);
+    final cost = failed ? costWords(job) : null;
     final where = device ? job.deviceWords : null;
     final buttons = <Widget>[
       if (failed && job.fix != null) TrayButton(key: ValueKey('activity-row:fix:${job.id}'), label: job.fix!.label, colour: colour, filled: true, onPressed: job.fix!.onPress),
@@ -210,7 +224,7 @@ class ActivityRow extends StatelessWidget {
                     Text(job.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: 'semibold', color: failed ? colour : t.color('glacier-text'))),
                     SizedBox(height: t.space(1) * 0.5),
                     Text(
-                      [job.liveLine, ?where].join(' · '),
+                      trayLine(job, where: where),
                       key: ValueKey('activity-row:line:${job.id}'),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,

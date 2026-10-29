@@ -249,8 +249,9 @@ void main() {
       final card = tester.getRect(find.byKey(const ValueKey('floating-card')));
       expect(card.top, greaterThan(tester.getRect(ring()).bottom), reason: 'hangs under the ring');
       expect(find.text('Making header images'), findsOneWidget);
-      expect(find.text('Making header images, 2 of 12'), findsOneWidget);
-      expect(find.text('12 banners · ~72 Lovart credits · 12 spent'), findsOneWidget);
+      // The title once, and under it how far, what it costs and has spent: never the title again (Matt, 2026-10-29).
+      expect(find.text('2 of 12 · ~72 Lovart credits · 12 spent'), findsOneWidget);
+      expect(find.textContaining('Making header images, '), findsNothing);
       expect(find.text('Writing the summary, 2 of 3 parts · on your Mac'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('activity-row:stop:lovart-banners')));
       await tester.tap(find.byKey(const ValueKey('activity-row:open:lovart-banners')));

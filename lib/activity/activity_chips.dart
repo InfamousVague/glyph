@@ -121,26 +121,30 @@ class ActivityChipsState extends State<ActivityChips> {
   Widget build(BuildContext context) {
     if (_chips.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return Column(
+    // Two stack as one: as wide as the wider, the same end edge, one over the other with a gap, their actions and
+    // crosses in line (Matt, 2026-10-29: "result chips when two stack should stack cleanly").
+    return IntrinsicWidth(
+      child: Column(
       key: const ValueKey('activity-chips'),
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (chip, n) in _chips)
+        for (final (i, (chip, n)) in _chips.indexed)
           Padding(
             key: ValueKey('activity-chip:$n'),
-            padding: EdgeInsets.only(bottom: t.space(2)),
+            padding: EdgeInsets.only(bottom: i == _chips.length - 1 ? 0 : t.space(2)),
             child: Dismissible(
               key: ValueKey('activity-chip-swipe:$n'),
               direction: DismissDirection.horizontal,
               onDismissed: (_) => _dismiss(n),
-              child: _SlideIn(child: ChipFace(chip: chip, onClose: () => _dismiss(n), onAction: chip.onAction == null ? null : () {
+              child: _SlideIn(child: ChipFace(chip: chip, fill: _chips.length > 1, onClose: () => _dismiss(n), onAction: chip.onAction == null ? null : () {
                 _dismiss(n);
                 chip.onAction!();
               })),
             ),
           ),
       ],
+      ),
     );
   }
 }
@@ -190,9 +194,13 @@ class _SlideInState extends State<_SlideIn> with SingleTickerProviderStateMixin 
 /// A chip as it is drawn: a capsule of paper, a dot of its colour (red for a failure), its words, its action in its
 /// colour, and ×.
 class ChipFace extends StatelessWidget {
-  const ChipFace({super.key, required this.chip, this.onAction, this.onClose});
+  const ChipFace({super.key, required this.chip, this.onAction, this.onClose, this.fill = false});
 
   final ActivityChip chip;
+
+  /// As wide as it is given, its words taking the room, so that a chip stacked with a wider one puts its action and
+  /// its cross at the same place.
+  final bool fill;
   final VoidCallback? onAction;
   final VoidCallback? onClose;
 
@@ -210,7 +218,8 @@ class ChipFace extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(1) * 1.5, t.space(1), t.space(1) * 1.5),
           decoration: BoxDecoration(
-            color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 94%, var(--glacier-text) 4%)'),
+            // Whole, so nothing of the page shows through the words (the 4% of text over 94% of the page left 2% clear).
+            color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 96%, var(--glacier-text) 4%)'),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: colour.withValues(alpha: colour.a * 0.55)),
             boxShadow: const [BoxShadow(color: Color(0x2E000000), offset: Offset(0, 6), blurRadius: 18)],
@@ -221,7 +230,7 @@ class ChipFace extends StatelessWidget {
               children: [
                 Container(key: const ValueKey('activity-chip:dot'), width: 9, height: 9, decoration: BoxDecoration(color: colour, shape: BoxShape.circle)),
                 SizedBox(width: t.space(2)),
-                Flexible(child: Text(chip.words, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: 'medium', color: chip.failed ? colour : t.color('glacier-text')))),
+                Flexible(fit: fill ? FlexFit.tight : FlexFit.loose, child: Text(chip.words, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: 'medium', color: chip.failed ? colour : t.color('glacier-text')))),
                 if (action != null && onAction != null) ...[
                   Text('  ·  ', style: t.text('sm', color: t.color('glacier-text-subtle'))),
                   GlacierPressable(

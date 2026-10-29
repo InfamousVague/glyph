@@ -116,6 +116,32 @@ void main() {
       expect(chips(), findsNothing);
     });
 
+    for (final (name, size, mobile) in [('phone', phone, true), ('mac', mac, false)]) {
+      shotTest('two stack cleanly: one width, one end edge, one over the other with a gap, actions in line ($name)', (tester) async {
+        await pumpShell(tester, size: size, mobile: mobile);
+        record.begin('banner:n9', kind: JobKind.images, title: 'Header image for Trip notes').done(result: JobResult('Banner ready', onOpen: () {}));
+        record.begin('summary:n8', kind: JobKind.ai, title: 'Summary of Standup').done(result: JobResult('Summarized “Standup”', action: 'Open', onOpen: () {}));
+        await settle(tester);
+        final faces = tester.widgetList<ChipFace>(chips()).toList();
+        expect(faces, hasLength(2));
+        final top = tester.getRect(chips().first), under = tester.getRect(chips().last);
+        expect(top.right, closeTo(under.right, 0.01), reason: 'the same end edge');
+        expect(top.width, closeTo(under.width, 0.01), reason: 'as wide as the wider');
+        expect(under.top - top.bottom, greaterThanOrEqualTo(6), reason: 'a gap, never overlapping');
+        expect(tester.getRect(find.byKey(const ValueKey('activity-chip:close:banner:n9'))).right, closeTo(tester.getRect(find.byKey(const ValueKey('activity-chip:close:summary:n8'))).right, 0.01), reason: 'the crosses in line');
+      });
+    }
+
+    shotTest('one alone is as wide as its words', (tester) async {
+      await pumpShell(tester);
+      record.begin('banner:n9', kind: JobKind.images, title: 'Header image for Trip notes').done(result: JobResult('Banner ready', onOpen: () {}));
+      await settle(tester);
+      final alone = tester.getRect(chips());
+      record.begin('summary:n8', kind: JobKind.ai, title: 'Summary of Standup').done(result: JobResult('Summarized “Standup” and its three to-dos', action: 'Open', onOpen: () {}));
+      await settle(tester);
+      expect(tester.getRect(chips().last).width, greaterThan(alone.width), reason: 'stacked with a wider one, it takes its width');
+    });
+
     shotTest('a failure says its cause, red, with its fix', (tester) async {
       await pumpShell(tester);
       var fixed = 0;
