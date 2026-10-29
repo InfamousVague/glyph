@@ -5,13 +5,22 @@
 ///
 /// A request can be stopped ([ClaudeCall.cancel]): the connection is closed, and the stream ends with
 /// [ClaudeCancelled].
+///
+/// **One provider of several** (docs/AI_PROVIDERS.md; Matt, 2026-10-29: "Add support for aster 6 and other Ai models
+/// as plugins in addition to claude like openAI google gemini etc"): [ClaudeApi] is the seam's [AiProvider], the one
+/// whose shape the others translate into, so it streams, checks and lists exactly as it did. [ClaudeApi.models] is
+/// the one thing added: the models the key may ask, read for the seam, which Claude's own page does not use (it
+/// offers its three, lib/claude/claude_settings.dart `claudeModels`).
 library;
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../assistant/provider.dart';
 import 'sse.dart';
+
+export '../assistant/ai_call.dart' show AiCall, AiCancelled, AiError;
 
 /// Where the API is.
 const String claudeApiBase = 'https://api.anthropic.com/v1';
@@ -19,43 +28,15 @@ const String claudeApiBase = 'https://api.anthropic.com/v1';
 /// The API's version header.
 const String claudeApiVersion = '2023-06-01';
 
-/// Something the API answered with instead of a stream, or the network's failure, in words a person reads.
-class ClaudeError implements Exception {
-  const ClaudeError(this.message, {this.status, this.type});
+/// Something the API answered with instead of a stream, or the network's failure, in words a person reads: the
+/// seam's own error (lib/assistant/ai_call.dart [AiError]), by the name Claude's code has always used.
+typedef ClaudeError = AiError;
 
-  final String message;
+/// A request stopped by [ClaudeCall.cancel] ([AiCancelled]).
+typedef ClaudeCancelled = AiCancelled;
 
-  /// The HTTP status, or null for no answer at all.
-  final int? status;
-
-  /// The API's error type (`authentication_error`, `overloaded_error`, ...), when it said one.
-  final String? type;
-
-  /// Whether the key was refused.
-  bool get badKey => status == 401 || type == 'authentication_error';
-
-  @override
-  String toString() => message;
-}
-
-/// A request stopped by [ClaudeCall.cancel].
-class ClaudeCancelled implements Exception {
-  const ClaudeCancelled();
-
-  @override
-  String toString() => 'Stopped.';
-}
-
-/// One streamed request: its events, and the way to stop it.
-class ClaudeCall {
-  ClaudeCall(this.events, this._cancel);
-
-  /// The server's events in order, ending with the stream or with an error ([ClaudeError], [ClaudeCancelled]).
-  final Stream<SseEvent> events;
-  final void Function() _cancel;
-
-  void cancel() => _cancel();
-}
+/// One streamed request: its events, and the way to stop it ([AiCall]).
+typedef ClaudeCall = AiCall;
 
 /// The words of a failed answer: the API's own `error.message` where its body has one.
 ClaudeError errorOf(int status, String body) {
@@ -80,7 +61,7 @@ ClaudeError errorOf(int status, String body) {
 }
 
 /// The API, with one key.
-class ClaudeApi {
+class ClaudeApi implements AiProvider {
   ClaudeApi({required this.key, HttpClient Function()? client}) : _client = client ?? HttpClient.new;
 
   final String key;
@@ -95,6 +76,7 @@ class ClaudeApi {
   }
 
   /// Streams one Messages request ([body] is the request as the API takes it; `stream` is set here).
+  @override
   ClaudeCall stream(Map<String, Object?> body) => streamWith(body);
 
   /// [stream], with the betas the request opts into in its `anthropic-beta` header (a meeting's write-up asks for
@@ -168,6 +150,7 @@ class ClaudeApi {
   }
 
   /// Whether the key works: null when it does, else what is wrong. One small read of the models the key may use.
+  @override
   Future<ClaudeError?> check() async {
     final client = _client();
     try {
@@ -180,6 +163,34 @@ class ClaudeApi {
       return const ClaudeError('Claude took too long to answer.');
     } catch (_) {
       return const ClaudeError('Claude could not be reached. Check the connection.');
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// The models the key may ask (`GET /v1/models`), newest first as the API lists them, by their display names.
+  @override
+  Future<List<AiModelInfo>> models() async {
+    final client = _client();
+    try {
+      final request = await client.getUrl(Uri.parse('$claudeApiBase/models?limit=100')).timeout(const Duration(seconds: 15));
+      _headers(request);
+      final answer = await request.close().timeout(const Duration(seconds: 15));
+      final text = await utf8.decodeStream(answer);
+      if (answer.statusCode != 200) throw errorOf(answer.statusCode, text);
+      final json = jsonDecode(text);
+      final data = json is Map ? json['data'] : null;
+      return [
+        if (data is List)
+          for (final model in data)
+            if (model is Map && model['id'] is String) AiModelInfo(model['id'] as String, name: model['display_name'] as String?),
+      ];
+    } on TimeoutException {
+      throw const ClaudeError('Claude took too long to answer.');
+    } on ClaudeError {
+      rethrow;
+    } catch (_) {
+      throw const ClaudeError('Claude could not be reached. Check the connection.');
     } finally {
       client.close(force: true);
     }

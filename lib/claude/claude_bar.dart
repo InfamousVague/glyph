@@ -45,13 +45,13 @@ class _ClaudeBarState extends State<ClaudeBar> {
           if (saying.isNotEmpty) {
             words = saying.length > 140 ? '…${saying.substring(saying.length - 139)}' : saying;
           } else if (at != null) {
-            words = 'Claude is ${at.doing} ${at.title.isEmpty ? 'a note' : at.title}';
+            words = '${widget.runner.speaker} is ${at.doing} ${at.title.isEmpty ? 'a note' : at.title}';
           } else {
-            words = 'Claude is thinking';
+            words = '${widget.runner.speaker} is thinking';
           }
         } else {
           words = switch (run.state) {
-            ClaudeState.failed => run.problem ?? 'Claude stopped with an error.',
+            ClaudeState.failed => run.problem ?? '${widget.runner.speaker} stopped with an error.',
             ClaudeState.stopped => 'Stopped.',
             _ => run.answer.isEmpty ? 'Done.' : run.answer.split('\n').firstWhere((line) => line.trim().isNotEmpty, orElse: () => 'Done.'),
           };

@@ -38,9 +38,42 @@ const Map<String, String> setupVoice = {
   'claude-done-simple': 'You’re set. Claude is on the dock of every page now.',
 };
 
-/// The words for [name] (`lovart-paste`): Simple's shorter ones where [simple] and there are some. Empty for a name
-/// with none, which the tests do not let ship.
-String setupWords(String name, {bool simple = false}) => (simple ? setupVoice['$name-simple'] : null) ?? setupVoice[name] ?? '';
+/// Words shown as captions and never said (Matt, 2026-10-29: the AI providers' setups, "leave voice clips out,
+/// captions only"; docs/AI_PROVIDERS.md): the same `<plugin>-<step>` names as [setupVoice], kept apart so the clips'
+/// test (test/plugins/onboarding/setup_voice_test.dart) asks no clip of them and the sheet plays none.
+const Map<String, String> setupCaptions = {
+  // ---- OpenAI (lib/plugins/openai/openai.dart) -----------------------------------------------------------------------
+  'openai-intro': 'OpenAI’s models answer with your own OpenAI API key, and OpenAI bills the key for what you ask. In Ghost they answer from the dock on any page, write into your notes as you watch, and can write your meetings up.',
+  'openai-intro-simple': 'OpenAI’s models answer with your own OpenAI API key, and OpenAI bills the key.',
+  'openai-account': 'First, an OpenAI account for its API: open the OpenAI platform and sign up, or sign in. The API is billed apart from ChatGPT: add credit under Billing before it can answer.',
+  'openai-key': 'Now a key. Open API keys, press Create new secret key, and give it a name, such as Ghost. Copy it straight away: it is shown only once.',
+  'openai-paste': 'Paste the key here. It starts with sk-. It’s kept in this device’s secure storage, and sealed to your other devices while keys and connections sync.',
+  'openai-paste-simple': 'Paste the key here. It starts with sk-, and it’s kept safely on this device.',
+  'openai-check': 'Ghost asks OpenAI whether the key works, with the list of models it may use, and nothing is billed for it. That list is where the model is chosen from.',
+  'openai-done': 'You’re set. Two settings matter most, and both can be changed any time on OpenAI’s page; which AI answers the dock is chosen in Settings › AI.',
+  'openai-done-simple': 'You’re set. OpenAI answers from the dock when no other AI is set up.',
+  // ---- Gemini (lib/plugins/gemini/gemini.dart) -----------------------------------------------------------------------
+  'gemini-intro': 'Google’s Gemini models answer with your own Gemini API key. In Ghost they answer from the dock on any page, write into your notes as you watch, and can write your meetings up. Google bills the key once its project has billing on; without it, the free tier has a daily limit.',
+  'gemini-intro-simple': 'Google’s Gemini models answer with your own Gemini API key, from Google AI Studio.',
+  'gemini-account': 'First, Google AI Studio: open it and sign in with your Google account.',
+  'gemini-key': 'Now a key. Open API keys in AI Studio, press Create API key, and pick or make a project for it. Copy it.',
+  'gemini-paste': 'Paste the key here. It starts with AIza. It’s kept in this device’s secure storage, and sealed to your other devices while keys and connections sync.',
+  'gemini-paste-simple': 'Paste the key here. It starts with AIza, and it’s kept safely on this device.',
+  'gemini-check': 'Ghost asks Google whether the key works, with the list of models it may use, and nothing is billed for it. That list is where the model is chosen from.',
+  'gemini-done': 'You’re set. Two settings matter most, and both can be changed any time on Gemini’s page; which AI answers the dock is chosen in Settings › AI.',
+  'gemini-done-simple': 'You’re set. Gemini answers from the dock when no other AI is set up.',
+  // ---- Custom AI model (lib/plugins/custom_ai/custom_ai.dart) -----------------------------------------------------
+  'custom-ai-intro': 'Any model with an OpenAI-compatible endpoint, which most providers offer: OpenRouter, Mistral, Groq or DeepSeek, or LM Studio and Ollama on your own computer. You need its address, a key if it asks for one, and the model’s name.',
+  'custom-ai-intro-simple': 'Any model with an OpenAI-compatible endpoint: its address, a key if it needs one, and the model’s name.',
+  'custom-ai-paste': 'Paste the endpoint’s address, which usually ends in /v1, and its key if it has one. On your own computer, LM Studio’s is http://localhost:1234/v1 and Ollama’s http://localhost:11434/v1, with no key.',
+  'custom-ai-check': 'Ghost asks the endpoint for its list of models. Nothing is billed for it, and the list is where the model is chosen from. An endpoint with no list is fine: type the model’s name next.',
+  'custom-ai-done': 'Choose the model, or type its name as the endpoint knows it. Meeting summaries can be turned on or off here too.',
+};
+
+/// The words for [name] (`lovart-paste`): Simple's shorter ones where [simple] and there are some, from [setupVoice]
+/// or [setupCaptions]. Empty for a name with none, which the tests do not let ship.
+String setupWords(String name, {bool simple = false}) =>
+    (simple ? setupVoice['$name-simple'] ?? setupCaptions['$name-simple'] : null) ?? setupVoice[name] ?? setupCaptions[name] ?? '';
 
 /// Where [name]'s voice would be, once tool/plugin_setup_voice.py has made it.
 String setupVoiceAsset(String name) => 'assets/plugin-setup/$name.mp3';

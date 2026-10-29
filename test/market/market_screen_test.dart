@@ -116,7 +116,7 @@ void main() {
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNWidgets(themes.length));
       expect(find.byType(MarketFontCard, skipOffstage: false), findsNWidgets(typefaces.length));
       expect(onShelf(tester, 'added'), ['claude', 'github', 'google-meet', 'notion', 'zoom', 'marks', 'rich-embeds']);
-      expect(onShelf(tester, 'discover'), ['elevenlabs', 'lovart', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks']);
+      expect(onShelf(tester, 'discover'), ['custom-ai', 'elevenlabs', 'gemini', 'lovart', 'openai', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks']);
       expect(find.text('7 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
@@ -154,7 +154,8 @@ void main() {
     testWidgets('the search filters every shelf at once, and a search that leaves nothing has the way back', (tester) async {
       await pumpMarket(tester);
       await search(tester, 'google');
-      expect(find.byType(MarketPluginCard, skipOffstage: false), findsNWidgets(2));
+      expect(find.byType(MarketPluginCard, skipOffstage: false), findsNWidgets(3));
+      expect(card('gemini'), findsOneWidget);
       expect(card('calendar'), findsOneWidget);
       expect(card('google-meet'), findsOneWidget);
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNothing);

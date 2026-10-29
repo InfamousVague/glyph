@@ -102,6 +102,52 @@
       "link": "ghostmd://market/plugin/claude"
     },
     {
+      "id": "custom-ai",
+      "name": "Custom AI model",
+      "line": "Any OpenAI-compatible endpoint, by its address",
+      "description": "Any model behind an OpenAI-compatible endpoint, which most providers offer: OpenRouter, Mistral, Groq or DeepSeek, or LM Studio and Ollama on your own computer. Give its address, its key and the model’s name, and it answers in the dock and writes meetings up where you let it.",
+      "category": "ai",
+      "icon": "network",
+      "mark": null,
+      "hue": "indigo",
+      "colours": [
+        "#4f5bd5",
+        "#8c95ff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Your own endpoint’s model in the dock’s chat, where Settings › AI chooses it or no other AI is set up",
+        "Ghost.md’s tools, for a model that takes them",
+        "Meeting summaries written by it, where you let it",
+        "A monthly spending limit, at the prices you set"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Asked here, it reads, makes and changes your notes on this device as you watch.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "What you ask, the notes it reads to answer, and with meeting summaries on a meeting’s transcript, go from this device to the address you give, under your key, and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/custom-ai"
+    },
+    {
       "id": "elevenlabs",
       "name": "ElevenLabs",
       "line": "Your notes, read aloud in the voice you choose",
@@ -146,6 +192,54 @@
       "author": "Ghost.md",
       "version": "1.0.0",
       "link": "ghostmd://market/plugin/elevenlabs"
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "line": "Google’s Gemini, with your own key",
+      "description": "Ask Google’s Gemini models in the app with your own Gemini API key: from the dock on any page, writing into your notes as you watch, and writing your meetings up where you let it.",
+      "category": "ai",
+      "icon": "wand-sparkles",
+      "mark": null,
+      "hue": "blue",
+      "colours": [
+        "#0a6fe0",
+        "#4ea1ff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Gemini in the dock’s chat, where Settings › AI chooses it or no other AI is set up",
+        "The same tools Claude has: read, make and change your notes as you watch",
+        "Meeting summaries written by Gemini, where you let it",
+        "A monthly spending limit of its own"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Asked here, it reads, makes and changes your notes on this device as you watch.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "What you ask, the notes it reads to answer, and with meeting summaries on a meeting’s transcript, go from this device to Google with your key, and nowhere else. It talks to generativelanguage.googleapis.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "generativelanguage.googleapis.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/gemini"
     },
     {
       "id": "lovart",
@@ -194,6 +288,54 @@
       "author": "Ghost.md",
       "version": "1.0.0",
       "link": "ghostmd://market/plugin/lovart"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "line": "OpenAI’s models, with your own key",
+      "description": "Ask OpenAI’s models in the app with your own OpenAI API key: from the dock on any page, writing into your notes as you watch, and writing your meetings up where you let it.",
+      "category": "ai",
+      "icon": "brain",
+      "mark": null,
+      "hue": "green",
+      "colours": [
+        "#2a9d4b",
+        "#4cd571"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "OpenAI in the dock’s chat, where Settings › AI chooses it or no other AI is set up",
+        "The same tools Claude has: read, make and change your notes as you watch",
+        "Meeting summaries written by OpenAI, where you let it",
+        "A monthly spending limit of its own"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Asked here, it reads, makes and changes your notes on this device as you watch.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "What you ask, the notes it reads to answer, and with meeting summaries on a meeting’s transcript, go from this device to OpenAI with your key, and nowhere else. It talks to api.openai.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "api.openai.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/openai"
     },
     {
       "id": "calendar",
@@ -3304,6 +3446,16 @@
       "M15 13v2",
       "M9 13v2"
     ],
+    "brain": [
+      "M12 18V5",
+      "M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4",
+      "M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5",
+      "M17.997 5.125a4 4 0 0 1 2.526 5.77",
+      "M18 18a4 4 0 0 0 2-7.464",
+      "M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517",
+      "M6 18a4 4 0 0 1-2-7.464",
+      "M6.003 5.125a4 4 0 0 0-2.526 5.77"
+    ],
     "calendar-days": [
       "M8 2v3",
       "M16 2v3",
@@ -3380,6 +3532,13 @@
     "message-square": [
       "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
     ],
+    "network": [
+      "M17 16H21A1 1 0 0 1 22 17V21A1 1 0 0 1 21 22H17A1 1 0 0 1 16 21V17A1 1 0 0 1 17 16Z",
+      "M3 16H7A1 1 0 0 1 8 17V21A1 1 0 0 1 7 22H3A1 1 0 0 1 2 21V17A1 1 0 0 1 3 16Z",
+      "M10 2H14A1 1 0 0 1 15 3V7A1 1 0 0 1 14 8H10A1 1 0 0 1 9 7V3A1 1 0 0 1 10 2Z",
+      "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3",
+      "M12 12V8"
+    ],
     "palette": [
       "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z",
       "M13 6.5A0.5 0.5 0 1 0 14 6.5A0.5 0.5 0 1 0 13 6.5Z",
@@ -3455,6 +3614,16 @@
       "M16 3.128a4 4 0 0 1 0 7.744",
       "M22 21v-2a4 4 0 0 0-3-3.87",
       "M5 7A4 4 0 1 0 13 7A4 4 0 1 0 5 7Z"
+    ],
+    "wand-sparkles": [
+      "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72",
+      "m14 7 3 3",
+      "M5 6v4",
+      "M19 14v4",
+      "M10 2v2",
+      "M7 8H3",
+      "M21 16h-4",
+      "M11 3H9"
     ],
     "x": [
       "M18 6 6 18",

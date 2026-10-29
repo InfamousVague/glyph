@@ -90,11 +90,15 @@ class _ClaudeDockButtonState extends State<ClaudeDockButton> with SingleTickerPr
     final working = widget.runner.working;
     final online = widget.follow?.ais ?? const [];
     final at = widget.runner.run?.at;
+    // Whoever answers (docs/AI_PROVIDERS.md): Claude, or another provider, the AI assistant's chat all the same.
+    final speaker = widget.runner.speaker;
     final label = working
-        ? 'Claude is ${at == null ? 'working' : '${at.doing} ${at.title.isEmpty ? 'a note' : at.title}'}. Open Ask Claude.'
+        ? '$speaker is ${at == null ? 'working' : '${at.doing} ${at.title.isEmpty ? 'a note' : at.title}'}. Open ${speaker == 'Claude' ? 'Ask Claude' : 'the AI assistant'}.'
         : online.isNotEmpty
             ? '${online.map((ai) => '${ai.name} is ${ai.words}').join(', ')}. Ask Claude.'
-            : 'Ask Claude';
+            : speaker == 'Claude'
+                ? 'Ask Claude'
+                : 'Ask the AI assistant ($speaker)';
     return GlacierPressable(
       key: const ValueKey('dock-claude'),
       onPressed: widget.onPressed,

@@ -19,7 +19,11 @@ import 'package:ghost_md/account/keystore.dart';
 import 'package:ghost_md/account/session.dart';
 import 'package:ghost_md/ai/summary_claude.dart' show MeetingClaude;
 import 'package:ghost_md/ai/summary_handoff.dart';
+import 'package:ghost_md/assistant/assistant.dart';
+import 'package:ghost_md/assistant/provider.dart' show AiRates;
+import 'package:ghost_md/assistant/provider_settings.dart';
 import 'package:ghost_md/claude/claude_settings.dart';
+import 'package:ghost_md/claude/claude_spend.dart' show ClaudeUsage;
 import 'package:ghost_md/core/kept_workspaces.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -37,6 +41,7 @@ import 'package:ghost_md/plugins/elevenlabs/manifest.dart' as eleven show apiKey
 import 'package:ghost_md/plugins/lovart/lovart.dart' show lovartPlugin;
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart show accessKeySecret, manifest, secretKeySecret;
 import 'package:ghost_md/plugins/meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
+import 'package:ghost_md/plugins/openai/openai.dart' show openAiPlugin;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/slack/channels.dart' show channels;
@@ -96,14 +101,20 @@ class KeysDevice {
     lovartHost = createHost(lovart.manifest, ground: ground);
     elevenHost = createHost(eleven.manifest, ground: ground);
     discordHost = createHost(discord.manifest, ground: ground);
-    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin, googleMeetPlugin, zoomPlugin, elevenLabsPlugin], store: MemorySwitches());
+    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin, googleMeetPlugin, zoomPlugin, elevenLabsPlugin, openAiPlugin], store: MemorySwitches());
     claude = ClaudeSettings(claudeStore);
+    // The other AI providers' settings and the assistant's choices, this device's own (docs/AI_PROVIDERS.md).
+    openAi = AiProviderSettings(aiStore, prefix: 'openai', name: 'OpenAI');
+    custom = AiProviderSettings(aiStore, prefix: 'custom-ai', name: 'Custom AI model', needsBase: true, keyOptional: true);
+    assistant = AssistantChoice(store: aiStore, claude: claude, claudeOn: () => registry.switchedOn('claude'), others: [
+      AiPlugged(id: 'openai', name: 'OpenAI', settings: openAi, switchedOn: () => registry.switchedOn('openai'), client: (settings, {key}) => throw UnimplementedError()),
+    ]);
     sealed = keys
         ? SealedKeys(
-            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, elevenHost: elevenHost, registry: () => registry, platform: platform),
+            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, elevenHost: elevenHost, registry: () => registry, platform: platform, providers: [openAi, custom], assistant: assistant),
             prefs: prefs,
             device: () => id,
-            heard: connectionChanges(claude: claude, registry: () => registry),
+            heard: connectionChanges(claude: claude, registry: () => registry, assistant: assistant),
             on: on,
             kept: kept,
             now: () => clock,
@@ -141,6 +152,10 @@ class KeysDevice {
   final MemoryStored kept = MemoryStored();
   final PreferencesStore prefs = PreferencesStore();
   final MemorySecureStore claudeStore = MemorySecureStore();
+  final MemorySecureStore aiStore = MemorySecureStore();
+  late final AiProviderSettings openAi;
+  late final AiProviderSettings custom;
+  late final AssistantChoice assistant;
   final ValueNotifier<bool> on = ValueNotifier<bool>(true);
   final List<String> sent = [];
   late final PluginGround ground;
@@ -248,6 +263,57 @@ void main() {
     await mac.sync();
     await fold.sync();
     expect([...mac.sent, ...fold.sent], isEmpty);
+  });
+
+  test('another AI provider’s key, model, address, switches, prices and limit travel, with the assistant’s choices, and its count stays', () async {
+    // Matt, 2026-10-29: "Add support for aster 6 and other Ai models as plugins in addition to claude like openAI google
+    // gemini etc": each provider's key is kept and sealed as Claude's is (lib/assistant/provider_settings.dart).
+    const openAiKey = 'sk-proj-FOLD-0123456789abcdefghij';
+    final fold = KeysDevice(service, 'fold-1');
+    final mac = KeysDevice(service, 'mac-1');
+    await fold.openAi.load();
+    await fold.openAi.setKey(openAiKey);
+    await fold.openAi.setModel('gpt-test');
+    await fold.openAi.setMeetings(false);
+    await fold.openAi.setTools(false);
+    await fold.openAi.setRates(const AiRates(input: 1.5, output: 6));
+    await fold.openAi.spend.setOn(true);
+    await fold.openAi.spend.setLimit(15);
+    fold.openAi.spend.record('gpt-test', _million());
+    await fold.custom.load();
+    await fold.custom.setBaseUrl('openrouter.ai/api/v1/');
+    await fold.custom.setModel('mistralai/mistral-small');
+    await fold.assistant.load();
+    await fold.assistant.setChat('openai');
+    await fold.assistant.setMeetings(assistantDevice);
+    fold.registry.setEnabled('openai', true);
+    await fold.sync();
+
+    await mac.openAi.load();
+    await mac.custom.load();
+    await mac.assistant.load();
+    expect(mac.openAi.hasKey, isFalse);
+    await mac.sync();
+    expect((mac.openAi.key, mac.openAi.model, mac.openAi.meetings, mac.openAi.tools), (openAiKey, 'gpt-test', false, false));
+    expect(mac.openAi.rates, const AiRates(input: 1.5, output: 6));
+    expect((mac.openAi.spend.on, mac.openAi.spend.limit), (true, 15.0));
+    expect(mac.openAi.spend.requests, 0, reason: 'each device counts its own');
+    expect(await mac.aiStore.read('openai-api-key'), openAiKey, reason: 'in the secure store, where the code reads it');
+    expect((mac.custom.baseUrl, mac.custom.model), ('https://openrouter.ai/api/v1', 'mistralai/mistral-small'));
+    expect((mac.assistant.chat, mac.assistant.meetings), ('openai', assistantDevice));
+    expect(mac.registry.switchedOn('openai'), isTrue);
+    expect(mac.assistant.chatBy, 'openai');
+    // Sealed: not a word of the key in what was sent, nor in what either device keeps in the clear.
+    expect([...fold.sent, ...mac.sent].where((body) => body.contains(openAiKey)), isEmpty);
+    expect(mac.inTheClear().contains(openAiKey), isFalse);
+
+    // Forgotten on the Mac, forgotten on the Fold.
+    mac.clock = 2000;
+    await mac.openAi.setKey(null);
+    await mac.sync();
+    fold.clock = 3000;
+    await fold.sync();
+    expect(fold.openAi.hasKey, isFalse);
   });
 
   test('a spending limit set before this build travels, and a count never does', () async {
@@ -711,3 +777,6 @@ class _Queue implements HandoffQueue {
   @override
   void handedOff(String id) {}
 }
+
+/// A million tokens in and out, for a count that must stay on its device.
+ClaudeUsage _million() => ClaudeUsage(input: 1000000, output: 1000000);

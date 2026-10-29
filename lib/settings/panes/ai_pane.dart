@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../assistant/app_assistant.dart' show appAssistant;
+import '../../assistant/assistant.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -15,6 +17,7 @@ import 'settings_host.dart';
 const List<SettingsFindable> aiFindable = [
   SettingsFindable('Model', 'ai llm download formatting format enhance summarize choose your qwen gemma storage remove'),
   SettingsFindable('Fill blanks on their own', 'auto fill blanks automatic weather live facts idle'),
+  SettingsFindable('Assistant', 'assistant ai chat ask dock claude openai gpt gemini google custom openrouter ollama lm studio meeting summaries provider which model'),
 ];
 
 /// A model in the catalogue (core/ai.ts `ModelChoice`).
@@ -66,8 +69,17 @@ String aiSummary(Preferences prefs, SettingsModelsState? state) {
 /// is [SettingsFeatures.models], which is null until then and reads as nothing downloaded; **Get cannot be pressed
 /// until [SettingsFeatures.onGetModel] is given**, and Remove runs [SettingsFeatures.onRemoveModel]. Nothing here
 /// runs a model.
+///
+/// **Assistant** (docs/AI_PROVIDERS.md, "The assistant"; Matt, 2026-10-29: "Add support for aster 6 and other Ai models
+/// as plugins in addition to claude like openAI google gemini etc"): which AI answers the dock's chat and Ask, and
+/// which writes meetings up, each Automatic unless chosen (lib/assistant/assistant.dart): Claude where it can, else the
+/// first other provider set up, else nobody for the chat and this device's model for meetings. Each row says whether
+/// that one can answer now.
 class AiPane extends StatefulWidget {
-  const AiPane({super.key, this.store, this.features = const SettingsFeatures(), this.android});
+  const AiPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.assistant});
+
+  /// Which AI does what; the app's own when null.
+  final AssistantChoice? assistant;
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -172,9 +184,90 @@ class _AiPaneState extends State<AiPane> {
                 ),
               ],
             ),
+            AssistantSection(choice: widget.assistant ?? appAssistant),
           ],
         );
       },
+    );
+  }
+}
+
+/// Settings › AI › Assistant (see [AiPane]).
+class AssistantSection extends StatefulWidget {
+  const AssistantSection({super.key, required this.choice});
+
+  final AssistantChoice choice;
+
+  @override
+  State<AssistantSection> createState() => _AssistantSectionState();
+}
+
+class _AssistantSectionState extends State<AssistantSection> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(widget.choice.load());
+  }
+
+  /// Whether [id] can answer the chat now, or write meetings up, in a few words.
+  String _state(String id, {required bool meetings}) {
+    final choice = widget.choice;
+    if (id == claudeAssistantId) {
+      if (!choice.claudeOn()) return 'Off: add Claude in the Market.';
+      if (!choice.claude.hasKey) return 'Needs its key: Settings › Claude.';
+      if (meetings && !choice.claude.meetings) return 'Its Write meeting summaries with Claude is off.';
+      return 'Ready.';
+    }
+    final other = choice.other(id);
+    if (other == null) return '';
+    if (!other.allowed()) return 'Off: add ${other.name} in the Market.';
+    if (!other.settings.ready) return 'Needs setting up: Settings › ${other.name}.';
+    if (meetings && !other.settings.meetings) return 'Its Write meeting summaries with ${other.name} is off.';
+    return 'Ready: ${other.settings.model}.';
+  }
+
+  List<Widget> _picks({required String chosen, required List<(String, String)> choices, required bool meetings, required void Function(String id) pick}) {
+    final choice = widget.choice;
+    final auto = meetings ? choice.autoMeetingsBy : choice.autoChatBy;
+    final now = chosen == assistantAuto ? 'Now' : 'Would be';
+    return [
+      for (final (id, name) in choices)
+        SettingRow(
+          key: ValueKey('assistant-${meetings ? 'meetings' : 'chat'}:$id'),
+          label: name,
+          hint: Text(switch (id) {
+            assistantAuto => auto == null ? (meetings ? '$now: this device’s own model.' : '$now: nobody. Set up Claude or another AI to talk to it.') : '$now: ${choice.nameOf(auto)}.',
+            assistantDevice => 'The summary model on your device, and nothing of a meeting leaves it.',
+            _ => _state(id, meetings: meetings),
+          }),
+          control: Pick(checked: chosen == id, label: '${meetings ? 'Meetings by' : 'Chat with'} $name', onPress: () => pick(id)),
+        ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final choice = widget.choice;
+    return ListenableBuilder(
+      listenable: choice,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: context.tokens.space(4),
+        children: [
+          PaneSection(
+            title: 'Assistant',
+            description: const Text('Which AI answers the dock’s chat and Ask. Automatic is Claude where it can answer, else the first other AI you have set up.'),
+            footer: const Text('Each one you set up sends what you ask, and the notes it reads to answer, from this device to its provider under your own key. A chosen one that can’t answer just now (its key forgotten, its plugin off) lets Automatic stand in.'),
+            children: _picks(chosen: choice.chat, choices: choice.chatChoices, meetings: false, pick: (id) => unawaited(choice.setChat(id))),
+          ),
+          PaneSection(
+            title: 'Meeting summaries',
+            description: const Text('Which AI writes your meetings up. Automatic is Claude where it may, else the first other AI allowed to, else the summary model on your device.'),
+            children: _picks(chosen: choice.meetings, choices: choice.meetingsChoices, meetings: true, pick: (id) => unawaited(choice.setMeetings(id))),
+          ),
+        ],
+      ),
     );
   }
 }

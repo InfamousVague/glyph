@@ -20,6 +20,13 @@
 /// none is sent once the month's limit is reached: a run asked then fails at once with [claudeLimitMessage], and one
 /// that crosses it in the request it is in finishes that request (its tools answered) and starts no other, ending
 /// with the same words. "Warn me at 80%" is a `notice` step, once a month.
+///
+/// **Whoever answers** (docs/AI_PROVIDERS.md; Matt, 2026-10-29: "Add support for aster 6 and other Ai models as
+/// plugins in addition to claude like openAI google gemini etc"): [ClaudeRun.api] is the seam's [AiStreamer], Claude's
+/// client or another provider's, each of which takes the request in the Messages API's shape and streams its answer in
+/// the API's events (lib/assistant/provider.dart). So this loop, its tools and its typing are every provider's. Two
+/// things are for the others: [ClaudeRun.tools] off sends no tools (a model the person says has none), and a
+/// `ghost_notice` event (a model that refused the tools, asked again without them) is a `notice` step.
 library;
 
 import 'dart:async';
@@ -27,6 +34,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../assistant/provider.dart' show AiStreamer, aiNoticeEvent;
 import '../editor/editor.dart' show EditorViewLike;
 import 'claude_books.dart';
 import 'claude_folders.dart';
@@ -103,10 +111,15 @@ class ClaudeRun extends ChangeNotifier {
     this.system,
     this.maxTokens = 16000,
     this.spend,
+    this.tools = true,
     List<Map<String, Object?>>? history,
   }) : _messages = [...?history];
 
-  final ClaudeApi api;
+  /// Claude's client ([ClaudeApi]) or another provider's (see the header).
+  final AiStreamer api;
+
+  /// Whether the tools are offered: always for Claude; off for another provider's model that has none.
+  final bool tools;
   final String model;
 
   /// The effort to ask for (`output_config.effort`), or null for the model's own.
@@ -305,7 +318,7 @@ class ClaudeRun extends ChangeNotifier {
       'thinking': ?thinking,
       if (effort != null) 'output_config': {'effort': effort},
       if (system != null) 'system': system,
-      'tools': [...claudeTools, if (folders != null) ...claudeFolderTools, if (books != null) ...claudeBookTools],
+      if (tools) 'tools': [...claudeTools, if (folders != null) ...claudeFolderTools, if (books != null) ...claudeBookTools],
       'messages': _messages,
     });
     final call = _call = spend == null ? asked : meterClaude(asked, model: model, spend: spend);
@@ -398,6 +411,12 @@ class ClaudeRun extends ChangeNotifier {
         case 'message_delta':
           final delta = data['delta'];
           if (delta is Map && delta['stop_reason'] is String) stop = delta['stop_reason'] as String;
+        case aiNoticeEvent:
+          final words = data['words'];
+          if (words is String && words.isNotEmpty) {
+            _steps.add(ClaudeStep(kind: 'notice', words: words));
+            notifyListeners();
+          }
         case 'error':
           final error = data['error'];
           failure ??= ClaudeError(error is Map ? (error['message'] as String? ?? 'Claude stopped with an error.') : 'Claude stopped with an error.', type: error is Map ? error['type'] as String? : null);

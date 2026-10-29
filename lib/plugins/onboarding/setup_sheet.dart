@@ -257,7 +257,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
     final problems = <String, String>{};
     for (final field in step.fields) {
       final text = _field(step, field).text.trim();
-      final problem = text.isEmpty ? 'Paste the ${field.label.toLowerCase()} here first.' : field.shape?.call(text);
+      final problem = text.isEmpty ? (field.optional ? null : 'Paste the ${field.label.toLowerCase()} here first.') : field.shape?.call(text);
       if (problem != null) problems[field.id] = problem;
       values[field.id] = text;
     }
@@ -368,7 +368,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
     };
 
     final (String label, VoidCallback? next) = switch (step) {
-      SetupPaste() => (_saving ? 'Keeping…' : 'Check', _saving || step.fields.any((f) => _field(step, f).text.trim().isEmpty) ? null : () => unawaited(_save(step))),
+      SetupPaste() => (_saving ? 'Keeping…' : 'Check', _saving || step.fields.any((f) => !f.optional && _field(step, f).text.trim().isEmpty) ? null : () => unawaited(_save(step))),
       SetupCheck() => _checking || _result == null ? ('Checking…', null) : (_result?.ok ?? false) ? ('Next', () => _go(index + 1)) : ('Check again', () => unawaited(_check())),
       SetupDone() => ('Done', _finish),
       _ => (index == 0 ? 'Start' : 'Next', () => _go(index + 1)),

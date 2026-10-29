@@ -87,6 +87,24 @@ A meeting filed on a device that can't write it up, say a Mac with no key and no
 
 Sorting follows the same AI. Once a meeting is written up, Claude reads it and files it into the Meetings folder of the workspace it is about. Meetings you filed yourself stay put. Turn this off with **Sort meetings into workspaces**, on the **Meetings** card in Settings › Recording.
 
+## Other AI models
+
+Claude isn't the only AI the app can ask. Three more plugins in the Market, each off until you add it, bring other models in with your own key: **OpenAI**, **Gemini** (Google's, with a key from Google AI Studio) and **Custom AI model**, for any model behind an OpenAI-compatible endpoint. Most providers offer one: OpenRouter, Mistral, Groq and DeepSeek among them, and LM Studio (`http://localhost:1234/v1`) or Ollama (`http://localhost:11434/v1`) on your own computer, with no key.
+
+Works on: Android, iPhone and the Mac. Each provider bills its own key.
+
+Each has a page in Settings and a short setup, as Claude's: an account, a key, **Check it works** (one look at the provider's list of models, which isn't billed), then your settings. The custom endpoint asks for its address and, if it has one, its key, and you choose or type the model's name. On each page:
+
+- **Your key** (for the custom endpoint, **The endpoint**): checked before it is kept, kept in the device's secure storage and sealed to your other devices, as Claude's is.
+- **Model**: read from the provider's own list. Where that list can't be read, a few the app knows are shown, marked as possibly out of date.
+- **Tools**: whether the model may read and write your notes as Claude does. A model that has no tools answers without them, and the chat says so once.
+- **Meeting summaries**: **Write meeting summaries with OpenAI** (or Gemini, or your custom model), on unless you turn it off.
+- **Spending limit**: as Claude's. The providers don't say their prices, so set your model's under **Prices**; until you do, a high guess is used, so the limit is reached early rather than late.
+
+What you ask, the notes it reads to answer, and with meeting summaries on a meeting's transcript, go from your device to that provider under your key, and nowhere else.
+
+**Which AI does what** is **Settings › AI › Assistant**. **Chat and Ask** is Automatic unless you choose: Claude where it can answer, else the first other AI you've set up. **Meeting summaries** is the same, or **On this device** to keep them on your device's own model. A choice that can't answer just now (its key forgotten, its plugin off) lets Automatic stand in. The chat names whoever answers. Claude's model and effort picker, its thinking shown as it goes, and the connector below stay Claude's own.
+
 ## From Claude's own apps
 
 The connector lets claude.ai, Claude Desktop and Claude Code reach your notes. It works with every version of Ghost.md, and needs a Ghost.md account. Claude sees what has synced, and what it writes reaches your devices at their next sync.

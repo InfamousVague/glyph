@@ -8,11 +8,21 @@
 /// (lib/claude/claude_run.dart), and the API refuses a block once anything sent before it has changed, the system
 /// prompt included. So a follow-up asked the next day, or after the "Claude rules" note was edited, is asked with the
 /// day and the rules the conversation started with; New chat takes the new ones.
+///
+/// **Another provider may answer** (docs/AI_PROVIDERS.md, "The assistant"; Matt, 2026-10-29: "Add support for aster 6
+/// and other Ai models as plugins in addition to claude like openAI google gemini etc"). Where the app gives a [route]
+/// (lib/assistant/assistant.dart, Settings › AI › Assistant) and it names a provider other than Claude, each ask is
+/// that provider's: its client, its model, its spending limit, its plugin's switch, the tools where its model takes
+/// them, and a system prompt that calls it "an AI assistant". Where it names none, or Claude, an ask is Claude's
+/// exactly as before. A conversation is one provider's: an ask after the answer moved to another starts afresh, since
+/// one provider cannot read another's turns (Claude's thinking blocks among them).
 library;
 
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+
+import '../assistant/assistant.dart' show AiRoute;
 
 import 'claude_books.dart' show ClaudeBooks;
 import 'claude_folders.dart';
@@ -33,11 +43,37 @@ const String claudeRulesTitle = 'Claude rules';
 ClaudeApi Function(String key)? debugClaudeApi;
 
 class ClaudeRunner extends ChangeNotifier {
-  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed, this.folders, this.books})
+  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed, this.folders, this.books, this.route, this.routeChanges, this.loadRoute})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
         _now = now ?? DateTime.now {
     settings.addListener(notifyListeners);
+    routeChanges?.addListener(notifyListeners);
   }
+
+  /// Who answers now where it is not Claude (see the header): another provider's route, or null for Claude's. None
+  /// given, every ask is Claude's.
+  final AiRoute? Function()? route;
+
+  /// Tells of a change in what [route] answers; heard as the settings are.
+  final Listenable? routeChanges;
+
+  /// Reads what [route] is read from, before an ask.
+  final Future<void> Function()? loadRoute;
+
+  /// Who answers now: the route's provider, or Claude.
+  AiRoute? get _route => route?.call();
+
+  /// The name of who answers: "Claude", or another provider's ("OpenAI").
+  String get speaker => _route?.name ?? 'Claude';
+
+  /// Whether Claude answers (rather than another provider).
+  bool get claudeAnswers => _route == null;
+
+  /// The model asked: Claude's chosen one, or the other provider's.
+  String get model => _route?.model ?? settings.model;
+
+  /// The provider of the conversation so far: `claude`, or another's id.
+  String _by = 'claude';
 
   final ClaudeSettings settings;
 
@@ -73,11 +109,12 @@ class ClaudeRunner extends ChangeNotifier {
 
   Future<void> _queue = Future<void>.value();
 
-  /// Whether Claude can be asked: a key is kept.
-  bool get ready => settings.hasKey;
+  /// Whether Claude can be asked: a key is kept. Or, where another provider answers, that it is set up.
+  bool get ready => _route?.by.settings.ready ?? settings.hasKey;
 
-  /// Whether this month's spending limit is reached, so an ask is refused (lib/claude/claude_spend.dart).
-  bool get limited => settings.spend.reached;
+  /// Whether this month's spending limit is reached, so an ask is refused (lib/claude/claude_spend.dart): the limit of
+  /// whoever answers.
+  bool get limited => (_route?.spend ?? settings.spend).reached;
 
   /// Asks Claude. In the sheet's conversation unless [alone] (the inbox's requests are each their own). Answers the
   /// run once it has started, which is after any run before it has ended. [desk] in place of the screen's, for a run
@@ -92,6 +129,9 @@ class ClaudeRunner extends ChangeNotifier {
   }
 
   Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk}) async {
+    await loadRoute?.call();
+    final other = _route;
+    if (other != null) return _startOther(other, prompt, started, alone: alone, extraSystem: extraSystem, desk: desk);
     if (!(allowed?.call() ?? true)) {
       started.completeError(const ClaudeError('Claude is switched off on this device. Add it in the Market.'));
       return;
@@ -106,6 +146,7 @@ class ClaudeRunner extends ChangeNotifier {
       started.completeError(claudeLimitError(settings.spend));
       return;
     }
+    _moveTo('claude');
     final kept = alone || _history.isEmpty ? null : _system;
     final String system;
     if (kept != null) {
@@ -161,7 +202,58 @@ class ClaudeRunner extends ChangeNotifier {
   @override
   void dispose() {
     settings.removeListener(notifyListeners);
+    routeChanges?.removeListener(notifyListeners);
     _run?.removeListener(notifyListeners);
     super.dispose();
+  }
+
+  /// The conversation moves to [by]: one begun with another provider is let go (see the header).
+  void _moveTo(String by) {
+    if (by == _by) return;
+    _by = by;
+    _history = const [];
+    _system = null;
+  }
+
+  /// [_start], for another provider (see the header).
+  Future<void> _startOther(AiRoute other, String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk}) async {
+    final provider = other.by.settings;
+    if (!other.by.allowed()) {
+      started.completeError(ClaudeError('${other.name} is switched off on this device. Add it in the Market.'));
+      return;
+    }
+    await provider.load();
+    if (!provider.ready) {
+      started.completeError(ClaudeError('Set up ${other.name} in Settings › ${other.name}.'));
+      return;
+    }
+    if (provider.spend.reached) {
+      started.completeError(claudeLimitError(provider.spend));
+      return;
+    }
+    _moveTo(other.id);
+    final kept = alone || _history.isEmpty ? null : _system;
+    final String system;
+    if (kept != null) {
+      system = kept;
+    } else {
+      String? rules;
+      try {
+        rules = (await notes.read(title: claudeRulesTitle))?.body;
+      } catch (_) {
+        rules = null;
+      }
+      system = [claudeSystem(now: _now(), rules: rules, folders: folders != null, books: books != null, who: 'an AI assistant'), ?extraSystem].join('\n\n');
+      if (!alone) _system = system;
+    }
+    final made = ClaudeRun(api: other.api(), model: other.model, notes: notes, desk: desk ?? this.desk, folders: folders, books: books, prompt: prompt, system: system, spend: provider.spend, tools: other.tools, history: alone ? null : _history);
+    _run?.removeListener(notifyListeners);
+    _run = made..addListener(notifyListeners);
+    if (!alone) conversation.add(made);
+    notifyListeners();
+    started.complete(made);
+    await made.run();
+    if (!alone) _history = made.messages;
+    notifyListeners();
   }
 }

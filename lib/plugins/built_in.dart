@@ -20,7 +20,8 @@
 /// reason the list is here. And the list is longer: the web's five, then the integrations the app has of its own,
 /// each made a plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): Calendar,
 /// Contacts, Rich embeds, Todoist and Things; then Lovart and Discord; then Google Meet and Zoom, which were Settings ›
-/// Meetings; then ElevenLabs. The app's own Claude is the Claude plugin's other half.
+/// Meetings; then ElevenLabs; then the other AI providers, OpenAI, Gemini and a custom OpenAI-compatible endpoint
+/// (docs/AI_PROVIDERS.md). The app's own Claude is the Claude plugin's other half.
 library;
 
 import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
@@ -28,13 +29,16 @@ import '../sync/arrived.dart' show onArrived;
 import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
+import 'custom_ai/custom_ai.dart' show customAiPlugin;
 import 'discord/discord.dart' show discordPlugin;
 import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
+import 'gemini/gemini.dart' show geminiPlugin;
 import 'github/github.dart' show githubPlugin;
 import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
 import 'notion/notion.dart' show notionPlugin;
+import 'openai/openai.dart' show openAiPlugin;
 import 'places/places.dart' show placesPlugin;
 import 'registry.dart';
 import 'rich_embeds/rich_embeds.dart' show richEmbedsPlugin;
@@ -69,6 +73,11 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-10-27: "Build a plugin for elevenlabs and allow creating voice overs of notes using elevenlabs with
   // several voices to choose from": Lovart's shape, for a note read aloud (elevenlabs/elevenlabs.dart).
   elevenLabsPlugin,
+  // Matt, 2026-10-29: "Add support for aster 6 and other Ai models as plugins in addition to claude like openAI google
+  // gemini etc": each a plugin of its own, off until added (docs/AI_PROVIDERS.md; lib/assistant/ is what they share).
+  openAiPlugin,
+  geminiPlugin,
+  customAiPlugin,
 ]);
 
 void Function()? _unhear;
