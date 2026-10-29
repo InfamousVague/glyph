@@ -16,6 +16,13 @@
   }
 }
 
+/* Read | Markdown over a note or a chapter (ReadToggle.tsx): at the top, on the right, out of the words' way. */
+.readRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: var(--glacier-space-4);
+}
+
 /* The banner across the top: the name, a word for the app, and the two ways to keep what's shared, small. */
 .banner {
   position: sticky;

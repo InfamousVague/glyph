@@ -38,13 +38,15 @@ interface MeetingReadProps {
   /** The share's id and key: where the recording is fetched from, and what opens it. */
   link: { id: string; key: string } | null;
   dark: boolean;
-  /** The note's words without the transcript, drawn by the reader page's own editor. */
+  /** The note's words without the transcript, drawn by the reader page (Read, or Markdown in its editor). */
   summary: ReactNode;
+  /** Read | Markdown (ReadToggle.tsx), beside Summary | Transcript and shown while the summary is. */
+  readToggle?: ReactNode;
   /** For the tests: what fetches the recording. */
   fetcher?: typeof fetch;
 }
 
-export function MeetingRead({ title, meeting, link, dark, summary, fetcher }: MeetingReadProps) {
+export function MeetingRead({ title, meeting, link, dark, summary, readToggle, fetcher }: MeetingReadProps) {
   const [view, setView] = useState<View>('summary');
   const audio = link && meeting.audio ? meeting.audio : null;
   const lengthMs = meeting.audio?.ms || meeting.ms;
@@ -56,6 +58,7 @@ export function MeetingRead({ title, meeting, link, dark, summary, fetcher }: Me
         {lengthMs > 0 ? ` · ${clock(lengthMs)}` : ''}
         {meeting.speakers.length ? ` · ${meeting.speakers.join(', ')}` : ''}
       </p>
+      <div className={styles.toggles}>
       <div className={styles.toggle}>
         <SegmentedControl
           aria-label="Summary or transcript"
@@ -68,6 +71,8 @@ export function MeetingRead({ title, meeting, link, dark, summary, fetcher }: Me
           value={view}
           onValueChange={(value) => setView(value as View)}
         />
+      </div>
+      {readToggle && view === 'summary' ? <div className={styles.readToggle}>{readToggle}</div> : null}
       </div>
       {audio && link ? (
         <Heard id={link.id} secret={link.key} title={title} meeting={meeting} lengthMs={lengthMs} dark={dark} view={view} summary={summary} fetcher={fetcher} />

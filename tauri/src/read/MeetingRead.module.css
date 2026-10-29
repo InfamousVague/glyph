@@ -26,8 +26,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+}
+
 .toggle {
+  flex: 1 1 14rem;
   max-inline-size: 22rem;
+}
+
+/* Read | Markdown: its own control beside Summary | Transcript, never one of its segments. */
+.readToggle {
+  flex: none;
+  margin-inline-start: auto;
 }
 
 /* The cassette beside its controls; on a phone, over them. */

@@ -171,6 +171,16 @@ read.html is a second Vite entry (`src/read/`). It is built only from the app's 
 
 Nothing on the page is drawn by code of its own, so a change to how the app draws a note or a notebook reaches it too.
 
+**Read | Markdown** (Matt, 2026-10-29: "make code view a segmented toggle that's off by default on the web preview
+page"): a note, a chapter and a meeting's summary open in **Read**, drawn as a page in the page's own type
+(`src/read/Rendered.tsx`): headings, lists, to-dos, tables, quotes, code, pictures from the share, links opening in a
+new tab (only `http:`, `https:` and `mailto:`), and `[[wiki links]]` opening the share's pages. It is parsed by the
+editor's own parser (`@lezer/markdown`, GFM, no setext headings) and drawn as React elements, never an HTML string, so
+a note's own HTML is shown as its text and nothing in it runs. **Markdown** is the editor, read-only, as above. The
+choice is the kit's segmented control, at the top right of a note or a chapter and beside Summary | Transcript on a
+meeting (while the summary shows), and is kept per browser in localStorage (`glyph-reader-view`); a browser that keeps
+nothing reads in Read. A notebook's index and a canvas are drawn as before.
+
 It follows the system's light or dark setting. A slim banner across the top, sticky, holds the name, "Get the app"
 (install.html beside it; on a phone the banner keeps only that link) and two small buttons for keeping what's shared:
 
