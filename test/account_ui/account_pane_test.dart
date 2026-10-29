@@ -12,7 +12,7 @@ import 'package:ghost_md/notes/workspace_swatch.dart';
 import 'package:ghost_md/settings/account_forms.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/account_pane.dart';
-import 'package:ghost_md/plugins/meetings/meetings.dart' show meetingPluginFindable;
+import 'package:ghost_md/settings/panes/recording_pane.dart' show recordingFindable;
 import 'package:ghost_md/settings/panes/settings_host.dart';
 import 'package:ghost_md/settings/settings_sections.dart';
 import 'package:ghost_md/sync/engine.dart';
@@ -170,7 +170,7 @@ void main() {
       final footer = find.text('Notes, their pictures, and your settings. Developer settings stay on each device.').evaluate().length;
       final spoken = find.textContaining('The model you downloaded').evaluate().length;
       final listed = accountFindable(signedIn: true, ported: true).map((found) => found.name).toList();
-      final onMeetings = meetingPluginFindable('meet', device.services).map((found) => found.name).toList();
+      final onRecording = recordingFindable(android: false, signedIn: true).map((found) => found.name).toList();
       debugDefaultTargetPlatformOverride = null;
       expect(switches, isNot(contains('Sync meeting recordings')));
       expect(switches, contains('Live typing'));
@@ -178,9 +178,9 @@ void main() {
       expect(spoken, 0);
       expect(listed, isNot(contains('Sync meeting recordings')));
       expect(listed, contains('Sync now'));
-      // The meeting plugins’ pages, where the switch is now, list it only where the device records.
-      expect(onMeetings, isNot(contains('Sync meeting recordings')));
-      expect(meetingPluginFindable('meet', device.services).map((found) => found.name), contains('Sync meeting recordings'));
+      // Settings › Recording's Meetings card, where the switch is now (22ffc160), lists it only where the device records.
+      expect(onRecording, isNot(contains('Sync meeting recordings')));
+      expect(recordingFindable(android: true, signedIn: true).map((found) => found.name), contains('Sync meeting recordings'));
       await endSettings(tester);
     });
 
