@@ -15,9 +15,11 @@ import 'package:ghost_md/notes/tabs/bar_parts.dart' show BarRing, BarWord;
 import 'package:ghost_md/notes/tabs/tab_parts.dart' show HomeTab;
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart' show AppTabBar;
+import 'package:ghost_md/shell/header/header_kit.dart' show HeaderGlyph;
 import 'package:ghost_md/shell/header_toolbar.dart';
+import 'package:ghost_md/shell/page_dock.dart' show dockScrolledScale;
 import 'package:ghost_md/shell/placeholders.dart';
-import 'package:glacier/glacier.dart' show GlacierPressable;
+import 'package:glacier/glacier.dart' show GlacierPressable, GlacierTheme;
 import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 import 'package:ghost_md/shell/top_bar.dart';
 import 'package:ghost_md/shell/top_bar_tools.dart';
@@ -333,30 +335,34 @@ void main() {
     }
   }
 
-  // Matt, 2026-10-28: "on mobile and desktop with the new grouped command pallette hybrid make the elements a size
-  // larger".
+  // Matt, 2026-10-29: "make the header icons and searchbar just a touch smaller to match the size of the buttons in the
+  // dock when smaller" (after 2026-10-28's "a size larger"): Grouped command's rings, glyphs and title pill are the
+  // home page's dock's at the scale it shrinks to while the page scrolls.
   for (final window in windows) {
-    barTest('6 Grouped command is a size larger than 2 Grouped, its bar with it, ${window.name}', (tester) async {
-      Future<({Rect home, Rect view, Rect bar, double text})> measure(HeaderToolbarVersion version) async {
-        await pumpShell(tester, version: version, window: window);
-        // The title pill's words, where the version has one; a tab's otherwise, which no version changes.
-        final words = find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.byType(RichText));
-        return (
-          home: tester.getRect(find.byKey(HeaderAct.keyOf('home'))),
-          view: tester.getRect(find.byKey(HeaderAct.keyOf('view'))),
-          bar: tester.getRect(find.byType(AppTabBar)),
-          text: words.evaluate().isEmpty ? 0.0 : (tester.widget<RichText>(words.first).text.style?.fontSize ?? 0),
-        );
+    barTest('6 Grouped command is the dock’s size when it is smaller, ${window.name}', (tester) async {
+      await pumpShell(tester, version: HeaderToolbarVersion.groupedCommand, window: window, note: false);
+      final t = GlacierTheme.of(tester.element(find.byType(AppTabBar)));
+      final ring = t.len('app-ring') * dockScrolledScale;
+      // The circles that stand alone are the ring across: you, Filters, ••• at home; the title pill is the ring high.
+      for (final id in ['you', 'filters', 'search']) {
+        final rect = tester.getRect(find.byKey(HeaderAct.keyOf(id)));
+        expect((rect.height - ring).abs(), lessThan(1), reason: '$id is ${rect.height}, the dock smaller is $ring');
+      }
+      double glyphIn(String id) => tester.widget<HeaderGlyph>(find.descendant(of: find.byKey(HeaderAct.keyOf(id)), matching: find.byType(HeaderGlyph)).first).size;
+      final glyph = t.lenOf('1.15rem') * dockScrolledScale;
+      for (final id in ['home', 'sidebar', 'you']) {
+        expect((glyphIn(id) - glyph).abs(), lessThan(0.01), reason: id);
+      }
+      // A touch smaller than it was (34-42px), and its title's words still a size up from Command centre's.
+      expect(ring, lessThan(t.lenOf('calc(var(--glacier-space-10) * 0.85)')));
+      double words() {
+        final found = find.descendant(of: find.byKey(HeaderAct.keyOf('search')), matching: find.byType(RichText));
+        return tester.widget<RichText>(found.first).text.style?.fontSize ?? 0;
       }
 
-      final grouped = await measure(HeaderToolbarVersion.grouped);
-      final larger = await measure(HeaderToolbarVersion.groupedCommand);
-      expect(larger.home.height, greaterThan(grouped.home.height + 3));
-      expect(larger.view.width, greaterThan(grouped.view.width + 3));
-      expect(larger.bar.height, greaterThan(grouped.bar.height));
-      // Its title pill's words a size up from Command centre's.
-      final command = await measure(HeaderToolbarVersion.command);
-      expect(larger.text, greaterThan(command.text));
+      final large = words();
+      await pumpShell(tester, version: HeaderToolbarVersion.command, window: window, note: false);
+      expect(large, greaterThan(words()));
     });
   }
 

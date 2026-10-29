@@ -115,7 +115,10 @@ void main() {
       expect(find.byKey(const ValueKey('simple-lights')), findsNothing);
       expect(find.byKey(const ValueKey('simple-settings')), findsNothing);
       expect(find.byKey(const ValueKey('simple-switch')), findsOneWidget);
-      expect(find.byKey(const ValueKey('simple-new')), findsOneWidget);
+      // No + and no microphone at its foot: the page's dock has both (Matt, 2026-10-29: "remove these icons from the
+      // sidebar").
+      expect(find.byKey(const ValueKey('simple-new')), findsNothing);
+      expect(find.byKey(const ValueKey('simple-speak')), findsNothing);
       // Its title starts under the bar, not under it.
       expect(tester.getRect(find.text('Notes').first).top, greaterThan(barAt.bottom));
       // The note is the same screen, beside it; the bar, its controls and the window buttons have not moved.

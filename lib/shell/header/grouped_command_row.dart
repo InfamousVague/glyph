@@ -17,8 +17,8 @@
 /// under ••• at any width: the ends are kept to two pills and a button.
 ///
 /// Iconography: Grouped's - the chosen pack's **Solid** in the pills, an "on" segment of ink with its glyph in paper -
-/// and the title pill as Command centre draws it; all of it **a size larger** than the other versions, the bar with
-/// it ([_glyph]).
+/// and the title pill as Command centre draws it; all of it the size of the home page's dock while the page scrolls
+/// ([dockGlyph]), the bar with it.
 ///
 /// **The home page has no search field of its own** while this version draws the bar (Matt, 2026-10-28: "remove the
 /// search bar from the home page since it's redundant"): the title pill is the search, the palette finding notes by
@@ -36,18 +36,22 @@ import 'package:glacier/glacier.dart';
 import '../../art/icon_packs.dart' show IconStyle;
 import '../../art/lucide.g.dart';
 import '../header_toolbar.dart';
+import '../page_dock.dart' show dockScrolledScale;
 import '../top_bar_tools.dart' show BarButton;
 import 'command_row.dart' show CommandField;
 import 'grouped_row.dart';
 import 'header_kit.dart';
 
-/// A size up from Grouped's 16 (Matt, 2026-10-28: "make the elements a size larger"), and a notch more that evening
-/// ("make the top bar items slightly larger very slightly": 19 became 20), in rings a size up too: the shell stamps
-/// `data-header='large'` while this version draws the bar, which makes `--app-bar-ring` 34-42px (assets/css/app.css),
-/// and every pill, circle and the bar's height are built from that.
-const double _glyph = 20;
+/// The glyphs the home page's dock draws (lib/shell/page_dock.dart: `1.15rem`) at the size the dock is while the page
+/// scrolls ([dockScrolledScale]), the rings the same: the shell stamps `data-header='large'` while this version draws
+/// the bar, which makes `--app-bar-ring` the dock's `--app-ring` at that scale (assets/css/app.css), and every pill,
+/// circle and the bar's height are built from that (Matt, 2026-10-29: "make the header icons and searchbar just a touch
+/// smaller to match the size of the buttons in the dock when smaller"). About 14.7, where they were 20 (21 on you)
+/// after 2026-10-28's "a size larger" and "very slightly" more.
+double dockGlyph(Tokens t) => t.lenOf('1.15rem') * dockScrolledScale;
 
 HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
+  final glyph = dockGlyph(context.tokens);
   Widget solid(Widget child) => styled(context, IconStyle.solid, child);
   final wide = parts.wide;
   // The way around: all four on a wide window; Home, the sidebar and Back on a narrow one, Forward put away. Home is
@@ -76,11 +80,11 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
           fine: parts.fine,
           radius: 999,
           entries: entries,
-          face: (context, state, open) => GroupedSegmentFace(act: moreAct(), state: state, on: open, glyph: _glyph),
+          face: (context, state, open) => GroupedSegmentFace(act: moreAct(), state: state, on: open, glyph: glyph),
         );
   return HeaderRow(
     lead: [
-      if (way.isNotEmpty) solid(GroupedWay(way: way, fine: parts.fine, glyph: _glyph)),
+      if (way.isNotEmpty) solid(GroupedWay(way: way, fine: parts.fine, glyph: glyph)),
     ],
     // The pill opens ••• itself where there is no palette.
     centre: styled(context, IconStyle.outline, CommandField(parts: parts, entries: entries, large: true)),
@@ -93,8 +97,8 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
         solid(
           GroupedPill(
             children: [
-              if (parts.view case final view?) GroupedSegment(act: view, fine: parts.fine, glyph: _glyph),
-              for (final act in shown) GroupedSegment(act: act, fine: parts.fine, glyph: _glyph),
+              if (parts.view case final view?) GroupedSegment(act: view, fine: parts.fine, glyph: glyph),
+              for (final act in shown) GroupedSegment(act: act, fine: parts.fine, glyph: glyph),
               ?overflow,
             ],
           ),
@@ -103,7 +107,7 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
         ...fallbackTools(parts),
         if (overflow != null) solid(GroupedPill(children: [overflow])),
       ],
-      if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts, glyph: _glyph + 1)),
+      if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts, glyph: glyph)),
     ],
   );
 }
@@ -123,7 +127,7 @@ class _FiltersCircle extends StatelessWidget {
           return GlacierFocusRing(
             visible: state.focused,
             radius: 999,
-            child: GroupedPill(children: [GroupedSegmentFace(act: _act, state: lit, on: on, glyph: _glyph)]),
+            child: GroupedPill(children: [GroupedSegmentFace(act: _act, state: lit, on: on, glyph: dockGlyph(context.tokens))]),
           );
         },
       );

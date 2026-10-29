@@ -125,7 +125,7 @@ const List<TokenRule> _rules = [
   TokenRule(conditions: [_c36], declarations: {'--app-inset-top': '0px', '--app-traffic-lights': '72px'}, specificity: 2, order: 62, subject: [_c36]),
   TokenRule(conditions: [_c37], declarations: {'--app-tabs': 'var(--app-tabs-one)'}, specificity: 2, order: 64, subject: [_c37]),
   TokenRule(conditions: [_c38], declarations: {'--app-tabs': 'var(--app-tabs-two)'}, specificity: 2, order: 65, subject: [_c38]),
-  TokenRule(conditions: [_c39], declarations: {'--app-bar-ring': 'calc(var(--glacier-space-10) * 0.85)'}, specificity: 2, order: 66, subject: [_c39]),
+  TokenRule(conditions: [_c39], declarations: {'--app-bar-ring': 'calc(var(--app-ring) * 0.8)'}, specificity: 2, order: 66, subject: [_c39]),
   TokenRule(conditions: [_c40], declarations: {'--app-bar-extra': '8px'}, specificity: 2, order: 67, subject: [_c40]),
   TokenRule(conditions: [_c36], declarations: {'--app-bar-top': 'calc(var(--glacier-space-3) - var(--glacier-space-1) / 2)', '--app-bar-end': 'calc(var(--app-safe-right) + var(--glacier-space-3))'}, specificity: 2, order: 70, subject: [_c36]),
   TokenRule(conditions: [_c41], declarations: {'--app-tab-bottom': 'var(--glacier-space-2)'}, specificity: 2, order: 71, subject: [_c41]),

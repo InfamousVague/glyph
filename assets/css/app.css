@@ -355,14 +355,15 @@ body {
  * carry their own, and the page scrolls under them.
  */
 /*
- * The header toolbar's sixth version, Grouped command (lib/shell/header/grouped_command_row.dart), a size larger on
- * every device (Matt, 2026-10-28: "on mobile and desktop with the new grouped command pallette hybrid make the
- * elements a size larger"): its rings 34-42px where the rest are 28-34px (32-40 until "make the top bar items slightly
- * larger very slightly", the same evening), and the bar taller with them, since the bar's heights are built from the
- * ring. Stamped by the shell (`data-header`) only while that version draws the bar.
+ * The header toolbar's sixth version, Grouped command (lib/shell/header/grouped_command_row.dart), its rings the home
+ * page's dock's as the dock is while the page scrolls (Matt, 2026-10-29: "make the header icons and searchbar just a
+ * touch smaller to match the size of the buttons in the dock when smaller"): `--app-ring` at the dock's scrolled
+ * scale (lib/shell/page_dock.dart `dockScrolledScale`, 0.8), 28-35px, where they were 34-42px (2026-10-28: "a size
+ * larger", then "very slightly" more). The bar's heights are built from the ring, so the bar follows. Stamped by the
+ * shell (`data-header`) only while that version draws the bar.
  */
 :root[data-header='large'] {
-  --app-bar-ring: calc(var(--glacier-space-10) * 0.85);
+  --app-bar-ring: calc(var(--app-ring) * 0.8);
 }
 
 :root[data-topbar='islands'] {

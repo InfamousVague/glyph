@@ -23,6 +23,8 @@
 /// panel icon shows it. There it stands under the advanced app's top bar ([SimpleHome.underBar]), which holds the
 /// Mac's window buttons and the cog, so the column draws neither; and on a phone that can show the notes' folder its
 /// foot carries Browse files, the old tree's tool that nothing else in advanced mode offers ([SimpleHome.onBrowseFiles]).
+/// Nor does it draw the + and the microphone there (Matt, 2026-10-29, of the opened Fold's column: "remove these icons
+/// from the sidebar"): the home page's dock beside it has both, so the column's foot is Browse files alone, or nothing.
 ///
 /// What it reads is kept ([_Read]) until the notes, the search or the day change, as the advanced page keeps its own;
 /// the rows are built as they are scrolled to.
@@ -344,7 +346,22 @@ class _SimpleHomeState extends State<SimpleHome> {
     final scroller = widget.onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: widget.onRefresh!, top: headTop, builder: (context, pull) => page(pull));
 
     final Widget body;
-    if (pane) {
+    if (pane && widget.underBar) {
+      // Advanced mode's sidebar: the list, and Browse files at its foot where there is one; no + and no microphone,
+      // which are the dock's.
+      final browse = widget.onBrowseFiles;
+      body = Column(
+        children: [
+          Expanded(child: scroller),
+          if (browse != null)
+            Container(
+              padding: EdgeInsetsDirectional.fromSTEB(gutterStart, t.space(3), gutterEnd, safeBottom + t.space(3)),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('glacier-border-subtle'), width: hairline))),
+              child: Row(children: [_BrowseFiles(onPressed: browse), const Spacer()]),
+            ),
+        ],
+      );
+    } else if (pane) {
       // Beside the note: the list, and the pair in a foot row of their own.
       body = Column(
         children: [

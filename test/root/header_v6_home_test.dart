@@ -36,9 +36,9 @@ void main() {
 
   /// The app launched as a device that has kept [kept] opens it: the preferences and the device's own words read
   /// before the first frame, by the app itself.
-  Future<void> launch(WidgetTester tester, {required Size size, required String? version, Stored? stored, String? workspace}) async {
+  Future<void> launch(WidgetTester tester, {required Size size, required String? version, Stored? stored, String? workspace, String experience = 'advanced'}) async {
     SharedPreferences.setMockInitialValues({
-      PreferencesStore.storageKey: jsonEncode({'theme': 'light', 'experience': 'advanced', 'experienceChosen': true}),
+      PreferencesStore.storageKey: jsonEncode({'theme': 'light', 'experience': experience, 'experienceChosen': true}),
       'glyph-header-toolbar': ?version,
     });
     addTearDown(() => SharedPreferences.setMockInitialValues({}));
@@ -176,6 +176,27 @@ void main() {
     }
     expect(find.byKey(HeaderAct.keyOf('view')), findsOneWidget, reason: 'a note is up');
     expect(find.byKey(HeaderAct.keyOf('filters')), findsNothing);
+    await close(tester);
+  });
+
+  // Matt, 2026-10-29, of the opened Fold's notes column beside the home page: "remove these icons from the sidebar" -
+  // its microphone and its +, which the home page's dock has. In every version, since it is the sidebar, not the bar.
+  for (final version in HeaderToolbarVersion.values) {
+    testWidgets('${version.number} ${version.label}: the advanced sidebar has no + and no microphone at its foot', (tester) async {
+      final stored = MemoryStored();
+      writeSidebarShown(true, stored);
+      await launch(tester, size: unfolded, version: version.id, stored: stored);
+      expect(find.byType(SimpleHome), findsOneWidget);
+      expect(find.byKey(const ValueKey('simple-new')), findsNothing);
+      expect(find.byKey(const ValueKey('simple-speak')), findsNothing);
+      await close(tester);
+    });
+  }
+
+  testWidgets('simple mode’s own home keeps its + on the opened Fold', (tester) async {
+    await launch(tester, size: unfolded, version: HeaderToolbarVersion.groupedCommand.id, experience: 'simple');
+    expect(find.byType(SimpleHome), findsOneWidget);
+    expect(find.byKey(const ValueKey('simple-new')), findsOneWidget);
     await close(tester);
   });
 
