@@ -72,8 +72,10 @@ void main() {
     await press(tester, addOn('lovart'));
     expect(registry.switchedOn('lovart'), isTrue);
     expect(find.byType(PluginSetupSheet), findsNothing);
-    await press(tester, addOn('slack'));
-    expect(registry.switchedOn('slack'), isTrue);
+    // Webhooks has nothing to set up (test/plugins/onboarding/plugin_setups_test.dart); Slack, which this was, has a
+    // setup since Matt's 2026-10-29 "add the voiceover onboarding for the rest of the plugins".
+    await press(tester, addOn('webhooks'));
+    expect(registry.switchedOn('webhooks'), isTrue);
     expect(find.byType(PluginSetupSheet), findsNothing);
     await endSettings(tester);
   });

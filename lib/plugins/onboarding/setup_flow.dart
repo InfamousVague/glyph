@@ -2,23 +2,31 @@
 /// the lovart and Claude plugins walk the user through setting up an account and getting their keys and have the
 /// onboarding test setup to make sure it was successful"). This file is what a setup is made of; setup_sheet.dart
 /// draws it, setup_card.dart is its way in from a plugin's page, and each plugin says its own steps beside its code
-/// (lib/plugins/lovart/lovart_setup.dart, lib/plugins/claude/claude_setup.dart). A plugin offers one through
+/// (lib/plugins/lovart/lovart_setup.dart, lib/plugins/claude/claude_setup.dart, and the rest: Matt, 2026-10-29, "add
+/// the voiceover onboarding for the rest of the plugins"). A plugin offers one through
 /// [GlyphPlugin.setup] (lib/plugins/types.dart), and the Market opens it as soon as the plugin is added while it still
 /// needs one (lib/market/market_screen.dart).
 ///
 /// A setup is a short run of steps, each a title, a few words, a sign on the walkthrough's colour band
-/// (lib/guide/pages/band.dart [HueBand]) and what can be done there. There are five kinds, and a plugin's setup is
+/// (lib/guide/pages/band.dart [HueBand]) and what can be done there. There are six kinds, and a plugin's setup is
 /// made of them in any order:
 /// - [SetupIntro]: what the plugin is and what it costs, with a few points beside icons (in Advanced).
 /// - [SetupOpen]: a page to open in the browser, an account's sign-up or where its keys are made, with a button each.
 /// - [SetupPaste]: the keys to paste, each field with Paste and Show; checked for shape, then kept by the plugin's
 ///   own [SetupPaste.save], exactly where its page keeps them, so the sealed sync follows them as it always has.
+/// - [SetupAct]: something done by a button, with the plugin's own code: a sign-in started in the browser (Notion's,
+///   Google Calendar's), or the device asked for a permission (the contacts, the location). It stands where a paste
+///   would in a setup with keys, so a check that fails comes back to it.
 /// - [SetupCheck]: a test of what was kept, run as the step shows ([SetupCheck.run]), saying it worked or, in plain
 ///   words, why not ([SetupResult]).
 /// - [SetupDone]: the end, with what to try first or the settings that matter ([SetupDone.body]).
 ///
 /// The words of each step are not written here but in setup_voice.dart, one place, by the plugin's id and the
-/// step's ([setupWords]): they are the captions now and what a voice would say later, as the walkthrough's are.
+/// step's ([setupWords]): they are the captions, and what the voice says (assets/plugin-setup), as the walkthrough's
+/// are.
+///
+/// A setup with nothing to keep (an intro and a first thing to try: Google Meet's, Todoist's) is ready once it has
+/// been seen through or skipped on this device ([setupSeen]), so the Market offers it once.
 ///
 /// **Where the person was** is remembered on this device, by plugin ([SetupMemory]): the step showing, kept as they
 /// go, and how it ended (done or skipped). A setup put away half way (the sheet closed, the app left for the browser
@@ -52,7 +60,7 @@ class SetupLink {
 /// A field a key is pasted into.
 @immutable
 class SetupField {
-  const SetupField({required this.id, required this.label, required this.placeholder, this.shape, this.optional = false});
+  const SetupField({required this.id, required this.label, required this.placeholder, this.shape, this.optional = false, this.secret = true});
 
   /// The key it is handed to [SetupPaste.save] under.
   final String id;
@@ -68,6 +76,9 @@ class SetupField {
   /// Whether it may be left empty (an endpoint on the person's own computer needs no key: lib/plugins/custom_ai/). An
   /// empty one is handed to [SetupPaste.save] as ''.
   final bool optional;
+
+  /// Drawn as dots until Show: a key, a webhook. Not a channel's name.
+  final bool secret;
 }
 
 /// How a check went.
@@ -154,6 +165,25 @@ class SetupPaste extends SetupStep {
   final Future<String?> Function(Map<String, String> values) save;
 }
 
+/// Something done by a button (see the header).
+class SetupAct extends SetupStep {
+  const SetupAct({required super.id, required super.title, required super.icon, super.tiles, super.advanced, required this.label, required this.run, this.again, this.onward = false});
+
+  /// What its button says: "Sign in with Notion".
+  final String label;
+
+  /// Does it, through the plugin's own code: the sign-in started, the permission asked. Answers what went wrong, in a
+  /// sentence, or null.
+  final Future<String?> Function() run;
+
+  /// What the check's way back here says: "Sign in again". [label] where null.
+  final String? again;
+
+  /// Whether the setup goes on by itself once [run] answers null: a permission, answered in the app. Not a sign-in,
+  /// which is finished in the browser and come back from.
+  final bool onward;
+}
+
 /// The test (see the header).
 class SetupCheck extends SetupStep {
   const SetupCheck({required super.id, required super.title, required super.icon, super.tiles, super.advanced, required this.run, this.checking = 'Checking…'});
@@ -175,7 +205,7 @@ class SetupDone extends SetupStep {
 
 /// A plugin's setup: its steps, its look, and whether it is needed.
 class PluginSetup {
-  const PluginSetup({required this.id, required this.name, required this.hues, required this.steps, required this.ready, required this.watch, this.tiles = const [], this.mark, this.prepare});
+  const PluginSetup({required this.id, required this.name, required this.hues, required this.steps, required this.ready, required this.watch, this.tiles = const [], this.mark, this.prepare, this.about, this.again});
 
   /// The plugin's id: its words' and its memory's key.
   final String id;
@@ -205,6 +235,11 @@ class PluginSetup {
 
   /// Read before [ready] is first asked: the stores the keys are in. Null where they are read already.
   final Future<void> Function()? prepare;
+
+  /// What the card on the plugin's page says the steps are (setup_card.dart), and its Run setup again row: "A few
+  /// short steps: sign in with Notion, and a check that it worked." An account, the keys and a check where null.
+  final String? about;
+  final String? again;
 
   /// The steps shown, [simple] or not.
   List<SetupStep> stepsFor({required bool simple}) => [for (final step in steps) if (!simple || !step.advanced) step];
@@ -267,6 +302,10 @@ class SetupMemory {
   }
 }
 
+/// The step that keeps what the setup needs: the keys pasted, or the sign-in or permission done ([SetupAct]); -1
+/// where it has none.
+int setupKeysIndex(List<SetupStep> steps) => steps.indexWhere((s) => s is SetupPaste || s is SetupAct);
+
 /// The step a setup opens at: where it was left, unless it ended or [fromStart]; and never past the keys while none
 /// are kept, so a setup left at its check, whose keys were since forgotten, asks for them again.
 int setupStartIndex(PluginSetup setup, List<SetupStep> steps, SetupMemory memory, {bool fromStart = false}) {
@@ -275,7 +314,13 @@ int setupStartIndex(PluginSetup setup, List<SetupStep> steps, SetupMemory memory
   if (left == null) return 0;
   final at = steps.indexWhere((s) => s.id == left);
   if (at < 0) return 0;
-  final paste = steps.indexWhere((s) => s is SetupPaste);
-  if (paste >= 0 && at > paste && !setup.ready()) return paste;
+  final keys = setupKeysIndex(steps);
+  if (keys >= 0 && at > keys && !setup.ready()) return keys;
   return at;
 }
+
+/// [PluginSetup.ready] for a setup with nothing to keep (see the header): it has been done or skipped on this device.
+bool Function() setupSeen(String plugin, [SetupMemory? memory]) => () => (memory ?? SetupMemory()).ended(plugin) != null;
+
+/// [PluginSetup.watch] where nothing but the sheet itself changes [PluginSetup.ready].
+VoidCallback setupWatchesNothing(VoidCallback listener) => () {};

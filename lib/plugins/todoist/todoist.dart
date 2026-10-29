@@ -5,13 +5,18 @@
 /// Its page holds the import ([ImportPane] with Todoist's card alone), and while it is on Settings › Import offers
 /// it beside Obsidian and Evernote (lib/settings/settings_sections.dart asks [todoistOn]). Switched off, neither
 /// does; what an import brought stays where it came, a workspace like any other. It keeps nothing: the token is used
-/// for the one import and let go.
+/// for the one import and let go. Its setup (todoist_setup.dart) says where the token is, and where it goes.
 library;
 
 import '../../settings/panes/import_pane.dart' show ImportKind, ImportPane, importFindableOf;
 import '../../settings/settings_search.dart' show SettingsFindable;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
+import 'todoist_setup.dart';
+
+export 'todoist_setup.dart';
 
 const PluginManifest todoistManifest = PluginManifest(
   id: 'todoist',
@@ -40,11 +45,15 @@ bool todoistOn() => pluginOn(todoistManifest);
 /// What the search finds on its page.
 final List<SettingsFindable> _findable = importFindableOf(const [ImportKind.todoist]);
 
+/// The setup its page's card shows, made once.
+final PluginSetup _setup = todoistSetup();
+
 final GlyphPlugin todoistPlugin = GlyphPlugin(
   manifest: todoistManifest,
   icon: 'list-checks',
+  setup: todoistSetup,
   settings: PluginSettings(
-    pane: (context) => ImportPane.hosted(context, kinds: const [ImportKind.todoist]),
+    pane: (context) => ImportPane.hosted(context, kinds: const [ImportKind.todoist], setup: PluginSetupCard(setup: _setup)),
     summary: () => 'Import from Todoist',
     hue: 'red',
     settings: _findable,

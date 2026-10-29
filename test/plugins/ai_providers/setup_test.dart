@@ -1,7 +1,8 @@
 // The other AI providers' plugins: their setups, their pages and their Market cards (lib/assistant/provider_setup.dart,
 // provider_pane.dart; lib/plugins/openai/, gemini/, custom_ai/; docs/AI_PROVIDERS.md; Matt, 2026-10-29: "Add support
 // for aster 6 and other Ai models as plugins in addition to claude like openAI google gemini etc"). The steps and their
-// captions (never a voice clip), the key's shape, the key kept where the page keeps it, the check in plain words and the
+// words, said aloud as every plugin's are (Matt, 2026-10-29: "add the voiceover onboarding for the rest of the
+// plugins"; the clips are setup_voice_test.dart's), the key's shape, the key kept where the page keeps it, the check in plain words and the
 // models it reads, the custom endpoint's address and its optional key, the settings at the end; the page's key, model,
 // tools, meetings and limit; and each plugin's privacy words. Every provider is the test's own: nothing is asked of a
 // network.
@@ -48,16 +49,15 @@ void main() {
       }
     });
 
-    test('every step has its words, shown as captions and never said: no clip is asked of them', () {
+    test('every step has its words, and they are said: each is a clip of the voice', () {
       for (final setup in [openAiSetup(), geminiSetup(), customAiSetup()]) {
         for (final step in setup.steps) {
           for (final simple in [false, true]) {
             expect(setup.wordsOf(step, simple: simple), isNotEmpty, reason: '${setup.id}-${step.id}');
           }
-          expect(setupVoice.containsKey('${setup.id}-${step.id}'), isFalse, reason: 'captions only');
+          expect(setupVoice.containsKey('${setup.id}-${step.id}'), isTrue, reason: '${setup.id}-${step.id}');
         }
       }
-      expect(setupCaptions.values.where((words) => words.contains('\n') || words.contains("'")), isEmpty);
     });
 
     test('checks a key’s shape before it is kept', () {

@@ -39,6 +39,7 @@ import 'meetings.dart' show meetingSlackPoster;
 import 'mrkdwn.dart';
 import 'news.dart';
 import 'slack_pane.dart';
+import 'slack_setup.dart';
 
 export 'channels.dart';
 export 'manifest.dart' show SlackFailure, webhookPrefix;
@@ -48,6 +49,7 @@ export 'meetings_section.dart';
 export 'mrkdwn.dart';
 export 'news.dart';
 export 'slack_pane.dart';
+export 'slack_setup.dart';
 
 /// The buzz when a post lands (`fireNativeHaptic('success')`).
 HapticFn slackFelt = fireMotor;
@@ -138,6 +140,7 @@ String _summary() {
 final GlyphPlugin slackPlugin = GlyphPlugin(
   manifest: manifest,
   icon: 'hash',
+  setup: slackSetup,
   settings: PluginSettings(
     pane: (context) => const SlackPane(),
     hue: 'magenta',

@@ -6,7 +6,7 @@
 /// with this plugin's switch ([calendarOn]): off, nothing is read, nothing goes to Google's, and no query, calendar of
 /// to-dos or Today shows an event. What was read, and the calendars chosen (kept with the account's settings), stay
 /// as they were, so switching it on again shows them at once and reads them soon after. Its page is the one that was
-/// Settings › Calendar ([CalendarPane]).
+/// Settings › Calendar ([CalendarPane]), with Google Calendar's setup at its head (calendar_setup.dart).
 ///
 /// A device that had a calendar before this was a plugin finds it on: the root adopts it once ([calendarInUse],
 /// lib/plugins/registry.dart `Registry.adopt`), and from then on it is the switch's.
@@ -18,8 +18,10 @@ import '../../settings/settings_search.dart' show SettingsFindable;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'calendar_pane.dart';
+import 'calendar_setup.dart';
 
 export 'calendar_pane.dart' show CalendarPane, calendarFindable, calendarSummary;
+export 'calendar_setup.dart';
 
 const PluginManifest calendarManifest = PluginManifest(
   id: 'calendar',
@@ -62,4 +64,4 @@ class _CalendarSettings extends PluginSettings {
   List<SettingsFindable> get settings => calendarFindable(preferences.value, offered: calendar.offered == true);
 }
 
-final GlyphPlugin calendarPlugin = GlyphPlugin(manifest: calendarManifest, icon: 'calendar-days', settings: _CalendarSettings());
+final GlyphPlugin calendarPlugin = GlyphPlugin(manifest: calendarManifest, icon: 'calendar-days', settings: _CalendarSettings(), setup: calendarSetup);

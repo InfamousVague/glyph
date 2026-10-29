@@ -25,6 +25,9 @@
 /// Discord's speech bubble are: a group of people for Google Meet (`users`), and a laptop for Zoom (`laptop`), Ghost
 /// joining from a browser. The set has no camera to draw.
 ///
+/// Each has a short setup (meeting_setup.dart): what Ghost does, and how to invite it, seen once as the plugin is added
+/// and from the head of its page.
+///
 /// Not on an iPhone, where Ghost in meetings is not offered (lib/share/sites.dart `publishingOffered`): the page is not
 /// listed there ([PluginSettings.offered]).
 library;
@@ -37,8 +40,10 @@ import '../../meet/ui/meeting_settings.dart' show meetingsGoName;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../types.dart';
 import 'meeting_pane.dart';
+import 'meeting_setup.dart';
 
 export 'meeting_pane.dart';
+export 'meeting_setup.dart';
 
 /// Whether a meeting plugin's page is listed: an account whose service has Ghost in meetings (docs/MEET.md). Without
 /// an Email to a note address the page is there all the same and says where one is turned on, since that address is
@@ -127,6 +132,6 @@ PluginSettings _settingsFor(String kind, String hue) => PluginSettings(
       findable: (services) => meetingPluginFindable(kind, services),
     );
 
-final GlyphPlugin googleMeetPlugin = GlyphPlugin(manifest: googleMeetManifest, icon: 'users', settings: _settingsFor('meet', 'orange'));
+final GlyphPlugin googleMeetPlugin = GlyphPlugin(manifest: googleMeetManifest, icon: 'users', settings: _settingsFor('meet', 'orange'), setup: googleMeetSetup);
 
-final GlyphPlugin zoomPlugin = GlyphPlugin(manifest: zoomManifest, icon: 'laptop', settings: _settingsFor('zoom', 'mint'));
+final GlyphPlugin zoomPlugin = GlyphPlugin(manifest: zoomManifest, icon: 'laptop', settings: _settingsFor('zoom', 'mint'), setup: zoomSetup);

@@ -122,7 +122,20 @@ def seconds(path: pathlib.Path) -> float:
 
 # How a word is said where its spelling misleads the voice: the captions keep the spelling, the voice is sent this
 # (Matt, 2026-10-28: "update the voiceover for the lovart plugin to pronounce lovart as Loveart").
-SAID = [(re.compile(r"\bLovart\b"), "Love-art")]
+#
+# The rest are the plugins' setups' (Matt, 2026-10-29: "add the voiceover onboarding for the rest of the plugins"):
+# Todoist is a to-do-ist, not a toad; the app's own name is said, not spelled; and a key's start or an address in a
+# caption is said the way a person reads it out, not letter by punctuation.
+SAID = [
+    (re.compile(r"\bLovart\b"), "Love-art"),
+    (re.compile(r"\bTodoist\b"), "To-do-ist"),
+    (re.compile(r"\bGhost\.md\b"), "Ghost dot M D"),
+    (re.compile(r"\bgithub_pat_"), "github pat"),
+    (re.compile(r"\bsk-(?![A-Za-z])"), "S K dash"),
+    (re.compile(r"\bAIza\b"), "A I Z A"),
+    (re.compile(r"https?://localhost:(\d+)/v1\b"), r"localhost, port \1, slash v1"),
+    (re.compile(r"(?<=\s)/v1\b"), "slash v1"),
+]
 
 
 def said(words: str) -> str:

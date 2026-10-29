@@ -50,7 +50,7 @@ The runner (`lib/claude/claude_runner.dart`, `route:`) and the meetings' write-u
 
 ## Its page and its setup
 
-`lib/assistant/provider_pane.dart` and `provider_setup.dart`, in each plugin's words (`AiProviderPage`). The page: the key (or the endpoint's address and an optional key), checked before it is kept; the model from the provider's list; Tools; Meeting summaries; Spending limit with Prices; and plainly what goes where. The setup: intro → account → key → paste → check → settings (the custom endpoint: intro → address and key → check → settings), the check reading the models for the last step. The words are captions only (`setupCaptions` in `lib/plugins/onboarding/setup_voice.dart`), with no voice clip. Setup links (platform.openai.com, aistudio.google.com) are marked unverified: they weren't opened while this was written.
+`lib/assistant/provider_pane.dart` and `provider_setup.dart`, in each plugin's words (`AiProviderPage`). The page: the key (or the endpoint's address and an optional key), checked before it is kept; the model from the provider's list; Tools; Meeting summaries; Spending limit with Prices; and plainly what goes where. The setup: intro → account → key → paste → check → settings (the custom endpoint: intro → address and key → check → settings), the check reading the models for the last step. The words are in `setupVoice` (`lib/plugins/onboarding/setup_voice.dart`) and said aloud like every plugin's setup (Matt, 2026-10-29: "add the voiceover onboarding for the rest of the plugins"); they were captions only at first. Setup links (platform.openai.com, aistudio.google.com) are marked unverified: they weren't opened while this was written.
 
 ## Privacy
 

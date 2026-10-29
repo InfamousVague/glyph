@@ -48,7 +48,8 @@ void main() {
     final settings = <String>[], localOnly = <String>[];
     await pumpSettings(
       tester,
-      MarketScreen(onBack: () {}, registry: registry ?? shipped(), shelf: shelf, plugin: plugin, link: link, onPluginSettings: settings.add, onLocalOnly: () => localOnly.add('privacy')),
+      // Setups opened as a plugin is added are market_setup_test.dart's: here a plugin is added and nothing opens over it.
+      MarketScreen(onBack: () {}, registry: registry ?? shipped(), shelf: shelf, plugin: plugin, link: link, onPluginSettings: settings.add, onLocalOnly: () => localOnly.add('privacy'), offerSetup: false),
       size: size,
       prefs: prefs,
     );

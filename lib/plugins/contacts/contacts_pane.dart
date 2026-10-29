@@ -12,6 +12,9 @@ import '../../integrations/contacts/contact_picker.dart';
 import '../../integrations/contacts/contacts.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/settings_search.dart';
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
+import 'contacts_setup.dart';
 
 /// What Settings' search finds on Contacts: what the phone allows, and the people once it allows it.
 List<SettingsFindable> contactsFindable(ContactsStore store) => [
@@ -54,6 +57,7 @@ class ContactsPane extends StatefulWidget {
 
 class _ContactsPaneState extends State<ContactsPane> {
   ContactsStore get _store => widget.store ?? phoneContacts;
+  late final PluginSetup _setup = contactsSetup(store: widget.store);
 
   @override
   void initState() {
@@ -116,6 +120,7 @@ class _ContactsPaneState extends State<ContactsPane> {
         }
         return PaneBody(
           children: [
+            PluginSetupCard(setup: _setup),
             PaneSection(
               title: 'Contacts',
               description: const Text('See the picture of a person named on a to-do, and call, text or email them from their chip. Write @sam on a to-do, or pick someone with A person.'),

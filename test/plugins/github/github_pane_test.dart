@@ -98,11 +98,14 @@ void main() {
     // Not a case of the page's: the token is read from the secure store after the page is up.
     testWidgets('says a token is kept as soon as the secure store has been read', (tester) async {
       ground.secrets.held['glyph-github-token'] = 'ghp_kept';
+      expect(githubToken(), isEmpty);
+      // The setup's card at the page's head reads the store as the page opens (github_setup.dart, its prepare), so a
+      // kept token shows without the root's warming.
       await pumpPane(tester, const GitHubPane());
-      expect(textOf(tester), contains('No token'));
       await tester.runAsync(warmGithub);
       await tester.pump();
       expect(textOf(tester), contains('A token is kept'));
+      expect(textOf(tester), isNot(contains('No token')));
       await away(tester);
     });
   });

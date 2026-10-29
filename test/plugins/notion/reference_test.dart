@@ -54,7 +54,7 @@ void main() {
         goTo: const SettingsTarget('plugin:notion', nonce: 1),
         sections: [
           SettingsSection(id: 'plugins', label: 'Plugins', icon: const AppIcon(Lucide.puzzle, size: 16), group: 2, content: (context) => const SizedBox.shrink()),
-          SettingsSection(id: 'plugin:notion', label: notionPlugin.manifest.name, icon: const AppIcon(Lucide.squareKanban, size: 16), group: 2, hue: settings.hue, listed: false, parent: 'plugins', content: settings.pane),
+          SettingsSection(id: 'plugin:notion', label: notionPlugin.manifest.name, icon: const AppIcon(Lucide.squareKanban, size: 16), group: 2, hue: settings.hue, listed: false, parent: 'plugins', content: (context) => const NotionPane(withSetup: false)),
         ],
       ),
       prefs: Preferences(theme: theme),

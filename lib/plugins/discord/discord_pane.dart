@@ -1,4 +1,4 @@
-/// The Discord plugin's page in Settings: the channels, each with a test message, a new name and a way to forget it;
+/// The Discord plugin's page in Settings, under the setup's card (discord_setup.dart): the channels, each with a test message, a new name and a way to forget it;
 /// a channel added by name and pasted webhook; and Post to Discord, where meetings go once they are written up, with
 /// any that did not post (Settings › Meetings' until it became the meeting plugins' pages). The Slack plugin's page
 /// (slack/slack_pane.dart) for Discord, less the organizations' news, which this plugin does not post (discord.dart).
@@ -29,8 +29,11 @@ import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'calls_section.dart';
 import 'channels.dart';
+import 'discord_setup.dart';
 import 'meetings.dart' show meetingDiscordOffered;
 import 'meetings_section.dart';
 
@@ -58,6 +61,7 @@ class _DiscordPaneState extends State<DiscordPane> {
   String? _renaming;
   final TextEditingController _newName = TextEditingController();
   late final VoidCallback _stop;
+  late final PluginSetup _setup = discordSetup();
   List<DiscordChannel> _asked = const [];
 
   @override
@@ -209,6 +213,7 @@ class _DiscordPaneState extends State<DiscordPane> {
     final host = SettingsHost.maybeOf(context);
     return PaneBody(
       children: [
+        PluginSetupCard(setup: _setup),
         if (said != null) SettingsCallout(child: Text(said)),
         DiscordCallsSection(services: services, onOpenNote: host?.onOpenNote, onOpenLink: host?.onOpenLink),
         if (services != null && services.signedIn && recordsVoice) MeetingsGoSection(prefs: services.prefs, onOpen: host == null ? null : () => host.go(recordingSectionId, setting: meetingsGoName)),

@@ -62,7 +62,7 @@ void main() {
       testWidgets('$name is where the page draws it', (tester) async {
         seed(name);
         final web = webRects('test/plugins/github/fixtures/$name.json');
-        await pumpPane(tester, const GitHubPane());
+        await pumpPane(tester, const GitHubPane(withSetup: false));
 
         final sections = find.byType(PaneSection);
         expect(sections, findsNWidgets(web['sections']!.length));
@@ -125,7 +125,7 @@ void main() {
       for (final name in ['pane-empty', 'pane-repo']) {
         testWidgets('a picture of $name, $theme', (tester) async {
           seed(name);
-          await pumpPane(tester, const GitHubPane(), theme: theme);
+          await pumpPane(tester, const GitHubPane(withSetup: false), theme: theme);
           await shot(tester, 'github-$name-$theme');
         });
       }

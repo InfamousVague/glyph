@@ -5,6 +5,48 @@
     "name": "Jessica"
   },
   "files": {
+    "calendar-check": {
+      "words": "dc5760ec2ec084a9",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 39541,
+      "seconds": 4.86
+    },
+    "calendar-done": {
+      "words": "d19ee8c56ce26bba",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 85098,
+      "seconds": 10.56
+    },
+    "calendar-done-simple": {
+      "words": "b194a0af0650ac86",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 28047,
+      "seconds": 3.43
+    },
+    "calendar-intro": {
+      "words": "a0deb2faf56c89e1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 109758,
+      "seconds": 13.64
+    },
+    "calendar-intro-simple": {
+      "words": "985eb821e7a50c78",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 35361,
+      "seconds": 4.35
+    },
+    "calendar-signin": {
+      "words": "63aec2aa6f2cb094",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 63991,
+      "seconds": 7.92
+    },
     "claude-account": {
       "words": "b709b3265512fe01",
       "model": "eleven_v4",
@@ -68,6 +110,356 @@
       "bytes": 58767,
       "seconds": 7.28
     },
+    "contacts-allow": {
+      "words": "63c4f4fba3083b55",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 44138,
+      "seconds": 5.44
+    },
+    "contacts-check": {
+      "words": "ab6fd0f678851460",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 34525,
+      "seconds": 4.24
+    },
+    "contacts-done": {
+      "words": "de34ad54067e0ef4",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 69634,
+      "seconds": 8.62
+    },
+    "contacts-done-simple": {
+      "words": "dab2439a5ef26ac6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 40795,
+      "seconds": 5.04
+    },
+    "contacts-intro": {
+      "words": "b42c22acbefb1133",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 112266,
+      "seconds": 13.97
+    },
+    "contacts-intro-simple": {
+      "words": "ea9e20508dd8780a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 45392,
+      "seconds": 5.6
+    },
+    "custom-ai-check": {
+      "words": "14a271b1bd2e9844",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 90741,
+      "seconds": 11.28
+    },
+    "custom-ai-done": {
+      "words": "1cb96683b0ce4b5c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 55423,
+      "seconds": 6.86
+    },
+    "custom-ai-intro": {
+      "words": "3d5329a13a20a28d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 126267,
+      "seconds": 15.73
+    },
+    "custom-ai-intro-simple": {
+      "words": "b2d6da8c1b9deb49",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 57304,
+      "seconds": 7.09
+    },
+    "custom-ai-paste": {
+      "words": "0b5448928e00aa80",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 153435,
+      "seconds": 19.12
+    },
+    "discord-check": {
+      "words": "1ad4954389776113",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 47273,
+      "seconds": 5.84
+    },
+    "discord-done": {
+      "words": "4093288617a1136d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 75903,
+      "seconds": 9.43
+    },
+    "discord-done-simple": {
+      "words": "233d4d72a2698e9e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 33689,
+      "seconds": 4.15
+    },
+    "discord-intro": {
+      "words": "608efdb25afa6145",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 100354,
+      "seconds": 12.48
+    },
+    "discord-intro-simple": {
+      "words": "052e0bf9c333591b",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 46855,
+      "seconds": 5.78
+    },
+    "discord-paste": {
+      "words": "9b58e38798a65e0c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 64618,
+      "seconds": 8.0
+    },
+    "discord-paste-simple": {
+      "words": "2b940f6fbfe703e6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 37033,
+      "seconds": 4.56
+    },
+    "discord-webhook": {
+      "words": "d0fbb80b7c19346f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 95965,
+      "seconds": 11.92
+    },
+    "elevenlabs-account": {
+      "words": "5a77dd9d21460bb1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 65872,
+      "seconds": 8.16
+    },
+    "elevenlabs-check": {
+      "words": "1c565e52a0f64b75",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 47273,
+      "seconds": 5.84
+    },
+    "elevenlabs-done": {
+      "words": "a10a44a95d9a5ba4",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 67126,
+      "seconds": 8.31
+    },
+    "elevenlabs-done-simple": {
+      "words": "1509aa3ee85a9acb",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 34316,
+      "seconds": 4.23
+    },
+    "elevenlabs-intro": {
+      "words": "f8f5d5e053fb75be",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 97846,
+      "seconds": 12.16
+    },
+    "elevenlabs-intro-simple": {
+      "words": "168f978d9114ce28",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 45392,
+      "seconds": 5.6
+    },
+    "elevenlabs-key": {
+      "words": "e6ddea8d7079d877",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 83217,
+      "seconds": 10.32
+    },
+    "elevenlabs-paste": {
+      "words": "be3f2bc7842e1764",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 61275,
+      "seconds": 7.6
+    },
+    "elevenlabs-paste-simple": {
+      "words": "5264197985158951",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 29928,
+      "seconds": 3.68
+    },
+    "gemini-account": {
+      "words": "19340f6f90455902",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 42675,
+      "seconds": 5.27
+    },
+    "gemini-check": {
+      "words": "ec21a767c9d05a8f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 74231,
+      "seconds": 9.2
+    },
+    "gemini-done": {
+      "words": "e754ed6bce70cb7a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 82590,
+      "seconds": 10.25
+    },
+    "gemini-done-simple": {
+      "words": "e2386d23f6660a89",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 36197,
+      "seconds": 4.46
+    },
+    "gemini-intro": {
+      "words": "c40dc656d9cd05c4",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 133581,
+      "seconds": 16.63
+    },
+    "gemini-intro-simple": {
+      "words": "f405e0bc766fdfa1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 48109,
+      "seconds": 5.95
+    },
+    "gemini-key": {
+      "words": "b82e71f3dccd5136",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 75485,
+      "seconds": 9.36
+    },
+    "gemini-paste": {
+      "words": "20b93c1595bc4f30",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 83844,
+      "seconds": 10.4
+    },
+    "gemini-paste-simple": {
+      "words": "7521b270dc2d205a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 51661,
+      "seconds": 6.4
+    },
+    "github-account": {
+      "words": "6f8ecc26b045b4b1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 62528,
+      "seconds": 7.74
+    },
+    "github-check": {
+      "words": "6f55670b216c8c22",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 40168,
+      "seconds": 4.96
+    },
+    "github-done": {
+      "words": "808489820b5e2372",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72768,
+      "seconds": 9.02
+    },
+    "github-done-simple": {
+      "words": "bd5fbd860442928a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 45183,
+      "seconds": 5.59
+    },
+    "github-intro": {
+      "words": "d9dc3ac8d6599613",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 134417,
+      "seconds": 16.72
+    },
+    "github-intro-simple": {
+      "words": "c2f3b93131715ddd",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 61275,
+      "seconds": 7.6
+    },
+    "github-key": {
+      "words": "10b1da3f0a5f8d89",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 100981,
+      "seconds": 12.56
+    },
+    "github-paste": {
+      "words": "2605a0c54146d14a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 78620,
+      "seconds": 9.76
+    },
+    "github-paste-simple": {
+      "words": "3f611acba8861b51",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 31181,
+      "seconds": 3.84
+    },
+    "google-meet-done": {
+      "words": "03bd9c41a36b0855",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 112893,
+      "seconds": 14.05
+    },
+    "google-meet-done-simple": {
+      "words": "8c75087ea72eebfc",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 56886,
+      "seconds": 7.04
+    },
+    "google-meet-intro": {
+      "words": "692db62c99f5970a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 91995,
+      "seconds": 11.44
+    },
+    "google-meet-intro-simple": {
+      "words": "b82181ba20bd26bf",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 43511,
+      "seconds": 5.36
+    },
     "lovart-account": {
       "words": "c89150020085dda1",
       "model": "eleven_v4",
@@ -130,6 +522,300 @@
       "voice": "cgSgspJ2msm6clMCkdW9",
       "bytes": 40795,
       "seconds": 5.03
+    },
+    "notion-check": {
+      "words": "16d9bdde8f226ff0",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 52497,
+      "seconds": 6.48
+    },
+    "notion-done": {
+      "words": "fff49ea6b5a5a0e4",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 74649,
+      "seconds": 9.26
+    },
+    "notion-done-simple": {
+      "words": "2284ad6f48eb5f66",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 46437,
+      "seconds": 5.75
+    },
+    "notion-intro": {
+      "words": "2b28a33cdf308460",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 118744,
+      "seconds": 14.76
+    },
+    "notion-intro-simple": {
+      "words": "8ef8af99684946e4",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 54796,
+      "seconds": 6.77
+    },
+    "notion-signin": {
+      "words": "556988e1de138b61",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 90741,
+      "seconds": 11.28
+    },
+    "notion-signin-simple": {
+      "words": "ad8ffd8495d3c7cd",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 46646,
+      "seconds": 5.76
+    },
+    "openai-account": {
+      "words": "47b3cd7a0efa714e",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 109340,
+      "seconds": 13.6
+    },
+    "openai-check": {
+      "words": "700bdc6660204981",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 76112,
+      "seconds": 9.44
+    },
+    "openai-done": {
+      "words": "e3ea3c99786a2765",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 83217,
+      "seconds": 10.32
+    },
+    "openai-done-simple": {
+      "words": "79a17ffced623304",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 38914,
+      "seconds": 4.79
+    },
+    "openai-intro": {
+      "words": "c2a89ac869bb1557",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 110594,
+      "seconds": 13.76
+    },
+    "openai-intro-simple": {
+      "words": "f01d6c3a84ec8921",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 51244,
+      "seconds": 6.33
+    },
+    "openai-key": {
+      "words": "7fbac8a0d8fc42e1",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 93248,
+      "seconds": 11.59
+    },
+    "openai-paste": {
+      "words": "f2105049693add4a",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 81128,
+      "seconds": 10.08
+    },
+    "openai-paste-simple": {
+      "words": "8933f95693349cbf",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 49781,
+      "seconds": 6.16
+    },
+    "place-reminders-allow": {
+      "words": "e6471ab5bb539c09",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 97219,
+      "seconds": 12.08
+    },
+    "place-reminders-allow-simple": {
+      "words": "30077498cd8850e8",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 32435,
+      "seconds": 3.98
+    },
+    "place-reminders-check": {
+      "words": "854cb0e09ebde0da",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 35152,
+      "seconds": 4.32
+    },
+    "place-reminders-done": {
+      "words": "21ea5a0094d73c0d",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72768,
+      "seconds": 9.03
+    },
+    "place-reminders-done-simple": {
+      "words": "eee5b38e12e7f1c6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 35152,
+      "seconds": 4.31
+    },
+    "place-reminders-intro": {
+      "words": "3ed6388ac9233b33",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 116654,
+      "seconds": 14.52
+    },
+    "place-reminders-intro-simple": {
+      "words": "a64099ea9399f0ba",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 35152,
+      "seconds": 4.32
+    },
+    "slack-check": {
+      "words": "88c2fcdbe2f37b27",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 46019,
+      "seconds": 5.68
+    },
+    "slack-done": {
+      "words": "ebf258530ab578b7",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 74022,
+      "seconds": 9.19
+    },
+    "slack-done-simple": {
+      "words": "19966d3467ec804f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 31808,
+      "seconds": 3.9
+    },
+    "slack-intro": {
+      "words": "230423af37df9b50",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 124804,
+      "seconds": 15.52
+    },
+    "slack-intro-simple": {
+      "words": "ee5b55571ebac07f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 45183,
+      "seconds": 5.58
+    },
+    "slack-paste": {
+      "words": "fb52ee93190f9f0b",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 74858,
+      "seconds": 9.28
+    },
+    "slack-paste-simple": {
+      "words": "2b940f6fbfe703e6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 37033,
+      "seconds": 4.56
+    },
+    "slack-webhook": {
+      "words": "8d1be4911dd567ac",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 90741,
+      "seconds": 11.28
+    },
+    "todoist-done": {
+      "words": "371a583c46b9a8dd",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 98891,
+      "seconds": 12.29
+    },
+    "todoist-done-simple": {
+      "words": "1eae17ae324557bf",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 36197,
+      "seconds": 4.47
+    },
+    "todoist-intro": {
+      "words": "4daa8fc9075a9017",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 123550,
+      "seconds": 15.38
+    },
+    "todoist-intro-simple": {
+      "words": "a0f7e39c0e36e224",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 47691,
+      "seconds": 5.89
+    },
+    "todoist-key": {
+      "words": "b95adfc40bb88a46",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 71515,
+      "seconds": 8.88
+    },
+    "zoom-done": {
+      "words": "cea106a9ee6efc9f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 100145,
+      "seconds": 12.45
+    },
+    "zoom-done-simple": {
+      "words": "7e8d043208cc573f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 58140,
+      "seconds": 7.2
+    },
+    "zoom-host": {
+      "words": "107c3af76167b8fa",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 134835,
+      "seconds": 16.78
+    },
+    "zoom-host-simple": {
+      "words": "1c975034e5c5b15b",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 53542,
+      "seconds": 6.63
+    },
+    "zoom-intro": {
+      "words": "b6f19d59e8dffb0f",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 76112,
+      "seconds": 9.44
+    },
+    "zoom-intro-simple": {
+      "words": "3d129281b31ae982",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 38914,
+      "seconds": 4.8
     }
   }
 }

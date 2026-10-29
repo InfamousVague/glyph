@@ -44,8 +44,11 @@ final PluginHost host = createHost(manifest);
 
 /// What GitHub or the plugin refuses, in a sentence a person can act on (the page threw an `Error` with it).
 class GithubFailure implements Exception {
-  const GithubFailure(this.message);
+  const GithubFailure(this.message, {this.status});
   final String message;
+
+  /// GitHub's status, where it refused: 401 for a token it does not know.
+  final int? status;
 
   @override
   String toString() => message;

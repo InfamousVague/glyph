@@ -9,7 +9,7 @@
 ///   what it will cost before anything is asked (voice_over.dart [voiceOverHint]). The sound is kept as the note's
 ///   file and its line put under the title, where its card plays it (lib/editor/media/attachments.dart).
 /// - Its page in Settings: the key, checked before it is kept; the voice, each to hear first; the model
-///   (elevenlabs_pane.dart).
+///   (elevenlabs_pane.dart); and its setup at the head (elevenlabs_setup.dart), which the Market opens as it is added.
 ///
 /// While a note is read the device is held (elevenlabs_hold.dart), so it goes on behind another app.
 library;
@@ -18,6 +18,7 @@ import '../types.dart';
 import 'client.dart';
 import 'elevenlabs_mark.dart';
 import 'elevenlabs_pane.dart';
+import 'elevenlabs_setup.dart';
 import 'manifest.dart';
 import 'voice_over.dart';
 import 'voices.dart';
@@ -26,6 +27,7 @@ export 'client.dart';
 export 'elevenlabs_hold.dart';
 export 'elevenlabs_mark.dart';
 export 'elevenlabs_pane.dart';
+export 'elevenlabs_setup.dart';
 export 'manifest.dart' show apiKeySecret, modelKey, ownVoicesKey, voiceKey;
 export 'previews.dart';
 export 'speech_text.dart';
@@ -47,6 +49,7 @@ List<ActionChoice> voiceOverChoices(String noteId) {
 final GlyphPlugin elevenLabsPlugin = GlyphPlugin(
   manifest: manifest,
   icon: 'audio-lines',
+  setup: elevenLabsSetup,
   settings: PluginSettings(
     pane: (context) => const ElevenLabsPane(),
     hue: 'mint',

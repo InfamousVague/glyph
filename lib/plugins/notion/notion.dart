@@ -3,7 +3,8 @@
 ///
 /// - On a note's cog: "Notion board" under Linked to ([BoardPicker]), and "Send list to Notion" once one is linked.
 /// - In the note: swipe a list item left to send it, or tap the quiet "Notion" after it.
-/// - In Settings: signing in, and the boards Notion shared ([NotionPane]).
+/// - In Settings: signing in, and the boards Notion shared ([NotionPane]), with its setup at the head
+///   (notion_setup.dart), which the Market opens as Notion is added while it is signed out.
 ///
 /// What differs:
 /// - The link's `unavailable` has one answer left: the page's "Works in the Ghost.md app on your phone." was for a
@@ -28,6 +29,7 @@ import 'details.dart';
 import 'manifest.dart';
 import 'marks.dart';
 import 'notion_pane.dart';
+import 'notion_setup.dart';
 
 export 'board_picker.dart' show BoardPicker;
 export 'client.dart';
@@ -35,6 +37,7 @@ export 'details.dart' show NotionPage, StageMap, StageOptions, detailsOf, forget
 export 'manifest.dart' show accountSecret;
 export 'marks.dart' show NotionMark;
 export 'notion_pane.dart' show NotionPane;
+export 'notion_setup.dart';
 
 /// The plugin's manifest and host, under names that do not meet another plugin's (`manifest`, `host`).
 const PluginManifest notionManifest = manifest;
@@ -69,6 +72,7 @@ GlyphPlugin _make() {
   return GlyphPlugin(
     manifest: manifest,
     icon: 'square-kanban',
+    setup: notionSetup,
     settings: PluginSettings(
       pane: (context) => const NotionPane(),
       summary: () => 'Boards for your lists',

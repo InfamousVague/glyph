@@ -1,7 +1,8 @@
 /// An AI provider's setup (lib/plugins/onboarding/setup_flow.dart; docs/AI_PROVIDERS.md, "Its page and its setup"),
 /// the same steps for each, as Claude's are (lib/plugins/claude/claude_setup.dart), in the provider's own words
-/// (lib/plugins/onboarding/setup_voice.dart `setupCaptions`, shown and never said: Matt, 2026-10-29, "leave voice
-/// clips out, captions only"):
+/// (lib/plugins/onboarding/setup_voice.dart). They were captions only at first (Matt, 2026-10-29: "leave voice clips
+/// out, captions only"), and are said aloud as every plugin's are since the same day's "add the voiceover onboarding
+/// for the rest of the plugins":
 ///
 /// 1. **(Name), with your own key**: what it does in Ghost.md, that the provider bills the key, and where the words go.
 /// 2. **Make an account** and 3. **Make a key**: the provider's own pages, opened in the browser. Not the custom

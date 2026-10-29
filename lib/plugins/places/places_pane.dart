@@ -17,6 +17,9 @@ import '../../reminders/place_host.dart';
 import '../../reminders/reminder_settings.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/pane_parts.dart';
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
+import 'places_setup.dart';
 
 class PlacesPane extends StatefulWidget {
   const PlacesPane({super.key, this.places, this.reminders});
@@ -38,6 +41,7 @@ class _PlacesPaneState extends State<PlacesPane> {
 
   PlaceHost? get _places => widget.places ?? phonePlaces.value;
   ReminderSettingsStore get _reminders => widget.reminders ?? reminderSettings;
+  late final PluginSetup _setup = placesSetup(places: widget.places == null ? null : () => widget.places);
 
   @override
   void initState() {
@@ -59,6 +63,8 @@ class _PlacesPaneState extends State<PlacesPane> {
       _access = access;
       _read = true;
     });
+    // The setup's card follows what the page read.
+    if (places != null) placesSetupAccess.value = access;
     final warns = places != null && placeAccessWarns(access);
     placeWarning.value = warns && _reminders.value.on && placeRemindersOn.value;
     if (!warns) {
@@ -88,6 +94,7 @@ class _PlacesPaneState extends State<PlacesPane> {
     final kept = placeAccessWords(access);
     return PaneBody(
       children: [
+        PluginSetupCard(setup: _setup),
         const PaneSection(
           title: 'How it works',
           description: Text('Hold a to-do and choose Remind me at a place: search for one, pick a place the note already has, or use where you are. When your phone comes within about 150 metres of it, the to-do reminds you, with Done to tick it. Ticked, it stops.'),

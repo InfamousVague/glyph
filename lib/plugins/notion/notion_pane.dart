@@ -1,7 +1,8 @@
 /// The Notion plugin's page in Settings: signing in, and the boards Ghost.md can send tasks to. A port of
 /// `src/app/plugins/notion/NotionPane.tsx`.
 ///
-/// One card says whether Ghost.md is signed in and to which workspace, with Sign in or Sign out. Signing in opens
+/// At its head, the setup's card (notion_setup.dart): Set up while signed out, Run setup again once signed in. Then one
+/// card says whether Ghost.md is signed in and to which workspace, with Sign in or Sign out. Signing in opens
 /// Notion in the browser, where the person picks the pages and boards Ghost.md may use; coming back to Ghost.md
 /// collects the sign-in by itself. A second card lists the boards that were shared, so it is plain whether the
 /// board a note should send to is one of them. Which note sends to which board is chosen on the note, from its cog.
@@ -20,11 +21,18 @@ import 'package:flutter/widgets.dart';
 import '../../art/art.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../details_cache.dart' show failureWords;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'client.dart';
 import 'details.dart';
+import 'notion_setup.dart';
 
 class NotionPane extends StatefulWidget {
-  const NotionPane({super.key});
+  const NotionPane({super.key, this.withSetup = true});
+
+  /// The setup's card at the page's head (lib/plugins/onboarding/setup_card.dart). Left out only where the page is
+  /// measured against the web page's (reference and measured tests), which never had one.
+  final bool withSetup;
 
   @override
   State<NotionPane> createState() => _NotionPaneState();
@@ -32,6 +40,7 @@ class NotionPane extends StatefulWidget {
 
 class _NotionPaneState extends State<NotionPane> {
   late final NotionAccountWatch _watch = NotionAccountWatch()..addListener(_changed);
+  late final PluginSetup _setup = notionSetup();
   bool? _available;
   bool _waiting = false;
   List<Board>? _boards;
@@ -119,6 +128,7 @@ class _NotionPaneState extends State<NotionPane> {
     final workspace = account?.workspaceName;
     return PaneBody(
       children: [
+        if (widget.withSetup) PluginSetupCard(setup: _setup),
         if (said != null && said.isNotEmpty) SettingsCallout(child: Text(said)),
         PaneSection(
           title: 'Account',

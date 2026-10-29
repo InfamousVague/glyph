@@ -42,7 +42,7 @@ void main() {
       testWidgets('$name is where the page draws it', (tester) async {
         seed(name);
         final web = webRects('test/plugins/slack/fixtures/$name.json');
-        await pumpPane(tester, const SlackPane());
+        await pumpPane(tester, const SlackPane(withSetup: false));
 
         final sections = find.byType(PaneSection);
         expect(sections, findsNWidgets(web['sections']!.length));
@@ -102,7 +102,7 @@ void main() {
       for (final name in ['pane-empty', 'pane-one']) {
         testWidgets('a picture of $name, $theme', (tester) async {
           seed(name);
-          await pumpPane(tester, const SlackPane(), theme: theme);
+          await pumpPane(tester, const SlackPane(withSetup: false), theme: theme);
           await shot(tester, 'slack-$name-$theme');
         });
       }

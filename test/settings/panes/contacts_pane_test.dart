@@ -8,13 +8,18 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/integrations/contacts/contact_book.dart';
 import 'package:ghost_md/integrations/contacts/contacts.dart';
 import 'package:ghost_md/plugins/contacts/contacts.dart';
+import 'package:ghost_md/plugins/onboarding/setup_card.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 
 import '../../integrations/contacts/support.dart';
 import '../support.dart';
 
-List<String> titles(WidgetTester tester) => [for (final section in tester.widgetList<PaneSection>(find.byType(PaneSection, skipOffstage: false))) section.title ?? ''];
+/// The page's own cards, by title: the setup's card at its head (lib/plugins/onboarding/setup_card.dart) left out.
+List<String> titles(WidgetTester tester) {
+  final setup = tester.widgetList<PaneSection>(find.descendant(of: find.byType(PluginSetupCard, skipOffstage: false), matching: find.byType(PaneSection, skipOffstage: false), skipOffstage: false)).toSet();
+  return [for (final section in tester.widgetList<PaneSection>(find.byType(PaneSection, skipOffstage: false))) if (!setup.contains(section)) section.title ?? ''];
+}
 
 String? hintOf(WidgetTester tester, String label) {
   final hint = tester.widget<SettingRow>(find.byWidgetPredicate((w) => w is SettingRow && w.label == label, skipOffstage: false)).hint;

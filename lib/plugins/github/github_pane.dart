@@ -1,6 +1,6 @@
 /// The GitHub plugin's page in Settings: the repos read on this phone, each with what wrote its briefing and a way
 /// to forget it, and the token, which private repos need to be read and every repo needs before a note's list items
-/// can go there as issues. Linking a repo to a note is on the note, from its cog. A port of
+/// can go there as issues, under the setup's card (github_setup.dart). Linking a repo to a note is on the note, from its cog. A port of
 /// `src/app/plugins/github/GitHubPane.tsx` and `GitHubPane.module.css`.
 ///
 /// What differs:
@@ -20,6 +20,9 @@ import '../../art/art.dart';
 import '../../core/locale_dates.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../host.dart' show onPluginStorage;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
+import 'github_setup.dart';
 import 'plain_field.dart';
 import 'repos.dart';
 
@@ -36,7 +39,11 @@ String packedDay(int ms) {
 String packedLine(Project p) => '${p.packModel != null ? 'Read by ${p.packModel}' : 'Kept from its README'}, ${packedDay(p.packedAt)}.';
 
 class GitHubPane extends StatefulWidget {
-  const GitHubPane({super.key});
+  const GitHubPane({super.key, this.withSetup = true});
+
+  /// The setup's card at the page's head (lib/plugins/onboarding/setup_card.dart). Left out only where the page is
+  /// measured against the web page's (reference and measured tests), which never had one.
+  final bool withSetup;
 
   @override
   State<GitHubPane> createState() => _GitHubPaneState();
@@ -46,6 +53,7 @@ class _GitHubPaneState extends State<GitHubPane> {
   /// The token being typed, before it is kept.
   final TextEditingController _typed = TextEditingController();
   late final VoidCallback _stop;
+  late final PluginSetup _setup = githubSetup();
 
   @override
   void initState() {
@@ -77,6 +85,7 @@ class _GitHubPaneState extends State<GitHubPane> {
     final hasToken = githubToken().isNotEmpty;
     return PaneBody(
       children: [
+        if (widget.withSetup) PluginSetupCard(setup: _setup),
         PaneSection(
           title: 'Repos',
           description: const Text('Repos the model on your phone has read. A note linked to one is formatted knowing its names and terms, and its list items can go there as issues.'),

@@ -11,6 +11,9 @@ import '../../sync/engine.dart' show syncedWhen;
 import '../../settings/account_forms.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/settings_search.dart';
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
+import 'calendar_setup.dart';
 
 /// What Settings' search finds on Calendar: what the page draws now. Google's card is drawn where its sign-in is
 /// offered ([offered]) or already connected, and the to-dos' once it is connected.
@@ -34,7 +37,7 @@ String calendarSummary(Preferences prefs) {
 
 /// The Calendar plugin's page, Settings › Calendar (docs/CALENDAR.md; the port's own, 2026-10-17, and a page
 /// of its own behind Plugins until it was a plugin): the calendars whose events the app shows in queries, on a
-/// calendar of to-dos and on the home page's Today. Three cards:
+/// calendar of to-dos and on the home page's Today. Under Google Calendar's setup card (calendar_setup.dart), three cards:
 ///
 /// - **Calendar addresses**: a calendar's secret iCal address pasted in (Google's, iCloud's, Outlook's, any), read
 ///   when the app opens and every 30 minutes; each listed by its calendar's name with how its last read went, and
@@ -64,6 +67,7 @@ class CalendarPane extends StatefulWidget {
 class _CalendarPaneState extends State<CalendarPane> {
   CalendarService get _calendar => widget.calendar ?? calendar;
   PreferencesStore get _prefs => widget.prefs ?? _calendar.prefs;
+  late final PluginSetup _setup = calendarSetup(service: widget.calendar);
 
   String _typed = '';
   String? _addProblem;
@@ -113,6 +117,7 @@ class _CalendarPaneState extends State<CalendarPane> {
         final writable = [for (final each in calendars) if (each.writable) each];
         return PaneBody(
           children: [
+            PluginSetupCard(setup: _setup),
             if (local) const SettingsCallout(child: Text('Local only is on: no calendar is read until it is off (Settings › Account).')),
             PaneSection(
               title: 'Calendar addresses',

@@ -7,7 +7,8 @@
 /// ([contactsSwitch], handed it by the app's root): switched on, the phone is asked; refused, nothing is read and the
 /// plugin's page says so, with the way to allow it; switched off, the book is put out of memory and no chip is a
 /// contact's, while the matches set by hand are kept for next time. Its page is the one that was Settings › Contacts
-/// ([ContactsPane]), without the switch it had, which is the card's now.
+/// ([ContactsPane]), without the switch it had, which is the card's now; its setup (contacts_setup.dart) is the
+/// permission, asked step by step as the plugin is added.
 ///
 /// Nothing leaves the device: no permission here reaches past the phone, so Local only does not hold it off.
 library;
@@ -17,8 +18,10 @@ import '../../settings/settings_search.dart' show SettingsFindable;
 import '../registry.dart' show plugins;
 import '../types.dart';
 import 'contacts_pane.dart';
+import 'contacts_setup.dart';
 
 export 'contacts_pane.dart' show ContactsPane, contactsFindable, contactsSummary;
+export 'contacts_setup.dart';
 
 const PluginManifest contactsManifest = PluginManifest(
   id: 'contacts',
@@ -49,7 +52,7 @@ ContactsSwitch? contactsSwitch() {
   return ContactsSwitch(read: () => registry.isEnabled(contactsManifest.id), write: (on) => registry.setEnabled(contactsManifest.id, on), changes: registry);
 }
 
-final GlyphPlugin contactsPlugin = GlyphPlugin(manifest: contactsManifest, icon: 'contact-round', settings: _ContactsSettings());
+final GlyphPlugin contactsPlugin = GlyphPlugin(manifest: contactsManifest, icon: 'contact-round', settings: _ContactsSettings(), setup: contactsSetup);
 
 /// The page, and what the search finds on it as it stands now: the people once the phone allows it.
 class _ContactsSettings extends PluginSettings {

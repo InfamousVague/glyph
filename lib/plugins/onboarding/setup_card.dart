@@ -1,6 +1,6 @@
 /// A plugin's setup, from the head of its page in Settings (setup_flow.dart; Matt, 2026-10-28: "For each of the
 /// plugins add a small onboarding flow"). While the plugin still needs its keys ([PluginSetup.ready] false), a card in
-/// its colour with its mark: "Set up Lovart", what the steps are, and Set up (Carry on, where a setup was left half
+/// its colour with its mark: "Set up Lovart", what the steps are ([PluginSetup.about]), and Set up (Carry on, where a setup was left half
 /// way). Once they are kept, one quiet row: Run setup again, which starts from the first step.
 ///
 /// The sheet (setup_sheet.dart) is built here while it is open, so it stays up as the keys are kept and this turns
@@ -130,7 +130,7 @@ class _PluginSetupCardState extends State<PluginSetupCard> {
                   children: [
                     Semantics(header: true, child: Text('Set up ${setup.name}', style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink')))),
                     Text(
-                      carryOn ? 'You were part of the way through. Carry on where you left off.' : 'A few short steps: an account, your keys, and a check that they work.',
+                      carryOn ? 'You were part of the way through. Carry on where you left off.' : setup.about ?? 'A few short steps: an account, your keys, and a check that they work.',
                       style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-2')),
                     ),
                   ],
@@ -160,7 +160,7 @@ class _PluginSetupCardState extends State<PluginSetupCard> {
             key: const ValueKey('plugin-setup-again'),
             icon: const AppIcon(Lucide.refreshCw, size: 16),
             label: 'Run setup again',
-            hint: const Text('The steps from the start: the account, the keys, and a check that they work.'),
+            hint: Text(widget.setup.again ?? 'The steps from the start: the account, the keys, and a check that they work.'),
             value: RowAction(onPress: () => _show(fromStart: true), child: const Text('Run')),
           ),
         ],

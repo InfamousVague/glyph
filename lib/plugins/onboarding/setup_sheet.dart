@@ -13,8 +13,10 @@
 ///   through the plugins' ground), and the address itself written small under them, to type on another device;
 /// - the keys: a field each, drawn as dots until Show, with Paste beside it, which reads the clipboard; Next keeps
 ///   them through the plugin's own save, once each has the shape it should;
+/// - something to do: its button in colour, which runs the plugin's own sign-in or asks for its permission, and what
+///   went wrong under it; a permission answered goes on to the check by itself;
 /// - the check, run as the step shows: "Checking…", then what it said, a tick or a warning in words (said aloud as it
-///   comes), with Check again, and Paste again where the keys were refused;
+///   comes), with Check again, and Paste again (or Sign in again) where the keys were refused;
 /// - the end's own part, the settings that matter or a first thing to try.
 ///
 /// The back gesture, Escape and Back step back; at the first step they put the sheet away, as a tap on the dimmed
@@ -108,6 +110,10 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
   String? _saveProblem;
   bool _saving = false;
 
+  /// A [SetupAct]'s button running, and what it said went wrong.
+  bool _acting = false;
+  String? _actProblem;
+
   /// The check's last answer, and the run it is for.
   SetupResult? _result;
   bool _checking = false;
@@ -193,6 +199,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
       _moved = true;
       _at = steps[index].id;
       _saveProblem = null;
+      _actProblem = null;
       _problems.clear();
       if (steps[index] is SetupCheck) _result = null;
     });
@@ -289,6 +296,28 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
     _go(_index + 1);
   }
 
+  Future<void> _act(SetupAct step) async {
+    if (_acting) return;
+    final at = step.id;
+    setState(() {
+      _acting = true;
+      _actProblem = null;
+    });
+    String? wrong;
+    try {
+      wrong = await step.run();
+    } catch (failure) {
+      wrong = '$failure';
+    }
+    if (!mounted) return;
+    setState(() {
+      _acting = false;
+      _actProblem = wrong;
+    });
+    // On to the check, unless the person has moved meanwhile.
+    if (wrong == null && step.onward && _at == at) _go(_index + 1);
+  }
+
   Future<void> _paste(TextEditingController into) async {
     String? text;
     try {
@@ -363,6 +392,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
       SetupIntro() => simple || step.points.isEmpty ? null : _points(t, step),
       SetupOpen() => _links(t, step, deep),
       SetupPaste() => _pasteBody(t, step),
+      SetupAct() => _actBody(t, step, deep),
       SetupCheck() => _checkBody(t, step, ink),
       SetupDone() => step.body?.call(context, simple),
     };
@@ -486,20 +516,21 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
                       label: field.label,
                       controller: _field(step, field),
                       placeholder: field.placeholder,
-                      secret: !_shown.contains('${step.id}/${field.id}'),
+                      secret: field.secret && !_shown.contains('${step.id}/${field.id}'),
                       onSubmitted: field == step.fields.last ? () => unawaited(_save(step)) : null,
                     ),
                   ),
                   SetupIconButton(key: ValueKey('setup-paste-${field.id}'), icon: Lucide.clipboardPaste, label: 'Paste the ${field.label.toLowerCase()}', onPress: () => unawaited(_paste(_field(step, field)))),
-                  SetupIconButton(
-                    key: ValueKey('setup-show-${field.id}'),
-                    icon: _shown.contains('${step.id}/${field.id}') ? Lucide.eyeOff : Lucide.eye,
-                    label: '${_shown.contains('${step.id}/${field.id}') ? 'Hide' : 'Show'} the ${field.label.toLowerCase()}',
-                    onPress: () => setState(() {
-                      final id = '${step.id}/${field.id}';
-                      if (!_shown.remove(id)) _shown.add(id);
-                    }),
-                  ),
+                  if (field.secret)
+                    SetupIconButton(
+                      key: ValueKey('setup-show-${field.id}'),
+                      icon: _shown.contains('${step.id}/${field.id}') ? Lucide.eyeOff : Lucide.eye,
+                      label: '${_shown.contains('${step.id}/${field.id}') ? 'Hide' : 'Show'} the ${field.label.toLowerCase()}',
+                      onPress: () => setState(() {
+                        final id = '${step.id}/${field.id}';
+                        if (!_shown.remove(id)) _shown.add(id);
+                      }),
+                    ),
                 ],
               ),
               if (_problems[field.id] case final said?) Semantics(liveRegion: true, child: Text(said, key: ValueKey('setup-problem-${field.id}'), style: problem)),
@@ -507,6 +538,18 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
           ),
         ],
         if (_saveProblem case final said?) Semantics(liveRegion: true, child: Text(said, key: const ValueKey('setup-save-problem'), style: problem)),
+      ],
+    );
+  }
+
+  Widget _actBody(Tokens t, SetupAct step, Color deep) {
+    final problem = _actProblem;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: t.space(2),
+      children: [
+        MarketButton(key: const ValueKey('setup-act'), label: _acting ? 'Asking…' : step.label, icon: step.icon, look: MarketButtonLook.filled, color: deep, large: true, onPress: _acting ? null : () => unawaited(_act(step))),
+        if (problem != null) Semantics(liveRegion: true, child: Text(problem, key: const ValueKey('setup-act-problem'), style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('glacier-red-9')))),
       ],
     );
   }
@@ -519,7 +562,9 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
       SetupResult(kind: SetupCheckKind.warn) => (Lucide.triangleAlert, t.color('glacier-amber-11'), result.words),
       SetupResult() => (Lucide.circleAlert, t.color('glacier-red-9'), result.words),
     };
-    final paste = _steps.indexWhere((s) => s is SetupPaste);
+    final paste = setupKeysIndex(_steps);
+    final back = paste < 0 ? null : _steps[paste];
+    final again = back is SetupAct ? back.again ?? back.label : 'Paste again';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: t.space(3),
@@ -546,7 +591,7 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
             spacing: t.space(2),
             runSpacing: t.space(2),
             children: [
-              if (result.pasteAgain && paste >= 0) MarketButton(key: const ValueKey('setup-paste-again'), label: 'Paste again', icon: Lucide.clipboardPaste, look: MarketButtonLook.ring, large: true, onPress: () => _go(paste)),
+              if (result.pasteAgain && paste >= 0) MarketButton(key: const ValueKey('setup-paste-again'), label: again, icon: back is SetupAct ? back.icon : Lucide.clipboardPaste, look: MarketButtonLook.ring, large: true, onPress: () => _go(paste)),
               if (result.link case final link?) MarketButton(key: const ValueKey('setup-result-link'), label: link.label, semantics: '${link.label}, in the browser', icon: Lucide.externalLink, look: MarketButtonLook.ring, large: true, onPress: () => _open(link.url)),
             ],
           ),

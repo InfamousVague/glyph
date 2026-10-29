@@ -10,7 +10,7 @@
 /// - **The geofences**: set for each open to-do with a place while it is on (lib/reminders/place_scheduler.dart, from
 ///   lib/root/phone_extras.dart's pass); switched off, the phone is told to clear every one.
 /// - **Its page** (places_pane.dart): what it does, whether Android lets it know where the phone is all the time,
-///   and the way to allow that.
+///   and the way to allow that; and its setup (places_setup.dart), the same steps one at a time as it is added.
 ///
 /// What it reaches is the notes (to read the to-dos with a place, and write the place picked) and the phone's
 /// location, kept inside the app and handed to Google Play services' geofences (`native`). A place searched for by
@@ -23,8 +23,10 @@ import '../../reminders/place_settings.dart' show placeSettingsKey;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../types.dart';
 import 'places_pane.dart';
+import 'places_setup.dart';
 
 export 'places_pane.dart' show PlacesPane;
+export 'places_setup.dart';
 
 /// The plugin's id: its switch, as lib/root asks it.
 const String placeRemindersId = 'place-reminders';
@@ -57,6 +59,7 @@ const PluginManifest placesManifest = PluginManifest(
 final GlyphPlugin placesPlugin = GlyphPlugin(
   manifest: placesManifest,
   icon: 'map-pin',
+  setup: placesSetup,
   settings: PluginSettings(
     pane: (context) => const PlacesPane(),
     summary: () => 'Reminders when you arrive',

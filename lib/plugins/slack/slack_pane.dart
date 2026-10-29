@@ -1,4 +1,4 @@
-/// The Slack plugin's page in Settings: the channels on this device, each with a test message, a new name and a way
+/// The Slack plugin's page in Settings, under the setup's card (slack_setup.dart): the channels on this device, each with a test message, a new name and a way
 /// to forget it; a channel added by name and pasted webhook; and, for each organization the person is a member of,
 /// the channel its news goes to, if any; and Post to Slack, where meetings go once they are written up
 /// (meetings_section.dart; Matt, 2026-10-26), with any that did not post. A port of
@@ -28,16 +28,23 @@ import '../../settings/kit/settings_kit.dart';
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'channels.dart';
 import 'meetings.dart' show meetingSlackOffered;
 import 'meetings_section.dart';
 import 'news.dart';
+import 'slack_setup.dart';
 
 /// What a test post says in the channel (`TEST_TEXT`).
 const String slackTestText = 'A test from Ghost.md. What you post from this device will land here.';
 
 class SlackPane extends StatefulWidget {
-  const SlackPane({super.key});
+  const SlackPane({super.key, this.withSetup = true});
+
+  /// The setup's card at the page's head (lib/plugins/onboarding/setup_card.dart). Left out only where the page is
+  /// measured against the web page's (reference and measured tests), which never had one.
+  final bool withSetup;
 
   @override
   State<SlackPane> createState() => _SlackPaneState();
@@ -60,6 +67,7 @@ class _SlackPaneState extends State<SlackPane> {
   /// The organization whose channel is being chosen.
   String? _choosing;
   late final VoidCallback _stop;
+  late final PluginSetup _setup = slackSetup();
   Listenable? _orgs;
   List<Channel> _asked = const [];
 
@@ -232,6 +240,7 @@ class _SlackPaneState extends State<SlackPane> {
     final said = _said;
     return PaneBody(
       children: [
+        if (widget.withSetup) PluginSetupCard(setup: _setup),
         if (said != null) SettingsCallout(child: Text(said)),
         PaneSection(
           title: 'Channels',

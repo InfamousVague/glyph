@@ -34,6 +34,7 @@ import '../details_cache.dart' show failureWords;
 import '../types.dart';
 import 'channels.dart';
 import 'discord_pane.dart';
+import 'discord_setup.dart';
 import 'manifest.dart';
 import 'marks.dart';
 import 'markdown.dart';
@@ -42,6 +43,7 @@ export 'calls.dart';
 export 'calls_section.dart';
 export 'channels.dart';
 export 'discord_pane.dart';
+export 'discord_setup.dart';
 export 'manifest.dart' show DiscordFailure, discordWebhookPrefix;
 export 'marks.dart';
 export 'markdown.dart';
@@ -160,6 +162,7 @@ const List<SettingsFindable> discordFindable = [
 final GlyphPlugin discordPlugin = GlyphPlugin(
   manifest: manifest,
   icon: 'message-square',
+  setup: discordSetup,
   settings: PluginSettings(pane: (context) => const DiscordPane(), hue: 'indigo', summary: _summary, settings: discordFindable),
   noteActions: [postNoteToDiscord, postSummaryToDiscord],
 );

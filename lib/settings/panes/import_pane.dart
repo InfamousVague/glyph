@@ -87,15 +87,18 @@ class _Failed extends _State {
 /// Below the app's own, A .ghostex file (ghostex_cards.dart): an export of Ghost.md's own read back, over the
 /// [Ghostex] it is handed (`SettingsFeatures.ghostex`). Not on a plugin's page.
 class ImportPane extends StatefulWidget {
-  const ImportPane({super.key, this.importer, this.ghostex, this.kinds = ImportKind.values});
+  const ImportPane({super.key, this.importer, this.ghostex, this.kinds = ImportKind.values, this.setup});
 
   final Importer? importer;
   final Ghostex? ghostex;
   final List<ImportKind> kinds;
 
-  static Widget hosted(BuildContext context, {List<ImportKind> kinds = ImportKind.values}) {
+  /// A plugin's setup card at the head of its page (lib/plugins/todoist/todoist_setup.dart); none on Settings › Import.
+  final Widget? setup;
+
+  static Widget hosted(BuildContext context, {List<ImportKind> kinds = ImportKind.values, Widget? setup}) {
     final features = SettingsHost.maybeOf(context)?.features;
-    return ImportPane(importer: features?.importer, ghostex: features?.ghostex, kinds: kinds);
+    return ImportPane(importer: features?.importer, ghostex: features?.ghostex, kinds: kinds, setup: setup);
   }
 
   @override
@@ -173,6 +176,7 @@ class _ImportPaneState extends State<ImportPane> {
     final core = kinds.contains(ImportKind.obsidian) || kinds.contains(ImportKind.evernote);
     return PaneBody(
       children: [
+        ?widget.setup,
         if (state is _Running)
           SettingsCallout(
             icon: const AppIcon(Lucide.folderInput, size: 20),

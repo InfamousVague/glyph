@@ -26,6 +26,7 @@ import '../send_items.dart';
 import '../types.dart';
 import 'details.dart';
 import 'github_pane.dart';
+import 'github_setup.dart';
 import 'issues.dart';
 import 'manifest.dart';
 import 'marks.dart';
@@ -34,6 +35,7 @@ import 'repos.dart';
 
 export 'details.dart';
 export 'github_pane.dart';
+export 'github_setup.dart';
 export 'issues.dart';
 export 'manifest.dart' show GithubFailure, tokenSecret;
 export 'marks.dart';
@@ -71,6 +73,7 @@ String _summary() {
 final GlyphPlugin githubPlugin = GlyphPlugin(
   manifest: manifest,
   icon: 'git-branch',
+  setup: githubSetup,
   settings: PluginSettings(
     pane: (context) => const GitHubPane(),
     hue: 'indigo',

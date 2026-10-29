@@ -211,6 +211,14 @@ Future<void> setGithubToken(String token) {
 /// Reads the kept token from the secure store, so [githubToken] is true to it: the app's root, at launch.
 Future<void> warmGithub() => host.secrets.warm();
 
+/// Whose [token] is (the kept one where null): `GET /user`, which changes nothing, its login. The setup's check
+/// (github_setup.dart). Throws a [GithubFailure] as every call here does.
+Future<String> githubLogin([String? token]) async {
+  final user = await _github('user', token ?? githubToken());
+  final login = user is Map ? user['login'] : null;
+  return login is String ? login : '';
+}
+
 // ---- reading a repo ----------------------------------------------------------------------------------------------
 
 final RegExp _scheme = RegExp(r'^https?:\/\/', caseSensitive: false);
@@ -295,10 +303,10 @@ Future<Object?> _github(String path, String token, {bool raw = false}) async {
       },
     ),
   );
-  if (response.status == 404) throw GithubFailure(token.isNotEmpty ? 'GitHub can’t find that repo with this token.' : 'GitHub can’t find that repo. If it’s private, add a token.');
-  if (response.status == 401) throw const GithubFailure('GitHub didn’t accept that token.');
-  if (response.status == 403) throw const GithubFailure('GitHub is limiting requests right now. Try again in a while, or add a token.');
-  if (!response.ok) throw GithubFailure('GitHub answered ${response.status}.');
+  if (response.status == 404) throw GithubFailure(token.isNotEmpty ? 'GitHub can’t find that repo with this token.' : 'GitHub can’t find that repo. If it’s private, add a token.', status: 404);
+  if (response.status == 401) throw const GithubFailure('GitHub didn’t accept that token.', status: 401);
+  if (response.status == 403) throw const GithubFailure('GitHub is limiting requests right now. Try again in a while, or add a token.', status: 403);
+  if (!response.ok) throw GithubFailure('GitHub answered ${response.status}.', status: response.status);
   return raw ? response.text : jsonDecode(response.text);
 }
 

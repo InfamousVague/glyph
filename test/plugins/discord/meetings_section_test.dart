@@ -137,6 +137,9 @@ void main() {
       await tester.enterText(find.byType(EditableText).last, hook);
       await settle(tester);
       expect(actionEnabled(tester, 'Add it'), isTrue);
+      // Below the setup's card at the page's head.
+      await tester.ensureVisible(action('Add it'));
+      await tester.pump();
       await tester.runAsync(() async {
         await tester.tap(action('Add it'));
         await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -145,6 +148,8 @@ void main() {
       expect(textOf(tester), contains('Added #launch. Send it a test to be sure it posts.'));
       expect(discordChannels().single.name, '#launch');
       expect(textOf(tester), isNot(contains(hook)), reason: 'once kept, no page shows the webhook again');
+      await tester.ensureVisible(action('Test'));
+      await tester.pump();
       await tester.runAsync(() async {
         await tester.tap(action('Test'));
         await Future<void>.delayed(const Duration(milliseconds: 50));

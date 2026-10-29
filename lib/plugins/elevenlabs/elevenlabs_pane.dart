@@ -19,8 +19,11 @@ import '../../settings/panes/pane_parts.dart' show armedFor;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
+import '../onboarding/setup_card.dart';
+import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'client.dart';
 import 'elevenlabs_mark.dart';
+import 'elevenlabs_setup.dart';
 import 'manifest.dart';
 import 'previews.dart';
 import 'voice_over.dart' show grouped;
@@ -43,6 +46,7 @@ class ElevenLabsPane extends StatefulWidget {
 class _ElevenLabsPaneState extends State<ElevenLabsPane> {
   final TextEditingController _key = TextEditingController();
   late final VoidCallback _stop;
+  late final PluginSetup _setup = elevenLabsSetup();
   bool _checking = false;
   String? _problem;
   String? _said;
@@ -199,6 +203,7 @@ class _ElevenLabsPaneState extends State<ElevenLabsPane> {
     final making = previewMaking.value;
     return PaneBody(
       children: [
+        PluginSetupCard(setup: _setup),
         if (_problem != null) SettingsCallout(child: Text(_problem!)),
         if (_said != null) SettingsCallout(child: Text(_said!)),
         PaneSection(

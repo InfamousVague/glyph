@@ -13,6 +13,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/plugins/calendar/calendar_pane.dart';
+import 'package:ghost_md/plugins/onboarding/setup_card.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../calendar/fake_google.dart';
@@ -21,7 +22,11 @@ import '../support.dart';
 const String work = 'https://cal.test/work.ics';
 const String workIcs = 'BEGIN:VCALENDAR\r\nX-WR-CALNAME:Work\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261019T090000Z\r\nSUMMARY:Standup\r\nEND:VEVENT\r\nEND:VCALENDAR';
 
-List<String> titles(WidgetTester tester) => [for (final section in tester.widgetList<PaneSection>(find.byType(PaneSection, skipOffstage: false))) section.title ?? ''];
+/// The page's own cards, by title: the setup's card at its head (lib/plugins/onboarding/setup_card.dart) left out.
+List<String> titles(WidgetTester tester) {
+  final setup = tester.widgetList<PaneSection>(find.descendant(of: find.byType(PluginSetupCard, skipOffstage: false), matching: find.byType(PaneSection, skipOffstage: false), skipOffstage: false)).toSet();
+  return [for (final section in tester.widgetList<PaneSection>(find.byType(PaneSection, skipOffstage: false))) if (!setup.contains(section)) section.title ?? ''];
+}
 
 String? hintOf(WidgetTester tester, String label) {
   final hint = tester.widget<SettingRow>(find.byWidgetPredicate((w) => w is SettingRow && w.label == label, skipOffstage: false)).hint;

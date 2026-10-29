@@ -2,6 +2,7 @@
 /// 2026-10-26: "I want settings / meetings to be broken up into three plugins where each zoom, Google meets and discord
 /// handle their own meetings"). On the Google Meet page and the Zoom page alike, in this order:
 ///
+/// - The setup's card (meeting_setup.dart): Set up until it has been seen, Run setup again after.
 /// - **Invite Ghost** ([MeetInviteCard]): Join, for a link of the page's kind alone, and the address to put on a
 ///   calendar invite, with Copy, a name of one's own and a new address. One address for every kind, said on the card
 ///   ("The same address works for Meet and Zoom invites."), so a change on either page is the other's too. With no
@@ -31,6 +32,8 @@ import '../../meet/ui/meet_card.dart';
 import '../../meet/ui/meeting_settings.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/settings_host.dart';
+import '../onboarding/setup_card.dart';
+import 'meeting_setup.dart';
 
 /// What the Zoom page's card on the host is called, and found by.
 const String zoomHostAllows = 'What the host must allow';
@@ -79,6 +82,7 @@ class MeetingPluginPane extends StatelessWidget {
       services: services,
       builder: (context) => PaneBody(
         children: [
+          PluginSetupCard(key: ValueKey('meeting-setup-$kind'), setup: meetingSetupOf(kind)),
           if (services != null && meetCardShown(services))
             MeetInviteCard(services: services, kind: kind)
           else
