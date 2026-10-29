@@ -151,13 +151,16 @@ void main() {
     }
   });
 
-  /// The idle ring: no arcs, no glyph, no tick, the track alone in the muted ink, and nothing moving.
+  /// The idle ring: no arcs and no job's glyph, the track alone in the muted ink with a check in the same grey (Matt,
+  /// 2026-10-29: "Make the grayed out sync a check mark in gray"), and nothing moving.
   void expectIdle(WidgetTester tester, {String reason = ''}) {
     expect(ring(), findsOneWidget, reason: reason);
     final drawn = painter(tester);
     expect(drawn.arcs, isEmpty, reason: reason);
-    expect(drawn.idle, GlacierTheme.of(tester.element(ring())).color('app-ink-3'), reason: 'grey, $reason');
-    expect(find.descendant(of: ring(), matching: find.byType(AppIcon)), findsNothing, reason: 'no glyph and no tick, $reason');
+    final grey = GlacierTheme.of(tester.element(ring())).color('app-ink-3');
+    expect(drawn.idle, grey, reason: 'grey, $reason');
+    final icons = tester.widgetList<AppIcon>(find.descendant(of: ring(), matching: find.byType(AppIcon))).toList();
+    expect([for (final icon in icons) (icon.key, icon.color)], [(const ValueKey('activity-ring:idle-check'), grey)], reason: 'the grey check alone, $reason');
     expect(find.descendant(of: ring(), matching: find.byType(JobGlyph)), findsNothing, reason: reason);
     expect(find.byKey(const ValueKey('activity-ring:dot')), findsNothing, reason: reason);
   }

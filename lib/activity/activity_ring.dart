@@ -242,7 +242,11 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
                   ? JobGlyph.of(lead, key: ValueKey('activity-ring:glyph:${lead.id}'), size: size * 0.5)
                   : ticked
                       ? Opacity(opacity: activityMoves(context) ? (1 - _bloom.value).clamp(0.0, 1.0) : 1, child: AppIcon(Lucide.check, size: size * 0.5, color: _lastColour ?? (_record.lastEnded == null ? t.color('glacier-text') : kindColour(t, _record.lastEnded!.kind)), strokeWidth: 2.4))
-                      : const SizedBox.shrink(),
+                      // Nothing running: a check in the idle ring's grey, all done and in sync (Matt, 2026-10-29: "Make
+                      // the grayed out sync a check mark in gray").
+                      : jobs.isEmpty
+                          ? AppIcon(Lucide.check, key: const ValueKey('activity-ring:idle-check'), size: size * 0.5, color: t.color('app-ink-3'), strokeWidth: 2)
+                          : const SizedBox.shrink(),
             ),
           ),
         );
