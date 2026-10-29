@@ -50,6 +50,7 @@ import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../account/enc_key.dart';
 import '../account/keystore.dart';
+import '../core/background_jobs.dart';
 import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
@@ -73,6 +74,11 @@ const Duration quietWait = Duration(seconds: 4);
 
 /// How often a sync runs while the app is open (`EVERY_MS`).
 const Duration everyWait = Duration(minutes: 5);
+
+/// The sync's job on the app's record of running work (docs/ACTIVITY.md), and how long a pass that has moved nothing
+/// runs before the ring shows it (Matt, 2026-10-29: "only when a pass actually moves something or takes over ~1 s").
+const String syncJobId = 'sync';
+const Duration syncShownAfter = Duration(seconds: 1);
 
 // --- status ----------------------------------------------------------------------------------------------------------
 
@@ -471,6 +477,39 @@ class SyncEngine {
   /// The pass asked for while one was running, if any: one more, covering the most anybody asked.
   _Parts? _queued;
 
+  /// The sync on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md, Matt 2026-10-29):
+  /// one rolling "Syncing" for a pass and the passes queued behind it, kept out of the ring and the tray unless it moves
+  /// something or takes over [syncShownAfter]; a look at the notifications alone is never one. [_moved] is what it
+  /// brought or sent so far, its tally ("40 notes synced"); [_failure] the first thing that went wrong in its last pass.
+  JobHandle? _job;
+  int _moved = 0;
+  ({String words, Object error})? _failure;
+
+  void _movedSome(int count) {
+    if (count <= 0) return;
+    _moved += count;
+    _job?.show();
+  }
+
+  /// Whether [failure] is the network blinking, or the service a moment away (a 5xx): the next pass, minutes away or
+  /// at the next change, is its try again, so the job goes quietly rather than red.
+  static bool _passing(Object failure) => isNetworkBlip(failure) || (failure is ApiError && failure.status >= 500);
+
+  /// The rolling job ended, as the last pass it covered ended.
+  void _endJob() {
+    final job = _job, moved = _moved, failure = _failure;
+    _job = null;
+    _moved = 0;
+    _failure = null;
+    if (job == null) return;
+    final tally = JobTally('note synced', 'notes synced', moved);
+    if (failure != null && !_passing(failure.error)) {
+      job.failed(failure.words, fix: JobFix(JobFixKind.retry, () => unawaited(syncNow())), tally: tally);
+    } else {
+      job.done(tally: tally);
+    }
+  }
+
   /// One pass of [parts] now, or right after the pass already running.
   Future<void> _run(_Parts parts) {
     final running = _running;
@@ -493,6 +532,7 @@ class SyncEngine {
       } finally {
         _running = null;
         _queued = null;
+        _endJob();
         done.complete();
       }
     }());
@@ -552,6 +592,8 @@ class SyncEngine {
       return;
     }
     final accountKey = key;
+    if (parts != _Parts.notifications) _job ??= activity.begin(syncJobId, kind: JobKind.sync, title: 'Syncing', showAfter: syncShownAfter);
+    _failure = null;
     // The notes lately out of a team here, kept from an old build's deletion and put again for it (lib/sync/notes.dart
     // [LeftTeams]): told by the team's channels, read by the account's own sync.
     final leftTeams = _LeftTeamsKept(_device, _stateKey(session.accountId, 'left-teams'), _now);
@@ -628,6 +670,7 @@ class SyncEngine {
             );
         try {
           final team = await channel(pass(key: orgKey, generation: orgKeys.orgKeyGeneration(row.id)));
+          _movedSome(team.changed + team.sent);
           if (team.changed > 0) await _changed();
           // Written to the organization: its other devices fetch now, not at their next pass.
           if (team.sent > 0) tellChanged?.call(row.id);
@@ -711,6 +754,7 @@ class SyncEngine {
         if (failure is ApiError && failure.status == 401) rethrow;
         debugPrint('[sync] $name failed: $failure');
         failed ??= '$name: ${failureText(failure)}';
+        _failure ??= (words: failed!, error: failure);
         return null;
       }
     }
@@ -736,6 +780,7 @@ class SyncEngine {
             now: _now,
           )),
         );
+        _movedSome(filed ?? 0);
         if ((filed ?? 0) > 0) await _changed();
       }
 
@@ -755,6 +800,7 @@ class SyncEngine {
             now: _now,
           )),
         );
+        _movedSome(filed ?? 0);
         if ((filed ?? 0) > 0) await _changed();
       }
 
@@ -774,6 +820,7 @@ class SyncEngine {
             kept: _device,
           )),
         );
+        _movedSome(added ?? 0);
         if ((added ?? 0) > 0) await _changed();
       }
 
@@ -807,6 +854,7 @@ class SyncEngine {
           leftTeams: leftTeams,
         )),
       );
+      _movedSome(synced?.changed ?? 0);
       if ((synced?.changed ?? 0) > 0) await _changed();
       final outcome = Outcome(conflicts: synced?.conflicts ?? 0, unsent: synced?.unsent ?? 0, reason: synced?.reason);
 
