@@ -110,12 +110,16 @@ class AssistantChoice extends ChangeNotifier {
   /// The meetings' choice: as [chat]'s, or [assistantDevice].
   String get meetings => _meetings;
 
-  /// Reads the choices, and every provider's settings. Once; later calls wait for the same read.
-  Future<void> load() => _loading ??= _load();
+  /// Reads the choices, and every provider's settings. Once; later calls wait for the same read, or, once it is done,
+  /// for nothing: a finished read is answered with a new future, never the first one again, which belongs to the zone
+  /// it was made in (a test's, over by then).
+  Future<void> load() => _loaded ? Future<void>.value() : (_loading ??= _load());
+  bool _loaded = false;
 
   Future<void> _load() async {
-    await Future.wait([claude.load(), for (final other in others) other.settings.load()]);
+    await Future.wait([if (!claude.loaded) claude.load(), for (final other in others) other.settings.load()]);
     await _read();
+    _loaded = true;
     notifyListeners();
   }
 

@@ -17,7 +17,7 @@ import 'settings_host.dart';
 const List<SettingsFindable> aiFindable = [
   SettingsFindable('Model', 'ai llm download formatting format enhance summarize choose your qwen gemma storage remove'),
   SettingsFindable('Fill blanks on their own', 'auto fill blanks automatic weather live facts idle'),
-  SettingsFindable('Assistant', 'assistant ai chat ask dock claude openai gpt gemini google custom openrouter ollama lm studio meeting summaries provider which model'),
+  SettingsFindable('Assistant', 'assistant ai chat ask claude openai gpt gemini google custom openrouter ollama lm studio meeting summaries provider which model'),
 ];
 
 /// A model in the catalogue (core/ai.ts `ModelChoice`).

@@ -157,8 +157,9 @@ class AiProviderSettings extends ChangeNotifier {
   /// [model] refused tools: it is asked without them from now on. Answers whether that is news.
   bool refuseTools(String model) => _noTools.add(model);
 
-  /// Reads what this device keeps. Once; later calls wait for the same read.
-  Future<void> load() => _loading ??= _load();
+  /// Reads what this device keeps. Once; later calls wait for the same read, or for nothing once it is done (see
+  /// lib/assistant/assistant.dart `AssistantChoice.load`).
+  Future<void> load() => _loaded ? Future<void>.value() : (_loading ??= _load());
 
   Future<void> _load() async {
     await _read();
