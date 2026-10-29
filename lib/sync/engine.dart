@@ -207,6 +207,7 @@ class TeamPass {
     required this.isTeamNote,
     this.leftTeam,
     this.keptOut,
+    this.agreed,
     required this.file,
     this.folders,
     required this.pulled,
@@ -249,6 +250,10 @@ class TeamPass {
   /// Told of a note that stays on this device as its team's row goes (lib/team/sync.dart `keptOut`): the engine
   /// keeps it from an old build's deletion for a while ([LeftTeams]).
   final void Function(String noteId)? keptOut;
+
+  /// The words this device last agreed on with the account for a note (lib/sync/notes.dart [agreedWords]): what a
+  /// note it had of its own is merged from when the team's row first lands (lib/team/sync.dart `_ownWords`).
+  final String? Function(String noteId)? agreed;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
@@ -617,6 +622,8 @@ class SyncEngine {
                 return filed != null && _workspaces.orgOf(filed.id) != row.id;
               },
               keptOut: leftTeams.keep,
+              // Read as the note's row lands: the account's step of this pass may have answered a deletion with it.
+              agreed: (id) => agreedWords(_loadNotes(accountId).notes[id]),
               file: (id) => _workspaces.fileNote(id, workspace),
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.

@@ -248,6 +248,65 @@ void main() {
       expect(pictures.held[a], jpeg(1));
     });
 
+    // Matt, 2026-10-29: a meeting's own share link, posted to Slack once it was written up (lib/plugins/slack/
+    // meetings.dart), opened from Slack's reader page with "Open in Ghost.md", saved "Engineering Standup (shared)" beside
+    // the meeting, with no summary and no recording.
+    group('a share of a note this library has opens that note, and saves no copy', () {
+      Future<Note> never(String body) async => throw StateError('a copy was saved: ${noteTitle(body)}');
+      final standup = note('m1', '# Engineering Standup\n\nGhost was in this meeting on 29 Oct, 09:28 to 10:06.\n\n## Transcript\n\n**Sam Lee:** Morning.');
+
+      test('the account’s own share, made on this device or another, is known by its id: nothing is read', () async {
+        final link = await shares.shareNote(standup, [standup]);
+        final found = readShareLink(link)!;
+        expect(shares.noteOfShare(found.id), 'm1');
+        service.calls.clear();
+        for (final given in ['ghostmd://fork#${found.id}.${found.key}', link]) {
+          final forked = await forkFromLink(given, shares: shares, notes: () async => [standup], save: never);
+          expect(forked, isA<ForkedOwn>().having((f) => f.noteId, 'note', 'm1'), reason: given);
+        }
+        expect(service.calls.where((call) => call.contains('shares/')), isEmpty, reason: 'the share is not read: the note is here');
+      });
+
+      test('someone else’s share of a note that is here too (a team’s) opens it, by the id the share carries', () async {
+        final link = await shares.shareNote(standup, [standup]);
+        // A member of the organization: another account, which made no share of its own.
+        final member = Shares(account: SignedAccount()..signIn(service), api: apiOf(service), crypto: service.crypto, prefs: PreferencesStore()..startWithoutStorage(), pictures: Pictures(), listNotes: () async => const []);
+        expect(member.noteOfShare(readShareLink(link)!.id), isNull);
+        final forked = await forkFromLink(link, shares: member, notes: () async => [standup], save: never);
+        expect(forked, isA<ForkedOwn>().having((f) => f.noteId, 'note', 'm1'));
+      });
+
+      test('a share of a note this library does not have is still saved as a copy, its title taken: "(shared)"', () async {
+        final link = await shares.shareNote(standup, [standup]);
+        final saved = <String>[];
+        // The note gone from here (deleted for good), and another note by that title written since.
+        final forked = await forkFromLink(link, shares: shares, notes: () async => [note('other', '# Engineering Standup\n\nMy own.')], save: (body) async {
+          saved.add(body);
+          return note('copy', body);
+        });
+        expect(forked, isA<ForkedCopy>());
+        expect(saved.map(noteTitle), ['Engineering Standup (shared)']);
+      });
+
+      test('a share carries its note’s id, sealed with it: a meeting’s share is sent again once for it, any other is not', () async {
+        final shared = sharedOf(standup, [standup], at: 5);
+        expect(shared.note, 'm1');
+        expect(shared.toJson()['note'], 'm1');
+        final crypto = service.crypto;
+        final key = newShareKey(crypto);
+        final opened = await openShare(crypto, await sealShare(crypto, shared, key), key);
+        expect(opened.note, 'm1');
+        final older = Shared(kind: shared.kind, title: shared.title, pages: shared.pages, at: shared.at);
+        expect(shareDigest(older), shareDigest(shared));
+        // A meeting's, posted to the team's Slack channel: sent again, so a member's app opens the meeting from it.
+        const turns = {'ms': 4000, 'turns': <Object?>[]};
+        expect(shareDigest(older.withMeeting(turns)), isNot(shareDigest(shared.withMeeting(turns))));
+        // A book carries the book's.
+        final book = note('b', bookNoteBody('Cabin trip', ['Packing']));
+        expect(sharedOf(book, [book, note('p', '# Packing')]).note, 'b');
+      });
+    });
+
     test('an invite link given where a share was asked for is an invite, and nothing is read', () async {
       service.calls.clear();
       Future<Note> never(String body) async => throw StateError('nothing is saved');

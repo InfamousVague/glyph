@@ -53,11 +53,13 @@ import '../core/attachment_refs.dart';
 import '../core/book.dart';
 import '../core/bytes.dart';
 import '../core/ids.dart';
+import '../core/merge_words.dart';
 import '../core/note.dart';
 import '../core/note_json.dart';
 import '../core/note_text.dart';
 import '../core/summary_text.dart';
 import '../core/versions_file.dart';
+import '../meet/meet_note.dart' show ghostLineStart;
 
 // --- what this module is given ---------------------------------------------------------------------------------------
 
@@ -272,27 +274,34 @@ int stayedHere(Iterable<Note> notes, {required Map<String, num> meetings, requir
 /// Per note: the revision last seen, the note's fingerprint then, and its recording's phrases then ([phrasesMark]).
 /// A recording's phrases are not in a list read, so they are not in [mark]: a write-up or a better pass that rewrites
 /// them after the note went changes nothing [mark] sees, and their own fingerprint is what tells.
+///
+/// [before] is the words this device and the account last agreed on before a deletion was answered with this
+/// device's own words ([agreedWords]): the account's row of a meeting went because another device filed it in an
+/// organization, and this one, a pass behind, put its transcript back as the account's row. The team's row is merged
+/// against the words from before that when it lands here (lib/team/sync.dart), not the ones this device has just
+/// sent. Kept until this device sends an edit of its own again, or takes the note's words from the account.
 @immutable
 class NoteMark {
-  const NoteMark({required this.rev, required this.mark, this.phrases});
+  const NoteMark({required this.rev, required this.mark, this.phrases, this.before});
 
   static NoteMark? fromJson(Object? raw) {
     if (raw is! Map) return null;
-    final rev = raw['rev'], mark = raw['mark'], phrases = raw['phrases'];
-    return rev is num && mark is String ? NoteMark(rev: rev.toInt(), mark: mark, phrases: phrases is String ? phrases : null) : null;
+    final rev = raw['rev'], mark = raw['mark'], phrases = raw['phrases'], before = raw['before'];
+    return rev is num && mark is String ? NoteMark(rev: rev.toInt(), mark: mark, phrases: phrases is String ? phrases : null, before: before is String ? before : null) : null;
   }
 
   final int rev;
   final String mark;
   final String? phrases;
+  final String? before;
 
-  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'phrases': ?phrases};
-
-  @override
-  bool operator ==(Object other) => other is NoteMark && other.rev == rev && other.mark == mark && other.phrases == phrases;
+  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'phrases': ?phrases, 'before': ?before};
 
   @override
-  int get hashCode => Object.hash(rev, mark, phrases);
+  bool operator ==(Object other) => other is NoteMark && other.rev == rev && other.mark == mark && other.phrases == phrases && other.before == before;
+
+  @override
+  int get hashCode => Object.hash(rev, mark, phrases, before);
 
   @override
   String toString() => 'NoteMark($rev)';
@@ -501,6 +510,23 @@ Note withId(Note note, String id) => note.id == id
         path: note.path,
         revision: note.revision,
       );
+
+/// The words a [mark] was taken of (its first field), or null for none: no mark, or `''`, which marks a deletion
+/// answered with this device's words.
+String? wordsOfMark(String? mark) {
+  if (mark == null || mark.isEmpty) return null;
+  try {
+    final said = jsonDecode(mark);
+    return said is List && said.isNotEmpty && said.first is String ? said.first as String : null;
+  } on FormatException {
+    return null;
+  }
+}
+
+/// The words this device and the account last agreed on for a note, by its [known] mark: what a change made on both
+/// sides since is merged from (lib/core/merge_words.dart). The words from before a deletion this device answered with
+/// its own ([NoteMark.before]), else the words of its fingerprint; null where it has neither.
+String? agreedWords(NoteMark? known) => known == null ? null : (known.before ?? wordsOfMark(known.mark));
 
 /// What a note is, for telling whether it changed: everything a list read carries (`mark`). A recording's phrases
 /// and the formatted text are not in a list read, and move with `recordingMs` and `formattedFor`, which are.
@@ -1045,6 +1071,10 @@ Note _copyOf(Note full) => Note(
       revision: full.revision,
     );
 
+/// Whether the note [id] is a meeting: one this account keeps as a meeting, or one Ghost was in.
+bool _isMeeting(SyncContext ctx, String id, Note local, Note theirs) =>
+    ctx._meetings.containsKey(id) || local.body.contains(ghostLineStart) || theirs.body.contains(ghostLineStart);
+
 /// One note from the service, merged into this device (`merge`). [local] is the note here as the list has it, or
 /// null when there is none. A note left differing from its recorded fingerprint is sent by the push that follows.
 Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome) async {
@@ -1056,8 +1086,10 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
     // Lately out of a team here, it is not taken either: an old build's removal of its copy said as a deletion
     // ([LeftTeams]).
     if (local != null && (changedHere || ctx._keptOut(item.id))) {
-      // Deleted there, changed here: this device's words stand, and are sent again from the deletion's revision.
-      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: '');
+      // Deleted there, changed here: this device's words stand, and are sent again from the deletion's revision. The
+      // words both had before are kept with it: the deletion may be the note going to a team, whose row is merged
+      // against them when it lands here ([NoteMark.before]).
+      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: '', before: agreedWords(known));
       return;
     }
     if (local != null) {
@@ -1092,6 +1124,20 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
       // merge.
       await _fetchFilesOf(ctx, payload);
       await ctx.notes.apply(withPhrases(_withBody(theirs, index), whole, known?.phrases).note);
+      outcome.changed += 1;
+      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
+      return;
+    }
+    // A meeting changed on both sides at different lines: both changes, in one note (lib/core/merge_words.dart; Matt,
+    // 2026-10-29: "make it so the transcripts and meeting summaries are shown in one file"). Its summary written on one
+    // device and its transcript landed on another, over the words from before the summary, are such a pair, and were
+    // kept as two notes. As above, the mark kept is theirs, so the push that follows sends the merge. Any other note
+    // changed on both sides is kept twice as it always was.
+    final base = _isMeeting(ctx, item.id, local, theirs) ? agreedWords(known) : null;
+    final both = base == null ? null : mergedWords(base, local.body, theirs.body);
+    if (both != null) {
+      await _fetchFilesOf(ctx, payload);
+      await ctx.notes.apply(withPhrases(_withBody(theirs, both), whole, known?.phrases).note);
       outcome.changed += 1;
       ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
       return;
@@ -1154,6 +1200,27 @@ Future<Note?> _listed(SyncContext ctx, String id) async {
   return null;
 }
 
+/// The account's words for a note that is a team's on this device, written by another of the person's devices after
+/// this one last agreed with the account ([known]): merged into the note here ([mergedWords]), which the team's
+/// channel then carries to everyone, and never written over it. Where the two changed the same lines, the note keeps
+/// its words, with the summary the account's words have where it has none: a meeting's summary is never lost to its
+/// transcript's side (Matt's standup, 2026-10-29).
+Future<void> _mergeIntoTeams(SyncContext ctx, FeedItem winner, NoteMark? known, Outcome outcome) async {
+  final blob = winner.blob;
+  if (winner.deleted || blob == null || blob.isEmpty) return;
+  final local = await ctx.notes.get(winner.id);
+  if (local == null) return;
+  final payload = NotePayload.fromJson(await ctx.crypto.open(ctx.key, blob, 'note:${winner.id}'), winner.id);
+  final theirs = payload.note.body;
+  if (theirs == local.body) return;
+  final base = agreedWords(known);
+  final words = (base == null ? null : mergedWords(base, local.body, theirs)) ?? withSummaryOf(local.body, theirs);
+  if (words == local.body) return;
+  await _fetchFilesOf(ctx, payload);
+  await ctx.notes.apply(local.copyWith(body: words, updatedAt: (ctx.now ?? () => DateTime.now().millisecondsSinceEpoch)()));
+  outcome.changed += 1;
+}
+
 /// Writes one note (or its deletion), merging and trying once more if another device got there first (`send`).
 Future<void> _send(SyncContext ctx, String id, Note? note, Outcome outcome, {bool retry = true}) async {
   final known = ctx.state.notes[id];
@@ -1164,7 +1231,8 @@ Future<void> _send(SyncContext ctx, String id, Note? note, Outcome outcome, {boo
       final payload = await _sendFilesOf(ctx, full);
       final blob = await ctx.crypto.seal(ctx.key, payload.toJson(), 'note:$id');
       final answer = await ctx.api.call('PUT', 'notes/${Uri.encodeComponent(id)}', token: ctx.token, body: {'base': known?.rev ?? 0, 'blob': blob});
-      ctx.state.notes[id] = NoteMark(rev: _revOf(answer), mark: mark(note), phrases: phrasesMark(full));
+      // The words from before a deletion this send answers stay known until an edit of this device's goes after it.
+      ctx.state.notes[id] = NoteMark(rev: _revOf(answer), mark: mark(note), phrases: phrasesMark(full), before: known != null && known.mark.isEmpty ? known.before : null);
     } else {
       await ctx.api.call('DELETE', 'notes/${Uri.encodeComponent(id)}', token: ctx.token, body: {'base': known?.rev ?? 0});
       ctx.state.notes.remove(id);
@@ -1172,6 +1240,21 @@ Future<void> _send(SyncContext ctx, String id, Note? note, Outcome outcome, {boo
   } on ApiError catch (failure) {
     final winner = failure.status == 409 ? FeedItem.fromJson(failure.body) : null;
     if (winner == null) rethrow;
+    // The account's row of a note that is a team's here now, taken away and found changed by another of the
+    // person's devices since: those words are merged into the team's note, never written over it, and the row goes
+    // from where the other device left it.
+    if (note == null && ctx._team(id)) {
+      await _mergeIntoTeams(ctx, winner, known, outcome);
+      if (winner.deleted) {
+        ctx.state.notes.remove(id);
+      } else {
+        // Asked again from its revision; one more refusal is left for the next pass, the mark saying the row is owed.
+        ctx.state.notes[id] = NoteMark(rev: winner.rev, mark: '');
+        if (retry) await _send(ctx, id, null, outcome, retry: false);
+      }
+      ctx.save(ctx.state);
+      return;
+    }
     final local = note != null ? await _listed(ctx, id) : null;
     await _merge(ctx, winner, local, outcome);
     if (!retry) return;

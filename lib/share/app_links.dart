@@ -248,14 +248,39 @@ class ForkedCopy extends Forked {
   final Note note;
 }
 
+/// The share is of a note this library has: [noteId] is to be opened, and nothing was saved. The account's own share,
+/// from any of its devices, or a share whose note is here (a team's note a member shared).
+class ForkedOwn extends Forked {
+  const ForkedOwn(this.noteId);
+  final String noteId;
+}
+
+/// What the app says as it opens a note of its own from its share link, where a copy would have been saved.
+const String ownShareWords = 'This is your note';
+
 /// A link given where a share was asked for - the app's own scheme, or pasted into "From a shared link" - followed
-/// (`forkFromLink`, App.tsx): an invite is an invite; anything else is read as a share ([Shares.readShared]) and a
-/// copy saved into this library ([forkShared]), its pictures kept through the [Shares]' own. [notes] lists the
-/// library and [save] makes a note with those words. The caller refreshes its list and opens what is answered.
+/// (`forkFromLink`, App.tsx): an invite is an invite; a share of a note this library has is that note
+/// ([ForkedOwn]); anything else is read as a share ([Shares.readShared]) and a copy saved into this library
+/// ([forkShared]), its pictures kept through the [Shares]' own. [notes] lists the library and [save] makes a note with
+/// those words. The caller refreshes its list and opens what is answered.
+///
+/// A note's own link was saved as a copy beside it (Matt, 2026-10-29): a meeting written up is posted to Slack with its
+/// share link (lib/plugins/slack/meetings.dart), the link opens the reader page, and its "Open in Ghost.md" is this
+/// app's `ghostmd://fork#…`, which saved "Engineering Standup (shared)" next to the meeting on the device it was tapped
+/// on, a second note of the one meeting with no summary and no recording. So first the share's id is looked for among
+/// the account's own shares ([Shares.noteOfShare]: the settings keep every one, whichever device made it), and the
+/// note it names is opened when this library has it; and a share carries its note's id ([Shared.note]), so a share
+/// made by someone else of a note that is here too (a team's) opens it as well. Only a note this library does not
+/// have is saved as a copy.
 Future<Forked> forkFromLink(String link, {required Shares shares, required Future<List<Note>> Function() notes, required Future<Note> Function(String body) save}) async {
   final invite = readJoinLink(link);
   if (invite != null) return ForkedInvite(invite);
+  Future<bool> here(String? id) async => id != null && (await notes()).any((note) => note.id == id);
+  final found = readShareLink(link);
+  final own = found == null ? null : shares.noteOfShare(found.id);
+  if (await here(own)) return ForkedOwn(own!);
   final shared = await shares.readShared(link);
+  if (await here(shared.note)) return ForkedOwn(shared.note!);
   return ForkedCopy(await forkShared(shared, notes: notes, save: save, keep: shares.pictures.keep));
 }
 

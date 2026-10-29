@@ -64,6 +64,7 @@ import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../core/attachment_refs.dart' show attachmentNames;
 import '../core/bytes.dart';
+import '../core/merge_words.dart';
 import '../core/note.dart';
 import '../core/note_folders.dart' show orgFolderNames;
 import '../core/note_json.dart';
@@ -186,6 +187,7 @@ class TeamSyncContext {
     required this.isTeamNote,
     this.leftTeam,
     this.keptOut,
+    this.agreed,
     required this.file,
     this.folders,
     this.now,
@@ -223,6 +225,12 @@ class TeamSyncContext {
   /// here or on another of their devices. The account's own sync keeps it from an old build's deletion for a while
   /// after (lib/sync/notes.dart [LeftTeams]).
   final void Function(String id)? keptOut;
+
+  /// The words this device last had in common with the person's other devices for a note, through the account's own
+  /// sync, before the team had it here (lib/sync/notes.dart `agreedWords`); null where it has none. A note this device
+  /// had of its own when the team's row first lands is merged from them: only what changed here since is this
+  /// device's change ([_ownWords]).
+  final String? Function(String id)? agreed;
 
   /// A note from the team, filed in the organization's workspace on this device: one at the organization's own
   /// folder, or any, where this device has no [folders].
@@ -443,6 +451,24 @@ Future<void> _writeWords(TeamSyncContext ctx, TeamDoc doc, _Tally tally) async {
 
 // --- pull ------------------------------------------------------------------------------------------------------------
 
+/// What a note this device had of its own makes of the team's words ([theirs]) as the team's row first lands here:
+/// its own words ([mine]) were reconciled into the document whole, as the change they were, which took out of the
+/// team's note whatever this device had not had yet. So a meeting lost its summary for every device (Matt's
+/// standup, 2026-10-29: the device holding the recording landed its transcript over the words from before the
+/// summary, while the device that wrote the summary filed the meeting in HelloTrade › Meetings; the transcript's words
+/// took the summary out, and it went from every device). Now, from the words this device last agreed on with the
+/// account ([TeamSyncContext.agreed]):
+/// - none known, this device's words as before;
+/// - unchanged here since, the team's: there is nothing of this device's to add;
+/// - changed on both sides, both changes, merged by their lines (lib/core/merge_words.dart);
+/// - changed at the same lines, this device's words, with the team's summary where they have none.
+String _ownWords(TeamSyncContext ctx, String id, String mine, String theirs) {
+  final base = ctx.agreed?.call(id);
+  if (base == null) return mine;
+  if (base == mine) return theirs;
+  return mergedWords(base, mine, theirs) ?? withSummaryOf(mine, theirs);
+}
+
 Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally) async {
   final blob = item.blob;
   if (item.deleted || blob == null) {
@@ -469,8 +495,12 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   // state comes in, so the merge is the CRDT's and nothing typed is written over.
   if (held != null && local != null) await held.reconcileKept(local.body);
   final doc = await ctx.docs.adopt(item.id, payload.state, payload.seq);
-  // This device's own words, from before the team had the note: a change for the team, not words to lose.
-  if (held == null && local != null && local.body != doc.words) await doc.reconcile(local.body);
+  // This device's own words, from before the team had the note: a change for the team, not words to lose. Only what
+  // changed here is (Matt's standup, 2026-10-29): see [_ownWords].
+  if (held == null && local != null && local.body != doc.words) {
+    final words = _ownWords(ctx, item.id, local.body, doc.words);
+    if (words != doc.words) await doc.reconcile(words);
+  }
   // The note first, its history and pictures after every note of the feed is here: a member who has just joined
   // reads the team's words in the time the rows take, not the time sixty files take.
   ctx._later.add(() async {
@@ -896,6 +926,7 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       isTeamNote: pass.isTeamNote,
       leftTeam: pass.leftTeam,
       keptOut: pass.keptOut,
+      agreed: pass.agreed,
       file: pass.file,
       folders: pass.folders,
       pulled: pass.pulled,
