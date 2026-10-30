@@ -4,7 +4,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/book/ticket_links.dart' show TicketProgress;
-import 'package:ghost_md/core/hold_drag.dart';
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/editor/queries/queries.dart';
 import 'package:ghost_md/editor/queries/ticket_marks.dart';

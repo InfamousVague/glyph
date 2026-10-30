@@ -19,7 +19,6 @@ import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/editor/buttons/button_builder.dart';
 import 'package:ghost_md/editor/buttons/buttons.dart';
 import 'package:ghost_md/editor/queries/queries.dart';
-import 'package:ghost_md/editor/queries/query_look.dart';
 import 'package:ghost_md/editor/state/state.dart';
 import 'package:ghost_md/editor/tickets/tickets.dart';
 import 'package:ghost_md/editor/view/base.dart';
