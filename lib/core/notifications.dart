@@ -53,6 +53,8 @@ const Map<String, String> kindHues = {
   'rule-added': 'violet',
   'summary-written': 'sea',
   'sync-conflict': 'ember',
+  // A ticket written from an answer to a form: a note written, sea.
+  'form-answer': 'sea',
 };
 
 bool isKind(Object? value) => value is String && kinds.contains(value);

@@ -16,6 +16,15 @@
   color: var(--glacier-text);
 }
 
+/* The page's room under a read note is for a thumb at its end; here the fields follow at once. */
+.intro > * {
+  padding-block-end: 0;
+}
+
+.intro > * > :last-child {
+  margin-block-end: 0;
+}
+
 .form {
   display: grid;
   gap: var(--glacier-space-5);
@@ -105,6 +114,7 @@
   align-items: center;
   gap: var(--glacier-space-3);
   min-inline-size: 0;
+  font-size: var(--glacier-font-size-sm);
 }
 
 .file {
