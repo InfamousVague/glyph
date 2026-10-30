@@ -2177,6 +2177,8 @@ class NoteDeskState extends State<NoteDesk> {
         openNew: widget.readOnly ? null : _world.openPage,
         openTicket: widget.readOnly || _world.openTicket == null ? null : (title, template) => _world.openTicket!(title, body, template),
         ticketTemplates: _world.ticketTemplates?.call() ?? const <NoteTemplate>[],
+        // New form… (docs/FORMS.md): a form whose answers become this notebook's tickets.
+        offersForms: !widget.readOnly,
         titles: _world.pageTitles ?? _world.titles,
         bodyOf: _world.bodyOf,
         spot: widget.noteId,

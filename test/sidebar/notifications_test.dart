@@ -12,16 +12,17 @@ const NotificationOrg ghost = (id: 'o1', name: 'Ghost');
 
 void main() {
   group('the kinds', () {
-    test('are the service’s nine and the account’s seven, each in one category', () {
-      expect(kinds, hasLength(16));
+    test('are the service’s nine and the account’s eight, each in one category', () {
+      expect(kinds, hasLength(17));
       expect(serverKinds, hasLength(9));
-      expect(selfKinds, hasLength(7));
+      expect(selfKinds, hasLength(8));
       expect(categories, ['team', 'claude', 'summaries', 'conflicts']);
       expect(categoryOf('invite'), 'invites');
       expect(serverKinds.where((k) => k != 'invite').every((k) => categoryOf(k) == 'team'), isTrue);
       expect(['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added'].every((k) => categoryOf(k) == 'claude'), isTrue);
       expect(categoryOf('summary-written'), 'summaries');
       expect(categoryOf('sync-conflict'), 'conflicts');
+      expect(categoryOf('form-answer'), 'invites', reason: 'an answer to a form is shown as an invitation is, with no switch');
       expect(isKind('invite'), isTrue);
       expect(isKind('poke'), isFalse);
       expect(isKind(7), isFalse);
@@ -97,6 +98,8 @@ void main() {
     test('say what the app did for itself', () {
       expect(sentenceOf(row('summary-written'), const NotificationDetails(kind: 'summary-written', noteId: 'n1', title: 'Standup')), 'A meeting was written up: Standup');
       expect(sentenceOf(row('summary-written')), 'A meeting was written up');
+      expect(sentenceOf(row('form-answer'), const NotificationDetails(kind: 'form-answer', noteId: 'n2', title: 'Crash on launch', by: 'Report a bug')), 'A new answer to Report a bug: Crash on launch');
+      expect(sentenceOf(row('form-answer')), 'A form was answered');
       expect(sentenceOf(row('sync-conflict'), const NotificationDetails(kind: 'sync-conflict', noteId: 'n1', title: 'Trip to Lisbon')), 'Trip to Lisbon was kept twice: both devices had changed it');
       expect(sentenceOf(row('sync-conflict')), 'A note was kept twice');
     });
