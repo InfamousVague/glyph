@@ -21,10 +21,23 @@
 ///               brackets; a field alone is a test that it says something
 ///     sort:     fields, each `asc` or `desc`
 ///     group:    one field
-///     show:     table, list, board, calendar, gantt or count
+///     show:     table, list, board, calendar, gantt, count, timeline or chart (`view:` is read as it too)
 ///     columns:  the fields a table shows, and a list and a board say beside each record
 ///     total:    the fields to add up
 ///     limit:    how many records at most
+///     rollup:   a column worked out over the notes a record links to or is linked from (rollup.dart):
+///               `open = count(links where status != done)`, `hours = sum(hours of backlinks)`; one a line
+///
+/// And a view's own, each one field or word, which any other view leaves alone (the port's, 2026-10-30):
+///
+///     date:     the field a calendar puts a record on (`due`, `date`, `created`); its first day field where unsaid
+///     start:    the field a timeline's bar starts on; `start` where unsaid
+///     end:      the field it ends on; `due` where unsaid
+///     zoom:     how much a timeline shows at once: week, month or quarter
+///     chart:    bar, line or pie
+///     x:        the field a chart's bars or slices are of; `group:`, else the status
+///     y:        what each measures: count, or sum, average, min, max or percent of a field (`sum(hours)`)
+///     series:   a field a chart's bars are split by, each a colour
 ///
 /// A field is written as Dataview keys one: lower case, a space a dash (task_fields.dart `fieldKey`), so `Due Date`
 /// and `due-date` are one field. A value on the right of a test is words unless it is something else: a number, a
@@ -37,6 +50,9 @@
 /// What differs: the web's unions of plain objects are sealed classes here, each with [QueryData.toJson] giving the
 /// object the web has, key for key, which is what a test and the fixtures (tool/query_fixtures.mjs) compare. `SHOWS`
 /// is [ShowAs.values], `QUERY_LINES` is [queryLines]. An operator is an [Op] whose [Op.sign] is the web's string.
+/// The drawn timeline and the chart, `rollup:` and the view's own lines are the port's (Matt, 2026-10-30, "add all
+/// 12" of the plain-Markdown features): `show: timeline` is its own timeline here, where the web reads it as `gantt`,
+/// and a [Query]'s JSON has their keys only where they are written, so every query the web reads reads the same.
 library;
 
 import 'dart:convert';
@@ -70,7 +86,61 @@ Object jsonNumber(num value) => value is double && value.isFinite && value == va
 enum QueryKind { notes, tickets, tasks, events }
 
 /// The ways a query is shown, in the order docs/QUERIES.md teaches them (`SHOWS`, `ShowAs`).
-enum ShowAs { table, list, board, calendar, gantt, count }
+enum ShowAs { table, list, board, calendar, gantt, count, timeline, chart }
+
+/// How a measure works its records out: a chart's `y:`, a rollup's (rollup.dart).
+enum Aggregate { count, sum, average, min, max, percent }
+
+/// A chart's `y:` and a rollup's sum: what is worked out, and of which field; a count's field may be null.
+class Measure extends QueryData {
+  const Measure(this.fn, [this.field]);
+  final Aggregate fn;
+  final String? field;
+
+  /// As the fence writes it: `count`, `sum(hours)`.
+  String get written => field == null ? fn.name : '${fn.name}($field)';
+
+  @override
+  Object? toJson() => {'fn': fn.name, 'field': field};
+}
+
+/// A chart's shape (`chart:`).
+enum ChartKind { bar, line, pie }
+
+/// How many days a timeline shows across its card (`zoom:`).
+enum TimelineZoom { week, month, quarter }
+
+/// Which notes a rollup works over, from the record it is a column of (rollup.dart).
+enum RollupWay {
+  /// The notes its `[[links]]` name, anywhere in it.
+  links,
+
+  /// The notes whose `[[links]]` name it.
+  backlinks,
+
+  /// The to-dos in its note.
+  tasks,
+
+  /// The notes one of its fields names, `project: [[Kiln]]`: a relation.
+  relation,
+
+  /// The notes whose field names it: the relation from the other side, `backlinks.project`.
+  backRelation,
+}
+
+/// `rollup: open = count(links where status != done)`: a column called [name], [measure] over the notes [way]
+/// reaches (through [through], a relation's field), those [where] passes.
+class Rollup extends QueryData {
+  const Rollup({required this.name, required this.measure, required this.way, this.through, this.where});
+  final String name;
+  final Measure measure;
+  final RollupWay way;
+  final String? through;
+  final Condition? where;
+
+  @override
+  Object? toJson() => {'name': name, 'measure': measure.toJson(), 'way': way.name, 'through': through, 'where': where?.toJson()};
+}
 
 /// What `from:` reads a record from, after its kind (`Source`).
 sealed class Source extends QueryData {
@@ -247,7 +317,26 @@ class SortKey extends QueryData {
 }
 
 class Query extends QueryData {
-  const Query({this.kind = QueryKind.notes, this.from, this.where, this.sort = const [], this.group, this.show, this.columns = const [], this.total = const [], this.limit});
+  const Query({
+    this.kind = QueryKind.notes,
+    this.from,
+    this.where,
+    this.sort = const [],
+    this.group,
+    this.show,
+    this.columns = const [],
+    this.total = const [],
+    this.limit,
+    this.date,
+    this.start,
+    this.end,
+    this.zoom,
+    this.chart,
+    this.x,
+    this.y,
+    this.series,
+    this.rollups = const [],
+  });
 
   /// What the records are: notes (tickets among them), tickets alone, or to-dos. Notes, where `from:` does not say.
   final QueryKind kind;
@@ -266,6 +355,25 @@ class Query extends QueryData {
   final List<String> total;
   final int? limit;
 
+  /// A calendar's day field (`date:`), a timeline's start and end fields (`start:`, `end:`) and its zoom; null where
+  /// unsaid, for the view's own.
+  final String? date;
+  final String? start;
+  final String? end;
+  final TimelineZoom? zoom;
+
+  /// A chart's shape, the field its bars are of, what each measures and the field it is split by.
+  final ChartKind? chart;
+  final String? x;
+  final Measure? y;
+  final String? series;
+
+  /// The columns worked out over linked notes, in the order written.
+  final List<Rollup> rollups;
+
+  /// Whether anything of a view's own is written: what the web's JSON has no keys for.
+  bool get hasViewLines => date != null || start != null || end != null || zoom != null || chart != null || x != null || y != null || series != null || rollups.isNotEmpty;
+
   @override
   Object? toJson() => {
         'kind': kind.name,
@@ -277,6 +385,15 @@ class Query extends QueryData {
         'columns': columns,
         'total': total,
         'limit': limit,
+        if (date != null) 'date': date,
+        if (start != null) 'start': start,
+        if (end != null) 'end': end,
+        if (zoom != null) 'zoom': zoom!.name,
+        if (chart != null) 'chart': chart!.name,
+        if (x != null) 'x': x,
+        if (y != null) 'y': y!.toJson(),
+        if (series != null) 'series': series,
+        if (rollups.isNotEmpty) 'rollups': [for (final rollup in rollups) rollup.toJson()],
       };
 }
 
@@ -314,10 +431,25 @@ const Map<String, String> _clauses = {
   'total': 'total',
   'totals': 'total',
   'limit': 'limit',
+  // The port's own (2026-10-30): `view:` as `show:`, and each view's lines.
+  'view': 'show',
+  'date': 'date',
+  'day': 'date',
+  'start': 'start',
+  'end': 'end',
+  'zoom': 'zoom',
+  'chart': 'chart',
+  'x': 'x',
+  'y': 'y',
+  'series': 'series',
+  'rollup': 'rollup',
 };
 
-/// The names, as a sentence lists them (`QUERY_LINES`).
-const List<String> queryLines = ['from', 'where', 'sort', 'group', 'show', 'columns', 'total', 'limit'];
+/// The names, as a sentence lists them (`QUERY_LINES`), the web's first, so a "did you mean" finds the one it did.
+const List<String> queryLines = ['from', 'where', 'sort', 'group', 'show', 'columns', 'total', 'limit', 'rollup', 'date', 'start', 'end', 'zoom', 'chart', 'x', 'y', 'series'];
+
+/// The names a "did you mean" offers: a letter's name is too near every short word to be one.
+final List<String> _nearLines = [for (final name in queryLines) if (name.length > 1) name];
 
 /// A kind as `from:` may write it.
 const Map<String, QueryKind> _kinds = {
@@ -336,7 +468,34 @@ const Map<String, QueryKind> _kinds = {
 };
 
 /// Another way of saying a way to show, read as that way.
-const Map<String, ShowAs> _showAlso = {'kanban': ShowAs.board, 'timeline': ShowAs.gantt, 'number': ShowAs.count, 'cards': ShowAs.board};
+const Map<String, ShowAs> _showAlso = {'kanban': ShowAs.board, 'number': ShowAs.count, 'cards': ShowAs.board, 'graph': ShowAs.chart, 'roadmap': ShowAs.timeline};
+
+/// A chart's shape as `chart:` may write it.
+const Map<String, ChartKind> _chartWords = {
+  'bar': ChartKind.bar,
+  'bars': ChartKind.bar,
+  'column': ChartKind.bar,
+  'columns': ChartKind.bar,
+  'line': ChartKind.line,
+  'lines': ChartKind.line,
+  'pie': ChartKind.pie,
+  'donut': ChartKind.pie,
+  'doughnut': ChartKind.pie,
+};
+
+/// A measure's word as `y:` and `rollup:` may write it.
+const Map<String, Aggregate> _aggregates = {
+  'count': Aggregate.count,
+  'sum': Aggregate.sum,
+  'total': Aggregate.sum,
+  'average': Aggregate.average,
+  'avg': Aggregate.average,
+  'mean': Aggregate.average,
+  'min': Aggregate.min,
+  'max': Aggregate.max,
+  'percent': Aggregate.percent,
+  'done': Aggregate.percent,
+};
 
 /// The names a field is also called, by Dataview, Tasks or a person, read as the one the app keeps: `completed` is
 /// Dataview's word for a ticked to-do, `completion` its done date.
@@ -771,6 +930,90 @@ int _distance(String one, String two) {
   return row[two.length];
 }
 
+// ---- a view's own lines -------------------------------------------------------------------------------------------
+
+/// One field, as `group:` takes it: `by` before it is read and left out.
+String? _oneField(String value, String clause) {
+  final words = value.replaceFirst(_by, '');
+  final fields = _fieldList(words, value.length - words.length);
+  if (fields.length > 1 || _hasSpace.hasMatch(jsTrim(words))) throw _Trouble(0, '$clause: is one field, like ${clause == 'date' ? 'due' : (clause == 'x' || clause == 'series' ? 'status' : 'start')}.');
+  return fields.isEmpty ? null : fields[0];
+}
+
+final RegExp _measure = RegExp(r'^([A-Za-z]+)\s*(?:\((.*)\))?$');
+
+/// `count`, `sum(hours)`, or a field alone, which is its sum: a chart's `y:`.
+Measure _readMeasure(String value) {
+  final found = _measure.firstMatch(jsTrim(value));
+  final word = found?.group(1)?.toLowerCase();
+  final fn = word == null ? null : _aggregates[word];
+  if (found != null && fn != null) {
+    final inner = jsTrim(found.group(2) ?? '');
+    if (inner.isEmpty) {
+      if (fn == Aggregate.count || fn == Aggregate.percent) return Measure(fn);
+      throw _Trouble(0, '${_said(word!)} needs a field to work out, like $word(hours).');
+    }
+    final key = fieldName(inner);
+    if (!_field.hasMatch(key)) throw _Trouble(value.indexOf(inner), '${_said(inner)} $_notAField');
+    return Measure(fn, key);
+  }
+  final key = fieldName(jsTrim(value));
+  if (_field.hasMatch(key) && !_hasSpace.hasMatch(jsTrim(value)) && !value.contains('(')) return Measure(Aggregate.sum, key);
+  throw const _Trouble(0, 'y: is count, or sum, average, min, max or percent of a field, like sum(hours).');
+}
+
+final RegExp _rollupLine = RegExp(r'^([\p{L}\p{N}_][\p{L}\p{N}_./-]*)\s*=\s*([A-Za-z]+)\s*\((.*)\)\s*$', unicode: true);
+final RegExp _rollupWhere = RegExp(r'\s+where\s+', caseSensitive: false);
+final RegExp _rollupOf = RegExp(r'^(\S+)\s+of\s+(.+)$', caseSensitive: false);
+const String _rollupHelp = 'a rollup is a name, =, and what it works out over linked notes, like open = count(links where status != done)';
+
+/// `open = count(links where status != done)`, `hours = sum(hours of backlinks)`, `done = percent(tasks)`,
+/// `spent = sum(hours of backlinks.project)`: a name, a measure, `field of` the notes it is worked out over, and a
+/// `where:` of their own.
+Rollup _readRollup(String value) {
+  final found = _rollupLine.firstMatch(value);
+  if (found == null) throw const _Trouble(0, 'This isn’t a rollup: $_rollupHelp.');
+  final name = fieldName(found.group(1)!);
+  final word = found.group(2)!.toLowerCase();
+  final fn = _aggregates[word];
+  final innerAt = value.indexOf('(', found.group(1)!.length) + 1;
+  if (fn == null) throw _Trouble(value.indexOf(found.group(2)!, found.group(1)!.length), '${_said(found.group(2)!)} isn’t something a rollup works out: count, sum, average, min, max or percent.');
+  final inner = found.group(3)!;
+  final cut = _rollupWhere.firstMatch(inner);
+  final head = jsTrim(cut == null ? inner : inner.substring(0, cut.start));
+  Condition? where;
+  if (cut != null) {
+    final condition = inner.substring(cut.end);
+    try {
+      where = _readWhere(condition);
+    } on _Trouble catch (trouble) {
+      throw _Trouble(innerAt + cut.end + trouble.at, trouble.message);
+    }
+  }
+  final of = _rollupOf.firstMatch(head);
+  final field = of == null ? null : fieldName(of.group(1)!);
+  if (field != null && !_field.hasMatch(field)) throw _Trouble(innerAt, '${_said(of!.group(1)!)} $_notAField');
+  final path = jsTrim(of == null ? head : of.group(2)!).toLowerCase();
+  if (fn != Aggregate.count && fn != Aggregate.percent && field == null) throw _Trouble(innerAt, '$word( ) needs a field of the notes, like $word(hours of links).');
+  final RollupWay way;
+  String? through;
+  if (path == 'links' || path == 'link' || path == 'linked') {
+    way = RollupWay.links;
+  } else if (path == 'backlinks' || path == 'backlink' || path == 'linked from') {
+    way = RollupWay.backlinks;
+  } else if (path == 'tasks' || path == 'todos' || path == 'to-dos') {
+    way = RollupWay.tasks;
+  } else if (path.startsWith('backlinks.')) {
+    way = RollupWay.backRelation;
+    through = fieldName(path.substring('backlinks.'.length));
+  } else {
+    way = RollupWay.relation;
+    through = fieldName(path);
+  }
+  if (path.isEmpty || (through != null && !_field.hasMatch(through))) throw _Trouble(innerAt, 'Which notes to work it out over is missing: links, backlinks, tasks, or a field that links, like project.');
+  return Rollup(name: name, measure: Measure(fn, field), way: way, through: through, where: where);
+}
+
 /// A line a query has: its name, a colon, and what it says.
 final RegExp _line = RegExp(r'^(\s*)([^:]*?)\s*:(\s*)(.*?)\s*$');
 final RegExp _lead = RegExp(r'^\s*');
@@ -788,6 +1031,11 @@ Reading readQuery(String body) {
   var columns = const <String>[];
   var total = const <String>[];
   int? limit;
+  String? date, start, end, x, series;
+  TimelineZoom? zoom;
+  ChartKind? chart;
+  Measure? y;
+  final rollups = <Rollup>[];
   final seen = <String, int>{};
   final wheres = <Condition>[];
   final lines = body.split('\n');
@@ -802,7 +1050,7 @@ Reading readQuery(String body) {
     if (found == null || !_lineName.hasMatch(written)) {
       if (found != null && written.isNotEmpty) {
         final lower = written.toLowerCase();
-        for (final name in queryLines) {
+        for (final name in _nearLines) {
           if (_distance(name, lower) <= 2) return problem(lead + 1, '${_said(written)} isn’t a line a query has: did you mean ${_said(name)}?');
         }
       }
@@ -812,7 +1060,7 @@ Reading readQuery(String body) {
     final clause = _clauses[name];
     if (clause == null) {
       String? near;
-      for (final each in queryLines) {
+      for (final each in _nearLines) {
         if (name.length > 2 && _distance(each, name) <= 2) {
           near = each;
           break;
@@ -822,10 +1070,10 @@ Reading readQuery(String body) {
         lead + 1,
         near != null
             ? '${_said(written)} isn’t a line a query has: did you mean ${_said(near)}?'
-            : '${_said(written)} isn’t a line a query has: it has from, where, sort, group, show, columns, total and limit.',
+            : '${_said(written)} isn’t a line a query has: it has from, where, sort, group, show, columns, total, limit and rollup, and a view’s date, start, end, zoom, chart, x, y and series.',
       );
     }
-    if (clause != 'where' && seen.containsKey(clause)) return problem(lead + 1, '${_said('$clause:')} is written twice: a query has one, on line ${seen[clause]}.');
+    if (clause != 'where' && clause != 'rollup' && seen.containsKey(clause)) return problem(lead + 1, '${_said('$clause:')} is written twice: a query has one, on line ${seen[clause]}.');
     seen[clause] = line;
     final value = found.group(4) ?? '';
     // Where the value starts in the line, counting from 0, for a problem's column.
@@ -854,8 +1102,31 @@ Reading readQuery(String body) {
             if (each.name == way) as = each;
           }
           as ??= _showAlso[way];
-          if (as == null) throw _Trouble(0, '${_said(value)} isn’t a way to show a query: table, list, board, calendar, gantt or count.');
+          if (as == null) throw _Trouble(0, '${_said(value)} isn’t a way to show a query: table, list, board, calendar, timeline, chart, gantt or count.');
           show = as;
+        case 'date':
+          date = _oneField(value, 'date');
+        case 'start':
+          start = _oneField(value, 'start');
+        case 'end':
+          end = _oneField(value, 'end');
+        case 'x':
+          x = _oneField(value, 'x');
+        case 'series':
+          series = _oneField(value, 'series');
+        case 'zoom':
+          final way = value.toLowerCase();
+          zoom = TimelineZoom.values.where((each) => each.name == way || '${each.name}s' == way).firstOrNull;
+          if (zoom == null) throw _Trouble(0, '${_said(value)} isn’t a zoom: week, month or quarter.');
+        case 'chart':
+          chart = _chartWords[value.toLowerCase()];
+          if (chart == null) throw _Trouble(0, '${_said(value)} isn’t a chart: bar, line or pie.');
+        case 'y':
+          y = _readMeasure(value);
+        case 'rollup':
+          final rollup = _readRollup(value);
+          if (rollups.any((each) => each.name == rollup.name)) throw _Trouble(0, 'A rollup called ${_said(rollup.name)} is written twice.');
+          rollups.add(rollup);
         case 'columns':
           columns = _fieldList(value, 0);
         case 'total':
@@ -869,7 +1140,26 @@ Reading readQuery(String body) {
     }
   }
   final where = wheres.isEmpty ? null : (wheres.length == 1 ? wheres[0] : AndCondition(wheres));
-  return Reading.read(Query(kind: kind, from: from, where: where, sort: sort, group: group, show: show, columns: columns, total: total, limit: limit));
+  return Reading.read(Query(
+    kind: kind,
+    from: from,
+    where: where,
+    sort: sort,
+    group: group,
+    show: show,
+    columns: columns,
+    total: total,
+    limit: limit,
+    date: date,
+    start: start,
+    end: end,
+    zoom: zoom,
+    chart: chart,
+    x: x,
+    y: y,
+    series: series,
+    rollups: rollups,
+  ));
 }
 
 /// Every field a condition names, for what a query's defaults hang on: a tasks query reads the open ones unless its

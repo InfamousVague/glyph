@@ -14,6 +14,9 @@ import 'support.dart';
 ///
 /// A fixture is one test, so its count is printed once and the cases that fail are named (the first twenty), each
 /// with the first place it parts from the web.
+/// The web's cases the port reads as lines of its own (see below).
+const Set<String> _ownLines = {'show: timeline', 'x: y'};
+
 void main() {
   String told(List<String> failures) => failures.take(20).join('\n');
 
@@ -105,7 +108,25 @@ void main() {
   });
 
   test('every query is read as the web reads it, and run as the web runs it', () {
-    final cases = fixture['cases'] as List;
+    // Where the port parts from the web on purpose (lib/core/query/read.dart, 2026-10-30): `show: timeline` is its
+    // own drawn timeline, not the web's word for a gantt, `x:` is a chart's line, not a line a query has not got, and
+    // the sentences that list the ways and the lines name the port's own too. The web's answer is read with those in
+    // it, and the two cases the port reads as its own are left to test/query/views_test.dart.
+    Object? ported(Object? web) {
+      if (web is String) {
+        return web
+            .replaceAll('table, list, board, calendar, gantt or count.', 'table, list, board, calendar, timeline, chart, gantt or count.')
+            .replaceAll('it has from, where, sort, group, show, columns, total and limit.', 'it has from, where, sort, group, show, columns, total, limit and rollup, and a view’s date, start, end, zoom, chart, x, y and series.');
+      }
+      if (web is List) return [for (final each in web) ported(each)];
+      if (web is Map) return <String, dynamic>{for (final MapEntry(:key, :value) in web.entries) key as String: ported(value)};
+      return web;
+    }
+
+    final cases = [
+      for (final one in fixture['cases'] as List)
+        if (!_ownLines.contains((one as List)[0])) ported(one)! as List,
+    ];
     final failures = <String>[];
     var read = 0, runs = 0;
     for (final one in cases) {
@@ -138,8 +159,9 @@ void main() {
     }
     // ignore: avoid_print
     print('queries: ${cases.length} read ($read without a problem), $runs runs, ${failures.length} that part from the web');
-    expect(cases.length, 711);
-    expect(runs, 1144);
+    // 711 and 1144 from the web, less `show: timeline` and its one run, and `x: y`, which the web could not read.
+    expect(cases.length, 709);
+    expect(runs, 1143);
     expect(failures, isEmpty, reason: told(failures));
   });
 
