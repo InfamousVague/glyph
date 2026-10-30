@@ -92,21 +92,9 @@ extension _RootTemplates on _GhostRootState {
   /// "new note in Kiln", filled for a note in the notebook or folder of that name; the note's line in the notebook's
   /// index, or its filing in the folder, once it is made. Null where no template answers or no place has the name.
   ({String body, void Function(String noteId) file})? _voiceFromTemplate(String word, String place, String title) {
-    final key = titleKey(place);
-    if (key.isEmpty) return null;
-    Note? notebook;
-    for (final note in _shown) {
-      if ((note.archivedAt ?? 0) == 0 && isBookBody(note.body) && !isTemplatesBody(note.body) && titleKey(noteTitle(note.body)) == key) {
-        notebook = note;
-        break;
-      }
-    }
-    final folders = _workspaces.value.list;
-    final folder = notebook != null ? null : folders.where((w) => !isOrgWorkspace(w.id) && (titleKey(w.name) == key || titleKey(folderPathName(folders, w.id).replaceAll('/', ' ')) == key)).firstOrNull;
-    if (notebook == null && folder == null) return null;
-    final plain = plainNotes.contains(word.trim().toLowerCase());
-    final template = plain ? (notebook != null ? _notebookTemplate(notebook.body) : _folderTemplate(folder!.id)) : templateSaid(_allTemplates, word);
-    if (template == null) return null;
+    final found = templateForPlace(word: word, place: place, notes: _shown, folders: _workspaces.value.list, templates: _allTemplates, pages: _templatePages);
+    if (found == null) return null;
+    final (:template, :notebook, :folder) = found;
     final now = DateTime.now();
     final nextId = notebook == null ? null : nextTicketId(notebook.body, [for (final note in _library.value) note.body]);
     final filled = fillNoteTemplate(template, now, _takenTitles, nextId: nextId, title: title, author: _author);

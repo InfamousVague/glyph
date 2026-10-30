@@ -28,11 +28,16 @@
 /// makes the note as it was made before. Pure.
 library;
 
+import '../core/book.dart' show isBookBody;
 import '../core/front_matter.dart';
+import '../core/note.dart';
+import '../core/note_text.dart' show noteTitle;
 import '../core/properties.dart';
 import '../core/title_key.dart' show titleKey;
 import '../core/workspaces.dart';
 import 'note_templates.dart';
+import '../capture/template_ask.dart' show plainNotes;
+import 'own_templates.dart' show isTemplatesBody;
 
 /// The key a notebook names its pages' template by.
 const String pageTemplateKey = 'page-template';
@@ -142,4 +147,36 @@ NoteTemplate? placeTemplate({String? notebook, List<Workspace> folders = const [
     if (named != null) return named;
   }
   return folderTemplate(folders, folderId, templates, pages);
+}
+
+/// A template asked for by a word and a place, as a person says it ("new bug in Kiln"; lib/capture/template_ask.dart):
+/// the notebook of that name, else the folder of that name or path, not an organization's own; and the template the
+/// word names, or the place's own for a plain "note" ([plainWords]). Null where no place has the name or no template
+/// answers.
+({NoteTemplate template, Note? notebook, Workspace? folder})? templateForPlace({
+  required String word,
+  required String place,
+  required Iterable<Note> notes,
+  required List<Workspace> folders,
+  required List<NoteTemplate> templates,
+  TemplatePages pages = const {},
+  Set<String> plainWords = plainNotes,
+}) {
+  final key = titleKey(place);
+  if (key.isEmpty) return null;
+  Note? notebook;
+  for (final note in notes) {
+    if ((note.archivedAt ?? 0) == 0 && isBookBody(note.body) && !isTemplatesBody(note.body) && titleKey(noteTitle(note.body)) == key) {
+      notebook = note;
+      break;
+    }
+  }
+  final folder = notebook != null ? null : folders.where((w) => !isOrgWorkspace(w.id) && (titleKey(w.name) == key || titleKey(folderPathName(folders, w.id).replaceAll('/', ' ')) == key)).firstOrNull;
+  if (notebook == null && folder == null) return null;
+  final plain = plainWords.contains(word.trim().toLowerCase());
+  final template = plain
+      ? (notebook != null ? templateNamed(templates, notebookTemplateName(notebook.body)) : folderTemplate(folders, folder!.id, templates, pages))
+      : templateSaid(templates, word);
+  if (template == null) return null;
+  return (template: template, notebook: notebook, folder: folder);
 }

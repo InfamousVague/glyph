@@ -139,7 +139,6 @@ import '../notes/note_templates.dart';
 import '../notes/own_templates.dart' hide templateOf;
 import '../notes/place_templates.dart';
 import '../notes/template_choice.dart';
-import '../capture/template_ask.dart' show plainNotes;
 import '../book/ticket_links.dart' show subTicketBody;
 import '../notes/notes_drawer.dart';
 import '../notes/notices.dart' as notices;
