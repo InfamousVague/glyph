@@ -2,21 +2,28 @@
 /// invitation's card as the account's feed fills it: what `src/app/App.tsx` did by passing its `updates` down, and
 /// what `InviteNotice` (src/app/notes/Notices.tsx) read from `useNotifications` and `useOrgs` itself.
 ///
-/// - [launchUpdatesOf]: the launch screen's line ("Checking for updates", "Ghost.md 0.2.0 is out").
-/// - [settingsUpdatesOf]: Settings › About's hero line, its Updates row, Install and Check for updates.
-/// - [updateCardOf]: the card above the notes (`UpdateNotice`), through every phase of an install.
+/// - [launchUpdatesOf]: the launch screen's line ("Checking for updates", "Ghost.md 0.2.0 is out"), the check that
+///   screen runs as the app opens.
+/// - [settingsUpdatesOf]: Settings › About's hero line, its Updates row and Check for updates, which opens the activity
+///   tray's Update section.
 /// - [InviteWaiting]: the newest invitation still waiting, with Accept and Decline.
 ///
+/// The update itself, its Install, Restart to update and download, is said in the activity tray alone, under the
+/// ring's badge (Matt, 2026-10-30: "show the updates stuff in the activity drawer only now with a badge"): the
+/// [Updates] tell the record where they stand (`Updates.offer`, `Activity.update`), and the card above the notes is
+/// gone.
+///
 /// What differs from the web:
-/// - **Nothing here is ever `ready`.** A Flutter app has no page to download and reload into, so the card's Reload,
-///   About's "A new version is downloaded" and the launch screen's "Updating Ghost.md" are never reached; the
-///   words stay in their screens, as ported. The Mac's app has a ready of its own instead (`ApkPhaseReady`: the new
-///   app in place beside the running one), and its words are the Mac's: "Ghost.md 2.3.16 is ready." with
-///   "Restart to update" on the card, the same in About, and "Updated to Ghost.md 2.3.16" on the launch screen of
-///   the version it restarted into.
+/// - **Nothing here is ever `ready`.** A Flutter app has no page to download and reload into, so About's "A new
+///   version is downloaded" and the launch screen's "Updating Ghost.md" are never reached; the words stay in their
+///   screens, as ported. The Mac's app has a ready of its own instead (`ApkPhaseReady`: the new app in place beside
+///   the running one): "Ghost.md 2.3.16 is downloaded" with "Restart to update" in the tray, and "Updated to Ghost.md
+///   2.3.16" on the launch screen of the version it restarted into.
 /// - **About has no alerts switch and no What's new**: the phone's own notifier (`UpdateCheckWorker.kt`) and the
 ///   list of releases (`releases.json`) are not ported. The page read both from where it took its updates.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
@@ -57,25 +64,10 @@ SyncPhase launchSyncOf(String? phase) => switch (phase) {
       _ => SyncPhase.off,
     };
 
-/// What the card above the notes is told (`UpdateNotice`'s `updates`).
-notices.AppUpdates updateCardOf(Updates updates) => notices.AppUpdates(
-      apk: switch (updates.apk) {
-        ApkPhaseNone() => const notices.ApkNone(),
-        ApkPhaseAvailable(:final info) => notices.ApkAvailable(info.version),
-        ApkPhaseDownloading(:final info, :final received, :final total) => notices.ApkDownloading(info.version, received: received, total: total),
-        ApkPhaseInstalling(:final info) => notices.ApkInstalling(info.version),
-        ApkPhaseNeedsPermission() => const notices.ApkNeedsPermission(),
-        ApkPhaseReady(:final info) => notices.ApkReady(info.version),
-        ApkPhaseRestarting(:final info) => notices.ApkRestarting(info.version),
-        ApkPhaseFailed(:final info, :final message) => notices.ApkFailed(info.version, message),
-      },
-      onInstall: () => updates.installApk(),
-      onRestart: () => updates.restart(),
-    );
-
 /// What Settings › About is told (`AboutPane`'s `updates`): the version as the phone has it, where its updates come
-/// from, and the Updates card's ladder (settings/updateLines.ts).
-SettingsUpdates settingsUpdatesOf(Updates updates) {
+/// from, and the Updates card's ladder (settings/updateLines.ts). Its Check for updates looks again and [onShow]s the
+/// activity tray's Update section, which says what it found: About announces nothing of its own, and installs nothing.
+SettingsUpdates settingsUpdatesOf(Updates updates, {VoidCallback? onShow}) {
   final apk = updates.apk;
   // An app the card offers to install: one found, or one whose install stopped short (`installable`).
   final installable = switch (apk) {
@@ -93,9 +85,10 @@ SettingsUpdates settingsUpdatesOf(Updates updates) {
     installable: installable,
     restartable: apk is ApkPhaseReady ? apk.info.version : null,
     restarting: apk is ApkPhaseRestarting ? apk.info.version : null,
-    onCheck: () => updates.check(),
-    onInstall: () => updates.installApk(),
-    onRestart: () => updates.restart(),
+    onCheck: () {
+      unawaited(updates.check());
+      onShow?.call();
+    },
   );
 }
 

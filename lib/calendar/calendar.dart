@@ -313,8 +313,12 @@ class CalendarService extends ChangeNotifier {
   /// A pass on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md: "the
   /// Notion/GitHub/Calendar fetches"): kept out of the ring unless it takes over a second, never counted in the log;
   /// what it found wrong is the calendar page's to say, as it was.
+  ///
+  /// Google Calendar's read wears the Calendar plugin's mark (`calendar`, lib/plugins/calendar/calendar.dart, which wears
+  /// Google Calendar's): it is the one service the plugin signs in to. An iCal address's read is anyone's calendar, and
+  /// keeps the sync's arrows.
   Future<void> _onRecord(String which, String title, Future<void> pass) async {
-    final job = activity.begin('calendar:$which', kind: JobKind.sync, title: title, line: 'Reading events', showAfter: const Duration(seconds: 1));
+    final job = activity.begin('calendar:$which', kind: JobKind.sync, title: title, line: 'Reading events', showAfter: const Duration(seconds: 1), plugin: which == 'google' ? 'calendar' : null);
     try {
       await pass;
     } finally {

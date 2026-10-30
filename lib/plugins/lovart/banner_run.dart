@@ -680,6 +680,7 @@ class BannerJob {
       onStop: stop,
       onOpen: book == null ? null : activityRoutes.noteOpener(book),
       estimate: bannerRunEstimate(total - made - skipped),
+      plugin: manifest.id,
     );
 
     void keep() => _on.storage.set(
@@ -851,6 +852,7 @@ List<Job> bannerJobsElsewhere(BannerClaim? claim) => [
           device: claim.by,
           deviceName: claim.name,
           startedAt: DateTime.fromMillisecondsSinceEpoch(claim.at),
+          plugin: manifest.id,
         ),
     ];
 

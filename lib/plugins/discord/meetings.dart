@@ -41,6 +41,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../ai/summary_keep.dart' show keptText;
+import '../../core/background_jobs.dart';
 import '../../core/iphone_app.dart' show notOnIPhone;
 import '../../core/locale_dates.dart' show DateForm, localeDate;
 import '../../core/note.dart' show Note;
@@ -389,6 +390,11 @@ class MeetingDiscordPoster {
     // Counted as it begins: an app stopped mid-post tries again once more, not forever.
     final tries = waiting.tries + 1;
     _putTry(waiting.copyWith(tries: tries, at: _now()));
+    // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md), as Slack's meeting post is:
+    // "Posting Standup to Discord" with Discord's mark, then "Posted to #team" as a chip, or red with Discord's words
+    // once its tries are spent, with Retry; a try short of the last goes quietly, as the queue tries again.
+    final title = noteTitle(note.body);
+    final job = activity.begin('discord:${note.id}', kind: JobKind.meetings, title: 'Posting ${title.isEmpty ? 'the meeting' : title} to Discord', line: 'Posting to ${channel.name}', onOpen: activityRoutes.noteOpener(note.id), plugin: manifest.id);
     String? link;
     final share = shareLink;
     if (discordMeetingSettings().share && share != null) {
@@ -405,11 +411,17 @@ class MeetingDiscordPoster {
     } catch (failure) {
       final said = failureWords(failure);
       _putTry(waiting.copyWith(tries: tries, said: said, at: _now()));
-      if (tries >= meetingPostTriesMost) setPreferences((now) => withDiscordMeetingPostMark(now, note!.id, at: _now(), failed: _now()));
+      if (tries >= meetingPostTriesMost) {
+        setPreferences((now) => withDiscordMeetingPostMark(now, note!.id, at: _now(), failed: _now()));
+        job.failed(said, fix: JobFix(JobFixKind.retry, () => unawaited(tryNow(note!.id))));
+      } else {
+        job.stopped();
+      }
       return false;
     }
     forgetDiscordMeetingPost(waiting.noteId);
     setPreferences((now) => withDiscordMeetingPostMark(now, note!.id, at: _now(), posted: _now()));
+    job.done(result: JobResult('Posted to ${channel.name}', action: 'Open', onOpen: activityRoutes.noteOpener(note.id)), tally: const JobTally('Discord post', 'Discord posts'));
     return true;
   }
 }

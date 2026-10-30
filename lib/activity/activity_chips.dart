@@ -24,6 +24,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/background_jobs.dart';
 import 'activity_look.dart';
+import 'job_mark.dart';
 
 /// How long a chip stays.
 const Duration chipFor = Duration(seconds: 6);
@@ -34,18 +35,18 @@ const int chipsAtOnce = 2;
 /// One chip's words: what it says, its action and what the action does, and its colour's look.
 @immutable
 class ActivityChip {
-  const ActivityChip({required this.id, required this.kind, required this.words, this.action, this.onAction, this.failed = false});
+  const ActivityChip({required this.id, required this.kind, required this.words, this.action, this.onAction, this.failed = false, this.plugin});
 
   /// The chip [job]'s end gives, or null for none: no result and no failure, or the person is looking at it.
   static ActivityChip? of(Job job) {
     if (!job.here) return null;
     if (job.shownHere?.call() ?? false) return null;
     if (job.state == JobState.failed) {
-      return ActivityChip(id: job.id, kind: job.kind, words: job.cause ?? '${job.title} failed', action: job.fix?.label, onAction: job.fix?.onPress, failed: true);
+      return ActivityChip(id: job.id, kind: job.kind, words: job.cause ?? '${job.title} failed', action: job.fix?.label, onAction: job.fix?.onPress, failed: true, plugin: job.plugin);
     }
     final result = job.result;
     if (result == null) return null;
-    return ActivityChip(id: job.id, kind: job.kind, words: result.words, action: result.onOpen == null ? null : result.action, onAction: result.onOpen);
+    return ActivityChip(id: job.id, kind: job.kind, words: result.words, action: result.onOpen == null ? null : result.action, onAction: result.onOpen, plugin: job.plugin);
   }
 
   final String id;
@@ -54,6 +55,10 @@ class ActivityChip {
   final String? action;
   final VoidCallback? onAction;
   final bool failed;
+
+  /// The plugin whose work it was ([Job.plugin]): a chip of its wears its mark where the dot would be, a failed one
+  /// keeping the red dot.
+  final String? plugin;
 }
 
 /// A page's own control the chips must not cover: [child], marked while it is up, and told again as it scrolls or
@@ -358,7 +363,10 @@ class ChipFace extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(key: const ValueKey('activity-chip:dot'), width: 9, height: 9, decoration: BoxDecoration(color: colour, shape: BoxShape.circle)),
+                if (!chip.failed && markedPlugin(chip.plugin) != null)
+                  JobMark(key: const ValueKey('activity-chip:mark'), plugin: chip.plugin!, size: 15, colour: colour)
+                else
+                  Container(key: const ValueKey('activity-chip:dot'), width: 9, height: 9, decoration: BoxDecoration(color: colour, shape: BoxShape.circle)),
                 SizedBox(width: t.space(2)),
                 Flexible(fit: fill ? FlexFit.tight : FlexFit.loose, child: Text(chip.words, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.text('sm', weight: 'medium', color: chip.failed ? colour : t.color('glacier-text')))),
                 if (action != null && onAction != null) ...[

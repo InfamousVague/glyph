@@ -141,7 +141,7 @@ class DetailsCache {
       if (_job?.live != true) {
         _batch = 0;
         _batchDone = 0;
-        _job = activity.begin('fetch:${host.manifest.id}', kind: JobKind.sync, title: 'Reading from ${host.manifest.name}', line: 'Reading links', showAfter: const Duration(seconds: 1));
+        _job = activity.begin('fetch:${host.manifest.id}', kind: JobKind.sync, title: 'Reading from ${host.manifest.name}', line: 'Reading links', showAfter: const Duration(seconds: 1), plugin: host.manifest.id);
       }
       _batch += 1;
       unawaited(_load(next.key, next.url).whenComplete(() {

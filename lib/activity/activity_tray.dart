@@ -4,6 +4,13 @@
 /// **Past 7 days** behind More. A failed job's row is red, with its cause in plain words and its one fix (Top up, Sign
 /// in again, Retry) and a way to put it away.
 ///
+/// **Update** comes first, while the app has one waiting (Matt, 2026-10-30: "show the updates stuff in the activity
+/// drawer only now with a badge"): the version and what's new where the release says, its one action (Install,
+/// Restart to update, Open), its download as the `update` job's row with its bar, and its failure as that row in red
+/// with Retry. Settings › About's Check for updates opens the tray here ([ActivityTray.update]), which says where the
+/// check stands when nothing waits ("Ghost.md 2.3.85 is up to date"). The tray is the one place the app speaks of its
+/// own updates: there is no card on the home page, no chip, no toast.
+///
 /// Simple mode (GHST-103) keeps all of it but the devices and the past behind More, as every simple surface keeps the
 /// rest behind More. The ring opens it as a card hung under itself on a wide window, and as a sheet from the foot on a
 /// phone (activity_ring.dart); the same rows either way.
@@ -14,8 +21,10 @@ import 'package:glacier/glacier.dart';
 
 import '../app/widgets.dart' show AppEyebrow;
 import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
 import '../core/background_jobs.dart';
 import 'activity_look.dart';
+import 'job_mark.dart';
 
 /// The day a past day is called by: "Yesterday", "Tuesday 27 October".
 String pastDayWords(String day, DateTime today) {
@@ -55,11 +64,14 @@ String trayLine(Job job, {String? where}) {
 
 /// The tray's rows for [record].
 class ActivityTray extends StatefulWidget {
-  const ActivityTray({super.key, required this.record, this.simple = false, this.onClose, this.sheet = false});
+  const ActivityTray({super.key, required this.record, this.simple = false, this.onClose, this.sheet = false, this.update = false});
 
   final Activity record;
   final bool simple;
   final VoidCallback? onClose;
+
+  /// Opened at the Update section (Settings › About's Check for updates): it shows whether or not one waits.
+  final bool update;
 
   /// In a sheet from the foot, which pads and scrolls itself: the rows alone.
   final bool sheet;
@@ -97,19 +109,29 @@ class _ActivityTrayState extends State<ActivityTray> {
     final today = record.log.today;
     final past = record.log.past;
     final devices = !widget.simple || _more;
+    final offer = record.update;
+    final updating = offer != null && (offer.badge || widget.update);
+    // The update's download is drawn in its section, not again among the rest.
+    final updateJob = updating ? jobs.where((job) => job.id == appUpdateJobId && job.here).firstOrNull : null;
+    final rest = [for (final job in jobs) if (!identical(job, updateJob)) job];
     final children = <Widget>[
       Padding(
         padding: EdgeInsets.only(bottom: t.space(2)),
         child: Semantics(header: true, child: Text('Activity', style: t.text('md', weight: 'semibold', color: t.color('glacier-text')))),
       ),
-      if (jobs.isEmpty)
+      if (updating) ...[
+        UpdateSection(offer: offer, job: updateJob, record: record),
+        SizedBox(height: t.space(3)),
+      ],
+      // The update's download is something running: no "Nothing running now." under it.
+      if (rest.isEmpty && updateJob == null)
         Padding(
           key: const ValueKey('activity-tray:idle'),
           padding: EdgeInsets.symmetric(vertical: t.space(2)),
           child: Text('Nothing running now.', style: t.text('sm', color: t.color('glacier-text-muted'))),
         )
       else
-        for (final job in jobs) ActivityRow(key: ValueKey('activity-row:${job.id}'), job: job, record: record, device: devices),
+        for (final job in rest) ActivityRow(key: ValueKey('activity-row:${job.id}'), job: job, record: record, device: devices),
       SizedBox(height: t.space(3)),
       const AppEyebrow('Today'),
       SizedBox(height: t.space(1)),
@@ -123,7 +145,7 @@ class _ActivityTrayState extends State<ActivityTray> {
           padding: EdgeInsets.only(top: t.space(1)),
           child: Row(
             children: [
-              SizedBox.square(dimension: 14, child: row.failed ? JobGlyph(kind: row.kind, look: JobLook.needsYou, size: 14) : JobGlyph(kind: row.kind, size: 14, moving: false)),
+              SizedBox.square(dimension: 14, child: row.failed ? JobGlyph(kind: row.kind, look: JobLook.needsYou, size: 14) : JobGlyph(kind: row.kind, size: 14, moving: false, plugin: row.plugin)),
               SizedBox(width: t.space(2)),
               Expanded(
                 child: Text(
@@ -207,13 +229,18 @@ class ActivityRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 30,
-              height: 30,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: colour.withValues(alpha: colour.a * 0.14)),
-              child: JobGlyph.of(job, size: 18),
-            ),
+            // Google Meet's mark is drawn in white on its own colour, its tile, where the row has one (Matt, 2026-10-30;
+            // lib/plugins/brands.dart `marksInWhite`); every other job's glyph or mark sits on a wash of its kind's colour.
+            if (!failed && marksOnTile(job.plugin, t))
+              JobMark(plugin: job.plugin!, size: 30, colour: colour, tile: true, dim: !job.here || job.state != JobState.running)
+            else
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: colour.withValues(alpha: colour.a * 0.14)),
+                child: JobGlyph.of(job, size: 18),
+              ),
             SizedBox(width: t.space(3)),
             Expanded(
               child: ExcludeSemantics(
@@ -248,6 +275,82 @@ class ActivityRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The tray's Update section (see the header): the update's line, what's new, its one action, and its download's row.
+class UpdateSection extends StatelessWidget {
+  const UpdateSection({super.key, required this.offer, required this.record, this.job});
+
+  final UpdateOffer offer;
+  final Activity record;
+
+  /// The update's job on the record: its download, or its failure.
+  final Job? job;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final colour = kindColour(t, JobKind.downloads);
+    final failed = job?.state == JobState.failed;
+    // A failure whose red row is there says Retry on it; the section's own Try again is for one put away.
+    final action = failed ? null : offer.action;
+    final onAction = offer.onAction;
+    final notes = offer.notes;
+    final message = offer.stage == UpdateStage.checkFailed || (offer.stage == UpdateStage.failed && job == null) ? offer.message : null;
+    return Semantics(
+      key: const ValueKey('activity-tray:update'),
+      container: true,
+      label: 'Update. ${offer.words}',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppEyebrow('Update'),
+          SizedBox(height: t.space(1)),
+          ExcludeSemantics(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: colour.withValues(alpha: colour.a * (offer.badge ? 0.14 : 0.08))),
+                  child: AppIcon(offer.badge ? Lucide.arrowUp : Lucide.check, size: 16, color: offer.badge ? colour : t.color('app-ink-3'), strokeWidth: 2.4),
+                ),
+                SizedBox(width: t.space(3)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(offer.words, key: const ValueKey('activity-tray:update:words'), style: t.text('sm', weight: 'semibold', color: t.color('glacier-text'))),
+                      if (notes != null) ...[
+                        SizedBox(height: t.space(1) * 0.5),
+                        Text(notes, key: const ValueKey('activity-tray:update:notes'), maxLines: 6, overflow: TextOverflow.ellipsis, style: t.text('xs', color: t.color('glacier-text-muted'))),
+                      ],
+                      if (message != null) ...[
+                        SizedBox(height: t.space(1) * 0.5),
+                        Text(message, key: const ValueKey('activity-tray:update:message'), maxLines: 3, overflow: TextOverflow.ellipsis, style: t.text('xs', color: t.color('glacier-text-muted'))),
+                      ],
+                      if (action != null && onAction != null) ...[
+                        SizedBox(height: t.space(2)),
+                        TrayButton(key: const ValueKey('activity-tray:update:action'), label: action, colour: offer.badge ? colour : null, filled: offer.badge, onPressed: onAction),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (job case final job?) ...[
+            SizedBox(height: t.space(2)),
+            ActivityRow(key: ValueKey('activity-row:${job.id}'), job: job, record: record),
+          ],
+        ],
       ),
     );
   }

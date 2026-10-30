@@ -23,6 +23,8 @@ choice below. Built straight (no mockup, no developer switch) and shipped all at
 | Failures | Red row with the cause in plain words and one fix (Top up, Sign in again, Retry); network blips retry on their own. |
 | Sound | A soft chime and a light tap when a job the person started and that ran over ~30 s finishes; nothing for sync or small jobs; off with the app's sounds setting. |
 | OS surfaces | Android progress notifications (and Samsung's Now Bar where offered) for recording, write-ups, banner runs and uploads; the Mac's Dock icon progress ring and badge; a Mac menu bar item with the ring and a mini tray; iPhone Live Activities (Dynamic Island, lock screen) for write-ups and uploads. |
+| Updates (2026-10-30) | The app's own updates in the tray alone (Matt: "show the updates stuff in the activity drawer only now with a badge and when an update is available show the badge"): a green badge with an up arrow on the ring while one waits, idle or not; an **Update** section first in the tray; no home card, no chip, no toast. Below. |
+| Plugin marks (2026-10-30) | A plugin's work wears its vendor's mark in place of its kind's glyph (Matt: "use plugin vendor logo icons for activity updates related to plugins"), the kind's colour still its accent. Below. |
 | Simple mode | The ring, tray, chips and in-place marks all show; the tray's Past 7 days and per-device detail sit behind More. On simple mode's plain pages, which have no bar, the ring floats at the top right only while something runs: there is no bar for an idle one to sit in. |
 
 ## The API
@@ -44,6 +46,9 @@ a fresh one back). It is a `ValueListenable<List<Job>>`:
   `allDone` (the last live job ended well: the bloom). A job kept back by `showAfter` is told of only once shown, and
   one that ends unseen is never told of (a sync pass that moved nothing). **The OS surfaces hear this.**
 - `activity.blooms` (counts the blooms), `activity.lastEnded`, `activity.log` (below), `activity.onChime`.
+- `activity.update` (`UpdateOffer?`): the app's own update, told by `Updates` (lib/core/updates.dart `offer`) at every
+  change; `activity.showUpdate()` opens the tray at its Update section, `updateWanted` / `updateSeen()` while it is up.
+  Below, "The app's updates".
 - `activity.elsewhere(source, jobs)`: what the account's other devices (or the meeting bot) are doing, as `source`
   knows it; each call replaces that source's list. Never logged here. Sources today: `summary-handoff`,
   `lovart-claim`, `meet-bot`.
@@ -57,7 +62,8 @@ charger | credits | otherDevice | signIn | network | model | turn`), `onStop`, `
 is this device), `placeWords`, `startedAt` / `endedAt` / `took`, `personStarted`, `estimate` (`JobEstimate`: credits,
 provider, duration, count), `spent` (credits so far), `cause` and `fix` (`JobFix`: Top up, Sign in again, Retry,
 Open), `result` (`JobResult`: the chip's words, its action, `onOpen`), `tally` (`JobTally`, what it counts for in the
-log), `attempt` / `retryAt`, `shownHere` (the person is looking at what it makes: no chip).
+log), `attempt` / `retryAt`, `shownHere` (the person is looking at what it makes: no chip), `plugin` (the manifest id of
+the plugin whose work it is, said where the job begins: below, "Plugin marks"). The log's rows keep `plugin` too.
 
 Derived: `look` (`JobLook`, the kind while running, `needsYou` for a failure or a wait only the person can end,
 `waiting` for any other wait, dimmed and still), `liveLine` ("Writing the summary, 2 of 3 parts", "Waiting for
@@ -90,6 +96,55 @@ job.stopped();                                            // went quietly: a Sto
 - `job.write(sofar)` tells the words a job has written so far (Claude streaming a meeting's summary, the phone's model's
   partial text); `activity.wordsOf(id)` is a `ValueListenable<String>` of them, '' until it writes and once it ends.
   Kept off the `Job`: a change every few letters is never told to the ring, the tray, `events` or the OS surfaces.
+
+### The app's updates
+
+Matt, 2026-10-30: "show the updates stuff in the activity drawer only now with a badge and when an update is available
+show the badge". The tray is the one place the app speaks of its own updates.
+
+- **The record.** `Updates` (lib/core/updates.dart) tells `activity.update` an `UpdateOffer` at every change: its
+  `stage` (`notChecked`, `checking`, `upToDate`, `checkFailed`, then the waiting ones, `available`, `downloading`,
+  `installing`, `needsPermission`, `ready`, `restarting`, `failed`), the version offered and running, `notes` (what's
+  new, where the release says: the core's `update_read` answer carries no such field today, so none is shown yet), why
+  it failed, and Install / Restart / Check. `badge` is a waiting stage. A disposed `Updates` takes back its own.
+- **The badge.** While `badge` holds the ring wears a small dot in the downloads' green with an up arrow at its top end
+  corner (`activity-ring:update`), on the idle grey ring too; Calm draws it in ink, simple mode the same, and simple
+  mode's plain pages float the ring for it. Where something needs the person the red dot takes the corner and the
+  update says itself in the tray. The ring's label adds "update available".
+- **The tray's Update section** (`activity_tray.dart` `UpdateSection`, `activity-tray:update`) is the tray's first
+  thing while the badge is up: "Ghost.md 2.3.86 is ready", what's new, and its one action (Install; Open while Android's
+  installer is put away; Restart to update on the Mac once the new app is in place). The download is the `update` job,
+  drawn in the section as its own row with its bar (not again among the rest); a failure is that row red with Retry
+  (a meeting being recorded, a refused installer or restart: each fails the job, so the ring's red dot shows). The job
+  never gives a chip (`shownHere` true): the update is the tray's to say.
+- **Settings › About** keeps the version, its Updates row ("Ghost.md 2.3.86 is waiting in Activity.") and Check for
+  updates, which looks again, shuts Settings and opens the tray at the section (`activity.showUpdate()`), which then
+  says where the check stands even with nothing waiting ("Ghost.md 2.3.85 is up to date"). About's own Install and
+  Restart to update are gone.
+- **Gone**: the holographic update card above the notes and in the sidebar (lib/notes/notices.dart `UpdateNotice`),
+  and the download's "The update is ready · Restart" chip. **Kept**: the launch screen's line of the check it runs as
+  the app opens ("Checking for updates", "Ghost.md 2.3.86 is out", "Updated to Ghost.md 2.3.86"), which is the
+  launch's checklist rather than an announcement; and the OS surfaces of the download job (an Android progress
+  notification once it has run 10 s, the Mac's Dock ring and menu bar row), which show any job. There is no other OS
+  surface for updates: the phone's own notifier (`UpdateCheckWorker.kt`) was never ported, and the Mac has no update
+  prompt of its own.
+
+### Plugin marks
+
+Matt, 2026-10-30: "use plugin vendor logo icons for activity updates related to plugins". A job begun with `plugin:`
+(`Job.plugin`, the plugin's manifest id) wears that plugin's mark in place of its kind's glyph (lib/activity/
+job_mark.dart `JobMark`, drawn by `JobGlyph` where it is given `plugin`): its tray row, its line in Today and the Past
+7 days, its result chip (where the dot was) and the ring's middle while it leads. The kind's colour stays its accent:
+the row's wash, its bar, the ring's arc, the chip's rim. Which mark is lib/plugins/brands.dart's, drawn as the Market's
+badge draws it: in the brand's colour where that stands out from the paper (`brandInkOn`), else the ink; Google Meet's
+white on its tile where the row has one (the tray's 30 px round), else its mark; a plugin with no mark (Slack, OpenAI,
+Aster, Zoom's camera, Custom AI) its own glyph in the kind's colour. Calm draws them in ink. A waiting job's mark is
+dimmed; a job that needs the person keeps the still red dot whoever's it is; a failed chip keeps its red dot. A build
+with `GHOST_STORE_NEUTRAL=true` (`brandMarksShown` false) draws the kind's glyph for every job.
+
+The OS surfaces keep the kinds' glyphs: Android's notifications draw `res/drawable/ghost_job_*` and the Mac's menu bar
+its own symbols, and the marks are Dart path data (lib/art/brand_marks.g.dart) with no drawable or image on either side
+to hand them.
 
 ### In place
 
@@ -171,29 +226,33 @@ those); **the Mac** everything the ring shows, other devices' too, and a failed 
   grey, `idleStroke` 1.5) on the arcs' own line, no glyph, nothing moving, labelled "Activity: nothing running". Its room is
   kept in every version: the rows that had none for it give a spare tool or Back and Forward to their ••• where the
   row is a 360 phone's or a narrowed Mac's (`lib/shell/header_toolbar.dart` `HeaderParts.cramped`, `snugRoom`).
-- `activity_tray.dart`: `ActivityTray`, `ActivityRow`, `JobBar`, `TrayButton`.
+- `activity_tray.dart`: `ActivityTray`, `UpdateSection`, `ActivityRow`, `JobBar`, `TrayButton`.
+- `job_mark.dart`: `JobMark`, `markedPlugin(id)` (null in a store-shot build), `marksOnTile`, `activityCalm`.
 - `activity_chips.dart`: `ActivityChips` (mounted by the shell under the header), `ActivityChip.of(job)`.
 - `activity_cost.dart`: `askJobCost(context, estimate, title:)`, true at once under 20 credits and 2 minutes.
 - `activity_chime.dart`: `startActivityChime()`, `SoundEvent.jobDone` and a light tap, off with interface sounds.
 
 ### The jobs on it, and where each registers
 
-| Job id | Kind | Where |
-|---|---|---|
-| `lovart-banners` (and `lovart-banners@<device>` elsewhere) | images | `lib/plugins/lovart/banner_run.dart` `_run`, `tellElsewhere` |
-| `banner:<note>` | images | `lib/plugins/lovart/banners.dart` `make` (outside a run), `makeBanner` |
-| `lovart-cue:…`, `lovart-cues:<note>`, `lovart-inspiration:<note>` | images | `lib/plugins/lovart/lovart.dart`, `meetings.dart` (`making.dart` `lovartPictureJob`) |
-| `summary:<note>` (and another device's claim) | ai | `lib/ai/summaries.dart` `_lookOnce`, `_summarize`; `lib/ai/summary_handoff.dart` `jobsElsewhere` |
-| `sync` | sync | `lib/sync/engine.dart` `_once`, `_run` (own and team passes; shown after 1 s or once it moves something; its bar fills, below) |
-| `meeting-recording`, `write-up:<note>` | audio | `lib/capture/meeting_live.dart` `followOnRecord`; `lib/meet/tape.dart` `CoreWriteUps` |
-| `refine:<note>`, `refine-model` | audio, downloads | `lib/capture/refine.dart` |
-| `voice-over:<note>` | audio | `lib/plugins/elevenlabs/voice_over.dart` `makeVoiceOver` |
-| `share-audio:<note>` | audio | `lib/share/share.dart` `_sendAudio` |
-| `model:<id>`, `voice-model`, `update` | downloads | `lib/ai/backend.dart` `ModelsController.fetch`; `lib/capture/voice_model.dart`; `lib/core/updates.dart` `installApk` |
-| `slack:<note>`, `slack-post:<note>` | meetings | `lib/plugins/slack/meetings.dart` `_try`; `slack.dart` `_post` |
-| `fetch:<plugin>` | sync | `lib/plugins/details_cache.dart` (Notion, GitHub; shown after 1 s, not logged) |
-| `calendar:ical`, `calendar:google` | sync | `lib/calendar/calendar.dart` (shown after 1 s, not logged) |
-| `meet:<booking>` | meetings | `lib/meet/meet_in.dart` `meetBotJobs` (the bot's, elsewhere) |
+| Job id | Kind | Plugin | Where |
+|---|---|---|---|
+| `lovart-banners` (and `lovart-banners@<device>` elsewhere) | images | `lovart` | `lib/plugins/lovart/banner_run.dart` `_run`, `bannerJobsElsewhere` |
+| `banner:<note>` | images | `lovart` | `lib/plugins/lovart/banners.dart` `make` (outside a run), `makeBanner` |
+| `lovart-cue:…`, `lovart-cues:<note>`, `lovart-inspiration:<note>` | images | `lovart` | `lib/plugins/lovart/lovart.dart`, `meetings.dart` (`making.dart` `lovartPictureJob`) |
+| `summary:<note>` (and another device's claim) | ai | the provider writing it, `MeetingClaude.pluginId` (`claude`, `openai`, `gemini`, `aster`, `custom-ai`); none for the device's own model, nor for another device's claim, which does not say whose | `lib/ai/summaries.dart` `_lookOnce`, `_summarize`; `lib/ai/summary_handoff.dart` `jobsElsewhere` |
+| `sync` | sync | | `lib/sync/engine.dart` `_once`, `_run` (own and team passes; shown after 1 s or once it moves something; its bar fills, below) |
+| `meeting-recording`, `write-up:<note>` | audio | | `lib/capture/meeting_live.dart` `followOnRecord`; `lib/meet/tape.dart` `CoreWriteUps` |
+| `refine:<note>`, `refine-model` | audio, downloads | | `lib/capture/refine.dart` |
+| `voice-over:<note>` | audio | `elevenlabs` | `lib/plugins/elevenlabs/voice_over.dart` `makeVoiceOver` |
+| `share-audio:<note>` | audio | | `lib/share/share.dart` `_sendAudio` |
+| `model:<id>`, `voice-model`, `update` | downloads | | `lib/ai/backend.dart` `ModelsController.fetch`; `lib/capture/voice_model.dart`; `lib/core/updates.dart` `installApk` (drawn in the tray's Update section, above) |
+| `slack:<note>`, `slack-post:<note>` | meetings | `slack` | `lib/plugins/slack/meetings.dart` `_try`; `slack.dart` `_post` |
+| `discord:<note>`, `discord-post:<note>` | meetings | `discord` | `lib/plugins/discord/meetings.dart` `_try`; `discord.dart` `_post` (2026-10-30, as Slack's) |
+| `fetch:<plugin>` | sync | the plugin's (`notion`, `github`) | `lib/plugins/details_cache.dart` (shown after 1 s, not logged) |
+| `calendar:ical`, `calendar:google` | sync | `calendar` for Google's (it wears Google Calendar's mark); none for an iCal address | `lib/calendar/calendar.dart` (shown after 1 s, not logged) |
+| `meet:<booking>` | meetings | by the meeting's kind: `google-meet`, `zoom`, `discord` | `lib/meet/meet_in.dart` `meetBotJobs` (the bot's, elsewhere) |
+
+Todoist and Things run no job of their own on the record today; one begun with their id would wear their marks.
 
 **The sync's bar fills, never sweeps** (Matt, 2026-10-29: "Also don't spin the progress bar on the sync just make it
 fill as it's being synced"). The passes tell what they find to do and do (`lib/sync/notes.dart` `SyncProgress`, handed

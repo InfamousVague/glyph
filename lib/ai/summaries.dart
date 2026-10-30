@@ -1191,9 +1191,11 @@ class Summaries implements HandoffQueue {
         summaryJobId(job.id),
         kind: JobKind.ai,
         title: 'Summary',
-        line: viaClaude ? 'Writing the summary with Claude' : 'Writing the summary',
+        line: viaClaude ? 'Writing the summary with ${claude?.name ?? 'Claude'}' : 'Writing the summary',
         onOpen: activityRoutes.noteOpener(job.id),
         shownHere: activityRoutes.noteShown(job.id),
+        // The provider answering wears its mark; the device's own model is the app's, and keeps the sparkle.
+        plugin: viaClaude ? claude?.pluginId : null,
       );
       final outcome = await _summarize(job, model, viaClaude: viaClaude);
       if (outcome == _Outcome.written) {

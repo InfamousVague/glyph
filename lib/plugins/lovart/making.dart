@@ -6,6 +6,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../../core/background_jobs.dart';
+import 'manifest.dart' as lovart;
 
 /// The cues being made now, by note and cue (`noteId\ncue`): the chip by each draws a spinner while it is here.
 final ValueNotifier<Set<String>> lovartMaking = ValueNotifier<Set<String>>(const {});
@@ -33,9 +34,10 @@ void markInspiring(String noteId, bool on) {
 
 /// A picture Lovart makes for the note [noteId] outside the run (a cue, a moodboard, a header from the note's cog),
 /// as a job on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): in the ring and the
-/// tray while Lovart draws, and a chip as it lands while the note is not on screen. [person] where it was asked for.
+/// tray while Lovart draws, and a chip as it lands while the note is not on screen, wearing Lovart's mark. [person]
+/// where it was asked for.
 JobHandle lovartPictureJob(String id, {required String noteId, required String title, bool person = true}) =>
-    activity.begin(id, kind: JobKind.images, title: title, personStarted: person, shownHere: activityRoutes.noteShown(noteId));
+    activity.begin(id, kind: JobKind.images, title: title, personStarted: person, shownHere: activityRoutes.noteShown(noteId), plugin: lovart.manifest.id);
 
 /// How such a job ended: [made] pictures written into [noteId] ("Image ready · View"), or what Lovart said ([failed])
 /// where it is the person's to fix, or nothing where it went quietly.

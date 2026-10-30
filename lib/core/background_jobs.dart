@@ -348,6 +348,7 @@ class Job {
     this.shownHere,
     this.placeWords,
     this.hiddenUntil,
+    this.plugin,
   });
 
   /// Its name, the same for every pass of the same work: `lovart-banners`, `sync`, `summary:<note>`.
@@ -411,6 +412,12 @@ class Job {
   /// [JobHandle.show]n); null is shown from the start.
   final DateTime? hiddenUntil;
 
+  /// The plugin whose work it is, by its manifest's id (`lovart`, `claude`, `elevenlabs`), said where the job begins
+  /// and never guessed from its title: it then wears that plugin's mark in the tray, the log, its chip and the ring's
+  /// middle in place of its kind's glyph (Matt, 2026-10-30: "use plugin vendor logo icons for activity updates related
+  /// to plugins"; lib/activity/job_mark.dart). Null for the app's own work: a sync, a recording, an update.
+  final String? plugin;
+
   /// Whether it runs on this device.
   bool get here => device == null;
 
@@ -459,6 +466,7 @@ class Job {
     DateTime? Function()? retryAt,
     bool? personStarted,
     DateTime? Function()? hiddenUntil,
+    String? Function()? plugin,
   }) =>
       Job(
         id: id,
@@ -487,6 +495,7 @@ class Job {
         shownHere: shownHere,
         placeWords: placeWords,
         hiddenUntil: hiddenUntil == null ? this.hiddenUntil : hiddenUntil(),
+        plugin: plugin == null ? this.plugin : plugin(),
       );
 
   @override
@@ -720,11 +729,12 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     JobEstimate? estimate,
     bool Function()? shownHere,
     Duration? showAfter,
+    String? plugin,
   }) {
     final had = _jobs[id];
     if (had == null || !had.state.live) _words[id]?.value = '';
     if (had != null && had.state.live) {
-      _put(had.copyWith(title: title, line: line == null ? null : () => line, onStop: onStop == null ? null : () => onStop, onOpen: onOpen == null ? null : () => onOpen, estimate: estimate, personStarted: personStarted || had.personStarted), JobEventKind.changed);
+      _put(had.copyWith(title: title, line: line == null ? null : () => line, onStop: onStop == null ? null : () => onStop, onOpen: onOpen == null ? null : () => onOpen, estimate: estimate, personStarted: personStarted || had.personStarted, plugin: plugin == null ? null : () => plugin), JobEventKind.changed);
       return JobHandle._(this, id);
     }
     _put(
@@ -744,6 +754,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
         estimate: estimate,
         shownHere: shownHere,
         hiddenUntil: showAfter == null ? null : now.add(showAfter),
+        plugin: plugin,
       ),
       JobEventKind.started,
     );
@@ -835,6 +846,42 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     notifyListeners();
   }
 
+  /// The app's own update as the tray's Update section says it, and the ring's badge while one waits (Matt, 2026-10-30:
+  /// "show the updates stuff in the activity drawer only now with a badge and when an update is available show the
+  /// badge"): told by the app's [Updates] (lib/core/updates.dart) at every change, null where the build has none. Not
+  /// a job: an update found waits on the person, which no job does for days; its download is the `update` job.
+  UpdateOffer? get update => _update;
+  UpdateOffer? _update;
+  set update(UpdateOffer? next) {
+    if (next == _update) return;
+    _update = next;
+    _changed();
+  }
+
+  /// How many times the tray has been asked open at the Update section ([showUpdate]): the ring opens itself each time
+  /// this grows.
+  int get updateAsks => _updateAsks;
+  int _updateAsks = 0;
+
+  /// Opens the tray at its Update section: Settings › About's Check for updates, which says nothing of its own.
+  void showUpdate() {
+    _updateAsks += 1;
+    _updateWanted = true;
+    notifyListeners();
+  }
+
+  /// Whether the tray was asked open at the Update section and is not yet closed again: simple mode's plain pages,
+  /// which float the ring only while it has something to say, float it for this as well, open.
+  bool get updateWanted => _updateWanted;
+  bool _updateWanted = false;
+
+  /// The tray opened at the Update section is closed.
+  void updateSeen() {
+    if (!_updateWanted) return;
+    _updateWanted = false;
+    notifyListeners();
+  }
+
   /// Everything forgotten but the log: a test's fresh record, and a sign-out's.
   void clear() {
     for (final timer in _showing.values) {
@@ -857,6 +904,96 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
     _events.close();
     super.dispose();
   }
+}
+
+/// The app's own update's download on the record (lib/core/updates.dart `Updates.updateJobId`): drawn in the tray's
+/// Update section rather than among the rest.
+const String appUpdateJobId = 'update';
+
+/// Where the app's own update stands, as the tray's Update section says it ([Activity.update]). The first four are
+/// said only when the section is asked for (Settings › About's Check for updates); from [available] on an update waits,
+/// and the ring wears its badge.
+enum UpdateStage {
+  notChecked,
+  checking,
+  upToDate,
+  checkFailed,
+  available,
+  downloading,
+  installing,
+  needsPermission,
+  ready,
+  restarting,
+  failed;
+
+  /// An update is out and not yet running: the ring's badge.
+  bool get waiting => index >= available.index;
+}
+
+/// The update the tray's section says, with its one action: Install, Restart to update, Open (Android's installer
+/// put away), Check again. Its download is the `update` job on the record, drawn in the section as a row of its own.
+@immutable
+class UpdateOffer {
+  const UpdateOffer({required this.stage, this.version, this.running, this.notes, this.message, this.onInstall, this.onRestart, this.onCheck});
+
+  final UpdateStage stage;
+
+  /// The version offered ("2.3.86"), and the one running.
+  final String? version, running;
+
+  /// What's new in it, where the release says.
+  final String? notes;
+
+  /// Why it did not install, or why a check found nothing out.
+  final String? message;
+
+  /// Downloads and installs it (the phone's installer, or the Mac's new app put in place); the Mac's restart into it;
+  /// another look.
+  final VoidCallback? onInstall, onRestart, onCheck;
+
+  /// Whether the ring wears its badge.
+  bool get badge => stage.waiting;
+
+  String get _v => version == null ? 'Ghost.md' : 'Ghost.md $version';
+
+  /// The section's line: "Ghost.md 2.3.86 is ready".
+  String get words => switch (stage) {
+        UpdateStage.notChecked => 'Not checked for updates yet',
+        UpdateStage.checking => 'Checking for updates…',
+        UpdateStage.upToDate => running == null ? 'Ghost.md is up to date' : 'Ghost.md $running is up to date',
+        UpdateStage.checkFailed => 'Couldn’t check for updates',
+        UpdateStage.available => '$_v is ready',
+        UpdateStage.downloading => 'Downloading $_v',
+        UpdateStage.installing => '$_v is waiting on Android',
+        UpdateStage.needsPermission => 'Let Ghost.md install apps, then come back',
+        UpdateStage.ready => '$_v is downloaded',
+        UpdateStage.restarting => 'Restarting into $_v',
+        UpdateStage.failed => '$_v didn’t install',
+      };
+
+  /// The one action's word, or null for none (while it downloads or restarts, or a failure whose row has Retry).
+  String? get action => switch (stage) {
+        UpdateStage.available || UpdateStage.needsPermission => 'Install',
+        UpdateStage.installing => 'Open',
+        UpdateStage.ready => 'Restart to update',
+        UpdateStage.failed => 'Try again',
+        UpdateStage.notChecked || UpdateStage.checkFailed || UpdateStage.upToDate => 'Check again',
+        UpdateStage.checking || UpdateStage.downloading || UpdateStage.restarting => null,
+      };
+
+  /// What the action does.
+  VoidCallback? get onAction => switch (stage) {
+        UpdateStage.ready => onRestart,
+        UpdateStage.available || UpdateStage.needsPermission || UpdateStage.installing || UpdateStage.failed => onInstall,
+        _ => onCheck,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is UpdateOffer && other.stage == stage && other.version == version && other.running == running && other.notes == notes && other.message == message && other.onInstall == onInstall && other.onRestart == onRestart && other.onCheck == onCheck;
+
+  @override
+  int get hashCode => Object.hash(stage, version, running, notes, message, onInstall, onRestart, onCheck);
 }
 
 /// How a job's Open and fix reach the rest of the app, told by the root as it starts (lib/root/ghost_root.dart): so

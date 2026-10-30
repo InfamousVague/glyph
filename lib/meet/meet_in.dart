@@ -293,6 +293,8 @@ List<Job> meetBotJobs(List<MeetBooking> meetings) => [
             deviceName: 'meeting bot',
             placeWords: 'with Ghost’s meeting bot',
             startedAt: DateTime.fromMillisecondsSinceEpoch(m.startsAt),
+            // The service the bot is in wears its plugin's mark: Google Meet's, Zoom's camera, Discord's.
+            plugin: meetKindPlugins[m.kind] ?? (m.kind == 'discord' ? 'discord' : null),
           ),
     ];
 

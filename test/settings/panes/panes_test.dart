@@ -298,17 +298,18 @@ void main() {
       expect(cardTitles(tester), [null, 'Updates', 'Alerts', 'Help', "What's new", 'This build']);
       expect(tester.widget<PaneHero>(find.byType(PaneHero)).title, '1.15.0');
       expect(find.text('Updated over the air · Oct 8, 02:55 AM · app 1.15.0 · updates from ghostmarkdown.com'), findsOneWidget);
-      expect(rowLabels(tester, 'Updates'), ['Ghost.md 1.16.0 is ready to install.']);
+      expect(rowLabels(tester, 'Updates'), ['Ghost.md 1.16.0 is waiting in Activity.']);
       await tapOn(tester, find.text('Reload'));
-      await tapOn(tester, find.text('Install 1.16.0'));
+      // Installing is the activity tray's (Matt, 2026-10-30): About has Check for updates alone, which opens it there.
+      expect(find.text('Install 1.16.0'), findsNothing);
       await tapOn(tester, find.text('Check for updates'));
-      expect((reloaded, installed, checked), (1, 1, 1));
+      expect((reloaded, installed, checked), (1, 0, 1));
       await tapOn(tester, inRow('Update alerts', find.byType(GlacierSwitch)));
       expect(alerts, isFalse);
       expect(rowLabels(tester, "What's new"), ["1.15.0 · you're on this one", '1.14.2']);
       expect(hintOf(tester, "1.15.0 · you're on this one"), 'Backup shows what the drive holds. Installed as Ghost.md 1.15.0.');
       await back(tester);
-      expect(listLine(tester, 'About'), '1.15.0 · 1.16.0 ready to install');
+      expect(listLine(tester, 'About'), '1.15.0 · 1.16.0 in Activity');
       await endSettings(tester);
     });
 
@@ -316,15 +317,15 @@ void main() {
       SettingsUpdates u({bool checking = false, bool ready = false, String? lastError, bool checked = false, String? downloading, String? installable}) =>
           SettingsUpdates(version: '1', checking: checking, ready: ready, lastError: lastError, checked: checked, downloading: downloading, installable: installable);
       expect(updatesStatus(u(checking: true, ready: true)), 'Checking for updates.');
-      expect(updatesStatus(u(downloading: '2', installable: '2')), 'Downloading Ghost.md 2.');
-      expect(updatesStatus(u(installable: '2', ready: true)), 'Ghost.md 2 is ready to install.');
+      expect(updatesStatus(u(downloading: '2', installable: '2')), 'Downloading Ghost.md 2, in Activity.');
+      expect(updatesStatus(u(installable: '2', ready: true)), 'Ghost.md 2 is waiting in Activity.');
       expect(updatesStatus(u(ready: true, lastError: 'x')), 'A new version is downloaded.');
       expect(updatesStatus(u(lastError: 'no signal', checked: true)), "Couldn't check for updates: no signal");
       expect(updatesStatus(u(checked: true)), 'Up to date.');
       expect(updatesStatus(u()), 'Not checked yet.');
       // The list's is shorter and has no rung for an app downloading.
       expect([updatesSummary(u(checking: true)), updatesSummary(u(downloading: '2')), updatesSummary(u(installable: '2')), updatesSummary(u(ready: true)), updatesSummary(u(lastError: 'x')), updatesSummary(u(checked: true))],
-          ['Checking', 'Not checked yet', '2 ready to install', 'New version downloaded', "Couldn't check", 'Up to date']);
+          ['Checking', 'Not checked yet', '2 in Activity', 'New version downloaded', "Couldn't check", 'Up to date']);
       expect(buildLine(const SettingsUpdates(version: '1')), 'Built into the app · unknown build');
       expect(buildLine(const SettingsUpdates(version: '1', built: 'Oct 8', nativeVersion: '1.9.0', staging: true, sourceHost: 'x')), 'Built into the app · Oct 8 · app 1.9.0 · staging build, updates off');
       // From the App Store there is nothing to check here, and no What's new to list.

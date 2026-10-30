@@ -642,7 +642,7 @@ class MeetingSlackPoster {
     // Slack", then "Posted to #team" as a chip, or red with Slack's words once its tries are spent, with Sign in again
     // where Slack refused the token and Retry otherwise; a try short of the last goes quietly, as the queue tries again.
     final title = noteTitle(note.body);
-    final job = activity.begin('slack:${note.id}', kind: JobKind.meetings, title: 'Posting ${title.isEmpty ? 'the meeting' : title} to Slack', line: 'Posting to ${channel.name}', onOpen: activityRoutes.noteOpener(note.id));
+    final job = activity.begin('slack:${note.id}', kind: JobKind.meetings, title: 'Posting ${title.isEmpty ? 'the meeting' : title} to Slack', line: 'Posting to ${channel.name}', onOpen: activityRoutes.noteOpener(note.id), plugin: manifest.id);
     String? link;
     final share = shareLink;
     if (meetingSlackSettings().share && share != null) {

@@ -1,24 +1,23 @@
-/// What is waiting on the person, shown where they land (the home page) and in the sidebar: an update, an invitation
-/// to an organization, the Academy's invitation, and the voice model while it is not ready yet. A port of
+/// What is waiting on the person, shown where they land (the home page) and in the sidebar: an invitation to an
+/// organization, the Academy's invitation, and the voice model while it is not ready yet. A port of
 /// `src/app/notes/Notices.tsx` with Notices.module.css.
 ///
 /// Each says nothing at all when there is nothing to say (a `SizedBox.shrink()`), which the sidebar relies on to
 /// hide its notices' room.
 ///
 /// What differs from the web:
-/// - **Each is fed plain data.** The page's components read the app themselves: `core/ota.ts`'s `Updates`
-///   ([AppUpdates], with [ApkUpdate] for its `apk`), `capture/useVoiceModel.ts`'s state ([VoiceModel]),
-///   `capture/refine.ts`'s download ([RefiningNotice]'s two numbers), and the notifications' feed with the account's
-///   organizations for the invitation. Here whoever has those hands them in.
+/// - **No update card.** The app's own updates are said in the activity tray alone, under the ring's badge (Matt,
+///   2026-10-30: "show the updates stuff in the activity drawer only now with a badge"; lib/activity/activity_tray.dart
+///   `UpdateSection`), where the page had its holographic card above the notes.
+/// - **Each is fed plain data.** The page's components read the app themselves: `capture/useVoiceModel.ts`'s state
+///   ([VoiceModel]), `capture/refine.ts`'s download ([RefiningNotice]'s two numbers), and the notifications' feed with
+///   the account's organizations for the invitation. Here whoever has those hands them in.
 /// - **[InviteNotice] is given its sentence and its buttons.** The page found the newest pending invitation itself
 ///   and drew `settings/InviteActions.tsx` beside it; neither the choosing nor those buttons are ported, so the
 ///   sentence (`sentenceOf`, lib/core/notifications.dart) and an [InviteNotice.actions] widget are the caller's.
-/// - The foil on the update card drifts as the page's does (`@keyframes holo`, 11s), drawn by a painter where the
-///   page moved two background layers.
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -32,260 +31,10 @@ import '../home/home_text.dart';
 /// A download's size as its line says it: whole megabytes (`megabytes`, core/ai.ts).
 int megabytes(num bytes) => (bytes / 1e6).round();
 
-// ---- the update ---------------------------------------------------------------------------------------------------
+// ---- the cards' parts ----------------------------------------------------------------------------------------------
 
-/// Where a new version of the app itself is (`ApkState`, core/ota.ts), with the version it is of.
-sealed class ApkUpdate {
-  const ApkUpdate();
-}
-
-/// Nothing newer (`{ kind: 'none' }`), or nothing this notice says anything about.
-class ApkNone extends ApkUpdate {
-  const ApkNone();
-}
-
-/// A new version is out, to install (`'available'`).
-class ApkAvailable extends ApkUpdate {
-  const ApkAvailable(this.version);
-  final String version;
-}
-
-/// It did not install, and why (`'failed'`).
-class ApkFailed extends ApkUpdate {
-  const ApkFailed(this.version, this.message);
-  final String version;
-  final String message;
-}
-
-/// The phone has not let the app install apps yet (`'needs-permission'`).
-class ApkNeedsPermission extends ApkUpdate {
-  const ApkNeedsPermission();
-}
-
-/// It is coming down (`'downloading'`): how many bytes of how many.
-class ApkDownloading extends ApkUpdate {
-  const ApkDownloading(this.version, {required this.received, required this.total});
-  final String version;
-  final int received;
-  final int total;
-}
-
-/// Android's own dialog is on top, or was dismissed (`'installing'`).
-class ApkInstalling extends ApkUpdate {
-  const ApkInstalling(this.version);
-  final String version;
-}
-
-/// The Mac's: the new version is downloaded, checked and in place, and a restart swaps it in (core/updates.dart
-/// `ApkPhaseReady`).
-class ApkReady extends ApkUpdate {
-  const ApkReady(this.version);
-  final String version;
-}
-
-/// The Mac's: the app is quitting to open again as the new version (`ApkPhaseRestarting`).
-class ApkRestarting extends ApkUpdate {
-  const ApkRestarting(this.version);
-  final String version;
-}
-
-/// What the update card is told (`Updates`, core/ota.ts, the part the card reads).
-@immutable
-class AppUpdates {
-  const AppUpdates({this.ready = false, this.apk = const ApkNone(), this.onInstall, this.onReload, this.onRestart});
-
-  /// A new version of the page is downloaded and waiting for a reload (`ready`).
-  final bool ready;
-  final ApkUpdate apk;
-
-  /// Installs the new version, or asks again (`installApk`).
-  final VoidCallback? onInstall;
-
-  /// Starts the app again on the version already downloaded (`reload`).
-  final VoidCallback? onReload;
-
-  /// The Mac's "Restart to update": swaps in the version [ApkReady] stands for and opens it.
-  final VoidCallback? onRestart;
-}
-
-/// The update's card when there is something newer to run (`UpdateNotice`): white and holographic, the one piece of
-/// colour on the home page. Fed [AppUpdates] where the page read `core/ota.ts`.
-class UpdateNotice extends StatelessWidget {
-  const UpdateNotice({super.key, required this.updates});
-
-  final AppUpdates updates;
-
-  @override
-  Widget build(BuildContext context) {
-    final apk = updates.apk;
-    switch (apk) {
-      case ApkAvailable(:final version):
-        return _UpdateCard(text: 'Ghost.md $version is out.', action: 'Install', onAction: updates.onInstall, ghost: true);
-      case ApkFailed(:final version, :final message):
-        return _UpdateCard(text: 'Ghost.md $version didn’t install. $message', action: 'Try again', onAction: updates.onInstall);
-      case ApkNeedsPermission():
-        return _UpdateCard(text: 'Let Ghost.md install apps, then come back.', action: 'Install', onAction: updates.onInstall);
-      case ApkDownloading(:final version, :final received, :final total):
-        return _UpdateCard(text: 'Downloading Ghost.md $version, ${megabytes(received)} of ${megabytes(total)} MB.', progress: total > 0 ? received / total : 0, working: true);
-      case ApkInstalling(:final version):
-        // Android's own dialog is on top now; this is what is left if it is dismissed.
-        return _UpdateCard(text: 'Ghost.md $version is waiting on Android.', action: 'Open', onAction: updates.onInstall);
-      case ApkReady(:final version):
-        return _UpdateCard(text: 'Ghost.md $version is ready.', action: 'Restart to update', onAction: updates.onRestart, ghost: true);
-      case ApkRestarting(:final version):
-        return _UpdateCard(text: 'Restarting into Ghost.md $version.', working: true, workingLabel: 'Restarting');
-      case ApkNone():
-        if (updates.ready) return _UpdateCard(text: 'A new version of Ghost.md is ready.', action: 'Reload', onAction: updates.onReload, ghost: true);
-        return const SizedBox.shrink();
-    }
-  }
-}
-
-/// `.update`: the update's card: its words, what to do about it, and while it downloads, how far it has got.
-class _UpdateCard extends StatefulWidget {
-  const _UpdateCard({required this.text, this.action, this.onAction, this.progress, this.working = false, this.workingLabel = 'Downloading', this.ghost = false});
-
-  final String text;
-  final String? action;
-  final VoidCallback? onAction;
-  final double? progress;
-
-  /// The update is coming down now: cogs turn beside the words while it does.
-  final bool working;
-
-  /// What the cogs say they are doing, to a screen reader.
-  final String workingLabel;
-
-  /// An update is waiting to be taken: the ghost with its parcel beside the words.
-  final bool ghost;
-
-  @override
-  State<_UpdateCard> createState() => _UpdateCardState();
-}
-
-class _UpdateCardState extends State<_UpdateCard> with SingleTickerProviderStateMixin {
-  // `animation: holo 11s linear infinite`
-  late final AnimationController _holo = AnimationController(vsync: this, duration: const Duration(seconds: 11));
-  bool _started = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_started) return;
-    _started = true;
-    // `@media (prefers-reduced-motion: reduce) { .update { animation: none } }`
-    if (!context.tokens.reducedMotion) _holo.repeat();
-  }
-
-  @override
-  void dispose() {
-    _holo.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    // `--update-ink: oklch(0.18 0.012 260)`: near-black words and a black pill, in both themes.
-    final ink = t.colorOf('oklch(0.18 0.012 260)');
-    final sm = t.fontSize('sm');
-    final leading = t.len('glacier-leading-sm');
-    final radius = BorderRadius.circular(t.radius('lg'));
-    final action = widget.action, onAction = widget.onAction, progress = widget.progress;
-    final settle = t.transition('app-settle');
-    final words = pageText(t, sm, weight: 'medium', color: ink, height: leading);
-    // The ghost's place, `tiny` (art/ghost.dart: three rems tall), and the card's one height: that, the button's
-    // `min-block-size: var(--glacier-space-10)`, or two lines of words, whichever is most.
-    final rem = t.lenOf('1rem');
-    final leadHeight = 3 * rem, leadWidth = leadHeight * GhostScene.update.ratio;
-    final body = math.max(leadHeight, math.max(t.space(10), 2 * sm * leading));
-    final card = Container(
-      key: const ValueKey('update-notice'),
-      // `margin: 0 0 var(--glacier-space-5)`
-      margin: EdgeInsets.only(bottom: t.space(5)),
-      // `box-shadow: ..., 0 10px 30px rgba(0, 0, 0, 0.22)`
-      decoration: BoxDecoration(borderRadius: radius, boxShadow: const [BoxShadow(color: Color(0x38000000), offset: Offset(0, 10), blurRadius: 30)]),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: CustomPaint(
-          painter: _Holo(
-            drift: _holo,
-            spectrum: [for (final stop in const ['0.93 0.085 350', '0.94 0.075 215', '0.96 0.075 135', '0.95 0.09 80', '0.93 0.08 300', '0.93 0.085 350']) t.colorOf('oklch($stop)')],
-            radius: t.radius('lg'),
-          ),
-          child: Stack(
-            children: [
-              Padding(
-                // `padding: var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-4)`
-                padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(3), t.space(3)),
-                // One size from the first word to the restart (Matt, 2026-10-24: "the ghost update banner shifts when
-                // updating pleaase make sure it always takes up the same space"): the card is as tall as the tallest
-                // of its states, the ghost, the button and two lines of words, whichever it is in; the ghost's place
-                // is always kept, the ghost in it while an update waits or the cogs while it works, and empty when it says why one did
-                // not go; and the words take two lines at most.
-                child: SizedBox(
-                  key: const ValueKey('update-body'),
-                  height: body,
-                  child: Row(
-                    // `display: flex; align-items: center; gap: var(--glacier-space-3)`
-                    spacing: t.space(3),
-                    children: [
-                      SizedBox(
-                        key: const ValueKey('update-lead'),
-                        width: leadWidth,
-                        height: leadHeight,
-                        child: Center(
-                          child: widget.working
-                              ? WorkingGears(label: widget.workingLabel, size: sm * 1.6, color: ink)
-                              : widget.ghost
-                              ? Ghost(scene: GhostScene.update, size: GhostSize.tiny, color: ink)
-                              : null,
-                        ),
-                      ),
-                      Expanded(
-                        // `.updateText { flex: 1; font-size: sm; line-height: leading-sm; font-weight: medium }`
-                        child: Text(widget.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: words),
-                      ),
-                      if (action != null && onAction != null) _Action(key: const ValueKey('update-action'), label: action, onPressed: onAction, background: ink, color: const Color(0xFFFFFFFF), ring: ink),
-                    ],
-                  ),
-                ),
-              ),
-              if (progress != null)
-                // `.updateBar { position: absolute; inset: auto 0 0; block-size: 3px; background: rgba(0, 0, 0, 0.12) }`
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 3,
-                  child: ExcludeSemantics(
-                    child: ColoredBox(
-                      color: const Color(0x1F000000),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        // `inline-size: <whole percent>%; transition: inline-size 300ms linear`
-                        child: AnimatedFractionallySizedBox(
-                          key: const ValueKey('update-progress'),
-                          duration: const Duration(milliseconds: 300),
-                          widthFactor: (progress.clamp(0.0, 1.0) * 100).round() / 100,
-                          heightFactor: 1,
-                          child: ColoredBox(color: ink),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    // `animation: update-in var(--app-settle) both`: from a little above, and clear.
-    return Semantics(container: true, liveRegion: true, child: _In(duration: settle.duration, curve: settle.curve, child: card));
-  }
-}
-
-/// `@keyframes update-in { from { opacity: 0; transform: translateY(-6px) } }`, still under reduced motion.
+/// `@keyframes update-in { from { opacity: 0; transform: translateY(-6px) } }`, still under reduced motion: how a card
+/// comes in.
 class _In extends StatelessWidget {
   const _In({required this.duration, required this.curve, required this.child});
 
@@ -306,78 +55,14 @@ class _In extends StatelessWidget {
   }
 }
 
-/// The update card's ground: white, under a faint pastel spectrum drifting one way and a band of light crossing the
-/// other, the way a holographic sticker catches a lamp, and the two inset lines of white round it.
-class _Holo extends CustomPainter {
-  _Holo({required this.drift, required this.spectrum, required this.radius}) : super(repaint: drift);
-
-  final Animation<double> drift;
-  final List<Color> spectrum;
-  final double radius;
-
-  /// A CSS `linear-gradient(<degrees>deg, ...)` over [rect]: the line through its middle at that angle, as long as
-  /// the rectangle is across it.
-  static ui.Gradient _linear(Rect rect, double degrees, List<Color> colors, List<double> stops) {
-    final a = degrees * math.pi / 180;
-    final dx = math.sin(a), dy = -math.cos(a);
-    final half = (rect.width * dx.abs() + rect.height * dy.abs()) / 2;
-    final c = rect.center;
-    return ui.Gradient.linear(c - Offset(dx, dy) * half, c + Offset(dx, dy) * half, colors, stops);
-  }
-
-  /// One background layer: its picture [times] the box wide, tiled, and slid as `background-position` slides it from
-  /// `0%` to [to] times 100%: by `(box - picture) * position`.
-  void _layer(Canvas canvas, Size size, {required double times, required double to, required double degrees, required List<Color> colors, required List<double> stops}) {
-    final tile = size.width * times;
-    final slide = (size.width - tile) * to * drift.value;
-    var x = slide % tile;
-    if (x > 0) x -= tile;
-    for (; x < size.width; x += tile) {
-      final rect = Rect.fromLTWH(x, 0, tile, size.height);
-      canvas.drawRect(rect, Paint()..shader = _linear(rect, degrees, colors, stops));
-    }
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final box = Offset.zero & size;
-    // `background-color: #fff`
-    canvas.drawRect(box, Paint()..color = const Color(0xFFFFFFFF));
-    // The spectrum: `linear-gradient(100deg, ...)`, `background-size: 320% 100%`, to `320% 0`.
-    _layer(canvas, size, times: 3.2, to: 3.2, degrees: 100, colors: spectrum, stops: const [0, 0.2, 0.4, 0.6, 0.8, 1]);
-    // The light: `linear-gradient(115deg, ...)`, `background-size: 260% 100%`, to `-260% 0`.
-    const clear = Color(0x00FFFFFF);
-    _layer(canvas, size, times: 2.6, to: -2.6, degrees: 115, colors: const [clear, Color(0xD9FFFFFF), clear, clear, Color(0xB3FFFFFF), clear], stops: const [0, 0.18, 0.34, 0.62, 0.78, 1]);
-    // `inset 0 0 0 1px rgba(255, 255, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.95)`
-    final edge = RRect.fromRectAndRadius(box.deflate(0.5), Radius.circular(math.max(0, radius - 0.5)));
-    canvas.drawRRect(edge, Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xD9FFFFFF));
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, radius));
-    canvas.drawRRect(edge, Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xF2FFFFFF));
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_Holo old) => old.radius != radius || old.spectrum != spectrum;
-}
-
-/// `.updateAction`, `.learnAction`: a card's one button, a filled pill.
+/// `.learnAction`: a card's one button, a filled pill.
 class _Action extends StatelessWidget {
-  const _Action({super.key, required this.label, required this.onPressed, required this.background, required this.color, this.ring});
+  const _Action({required this.label, required this.onPressed, required this.background, required this.color});
 
   final String label;
   final VoidCallback onPressed;
   final Color background;
   final Color color;
-
-  /// The focus ring's colour where the card sets its own (`outline: 2px solid var(--update-ink)`).
-  final Color? ring;
 
   @override
   Widget build(BuildContext context) {
@@ -389,7 +74,6 @@ class _Action extends StatelessWidget {
         scale: state.pressed ? 0.96 : 1,
         child: GlacierFocusRing(
           visible: state.focused,
-          color: ring,
           child: Container(
             // `min-block-size: var(--glacier-space-10); padding: 0 var(--glacier-space-4); border-radius: full`
             constraints: BoxConstraints(minHeight: t.space(10)),

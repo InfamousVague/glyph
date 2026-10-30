@@ -13,6 +13,7 @@ import 'dart:ui' show AppLifecycleState;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/activity/activity_chips.dart' show ActivityChip;
 import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/stored.dart' show MemoryStored;
@@ -627,7 +628,7 @@ void main() {
       expect(updates.apk, isA<ApkPhaseRestarting>(), reason: 'nor while it quits');
     });
 
-    test('the download is a job on the app\'s record of running work, ending as "The update is ready" with Restart', () async {
+    test('the download is a job on the app\'s record of running work, said in the tray alone: no chip as it ends, and Restart to update in the tray\'s section', () async {
       final record = Activity(store: () => MemoryStored());
       useActivity(record);
       addTearDown(() => useActivity(Activity()));
@@ -641,8 +642,10 @@ void main() {
       expect((seen.first.id, seen.first.kind, seen.first.personStarted), (Updates.updateJobId, JobKind.downloads, true));
       expect(seen.where((job) => job.state == JobState.running).last.fraction, 1.0);
       final ready = seen.last;
-      expect((ready.state, ready.result!.words, ready.result!.action), (JobState.done, 'The update is ready', 'Restart'));
-      ready.result!.onOpen!();
+      // Matt, 2026-10-30: "show the updates stuff in the activity drawer only now with a badge": no chip of its own.
+      expect((ready.state, ready.result, ActivityChip.of(ready)), (JobState.done, null, null));
+      expect((record.update!.stage, record.update!.action, record.update!.badge), (UpdateStage.ready, 'Restart to update', true));
+      record.update!.onAction!();
       await pumpEventQueue();
       expect(mac.restarts, 1);
       expect(record.log.today.words, '1 update downloaded');

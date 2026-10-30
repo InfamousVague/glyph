@@ -27,6 +27,7 @@ library;
 import 'package:glacier/glacier.dart' show HapticFn, HapticKind, fireMotor;
 
 import '../../ai/summary_keep.dart' show keptText;
+import '../../core/background_jobs.dart';
 import '../../core/iphone_app.dart' show notOnIPhone;
 import '../../core/summary_text.dart' show summarySection;
 import '../../settings/settings_search.dart' show SettingsFindable;
@@ -107,12 +108,17 @@ Future<void> _post(NoteEditing editing, String? choice, String? Function(String 
       rest = null;
     }
   }
+  // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md), as Slack's post is: Discord's
+  // mark in the tray, and a chip only where the person has left the note meanwhile.
+  final job = activity.begin('discord-post:${editing.noteId}', kind: JobKind.meetings, title: 'Posting to Discord', line: 'Posting to ${channel.name}', personStarted: true, shownHere: activityRoutes.noteShown(editing.noteId), plugin: manifest.id);
   try {
     await postToDiscord(channel, discordFitted(text, rest: rest));
     discordFelt(HapticKind.success);
     editing.say('Posted to ${channel.name}.');
+    job.done(result: JobResult('Posted to ${channel.name}', action: 'Open', onOpen: activityRoutes.noteOpener(editing.noteId)), tally: const JobTally('Discord post', 'Discord posts'));
   } catch (failure) {
     editing.say('Not posted to ${channel.name}. ${failureWords(failure)}');
+    job.failed('Not posted to ${channel.name}. ${failureWords(failure)}');
   }
 }
 

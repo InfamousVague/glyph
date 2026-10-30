@@ -231,7 +231,7 @@ String describeBuild(String? build, {DateTime Function(DateTime utc)? toLocal}) 
 /// The APK a release offers (`ApkInfo`), as its signed `apk.json` says it. tool/release.md has the fields.
 @immutable
 class ApkInfo {
-  const ApkInfo({required this.version, required this.versionCode, required this.sha256, required this.bytes, required this.url});
+  const ApkInfo({required this.version, required this.versionCode, required this.sha256, required this.bytes, required this.url, this.notes});
 
   final String version;
   final int versionCode;
@@ -241,10 +241,16 @@ class ApkInfo {
   /// A file's name beside `apk.json`, or a whole https address.
   final String url;
 
+  /// What's new in it, where the description says (`notes`), for the tray's Update section. The core's answer
+  /// carries no such field today (native/src/kept/updates.rs `ApkInfo` reads only what it checks), so this is null
+  /// until a release says it and the core hands it on.
+  final String? notes;
+
   /// What the core answered (`update_read`): already verified, so a wrong shape here is the core's fault.
   static ApkInfo of(Object? answer) {
     if (answer case {'version': final String version, 'versionCode': final num code, 'sha256': final String sha256, 'bytes': final num bytes, 'url': final String url}) {
-      return ApkInfo(version: version, versionCode: code.toInt(), sha256: sha256, bytes: bytes.toInt(), url: url);
+      final notes = answer['notes'];
+      return ApkInfo(version: version, versionCode: code.toInt(), sha256: sha256, bytes: bytes.toInt(), url: url, notes: notes is String && notes.trim().isNotEmpty ? notes.trim() : null);
     }
     throw const FormatException('the update was not described as this build reads one');
   }
@@ -612,6 +618,44 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     if (_gone) return;
     change();
     notifyListeners();
+    _tell();
+  }
+
+  /// Where the update stands, as the activity tray's Update section says it and the ring's badge shows it (Matt,
+  /// 2026-10-30: "show the updates stuff in the activity drawer only now with a badge"; lib/activity/activity_tray.dart).
+  UpdateOffer get offer {
+    final running = _installed?.version;
+    return switch (_apk) {
+      ApkPhaseAvailable(:final info) => _offer(UpdateStage.available, info),
+      ApkPhaseDownloading(:final info) => _offer(UpdateStage.downloading, info),
+      ApkPhaseInstalling(:final info) => _offer(UpdateStage.installing, info),
+      ApkPhaseNeedsPermission(:final info) => _offer(UpdateStage.needsPermission, info),
+      ApkPhaseReady(:final info) => _offer(UpdateStage.ready, info),
+      ApkPhaseRestarting(:final info) => _offer(UpdateStage.restarting, info),
+      ApkPhaseFailed(:final info, :final message) => _offer(UpdateStage.failed, info, message: message),
+      ApkPhaseNone() => UpdateOffer(
+          stage: _checking ? UpdateStage.checking : (_lastError != null ? UpdateStage.checkFailed : (_lastChecked != null ? UpdateStage.upToDate : UpdateStage.notChecked)),
+          running: running,
+          message: _lastError,
+          onCheck: check,
+        ),
+    };
+  }
+
+  UpdateOffer _offer(UpdateStage stage, ApkInfo info, {String? message}) =>
+      UpdateOffer(stage: stage, version: info.version, running: _installed?.version, notes: info.notes, message: message, onInstall: installApk, onRestart: restart, onCheck: check);
+
+  /// The last [offer] told to the app's record, so a disposed one takes back only its own.
+  UpdateOffer? _told;
+
+  /// Tells the app's record of running work where the update stands ([Activity.update]).
+  void _tell() {
+    if (_gone) return;
+    final now = offer;
+    // A failure the update has moved past (a check that found it again, its install begun anew) is let go of: the red
+    // row was for what went wrong then.
+    if (now.stage != UpdateStage.failed) activity.dismiss(updateJobId);
+    activity.update = _told = now;
   }
 
   /// Begins the timing (`useUpdates`' effect): a look four seconds on, one on every return after a minute away,
@@ -619,6 +663,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
   void start() {
     if (_started || _gone) return;
     _started = true;
+    _tell();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_phone.installed().then((app) {
       if (app != null && _installed == null) _set(() => _installed = app);
@@ -706,7 +751,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// The update's download on the app's record of running work.
-  static const String updateJobId = 'update';
+  static const String updateJobId = appUpdateJobId;
 
   /// Brings the new version down and hands it to Android (`installApk`). Pressed again while Android's screen is
   /// up, or after it was put away, it hands the same file over again: the verified file is still in the cache.
@@ -724,15 +769,18 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     final busy = mac ? null : _busy;
     if (busy != null) {
       _set(() => _apk = ApkPhaseFailed(info, busy));
+      _failedJob('Downloading the update', busy);
       return;
     }
     _set(() => _apk = ApkPhaseDownloading(info, received: 0, total: info.bytes));
     // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): a ring filling, green, as
-    // far as the download has come; the card says the rest, so how it ends is said on the record too.
-    final job = activity.begin(updateJobId, kind: JobKind.downloads, title: 'Downloading the update', line: 'Downloading', personStarted: true, fraction: 0);
+    // far as the download has come, drawn in the tray's Update section, where the update is said and nowhere else
+    // (Matt, 2026-10-30: "show the updates stuff in the activity drawer only now with a badge"): so no chip as it
+    // ends ([_inTrayAlone]), well or badly; its failure is the section's red row, with Retry.
+    final job = _job('Downloading the update');
     void ended(ApkPhase phase) => switch (phase) {
           ApkPhaseFailed(:final message) => job.failed(message, fix: JobFix(JobFixKind.retry, () => unawaited(installApk()))),
-          ApkPhaseReady() => job.done(result: JobResult('The update is ready', action: 'Restart', onOpen: () => unawaited(restart())), tally: const JobTally('update downloaded', 'updates downloaded')),
+          ApkPhaseReady() => job.done(tally: const JobTally('update downloaded', 'updates downloaded')),
           ApkPhaseInstalling() || ApkPhaseNeedsPermission() => job.done(tally: const JobTally('update downloaded', 'updates downloaded'), quiet: true),
           _ => job.stopped(),
         };
@@ -783,12 +831,27 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     final busy = _busy;
     if (busy != null) {
       _set(() => _apk = ApkPhaseFailed(info, busy));
+      _failedJob('Restarting into the update', busy);
       return;
     }
     _set(() => _apk = ApkPhaseRestarting(info));
     final answer = await phone.restart();
-    if (answer != 'restarting') _set(() => _apk = ApkPhaseFailed(info, 'Ghost.md could not restart into it ($answer).'));
+    if (answer != 'restarting') {
+      const why = 'Ghost.md could not restart into it';
+      _set(() => _apk = ApkPhaseFailed(info, '$why ($answer).'));
+      _failedJob('Restarting into the update', '$why ($answer).');
+    }
   }
+
+  /// Said where the update is, the tray, and nowhere else: a job of the update's never gives a chip.
+  static bool _inTrayAlone() => true;
+
+  /// The update's job on the record, [title] its words.
+  JobHandle _job(String title) => activity.begin(updateJobId, kind: JobKind.downloads, title: title, line: 'Downloading', personStarted: true, fraction: 0, shownHere: _inTrayAlone);
+
+  /// An install or restart that could not go ahead, as the update's red row in the tray, with Retry: a meeting being
+  /// recorded, or the Mac's restart refused.
+  void _failedJob(String title, String cause) => _job(title).failed(cause, fix: JobFix(JobFixKind.retry, () => unawaited(installApk())));
 
   /// Downloads the published APK, verified, and answers with its path (`ota_fetch_apk`, apk.rs `fetch`). The
   /// description is read again, signature and all: what is installed is what is published now.
@@ -849,6 +912,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    if (_told != null && activity.update == _told) activity.update = null;
     _gone = true;
     _first?.cancel();
     _beat?.cancel();

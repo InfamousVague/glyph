@@ -29,6 +29,7 @@ import '../../core/front_matter.dart' show frontMatterEnd;
 import '../../files/attachment_store.dart' show AttachmentBytes, KeptAttachment, storeAttachment;
 import '../types.dart';
 import 'client.dart';
+import 'manifest.dart' as eleven;
 import 'speech_text.dart';
 import 'voices.dart';
 
@@ -197,6 +198,7 @@ Future<bool> makeVoiceOver(NoteEditing editing, [String? voiceId]) async {
     personStarted: true,
     shownHere: activityRoutes.noteShown(noteId),
     estimate: JobEstimate(credits: (plan.characters * model.creditsPerCharacter).ceil(), provider: 'ElevenLabs'),
+    plugin: eleven.manifest.id,
   );
   var made = false;
   try {

@@ -83,7 +83,7 @@ Future<void> _post(NoteEditing editing, String? choice, String? Function(String 
   }
   // On the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md), asked for from the note:
   // its words say how it went, and a chip only where the person has left the note meanwhile.
-  final job = activity.begin('slack-post:${editing.noteId}', kind: JobKind.meetings, title: 'Posting to Slack', line: 'Posting to ${channel.name}', personStarted: true, shownHere: activityRoutes.noteShown(editing.noteId));
+  final job = activity.begin('slack-post:${editing.noteId}', kind: JobKind.meetings, title: 'Posting to Slack', line: 'Posting to ${channel.name}', personStarted: true, shownHere: activityRoutes.noteShown(editing.noteId), plugin: manifest.id);
   try {
     await postToChannel(channel, text);
     posted?.call();

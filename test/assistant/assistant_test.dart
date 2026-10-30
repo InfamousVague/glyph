@@ -268,6 +268,8 @@ void main() {
       final writer = meetings(world);
       await writer.load();
       expect((writer.chosen, writer.enabled, writer.name, writer.model), (true, true, 'OpenAI', 'gpt-writer'));
+      // The summary's job wears the provider's mark (lib/activity/job_mark.dart).
+      expect(writer.pluginId, 'openai');
       expect(writer.onePassChars, otherOnePassChars);
       final text = await writer.write(system: 'Summarize.', prompt: 'The transcript').done;
       expect(text, 'OpenAI here.');
@@ -288,7 +290,7 @@ void main() {
       await world.claude.setKey('sk-ant-test-0123456789abcdef');
       await world.openAi.setKey('sk-test-0123456789abcdef');
       final writer = meetings(world);
-      expect((writer.chosen, writer.name, writer.model), (true, 'Claude', defaultClaudeModel));
+      expect((writer.chosen, writer.name, writer.model, writer.pluginId), (true, 'Claude', defaultClaudeModel, 'claude'));
       expect(writer.onePassChars, claudeOnePassChars);
       expect(await writer.write(system: 's', prompt: 'p').done, 'Claude here.');
       expect(world.claudeApi.asked.single['model'], defaultClaudeModel);

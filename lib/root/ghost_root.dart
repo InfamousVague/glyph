@@ -173,7 +173,7 @@ import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanSh
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../activity/activity_chime.dart' show startActivityChime;
 import '../activity/activity_surfaces.dart' show startActivitySurfaces;
-import '../core/background_jobs.dart' show ChannelBackgroundJobs, activityRoutes;
+import '../core/background_jobs.dart' show ChannelBackgroundJobs, activity, activityRoutes;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
@@ -2083,6 +2083,13 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   void _closeSettings() => setState(() => _settings = false);
+
+  /// Settings › About's Check for updates: Settings shut, and the activity tray opened at its Update section, which says
+  /// what the check finds (Matt, 2026-10-30: "show the updates stuff in the activity drawer only now with a badge").
+  void _showUpdate() {
+    if (_settings) _closeSettings();
+    _afterFrame((_) => activity.showUpdate());
+  }
 
   /// A `ghostmd://market` link that came in Simple mode, where the Market is not shown: a word saying where it is,
   /// and the way to Appearance's Mode card to choose Advanced ([_RootDoor.openPlace]).

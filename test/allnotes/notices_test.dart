@@ -1,7 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
-import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/notes/notices.dart';
 import 'package:glacier/glacier.dart';
 
@@ -9,8 +10,8 @@ import '../support/render.dart';
 import 'support.dart';
 
 /// What is waiting on the person, in the words it is said in (lib/notes/notices.dart), after the web's
-/// `notes/Notices.test.tsx`: each stage of an update, the voice model coming down or failing to, and the Academy's
-/// invitation. Each says nothing at all when there is nothing to say.
+/// `notes/Notices.test.tsx`: the voice model coming down or failing to, and the Academy's invitation (the update's card
+/// is gone: the activity tray says the app's updates). Each says nothing at all when there is nothing to say.
 ///
 /// Not measured on the page: none of these can be brought up in the dev server without an update or a model to wait
 /// for. The sizes asserted are the stylesheet's own (Notices.module.css), through the tokens.
@@ -35,107 +36,10 @@ void main() {
   Finder key(String name) => find.byKey(ValueKey(name));
   bool said(WidgetTester tester, String words) => find.textContaining(words, findRichText: true).evaluate().isNotEmpty;
 
-  group('the update card', () {
-    testWidgets('says nothing with nothing newer', (tester) async {
-      await show(tester, const UpdateNotice(updates: AppUpdates()));
-      expect(key('update-notice'), findsNothing);
-      expect(tester.getSize(find.byType(UpdateNotice)).height, 0);
-      await away(tester);
-    });
-
-    testWidgets('offers a new version to install, with the ghost and its parcel, and installs it', (tester) async {
-      var installs = 0;
-      await show(tester, UpdateNotice(updates: AppUpdates(apk: const ApkAvailable('1.9.0'), onInstall: () => installs += 1)));
-      expect(said(tester, 'Ghost.md 1.9.0 is out.'), isTrue);
-      expect(tester.widget<Ghost>(find.byType(Ghost)).scene, GhostScene.update);
-      await tester.tap(find.text('Install'));
-      expect(installs, 1);
-      await away(tester);
-    });
-
-    testWidgets('counts a download in whole megabytes, with its bar and its cogs, and offers nothing to press meanwhile', (tester) async {
-      await show(tester, const UpdateNotice(updates: AppUpdates(apk: ApkDownloading('1.9.0', received: 12400000, total: 48000000))));
-      expect(said(tester, 'Downloading Ghost.md 1.9.0, 12 of 48 MB.'), isTrue);
-      expect(key('update-action'), findsNothing);
-      expect(find.byType(WorkingGears), findsOneWidget);
-      expect(find.byType(Ghost), findsNothing);
-      // `inline-size: 26%`: a whole percent of the card, 3px tall along its foot.
-      final card = tester.getRect(key('update-notice')), bar = tester.getRect(key('update-progress'));
-      final t = GlacierTheme.of(tester.element(key('update-notice')));
-      expect(bar.width / card.width, closeTo(0.26, 0.002));
-      expect([bar.height, bar.left - card.left], [3, 0]);
-      expect(bar.bottom, closeTo(card.bottom - t.space(5), 0.01), reason: 'the bar is on the card’s foot, above its margin');
-      await tester.pump(const Duration(seconds: 1));
-      await away(tester);
-    });
-
-    testWidgets('takes the same room in every state, its words where they were, from the first word to the restart', (tester) async {
-      // Matt, 2026-10-24: "the ghost update banner shifts when updating pleaase make sure it always takes up the same
-      // space".
-      for (final width in [390.0, 1000.0]) {
-        final states = <String, AppUpdates>{
-          'available': AppUpdates(apk: const ApkAvailable('2.3.23'), onInstall: () {}),
-          'downloading': const AppUpdates(apk: ApkDownloading('2.3.23', received: 12400000, total: 57000000)),
-          'ready': AppUpdates(apk: const ApkReady('2.3.23'), onRestart: () {}),
-          'restarting': const AppUpdates(apk: ApkRestarting('2.3.23')),
-          'failed': AppUpdates(apk: const ApkFailed('2.3.23', 'The download was cut short. Check the connection and try again.'), onInstall: () {}),
-          'waiting': AppUpdates(apk: const ApkInstalling('2.3.23'), onInstall: () {}),
-        };
-        final heights = <String, double>{}, starts = <String, double>{};
-        for (final MapEntry(key: name, value: updates) in states.entries) {
-          await show(tester, UpdateNotice(updates: updates), width: width);
-          heights[name] = tester.getSize(key('update-notice')).height;
-          starts[name] = tester.getTopLeft(find.descendant(of: key('update-body'), matching: find.byType(Text)).first).dx;
-          await tester.pump(const Duration(seconds: 1));
-        }
-        expect(heights.values.toSet(), hasLength(1), reason: 'at $width: $heights');
-        expect(starts.values.toSet(), hasLength(1), reason: 'the words start in one place at $width: $starts');
-      }
-      await away(tester);
-    });
-
-    testWidgets('says why an install did not happen, and offers it again', (tester) async {
-      await show(tester, UpdateNotice(updates: AppUpdates(apk: const ApkFailed('1.9.0', 'The file was damaged.'), onInstall: () {})));
-      expect(said(tester, 'Ghost.md 1.9.0 didn’t install. The file was damaged.'), isTrue);
-      expect(find.text('Try again'), findsOneWidget);
-      expect(find.byType(Ghost), findsNothing);
-      await away(tester);
-    });
-
-    testWidgets('asks to be let install, and waits on Android once it has asked', (tester) async {
-      await show(tester, UpdateNotice(updates: AppUpdates(apk: const ApkNeedsPermission(), onInstall: () {})));
-      expect(said(tester, 'Let Ghost.md install apps, then come back.'), isTrue);
-      expect(find.text('Install'), findsOneWidget);
-      await away(tester);
-      await show(tester, UpdateNotice(updates: AppUpdates(apk: const ApkInstalling('1.9.0'), onInstall: () {})));
-      expect(said(tester, 'Ghost.md 1.9.0 is waiting on Android.'), isTrue);
-      expect(find.text('Open'), findsOneWidget);
-      await away(tester);
-    });
-
-    testWidgets('offers a reload for a new version of the page already downloaded', (tester) async {
-      var reloads = 0;
-      await show(tester, UpdateNotice(updates: AppUpdates(ready: true, onReload: () => reloads += 1)));
-      expect(said(tester, 'A new version of Ghost.md is ready.'), isTrue);
-      await tester.tap(find.text('Reload'));
-      expect(reloads, 1);
-      await away(tester);
-    });
-
-    testWidgets('is the stylesheet’s card: a space of margin under it, its pill a space-10 tall, white in the dark too', (tester) async {
-      await show(tester, UpdateNotice(updates: AppUpdates(ready: true, onReload: () {})));
-      final t = GlacierTheme.of(tester.element(key('update-notice')));
-      final card = tester.getRect(key('update-notice')), pill = tester.getRect(key('update-action'));
-      // `padding: space-3 space-3 space-3 space-4` round the ghost, 3rem tall and taller than the pill of
-      // `min-block-size: space-10` beside it, and `margin: 0 0 space-5`.
-      expect(card.height, closeTo(t.space(3) * 2 + t.lenOf('3rem') + t.space(5), 0.01));
-      expect(tester.getSize(find.byType(Image)).height, closeTo(t.lenOf('3rem'), 0.01));
-      expect(pill.height, closeTo(t.space(10), 0.01));
-      expect(card.right - pill.right, closeTo(t.space(3), 0.01));
-      expect(card.width, closeTo(390 - t.len('app-gutter-start') - t.len('app-gutter-end'), 0.01));
-      await loadPictures(tester);
-      await shot(tester, 'notice-update-dark');
-    });
+  test('there is no update card: the app’s own updates are the activity tray’s (lib/activity/activity_tray.dart)', () {
+    // Matt, 2026-10-30: "show the updates stuff in the activity drawer only now with a badge". The card, its words and
+    // its foil went with it; test/activity/activity_updates_test.dart holds the tray's section.
+    expect(File('lib/notes/notices.dart').readAsStringSync(), isNot(contains('class UpdateNotice')));
   });
 
   group('the voice model’s line', () {
@@ -218,8 +122,6 @@ void main() {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            UpdateNotice(updates: AppUpdates(apk: const ApkAvailable('1.15.0'), onInstall: () {})),
-            const UpdateNotice(updates: AppUpdates(apk: ApkDownloading('1.15.0', received: 12400000, total: 48000000))),
             InviteNotice(sentence: 'Sam invited you to Acme', actions: Builder(builder: (context) => Text('Accept · Decline', style: context.tokens.text('sm')))),
             AcademyCard(onOpen: () {}, onHide: () {}),
             VoiceModelStatus(state: const VoiceModelDownloading(received: 30600000, total: 148000000), onRetry: () {}),

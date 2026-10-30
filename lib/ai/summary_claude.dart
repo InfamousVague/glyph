@@ -131,6 +131,10 @@ class MeetingClaude {
   /// The name of who writes them: "Claude", or another provider's.
   String get name => _other?.name ?? 'Claude';
 
+  /// The plugin of who writes them, by its manifest's id (`claude`, `openai`, `gemini`, `aster`, `custom-ai`): the
+  /// summary's job wears its mark (lib/activity/job_mark.dart).
+  String get pluginId => _other?.id ?? claudeAssistantId;
+
   /// The device, told while a write-up is being asked of Claude, so it goes on with the app behind another (Matt,
   /// 2026-10-27: "Claude times out when the app loses focus please background the activity"): Android's foreground
   /// service and the Mac out of App Nap, as Lovart's pictures are held (lib/core/background_jobs.dart). The phone's

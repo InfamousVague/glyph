@@ -745,7 +745,7 @@ extension _RootParts on _GhostRootState {
       onTrashNotes: _trashNotes,
       // About's Updates rows, in a build that looks for any (lib/root/update_wiring.dart).
       // An iPhone has no update client: About says whose its updates are (iphone_wiring.dart).
-      updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!),
+      updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!, onShow: _showUpdate),
       // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
       features: _features(services),
       onOrganization: services == null ? null : _organizationSettings,
@@ -1187,16 +1187,15 @@ extension _RootParts on _GhostRootState {
         _ => null,
       };
 
-  /// What is waiting on the person, above the notes (notes/Notices.tsx), in the page's order: a new version of the
-  /// app (lib/root/update_wiring.dart, from [GhostRoot.updates]), the simple-or-advanced question for an install
-  /// from before there was one (GHST-103), an invitation to an organization where the build has an account, and
-  /// the voice model while it is not ready.
+  /// What is waiting on the person, above the notes (notes/Notices.tsx), in the page's order: the simple-or-advanced
+  /// question for an install from before there was one (GHST-103), an invitation to an organization where the build
+  /// has an account, and the voice model while it is not ready. A new version of the app is not among them: it is the
+  /// activity tray's, under the ring's badge (Matt, 2026-10-30: "show the updates stuff in the activity drawer only now
+  /// with a badge").
   List<Widget> _notices() {
-    final updates = widget.updates;
     final services = _services;
     final model = _voice?.recorder.voiceModel;
     return [
-      if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
       if (_asksExperience) notices.ExperienceCard(onPick: _pickExperience),
       // Simple mode's way into the Academy (GHST-103): for the first week, until a lesson is passed or the cross.
       if (_academyCardDue)
@@ -1244,14 +1243,10 @@ extension _RootParts on _GhostRootState {
   /// The card's answer: the choice, made for every device, and the card goes with it.
   void _pickExperience(String mode) => preferences.update((now) => now.choosing(mode));
 
-  /// An update waiting: the sidebar's to carry on a wide window, where there is no home list to show it (App.tsx
-  /// `notices`, notes/NoteTree.tsx): the list beside the note ([_listColumn]), and the tree's card where the window
-  /// is in two panes. Nothing while there is nothing newer, and neither gives it room then.
-  List<Widget> _sidebarNotices() {
-    final updates = widget.updates;
-    return [
-      if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
-      if (_bannerShown) _bannerNotice(),
-    ];
-  }
+  /// The sidebar's notices on a wide window, where there is no home list to show them (App.tsx `notices`,
+  /// notes/NoteTree.tsx): the list beside the note ([_listColumn]), and the tree's card where the window is in two
+  /// panes: the header images being made. An update waiting was one, and is the activity tray's now.
+  List<Widget> _sidebarNotices() => [
+        if (_bannerShown) _bannerNotice(),
+      ];
 }

@@ -2,7 +2,9 @@
 /// the header toolbar, one arc for each job in its kind's colour, the other devices' a little dimmed; a quiet grey ring
 /// when nothing runs (Matt, 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing
 /// is happening"); one bloom when the last job ends, and grey again after it; a still red dot when something needs the
-/// person. A press opens the tray (activity_tray.dart), idle or not: a card hung under the ring on a wide window, a
+/// person; a green badge with an up arrow while the app's own update waits (Matt, 2026-10-30: "show the updates stuff
+/// in the activity drawer only now with a badge and when an update is available show the badge"), idle or not, the
+/// red dot taking its corner where both would be. A press opens the tray (activity_tray.dart), idle or not: a card hung under the ring on a wide window, a
 /// sheet on a phone.
 ///
 /// The bar always draws the ring, so its room is kept whether or not anything runs (lib/shell/app_shell.dart hands it
@@ -48,7 +50,10 @@ class ActivityShown extends ChangeNotifier implements ValueListenable<bool> {
   bool _hearing = false;
 
   @override
-  bool get value => _hearing ? _shown : record.value.isNotEmpty;
+  bool get value => _hearing ? _shown : _says;
+
+  /// Something on the record, or an update waiting (its badge): simple mode floats the ring for either.
+  bool get _says => record.value.isNotEmpty || (record.update?.badge ?? false) || record.updateWanted;
 
   /// Whether the bloom is showing now.
   bool get blooming => _blooming;
@@ -67,7 +72,7 @@ class ActivityShown extends ChangeNotifier implements ValueListenable<bool> {
   }
 
   void _look() {
-    final shown = record.value.isNotEmpty || _blooming;
+    final shown = _says || _blooming;
     if (shown == _shown) return;
     _shown = shown;
     notifyListeners();
@@ -78,7 +83,7 @@ class ActivityShown extends ChangeNotifier implements ValueListenable<bool> {
     if (!_hearing) {
       _hearing = true;
       _blooms = record.blooms;
-      _shown = record.value.isNotEmpty;
+      _shown = _says;
       record.addListener(_heard);
     }
     super.addListener(listener);
@@ -103,16 +108,20 @@ final Expando<ActivityShown> _shownFor = Expando();
 /// [ActivityShown] for the app's record as it is now ([activity]).
 ActivityShown get activityShown => _shownFor[activity] ??= ActivityShown(activity);
 
-/// What a screen reader hears the ring as.
-String activityRingLabel(List<Job> jobs) {
+/// What a screen reader hears the ring as; [update], an update waits ("Activity: nothing running, update available").
+String activityRingLabel(List<Job> jobs, {bool update = false}) {
   final live = jobs.where((job) => job.state.live).length;
   final needs = jobs.any((job) => job.needsYou);
   final parts = [
     if (live > 0) live == 1 ? '1 job running' : '$live jobs running',
     if (needs) 'something needs you',
   ];
-  return parts.isEmpty ? 'Activity: nothing running' : 'Activity: ${parts.join(', ')}';
+  final said = parts.isEmpty ? 'Activity: nothing running' : 'Activity: ${parts.join(', ')}';
+  return update ? '$said, update available' : said;
 }
+
+/// The rings drawn now, the last drawn last: the one an ask to open at the update opens ([Activity.showUpdate]).
+final List<State<ActivityRing>> _rings = [];
 
 /// The ring: a round control a bar's ring across.
 class ActivityRing extends StatefulWidget {
@@ -139,12 +148,24 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
   late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
   late final AnimationController _bloom = AnimationController(vsync: this, duration: activityBloom);
   late int _blooms = _record.blooms;
+  /// The asks to open at the update heard so far: read as the ring is made, not when first asked after.
+  int _asks = 0;
   Color? _lastColour;
   bool _open = false;
+
+  /// Opened at the update ([Activity.showUpdate]): its section shows whether or not one waits.
+  bool _atUpdate = false;
 
   @override
   void initState() {
     super.initState();
+    _rings.add(this);
+    _asks = _record.updateAsks;
+    // Drawn because the tray was asked open at the update (a floating ring, which was not up to hear the ask).
+    if (_record.updateWanted) {
+      _open = true;
+      _atUpdate = true;
+    }
     _record.addListener(_heard);
     // The bloom's end: the tick goes and the ring is grey again, moving or not.
     _shown.addListener(_settled);
@@ -174,6 +195,14 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
 
   void _heard() {
     if (!mounted) return;
+    if (_record.updateAsks != _asks) {
+      _asks = _record.updateAsks;
+      // One ring opens, the one drawn last: a bar's and a floating one are never both up, but a page on its way out may be.
+      if (identical(_rings.lastOrNull, this)) {
+        _open = true;
+        _atUpdate = true;
+      }
+    }
     if (_record.blooms != _blooms) {
       _blooms = _record.blooms;
       if (activityMoves(context)) {
@@ -200,6 +229,7 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
 
   @override
   void dispose() {
+    _rings.remove(this);
     _record.removeListener(_heard);
     _shown.removeListener(_settled);
     _spin.dispose();
@@ -208,7 +238,13 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
   }
 
   void _close() {
-    if (mounted && _open) setState(() => _open = false);
+    if (mounted && _open) {
+      if (_atUpdate) _record.updateSeen();
+      setState(() {
+        _open = false;
+        _atUpdate = false;
+      });
+    }
   }
 
   @override
@@ -219,6 +255,7 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
     final live = jobs.where((job) => job.state.live).toList();
     final lead = live.where((job) => job.here).firstOrNull ?? live.firstOrNull ?? jobs.firstOrNull;
     final needs = _record.needsYou;
+    final update = _record.update?.badge ?? false;
     final ring = AnimatedBuilder(
       animation: Listenable.merge([_spin, _bloom]),
       builder: (context, _) {
@@ -256,6 +293,21 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
       clipBehavior: Clip.none,
       children: [
         ring,
+        // The update's badge, under the red dot's corner: where both would be, the red dot wins it, and the update
+        // says itself first in the tray.
+        if (update && !needs)
+          PositionedDirectional(
+            top: -1,
+            end: -1,
+            child: Container(
+              key: const ValueKey('activity-ring:update'),
+              width: 11,
+              height: 11,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: jobColour(t, JobLook.downloads), shape: BoxShape.circle, boxShadow: [BoxShadow(color: t.color('glacier-bg'), spreadRadius: 1.5)]),
+              child: AppIcon(Lucide.arrowUp, size: 8, color: t.color('glacier-bg'), strokeWidth: 3.2),
+            ),
+          ),
         if (needs)
           PositionedDirectional(
             top: 1,
@@ -275,9 +327,13 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
         key: ActivityRing.key_,
         onPressed: () {
           cardOpenedFrom(context);
-          setState(() => _open = !_open);
+          if (_atUpdate) _record.updateSeen();
+          setState(() {
+            _open = !_open;
+            _atUpdate = false;
+          });
         },
-        semanticLabel: activityRingLabel(jobs),
+        semanticLabel: activityRingLabel(jobs, update: update),
         pressScale: null,
         builder: (context, state) => GlacierFocusRing(visible: state.focused, radius: 999, child: face),
       ),
@@ -289,9 +345,9 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
       children: [
         button,
         if (sheet)
-          Sheet(label: 'Activity', onClose: _close, children: [ActivityTray(record: _record, simple: widget.simple, onClose: _close, sheet: true)])
+          Sheet(label: 'Activity', onClose: _close, children: [ActivityTray(record: _record, simple: widget.simple, onClose: _close, sheet: true, update: _atUpdate)])
         else
-          FloatingCard(side: FloatingCardSide.end, wide: true, label: 'Activity', toggle: activityToggle, onClose: _close, child: ActivityTray(record: _record, simple: widget.simple, onClose: _close)),
+          FloatingCard(side: FloatingCardSide.end, wide: true, label: 'Activity', toggle: activityToggle, onClose: _close, child: ActivityTray(record: _record, simple: widget.simple, onClose: _close, update: _atUpdate)),
       ],
     );
   }

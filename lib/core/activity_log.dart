@@ -17,7 +17,7 @@ import 'stored.dart';
 /// One job as the log keeps it: enough for a row of Today.
 @immutable
 class LoggedJob {
-  const LoggedJob({required this.title, required this.kind, required this.failed, required this.at, this.cause, this.tally});
+  const LoggedJob({required this.title, required this.kind, required this.failed, required this.at, this.cause, this.tally, this.plugin});
 
   static LoggedJob? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -25,7 +25,7 @@ class LoggedJob {
     if (title is! String || kind is! String || at is! num) return null;
     final k = JobKind.values.where((v) => v.name == kind).firstOrNull;
     if (k == null) return null;
-    return LoggedJob(title: title, kind: k, failed: raw['failed'] == true, at: DateTime.fromMillisecondsSinceEpoch(at.toInt()), cause: raw['cause'] is String ? raw['cause'] as String : null, tally: raw['tally'] is String ? raw['tally'] as String : null);
+    return LoggedJob(title: title, kind: k, failed: raw['failed'] == true, at: DateTime.fromMillisecondsSinceEpoch(at.toInt()), cause: raw['cause'] is String ? raw['cause'] as String : null, tally: raw['tally'] is String ? raw['tally'] as String : null, plugin: raw['plugin'] is String ? raw['plugin'] as String : null);
   }
 
   final String title;
@@ -37,7 +37,10 @@ class LoggedJob {
   /// What it counted for, in words: "12 banners".
   final String? tally;
 
-  Map<String, Object?> toJson() => {'title': title, 'kind': kind.name, if (failed) 'failed': true, 'at': at.millisecondsSinceEpoch, 'cause': ?cause, 'tally': ?tally};
+  /// The plugin whose work it was ([Job.plugin]): its line in Today wears that plugin's mark.
+  final String? plugin;
+
+  Map<String, Object?> toJson() => {'title': title, 'kind': kind.name, if (failed) 'failed': true, 'at': at.millisecondsSinceEpoch, 'cause': ?cause, 'tally': ?tally, 'plugin': ?plugin};
 }
 
 /// One day's counts.
@@ -143,7 +146,7 @@ class ActivityLog extends ChangeNotifier {
     }
     final failed = job.state == JobState.failed;
     // A sync pass is a count, never a row: forty of them would push every summary off the day.
-    final row = job.kind == JobKind.sync && !failed ? null : LoggedJob(title: job.title, kind: job.kind, failed: failed, at: at, cause: failed ? job.cause : null, tally: tally?.words);
+    final row = job.kind == JobKind.sync && !failed ? null : LoggedJob(title: job.title, kind: job.kind, failed: failed, at: at, cause: failed ? job.cause : null, tally: tally?.words, plugin: job.plugin);
     final next = ActivityDay(day: key, counts: counts, failed: had.failed + (failed ? 1 : 0), rows: [?row, ...had.rows].take(rowsADay).toList());
     final days = [next, for (final d in all) if (d.day != key) d]..sort((a, b) => b.day.compareTo(a.day));
     _days = days.take(ActivityLog.days).toList();

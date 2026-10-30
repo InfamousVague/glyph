@@ -1,12 +1,18 @@
 // The app's updates and the invitation's card put where they are read (lib/root/update_wiring.dart, ghost_root.dart):
-// one Updates as the launch screen, Settings › About and the card above the notes are each handed it, the card
-// through an install on the home page, and an invitation from the account's feed with its Accept and Decline.
+// one Updates as the launch screen and Settings › About are each handed it and as the activity record is told it (the
+// ring's badge and the tray's Update section, the one place an update is said: Matt, 2026-10-30, "show the updates
+// stuff in the activity drawer only now with a badge"), an install from the tray, and an invitation from the account's
+// feed with its Accept and Decline.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/activity/activity_ring.dart';
+import 'package:ghost_md/activity/activity_tray.dart' show TrayButton;
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/notifications.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -18,7 +24,6 @@ import 'package:ghost_md/launch/launch_screen.dart';
 import 'package:ghost_md/aside/aside.dart' show writeSidebarShown;
 import 'package:ghost_md/simple/simple_home.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
-import 'package:ghost_md/notes/notices.dart' as notices;
 import 'package:ghost_md/orgs/types.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/update_wiring.dart';
@@ -111,8 +116,12 @@ void main() {
     server = _Server();
     phone = _Phone('${dir.path}/updates');
     recording = false;
+    useActivity(Activity(store: () => MemoryStored()));
   });
-  tearDown(() => dir.deleteSync(recursive: true));
+  tearDown(() {
+    dir.deleteSync(recursive: true);
+    useActivity(Activity());
+  });
 
   Updates make() => Updates(config: UpdatesConfig.of(source: _base, keys: const ['a-key'], debug: false)!, invoke: _core, phone: phone, transport: server, recording: () => recording);
 
@@ -146,32 +155,38 @@ void main() {
       expect(updates.lastError, isNull);
     });
 
-    test('Settings › About: the ladder of settings/updateLines.ts, and Install for one found or stopped short', () async {
+    test('Settings › About: the ladder of settings/updateLines.ts, pointing at Activity, and Check for updates opening it', () async {
       final updates = make();
-      var about = settingsUpdatesOf(updates);
+      var shows = 0;
+      var about = settingsUpdatesOf(updates, onShow: () => shows += 1);
       expect(about.version, ghostVersion, reason: 'until the phone has said which app this is');
       expect(updatesStatus(about), 'Not checked yet.');
       expect(about.sourceHost, 'releases.example');
       expect(buildLine(about), 'Built into the app · unknown build · updates from releases.example');
       expect((about.ready, about.alerts, about.releases.length, about.store), (false, null, 0, null));
+      // About installs nothing and restarts nothing of its own: the tray's Update section does (Matt, 2026-10-30).
+      expect((about.onInstall, about.onRestart), (null, null));
 
-      await updates.check();
+      // Check for updates looks again and opens the tray's section.
+      about.onCheck!();
+      expect(shows, 1);
+      await pumpEventQueue();
       about = settingsUpdatesOf(updates);
       expect(about.version, '0.1.0');
-      expect(updatesStatus(about), 'Ghost.md 0.2.0 is ready to install.');
-      expect(aboutSummary(about), '0.1.0 · 0.2.0 ready to install');
+      expect(updatesStatus(about), 'Ghost.md 0.2.0 is waiting in Activity.');
+      expect(aboutSummary(about), '0.1.0 · 0.2.0 in Activity');
       expect(about.installable, '0.2.0');
 
       phone.answer = 'permission';
       await updates.installApk();
       about = settingsUpdatesOf(updates);
-      expect(about.installable, '0.2.0', reason: 'still offered while Android waits to be allowed');
+      expect(about.installable, '0.2.0', reason: 'still waiting while Android waits to be allowed');
       recording = true;
       await updates.installApk();
       expect(settingsUpdatesOf(updates).installable, '0.2.0', reason: 'and after one that failed');
       recording = false;
       phone.answer = 'started';
-      settingsUpdatesOf(updates).onInstall!();
+      unawaited(updates.installApk());
       await pumpEventQueue(times: 50);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       about = settingsUpdatesOf(updates);
@@ -186,27 +201,43 @@ void main() {
       expect(updatesStatus(settingsUpdatesOf(updates)), "Couldn't check for updates: offline");
     });
 
-    test('the card above the notes: every phase of an install, in the card\'s own kinds', () async {
+    test('the tray\'s offer: every phase of an install, told to the record as it goes', () async {
       final updates = make();
-      expect(updateCardOf(updates).apk, isA<notices.ApkNone>());
+      expect(updates.offer.stage, UpdateStage.notChecked);
+      expect(updates.offer.badge, isFalse);
       await updates.check();
-      expect((updateCardOf(updates).apk as notices.ApkAvailable).version, '0.2.0');
-      final seen = <Type>[];
-      updates.addListener(() => seen.add(updateCardOf(updates).apk.runtimeType));
+      expect((updates.offer.stage, updates.offer.version, updates.offer.words, updates.offer.action), (UpdateStage.available, '0.2.0', 'Ghost.md 0.2.0 is ready', 'Install'));
+      expect(activity.update, updates.offer, reason: 'the record is told');
+      expect(activity.update!.badge, isTrue);
+      final seen = <UpdateStage>[];
+      updates.addListener(() => seen.add(updates.offer.stage));
       phone.answer = 'permission';
       await updates.installApk();
-      expect(seen.toSet(), {notices.ApkDownloading, notices.ApkNeedsPermission});
+      expect(seen.toSet(), {UpdateStage.downloading, UpdateStage.needsPermission});
       recording = true;
       await updates.installApk();
-      final failed = updateCardOf(updates).apk as notices.ApkFailed;
-      expect((failed.version, failed.message), ('0.2.0', 'Stop the meeting first.'));
+      expect((updates.offer.stage, updates.offer.message, updates.offer.words), (UpdateStage.failed, 'Stop the meeting first.', 'Ghost.md 0.2.0 didn’t install'));
+      // The failure is the update's red row, with Retry: the ring's red dot.
+      expect(activity[Updates.updateJobId]?.state, JobState.failed);
+      expect(activity[Updates.updateJobId]?.cause, 'Stop the meeting first.');
+      expect(activity[Updates.updateJobId]?.fix?.kind, JobFixKind.retry);
+      expect(activity.needsYou, isTrue);
       recording = false;
       phone.answer = 'started';
-      updateCardOf(updates).onInstall!();
+      activity[Updates.updateJobId]!.fix!.onPress();
       await pumpEventQueue(times: 50);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect((updateCardOf(updates).apk as notices.ApkInstalling).version, '0.2.0');
-      expect(updateCardOf(updates).ready, isFalse);
+      expect((updates.offer.stage, updates.offer.words, updates.offer.action), (UpdateStage.installing, 'Ghost.md 0.2.0 is waiting on Android', 'Open'));
+      expect(activity[Updates.updateJobId], isNull, reason: 'the failure was let go of as the install began again, and the download ended well');
+      expect(activity.needsYou, isFalse);
+
+      // Installed: the next launch finds nothing newer, and the badge is gone.
+      server.published = {...server.published!, 'version': '0.1.0', 'versionCode': 1};
+      await updates.check();
+      expect((updates.offer.stage, activity.update!.badge), (UpdateStage.upToDate, false));
+      expect(updates.offer.words, 'Ghost.md 0.1.0 is up to date');
+      updates.dispose();
+      expect(activity.update, isNull, reason: 'a disposed one takes back what it told');
     });
   });
 
@@ -221,27 +252,28 @@ void main() {
           openLink: (_) async {},
         );
 
-    test('the card and About through an update put in place, in the Mac\'s words, and the launch after it', () async {
+    test('the tray and About through an update put in place, in the Mac\'s words, and the launch after it', () async {
       final mac = _MacPhone('${dir.path}/updates');
       final updates = makeMac(mac);
       await updates.check();
-      expect((updateCardOf(updates).apk as notices.ApkAvailable).version, '0.2.0');
-      expect(updatesStatus(settingsUpdatesOf(updates)), 'Ghost.md 0.2.0 is ready to install.');
+      expect((updates.offer.stage, updates.offer.action), (UpdateStage.available, 'Install'));
+      expect(updatesStatus(settingsUpdatesOf(updates)), 'Ghost.md 0.2.0 is waiting in Activity.');
 
       await updates.installApk();
-      expect((updateCardOf(updates).apk as notices.ApkReady).version, '0.2.0');
+      expect((updates.offer.stage, updates.offer.words, updates.offer.action), (UpdateStage.ready, 'Ghost.md 0.2.0 is downloaded', 'Restart to update'));
+      expect(activity.update!.badge, isTrue, reason: 'downloaded and waiting to be swapped in');
       var about = settingsUpdatesOf(updates);
       expect((about.restartable, about.installable), ('0.2.0', null));
-      expect(updatesStatus(about), 'Ghost.md 0.2.0 is downloaded. Restart to update.');
-      expect(aboutSummary(about), '0.1.0 · 0.2.0 ready, restart to update');
+      expect(updatesStatus(about), 'Ghost.md 0.2.0 is downloaded, in Activity.');
+      expect(aboutSummary(about), '0.1.0 · 0.2.0 in Activity');
       // A check while it waits says nothing new.
       await updates.check();
-      expect(updatesStatus(settingsUpdatesOf(updates)), 'Ghost.md 0.2.0 is downloaded. Restart to update.');
+      expect(updatesStatus(settingsUpdatesOf(updates)), 'Ghost.md 0.2.0 is downloaded, in Activity.');
 
-      // Restart to update, from About or from the card: the same.
-      settingsUpdatesOf(updates).onRestart!();
+      // Restart to update, from the tray's section.
+      updates.offer.onAction!();
       await pumpEventQueue();
-      expect((updateCardOf(updates).apk as notices.ApkRestarting).version, '0.2.0');
+      expect((updates.offer.stage, updates.offer.words), (UpdateStage.restarting, 'Restarting into Ghost.md 0.2.0'));
       about = settingsUpdatesOf(updates);
       expect((about.restarting, updatesStatus(about)), ('0.2.0', 'Restarting into Ghost.md 0.2.0.'));
       expect(mac.restarts, 1);
@@ -252,17 +284,19 @@ void main() {
       await after.check();
       expect(launchUpdatesOf(after).updatedTo, '0.2.0');
       expect(updatesStatus(settingsUpdatesOf(after)), 'Up to date.');
+      expect(after.offer.badge, isFalse);
       // And a launch that is not one says nothing of it.
       expect(launchUpdatesOf(updates).updatedTo, isNull);
     });
   });
 
   group('in the app', () {
-    Future<void> open(WidgetTester tester, Updates? updates) async {
+    Future<void> open(WidgetTester tester, Updates? updates, {Size size = const Size(390, 844), Preferences prefs = const Preferences(theme: 'light'), Stored? local}) async {
       await pumpApp(
         tester,
-        prefs: const Preferences(theme: 'light'),
-        home: GhostRoot(launch: false, library: SampleLibrary.seeded(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: MemoryStored(), updates: updates),
+        size: size,
+        prefs: prefs,
+        home: GhostRoot(launch: false, library: SampleLibrary.seeded(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: local ?? MemoryStored(), updates: updates),
       );
       await tester.pump(const Duration(milliseconds: 100));
     }
@@ -273,29 +307,59 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     }
 
-    testWidgets('with no updates there is no card, and About has no Updates rows', (tester) async {
+    Finder ring() => find.byKey(ActivityRing.key_).first;
+    Finder badge() => find.byKey(const ValueKey('activity-ring:update'));
+
+    Future<void> openTray(WidgetTester tester) async {
+      await tester.tap(ring());
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('with no updates there is no card, no badge, and About has no Updates rows', (tester) async {
       await open(tester, null);
       await tester.pump(const Duration(seconds: 5));
       expect(find.byKey(const ValueKey('update-notice')), findsNothing);
+      expect(badge(), findsNothing);
       expect(tester.widget<SettingsSheet>(find.byType(SettingsSheet)).updates, isNull);
+      await openTray(tester);
+      expect(find.byKey(const ValueKey('activity-tray:update')), findsNothing);
       await close(tester);
     });
 
-    testWidgets('a newer version found four seconds in is a card above the notes, installed from it, and in About', (tester) async {
+    testWidgets('a newer version found four seconds in is the ring\'s badge and the tray\'s first section, installed from there, and no card', (tester) async {
       final updates = make();
       await open(tester, updates);
-      expect(find.byKey(const ValueKey('update-notice')), findsNothing);
+      expect(badge(), findsNothing);
       await tester.pump(const Duration(seconds: 4));
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Ghost.md 0.2.0 is out.'), findsOneWidget);
+      // Nowhere but the tray: no card above the notes, no chip, no toast.
+      expect(find.byKey(const ValueKey('update-notice')), findsNothing);
+      expect(find.textContaining('0.2.0'), findsNothing);
+      expect(badge(), findsOneWidget);
+      expect(tester.getSemantics(ring()).label, 'Activity: nothing running, update available');
       final about = tester.widget<SettingsSheet>(find.byType(SettingsSheet)).updates!;
-      expect(updatesStatus(about), 'Ghost.md 0.2.0 is ready to install.');
+      expect(updatesStatus(about), 'Ghost.md 0.2.0 is waiting in Activity.');
+
+      await openTray(tester);
+      expect(find.text('Ghost.md 0.2.0 is ready'), findsOneWidget);
+      final section = tester.getRect(find.byKey(const ValueKey('activity-tray:update')));
+      expect(section.top, lessThan(tester.getRect(find.byKey(const ValueKey('activity-tray:today'))).top), reason: 'the first thing in the tray');
 
       // Install: the file comes down (real files, so outside the test's clock) and Android is handed it.
-      await tester.runAsync(updates.installApk);
+      await tester.runAsync(() async {
+        tester.widget<TrayButton>(find.byKey(const ValueKey('activity-tray:update:action'))).onPressed!();
+        for (var i = 0; i < 50 && phone.handed.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Ghost.md 0.2.0 is waiting on Android.'), findsOneWidget);
+      expect(find.text('Ghost.md 0.2.0 is waiting on Android'), findsOneWidget);
       expect(phone.handed, ['${dir.path}/updates/ghost-2.apk']);
+      expect(find.byKey(const ValueKey('activity-chips')), findsNothing, reason: 'the download ends with no chip');
+      expect(badge(), findsOneWidget, reason: 'not installed until Android says');
 
       // The root goes, as at a reset; the updates are the process's and outlive it.
       await close(tester);
@@ -303,35 +367,34 @@ void main() {
       updates.dispose();
     });
 
-    testWidgets('on a Mac the card offers the version, then Restart to update once it is in place', (tester) async {
+    testWidgets('on a Mac the tray offers the version, then Restart to update once it is in place', (tester) async {
       final mac = _MacPhone('${dir.path}/updates');
       final updates = Updates(config: UpdatesConfig.of(source: _base, keys: const ['a-key'], debug: false)!, invoke: _core, phone: mac, transport: server, kind: UpdateKind.mac, openLink: (_) async {});
-      await open(tester, updates);
+      await open(tester, updates, size: const Size(1280, 800));
       await tester.pump(const Duration(seconds: 4));
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Ghost.md 0.2.0 is out.'), findsOneWidget);
+      expect(badge(), findsOneWidget);
+      await openTray(tester);
+      expect(find.text('Ghost.md 0.2.0 is ready'), findsOneWidget);
       await tester.runAsync(updates.installApk);
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Ghost.md 0.2.0 is ready.'), findsOneWidget);
+      expect(find.text('Ghost.md 0.2.0 is downloaded'), findsOneWidget);
+      expect(badge(), findsOneWidget, reason: 'downloaded and waiting');
+      expect(find.byKey(const ValueKey('activity-chips')), findsNothing, reason: 'said in the tray alone');
       await tester.tap(find.text('Restart to update'));
       await tester.pump(const Duration(milliseconds: 500));
       expect(mac.restarts, 1);
-      expect(find.textContaining('Restarting into Ghost.md 0.2.0.', findRichText: true), findsOneWidget);
+      expect(find.text('Restarting into Ghost.md 0.2.0'), findsOneWidget);
       await close(tester);
       updates.dispose();
     });
 
-    testWidgets('the sidebar carries the card on a window in two panes, whichever style is chosen, and a phone\'s card leaves it to the home page', (tester) async {
+    testWidgets('no window carries a card for it, the sidebar nor home, whichever style is chosen', (tester) async {
       Future<Updates> shown(Size size, String style, {bool docked = false}) async {
         final updates = make();
         final local = MemoryStored();
         if (docked) writeSidebarShown(true, local);
-        await pumpApp(
-          tester,
-          size: size,
-          prefs: Preferences(theme: 'light', sidebarStyle: style),
-          home: GhostRoot(launch: false, library: SampleLibrary.seeded(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: local, updates: updates),
-        );
+        await open(tester, updates, size: size, prefs: Preferences(theme: 'light', sidebarStyle: style), local: local);
         await tester.pump(const Duration(seconds: 4));
         await tester.pump(const Duration(milliseconds: 500));
         if (!docked) {
@@ -344,25 +407,25 @@ void main() {
         return updates;
       }
 
-      // The Fold opened, the sidebar shown: simple's list beside the note has it over its rows (Matt, 2026-10-24:
-      // "make the sidebar on advanced mode the same as simple"), whichever style is chosen.
       for (final style in ['docked', 'popover']) {
         final updates = await shown(const Size(704, 933), style, docked: true);
-        expect(tester.widget<SimpleHome>(find.byType(SimpleHome)).notices.single, isA<notices.UpdateNotice>());
-        expect(find.descendant(of: find.bySemanticsLabel('Your notes'), matching: find.text('Ghost.md 0.2.0 is out.')), findsOneWidget);
+        expect(updates.offer.badge, isTrue);
+        expect(tester.widget<SimpleHome>(find.byType(SimpleHome)).notices, isEmpty);
+        expect(find.textContaining('0.2.0'), findsNothing);
+        expect(badge(), findsOneWidget);
         await close(tester);
         updates.dispose();
       }
 
-      // A phone: its home page says it, and its card of notes does not say it again.
       final updates = await shown(const Size(390, 844), 'popover');
       expect(tester.widget<NotesDrawer>(find.byType(NotesDrawer)).notices, isEmpty);
-      expect(find.text('Ghost.md 0.2.0 is out.'), findsOneWidget);
+      expect(find.textContaining('0.2.0'), findsNothing);
+      expect(badge(), findsOneWidget);
       await close(tester);
       updates.dispose();
     });
 
-    testWidgets('while a meeting records the root says so, and nothing is fetched', (tester) async {
+    testWidgets('while a meeting records the install waits: a red row with Retry, and the red dot wins the ring\'s corner', (tester) async {
       final updates = make();
       await open(tester, updates);
       await tester.pump(const Duration(seconds: 4));
@@ -370,11 +433,45 @@ void main() {
       updates.recording = () => true;
       await tester.runAsync(updates.installApk);
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Ghost.md 0.2.0 didn’t install. Stop the meeting first.'), findsOneWidget);
       expect(phone.handed, isEmpty);
+      expect(find.byKey(const ValueKey('activity-ring:dot')), findsOneWidget);
+      expect(badge(), findsNothing, reason: 'the red dot takes the corner');
+      expect(tester.getSemantics(ring()).label, 'Activity: something needs you, update available');
+      expect(find.byKey(const ValueKey('activity-chips')), findsNothing, reason: 'the failure is the tray\'s to say');
+      await openTray(tester);
+      expect(find.text('Ghost.md 0.2.0 didn’t install'), findsOneWidget);
+      expect(find.byKey(ValueKey('activity-row:fix:${Updates.updateJobId}')), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(ValueKey('activity-row:line:${Updates.updateJobId}'))).data, 'Stop the meeting first.');
       await close(tester);
       updates.dispose();
     });
+
+    for (final size in [const Size(390, 844), const Size(1280, 800)]) {
+      testWidgets('Settings › About\'s Check for updates shuts Settings and opens the tray at its Update section, ${size.width.round()} wide', (tester) async {
+        server.published = {...server.published!, 'version': '0.1.0', 'versionCode': 1};
+        final updates = make();
+        await open(tester, updates, size: size);
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(badge(), findsNothing, reason: 'nothing newer');
+        // Settings open at About, and its Check for updates pressed.
+        await tester.tap(find.bySemanticsLabel(RegExp(r'^Settings$')).first);
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(tester.widget<SettingsSheet>(find.byType(SettingsSheet)).open, isTrue);
+        tester.widget<SettingsSheet>(find.byType(SettingsSheet)).updates!.onCheck!();
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(tester.widget<SettingsSheet>(find.byType(SettingsSheet)).open, isFalse);
+        expect(find.byKey(const ValueKey('activity-tray:update')), findsOneWidget);
+        expect(find.text('Ghost.md 0.1.0 is up to date'), findsOneWidget);
+        await close(tester);
+        updates.dispose();
+      });
+    }
   });
 
   group('an invitation', () {

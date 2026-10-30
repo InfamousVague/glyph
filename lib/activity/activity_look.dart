@@ -25,6 +25,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/background_jobs.dart';
+import 'job_mark.dart';
 
 /// The token each look wears.
 String jobToken(JobLook look) => switch (look) {
@@ -60,13 +61,14 @@ LucideIcon? kindIcon(JobKind kind) => switch (kind) {
     };
 
 /// A job's glyph at [size]: [kind]'s, drawn as [look] says (running, waiting, needing you), moving while it runs and
-/// [moving] allows. [fraction] fills the downloads' ring; null turns it.
+/// [moving] allows. [fraction] fills the downloads' ring; null turns it. A [plugin]'s job wears that plugin's mark
+/// instead (job_mark.dart), still, dimmed while it waits; one that needs the person is the still red dot whoever's it is.
 class JobGlyph extends StatefulWidget {
-  const JobGlyph({super.key, required this.kind, this.look, this.size = 18, this.fraction, this.moving = true, this.color});
+  const JobGlyph({super.key, required this.kind, this.look, this.size = 18, this.fraction, this.moving = true, this.color, this.plugin});
 
-  /// A job's own look and kind.
+  /// A job's own look and kind, and its plugin's mark.
   factory JobGlyph.of(Job job, {Key? key, double size = 18, bool moving = true}) =>
-      JobGlyph(key: key, kind: job.kind, look: job.look, size: size, fraction: job.fraction, moving: moving && job.state == JobState.running);
+      JobGlyph(key: key, kind: job.kind, look: job.look, size: size, fraction: job.fraction, moving: moving && job.state == JobState.running, plugin: job.plugin);
 
   final JobKind kind;
 
@@ -78,6 +80,9 @@ class JobGlyph extends StatefulWidget {
 
   /// In place of the look's own colour.
   final Color? color;
+
+  /// The plugin whose work it is ([Job.plugin]).
+  final String? plugin;
 
   @override
   State<JobGlyph> createState() => JobGlyphState();
@@ -101,7 +106,10 @@ class JobGlyphState extends State<JobGlyph> with SingleTickerProviderStateMixin 
 
   JobLook get _look => widget.look ?? runningLook(widget.kind);
 
-  bool _moves(BuildContext context) => widget.moving && activityMoves(context) && _look != JobLook.waiting && _look != JobLook.needsYou;
+  /// Whether it wears its plugin's mark, which holds still.
+  bool get _marked => _look != JobLook.needsYou && markedPlugin(widget.plugin) != null;
+
+  bool _moves(BuildContext context) => widget.moving && activityMoves(context) && _look != JobLook.waiting && _look != JobLook.needsYou && !_marked;
 
   @override
   void didChangeDependencies() {
@@ -144,6 +152,7 @@ class JobGlyphState extends State<JobGlyph> with SingleTickerProviderStateMixin 
     }
     final waiting = look == JobLook.waiting;
     final colour = widget.color ?? (waiting ? kindColour(t, widget.kind) : jobColour(t, look));
+    if (_marked) return JobMark(plugin: widget.plugin!, size: size, colour: colour, dim: waiting);
     final still = !_moves(context);
     final drawn = AnimatedBuilder(
       animation: _beat,

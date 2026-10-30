@@ -201,7 +201,7 @@ class LovartBanners {
         id,
         again: again,
         replacing: replacing,
-        started: (title) => job = activity.begin('banner:$id', kind: JobKind.images, title: title.isEmpty ? 'Header image' : 'Header image for $title', shownHere: activityRoutes.noteShown(id)),
+        started: (title) => job = activity.begin('banner:$id', kind: JobKind.images, title: title.isEmpty ? 'Header image' : 'Header image for $title', shownHere: activityRoutes.noteShown(id), plugin: manifest.id),
         refused: (failure) => refused = failure,
       );
       final failure = refused;
