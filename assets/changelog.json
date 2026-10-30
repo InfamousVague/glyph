@@ -6,7 +6,8 @@
     "items": [
       {"icon": "sparkles", "words": "What's new in Ghost.md shows after every update, with a full changelog in Settings › About.", "kind": "new"},
       {"icon": "message-square-plus", "words": "Hover a line to comment on it: a comment glyph appears in the margin beside it.", "kind": "new"},
-      {"icon": "message-square", "words": "Lines with comments show their count in the margin, and a click opens the thread.", "kind": "new"}
+      {"icon": "message-square", "words": "Lines with comments show their count in the margin, and a click opens the thread.", "kind": "new"},
+      {"icon": "download", "words": "Downloads in the activity ring show just their arrow, without a second progress circle inside the ring.", "kind": "fixed"}
     ]
   },
   {
