@@ -42,6 +42,8 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../../core/stored.dart';
+import '../../art/app_icon.dart';
+import '../../art/lucide.g.dart';
 import '../editor.dart';
 import '../input/keymap.dart' show editorKeymap;
 import '../commands/commands.dart' show KeyBinding;
@@ -666,8 +668,9 @@ class FoldedMarkWidget extends EditorWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--app-ink) 7%, transparent)'), borderRadius: BorderRadius.circular(t.radius('sm'))),
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 0.35 * em),
-                child: Text('⋯', style: noteFace(t, look, 0.8 * em, color: quiet, height: 1.2)),
+                // The icon's, not a letter: a note's coding face may have no ⋯ to draw.
+                padding: EdgeInsets.symmetric(horizontal: 0.3 * em, vertical: 0.12 * em),
+                child: AppIcon(Lucide.ellipsis, size: 0.85 * em, color: quiet),
               ),
             ),
           ),
