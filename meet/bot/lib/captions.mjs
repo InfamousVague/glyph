@@ -183,6 +183,19 @@ export class CaptionTimeline {
     return out;
   }
 
+  /**
+   * The line being said now, for the live captions (live.mjs): the last block still changing, as `{ at, speaker, text }`
+   * with only its words not yet written; null when none is.
+   */
+  saying() {
+    const block = [...this.blocks].reverse().find((b) => b.pending);
+    if (!block) return null;
+    const words = tokens(block.text);
+    const from = newWordsFrom(block.written, words);
+    if (from >= words.length) return null;
+    return { at: block.since, speaker: block.speaker, text: words.slice(from).map((t) => t.raw).join(' ') };
+  }
+
   /** Everything still pending, written out: the call is over. */
   flush() {
     const out = [];

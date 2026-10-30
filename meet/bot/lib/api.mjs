@@ -1,7 +1,7 @@
 /**
  * glyph-api's internal Meet routes (server/src/meet.rs, docs/MEET.md), the bot's only way to the server. Loopback, a
  * bearer token, no proxy headers (a request carrying X-Forwarded-* is taken for one through Caddy and answered 404),
- * three calls:
+ * four calls:
  *
  *   GET  /api/internal/meet/due          { meetings: [{ id, url, title, startsAt, endsAt, state, announce }] }, state
  *                                        booked | joining | in_call | leave, from 2 min before the start to 15 after
@@ -11,6 +11,9 @@
  *   PUT  /api/internal/meet/{id}/take    multipart: `audio` (audio/webm), `captions` (NDJSON), `startedAt` and
  *                                        `endedAt` (ms as text). The meeting is then done. 400 no audio, 409 skipped
  *                                        or called off (nothing of it is kept: the bot deletes its copy too)
+ *   POST /api/internal/meet/{id}/live    { startedAt, lines: [{ at, speaker, text }], partial }: the captions so far,
+ *                                        sealed on arrival and passed to the account's devices (server/src/meet/
+ *                                        live.rs). 204; 409 Ghost is not in it; 404 a server from before (lib/live.mjs)
  *
  * The contract lives here and nowhere else, so a change on the server's side is a change to this one file.
  *
@@ -62,7 +65,7 @@ export function createApi({ base = 'http://127.0.0.1:8796', token, timeoutMs = 3
             const text = Buffer.concat(chunks).toString('utf8');
             if (res.statusCode >= 200 && res.statusCode < 300) resolve(text);
             // The body is not put in the message: an error page could carry anything, and messages reach the log.
-            else reject(new ApiError(res.statusCode, `${method} ${path.replace(/\/(meet|discord)\/[^/]+\/(state|take)$/, '/$1/:id/$2')} answered ${res.statusCode}`));
+            else reject(new ApiError(res.statusCode, `${method} ${path.replace(/\/(meet|discord)\/[^/]+\/(state|take|live)$/, '/$1/:id/$2')} answered ${res.statusCode}`));
           });
           res.on('error', (e) => reject(new ApiError(0, e.message)));
         },
@@ -95,6 +98,14 @@ export function createApi({ base = 'http://127.0.0.1:8796', token, timeoutMs = 3
     /** A meeting's new state, with why when there is a why. */
     async state(id, state, detail) {
       await request('POST', meetingPath(id, 'state'), json(detail ? { state, detail } : { state }));
+    },
+
+    /**
+     * The captions so far, while the bot is in the call (live.mjs): `{ startedAt, lines, partial }`, sealed by the server
+     * to the account and passed to its devices. Five seconds at most: a batch late is a batch the next one overtakes.
+     */
+    async live(id, batch) {
+      await request('POST', meetingPath(id, 'live'), { ...json(batch), timeout: 5000 });
     },
 
     /**

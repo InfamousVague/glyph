@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync, app
 import { join } from 'node:path';
 import { withRetry } from './api.mjs';
 import { CaptionTimeline } from './captions.mjs';
+import { LiveFeed } from './live.mjs';
 import { LIMITS, busyMisses, leaveReason, nextPeak, platformOf, trackAlone, trackFew } from './decide.mjs';
 import { errorField, log } from './log.mjs';
 import * as meet from './meet.mjs';
@@ -63,8 +64,11 @@ export async function runMeeting(meeting, ctx) {
   let t0 = null;
   let endedAt = null;
   const timeline = new CaptionTimeline();
+  // The captions as they come, to the person's devices too (live.mjs), once the recording has its start.
+  let feed = null;
   const write = (lines) => {
     for (const line of lines) appendFileSync(captions, JSON.stringify(line) + '\n');
+    feed?.heard(lines, timeline.saying());
   };
   try {
     browser = await platform.openBrowser(profile);
@@ -90,6 +94,7 @@ export async function runMeeting(meeting, ctx) {
     writeFileSync(audio, Buffer.alloc(0));
     writeFileSync(captions, '');
     t0 = Date.now();
+    if (api.live) feed = new LiveFeed({ send: (batch) => api.live(id, batch), startedAt: t0, log: (e, f) => log(e, { id, ...f }) });
     try {
       await platform.startRecording(page, audio);
       recording = true;
@@ -171,6 +176,8 @@ export async function runMeeting(meeting, ctx) {
     if (!recording) await report('failed', 'error');
   } finally {
     if (recording) write(timeline.flush());
+    // The last lines to the devices before the take, which ends the live captions.
+    if (feed) await feed.end().catch(() => {});
     if (browser) await browser.context.close().catch(() => {});
   }
   if (recording) await upload(id, { audio, captions, reason, startedAt: t0, endedAt: endedAt ?? Date.now() }, ctx);
