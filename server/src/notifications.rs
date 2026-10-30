@@ -11,6 +11,16 @@
 //!   POST   /api/v1/notifications                 { id, kind, blob }  a device's own row, sealed
 //!   POST   /api/v1/notifications/read            { ids?, all?, before? }  read marks
 //!   PUT    /api/v1/notifications/{id}            { read?, hidden? }
+//!   POST   /api/v1/orgs/{org}/mentions           { id, to: [handle], blob, generation }  a member's mention of members
+//!
+//! A mention (Matt, 2026-10-30: "add all 12": @mentions of people) is the one row a device has written into another
+//! account's feed: a member who names members in a team note tells each of them, through the service, with a blob
+//! sealed under the organization key, which every member holds and the service does not. The service checks what it
+//! can see - the sender has joined the organization, each handle named has too, and is not the sender - writes a
+//! `mention` row in each one's feed with the organization, who sent it and the key's generation in the clear, and
+//! answers who was told. It cannot read the note, the line or who else was named. The id is the mention's, the same
+//! from every device of the sender (lib/mentions/mention_notices.dart), and a recipient who has a row by it already
+//! is passed over, so a mention sent twice lands once. Thirty posts a minute per account, twenty handles a post.
 //!
 //! A post is the device's to make, so it is limited to sixty a minute per account, a blob to 8 KB and a body to 16 KB;
 //! a kind the service writes cannot be posted. A post with an id the account already has answers that row's revision
@@ -22,7 +32,7 @@
 use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
-use crate::store::{NotificationRow, NotificationWrite, SERVER_KINDS};
+use crate::store::{MentionWrite, NotificationRow, NotificationWrite, SERVER_KINDS};
 use crate::wire::{base64url, error, millis, now_secs};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::StatusCode;
@@ -47,15 +57,21 @@ const DEFAULT_PAGE: i64 = 100;
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 /// A kind: lowercase words joined by dashes, as the kinds table writes them.
 const KIND_LENGTH: std::ops::RangeInclusive<usize> = 1..=32;
+/// A member's mentions, a minute, per account: names typed into notes, each a post once its edit syncs.
+const MENTIONS_PER_MINUTE: u32 = 30;
+/// The members one mention may name.
+const MENTION_HANDLES: usize = 20;
 
 pub struct Notifications {
     accounts: Arc<Accounts>,
     posts: guard::RateLimiter<i64>,
+    mentions: guard::RateLimiter<i64>,
 }
 
 impl Notifications {
     pub fn new(accounts: Arc<Accounts>) -> Arc<Self> {
-        Arc::new(Self { accounts, posts: guard::RateLimiter::new(POSTS_PER_MINUTE, Instant::now()) })
+        let now = Instant::now();
+        Arc::new(Self { accounts, posts: guard::RateLimiter::new(POSTS_PER_MINUTE, now), mentions: guard::RateLimiter::new(MENTIONS_PER_MINUTE, now) })
     }
 }
 
@@ -144,6 +160,39 @@ async fn post(State(notifications): State<Arc<Notifications>>, who: Claims, Json
 }
 
 #[derive(Deserialize)]
+struct MentionBody {
+    id: String,
+    to: Vec<String>,
+    blob: String,
+    generation: i64,
+}
+
+/// `POST v1/orgs/{org}/mentions`: see the header. A stranger to the organization gets the organizations' one 404,
+/// whether it exists or not (src/orgs.rs).
+async fn mention(State(notifications): State<Arc<Notifications>>, Path(org): Path<String>, who: Claims, Json(body): Json<MentionBody>) -> Result<Response, Response> {
+    if !notifications.mentions.take(who.sub, Instant::now()) {
+        return Err(error(StatusCode::TOO_MANY_REQUESTS, "Too many mentions in a minute. Try again shortly."));
+    }
+    if !valid_id(&body.id) {
+        return Err(error(StatusCode::BAD_REQUEST, "That mention's id could not be read."));
+    }
+    if body.to.is_empty() || body.to.len() > MENTION_HANDLES || body.to.iter().any(|handle| handle.is_empty() || handle.len() > 64) {
+        return Err(error(StatusCode::BAD_REQUEST, "A mention names one to twenty members."));
+    }
+    if body.generation < 1 {
+        return Err(error(StatusCode::BAD_REQUEST, "That mention's key could not be read."));
+    }
+    if !base64url(&body.blob, 1..=BLOB_LIMIT) {
+        return Err(error(StatusCode::BAD_REQUEST, "That mention is empty or too large."));
+    }
+    match notifications.accounts.store.notify_mentioned(who.sub, &org, &body.id, &body.to, &body.blob, body.generation, now_secs()) {
+        Ok(told) => Ok(Json(json!({ "told": told })).into_response()),
+        Err(MentionWrite::NotMember) => Err(error(StatusCode::NOT_FOUND, "No such organization.")),
+        Err(MentionWrite::Failed) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, "That mention could not be kept.")),
+    }
+}
+
+#[derive(Deserialize)]
 struct ReadBody {
     #[serde(default)]
     ids: Vec<String>,
@@ -188,6 +237,7 @@ pub fn router(accounts: Arc<Accounts>) -> Router {
         .route("/api/v1/notifications", get(feed).post(post))
         .route("/api/v1/notifications/read", post_to(mark_read))
         .route("/api/v1/notifications/{id}", axum::routing::put(set))
+        .route("/api/v1/orgs/{id}/mentions", post_to(mention))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .with_state(Notifications::new(accounts))
 }

@@ -49,7 +49,7 @@ pub use notes::NoteRow;
 pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow, UPDATES_KEPT};
 #[cfg(test)]
 pub use notifications::KEPT;
-pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
+pub use notifications::{MentionWrite, NotificationRow, NotificationWrite, SERVER_KINDS};
 pub use org_ais::OrgAi;
 pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};

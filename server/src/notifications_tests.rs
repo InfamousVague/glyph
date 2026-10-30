@@ -234,3 +234,135 @@ async fn sixty_posts_a_minute_then_a_refusal() {
     let (status, _) = post(&h, &sam, ID, "note-edited", "YQ").await;
     assert_eq!(status, StatusCode::OK);
 }
+
+// --- mentions: a member's word to other members, sealed under the organization key ------------------------------------
+
+async fn make_org(h: &Harness, token: &str, name: &str) -> String {
+    let (status, body) = h.call(Method::POST, "/api/v1/orgs", Some(token), Some(json!({ "name": name }))).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    body["org"]["id"].as_str().unwrap().to_string()
+}
+
+async fn join(h: &Harness, owner: &str, org: &str, token: &str, handle: &str) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/members"), Some(owner), Some(json!({ "handle": handle }))).await;
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/invite"), Some(token), Some(json!({ "accept": true }))).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+async fn mention(h: &Harness, token: &str, org: &str, id: &str, to: &[&str], blob: &str) -> (StatusCode, Value) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/mentions"), Some(token), Some(json!({ "id": id, "to": to, "blob": blob, "generation": 1 }))).await
+}
+
+async fn mention_with(h: &Harness, token: &str, org: &str, body: Value) -> (StatusCode, Value) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/mentions"), Some(token), Some(body)).await
+}
+
+fn mentions_in(feed: &Value) -> Vec<Value> {
+    feed["items"].as_array().unwrap().iter().filter(|n| n["kind"] == "mention").cloned().collect()
+}
+
+#[tokio::test]
+async fn a_mention_reaches_each_member_named_sealed_with_who_and_where_and_lands_once() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let ana = h.signup("ana", &device()).await;
+    let stranger = h.signup("zed", &device()).await;
+    let org = make_org(&h, &matt, "Ghost").await;
+    join(&h, &matt, &org, &sam, "sam").await;
+    join(&h, &matt, &org, &ana, "ana").await;
+    // sam, matt himself and a stranger to the team named: only sam is told; the handle's case is the account's.
+    let (status, body) = mention(&h, &matt, &org, ID, &["SAM", "matt", "zed", "nobody"], "c2VhbGVk").await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "told": ["sam"] })));
+    let feed = feed_since(&h, &sam, 0, 100).await;
+    let rows = mentions_in(&feed);
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(
+        row,
+        &json!({ "id": ID, "rev": row["rev"], "kind": "mention", "at": row["at"], "readAt": null, "hidden": false, "from": "matt", "org": { "id": org, "name": "Ghost" }, "body": { "name": "Ghost", "generation": 1 }, "blob": "c2VhbGVk" }),
+        "who and which organization in the clear, the words sealed"
+    );
+    // Sent again - from matt's other device, or after a lost answer - nothing more is written.
+    let (status, body) = mention(&h, &matt, &org, ID, &["sam"], "YW5vdGhlcg").await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "told": [] })));
+    let again = feed_since(&h, &sam, 0, 100).await;
+    assert_eq!(mentions_in(&again).len(), 1);
+    assert_eq!(mentions_in(&again)[0]["blob"], "c2VhbGVk");
+    // Nobody else's feed has it: not the sender's, not the member not named, not the stranger's.
+    for token in [&matt, &ana, &stranger] {
+        assert!(mentions_in(&feed_since(&h, token, 0, 100).await).is_empty());
+    }
+    // Another mention, another id: told again.
+    let (_, body) = mention(&h, &matt, &org, "AnotherMentionIdHere01", &["sam", "ana"], "c2Vjb25k").await;
+    assert_eq!(body, json!({ "told": ["sam", "ana"] }));
+}
+
+#[tokio::test]
+async fn only_a_member_may_mention_and_a_stranger_or_an_invitee_gets_the_organizations_one_404() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let zed = h.signup("zed", &device()).await;
+    let org = make_org(&h, &matt, "Ghost").await;
+    join(&h, &matt, &org, &sam, "sam").await;
+    let nobody = refusal(StatusCode::NOT_FOUND, "No such organization.");
+    assert_eq!(mention(&h, &zed, &org, ID, &["sam"], "YQ").await, nobody);
+    assert_eq!(mention(&h, &zed, "no-such-org", ID, &["sam"], "YQ").await, nobody);
+    // Invited and not yet joined: not a member, and not one to be told either.
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/members"), Some(&matt), Some(json!({ "handle": "zed" }))).await;
+    assert_eq!(mention(&h, &zed, &org, ID, &["sam"], "YQ").await, nobody);
+    assert_eq!(mention(&h, &matt, &org, ID, &["zed"], "YQ").await, (StatusCode::OK, json!({ "told": [] })));
+    // Signed out: refused before anything.
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/mentions"), None, Some(json!({ "id": ID, "to": ["sam"], "blob": "YQ", "generation": 1 }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    // A device cannot post a `mention` row of its own: the kind is the service's to write.
+    assert_eq!(post(&h, &matt, ID, "mention", "YQ").await, refusal(StatusCode::BAD_REQUEST, "That kind of notification is the service's to make."));
+}
+
+#[tokio::test]
+async fn a_mention_s_shape_and_its_limits_are_checked_before_anything_is_written() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let org = make_org(&h, &matt, "Ghost").await;
+    join(&h, &matt, &org, &sam, "sam").await;
+    let refused = |words: &str| refusal(StatusCode::BAD_REQUEST, words);
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": "not an id", "to": ["sam"], "blob": "YQ", "generation": 1 })).await, refused("That mention's id could not be read."));
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": ID, "to": [], "blob": "YQ", "generation": 1 })).await, refused("A mention names one to twenty members."));
+    let many: Vec<String> = (0..21).map(|i| format!("m{i}")).collect();
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": ID, "to": many, "blob": "YQ", "generation": 1 })).await, refused("A mention names one to twenty members."));
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": ID, "to": ["sam"], "blob": "YQ", "generation": 0 })).await, refused("That mention's key could not be read."));
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": ID, "to": ["sam"], "blob": "", "generation": 1 })).await, refused("That mention is empty or too large."));
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": ID, "to": ["sam"], "blob": "A".repeat(8 * 1024 + 1), "generation": 1 })).await, refused("That mention is empty or too large."));
+    assert_eq!(mention_with(&h, &matt, &org, json!({ "id": ID, "to": ["sam"], "blob": "not base64!", "generation": 1 })).await, refused("That mention is empty or too large."));
+    assert!(mentions_in(&feed_since(&h, &sam, 0, 100).await).is_empty(), "nothing written by any of them");
+}
+
+/// Thirty mentions a minute per account, then the refusal in its words; the account's own posts are another bucket.
+#[tokio::test]
+async fn thirty_mentions_a_minute_then_a_refusal() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let org = make_org(&h, &matt, "Ghost").await;
+    join(&h, &matt, &org, &sam, "sam").await;
+    for i in 0..30 {
+        let (status, body) = mention(&h, &matt, &org, &format!("m-{i}"), &["sam"], "YQ").await;
+        assert_eq!(status, StatusCode::OK, "mention {i} of the minute's thirty: {body}");
+    }
+    let mut refused = None;
+    for i in 30..50 {
+        let answer = mention(&h, &matt, &org, &format!("m-{i}"), &["sam"], "YQ").await;
+        if answer.0 == StatusCode::TOO_MANY_REQUESTS {
+            refused = Some(answer);
+            break;
+        }
+    }
+    assert_eq!(refused, Some(refusal(StatusCode::TOO_MANY_REQUESTS, "Too many mentions in a minute. Try again shortly.")));
+    let (status, _) = post(&h, &matt, ID, "note-edited", "YQ").await;
+    assert_eq!(status, StatusCode::OK);
+    // sam's own mentions are sam's minute.
+    let (status, _) = mention(&h, &sam, &org, ID, &["matt"], "YQ").await;
+    assert_eq!(status, StatusCode::OK);
+}

@@ -23,7 +23,9 @@ pub const KEPT: i64 = 300;
 /// A read-or-hidden row older than this goes whatever the count: sixty days.
 pub const KEPT_READ_FOR: i64 = 60 * 24 * 3600;
 
-/// The kinds the service writes; a device may post any other (src/notifications.rs refuses these).
+/// The kinds the service writes; a device may post any other (src/notifications.rs refuses these). A `mention` is
+/// written by the service on a member's word, to another member, its blob sealed under the organization key
+/// (`notify_mentioned`): a device's own post of one is refused with the rest.
 pub const SERVER_KINDS: &[&str] = &[
     "invite",
     "invite-accepted",
@@ -34,6 +36,7 @@ pub const SERVER_KINDS: &[&str] = &[
     "role-changed",
     "org-renamed",
     "org-deleted",
+    "mention",
 ];
 
 /// Why a notification was not written.
@@ -41,6 +44,15 @@ pub const SERVER_KINDS: &[&str] = &[
 pub enum NotificationWrite {
     /// No row by that id in this account.
     NotFound,
+    /// Something below the rules failed.
+    Failed,
+}
+
+/// Why a mention was not told.
+#[derive(Debug, PartialEq, Eq)]
+pub enum MentionWrite {
+    /// The sender is not a member of the organization, or there is no such organization: one answer for both.
+    NotMember,
     /// Something below the rules failed.
     Failed,
 }
@@ -196,6 +208,60 @@ impl Store {
         tx.execute("UPDATE notifications SET read_at = ?3, hidden = ?4, rev = ?5 WHERE account_id = ?1 AND id = ?2", params![account, id, read_at, hidden, rev])?;
         tx.commit()?;
         Ok(rev)
+    }
+
+    /// A member's mention of other members in a team note (src/notifications.rs `mention`; Matt, 2026-10-30: "add all
+    /// 12"): one `mention` row for each handle named who has joined `org`, from `from`, with the organization and its
+    /// name and the generation of the organization key the blob is sealed under in the clear, and the blob itself,
+    /// which the service cannot read. Answers who was told, by handle; a handle that is not a member, the sender
+    /// themselves, and one whose account already has a row by `id` are passed over, so the same mention sent again
+    /// from the sender's other device, or after a lost answer, lands once. `MentionWrite::NotMember` when the sender
+    /// is not a member of `org` themselves.
+    pub fn notify_mentioned(&self, from: i64, org: &str, id: &str, to: &[String], blob: &str, generation: i64, now: i64) -> Result<Vec<String>, MentionWrite> {
+        let mut conn = self.lock();
+        let tx = conn.transaction().map_err(|_| MentionWrite::Failed)?;
+        let name: Option<String> = tx
+            .query_row(
+                "SELECT o.name FROM orgs o JOIN org_members m ON m.org_id = o.id WHERE o.id = ?1 AND m.account_id = ?2 AND m.state = 'member'",
+                params![org, from],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|_| MentionWrite::Failed)?;
+        let Some(name) = name else {
+            return Err(MentionWrite::NotMember);
+        };
+        let mut told = Vec::new();
+        for handle in to {
+            let account: Option<(i64, String)> = tx
+                .query_row(
+                    "SELECT a.id, a.handle FROM accounts a JOIN org_members m ON m.account_id = a.id WHERE m.org_id = ?1 AND m.state = 'member' AND a.handle = ?2",
+                    params![org, handle],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()
+                .map_err(|_| MentionWrite::Failed)?;
+            let Some((to, handle)) = account else { continue };
+            if to == from || told.contains(&handle) {
+                continue;
+            }
+            let had: Option<i64> = tx.query_row("SELECT 1 FROM notifications WHERE account_id = ?1 AND id = ?2", params![to, id], |r| r.get(0)).optional().map_err(|_| MentionWrite::Failed)?;
+            if had.is_some() {
+                continue;
+            }
+            let rev = Self::next_rev(&tx, to).map_err(|_| MentionWrite::Failed)?;
+            let body = serde_json::json!({ "name": name, "generation": generation }).to_string();
+            tx.execute(
+                "INSERT INTO notifications (account_id, id, rev, kind, from_id, org_id, body, blob, state, created_at, read_at, hidden) \
+                 VALUES (?1, ?2, ?3, 'mention', ?4, ?5, ?6, ?7, NULL, ?8, NULL, 0)",
+                params![to, id, rev, from, org, body, blob, now],
+            )
+            .map_err(|_| MentionWrite::Failed)?;
+            Self::prune_notifications(&tx, to, now).map_err(|_| MentionWrite::Failed)?;
+            told.push(handle);
+        }
+        tx.commit().map_err(|_| MentionWrite::Failed)?;
+        Ok(told)
     }
 
     // --- what the service writes, inside another write's transaction -------------
