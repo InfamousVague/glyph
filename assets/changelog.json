@@ -1,5 +1,16 @@
 [
   {
+    "version": "2.3.90",
+    "date": "2026-10-30",
+    "title": "Meetings, live",
+    "items": [
+      {"icon": "users", "words": "Meetings Ghost's bot is in (Google Meet and Zoom) show their transcript live, named and timed, while the call runs.", "kind": "new"},
+      {"icon": "mic", "words": "Meetings recorded on your phone show live words under the cassette and in Transcript while the screen is on.", "kind": "new"},
+      {"icon": "settings", "words": "Settings › Recording › Live transcript during meetings: on the phone it runs while charging unless you choose otherwise.", "kind": "new"},
+      {"icon": "file-text", "words": "A meeting's note is there from its first words, so you can write in it during the call.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.3.89",
     "date": "2026-10-30",
     "title": "What's new, and comments in the margin",
