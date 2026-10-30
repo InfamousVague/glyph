@@ -12,6 +12,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/note.dart';
+import '../mentions/mention_reminders.dart' show mentionWho;
 import 'reminder_host.dart';
 import 'reminder_plan.dart';
 import 'reminder_settings.dart';
@@ -35,7 +36,7 @@ class ReminderScheduler {
 
   /// One pass over [notes], [skip] leaving out what the Trash holds. True where the phone was handed a new plan.
   Future<bool> pass(List<Note> notes, {bool Function(Note note)? skip}) async {
-    final made = _planner.plan(notes, settings: settings.value, now: _clock(), skip: skip);
+    final made = _planner.plan(notes, settings: settings.value, now: _clock(), skip: skip, who: mentionWho.value);
     plan = made;
     final json = planJson(made);
     if (json == _sent) return false;

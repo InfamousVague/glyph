@@ -52,6 +52,10 @@ import '../mail/mail_in.dart';
 import '../meet/live_captions.dart';
 import '../meet/meet_api.dart' show MeetApi;
 import '../meet/meet_in.dart';
+import '../mentions/mention_notices.dart';
+import '../mentions/mention_reminders.dart';
+import '../verified/verified_notices.dart';
+import '../core/note_text.dart' show noteTitle;
 import '../plugins/discord/calls.dart' show discordCallsFollowPlugin;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
@@ -201,7 +205,43 @@ class WiredAccount {
     final orgKeys = OrgKeys(crypto: crypto, api: api);
     final files = CoreFiles(core);
     final notes = LibraryNotes(core);
-    final docs = TeamDocs(crdt: Crdt(core), store: _AccountDocs(making.dataDir, account, making.docsFor));
+    // What this device's own changes to a team's notes owe: each person's mention typed, told once the edit has synced
+    // (lib/mentions/mention_notices.dart; Matt, 2026-10-30: "add all 12").
+    final mentions = MentionLedger(kept: device);
+    String? orgOfNote(String noteId) {
+      final space = workspaces.workspaceOf(noteId);
+      return space == null ? null : orgOfWorkspace(workspaces.value.list, space.id);
+    }
+
+    final docs = TeamDocs(
+      crdt: Crdt(core),
+      store: _AccountDocs(making.dataDir, account, making.docsFor),
+      onMade: (noteId, before, after) {
+        final session = account.session, org = orgOfNote(noteId);
+        if (session != null && org != null) mentions.made(session.accountId, org, noteId, before, after);
+      },
+    );
+    // Whose a day mentioned is, for the reminders' plan (lib/mentions/mention_reminders.dart): kept up with the account.
+    void who() {
+      final session = account.session;
+      mentionWho.value = MentionWho(
+        me: session?.handle,
+        team: (noteId) => orgOfNote(noteId) != null,
+        wrote: (noteId, day) => session != null && mentions.wroteDay(session.accountId, noteId, day),
+        key: '${session?.accountId ?? ''}:${session?.handle ?? ''}',
+      );
+    }
+
+    who();
+    account.addListener(who);
+    // A member's mention is sealed under the organization key (lib/mentions/mention_notices.dart): opened with the one
+    // this device holds, or an older generation's from this account's wrap.
+    feed.orgKey = (orgId, generation) async {
+      if (orgKeys.orgKeyGeneration(orgId) == generation) return orgKeys.orgKeyOf(orgId);
+      final session = account.session, pair = await keys.encryptionKey();
+      if (session == null || pair == null) return null;
+      return orgKeys.orgKeyAt(OrgKeysContext(token: session.token, pair: pair), orgId, generation);
+    };
     final live = LiveServices(base: making.base, account: account, crypto: crypto, crdt: Crdt(core), orgs: orgs, orgKeys: orgKeys, prefs: settings, kept: device);
     // A share's reading copies are JPEGs written by the phone (lib/core/phone_pictures.dart): nothing on a device with no half for it.
     // And a meeting's recording, read from where the core keeps it, for a share that carries one (lib/share/share_audio.dart).
@@ -213,6 +253,8 @@ class WiredAccount {
     // Ghost in a Google Meet (docs/MEET.md): its setting beside the mail's, which it is booked through; its takes
     // filed on every device, an iPhone's from the captions after a day left for one that keeps the sound.
     final meetIn = offered ? MeetIn(account: account, keys: keys, api: api, crypto: crypto, kept: device) : null;
+    final record = SelfNotifications(feed: feed, api: api, localOnly: () => settings.value.localOnly);
+    DateTime? expiriesAt;
     final engine = SyncEngine(
       account: AccountDoor(account),
       api: api,
@@ -224,11 +266,30 @@ class WiredAccount {
       feed: feed,
       orgs: orgs,
       orgKeys: orgKeys,
-      record: SelfNotifications(feed: feed, api: api, localOnly: () => settings.value.localOnly),
+      record: record,
       kept: device,
       touched: touched,
       onNotesChanged: refresh,
-      teamNotes: teamNotesPass(docs),
+      // Each organization's channel, then the mentions this device typed in its notes told (lib/mentions).
+      teamNotes: mentionsAfter(teamNotesPass(docs), mentions, me: () => account.session?.handle, words: (id) async => (await notes.get(id))?.body, title: (id, words) => noteTitle(words)),
+      // The notifications, then the verified pages this account vouches for that ran out told in its bell
+      // (lib/verified/verified_notices.dart).
+      feedPass: (ctx) async {
+        final fed = await syncNotifications(ctx);
+        final session = account.session;
+        // A day runs out a day at a time: looked for once an hour, not on every look at the bell.
+        final now = DateTime.now();
+        if (session != null && (expiriesAt == null || now.difference(expiriesAt!) > const Duration(hours: 1))) {
+          expiriesAt = now;
+          try {
+            final held = await notes.list();
+            await tellExpiredPages(record: record, accountId: session.accountId, me: session.handle, notes: [for (final note in held) (id: note.id, body: note.body, title: noteTitle(note.body))], kept: device);
+          } catch (failure) {
+            debugPrint('[verified] the pages that ran out were not told: $failure');
+          }
+        }
+        return fed;
+      },
       forgetTeams: docs.forget,
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,

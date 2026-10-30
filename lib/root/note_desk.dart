@@ -162,6 +162,9 @@ import '../links/note_links.dart' show NoteLinksHere;
 import '../meet/meet_note.dart' show awaitsWriteUp;
 import '../meet/live_transcript.dart' show isLiveNote, liveTranscripts;
 import '../meet/ui/live_transcript_view.dart';
+import '../mentions/ui/mention_picker.dart' show MentionLayer;
+import '../mentions/ui/note_mentions.dart';
+import '../verified/note_verify.dart';
 import '../capture/meeting_live_words.dart' show meetingRecordingHere;
 import '../editor/plus/plus.dart';
 import '../editor/input/snippets.dart' show snippetExpansion;
@@ -753,9 +756,17 @@ class NoteDeskState extends State<NoteDesk> {
     // their colours.
     onChange: () {
       _comments.recolour();
+      _mentions.recolour();
       _redraw();
     },
   );
+
+  /// The note's @mentions (lib/mentions; Matt, 2026-10-30): the chips in the colours its comments wear, and the at
+  /// sign's picker of who can be named here.
+  late final NoteMentions _mentions = NoteMentions(services: _world.services, noteId: widget.noteId, colours: () => _wears.now, view: () => _view);
+
+  /// The note as the team's current truth (lib/verified): its badge and Verify….
+  late final NoteVerify _verify = NoteVerify(services: _world.services, noteId: widget.noteId, view: () => _view);
   late final ScreenComments _comments = ScreenComments(noteId: widget.noteId, view: () => _view, say: widget.say, colours: () => _wears.now, account: _world.services?.account)..addListener(_redraw);
 
   /// A line for the person, as the AI asks for one.
@@ -802,6 +813,8 @@ class NoteDeskState extends State<NoteDesk> {
     // `;sig` and a space becomes the snippet (Settings › Snippets; lib/editor/input/snippets.dart): the list asked as
     // a trigger is typed, so one added in Settings works in a note already open.
     if (!widget.readOnly) snippetExpansion(() => _prefs.value.snippets),
+    // @people and @days as chips, a day typed as words written as the day, and the at sign's picker.
+    _mentions.extension(readOnly: widget.readOnly),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
     markExtensions(_formats),
@@ -1630,6 +1643,7 @@ class NoteDeskState extends State<NoteDesk> {
     _problemGoes?.cancel();
     _problem.dispose();
     _wears.dispose();
+    _mentions.dispose();
     _pictures?.removeListener(_pictureSaid);
     _pictures?.dispose();
     // A memo still sounding stops with its note.
@@ -1838,6 +1852,10 @@ class NoteDeskState extends State<NoteDesk> {
   /// its place in the tree (and its scroll position) when the editor's view arrives.
   Widget _around(BuildContext context, EditorView? view, Widget page) {
     if (view != null) _adopt(view);
+    return MentionLayer(picker: _mentions.picker, child: _aroundPage(context, view, page));
+  }
+
+  Widget _aroundPage(BuildContext context, EditorView? view, Widget page) {
     return FieldMenuHost(
       view: view,
       // The note has its band: a chip's page is the band's, at the chip.
@@ -2361,6 +2379,8 @@ class NoteDeskState extends State<NoteDesk> {
           // And while it is going on, the Note view's small way to its live words.
           if (transcriptView && !_reading && _liveNow) LiveTranscriptPill(onPressed: () => _choose(true), simple: _prefs.value.simple),
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
+          // A verified page's badge (lib/verified/verified_badge.dart): pressed, the More sheet with Verify….
+          ?_verify.badgeOf(_view, saved: () => _world.noteById?.call(widget.noteId)?.body, openVerify: widget.readOnly ? null : openSettings),
         ];
       },
       // Playing takes the screen for the transcript; the note waits under it (NoteScreen.tsx `shown`). So does a
@@ -2382,6 +2402,7 @@ class NoteDeskState extends State<NoteDesk> {
       book: _book,
       journal: _journal,
       around: _around,
+      verify: (context) => _verify.item(),
       over: _over,
       headRoom: _ai == null ? null : _stripRoom,
       problem: _problem,

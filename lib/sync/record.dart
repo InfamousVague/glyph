@@ -35,30 +35,35 @@ class SelfNotifications {
   /// Records one self notification of [kind] (one of `selfKinds`) with what that kind says ([details]: `noteId`,
   /// `title`, and the kind's own fields). Never throws: a failure to post leaves the row unsent for the next pass.
   /// [api] and [now] stand in for the ones this was made with.
-  Future<void> record(String kind, Map<String, Object?> details, {Api? api, int Function()? now}) async {
+  Future<void> record(String kind, Map<String, Object?> details, {Api? api, int Function()? now}) => recordAs(null, kind, details, api: api, now: now);
+
+  /// [record], under the row's own [id] where the same news is told by every device of the account (a verified page's
+  /// time running out: lib/verified/verified_notices.dart): the service keeps the first post of an id and answers the
+  /// rest with it, so the bell has one row. A fresh id when null.
+  Future<void> recordAs(String? id, String kind, Map<String, Object?> details, {Api? api, int Function()? now}) async {
     final account = feed.account;
     final session = account.session;
     if (session == null) return;
     final payload = <String, Object?>{'kind': kind, ...details};
     final opened = NotificationDetails.fromJson(payload);
     // Not a kind this app makes, or no note and title to say: nothing any device could draw.
-    if (opened == null) return;
+    if (opened == null || !isSelfKind(kind)) return;
     final String blob;
-    final id = shortId();
+    final rowId = id ?? shortId();
     try {
       final key = await account.accountKey();
       if (key == null) return;
-      blob = await feed.crypto.seal(key, payload, 'notification:$id');
+      blob = await feed.crypto.seal(key, payload, 'notification:$rowId');
     } catch (_) {
       return;
     }
-    final item = FeedNotification(id: id, rev: 0, kind: kind, at: (now ?? _now)(), blob: blob);
-    feed.rememberDetails(id, opened);
+    final item = FeedNotification(id: rowId, rev: 0, kind: kind, at: (now ?? _now)(), blob: blob);
+    feed.rememberDetails(rowId, opened);
     feed.updateFeed(session.accountId, (state) => withSelfRow(state, item));
     if (_localOnly()) return;
     try {
       final rev = await postSelfRow(api ?? this.api, session.token, item);
-      feed.updateFeed(session.accountId, (state) => withPosted(state, id, rev));
+      feed.updateFeed(session.accountId, (state) => withPosted(state, rowId, rev));
     } catch (_) {
       // Not sent: listed as unsent, and tried again by the next pass.
     }

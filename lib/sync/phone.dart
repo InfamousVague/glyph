@@ -53,7 +53,7 @@ const String phoneNoticesKey = 'glyph-phone-notices';
 
 /// The kinds that come to the phone: the categories the bell counts, less the two with a notification of their own
 /// (`PHONE_CATEGORIES`).
-const Set<String> phoneCategories = {'invites', 'team', 'claude'};
+const Set<String> phoneCategories = {'invites', 'team', 'claude', 'mentions'};
 
 /// Where tapping a row's notification goes: the note Claude changed, an organization while it is yours, or the
 /// drawer (`linkFor`).

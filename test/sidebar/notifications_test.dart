@@ -12,10 +12,14 @@ const NotificationOrg ghost = (id: 'o1', name: 'Ghost');
 
 void main() {
   group('the kinds', () {
-    test('are the service’s nine and the account’s seven, each in one category', () {
-      expect(kinds, hasLength(16));
+    test('are the service’s nine, the account’s eight and a member’s mention, each in one category', () {
+      expect(kinds, hasLength(18));
       expect(serverKinds, hasLength(9));
-      expect(selfKinds, hasLength(7));
+      expect(selfKinds, hasLength(8));
+      expect(memberKinds, ['mention']);
+      // A mention and a verified page run out are the person's own business, with no switch (Matt, 2026-10-30).
+      expect(categoryOf('mention'), 'mentions');
+      expect(categoryOf('page-expired'), 'mentions');
       expect(categories, ['team', 'claude', 'summaries', 'conflicts']);
       expect(categoryOf('invite'), 'invites');
       expect(serverKinds.where((k) => k != 'invite').every((k) => categoryOf(k) == 'team'), isTrue);

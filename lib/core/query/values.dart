@@ -30,7 +30,8 @@
 /// - Words are ordered by collate.dart's [localeCompare], which stands in for the browser's collation (see there).
 library;
 
-import '../days.dart' show isIsoDay, isoDayAfter;
+import '../../verified/verified.dart' show verifiedQueryWords;
+import '../days.dart' show isIsoDay, isoDay, isoDayAfter;
 import '../item_syntax.dart' show jsTrim;
 import '../properties.dart';
 import '../sums.dart' show writtenNumber;
@@ -339,6 +340,10 @@ Value valueOf(QueryRecord record, String field) {
       return _day(record.updated);
     case 'kind':
       return _text(record.kind.name);
+    // A verified page (lib/verified/verified.dart; Matt, 2026-10-30): `yes` while it holds, `expired` once it ran
+    // out, read from its front matter on the day the query is run.
+    case 'verified' when record.kind != RecordKind.task:
+      return _list(verifiedQueryWords(record.props['verified'], isoDay(DateTime.now())));
     case 'category':
       final said = record.kind == RecordKind.task ? _taskStatus(record) : _noteValue(record, 'status');
       if (said is StatusValue) return _text(categoryWords[said.category]);

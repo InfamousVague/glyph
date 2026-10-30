@@ -194,7 +194,12 @@ class NoteSeams {
     this.problem,
     this.links,
     this.focusMode = false,
+    this.verify,
   });
+
+  /// Verify… on the More sheet (lib/verified/verified_badge.dart): its row and page, for the note on screen; null for
+  /// none.
+  final NoteSheetItem? Function(BuildContext context)? verify;
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
   final void Function(EditorView view, String initial)? onFind;
@@ -2097,6 +2102,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       say: widget.say,
       around: _typed ? null : seams.links?.section(context, view, _scroll.hasClients ? _scroll.position : null),
       startAtItem: _settingsItem,
+      verify: _typed || widget.readOnly || !_raw ? null : seams.verify?.call(context),
     );
   }
 }

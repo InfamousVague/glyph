@@ -163,6 +163,15 @@ class TeamDoc implements LiveText {
     }
   }
 
+  /// The documents this one is held by, told of the changes made here ([TeamDocs.onMade]).
+  TeamDocs? _owner;
+
+  /// A change made here, from [before] to the words now, told to whoever listens for them.
+  void _madeHere(String before) {
+    final told = _owner?.onMade;
+    if (told != null && before != _words) told(noteId, before, _words);
+  }
+
   void _made(Uint8List? update) {
     if (update == null) return;
     for (final listener in _updates.toList()) {
@@ -198,6 +207,7 @@ class TeamDoc implements LiveText {
         _made(named?.update);
         return true;
       }
+      final before = _words;
       final change = await crdt.reconcile(words);
       _undo = change.undo ?? _undo;
       if (!change.changed) {
@@ -207,6 +217,7 @@ class TeamDoc implements LiveText {
       _soon();
       _tell(await _read(change.text));
       _made(change.update);
+      _madeHere(before);
       return true;
     });
   }
@@ -218,11 +229,13 @@ class TeamDoc implements LiveText {
   @override
   Future<CrdtChange> edit(List<CrdtEdit> edits, {int? base, int? now}) {
     return _next(() async {
+      final before = _words;
       final change = await crdt.edit(base == null ? edits : _log.carry(edits, base), now: now);
       _undo = change.undo ?? _undo;
       _words = _text = change.text;
       if (change.changed) _soon();
       _made(change.update);
+      if (change.changed) _madeHere(before);
       return change;
     });
   }
@@ -253,12 +266,14 @@ class TeamDoc implements LiveText {
   @override
   Future<CrdtUndone> undoStep({required bool redo, int? now}) {
     return _next(() async {
+      final before = _words;
       final done = redo ? await crdt.redo(now: now) : await crdt.undo(now: now);
       _undo = done.undo ?? _undo;
       if (!done.changed) return done;
       _soon();
       _tell(await _read(done.text), done.splices);
       _made(done.update);
+      _madeHere(before);
       return done;
     });
   }
@@ -405,9 +420,15 @@ class TeamDoc implements LiveText {
 /// This device's team documents, by note (`teamDoc` and the functions beside it).
 class TeamDocs {
   /// [rest] is how long a change rests before it is kept; a test may shorten it.
-  TeamDocs({required Crdt crdt, required this.store, Duration rest = keepAfter})
+  TeamDocs({required Crdt crdt, required this.store, Duration rest = keepAfter, this.onMade})
       : _crdt = crdt,
         _rest = rest;
+
+  /// Told of every change made here to a document's words, from what they were to what they are: a key pressed in
+  /// its editor, words that reached the note without it, an undo. Never of what the log or a row brought, nor of a
+  /// document seeded from a note as it became the team's. Who wrote what is this device's to know only here, so a
+  /// mention typed is told to the person once, by the device that typed it (lib/mentions/mention_notices.dart).
+  void Function(String noteId, String before, String after)? onMade;
 
   final Crdt _crdt;
   final Duration _rest;
@@ -420,7 +441,7 @@ class TeamDocs {
   Future<TeamDoc> _make(String noteId, TeamDocRecord? record, String? seedWords) async {
     // A document seeded here from the note's words is itself a change the service has not seen: the whole of it.
     final crdt = record != null ? await _crdt.open(state: record.state, pending: record.pending) : await _crdt.open(words: seedWords);
-    final doc = TeamDoc._(noteId, crdt, store, await crdt.words(), seq: record?.seq ?? 0, snapshotSeq: record?.snapshotSeq ?? 0, rest: _rest);
+    final doc = TeamDoc._(noteId, crdt, store, await crdt.words(), seq: record?.seq ?? 0, snapshotSeq: record?.snapshotSeq ?? 0, rest: _rest).._owner = this;
     // A canvas whose structure is there already reads its words from it.
     doc._words = await doc._read(doc._text);
     // Seeded here: kept soon, so an app closed before the first pass still has the words pending for the team.

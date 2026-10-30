@@ -302,6 +302,13 @@ class FakeService {
 
   /// The account's notifications as stored, by id: each row at the revision it was last written.
   final Map<String, FeedNotification> feed = {};
+
+  /// The `mention` rows the service wrote into OTHER members' feeds (server/src/notifications.rs `mention`): by the
+  /// member's handle, lower-cased, then by the mention's id, each written once. What a peer's bell would hold.
+  final Map<String, Map<String, ({String from, String org, String blob, int generation})>> mentioned = {};
+
+  /// Every post to the mentions route, told or not, in order: what a test counts the device's calls by.
+  final List<Map<String, Object?>> mentionPosts = [];
   int _counter = 0;
   final Set<String> _tokens = {};
   final Set<String> _nonces = {};
@@ -1125,6 +1132,28 @@ class FakeService {
       return _json(200, {'declined': true});
     }
 
+    final mention = RegExp(r'^orgs/([^/]+)/mentions$').firstMatch(path);
+    if (mention != null && method == 'POST') {
+      mentionPosts.add(body);
+      final found = inOrg(Uri.decodeComponent(mention[1]!));
+      if (found == null) return _refuse(404, 'No such organization.');
+      final id = body['id'] == null ? '' : '${body['id']}';
+      if (!RegExp(r'^[A-Za-z0-9_-]{1,64}$').hasMatch(id)) return _refuse(400, "That mention's id could not be read.");
+      final to = body['to'], blob = body['blob'], generation = body['generation'];
+      if (to is! List || to.isEmpty || to.length > 20) return _refuse(400, 'A mention names one to twenty members.');
+      if (generation is! num || generation < 1) return _refuse(400, "That mention's key could not be read.");
+      if (blob is! String || blob.isEmpty || blob.length > 8 * 1024) return _refuse(400, 'That mention is empty or too large.');
+      final told = <String>[];
+      for (final handle in to) {
+        final row = found.org.rows[_lower('$handle')];
+        if (row == null || row.state != 'member' || _lower(row.handle) == _lower(me)) continue;
+        final feedOf = mentioned.putIfAbsent(_lower(row.handle), () => {});
+        if (feedOf.containsKey(id)) continue;
+        feedOf[id] = (from: me, org: found.org.id, blob: blob, generation: generation.toInt());
+        told.add(row.handle);
+      }
+      return _json(200, {'told': told});
+    }
     if (method == 'GET' && path == 'notifications') {
       final since = _num(query['since']);
       final asked = query['limit'] == null ? 100 : _num(query['limit']);

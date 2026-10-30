@@ -24,11 +24,19 @@ import 'preferences.dart' show NotificationPrefs;
 /// Made by the service, about an organization; the words it needs ride in `body`, in the clear (`SERVER_KINDS`).
 const List<String> serverKinds = ['invite', 'invite-accepted', 'invite-declined', 'member-joined', 'member-left', 'member-removed', 'role-changed', 'org-renamed', 'org-deleted'];
 
-/// Made by this account for itself, sealed; the MCP server posts the first five, the app the last two (`SELF_KINDS`).
-const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict'];
+/// Made by this account for itself, sealed; the MCP server posts the first five, the app the rest (`SELF_KINDS`). The
+/// last, a verified page whose time ran out (lib/verified/verified.dart; Matt, 2026-10-30: "add all 12"), is the app's
+/// own and has no web counterpart yet.
+const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'page-expired'];
+
+/// Written by the service on a member's word, to another member of the organization, sealed under the organization
+/// key (lib/mentions/mention_notices.dart; server/src/notifications.rs): who sent it and the organization ride in the
+/// clear, as a server kind's do, and the words in a seal, as a self kind's do. An older build does not know the kind
+/// and does not draw the row.
+const List<String> memberKinds = ['mention'];
 
 /// Every kind this build knows (`KINDS`).
-const List<String> kinds = [...serverKinds, ...selfKinds];
+const List<String> kinds = [...serverKinds, ...selfKinds, ...memberKinds];
 
 /// The colour each kind's mark wears (Matt: "color code different notification icons so they're easier to match at
 /// first sight"), one of the app's hues (ink.css `[data-hue]`) by what the news is: someone arriving is moss, someone
@@ -51,11 +59,16 @@ const Map<String, String> kindHues = {
   'rule-added': 'violet',
   'summary-written': 'sea',
   'sync-conflict': 'ember',
+  'page-expired': 'amber',
+  'mention': 'violet',
 };
 
 bool isKind(Object? value) => value is String && kinds.contains(value);
 
 bool isSelfKind(Object? value) => value is String && selfKinds.contains(value);
+
+/// A kind whose words are sealed: one this account makes for itself, or a member's mention.
+bool isSealedKind(Object? value) => value is String && (selfKinds.contains(value) || memberKinds.contains(value));
 
 /// The four switches, in the order the pane draws them (`CATEGORIES`). `invites` is a category with no switch.
 const List<String> categories = ['team', 'claude', 'summaries', 'conflicts'];
@@ -77,6 +90,10 @@ const Map<String, String> _categoryOf = {
   'rule-added': 'claude',
   'summary-written': 'summaries',
   'sync-conflict': 'conflicts',
+  // A person's own business, with no switch, as an invitation has none: someone asked something of them, or a page
+  // they vouch for wants looking at. The bell's Mentions filter shows the first.
+  'mention': 'mentions',
+  'page-expired': 'mentions',
 };
 
 /// The category of a kind this build knows: one of [categories], or `invites`.
@@ -90,7 +107,8 @@ String categoryOf(String kind) => _categoryOf[kind]!;
 class NotificationDetails {
   const NotificationDetails({required this.kind, required this.noteId, required this.title, this.by, this.added, this.removed, this.first, this.at, this.lines, this.journal});
 
-  /// One of [selfKinds]: the one trusted, where the row's own `kind` is for the service's pruning.
+  /// One of [selfKinds], or a member's `mention`: the one trusted, where the row's own `kind` is for the service's
+  /// pruning.
   final String kind;
   final String noteId;
   final String title;
@@ -119,7 +137,7 @@ class NotificationDetails {
   static NotificationDetails? fromJson(Object? value) {
     if (value is! Map) return null;
     final kind = value['kind'], noteId = value['noteId'], title = value['title'];
-    if (!isSelfKind(kind) || noteId is! String || title is! String) return null;
+    if (!isSealedKind(kind) || noteId is! String || title is! String) return null;
     String? text(String key) => value[key] is String ? value[key] as String : null;
     int? count(String key) => value[key] is num ? (value[key] as num).toInt() : null;
     return NotificationDetails(
@@ -289,6 +307,10 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
       return open('summary-written') ? 'A meeting was written up: ${opened!.title}' : 'A meeting was written up';
     case 'sync-conflict':
       return open('sync-conflict') ? '${opened!.title} was kept twice: both devices had changed it' : 'A note was kept twice';
+    case 'mention':
+      return open('mention') ? '${_text(opened!.by, _who(n.from))} mentioned you in ${opened.title}' : '${_who(n.from)} mentioned you in a note';
+    case 'page-expired':
+      return open('page-expired') ? '${opened!.title} needs review: its verification ran out' : 'A verified page needs review';
   }
   // A kind this build does not know is not drawn (`listed`); asked for anyway, it has no words.
   return '';
@@ -298,7 +320,7 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
 /// (`detailOf`).
 String? detailOf(NotificationDetails? opened) {
   if (opened == null) return null;
-  if (opened.kind == 'note-edited' || opened.kind == 'note-appended' || opened.kind == 'journal-entry' || opened.kind == 'rule-added') {
+  if (opened.kind == 'note-edited' || opened.kind == 'note-appended' || opened.kind == 'journal-entry' || opened.kind == 'rule-added' || opened.kind == 'mention') {
     final first = opened.first;
     return first == null || first.isEmpty ? null : first;
   }
@@ -342,6 +364,9 @@ int unreadCount(NotificationPrefs prefs, Iterable<FeedNotification> items) => it
 /// An invitation not yet answered: never cleared, since its row is the one place to answer it (`isPendingInvite`,
 /// notes/NotificationsDrawer.tsx).
 bool isPendingInvite(FeedNotification n) => n.kind == 'invite' && n.state == 'pending';
+
+/// A member's mention of this account: what the bell's Mentions filter shows.
+bool isMention(FeedNotification n) => n.kind == 'mention';
 
 /// The kinds about an organization, whose row opens it; an invitation is answered on its own row instead
 /// (`ORG_KINDS`, notes/NotificationsDrawer.tsx).

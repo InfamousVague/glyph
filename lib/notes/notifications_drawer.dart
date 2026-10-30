@@ -108,6 +108,9 @@ class NotificationsDrawer extends StatefulWidget {
 class _NotificationsDrawerState extends State<NotificationsDrawer> {
   bool get _held => !widget.signedIn || widget.localOnly;
 
+  /// The Mentions filter (Matt, 2026-10-30: "add all 12"): only the rows where someone named you.
+  bool _mentionsOnly = false;
+
   @override
   void initState() {
     super.initState();
@@ -127,7 +130,8 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
     final details = widget.detailsOf?.call(n);
     if (details != null) {
       widget.onClose();
-      widget.onOpenNote(details.noteId, details.kind == 'note-edited' ? details.at : null);
+      // An edit at its first changed line, a mention at the line that names the person.
+      widget.onOpenNote(details.noteId, details.kind == 'note-edited' || details.kind == 'mention' ? details.at : null);
       return;
     }
     // An organization the person is still in; a row about one they left or that is gone only reads.
@@ -149,7 +153,11 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
     // Signed out there is no feed, and so no rows (`notifications()` answers none); with Local only on, the rows the
     // device holds still count in the head, under the words that say nothing more is coming.
     final all = widget.signedIn ? widget.notifications : const <FeedNotification>[];
-    final shown = [for (final n in all) if (isWanted(n, widget.prefs)) n];
+    final wanted = [for (final n in all) if (isWanted(n, widget.prefs)) n];
+    // The filter is there once someone has mentioned you; with it on, only those rows.
+    final mentioned = wanted.any(isMention);
+    final filtering = _mentionsOnly && mentioned;
+    final shown = filtering ? [for (final n in wanted) if (isMention(n)) n] : wanted;
     final unread = unreadCount(widget.prefs, all);
     // What Clear all takes: every row shown but an invitation still waiting for its answer, which would go with no
     // way back to it.
@@ -282,6 +290,7 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
               ),
             ),
           ),
+          if (mentioned && !_held) _Filter(mentions: filtering, onChanged: (mentions) => setState(() => _mentionsOnly = mentions)),
           Flexible(
             child: SingleChildScrollView(
               // `.scroll { overflow-y: auto; overscroll-behavior: contain; padding: var(--glacier-space-1) var(--glacier-space-2) var(--glacier-space-3) }`
@@ -291,6 +300,36 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The bell's filter: every row, or the mentions alone.
+class _Filter extends StatelessWidget {
+  const _Filter({required this.mentions, required this.onChanged});
+  final bool mentions;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sm = t.fontSize('sm');
+    Widget pill(String word, bool on, bool value) => GlacierPressable(
+          key: ValueKey('filter-${value ? 'mentions' : 'all'}'),
+          onPressed: () => onChanged(value),
+          semanticLabel: on ? '$word, shown' : word,
+          builder: (context, state) => Container(
+            padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(t.radius('full')),
+              color: on ? t.color('app-ink') : (state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 7%, transparent)') : null),
+            ),
+            child: Text(word, maxLines: 1, style: pageText(t, sm, weight: 'medium', color: on ? t.color('app-paper') : t.color('app-ink-2'))),
+          ),
+        );
+    return Padding(
+      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+      child: Row(spacing: t.space(1), children: [pill('All', !mentions, false), pill('Mentions', mentions, true)]),
     );
   }
 }
@@ -460,6 +499,8 @@ const Map<String, LucideIcon> _marks = {
   'rule-added': Lucide.scrollText,
   'summary-written': Lucide.audioLines,
   'sync-conflict': Lucide.triangleAlert,
+  'mention': Lucide.atSign,
+  'page-expired': Lucide.shieldCheck,
 };
 
 /// One notification (`Row`): its mark, its sentence and the line under it, when, and Accept and Decline for an

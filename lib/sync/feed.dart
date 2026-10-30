@@ -360,11 +360,29 @@ class NotificationFeed extends ChangeNotifier {
   /// Remembers what a row made here was sealed from, so it is never opened again (`rememberDetails`).
   void rememberDetails(String id, NotificationDetails details) => _opened[id] = details;
 
-  Future<NotificationDetails?> _open(String id, String blob) async {
+  /// The organization key at a generation, for a member's mention, which is sealed under it rather than the account
+  /// key (lib/mentions/mention_notices.dart): the one this device holds, handed in once the organizations' keys are
+  /// made. Null, or a key not held, and a mention is drawn by its kind alone.
+  Future<SealKey?> Function(String orgId, int generation)? orgKey;
+
+  Future<NotificationDetails?> _open(FeedNotification n, String blob) async {
+    final id = n.id;
     try {
+      if (memberKinds.contains(n.kind)) {
+        final org = n.org, generation = n.body?['generation'];
+        final find = orgKey;
+        if (org == null || find == null || generation is! num) return null;
+        final key = await find(org.id, generation.toInt());
+        if (key == null) return null;
+        final opened = NotificationDetails.fromJson(await crypto.open(key, blob, 'mention:${org.id}:$id'));
+        // The kind inside the seal is the one trusted: a mention's blob opens as a mention or not at all.
+        return opened?.kind == n.kind ? opened : null;
+      }
       final key = await account.accountKey();
       if (key == null) return null;
-      return NotificationDetails.fromJson(await crypto.open(key, blob, 'notification:$id'));
+      final opened = NotificationDetails.fromJson(await crypto.open(key, blob, 'notification:$id'));
+      // A mention is a member's, under the organization key, never the account's own.
+      return opened == null || memberKinds.contains(opened.kind) ? null : opened;
     } catch (_) {
       // Sealed by a newer build, moved from another id, or no key here: drawn by its kind.
       return null;
@@ -381,7 +399,7 @@ class NotificationFeed extends ChangeNotifier {
     if (_opening.add(n.id)) {
       final round = _openings;
       unawaited(() async {
-        final details = await _open(n.id, blob);
+        final details = await _open(n, blob);
         // Forgotten while it was opening (signed out): what it opened to is nobody's now.
         if (round != _openings || _disposed) return;
         _opened[n.id] = details;
@@ -398,7 +416,7 @@ class NotificationFeed extends ChangeNotifier {
     final blob = n.blob;
     if (blob == null || blob.isEmpty) return null;
     if (_opened.containsKey(n.id)) return _opened[n.id];
-    final details = await _open(n.id, blob);
+    final details = await _open(n, blob);
     _opened[n.id] = details;
     return details;
   }
