@@ -8,8 +8,9 @@
 ///   the ink. A record with one of the two is a bar of a day; one with neither is counted under the rows.
 /// - **Today** is a line down the days, and Today in the bar above scrolls to it; Week, Month and Quarter zoom.
 /// - **Carried.** Where what the query lists can be changed, a bar's ends are carried to other days (each end
-///   writes its own field into the record's front matter, or a to-do's line), and the middle of a bar carries both:
-///   with a pointer at once, with a finger after holding it. A tap on a bar, or on a row's name, opens it.
+///   writes its own field into the record's front matter, or a to-do's line), and the middle of a bar carries both
+///   once it is held, as everything carried in the app is (lib/core/hold_drag.dart [holdTime]), so a swipe across
+///   scrolls. A tap on a bar, or on a row's name, opens it.
 ///
 /// The days, the ticks, today and every bar are drawn by one painter, and a carry repaints that painter alone, so a
 /// thousand rows cost a frame what ten do: each row's name is the only widget a row has.
@@ -24,6 +25,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../../core/days.dart' show daysBetween;
+import '../../core/hold_drag.dart' show holdTime;
 import '../../core/properties.dart' show StatusCategory;
 import '../../core/query/query.dart';
 import '../items/field_chips.dart' show daySaid;
@@ -233,8 +235,8 @@ class QueryTimelineViewState extends State<QueryTimelineView> {
             if (carries)
               _BarDrag: GestureRecognizerFactoryWithHandlers<_BarDrag>(() => _BarDrag(allowed: (at, kind) {
                     final found = grip(at, rows);
-                    // A finger takes a bar's ends at once and its middle after holding it, so a swipe across scrolls.
-                    return found != null && (kind != PointerDeviceKind.touch || !(found.start && found.end));
+                    // A bar's ends are taken at once; its middle is the app's one carry, held first, so a swipe scrolls.
+                    return found != null && !(found.start && found.end);
                   }), (drag) {
                 double from = 0;
                 drag.onStart = (details) {
@@ -260,7 +262,7 @@ class QueryTimelineViewState extends State<QueryTimelineView> {
                 drag.onCancel = () => _carry.value = null;
               }),
             if (carries)
-              LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(() => LongPressGestureRecognizer(supportedDevices: const <PointerDeviceKind>{PointerDeviceKind.touch, PointerDeviceKind.stylus}), (press) {
+              LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(() => LongPressGestureRecognizer(duration: holdTime), (press) {
                 double from = 0;
                 press.onLongPressStart = (details) {
                   final found = grip(details.localPosition, rows);
@@ -441,7 +443,10 @@ class QueryTimelineViewState extends State<QueryTimelineView> {
 
 /// A drag that starts only where [allowed] says, so a swipe that is not on a bar scrolls the days.
 class _BarDrag extends HorizontalDragGestureRecognizer {
-  _BarDrag({required this.allowed}) : super(supportedDevices: null);
+  // From where the press went down, so the end it took is the end it carries.
+  _BarDrag({required this.allowed}) : super(supportedDevices: null) {
+    dragStartBehavior = DragStartBehavior.down;
+  }
 
   final bool Function(Offset at, PointerDeviceKind kind) allowed;
 

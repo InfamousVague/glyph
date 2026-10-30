@@ -6,20 +6,20 @@
 /// - **Month** and **Week**: a month's weeks with each record's name in its day (three, then "+ n more", which opens
 ///   the week), or one week's seven days with every record in each; the arrows turn a month or a week, Today comes
 ///   back to today's.
-/// - **Carried.** Where what the query lists can be changed, a record's chip is carried to another day (at once on
-///   a desktop, after holding it on a phone or a tablet), and the field its day is from (the query's `date:`, else the
+/// - **Carried.** Where what the query lists can be changed, a record's chip is carried to another day by the app's
+///   one carry (lib/core/hold_drag.dart: pressed and held, then moved), and the field its day is from (the query's `date:`, else the
 ///   first day field it has) is set to the day it is dropped on: a note's front matter, a to-do's line.
 /// - A tap on a record opens it. The calendars' events, beside a calendar of to-dos, are quieter and never carried.
 library;
 
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
+import '../../core/hold_drag.dart';
 import '../../core/properties.dart' show StatusCategory;
 import '../../core/query/query.dart';
 import '../items/field_chips.dart' show daySaid;
@@ -33,43 +33,166 @@ const double wideCalendar = 560;
 /// Whether [row] can be carried to another day: a record in a note, with a day from a field that can be written.
 bool carriesDay(QueryRow row, QueryActs acts) => acts.editable && acts.onSet != null && row.kind != RecordKind.event && row.dayField != 'updated';
 
-/// [child], carried as [row] where [enabled], as a chip of its name: at once on a desktop, where a pointer carries
-/// it, and after holding it on a phone or a tablet, where a finger's swipe is the page's to scroll.
-Widget carriedDay({required QueryLook look, required QueryRow row, required bool enabled, required Widget child}) {
-  if (!enabled) return child;
-  final feedback = _Chip(look: look, row: row, lifted: true);
-  final ghost = Opacity(opacity: 0.35, child: child);
-  final desktop = switch (defaultTargetPlatform) {
-    TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux => true,
-    _ => false,
-  };
-  if (desktop) return Draggable<QueryRow>(data: row, feedback: feedback, childWhenDragging: ghost, onDragStarted: () => fireMotor(HapticKind.selection), child: child);
-  return LongPressDraggable<QueryRow>(data: row, hapticFeedbackOnStart: false, onDragStarted: () => fireMotor(HapticKind.selection), feedback: feedback, childWhenDragging: ghost, child: child);
+/// The days of a calendar a carried record can land on, and the one it is over now: each [DayDrop] is one, found by
+/// its box on the screen as the record moves, as a board's lanes are (lane_carry.dart).
+class DayTargets extends ChangeNotifier {
+  final Map<String, BuildContext> _days = <String, BuildContext>{};
+
+  /// The day a carried record is over; null where it is over none, or nothing is carried.
+  String? over;
+
+  void _add(String day, BuildContext context) => _days[day] = context;
+
+  void _remove(String day, BuildContext context) {
+    if (identical(_days[day], context)) _days.remove(day);
+  }
+
+  /// The day whose box holds [global], a point on the screen.
+  String? dayAt(Offset global) {
+    for (final MapEntry(key: day, value: context) in _days.entries) {
+      final box = context.mounted ? context.findRenderObject() : null;
+      if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+      if ((box.localToGlobal(Offset.zero) & box.size).contains(global)) return day;
+    }
+    return null;
+  }
+
+  void hover(String? day) {
+    if (day == over) return;
+    over = day;
+    notifyListeners();
+  }
 }
 
-/// A day a carried record is dropped on: the field its day is from set to [day]. Lit while one is over it.
-class DayDrop extends StatelessWidget {
-  const DayDrop({super.key, required this.look, required this.day, required this.onDay, required this.child, this.radius});
+/// [child], carried as [row] to a day of [targets] where [onDay] is given: by the app's one carry (lib/core/
+/// hold_drag.dart: pressed and held, a pointer as much as a finger; a finger that moves first scrolls), a chip of its
+/// name in the air, and dropped on a day to set the field its day is from.
+class DayCarrier extends StatefulWidget {
+  const DayCarrier({super.key, required this.look, required this.row, required this.targets, required this.onDay, required this.child});
+
+  final QueryLook look;
+  final QueryRow row;
+  final DayTargets targets;
+  final void Function(QueryRow row, String day)? onDay;
+  final Widget child;
+
+  @override
+  State<DayCarrier> createState() => _DayCarrierState();
+}
+
+class _DayCarrierState extends State<DayCarrier> {
+  Ghost? _ghost;
+  bool _lifted = false;
+
+  void _press(PointerDownEvent event) {
+    final onDay = widget.onDay;
+    if (onDay == null) return;
+    holdDrag(
+      event,
+      HoldDragHooks(
+        lift: (at) {
+          if (!mounted) return;
+          final width = math.min(240.0, math.max(120.0, (context.findRenderObject() as RenderBox?)?.size.width ?? 160));
+          _ghost = liftGhost(
+            context,
+            box: Rect.fromLTWH(at.dx - 24, at.dy - 12, width, 24),
+            at: at,
+            radius: BorderRadius.circular(widget.look.t.radius('sm')),
+            builder: (_) => _Chip(look: widget.look, row: widget.row, lifted: true),
+          );
+          setState(() => _lifted = true);
+        },
+        move: (at) {
+          _ghost?.follow(at);
+          widget.targets.hover(widget.targets.dayAt(at));
+        },
+        drop: (at) {
+          final day = widget.targets.dayAt(at);
+          if (day != null && day != widget.row.day) onDay(widget.row, day);
+        },
+        end: (_) {
+          _ghost?.remove();
+          _ghost = null;
+          widget.targets.hover(null);
+          if (mounted) setState(() => _lifted = false);
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ghost?.remove();
+    super.dispose();
+  }
+
+  @override
+  // The whole row is the thing held, its gaps between words too.
+  Widget build(BuildContext context) => widget.onDay == null ? widget.child : Listener(behavior: HitTestBehavior.opaque, onPointerDown: _press, child: Opacity(opacity: _lifted ? 0.35 : 1, child: widget.child));
+}
+
+/// A day a carried record is dropped on ([DayTargets]), lit while one is over it.
+class DayDrop extends StatefulWidget {
+  const DayDrop({super.key, required this.look, required this.day, required this.targets, required this.child, this.radius});
 
   final QueryLook look;
   final String day;
-  final void Function(QueryRow row, String day)? onDay;
+
+  /// Null where nothing is carried on this calendar.
+  final DayTargets? targets;
   final Widget child;
   final BorderRadius? radius;
 
   @override
+  State<DayDrop> createState() => _DayDropState();
+}
+
+class _DayDropState extends State<DayDrop> {
+  bool _over = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _join(widget.targets);
+  }
+
+  @override
+  void didUpdateWidget(DayDrop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targets != widget.targets || oldWidget.day != widget.day) {
+      _leave(oldWidget.targets, oldWidget.day);
+      _join(widget.targets);
+    }
+  }
+
+  void _join(DayTargets? targets) {
+    targets?._add(widget.day, context);
+    targets?.addListener(_heard);
+  }
+
+  void _leave(DayTargets? targets, String day) {
+    targets?._remove(day, context);
+    targets?.removeListener(_heard);
+  }
+
+  void _heard() {
+    final over = widget.targets?.over == widget.day;
+    if (over != _over) setState(() => _over = over);
+  }
+
+  @override
+  void dispose() {
+    _leave(widget.targets, widget.day);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final drop = onDay;
-    if (drop == null) return child;
-    return DragTarget<QueryRow>(
-      onWillAcceptWithDetails: (details) => details.data.day != day,
-      onAcceptWithDetails: (details) => drop(details.data, day),
-      builder: (context, over, _) => over.isEmpty
-          ? child
-          : Container(
-              foregroundDecoration: BoxDecoration(color: QueryLook.mix(look.ink, 0.06), borderRadius: radius, border: Border.all(color: QueryLook.mix(look.ink, 0.45), width: 1.5)),
-              child: child,
-            ),
+    if (!_over) return widget.child;
+    final look = widget.look;
+    return Container(
+      foregroundDecoration: BoxDecoration(color: QueryLook.mix(look.ink, 0.06), borderRadius: widget.radius, border: Border.all(color: QueryLook.mix(look.ink, 0.45), width: 1.5)),
+      child: widget.child,
     );
   }
 }
@@ -93,12 +216,13 @@ class _Chip extends StatelessWidget {
     final words = id != null && id.isNotEmpty ? '$id ${row.name}' : row.name;
     final hours = event ? _hours(row) : null;
     Widget chip = Container(
+      // In the air it fills the ghost liftGhost makes, whose shadow it wears (lib/core/hold_drag.dart).
+      width: lifted ? double.infinity : null,
       padding: EdgeInsets.symmetric(horizontal: look.space(1) + 1, vertical: 1),
       decoration: BoxDecoration(
         color: lifted ? look.paper2 : ground,
         borderRadius: BorderRadius.circular(look.t.radius('sm')),
         border: event ? Border.all(color: QueryLook.mix(look.ink3, 0.4), width: look.hair) : null,
-        boxShadow: lifted ? const <BoxShadow>[BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 2))] : null,
       ),
       child: Text(
         hours == null ? words : '$hours $words',
@@ -109,7 +233,7 @@ class _Chip extends StatelessWidget {
         style: look.sans(look.xs, color: colour, struck: done && !event, strike: look.ink4),
       ),
     );
-    if (lifted) chip = ConstrainedBox(constraints: const BoxConstraints(maxWidth: 220), child: chip);
+
     return Part('dayChip', child: chip);
   }
 
@@ -146,6 +270,14 @@ class QueryWideCalendar extends StatefulWidget {
 class QueryWideCalendarState extends State<QueryWideCalendar> {
   /// The week shown, its Monday; null for the month.
   String? week;
+
+  final DayTargets _targets = DayTargets();
+
+  @override
+  void dispose() {
+    _targets.dispose();
+    super.dispose();
+  }
 
   QueryLook get look => widget.look;
   QueryActs get acts => widget.acts;
@@ -224,7 +356,7 @@ class QueryWideCalendarState extends State<QueryWideCalendar> {
       excludeSemantics: true,
       child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => acts.onOpen(row), child: _Chip(look: look, row: row)),
     );
-    return carriedDay(look: look, row: row, enabled: carriesDay(row, acts), child: chip);
+    return DayCarrier(look: look, row: row, targets: _targets, onDay: carriesDay(row, acts) ? widget.onDay : null, child: chip);
   }
 
   Widget _date(CalendarDay day, {bool long = false}) {
@@ -251,7 +383,7 @@ class QueryWideCalendarState extends State<QueryWideCalendar> {
     return DayDrop(
       look: look,
       day: day.day,
-      onDay: widget.onDay,
+      targets: widget.onDay == null ? null : _targets,
       radius: radius,
       child: Semantics(
         container: true,

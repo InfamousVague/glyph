@@ -974,6 +974,15 @@ class _QueryCalendarState extends State<QueryCalendar> {
   late String _month = openingMonth(widget.rows, widget.acts.today);
   String? _picked;
 
+  /// The days a record held in the day's list can be carried to.
+  final DayTargets _targets = DayTargets();
+
+  @override
+  void dispose() {
+    _targets.dispose();
+    super.dispose();
+  }
+
   void _turn(int by) => setState(() {
     _month = monthAfter(_month, by);
     _picked = null;
@@ -1095,7 +1104,7 @@ class _QueryCalendarState extends State<QueryCalendar> {
         child: DayDrop(
           look: look,
           day: day.day,
-          onDay: drops,
+          targets: drops == null ? null : _targets,
           radius: radius,
           child: Semantics(
           container: true,
@@ -1259,7 +1268,7 @@ class _QueryCalendarState extends State<QueryCalendar> {
                     for (final event in eventsOn[shown.day] ?? const <QueryRow>[]) QueryEventLine(look: look, row: event),
                     if (shown.rows.isNotEmpty)
                       for (final (index, row) in shown.rows.indexed)
-                        carriedDay(look: look, row: row, enabled: drops != null && carriesDay(row, acts), child: QueryRowLine(look: look, row: row, acts: acts, first: index == 0, keyLine: false))
+                        DayCarrier(look: look, row: row, targets: _targets, onDay: drops != null && carriesDay(row, acts) ? drops : null, child: QueryRowLine(look: look, row: row, acts: acts, first: index == 0, keyLine: false))
                     else if (!eventsOn.containsKey(shown.day))
                       Padding(
                         padding: EdgeInsets.symmetric(vertical: look.space(1)),

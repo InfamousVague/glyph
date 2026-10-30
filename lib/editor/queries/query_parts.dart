@@ -210,7 +210,7 @@ class QueryTag extends StatelessWidget {
   }
 }
 
-/// A note a relation names, as a chip: a tag's ground, the link's mark before its title (the port's own).
+/// A note a relation names, as a chip: a tag's ground under its title, a little wider (the port's own).
 class QueryLinkChip extends StatelessWidget {
   const QueryLinkChip({super.key, required this.look, required this.title, required this.parent});
 
@@ -230,14 +230,8 @@ class QueryLinkChip extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 0.35 * em),
         decoration: BoxDecoration(color: QueryLook.mix(look.ink2, 0.09), borderRadius: BorderRadius.circular(0.35 * em)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            AppIcon(Lucide.link2, size: 0.9 * em, strokeWidth: 2.2, color: look.ink3),
-            SizedBox(width: 0.25 * em),
-            Text(title, softWrap: false, textScaler: TextScaler.noScaling, style: style.copyWith(height: (glyph.ascent + glyph.descent) / em)),
-          ],
-        ),
+        // Words alone, as a tag's chip is: a table lays its cells out on their baselines, which a drawn mark has not got.
+        child: Text(title, softWrap: false, textScaler: TextScaler.noScaling, style: style.copyWith(height: (glyph.ascent + glyph.descent) / em)),
       ),
     );
   }
