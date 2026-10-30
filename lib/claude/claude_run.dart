@@ -169,8 +169,12 @@ class ClaudeRun extends ChangeNotifier {
     return '';
   }
 
-  /// Every note this run wrote, by id, with its title.
+  /// Every note this run wrote, by id, with its title: the chat's card of links to them (claude_chat.dart; Matt,
+  /// 2026-10-30: "have claude chat share an embeded link to notes it creates and edits").
   final Map<String, String> touched = {};
+
+  /// Of [touched], the notes this run made rather than changed.
+  final Set<String> made = {};
 
   ClaudeAt? _at;
   ClaudeAt? get at => _at;
@@ -482,7 +486,11 @@ class ClaudeRun extends ChangeNotifier {
     if (books != null && ClaudeBookTool.all.contains(name)) {
       try {
         final done = await books.answer(name, input);
-        if (done.noteId != null) touched[done.noteId!] = books.shelf.titleOf(done.noteId!) ?? '';
+        if (done.noteId != null) {
+          touched[done.noteId!] = books.shelf.titleOf(done.noteId!) ?? '';
+          // The book tools make notes (a notebook, a ticket) or take one away; none changes one.
+          made.add(done.noteId!);
+        }
         _tool(done.step, done.noteId);
         return done.said;
       } on ClaudeBookProblem catch (problem) {
@@ -654,6 +662,7 @@ class _Writing extends FieldListener {
     }
     noteId = id;
     run.touched[id] = _title;
+    if (created) run.made.add(id);
     run._at = ClaudeAt(id, _title, 'writing');
     run._set(ClaudeState.writing);
     final shown = run._following || created;
@@ -799,6 +808,7 @@ class _Writing extends FieldListener {
         await shelf.trash(typed);
         claudeMade.remove(typed);
         run.touched.remove(typed);
+        run.made.remove(typed);
         run._tool('Took back a note that was cut off before it was whole');
       } catch (_) {
         // Left as it is: the person can delete it.
