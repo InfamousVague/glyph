@@ -33,7 +33,7 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
   // Back where there is a note or a page to come back from; the sidebar's toggle at home.
   final start = parts.atHome ? (parts.sidebar ?? parts.back) : (parts.back ?? parts.sidebar);
   final primary = parts.onNote ? parts.view : null;
-  Widget colour(HeaderAct act) => HeaderGlyph(act, size: 16, color: hueInk(context.tokens, _hueOf(act)), strokeWidth: 2);
+  Widget colour(HeaderAct act) => menuHueGlyph(context, act);
   final noteRows = <HeaderMenuEntry>[
     for (final act in notShown(parts.noteActs, [?primary])) HeaderMenuAct(act, icon: colour(act)),
     if (parts.more case final more?) HeaderMenuAct(more, icon: colour(more)),
@@ -73,6 +73,11 @@ HeaderRow commandRow(BuildContext context, HeaderParts parts) {
 const Map<String, String> _hues = {'folders': 'amber', 'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'search': 'blue', 'new': 'green', 'all': 'indigo', 'more': 'indigo'};
 
 String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
+
+/// A row's glyph in a menu of •••, in its own hue as Command centre draws them: Grouped command's menu wears the same
+/// (Matt, 2026-10-30: "The colors for the dropdown more menu are missing on general deployments though I see the
+/// colored icons on my end": he was on Command centre, everyone else on the default, whose menu was grey).
+Widget menuHueGlyph(BuildContext context, HeaderAct act) => HeaderGlyph(act, size: 16, color: hueInk(context.tokens, _hueOf(act)), strokeWidth: 2);
 
 /// The pill in the middle: a search glyph, the note's name (or what the palette is for), and ⌘K under a mouse.
 class CommandField extends StatelessWidget {

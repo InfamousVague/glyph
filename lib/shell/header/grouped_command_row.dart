@@ -40,7 +40,7 @@ import '../../art/lucide.g.dart';
 import '../header_toolbar.dart';
 import '../page_dock.dart' show dockScrolledScale;
 import '../top_bar_tools.dart' show BarButton;
-import 'command_row.dart' show CommandField;
+import 'command_row.dart' show CommandField, menuHueGlyph;
 import 'grouped_row.dart';
 import 'header_kit.dart';
 
@@ -70,15 +70,17 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   final shown = parts.actions.take(wide ? 2 : 0).toList();
   final rest = notShown(parts.actions, shown);
   final more = parts.more;
+  // Each row's glyph in its own hue, as Command centre's menu has them.
+  Widget hue(HeaderAct act) => menuHueGlyph(context, act);
   final entries = <HeaderMenuEntry>[
     // What the bar keeps under ••• first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
-    ...keptEntries(parts, more: rest.isNotEmpty || more != null || putAway.isNotEmpty),
-    for (final act in rest) HeaderMenuAct(act),
-    if (more != null) HeaderMenuAct(more),
+    ...keptEntries(parts, more: rest.isNotEmpty || more != null || putAway.isNotEmpty, icon: hue),
+    for (final act in rest) HeaderMenuAct(act, icon: hue(act)),
+    if (more != null) HeaderMenuAct(more, icon: hue(more)),
     if (putAway.isNotEmpty) ...[
       if (rest.isNotEmpty || more != null) const HeaderMenuRule(),
       const HeaderMenuLabel('Go'),
-      for (final act in putAway) HeaderMenuAct(act),
+      for (final act in putAway) HeaderMenuAct(act, icon: hue(act)),
     ],
   ];
   final overflow = entries.isEmpty
