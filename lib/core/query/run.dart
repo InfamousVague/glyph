@@ -113,9 +113,12 @@ class PeopleCell extends Cell {
 }
 
 class ListCell extends Cell {
-  const ListCell(this.items, {required this.tags});
+  const ListCell(this.items, {required this.tags, this.links = false});
   final List<String> items;
   final bool tags;
+
+  /// The notes a relation names (values.dart [ListValue.links]), drawn as chips that open them; not in the JSON.
+  final bool links;
   @override
   Object? toJson() => {'kind': 'list', 'items': items, 'tags': tags};
 }
@@ -436,7 +439,7 @@ Cell _cellOf(Value value, String field, String today, bool open) => switch (valu
       PriorityValue(:final name) => name != null && name.isNotEmpty ? PriorityCell(name) : const EmptyCell(),
       StatusValue(:final text, :final category) => StatusCell(text, category),
       PeopleValue(:final names) => PeopleCell(names),
-      ListValue(:final items, :final tags) => ListCell(items, tags: tags),
+      ListValue(:final items, :final tags, :final links) => ListCell(items, tags: tags, links: links),
       BoolValue(:final on) => BoolCell(on: on),
     };
 
