@@ -21,6 +21,11 @@
 ///
 /// Totals are added as a sum of them would be (sums.dart `totalOf`), over the records shown, and over each group's.
 ///
+/// The port's own (2026-10-30): a rollup is a field like any other, read through rollup.dart's [FieldLook], and a
+/// column of its own where `columns:` is unsaid; a calendar's day is its `date:` field where one is written, a
+/// timeline's bar runs from its `start:` field to its `end:` (`start` and `due`), and a chart's bars are worked out
+/// here (chart.dart). None of it is in a result's JSON unless asked for, so every query the web runs runs the same.
+///
 /// What differs: `Column`, `Row` and `Group` are [QueryColumn], [QueryRow] and [QueryGroup], since Flutter has a
 /// Column and a Row of its own. Each is [QueryData], whose `toJson` is the web's object key for key: what the
 /// fixtures hold a run to (tool/query_fixtures.mjs). The orders are sorted so that ties stay as they came, as the
@@ -31,10 +36,12 @@ import '../properties.dart' show StatusCategory, defaultStatuses, statusCategory
 import '../sums.dart' show totalOf;
 import '../task_fields.dart' show samePerson;
 import '../title_key.dart' show titleKey;
+import 'chart.dart';
 import 'collate.dart';
 import 'gantt.dart';
 import 'read.dart';
 import 'records.dart';
+import 'rollup.dart';
 import 'values.dart';
 
 /// A column: the field it shows and what it is called (`Column`).
@@ -139,6 +146,8 @@ class QueryRow extends QueryData {
     required this.start,
     required this.due,
     required this.overdue,
+    this.end,
+    this.dayField,
   });
 
   /// Its note's id, and its line for a to-do: one row's key, whatever else changes.
@@ -174,6 +183,13 @@ class QueryRow extends QueryData {
 
   /// Due before today and not done.
   final bool overdue;
+
+  /// The day a timeline's bar ends on: its query's `end:` field's, else its due day (the port's own).
+  final String? end;
+
+  /// The field [day] is from, which a day carried to another on a calendar sets; null where it has no day, and for
+  /// an event (the port's own).
+  final String? dayField;
 
   @override
   Object? toJson() => {
@@ -245,6 +261,11 @@ class QueryResult extends QueryData {
     required this.gantt,
     required this.warnings,
     required this.today,
+    this.chart,
+    this.dateField,
+    this.startField = 'start',
+    this.endField = 'due',
+    this.zoom,
   });
 
   final QueryKind kind;
@@ -272,6 +293,15 @@ class QueryResult extends QueryData {
   /// The day it was run on.
   final String today;
 
+  /// A chart's bars; null where it is not shown as one (the port's own).
+  final ChartData? chart;
+
+  /// A calendar's day field, where `date:` names one; a timeline's start and end fields, and its zoom where written.
+  final String? dateField;
+  final String startField;
+  final String endField;
+  final TimelineZoom? zoom;
+
   @override
   Object? toJson() => {
         'kind': kind.name,
@@ -286,6 +316,7 @@ class QueryResult extends QueryData {
         'gantt': gantt?.toJson(),
         'warnings': warnings,
         'today': today,
+        if (chart != null) 'chart': chart!.toJson(),
       };
 }
 
@@ -355,15 +386,6 @@ bool _fromHolds(Source source, QueryRecord record, Map<String, LibraryNote?> nam
   }
 }
 
-/// Whether a record passes `where:`.
-bool _holds(Condition condition, QueryRecord record, String today) => switch (condition) {
-      Compare(:final field, :final op, :final value) => valueMatches(valueOf(record, field), op, value, today),
-      EmptyTest(:final field, :final empty) => isEmptyValue(valueOf(record, field)) == empty,
-      Has(:final field) => says(valueOf(record, field)),
-      NotCondition(:final of) => !_holds(of, record, today),
-      AndCondition(:final all) => all.every((each) => _holds(each, record, today)),
-      OrCondition(:final any) => any.any((each) => _holds(each, record, today)),
-    };
 
 /// Whether a value sorts last, whichever way: nothing in it. A priority's none sorts between medium and low.
 bool _sortsLast(Value value) => isEmptyValue(value) && value is! PriorityValue;
@@ -380,8 +402,8 @@ List<T> _stableSorted<T>(List<T> items, num Function(T a, T b) order) {
 }
 
 /// Records in the order [keys] asks, then by note and line, so two runs of one query agree.
-List<QueryRecord> _sorted(List<QueryRecord> records, List<SortKey> keys) {
-  final decorated = [for (final record in records) (record: record, values: [for (final key in keys) valueOf(record, key.field)])];
+List<QueryRecord> _sorted(List<QueryRecord> records, List<SortKey> keys, FieldLook look) {
+  final decorated = [for (final record in records) (record: record, values: [for (final key in keys) look(record, key.field)])];
   return [
     for (final each in _stableSorted(decorated, (a, b) {
       for (var i = 0; i < keys.length; i += 1) {
@@ -419,12 +441,15 @@ Cell _cellOf(Value value, String field, String today, bool open) => switch (valu
     };
 
 /// A day field's day, where it is one.
-String? _dayOf(QueryRecord record, String field) {
-  final value = valueOf(record, field);
+String? _dayOf(QueryRecord record, String field, [FieldLook look = valueOf]) {
+  final value = look(record, field);
   return value is DayValue ? value.day : null;
 }
 
-QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today) {
+/// A record's row's key: its note's id, and its line for a to-do; an event's own.
+String rowKeyOf(QueryRecord record) => record.event != null ? 'event:${record.event!.id}' : (record.kind == RecordKind.task ? '${record.noteId}:${record.line}' : record.noteId);
+
+QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [FieldLook look = valueOf, Query? query]) {
   final event = record.event;
   if (event != null) {
     // An event is on its first day, runs to its last (a gantt's bar), and is never late: it is not a thing to do.
@@ -440,21 +465,29 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today) {
       done: null,
       category: StatusCategory.todo,
       workflow: record.workflow,
-      cells: [for (final column in columns) _cellOf(valueOf(record, column.field), column.field, today, false)],
+      cells: [for (final column in columns) _cellOf(look(record, column.field), column.field, today, false)],
       day: event.startDay,
       start: event.startDay,
       due: event.endDay,
       overdue: false,
+      end: event.endDay,
     );
   }
   final category = categoryOf(record);
   final due = _dayOf(record, 'due');
   final done = category == StatusCategory.done || record.done == true;
   String? day;
-  for (final field in _dayFields) {
-    day = _dayOf(record, field);
-    if (day != null) break;
+  String? dayField;
+  final asked = query?.date;
+  for (final field in asked != null ? [asked] : _dayFields) {
+    day = _dayOf(record, field, look);
+    if (day != null) {
+      dayField = field;
+      break;
+    }
   }
+  final startField = query?.start ?? 'start';
+  final endField = query?.end ?? 'due';
   return QueryRow(
     key: record.kind == RecordKind.task ? '${record.noteId}:${record.line}' : record.noteId,
     kind: record.kind,
@@ -467,23 +500,25 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today) {
     done: record.done,
     category: category,
     workflow: record.workflow,
-    cells: [for (final column in columns) _cellOf(valueOf(record, column.field), column.field, today, !done)],
+    cells: [for (final column in columns) _cellOf(look(record, column.field), column.field, today, !done)],
     day: day,
-    start: _dayOf(record, 'start'),
+    start: _dayOf(record, startField, look),
     due: due,
     overdue: due != null && due.compareTo(today) < 0 && !done,
+    end: endField == 'due' ? due : _dayOf(record, endField, look),
+    dayField: dayField,
   );
 }
 
 /// The totals of [fields] over [records], each added as a sum would be.
-List<Total> _totalsOf(List<String> fields, List<QueryRecord> records) => [
+List<Total> _totalsOf(List<String> fields, List<QueryRecord> records, [FieldLook look = valueOf]) => [
       for (final field in fields)
         Total(
           field: field,
           label: fieldLabel(field),
           text: totalOf([
                 for (final record in records)
-                  if (valueOf(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
+                  if (look(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
               ]) ??
               '0',
         ),
@@ -510,7 +545,7 @@ class _Grouped {
 /// The records in groups by [field], in the order the field's values sort, the group with nothing last. A list puts
 /// its record in a group for each thing it holds. [columns] are the groups to have whether or not anything is in
 /// them: a ticket board's workflow.
-List<_Grouped> _grouped(List<QueryRecord> records, String field, List<String> columns, List<String> workflow) {
+List<_Grouped> _grouped(List<QueryRecord> records, String field, List<String> columns, List<String> workflow, [FieldLook look = valueOf]) {
   final groups = <String, _Grouped>{};
   for (final status in columns) {
     final value = StatusValue(text: status, rank: workflow.indexOf(status).toDouble(), category: statusCategory(status, workflow), workflow: workflow);
@@ -519,7 +554,7 @@ List<_Grouped> _grouped(List<QueryRecord> records, String field, List<String> co
     groups[key] = _Grouped(key, value);
   }
   for (final record in records) {
-    final value = valueOf(record, field);
+    final value = look(record, field);
     final each = isEmptyValue(value) ? [value] : groupValues(value);
     for (final one in each) {
       final key = groupKey(one);
@@ -559,19 +594,22 @@ QueryResult runQuery(Query query, QueryLibrary library, String today) {
   final asksDone = [...fieldsNamed(query.where), ?groupField].any(_doneFields.contains);
   final from = query.from;
   final where = query.where;
+  final look = rollupLook(query.rollups, library, today);
   final passed = [
     for (final record in library.records)
       if (_ofKind(record, query.kind) &&
           (from == null || _fromHolds(from, record, named)) &&
           (query.kind != QueryKind.tasks || asksDone || record.done == false) &&
-          (where == null || _holds(where, record, today)))
+          (where == null || holdsOn(where, record, today, look)))
         record,
   ];
-  final ordered = _sorted(passed, query.sort.isNotEmpty ? query.sort : _defaultSort[query.kind]!);
+  final ordered = _sorted(passed, query.sort.isNotEmpty ? query.sort : _defaultSort[query.kind]!, look);
   final limit = query.limit;
   final shown = limit != null && limit != 0 ? ordered.sublist(0, limit < ordered.length ? limit : ordered.length) : ordered;
 
-  final fields = query.columns.isNotEmpty ? query.columns : _defaultColumns[query.kind]!;
+  // A rollup is a column of its own where the columns are the kind's.
+  final kinds = _defaultColumns[query.kind]!;
+  final fields = query.columns.isNotEmpty ? query.columns : [...kinds, for (final rollup in query.rollups) if (!kinds.contains(rollup.name)) rollup.name];
   final columns = [for (final field in fields) QueryColumn(field: field, label: fieldLabel(field))];
   final nameField = query.kind == QueryKind.tasks ? 'text' : 'title';
   final at = fields.indexOf(nameField);
@@ -583,17 +621,17 @@ QueryResult runQuery(Query query, QueryLibrary library, String today) {
     // A ticket board has every status of its workflow as a column, as a Jira board does, whether or not anything is in it.
     final always = show == ShowAs.board && groupField == 'status' && query.kind == QueryKind.tickets ? workflow : const <String>[];
     groups = [
-      for (final group in _grouped(shown, groupField, always, workflow))
+      for (final group in _grouped(shown, groupField, always, workflow, look))
         QueryGroup(
           key: group.key,
           label: _groupLabel(group.value, groupField),
           cell: isEmptyValue(group.value) ? null : _cellOf(group.value, groupField, today, true),
-          rows: [for (final record in group.records) _rowOf(record, columns, today)],
-          totals: _totalsOf(query.total, group.records),
+          rows: [for (final record in group.records) _rowOf(record, columns, today, look, query)],
+          totals: _totalsOf(query.total, group.records, look),
         ),
     ];
   } else {
-    groups = [QueryGroup(key: '', label: '', cell: null, rows: [for (final record in shown) _rowOf(record, columns, today)], totals: _totalsOf(query.total, shown))];
+    groups = [QueryGroup(key: '', label: '', cell: null, rows: [for (final record in shown) _rowOf(record, columns, today, look, query)], totals: _totalsOf(query.total, shown, look))];
   }
 
   return QueryResult(
@@ -605,9 +643,14 @@ QueryResult runQuery(Query query, QueryLibrary library, String today) {
     groups: groups,
     matched: passed.length,
     shown: shown.length,
-    totals: _totalsOf(query.total, shown),
+    totals: _totalsOf(query.total, shown, look),
     gantt: show == ShowAs.gantt ? ganttOf(groups, kindWords[query.kind]!) : null,
     warnings: warnings,
     today: today,
+    chart: show == ShowAs.chart ? chartOf(query, shown, rowKeyOf, look, group: query.group) : null,
+    dateField: query.date,
+    startField: query.start ?? 'start',
+    endField: query.end ?? 'due',
+    zoom: query.zoom,
   );
 }
