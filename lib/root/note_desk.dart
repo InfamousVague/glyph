@@ -177,10 +177,13 @@ import '../editor/suggestions/suggestions.dart' show suggestions;
 import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
+import '../editor/view/transcript_fold.dart';
 import '../editor/view/text_panel.dart' show EditorTextPanels, TextPanel, textPanels;
 import '../files/attachment_store.dart' show KeptAttachment;
 import '../files/files_kit.dart';
 import '../files/plus_files.dart';
+import '../meet/meet_note.dart' show captionsOfVersions, rebuiltTranscript;
+import '../note/meeting_view.dart';
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_place.dart' as reading show caretPlace, placeOf;
@@ -332,6 +335,7 @@ class NoteDeskWorld {
     this.onRecordingChanged,
     this.notesSynced,
     this.shareVersionsFile,
+    this.versionTexts,
     this.syncWithin,
     this.links,
     this.openTag,
@@ -490,6 +494,10 @@ class NoteDeskWorld {
   /// Hands a note's versions file to the person and answers what to say (lib/core/versions_share.dart); absent, the
   /// history's row is off.
   final Future<String?> Function(String noteId, String title)? shareVersionsFile;
+
+  /// The words of each version kept of a note, oldest first (lib/core/versions_record.dart): where Rebuild transcript
+  /// finds the captions a meeting kept before they went (Matt, 2026-10-30). Absent, it looks no further than the note.
+  final Future<List<String>> Function(String noteId)? versionTexts;
 
   /// A sync, waited for a few seconds at most (lib/sync/engine.dart `syncWithin`), for a note's pull to refresh;
   /// absent in a build with no account.
@@ -879,6 +887,9 @@ class NoteDeskState extends State<NoteDesk> {
     // Normal a `/` is a search and not the palette; while the +'s list is open its keys are its own.
     keyboardModes(KeymapHooks(mode: keyboardMode, startNormal: vimStartsNormal, jk: vimJk, save: () => _flush?.call(), close: () => _closeNote?.call(), holding: plusOpen)),
     _plus.extension,
+    // A meeting's transcript and captions folded out of its words, Note and Transcript over it (Matt, 2026-10-30):
+    // never typed into from here, and a find's match or a landing in them opens the transcript at it.
+    transcriptFold(TranscriptFold(meeting: (doc) => _meeting || ghostFiled(doc.sliceString(0, doc.length < 800 ? doc.length : 800)), reveal: _revealInTranscript)),
     findBarExtensions,
     // The phone's spell checker, asked about the words near the caret a moment after the person stops, and a red
     // wave under each it would have otherwise (lib/editor/spell; the page's `spellcheck="true"`). Nothing on a
@@ -1039,7 +1050,82 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// The transcript has the page with the tape still: the note was opened at it ([NoteDesk.showTranscript],
   /// [NoteDesk.playTape]), or the strip's Transcript was pressed; its Note puts the words back.
-  late bool _reading = widget.showTranscript || widget.playTape;
+  ///
+  /// A meeting's note has Note and Transcript over it ([_transcriptView]; Matt, 2026-10-30): its view is the one last
+  /// chosen for it here, else Note, and Transcript where a cassette was pressed to open it.
+  late bool _reading = _transcriptView ? (rememberedTranscript(widget.noteId) ?? widget.playTape) : (widget.showTranscript || widget.playTape);
+
+  /// Whether the note shows Note and Transcript (lib/note/meeting_view.dart `hasMeetingView`).
+  bool get _transcriptView {
+    final tape = _tape;
+    final body = tape?.note.body ?? _world.noteById?.call(widget.noteId)?.body ?? '';
+    return hasMeetingView(body, meeting: _meeting, taped: tape != null && tape.length > 0);
+  }
+
+  /// A moment of the transcript to bring into view as it opens (a find's match there), in ms.
+  int? _revealMs;
+
+  /// Opens the transcript at offset [at] of the words: a find's match, or a landing, in the folded transcript.
+  void _revealInTranscript(int at) {
+    if (!mounted || !_transcriptView) return;
+    final doc = _view?.state.doc.toString() ?? '';
+    setState(() {
+      _revealMs = transcriptMsAt(doc, at) ?? 0;
+      _reading = true;
+    });
+  }
+
+  /// Note or Transcript, chosen: remembered for the note on this device.
+  void _choose(bool transcript) {
+    if (transcript == _reading) return;
+    _flush?.call();
+    rememberView(widget.noteId, transcript);
+    setState(() => _reading = transcript);
+  }
+
+  /// Whether Rebuild transcript is at work.
+  bool _rebuilding = false;
+
+  /// Rebuild transcript (Matt, 2026-10-30): the meeting's turns made again from its kept phrases, named from its
+  /// captions, or the newest captions its versions kept, or its transcript's own names (lib/meet/meet_note.dart
+  /// `rebuiltTranscript`), with nothing heard again. One change of the transcript's lines through this editor, so a
+  /// team's note takes it as one edit of its document, and nothing above the transcript (the summary) is touched.
+  Future<void> _rebuildTranscript() async {
+    final view = _view;
+    if (view == null || _rebuilding || widget.readOnly) return;
+    setState(() => _rebuilding = true);
+    try {
+      _flush?.call();
+      final full = await _world.getNote?.call(widget.noteId).then<Note?>((note) => note, onError: (Object _) => null);
+      final segments = full?.segments ?? _tape?.segments ?? const <Segment>[];
+      final doc = view.state.doc.toString();
+      List<String> versions = const [];
+      final read = _world.versionTexts;
+      if (read != null) versions = await read(widget.noteId).then<List<String>>((texts) => texts, onError: (Object _) => const <String>[]);
+      final section = rebuiltTranscript(doc, segments, captions: captionsOfVersions(versions));
+      if (!mounted) return;
+      if (section == null) {
+        _toasts?.toast(message: const Text('This meeting’s phrases aren’t kept on this device and it has no captions, so there’s nothing to rebuild its transcript from. Its recording would have to be heard again.'), duration: const Duration(seconds: 8));
+        return;
+      }
+      final now = _view;
+      if (now == null) return;
+      final words = now.state.doc.toString();
+      final range = transcriptRange(words);
+      final insert = section.trimRight();
+      final from = range?.from ?? words.trimRight().length;
+      final to = range?.to ?? words.length;
+      final text = range == null ? '${words.trimRight().isEmpty ? '' : '\n\n'}$insert' : insert;
+      if (words.substring(from, to) == text) {
+        _toasts?.toast(message: const Text('The transcript is in turns already.'), duration: const Duration(seconds: 4));
+        return;
+      }
+      now.dispatch(TransactionSpec(changes: ChangeSpec(from: from, to: to, insert: text)));
+      _toasts?.toast(message: const Text('Transcript rebuilt.'), duration: const Duration(seconds: 4));
+    } finally {
+      if (mounted) setState(() => _rebuilding = false);
+    }
+  }
 
   /// Whether the strip has said where this device has no audio for the tape, once the transcript is read.
   bool _audioLooked = false;
@@ -1047,6 +1133,8 @@ class NoteDeskState extends State<NoteDesk> {
   /// `tape.length && tape.playing`: the tape is playing, so the transcript has the page; or it is being read.
   bool get _listening {
     final tape = _tape;
+    // A meeting's: the view chosen, playing or not, with a recording here or not.
+    if (_transcriptView) return _reading;
     return tape != null && tape.length > 0 && (tape.playing || _reading);
   }
 
@@ -1276,7 +1364,7 @@ class NoteDeskState extends State<NoteDesk> {
     super.didUpdateWidget(oldWidget);
     _land();
     // Opened at its transcript again while it was open with its words: the transcript has the page.
-    if ((widget.showTranscript && !oldWidget.showTranscript) || (widget.playTape && !oldWidget.playTape)) _reading = true;
+    if ((widget.showTranscript && !oldWidget.showTranscript && !_transcriptView) || (widget.playTape && !oldWidget.playTape)) _reading = true;
     if (!identical(oldWidget.world.notesSynced, _world.notesSynced)) {
       oldWidget.world.notesSynced?.removeListener(_phrasesMayHaveMoved);
       _world.notesSynced?.addListener(_phrasesMayHaveMoved);
@@ -2177,6 +2265,7 @@ class NoteDeskState extends State<NoteDesk> {
       head: (context, openSettings) {
         final tape = _tapeNow();
         final speak = _world.onSpeak;
+        final transcriptView = _transcriptView;
         if (widget.playTape && !_tapePlayed && tape != null && tape.length > 0) {
           _tapePlayed = true;
           // After the frame: the tape is drawn first, and a press of Play is what starts it.
@@ -2203,9 +2292,13 @@ class NoteDeskState extends State<NoteDesk> {
                 onRemove: () => unawaited(_removeRecording()),
                 hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
                 queue: _tapeQueue(),
-                // A meeting's, or one opened at its transcript: Transcript and Note, while the tape is still.
-                onTranscript: _meeting || _reading ? _toggleTranscript : null,
+                // One opened at its transcript: Transcript and Note, while the tape is still. A meeting's are the
+                // segmented Note and Transcript under the tape.
+                onTranscript: !transcriptView && (_meeting || _reading) ? _toggleTranscript : null,
                 transcriptShown: _reading,
+                onRebuild: transcriptView && !widget.readOnly ? () => unawaited(_rebuildTranscript()) : null,
+                rebuilding: _rebuilding,
+                simple: _prefs.value.simple,
                 // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
                 // can run.
                 summary: ((_ai?.canSummarize ?? false) || (_meeting && (_aiWorld?.writesMeetings?.call() ?? false))) && _aiWorld?.summarize != null
@@ -2221,6 +2314,8 @@ class NoteDeskState extends State<NoteDesk> {
                     : null,
               ),
             ),
+          // A meeting's two views (lib/note/meeting_view.dart).
+          if (transcriptView) MeetingViewSwitch(transcript: _reading, onChanged: _choose),
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
         ];
       },
@@ -2229,7 +2324,12 @@ class NoteDeskState extends State<NoteDesk> {
       transcript: _listening
           ? (context) => ListenableBuilder(
                 listenable: _queues(),
-                builder: (context, _) => TranscriptWords(tape: _tape!, writeUp: _writeUpLine(_tape!.note)),
+                builder: (context, _) {
+                  final tape = _tape != null && _tape!.length > 0 ? _tape : null;
+                  final note = tape?.note ?? _world.noteById?.call(widget.noteId);
+                  if (note == null) return const SizedBox.shrink();
+                  return TranscriptWords(tape: tape, note: note, turns: _transcriptView, atMs: _revealMs, onAt: () => _revealMs = null, writeUp: _writeUpLine(note));
+                },
               )
           : null,
       mapCard: _world.tags != null ? _mapCard : null,

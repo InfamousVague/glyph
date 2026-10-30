@@ -579,12 +579,31 @@ captions wait under `## Captions` rather than `## Transcript` because the write-
 listening. The write-up then appends `## Transcript` with Whisper's words and keeps its timed phrases beside the note;
 the next pass gives each phrase the speaker whose caption turn overlaps it longest (lib/meet/speakers.dart: a turn runs
 from a speaker's first caption to the next speaker's, moved a second earlier for the captions' lag; a phrase no turn
-overlaps takes the nearest turn's speaker within four seconds, or none), writes the transcript as `**Name:** words`
-paragraphs, drops `## Captions` and the "being written up" words. The summary was already written from the captions
+overlaps takes the nearest turn's speaker within four seconds, or none; a turn is held to as long as its words could
+take to say, so a stretch the captions missed is nobody's rather than the speaker's before it), writes the transcript
+in turns, drops `## Captions` and the "being written up" words.
+
+**Every meeting transcript is turns, every one timed** (Matt, 2026-10-30: "some of the meeting transcripts still go into
+one giant block instead of maintaining the name (timestamp): prefix on each line"): `**Name (0:04):** words`, or
+`(0:04) words` with nobody named, a new turn on a change of speaker, after a pause of more than 3 s, and once one has
+run a minute (lib/capture/meeting_turns.dart; the write-up's twin is transcript.rs `meeting_paragraphs`, both held to
+test/capture/fixtures/meeting_turns.json). Before this, the write-up's paragraphs broke only at a silence of 1.5 s,
+which a call's abutting phrases never have, and the meeting step left that one block where it had no phrases to name
+(it dropped the captions) or no captions (it took the line off): the 2026-10-29 Engineering Standup. Now with no
+phrases the captions' own turns are the transcript, a long one cut about a minute apart; with captions that meet none
+of the phrases, the same; with no captions, the phrases in timed turns. **Rebuild** on a meeting's tape writes its
+turns again from the phrases kept beside the note and its captions, or the newest captions its versions kept, with
+nothing heard again and nothing above `## Transcript` touched (meet_note.dart `rebuiltTranscript`).
+
+**Note and Transcript.** A meeting's note opens at Note, its words with `## Transcript` and `## Captions` folded out of
+the editor (lib/editor/view/transcript_fold.dart: never typed into, a person's edit leaves them byte for byte, a find's
+match or a landing in them opens Transcript there); Transcript is its turns, speaker and time over the words, the one
+being heard lit, a press playing from its start (lib/note/meeting_view.dart). The view last chosen is remembered per
+note on the device. The note is one file all the same. The summary was already written from the captions
 before Whisper began (see "The summary comes from the captions first", below), and stays above. The turns are read back from the note itself, so whichever of the account's
 devices wrote it up can name them.
 
-Filed from the captions alone, the captions are the transcript at once, `**Name:** words`, and the first line says why
+Filed from the captions alone, the captions are the transcript at once, in timed turns, and the first line says why
 ("This is from Meet's captions: the recording could not be kept on this device.", or "No sound came with it").
 
 ### The sound: transcribing a file

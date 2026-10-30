@@ -358,9 +358,18 @@ void main() {
       return library.noteOf(note.id)!;
     }
 
-    // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript". A meeting pressed in Settings ›
-    // Meetings, on the home page or in All notes opens as the shelf opens it, at [atTranscript], but the tape still.
-    testWidgets('a meeting opens at its transcript from Settings › Meetings, the home page and All notes, the tape still', (tester) async {
+    /// The meeting's Transcript (or Note), from the segmented control under its tape (lib/note/meeting_view.dart).
+    Future<void> choose(WidgetTester tester, String view) async {
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('meeting-view')), matching: find.text(view)));
+      await settle(tester, 8);
+    }
+
+    // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript"; and 2026-10-30: "use a button to
+    // switch to the transcript in the note don't show the transcript on the note section". A meeting pressed in
+    // Settings › Meetings, on the home page or in All notes opens at its top, at [atTranscript], the tape still, in the
+    // view last chosen for it on this device: Note until Transcript is chosen.
+    testWidgets('a meeting opens at its top from Settings › Meetings, the home page and All notes, the tape still, in the view last chosen', (tester) async {
+      useStored(MemoryStored());
       final player = FakeTapePlayer(lengths: const {});
       final library = await open(tester, tapePlayer: player);
       final met = await meetingIn(tester, library, body: '# Packing\n\nA long note.${[for (var i = 0; i < 80; i++) '\n\nline $i of a note long enough to scroll'].join()}');
@@ -380,13 +389,22 @@ void main() {
           tester.widget<AllNotesScreen>(find.byType(AllNotesScreen)).onOpen(met.id);
         },
       };
+      var first = true;
       for (final MapEntry(key: where, value: press) in presses.entries) {
         await press();
         await settle(tester, 8);
         final screen = shellOf(tester).screen;
         expect(screen is ScreenNote && screen.at == atTranscript, isTrue, reason: where);
+        if (first) {
+          // Note, the first time: the words, with Note and Transcript over them.
+          expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing, reason: where);
+          expect(find.byKey(const ValueKey('meeting-view')), findsOneWidget, reason: where);
+          await choose(tester, 'Transcript');
+          first = false;
+        }
+        // Transcript, chosen once and remembered for the note.
         expect(find.byType(TranscriptWords), findsOneWidget, reason: where);
-        expect(find.text('Bring the long lens'), findsOneWidget, reason: where);
+        expect(find.text('Bring the long lens and the tripod'), findsOneWidget, reason: where);
         expect(Scrollable.of(tester.element(find.byType(Editor, skipOffstage: false))).position.pixels, 0, reason: '$where: at its tape, not its bookmark');
         expect(player.calls, isEmpty, reason: '$where: the tape stays still');
         shellOf(tester).backToList();
@@ -401,18 +419,20 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('the strip\'s Note and Transcript go between the words and the transcript while the tape is still', (tester) async {
+    testWidgets('a meeting\'s Note and Transcript go between the words and the transcript, playing or still', (tester) async {
+      useStored(MemoryStored());
       final library = await open(tester, tapePlayer: FakeTapePlayer(lengths: const {}));
       final met = await meetingIn(tester, library);
       shellOf(tester).openNote(met.id, at: atTranscript);
       await settle(tester, 8);
+      expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing);
+      expect(find.bySemanticsLabel("Show the recording's transcript"), findsNothing, reason: 'the segmented control is the way, not the strip\'s word');
+      await choose(tester, 'Transcript');
       expect(find.byType(TranscriptWords), findsOneWidget);
-      await tester.tap(find.bySemanticsLabel("Show the note's words"));
-      await settle(tester, 8);
+      await choose(tester, 'Note');
       expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing);
       expect(find.byType(Editor), findsOneWidget);
-      await tester.tap(find.bySemanticsLabel("Show the recording's transcript"));
-      await settle(tester, 8);
+      await choose(tester, 'Transcript');
       expect(find.byType(TranscriptWords), findsOneWidget);
       // A meeting opened as any note (a tab) offers its transcript from the strip too.
       await close(tester);
@@ -422,9 +442,10 @@ void main() {
       final player = FakeTapePlayer(lengths: const {}, here: false);
       final library = await open(tester, tapePlayer: player);
       final met = await meetingIn(tester, library);
+      useStored(MemoryStored({'glyph-meeting-view': '{"${met.id}":"transcript"}'}));
       shellOf(tester).openNote(met.id, at: atTranscript);
       await settle(tester, 8);
-      expect(find.text('Bring the long lens'), findsOneWidget);
+      expect(find.text('Bring the long lens and the tripod'), findsOneWidget);
       expect(find.text(notOnThisDevice), findsOneWidget);
       expect(player.calls, isEmpty, reason: 'asked where the audio is, not loaded');
       shellOf(tester).backToList();
@@ -433,7 +454,7 @@ void main() {
       shellOf(tester).openNote(met.id, at: atTape);
       await settle(tester, 8);
       expect(player.calls, contains('load ${met.id}'));
-      expect(find.text('Bring the long lens'), findsOneWidget);
+      expect(find.text('Bring the long lens and the tripod'), findsOneWidget);
       expect(find.text(notOnThisDevice), findsOneWidget);
       await close(tester);
     });
@@ -446,10 +467,15 @@ void main() {
         body: '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\n**Sam Lee:** Good morning everyone.\n\n**Daniel:** The pricing page is drafted.\n',
         segments: null,
       );
+      useStored(MemoryStored({'glyph-meeting-view': '{"${met.id}":"transcript"}'}));
       shellOf(tester).openNote(met.id, at: atTranscript);
       await settle(tester, 8);
-      expect(find.text('Sam Lee: Good morning everyone.', findRichText: true), findsOneWidget);
-      expect(find.text('Daniel: The pricing page is drafted.', findRichText: true), findsOneWidget);
+      // A turn each: the speaker over the words.
+      expect(find.byType(TranscriptTurn), findsNWidgets(2));
+      expect(find.text('Sam Lee', findRichText: true), findsOneWidget);
+      expect(find.text('Good morning everyone.'), findsOneWidget);
+      expect(find.text('Daniel', findRichText: true), findsOneWidget);
+      expect(find.text('The pricing page is drafted.'), findsOneWidget);
       expect(find.text('No words were kept with this recording.'), findsNothing);
       await close(tester);
     });
@@ -458,10 +484,12 @@ void main() {
       final library = await open(tester, tapePlayer: FakeTapePlayer(lengths: const {}));
       const waiting = '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. It is being written up on your device.\n\n## Captions\n\n**Sam Lee (0:04):** Good morning everyone.\n';
       final met = await meetingIn(tester, library, body: waiting, segments: const []);
+      useStored(MemoryStored({'glyph-meeting-view': '{"${met.id}":"transcript"}'}));
       shellOf(tester).openNote(met.id, at: atTranscript);
       await settle(tester, 8);
       expect(find.text('Being written up on another device.'), findsOneWidget);
-      expect(find.text('Sam Lee (0:04): Good morning everyone.', findRichText: true), findsOneWidget);
+      expect(find.text('Sam Lee · 0:04', findRichText: true), findsOneWidget);
+      expect(find.text('Good morning everyone.'), findsOneWidget);
       // The write-up lands, from another device: the words with their transcript, and the phrases beside them.
       final now = library.noteOf(met.id)!;
       await tester.runAsync(() => library.apply(Note(
@@ -476,10 +504,10 @@ void main() {
           )));
       await settle(tester, 8);
       expect(find.text('Being written up on another device.'), findsNothing);
-      expect(find.byType(TranscriptPhrase), findsOneWidget);
+      expect(find.byType(TranscriptTurn), findsOneWidget);
       // Named from the transcript beside it, as the captions named it (Matt, 2026-10-26: "all the speaker labels
-      // disappeared").
-      expect(find.text('Sam Lee: Good morning everyone.', findRichText: true), findsOneWidget);
+      // disappeared"), and timed from its phrase.
+      expect(find.text('Sam Lee · 0:00', findRichText: true), findsOneWidget);
       await close(tester);
     });
 

@@ -39,6 +39,13 @@
 ///   stops that, and a Follow pill over its foot takes it back, as does tapping a line, which takes the tape there.
 /// - Phrases are lit whole: a phrase keeps no times for its words ([Segment] has its start and end alone).
 ///
+/// And a meeting's in turns (Matt, 2026-10-30: "Also use a button to switch to the transcript in the note"; its Note
+/// and Transcript are lib/note/meeting_view.dart): with [TranscriptWords.turns], each turn is its speaker and time over
+/// its words ([TranscriptTurn]), Whisper's phrases put in turns as every meeting's transcript is
+/// (lib/capture/meeting_turns.dart) or the note's own written turns read back ([meetingTurnsOf]); the turn being heard
+/// is lit, a press plays the recording from its start, and with no recording on this device ([TranscriptWords.note])
+/// the turns are there to be read. A search's hit in the transcript brings its turn into view ([TranscriptWords.atMs]).
+///
 /// And named (Matt, 2026-10-26: "Also after some time all the speaker labels disappeared"): a meeting's phrases came
 /// to stand in for its written transcript once Whisper's were in, and a phrase carries no speaker, so every name the
 /// captions gave went from the view though the note still had them. Each phrase is given its speaker from the note's
@@ -59,7 +66,9 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/library.dart' show transcriptOf;
 import '../core/note.dart';
-import '../meet/speakers.dart' show phraseSpeakers;
+import '../capture/meeting_turns.dart' show transcriptTurns;
+import '../meet/speakers.dart' show captionIcons, phraseSpeakers;
+import 'tape.dart' show counter;
 import 'player.dart';
 
 /// The heading Meet's captions wait under for a meeting's write-up (lib/meet/speakers.dart `captionsHeading`).
@@ -163,9 +172,25 @@ enum TranscriptLight {
 
 /// The recording's phrases, following [tape] (`TranscriptWords`). It scrolls in the place it is given.
 class TranscriptWords extends StatefulWidget {
-  const TranscriptWords({super.key, required this.tape, this.writeUp});
+  const TranscriptWords({super.key, this.tape, this.note, this.writeUp, this.turns = false, this.atMs, this.onAt}) : assert(tape != null || note != null);
 
-  final Tape tape;
+  /// The recording, followed and taken to a turn when one is pressed; null for a meeting this device has no recording
+  /// of (Meet's captions alone, or one whose sound stayed on another device), whose turns are only read.
+  final Tape? tape;
+
+  /// The note, where there is no [tape] to read it from.
+  final Note? note;
+
+  /// A meeting's: drawn as its turns, each its speaker and time over its words, the one being heard lit, a press
+  /// taking the tape to its start (Matt, 2026-10-30: "use a button to switch to the transcript in the note"). Without,
+  /// a phrase a line, as a spoken note's tape shows them.
+  final bool turns;
+
+  /// A moment to bring into view, in ms (a search's hit in the transcript): its turn is put in the middle once drawn.
+  final int? atMs;
+
+  /// Told once [atMs] has been brought into view, so it is not again.
+  final VoidCallback? onAt;
 
   /// Where the note's write-up is, while it is still to come ("Writing up… 42%", "Being written up on another
   /// device."), said first; null once it has come, or where nothing writes it up.
@@ -205,21 +230,26 @@ class _TranscriptWordsState extends State<TranscriptWords> {
   @override
   void initState() {
     super.initState();
-    widget.tape.addListener(_heard);
+    widget.tape?.addListener(_heard);
   }
 
   @override
   void didUpdateWidget(TranscriptWords old) {
     super.didUpdateWidget(old);
+    if (old.turns != widget.turns) _shown = null;
     if (old.tape == widget.tape) return;
-    old.tape.removeListener(_heard);
-    widget.tape.addListener(_heard);
+    old.tape?.removeListener(_heard);
+    widget.tape?.addListener(_heard);
     _shown = null;
   }
 
+  /// The note's words and its phrases, from the tape where there is one.
+  String get _body => widget.tape?.note.body ?? widget.note?.body ?? '';
+  List<Segment>? get _segments => widget.tape != null ? widget.tape!.segments : widget.note?.segments;
+
   @override
   void dispose() {
-    widget.tape.removeListener(_heard);
+    widget.tape?.removeListener(_heard);
     _scroll.dispose();
     super.dispose();
   }
@@ -227,8 +257,8 @@ class _TranscriptWordsState extends State<TranscriptWords> {
   /// The tape told something. Built again only where what it said moves the transcript: its words, which line is
   /// lit, or whether it is playing; the playhead moving inside one line is ten ticks a second of nothing to draw.
   void _heard() {
-    if (!mounted) return;
     final tape = widget.tape;
+    if (!mounted || tape == null) return;
     final shown = _shown;
     if (shown == null || !shown.shows(tape.segments, tape.note.body)) {
       setState(() {});
@@ -248,7 +278,16 @@ class _TranscriptWordsState extends State<TranscriptWords> {
   /// Takes the tape to [ms], from a tapped line, and follows it again.
   void _seek(int ms) {
     if (!_following) setState(() => _following = true);
-    widget.tape.seek(ms);
+    widget.tape?.seek(ms);
+  }
+
+  /// Takes the tape to [ms] and plays it from there, from a pressed turn: the playhead moved first, so a first Play
+  /// starts the recording there (player.dart `toggle`).
+  void _playFrom(int ms) {
+    final tape = widget.tape;
+    if (tape == null) return;
+    _seek(ms);
+    if (!tape.playing) unawaited(tape.toggle());
   }
 
   /// Follow: the lit line in view again, and kept there.
@@ -293,13 +332,17 @@ class _TranscriptWordsState extends State<TranscriptWords> {
   }
 
   /// The lines for the words [tape]'s note shows (see the header), made once for them.
-  _Shown _make(Tape tape, bool waiting) {
-    final segments = tape.segments;
-    final body = tape.note.body;
+  _Shown _make(bool waiting) {
+    final segments = _segments;
+    final body = _body;
+      final seek = widget.tape == null ? null : _seek;
+    // A turn pressed plays from its start (Matt, 2026-10-30: "tapping a turn plays the recording from that time").
+    final play = widget.tape == null ? null : _playFrom;
     final written = writtenTranscript(body);
     _Shown shown(List<Widget> lines, [List<int> starts = const [], List<GlobalKey> keys = const []]) =>
         _Shown(segments: segments, body: body, waiting: waiting, lines: lines, starts: starts, keys: keys);
 
+    if (widget.turns) return _turnsOf(segments, body, written, waiting, play, shown);
     if (segments != null && phrasesWhole(segments, written)) {
       final keys = [for (final _ in segments) GlobalKey()];
       // Who said each, where the note's words name them: the name before the first phrase of each speaker's run.
@@ -334,12 +377,64 @@ class _TranscriptWordsState extends State<TranscriptWords> {
         lines.add(unit < 0
             // Before the first time, or a transcript with none: the words alone, as the note keeps them.
             ? WrittenParagraph(text: paragraph)
-            : _ParagraphLine(key: at != null ? keys[unit] : null, unit: unit, text: paragraph, startMs: starts[unit], onSeek: _seek));
+            : _ParagraphLine(key: at != null ? keys[unit] : null, unit: unit, text: paragraph, startMs: starts[unit], onSeek: seek));
       }
       return shown(lines, starts, keys);
     }
     if (waiting || segments == null) return shown(const [_Skeleton()]);
     return shown(const [_NoWords()]);
+  }
+
+  /// A meeting's turns (see [TranscriptWords.turns]): Whisper's phrases put in turns and named as the note names them
+  /// (lib/capture/meeting_turns.dart, lib/meet/speakers.dart `phraseSpeakers`) where they carry its words, else the
+  /// note's own written turns ([meetingTurnsOf]); a unit a timed turn, as the paragraphs are.
+  _Shown _turnsOf(List<Segment>? segments, String body, List<String>? written, bool waiting, ValueChanged<int>? seek, _Shown Function(List<Widget> lines, [List<int> starts, List<GlobalKey> keys]) shown) {
+    final List<ShownTurn> turns;
+    if (segments != null && phrasesWhole(segments, written)) {
+      final phrases = [for (final s in segments) if (s.text.trim().isNotEmpty) s];
+      turns = [for (final turn in transcriptTurns(phrases, phraseSpeakers(phrases, body))) (speaker: turn.speaker, startMs: turn.startMs, text: turn.text)];
+    } else {
+      turns = meetingTurnsOf(body);
+    }
+    if (turns.isEmpty) return waiting || segments == null ? shown(const [_Skeleton()]) : shown(const [_NoWords()]);
+    final starts = <int>[];
+    final keys = <GlobalKey>[];
+    final lines = <Widget>[];
+    var unit = -1;
+    for (final (i, turn) in turns.indexed) {
+      if (i > 0) lines.add(const _TurnGap());
+      final at = turn.startMs;
+      if (at != null) {
+        unit += 1;
+        starts.add(math.max(at, starts.isEmpty ? 0 : starts.last));
+        keys.add(GlobalKey());
+      }
+      lines.add(_TurnLine(key: at != null ? keys[unit] : null, unit: unit, turn: turn, onSeek: seek));
+    }
+    return shown(lines, starts, keys);
+  }
+
+  /// The moment last brought into view by [TranscriptWords.atMs], so a build does not bring it again.
+  int? _broughtIn;
+
+  /// [at]'s turn in the middle of the transcript, once drawn (a search's hit), the tape left where it is.
+  void _bringIn(int at) {
+    if (_broughtIn == at) return;
+    _broughtIn = at;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final shown = _shown;
+      if (!mounted || shown == null || !_scroll.hasClients) return;
+      final unit = litAt(shown.starts, at);
+      if (unit < 0 || unit >= shown.keys.length) return;
+      final line = shown.keys[unit].currentContext?.findRenderObject();
+      if (line == null || !line.attached) return;
+      final viewport = RenderAbstractViewport.maybeOf(line);
+      if (viewport == null) return;
+      final position = _scroll.position;
+      _scroll.jumpTo(viewport.getOffsetToReveal(line, 0.5).offset.clamp(position.minScrollExtent, position.maxScrollExtent));
+      if (_following) setState(() => _following = false);
+      widget.onAt?.call();
+    });
   }
 
   @override
@@ -348,10 +443,11 @@ class _TranscriptWordsState extends State<TranscriptWords> {
     final tape = widget.tape;
     final writeUp = widget.writeUp;
     final was = _shown;
-    final shown = _shown = was != null && was.waiting == (writeUp != null) && was.shows(tape.segments, tape.note.body) ? was : _make(tape, writeUp != null);
-    _started = tape.started;
-    _playing = tape.playing;
-    _lit = _started ? litAt(shown.starts, tape.at) : -1;
+    final shown = _shown = was != null && was.waiting == (writeUp != null) && was.shows(_segments, _body) ? was : _make(writeUp != null);
+    _started = tape?.started ?? false;
+    _playing = tape?.playing ?? false;
+    _lit = _started && tape != null ? litAt(shown.starts, tape.at) : -1;
+    if (widget.atMs case final at?) _bringIn(at);
     // The lines stand out from the gutter by the wash's own room, so their words are where the page's are.
     final room = t.space(2);
     final padding = EdgeInsetsDirectional.fromSTEB(math.max(0, t.len('app-gutter-start') - room), t.space(5), math.max(0, t.len('app-gutter-end') - room), t.space(24));
@@ -459,10 +555,30 @@ class _ParagraphLine extends StatelessWidget {
   final int unit;
   final String text;
   final int startMs;
-  final ValueChanged<int> onSeek;
+  final ValueChanged<int>? onSeek;
 
   @override
-  Widget build(BuildContext context) => WrittenParagraph(text: text, light: _Lit.of(context, unit), onPressed: () => onSeek(startMs));
+  Widget build(BuildContext context) {
+    final seek = onSeek;
+    return WrittenParagraph(text: text, light: _Lit.of(context, unit), onPressed: seek == null ? null : () => seek(startMs));
+  }
+}
+
+/// A meeting's turn, with its light: who spoke and when, over what they said. A press takes the tape to its start
+/// where there is a tape ([onSeek]).
+class _TurnLine extends StatelessWidget {
+  const _TurnLine({super.key, required this.unit, required this.turn, required this.onSeek});
+
+  final int unit;
+  final ShownTurn turn;
+  final ValueChanged<int>? onSeek;
+
+  @override
+  Widget build(BuildContext context) {
+    final seek = onSeek;
+    final at = turn.startMs;
+    return TranscriptTurn(turn: turn, light: unit < 0 ? TranscriptLight.reading : _Lit.of(context, unit), onPressed: seek == null || at == null ? null : () => seek(at));
+  }
 }
 
 /// The ink of a line's words in its [light].
@@ -559,6 +675,88 @@ class WrittenParagraph extends StatelessWidget {
                 : Text(text);
     return _Line(light: light, onPressed: onPressed, child: words);
   }
+}
+
+/// A meeting's turn as it is shown: who (null for nobody named), when it began (null where it says no time), and the
+/// words.
+typedef ShownTurn = ({String? speaker, int? startMs, String text});
+
+final RegExp _namedUntimed = RegExp(r'^\*\*([^*\n]+?):\*\*\s*(.*)$', dotAll: true);
+
+String? _turnName(String raw) {
+  final name = raw.replaceAll(RegExp(r'[*\[\]()]'), '').replaceAll(RegExp(r'\s+'), ' ').trim().replaceFirst(RegExp(r':+$'), '');
+  return name.isEmpty || captionIcons.contains(name) ? null : name;
+}
+
+/// The turns a meeting's note keeps in its words (`## Transcript`, else `## Captions` while those wait for the
+/// write-up): each paragraph read as `**Sam Lee (0:04):** words`, `(0:04) words`, `**Sam Lee:** words` or words
+/// alone; a name that is one of Meet's icons is nobody's.
+List<ShownTurn> meetingTurnsOf(String body) {
+  final out = <ShownTurn>[];
+  for (final raw in writtenTranscript(body) ?? captionsKept(body) ?? const <String>[]) {
+    final p = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (p.isEmpty) continue;
+    if (_timedNamed.firstMatch(p) case final m?) {
+      out.add((speaker: _turnName(m.group(1)!), startMs: _clockMs(m.group(2)!), text: m.group(3)!.trim()));
+    } else if (_timedBare.firstMatch(p) case final m?) {
+      out.add((speaker: null, startMs: _clockMs(m.group(1)!), text: m.group(2)!.trim()));
+    } else if (_namedUntimed.firstMatch(p) case final m?) {
+      out.add((speaker: _turnName(m.group(1)!), startMs: null, text: m.group(2)!.trim()));
+    } else {
+      out.add((speaker: null, startMs: null, text: p));
+    }
+  }
+  return out;
+}
+
+/// One turn of a meeting (Matt, 2026-10-30): the speaker's name and the time it began on a line of their own, the name
+/// in the first ink and the time in the lighter, and the words under them. On the wash while it is being heard, and a
+/// button to its moment where there is a tape ([onPressed]), as a line of the transcript is.
+class TranscriptTurn extends StatelessWidget {
+  const TranscriptTurn({super.key, required this.turn, this.light = TranscriptLight.reading, this.onPressed});
+
+  final ShownTurn turn;
+  final TranscriptLight light;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final coming = light == TranscriptLight.coming;
+    final size = t.fontSize('sm');
+    final name = t.textAt(size, height: 1.4, weight: 'semibold', color: t.color(coming ? 'app-ink-2' : 'app-ink'));
+    final time = t.textAt(size, height: 1.4, color: t.color(coming ? 'app-ink-4' : 'app-ink-3')).copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+    final who = turn.speaker;
+    final at = turn.startMs;
+    final head = <InlineSpan>[
+      if (who != null) TextSpan(text: who, style: name),
+      if (who != null && at != null) TextSpan(text: ' · ', style: time),
+      if (at != null) TextSpan(text: counter(at), style: time),
+    ];
+    return _Line(
+      light: light,
+      onPressed: onPressed,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (head.isNotEmpty) ...[
+            Text.rich(TextSpan(children: head)),
+            SizedBox(height: t.space(1) / 2),
+          ],
+          Text(turn.text),
+        ],
+      ),
+    );
+  }
+}
+
+/// The room between two turns.
+class _TurnGap extends StatelessWidget {
+  const _TurnGap();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(height: context.tokens.space(2));
 }
 
 /// One phrase, as a button the width of the page (`.phrase`): in the second ink to be read and once heard, the

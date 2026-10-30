@@ -1200,6 +1200,8 @@ class _GhostRootState extends State<GhostRoot> {
     syncWithin: () => _services?.engine?.syncWithin() ?? Future<void>.value(),
     // Version history's Share the versions file: copied as text on the phone, which is what its page does there.
     shareVersionsFile: (id, title) => shareVersionsFile(_versionsStore, id, title, files: _files),
+    // A meeting's earlier words, for the captions Rebuild transcript names its turns from.
+    versionTexts: (id) async => [for (final version in [...(await _versions.versionsOf(id)).versions]..sort((a, b) => a.at.compareTo(b.at))) version.text],
     // A note's links, its outline and its graph (lib/links/note_links.dart).
     links: (noteId) => NoteLinksHere(app: _linksApp, noteId: noteId),
   );

@@ -103,7 +103,7 @@ class TapeQueue {
 
 /// The strip (`NoteTape`). Draws nothing for a tape with no length.
 class NoteTape extends StatefulWidget {
-  const NoteTape({super.key, required this.note, required this.title, required this.tape, this.onSpeak, required this.onRemove, required this.hasMemos, this.summary, this.queue = const TapeQueue(), this.onTranscript, this.transcriptShown = false});
+  const NoteTape({super.key, required this.note, required this.title, required this.tape, this.onSpeak, required this.onRemove, required this.hasMemos, this.summary, this.queue = const TapeQueue(), this.onTranscript, this.transcriptShown = false, this.onRebuild, this.rebuilding = false, this.simple = false});
 
   final Note note;
 
@@ -131,6 +131,16 @@ class NoteTape extends StatefulWidget {
   /// Whether the transcript has the page now, with the tape still.
   final bool transcriptShown;
 
+  /// Rebuild transcript (Matt, 2026-10-30): a meeting's turns made again from its kept phrases and captions, nothing
+  /// heard again (lib/meet/meet_note.dart `rebuiltTranscript`). Absent, the word is not offered.
+  final VoidCallback? onRebuild;
+
+  /// Whether a rebuild is under way.
+  final bool rebuilding;
+
+  /// Simple mode (GHST-103): Rebuild waits behind the strip's More, which opens in place.
+  final bool simple;
+
   @override
   State<NoteTape> createState() => _NoteTapeState();
 }
@@ -141,6 +151,8 @@ class _NoteTapeState extends State<NoteTape> {
   Timer? _askingTimer;
   // Summarize, over a section the person edited: the word asks once.
   bool _replacing = false;
+  // Simple mode's More, opened: what waits behind it is on the strip.
+  bool _more = false;
   Timer? _replacingTimer;
 
   void _setAsking(bool on) {
@@ -230,6 +242,16 @@ class _NoteTapeState extends State<NoteTape> {
                     summary.ask(false);
                   }
                 },
+        ),
+      if (widget.onRebuild != null && widget.simple && !_more) _Edit(label: 'More for the recording', icon: Lucide.ellipsis, word: 'More', onPressed: () => setState(() => _more = true)),
+      if (widget.onRebuild != null && (!widget.simple || _more))
+        _Edit(
+          label: 'Rebuild the transcript from its kept phrases and captions',
+          tooltip: 'Turns made again, each with its speaker and time. Nothing is heard again.',
+          icon: widget.rebuilding ? Lucide.loaderCircle : Lucide.rotateCcw,
+          working: widget.rebuilding,
+          word: widget.rebuilding ? 'Rebuilding' : 'Rebuild',
+          onPressed: widget.rebuilding ? null : widget.onRebuild,
         ),
       if (summary != null && _replacing) ...[
         _Edit(

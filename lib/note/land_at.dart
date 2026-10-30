@@ -22,6 +22,7 @@ import '../core/item_syntax.dart' show wordsEnd;
 import '../core/note.dart' show Note;
 import '../editor/editor.dart';
 import '../editor/view/editor_view.dart';
+import '../editor/view/transcript_fold.dart' show transcriptFolds;
 import 'note_place.dart';
 
 /// Where a note is opened at its tape (a cassette on the home page's shelf): no item, but the top of the page, where
@@ -95,7 +96,15 @@ class LandAt {
       // Before a named line's name, as before an item's: typed there, a letter would go into the name.
       final named = blockIdOf(line.text);
       final caret = named != null && named.from > 0 && wordsEnd(line.text) > named.from ? named.from - 1 : wordsEnd(line.text);
-      if (_landed == 0) view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from + caret)));
+      if (_landed == 0) {
+        view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from + caret)));
+        // A line folded out of the words (a meeting's transcript, lib/editor/view/transcript_fold.dart) is not landed
+        // on: the caret was kept out of it, and the transcript opens at it in its own view.
+        if (view.state.selection.main.head != line.from + caret && transcriptFolds(view.state).any((fold) => line.from >= fold.from && line.from <= fold.to)) {
+          _landed = landings;
+          return;
+        }
+      }
       final seen = view.coordsAtPos(line.from);
       final room = headerBottom() + landRoom;
       if (seen != null) {

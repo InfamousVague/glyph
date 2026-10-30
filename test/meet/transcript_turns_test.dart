@@ -37,11 +37,11 @@ const Map<String, List<String>> _said = {
 };
 
 /// A phrase as the write-up keeps it, and the caption line Meet showed for it.
-typedef _Heard = ({List<Segment> phrases, List<CaptionLine> captions, List<String> speakerOf});
+typedef Heard = ({List<Segment> phrases, List<CaptionLine> captions, List<String> speakerOf});
 
 /// The standup: 38 minutes of turns from 4 s to 2.5 min, Whisper's phrases 2 to 7 s and abutting, a caption line a
 /// phrase a second after it, named. Seeded, so the same every run.
-_Heard standup({int minutes = 38, int seed = 29}) {
+Heard standup({int minutes = 38, int seed = 29}) {
   final random = math.Random(seed);
   final names = _said.keys.toList();
   final phrases = <Segment>[];
@@ -92,8 +92,6 @@ List<String> paragraphsOf(String body) => writtenTranscript(body) ?? const [];
 
 final RegExp _named = RegExp(r'^\*\*(.+?) \((\d+(?::\d{2}){1,2})\):\*\* ');
 final RegExp _bare = RegExp(r'^\((\d+(?::\d{2}){1,2})\) ');
-
-int _clock(String clock) => clock.split(':').fold(0, (total, part) => total * 60 + int.parse(part)) * 1000;
 
 /// Every paragraph a timed turn, the times never falling, none over a minute and a phrase.
 void expectTurns(List<String> paragraphs, {required bool named}) {

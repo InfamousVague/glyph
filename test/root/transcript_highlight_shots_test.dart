@@ -114,10 +114,17 @@ void main() {
             await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
             await tester.pump(const Duration(milliseconds: 100));
           }
+          // A meeting opens at Note (Matt, 2026-10-30): its Transcript, chosen.
+          await tester.tap(find.descendant(of: find.byKey(const ValueKey('meeting-view')), matching: find.text('Transcript')));
+          for (var i = 0; i < 8; i++) {
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+            await tester.pump(const Duration(milliseconds: 100));
+          }
           // The press note's question, tapped: the tape goes there, and plays from it.
           await tester.tap(find.textContaining('Who has the press note?', findRichText: true).first);
           await tester.pump();
-          await tester.tap(find.bySemanticsLabel('Play').first);
+          // A turn pressed plays from it already; Play where it did not.
+          if (!player.playing.value) await tester.tap(find.bySemanticsLabel('Play').first);
           for (var i = 0; i < 40; i++) {
             await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1)));
             await tester.pump(const Duration(milliseconds: 100));
