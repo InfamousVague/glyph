@@ -2,8 +2,12 @@
 // its writing played out in an editor as the tool's input streams.
 import 'dart:convert';
 
+import 'package:flutter/rendering.dart' show debugDisableShadows;
+import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
+import 'package:flutter/services.dart' show SystemChannels;
+import 'package:ghost_md/claude/claude_chat.dart';
 import 'package:ghost_md/claude/claude_run.dart';
 import 'package:ghost_md/claude/claude_runner.dart';
 import 'package:ghost_md/claude/claude_settings.dart' show ClaudeSettings, defaultClaudeEffort;
@@ -15,6 +19,8 @@ import 'package:ghost_md/claude/sse.dart';
 import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
+
+import '../support/render.dart';
 
 SseEvent _e(String name, Map<String, Object?> data) => SseEvent(name, jsonEncode(data));
 
@@ -516,6 +522,92 @@ void main() {
       final second = ClaudeRun(api: _Api([paid(_turn(words: 'Again.'), output: 10000)]), model: 'claude-opus-5-5', notes: notes, desk: _Desk(notes), prompt: 'y', spend: spend);
       await tester.runAsync(second.run);
       expect(second.steps.where((step) => step.kind == 'notice'), isEmpty);
+    });
+  });
+
+  // The chat's card of the notes a run wrote (Matt, 2026-10-30: "have claude chat share an embeded link to notes it
+  // creates and edits"): each a press that opens it, New or Changed, and Copy link putting its share link on the
+  // clipboard.
+  group('the chat\'s card of the notes a run wrote', () {
+    Future<ClaudeRunner> ran(WidgetTester tester, _Notes notes, List<List<SseEvent>> turns) async {
+      final settings = ClaudeSettings(MemorySecureStore());
+      await tester.runAsync(() => settings.setKey('sk-ant-test-0000000000'));
+      final runner = ClaudeRunner(settings: settings, notes: notes, desk: _Desk(notes), api: (_) => _Api(turns));
+      addTearDown(runner.dispose);
+      await tester.runAsync(() async {
+        final run = await runner.ask('Go');
+        while (run.working || run.state == ClaudeState.idle) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      });
+      return runner;
+    }
+
+    testWidgets('links the note made, New, and the one changed, Changed; a press opens it', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk\n';
+      final runner = await ran(tester, notes, [
+        _turn(words: 'Making it.', tool: ClaudeTool.create, pieces: [jsonEncode({'body': '# Weekend plan\n\n- [ ] Pack\n'})]),
+        _turn(tool: ClaudeTool.append, id: 'toolu_2', pieces: [jsonEncode({'id': 'g', 'text': '- bread'})]),
+        _turn(words: 'Done.'),
+      ]);
+      final opened = <String>[];
+      await pumpApp(tester, home: ClaudeChat(runner: runner, onClose: () {}, onOpenNote: opened.add, onSettings: () {}));
+      await tester.pump();
+      expect(find.text('The notes'), findsOneWidget);
+      expect(find.text('Weekend plan'), findsOneWidget);
+      expect(find.text('New'), findsOneWidget);
+      expect(find.text('Groceries'), findsOneWidget);
+      expect(find.text('Changed'), findsOneWidget);
+      // No share here: nothing offers a link.
+      expect(find.text('Copy link'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('claude-note:g')));
+      expect(opened, ['g']);
+      await shot(tester, 'claude-chat-notes-light');
+    });
+
+    testWidgets('Copy link puts the note\'s share link on the clipboard and says so, or says why not', (tester) async {
+      final notes = _Notes();
+      final runner = await ran(tester, notes, [
+        _turn(tool: ClaudeTool.create, pieces: [jsonEncode({'body': '# Trip\n\nFriday.\n'})]),
+        _turn(words: 'Done.'),
+      ]);
+      final made = runner.conversation.single.touched.keys.single;
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method != 'Clipboard.setData') return null;
+        copied.add((call.arguments as Map)['text'] as String);
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+      var fail = false;
+      await pumpApp(
+        tester,
+        home: ClaudeChat(
+          runner: runner,
+          onClose: () {},
+          onOpenNote: (_) {},
+          onSettings: () {},
+          onShareLink: (id) async {
+            if (fail) throw StateError('offline');
+            return 'https://ghostmarkdown.com/read#$id.k';
+          },
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Trip'), findsOneWidget);
+      await tester.tap(find.byKey(ValueKey('claude-note-link:$made')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(copied, ['https://ghostmarkdown.com/read#$made.k']);
+      expect(find.text('Link copied.'), findsOneWidget);
+
+      fail = true;
+      await tester.tap(find.byKey(ValueKey('claude-note-link:$made')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.textContaining('The link couldn’t be made'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 12));
+      debugDisableShadows = true;
     });
   });
 }

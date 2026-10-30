@@ -177,6 +177,7 @@ extension _RootClaude on _GhostRootState {
       },
       onOpenAi: _openForAi,
       onInbox: _toClaudeInbox,
+      onShareLink: _services?.shares == null ? null : _shareLinkFor,
     );
   }
 

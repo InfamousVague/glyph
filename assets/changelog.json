@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.3.91",
+    "date": "2026-10-30",
+    "title": "Claude's notes, a tap away",
+    "items": [
+      {"icon": "file-text", "words": "Under Claude's reply, a card lists every note it made or changed, New or Changed; tap one to open it.", "kind": "new"},
+      {"icon": "link", "words": "Copy link on each of those notes puts its share link on the clipboard.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.3.90",
     "date": "2026-10-30",
     "title": "Meetings, live",
