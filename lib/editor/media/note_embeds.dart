@@ -7,9 +7,17 @@
 /// canvas; this draws every other): with the caret on it the drawing steps aside and the line shows as typed, and
 /// anywhere else it is a link like any other. Nothing about the file changes.
 ///
+/// **Drawn as a quoted card** (Matt, 2026-10-30, "add all 12": section embeds as synced blocks): the quote's bar
+/// down its start, a link's mark and the source's title over the words, and Edit in source, which opens the source
+/// note at that heading or line. The words are read only here: they are edited in their own note, where they are
+/// written, so two notes never hold two copies to merge. In place editing is not done: the editor has one document
+/// to a view, and writing a section of another note from inside this one would be a second writer of that note
+/// beside its own screen and its sync.
+///
 /// **Two levels at most, and never round in a circle.** A note drawn here draws the notes it embeds in turn, and
 /// those draw theirs as links: [mostEmbedDepth]. A note never draws itself, nor a note it is already drawn inside
-/// of: that line stays its link.
+/// of: that line is a card that says so ([EmbedKind.loop]). A note that is not there is a card that says so too
+/// ([EmbedKind.missing]), and a heading or a line that is not in it, the same.
 ///
 /// What is drawn is the other note as the library has it now: a change to it is drawn again when the library says
 /// so ([refreshCanvasFrames], which the desk sends for every `![[…]]` line). A section is read from the other
@@ -21,6 +29,8 @@ library;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../../art/app_icon.dart';
+import '../../art/lucide.g.dart';
 import '../../canvas/json_canvas.dart' show isCanvasBody;
 import '../../core/block_ids.dart';
 import '../../core/front_matter.dart' show frontMatterOffset;
@@ -73,6 +83,9 @@ EmbedLine? embedOf(String text) {
   final anchor = hash >= 0 ? inside.substring(hash + 1).trim() : '';
   return (title: title, anchor: anchor.isEmpty ? null : anchor, size: null, picture: false);
 }
+
+/// What an embed's card holds: the other note's words, a note that is not there, or a note that would draw itself.
+enum EmbedKind { drawn, missing, loop }
 
 /// The embeds of a document, by line, kept with its tree: a letter typed reads only the line it changed.
 final LineFact<EmbedLine> _embeds = LineFact<EmbedLine>((text) => text.contains('![[') ? embedOf(text) : null);
@@ -136,7 +149,13 @@ String _ownTitle(Doc doc) {
 
 /// A note drawn in this one.
 class NoteEmbedWidget extends EditorWidget implements ClassedBlockWidget {
-  const NoteEmbedWidget({required this.title, required this.anchor, required this.words, required this.from, required this.options});
+  const NoteEmbedWidget({required this.title, required this.anchor, required this.words, required this.from, required this.options, this.kind = EmbedKind.drawn, this.itself = false});
+
+  /// What the card holds: the words, or why there are none.
+  final EmbedKind kind;
+
+  /// A loop that is the note embedding itself.
+  final bool itself;
 
   final String title;
   final String? anchor;
@@ -152,7 +171,7 @@ class NoteEmbedWidget extends EditorWidget implements ClassedBlockWidget {
   String get className => 'cm-noteEmbed';
 
   @override
-  bool eq(NoteEmbedWidget other) => other.title == title && other.anchor == anchor && other.words == words && other.from == from && other.options.depth == options.depth;
+  bool eq(NoteEmbedWidget other) => other.kind == kind && other.itself == itself && other.title == title && other.anchor == anchor && other.words == words && other.from == from && other.options.depth == options.depth;
 
   @override
   bool takesPointer(_) => true;
@@ -232,8 +251,9 @@ class PictureEmbedWidget extends EditorWidget implements ClassedBlockWidget {
   }
 }
 
-/// The note drawn: its name and an Open over it, and its words in a frame, at most about half a screen tall and
-/// faded where there is more.
+/// The note drawn, as a quoted card: the quote's bar down its start, a link's mark, the source's title and the
+/// section over its words and Edit in source at the end, the words at most about half a screen tall and faded where
+/// there is more.
 class DrawnNoteEmbed extends StatefulWidget {
   const DrawnNoteEmbed({super.key, required this.widget});
 
@@ -288,27 +308,34 @@ class _DrawnNoteEmbedState extends State<DrawnNoteEmbed> {
     final edge = t.color('glacier-border-subtle');
     final small = 0.86 * em;
     final words = noteFace(t, look, small, color: quiet);
-    final place = embed.anchor == null ? '' : ' › ${embed.anchor!.startsWith('^') ? embed.anchor! : embed.anchor!}';
+    final place = embed.anchor == null ? '' : ' › ${embed.anchor!}';
     final ratio = MediaQuery.devicePixelRatioOf(context);
     final inside = embed.words;
+    final bar = t.len('glacier-shape-accent-edge');
+    final inset = bar + 0.75 * em;
+    Widget said(String text) => Padding(padding: EdgeInsets.fromLTRB(inset, 0.35 * em, 0.75 * em, 0.75 * em), child: Text(text, style: words));
     Widget body;
-    if (inside == null) {
+    if (embed.kind == EmbedKind.missing) {
+      body = said('No note is called “${embed.title}” yet.');
+    } else if (embed.kind == EmbedKind.loop) {
+      body = said(embed.itself ? 'A note is not drawn inside itself.' : '“${embed.title}” has this note in it, so it is not drawn again here.');
+    } else if (inside == null) {
       final what = embed.anchor!.startsWith('^') ? 'no line named ${embed.anchor}' : 'no heading “${embed.anchor}”';
-      body = Padding(padding: EdgeInsets.all(0.75 * em), child: Text('${embed.title} has $what.', style: words));
+      body = said('${embed.title} has $what.');
     } else if (inside.trim().isEmpty) {
-      body = Padding(padding: EdgeInsets.all(0.75 * em), child: Text('${embed.title} has no words yet.', style: words));
+      body = said('${embed.title} has no words yet.');
     } else {
       final view = _viewFor(inside, host.state.facet(pictureStore));
       final innerEnv = LookEnv(
         t: t,
         body: em,
         headings: env?.headings ?? <double>[for (var level = 1; level <= 6; level++) t.len('app-h$level')],
-        gutter: layoutUnitFloor(0.85 * em),
+        gutter: layoutUnitFloor(inset),
         devicePixelRatio: ratio,
         dark: t.isDark,
         attrs: env?.attrs ?? const <String, String>{},
         tabSize: view.state.tabSize,
-        contentTop: 0.5 * em,
+        contentTop: 0.1 * em,
         contentBottom: 0.6 * em,
       );
       body = PeekClip(
@@ -317,63 +344,78 @@ class _DrawnNoteEmbedState extends State<DrawnNoteEmbed> {
         child: ExcludeSemantics(child: IgnorePointer(child: EditorColumn(view: view, env: innerEnv))),
       );
     }
+    final opens = embed.kind != EmbedKind.missing;
     void open() => embed.options.open(embed.title, embed.anchor);
     return Semantics(
       container: true,
-      label: 'From ${embed.title}$place',
+      label: switch (embed.kind) {
+        EmbedKind.missing => 'From ${embed.title}, which is not a note yet',
+        EmbedKind.loop => 'From ${embed.title}, not drawn again',
+        EmbedKind.drawn => 'From ${embed.title}$place',
+      },
       child: Padding(
         // As a canvas's frame sits: '0.4em var(--app-gutter) 0.8em'.
         padding: EdgeInsets.fromLTRB(gutter, layoutUnitFloor(0.4 * em), gutter, layoutUnitFloor(0.8 * em)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 30,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 0.2 * small),
-                child: Row(
-                  spacing: 0.6 * small,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(t.radius('lg')),
+          child: DecoratedBox(
+            decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--app-ink) 3%, transparent)')),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      // A press on the name puts the caret on the line: the drawing steps aside and the embed can be
-                      // changed, as a canvas's frame does.
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => openOnPress(host, embed.from),
-                        child: Semantics(
-                          tooltip: 'Edit the embed',
-                          child: Text('${embed.title}$place', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: words),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(inset, 0.45 * em, 0.5 * em, 0.15 * em),
+                      child: SizedBox(
+                        height: 30,
+                        child: Row(
+                          spacing: 0.5 * small,
+                          children: [
+                            AppIcon(Lucide.link2, size: small, color: quiet),
+                            Expanded(
+                              // A press on the name puts the caret on the line: the drawing steps aside and the embed can
+                              // be changed, as a canvas's frame does.
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => openOnPress(host, embed.from),
+                                child: Semantics(
+                                  tooltip: 'Edit the embed',
+                                  child: Text('${embed.title}$place', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: words.copyWith(fontWeight: FontWeight.w600)),
+                                ),
+                              ),
+                            ),
+                            if (opens)
+                              GlacierPressable(
+                                semanticLabel: 'Edit in source: ${embed.title}',
+                                onPressed: open,
+                                builder: (context, state) => DecoratedBox(
+                                  decoration: ShapeDecoration(shape: StadiumBorder(side: BorderSide(color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 40%, transparent)') : edge))),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 0.15 * small + 1, horizontal: 0.75 * small + 1),
+                                    child: ExcludeSemantics(child: Text('Edit in source', style: state.hovered ? words.copyWith(color: t.color('app-ink')) : words)),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                    GlacierPressable(
-                      semanticLabel: 'Open ${embed.title}',
-                      onPressed: open,
-                      builder: (context, state) => DecoratedBox(
-                        decoration: ShapeDecoration(shape: StadiumBorder(side: BorderSide(color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 40%, transparent)') : edge))),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 0.15 * small + 1, horizontal: 0.75 * small + 1),
-                          child: ExcludeSemantics(child: Text('Open', style: state.hovered ? words.copyWith(color: t.color('app-ink')) : words)),
-                        ),
-                      ),
+                    // A tap on the words opens the note at the place, the way a link does; a card that says why there
+                    // are none puts the caret on its line instead, to change it.
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: embed.kind == EmbedKind.drawn && inside != null ? open : () => openOnPress(host, embed.from),
+                      child: body,
                     ),
                   ],
                 ),
-              ),
+                // The quote's bar down the card's start (`.lineQuote`'s `--glacier-shape-accent-edge`).
+                Positioned(left: 0, top: 0, bottom: 0, width: bar, child: ColoredBox(color: t.color('glacier-border-strong'))),
+              ],
             ),
-            SizedBox(height: 0.2 * small),
-            // A tap on the words opens the note at the place, the way a link does.
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: open,
-              child: DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: edge)),
-                child: ClipRRect(borderRadius: BorderRadius.circular(t.radius('lg')), child: body),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -396,13 +438,41 @@ DecorationSet _build(EditorState state, EmbedOptions options) {
     }
     // Two levels down, an embed is its link.
     if (options.depth >= mostEmbedDepth) continue;
+    // The note's own title, for the note on screen; one drawn inside another has what it is inside of instead, and
+    // its words begin under its title (a title read from them would be its first line's words).
+    own ??= options.depth == 0 ? titleKey(_ownTitle(state.doc)) : '';
+    final named = titleKey(fact.title);
+    Range<Decoration> loop(bool itself) => Decoration.replace(
+          widget: NoteEmbedWidget(title: fact.title, anchor: fact.anchor, words: null, from: line.from, options: options, kind: EmbedKind.loop, itself: itself),
+          block: true,
+        ).range(line.from, line.to);
+    // The note naming itself: a card that says so, whether the library has it under that name yet or not.
+    if (own.isNotEmpty && named == own) {
+      ranges.add(loop(true));
+      continue;
+    }
+    // A note this one is drawn inside of, by the name it was drawn by.
+    if (options.within.contains(named)) {
+      ranges.add(loop(false));
+      continue;
+    }
     final body = options.body(fact.title);
-    // No such note: a link waiting to be written. A canvas: its frame's (canvas_frames.dart).
-    if (body == null || isCanvasBody(body)) continue;
-    own ??= titleKey(_ownTitle(state.doc));
-    final named = titleKey(fact.title), its = titleKey(noteTitle(body));
-    // Never itself, nor a note this one is already drawn inside of.
-    if (named == own || its == own || options.within.contains(named) || options.within.contains(its)) continue;
+    // No such note: a card that says so. A canvas: its frame's (canvas_frames.dart).
+    if (body == null) {
+      ranges.add(Decoration.replace(widget: NoteEmbedWidget(title: fact.title, anchor: fact.anchor, words: null, from: line.from, options: options, kind: EmbedKind.missing), block: true).range(line.from, line.to));
+      continue;
+    }
+    if (isCanvasBody(body)) continue;
+    final its = titleKey(noteTitle(body));
+    // Never itself by another of its names, nor a note this one is already drawn inside of: a card that says so.
+    if (own.isNotEmpty && its == own) {
+      ranges.add(loop(true));
+      continue;
+    }
+    if (its.isNotEmpty && options.within.contains(its)) {
+      ranges.add(loop(false));
+      continue;
+    }
     ranges.add(
       Decoration.replace(
         widget: NoteEmbedWidget(title: fact.title, anchor: fact.anchor, words: _sectionOf(body, fact.anchor), from: line.from, options: options.inside(<String>[own, named, its])),

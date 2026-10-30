@@ -182,6 +182,7 @@ import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/transcript_fold.dart';
+import '../editor/view/section_folds.dart' show SectionFolds, sectionFolds;
 import '../editor/view/text_panel.dart' show EditorTextPanels, TextPanel, textPanels;
 import '../files/attachment_store.dart' show KeptAttachment;
 import '../files/files_kit.dart';
@@ -894,6 +895,9 @@ class NoteDeskState extends State<NoteDesk> {
     // A meeting's transcript and captions folded out of its words, Note and Transcript over it (Matt, 2026-10-30):
     // never typed into from here, and a find's match or a landing in them opens the transcript at it.
     transcriptFold(TranscriptFold(meeting: (doc) => _meeting || ghostFiled(doc.sliceString(0, doc.length < 800 ? doc.length : 800)), reveal: _revealInTranscript)),
+    // A heading's section folded from its triangle in the gutter, and `<details>` drawn as a toggle (Matt,
+    // 2026-10-30, "add all 12"): what is folded is this device's, kept for the note (lib/editor/view/section_folds.dart).
+    sectionFolds(SectionFolds(noteId: widget.noteId)),
     findBarExtensions,
     // The phone's spell checker, asked about the words near the caret a moment after the person stops, and a red
     // wave under each it would have otherwise (lib/editor/spell; the page's `spellcheck="true"`). Nothing on a
@@ -1862,6 +1866,8 @@ class NoteDeskState extends State<NoteDesk> {
           blanks: true,
           // Simple mode (GHST-103): the basics first, the rest behind More.
           simple: _prefs.value.simple,
+          // A `<details>` toggle, in More and the `/` palette (lib/editor/view/section_folds.dart).
+          toggles: true,
           // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
           onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
@@ -2211,8 +2217,11 @@ class NoteDeskState extends State<NoteDesk> {
         if (mounted) unawaited(taped.sayWhereAudioIs());
       });
     }
+    final links = _links;
     final seams = NoteSeams(
-      links: _links?.seam,
+      links: links?.seam,
+      // "Linked from" under the note's last line (Matt, 2026-10-30, "add all 12"), drawn by the links' piece.
+      foot: links == null ? null : (context, start) => links.foot(context, start: start, writable: !widget.readOnly),
       saving: (flush) => _flush = flush,
       closing: (close) => _closeNote = close,
       // A note that wears its tape is talked into from the tape's Add: its own mic steps out.

@@ -193,6 +193,7 @@ class NoteSeams {
     this.headRoom,
     this.problem,
     this.links,
+    this.foot,
     this.focusMode = false,
   });
 
@@ -329,6 +330,11 @@ class NoteSeams {
 
   /// The links between notes: the Links tool and its count, and the More sheet's rows for them.
   final NoteLinksSeam? links;
+
+  /// What is drawn under the note's last line, outside its words (lib/links/backlinks_foot.dart, "Linked from"): asked
+  /// only while the note's words are what is up, not under a canvas, a notebook's index, a book's or a canvas's
+  /// source, or the transcript. Given the column's own start where the page is one to read on a wide window.
+  final Widget Function(BuildContext context, double? columnStart)? foot;
 
   /// Whether the note's editor has focus mode in it (lib/editor/focus/focus_mode.dart, which lib/root/note_desk.dart
   /// puts there): then the More sheet has its row, and the page room under the last line for the typewriter.
@@ -1833,6 +1839,10 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         // every extension of the note's resolved (tool/perf.sh mac, canvas-open and notebook-open: 3 to 4 ms of the
         // opening frame's 12).
         _EditorBehind(hidden: !_words || _listening, later: !_words, builder: (context) => widget.editorBuilder(context, spec)),
+        // "Linked from" under the last line (lib/links/backlinks_foot.dart): the note's words only, never the
+        // transcript, a canvas's or a book's source.
+        if (_words && _raw && !_listening && !_typed && seams.foot != null)
+          SliverToBoxAdapter(child: seams.foot!(context, columnStart)),
         // A notebook's index and a journal end clear of the dock, as a note's words do.
         if (!_words && !_drawing && dockRings > 0) SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom') + pageDockRoom(t, dockRings))),
         // `{shown === 'transcript' ? <div className={styles.body}><TranscriptWords tape={tape} /></div> : null}`:

@@ -1280,7 +1280,30 @@ class _GhostRootState extends State<GhostRoot> {
     link: _linkMention,
     localGraph: (id, title) => _showGraph(focus: id, title: title),
     say: (message) => _say(context, message),
+    placeOf: _keptWhere,
+    readable: _readableHere,
   );
+
+  /// Where a note is kept, in words: its workspace as its path names it ("Ghost.md › Clients"), else its file's
+  /// folder; the foot's "Linked from" says it beside each title.
+  String? _keptWhere(String id) {
+    final workspace = _workspaces.workspaceOf(id);
+    if (workspace != null) return workspacePathName(_workspaces.value.list, workspace.id);
+    final path = _library.noteOf(id)?.path;
+    if (path == null || !path.contains('/')) return null;
+    return path.substring(0, path.lastIndexOf('/')).replaceAll('/', ' › ');
+  }
+
+  /// Whether a note may be listed beside another: any of the account's own, and a team note while the account is in
+  /// its organization. One this device could not open is not in the library to be asked of.
+  bool _readableHere(String id) {
+    final workspace = _workspaces.workspaceOf(id);
+    if (workspace == null) return true;
+    final org = orgOfWorkspace(_workspaces.value.list, workspace.id);
+    final orgs = _services?.orgs;
+    if (org == null || orgs == null) return true;
+    return orgs.orgsState().list.any((row) => row.id == org);
+  }
 
   /// The graph of the notes over the app (lib/links/graph_view.dart): the whole library's, or the notes round
   /// [focus]. A note opened from it opens where it was left. Archived notes are put away, and left out.

@@ -177,6 +177,7 @@ class AddGates {
     this.blank = true,
     this.person = false,
     this.simple = false,
+    this.toggles = false,
   });
 
   final bool picture;
@@ -214,6 +215,9 @@ class AddGates {
 
   /// Simple mode (`Preferences.simple`): the basics first, the rest behind More (see the header).
   final bool simple;
+
+  /// The editor draws a toggle block (lib/editor/view/section_folds.dart): A toggle, in More.
+  final bool toggles;
 }
 
 /// The gates, for a screen that can do these (a picture picker, a video, a place, a note to link, a canvas to
@@ -234,6 +238,7 @@ AddGates readGates({
   bool blank = true,
   bool person = false,
   bool simple = false,
+  bool toggles = false,
   List<PlusEffect> effects = const <PlusEffect>[],
   List<PlusInsert> inserts = const <PlusInsert>[],
 }) => AddGates(
@@ -253,6 +258,7 @@ AddGates readGates({
   blank: blank,
   person: person,
   simple: simple,
+  toggles: toggles,
 );
 
 // ---- the moment, in words (core/stamp.ts, core/noteNames.ts) -----------------------------------------------------------
@@ -379,6 +385,7 @@ List<AddRow> _fullMoreRows(AddGates gates) => <AddRow>[
   const AddRow(id: 'numbers', words: 'A numbered list'),
   const AddRow(id: 'quote', words: 'A quote'),
   const AddRow(id: 'callout', words: 'A callout'),
+  if (gates.toggles) const AddRow(id: 'toggle', words: 'A toggle'),
   const AddRow(id: 'choice', words: 'A choice'),
   const AddRow(id: 'dated', words: 'A to-do with a due date'),
   const AddRow(id: 'code', words: 'A block of code'),
@@ -424,6 +431,11 @@ String effectWords(PlusEffect effect) {
 
 /// A callout, as the Guide teaches it: a quote whose first line names its kind, the caret on the line under it.
 const String calloutSeed = '> [!NOTE]\n> ';
+
+/// A toggle, as GitHub and Obsidian draw one (lib/editor/view/section_folds.dart): `<details>` and its summary on
+/// lines of their own, a blank line either side of what it holds so the words inside are read as Markdown
+/// everywhere, and "Title" selected to be written over.
+const String toggleSeed = '<details>\n<summary>Title</summary>\n\n\n\n</details>';
 
 /// A block of code with nothing in it yet, the caret inside.
 const String codeSeed = '```\n\n```';
@@ -579,6 +591,9 @@ RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> 
       return RowBlock(tableSeed.text, tableSeed.select);
     case 'callout':
       return const RowBlock(calloutSeed, BlockSelect.at(calloutSeed.length));
+    case 'toggle':
+      final title = toggleSeed.indexOf('Title');
+      return RowBlock(toggleSeed, BlockSelect.at(title, title + 'Title'.length));
     case 'code':
       return const RowBlock(codeSeed, BlockSelect.at(4));
     case 'formula':
