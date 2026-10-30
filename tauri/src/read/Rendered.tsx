@@ -2,8 +2,11 @@ import { createElement, useEffect, useMemo, useState, type ReactNode } from 'rea
 import { GFM, parser } from '@lezer/markdown';
 import type { SyntaxNode } from '@lezer/common';
 import { frontMatterOffset } from '../app/core/frontMatter.ts';
+import { noteTitle } from '../app/core/noteTitle.ts';
+import { titleKey } from '../app/core/titleKey.ts';
 import { IMAGE_READY, imageUrl } from '../app/core/images.ts';
 import { wikiLinksIn, type WikiLink } from '../app/editor/wikiLinks.ts';
+import { MOST_EMBED_DEPTH, embedOf, sectionOf, type Embed } from './embeds.ts';
 import styles from './Rendered.module.css';
 
 /**
@@ -18,6 +21,10 @@ import styles from './Rendered.module.css';
  * from the share (`image/<name>`, lent by the page: core/images.ts), and one from elsewhere is a link to it rather than
  * a request the reader never asked for. A `[[wiki link]]` to a page the share has opens it; any other is its words.
  * The front matter is not drawn: what it says that a reader wants (a byline, a place) the page draws itself.
+ *
+ * An embed on a line of its own, `![[Note#Heading]]` (embeds.ts), is drawn as the app draws it, a quoted card with the
+ * page's title and the section in it, when that page is in the same share; any other is a "from [[Note]]" placeholder.
+ * Two levels at most, and a page that would draw itself, or a page it is drawn inside of, is the placeholder too.
  */
 
 const markdown = parser.configure([GFM, { remove: ['SetextHeading'] }]);
@@ -43,6 +50,11 @@ interface Draw {
   text: string;
   known: (title: string) => boolean;
   open: (title: string) => void;
+  /** A page of the share's words by its title, for an embed; null for one the share does not have. */
+  bodyOf: (title: string) => string | null;
+  /** How many embeds deep these words are, and the pages they are drawn inside of, by their titles' keys. */
+  depth: number;
+  within: ReadonlySet<string>;
 }
 
 const SKIPPED = new Set(['HeaderMark', 'EmphasisMark', 'CodeMark', 'LinkMark', 'QuoteMark', 'ListMark', 'TaskMarker', 'StrikethroughMark', 'CodeInfo', 'LinkTitle', 'LinkLabel', 'URL']);
@@ -245,6 +257,57 @@ function blocks(node: SyntaxNode, d: Draw, key: string): ReactNode[] {
   return children(node).map((child) => block(child, d, `${key}.${child.from}`));
 }
 
+/** The link's mark (Lucide's `link-2`), drawn in the words' own ink. */
+function LinkMark() {
+  return (
+    <svg className={styles.embedMark} viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+      <line x1="8" x2="16" y1="12" y2="12" />
+    </svg>
+  );
+}
+
+/** An embed: its section drawn in a quoted card where its page is in the share, else where it is from. */
+function embedded(embed: Embed, d: Draw, key: string): ReactNode {
+  const named = titleKey(embed.title);
+  const written = `[[${embed.title}${embed.anchor ? `#${embed.anchor}` : ''}]]`;
+  const body = d.bodyOf(embed.title);
+  if (body === null || d.depth >= MOST_EMBED_DEPTH || d.within.has(named) || d.within.has(titleKey(noteTitle(body)))) {
+    return (
+      <p key={key} className={styles.embedFrom} data-embed-from="">
+        from <span className={styles.embedName}>{written}</span>
+      </p>
+    );
+  }
+  const section = sectionOf(body, embed.anchor);
+  const label = `${embed.title}${embed.anchor ? ` › ${embed.anchor}` : ''}`;
+  let inside: ReactNode;
+  if (section === null) {
+    inside = <p className={styles.embedQuiet}>{`${embed.title} has ${embed.anchor!.startsWith('^') ? `no line named ${embed.anchor}` : `no heading “${embed.anchor}”`}.`}</p>;
+  } else if (section.trim() === '') {
+    inside = <p className={styles.embedQuiet}>{`${embed.title} has no words yet.`}</p>;
+  } else {
+    const inner: Draw = { ...d, text: section, depth: d.depth + 1, within: new Set([...d.within, named, titleKey(noteTitle(body))]) };
+    inside = blocks(markdown.parse(section).topNode, inner, `${key}e`);
+  }
+  return (
+    <blockquote key={key} className={styles.embed} data-embed="" aria-label={`From ${label}`}>
+      <div className={styles.embedHead}>
+        <LinkMark />
+        {d.known(embed.title) ? (
+          <button type="button" className={styles.embedTitle} onClick={() => d.open(embed.title)}>
+            {label}
+          </button>
+        ) : (
+          <span className={styles.embedTitle}>{label}</span>
+        )}
+      </div>
+      {inside}
+    </blockquote>
+  );
+}
+
 function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
   const heading = /^ATXHeading(\d)$/.exec(node.name);
   if (heading) {
@@ -253,8 +316,10 @@ function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
     return createElement(`h${heading[1]}`, { key }, inline(node, d, key, skipSpace(d.text, mark ? mark.to : node.from)));
   }
   switch (node.name) {
-    case 'Paragraph':
-      return <p key={key}>{inline(node, d, key)}</p>;
+    case 'Paragraph': {
+      const embed = embedOf(d.text.slice(node.from, node.to));
+      return embed ? embedded(embed, d, key) : <p key={key}>{inline(node, d, key)}</p>;
+    }
     case 'BulletList':
       return <ul key={key}>{blocks(node, d, key)}</ul>;
     case 'OrderedList': {
@@ -335,8 +400,20 @@ function Picture({ name, alt }: { name: string; alt: string }) {
 }
 
 /** The page's words, drawn (see the header). */
-export function Rendered({ body, known = () => false, open = () => undefined }: { body: string; known?: (title: string) => boolean; open?: (title: string) => void }) {
+export function Rendered({
+  body,
+  known = () => false,
+  open = () => undefined,
+  bodyOf = () => null,
+}: {
+  body: string;
+  known?: (title: string) => boolean;
+  open?: (title: string) => void;
+  /** The share's pages' words by title, for its embeds (see the header). */
+  bodyOf?: (title: string) => string | null;
+}) {
   const text = useMemo(() => body.slice(frontMatterOffset(body)), [body]);
   const tree = useMemo(() => markdown.parse(text), [text]);
-  return <div className={styles.rendered}>{blocks(tree.topNode, { text, known, open }, 'b')}</div>;
+  const own = titleKey(noteTitle(body));
+  return <div className={styles.rendered}>{blocks(tree.topNode, { text, known, open, bodyOf, depth: 0, within: new Set(own ? [own] : []) }, 'b')}</div>;
 }

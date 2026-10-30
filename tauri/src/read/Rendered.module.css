@@ -231,3 +231,67 @@
   outline-offset: 2px;
   border-radius: var(--glacier-radius-sm);
 }
+
+/*
+ * A section embed (embeds.ts), as the app draws it (lib/editor/media/note_embeds.dart): a quoted card, the quote's bar
+ * down its start, a link's mark and the page's title over the section's words. One from a page the share does not
+ * carry is a quiet line saying where it is from.
+ */
+.rendered blockquote.embed {
+  margin: 0.4em 0 0.85em;
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-1) var(--glacier-space-4);
+  border-inline-start: var(--glacier-shape-accent-edge, 3px) solid var(--glacier-border-strong, var(--glacier-border));
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in srgb, var(--app-ink) 3%, transparent);
+  color: var(--glacier-text);
+}
+
+.embedHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-block-end: 0.35em;
+  font-size: 0.86em;
+  color: var(--app-ink-3);
+}
+
+.embedMark {
+  flex: none;
+}
+
+.embedTitle {
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: var(--glacier-font-weight-semibold, 600);
+  color: inherit;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.embedTitle {
+  cursor: pointer;
+}
+
+button.embedTitle:hover {
+  color: var(--app-ink);
+}
+
+.embedQuiet {
+  color: var(--app-ink-3);
+  font-size: 0.86em;
+}
+
+.rendered .embedFrom {
+  color: var(--app-ink-3);
+  font-size: 0.86em;
+}
+
+.embedName {
+  font-family: var(--glacier-font-mono);
+}
