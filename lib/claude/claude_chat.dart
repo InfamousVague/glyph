@@ -26,12 +26,13 @@
 library;
 
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
-import 'package:flutter/services.dart' show TextInputAction;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/art.dart' show AppIcon, Lucide;
 import '../core/back.dart';
+import '../ai/support/failure.dart' show failureText;
 import '../live/follow.dart';
 import '../live/presence.dart' show AiOnline;
 import '../sheet/css.dart';
@@ -55,6 +56,7 @@ class ClaudeChat extends StatefulWidget {
     required this.onSettings,
     this.onOpenAi,
     this.onInbox,
+    this.onShareLink,
     this.initial,
   });
 
@@ -76,6 +78,10 @@ class ClaudeChat extends StatefulWidget {
 
   /// Without a key: a request written into the "Ask Claude" note, for the connector's agents.
   final Future<void> Function(String request)? onInbox;
+
+  /// A note's share link, made or found again, for the Copy link on the card of the notes a run wrote; null where
+  /// the build has no share (signed out, a test).
+  final Future<String> Function(String noteId)? onShareLink;
 
   /// Words the field starts with: what the page it was opened from is about. Another given while the chat is up
   /// (a wide window's dock pressed on another note) takes the field's place, where nothing has been written in it.
@@ -420,7 +426,7 @@ class _Messages extends StatelessWidget {
             ],
           ),
         ),
-      for (final run in runner.conversation) ..._runItems(context, run, chat.onOpenNote),
+      for (final run in runner.conversation) ..._runItems(context, run, chat),
       for (final sent in state._sent) ...[
         _Bubble(words: sent, mine: true),
         const _Quiet('Added to your “Ask Claude” note.'),
@@ -435,21 +441,92 @@ class _Messages extends StatelessWidget {
     );
   }
 
-  static List<Widget> _runItems(BuildContext context, ClaudeRun run, void Function(String) onOpenNote) => [
+  static List<Widget> _runItems(BuildContext context, ClaudeRun run, ClaudeChat chat) => [
         for (final step in run.steps)
           switch (step.kind) {
             'asked' => _Bubble(words: step.words, mine: true),
             'said' => _Bubble(words: step.words),
             'thought' => _Thought(words: step.words),
             'notice' => _Quiet(step.words),
-            _ => _Step(step: step, onOpenNote: onOpenNote),
+            _ => _Step(step: step, onOpenNote: chat.onOpenNote),
           },
         if (run.thinking.trim().isNotEmpty) _Thought(words: run.thinking.trim(), live: true),
         if (run.saying.trim().isNotEmpty) _Bubble(words: run.saying.trim(), live: true),
         if (run.working && run.saying.isEmpty && run.thinking.trim().isEmpty) _Quiet(run.state == ClaudeState.writing ? 'Writing…' : 'Thinking…'),
         if (run.state == ClaudeState.stopped) const _Quiet('Stopped.'),
         if (run.state == ClaudeState.failed) _Quiet(run.problem ?? 'Something went wrong.'),
+        if (run.touched.isNotEmpty) _NoteLinks(run: run, chat: chat),
       ];
+}
+
+/// The notes a run made or changed, each a link: a press opens the note, and Copy link puts its share link on the
+/// clipboard (Matt, 2026-10-30: "have claude chat share an embeded link to notes it creates and edits"). Drawn as
+/// soon as the first note is touched and kept under the run's last words, so the notes a long answer talked about
+/// are a tap away from it.
+class _NoteLinks extends StatelessWidget {
+  const _NoteLinks({required this.run, required this.chat});
+
+  final ClaudeRun run;
+  final ClaudeChat chat;
+
+  Future<void> _copy(BuildContext context, String noteId) async {
+    final toast = GlacierToast.of(context);
+    try {
+      final link = await chat.onShareLink!(noteId);
+      await Clipboard.setData(ClipboardData(text: link));
+      toast.toast(message: const Text('Link copied.'));
+    } catch (failure) {
+      toast.toast(message: Text('The link couldn’t be made: ${failureText(failure)}'));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final xs = t.fontSize('xs');
+    final subtle = t.color('glacier-text-subtle');
+    final ink = t.color('app-ink');
+    return _Card(
+      key: ValueKey('claude-notes:${identityHashCode(run)}'),
+      children: [
+        Text(run.touched.length == 1 ? 'The note' : 'The notes', style: pageText(t, xs, weight: 'medium', color: subtle)),
+        for (final entry in run.touched.entries) ...[
+          SizedBox(height: t.space(2)),
+          Row(children: [
+            Expanded(
+              child: GlacierPressable(
+                key: ValueKey('claude-note:${entry.key}'),
+                onPressed: () => chat.onOpenNote(entry.key),
+                semanticLabel: 'Open ${entry.value.isEmpty ? 'the note' : entry.value}',
+                builder: (context, state) => Row(children: [
+                  AppIcon(Lucide.fileText, size: 16, color: claudeOrange),
+                  SizedBox(width: t.space(2)),
+                  Expanded(
+                    child: Text(entry.value.isEmpty ? 'Untitled' : entry.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink)),
+                  ),
+                  SizedBox(width: t.space(2)),
+                  Text(run.made.contains(entry.key) ? 'New' : 'Changed', style: pageText(t, xs, color: subtle)),
+                ]),
+              ),
+            ),
+            if (chat.onShareLink != null) ...[
+              SizedBox(width: t.space(2)),
+              GlacierPressable(
+                key: ValueKey('claude-note-link:${entry.key}'),
+                onPressed: () => _copy(context, entry.key),
+                semanticLabel: 'Copy a link to ${entry.value.isEmpty ? 'the note' : entry.value}',
+                builder: (context, state) => Row(mainAxisSize: MainAxisSize.min, children: [
+                  AppIcon(Lucide.link, size: 14, color: claudeOrange),
+                  SizedBox(width: t.space(1)),
+                  Text('Copy link', style: pageText(t, xs, weight: 'medium', color: claudeOrange)),
+                ]),
+              ),
+            ],
+          ]),
+        ],
+      ],
+    );
+  }
 }
 
 /// An agent online through the connector: what it is doing, Follow, Open.

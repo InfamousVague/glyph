@@ -48,8 +48,10 @@ import 'package:ghost_md/core/workspaces.dart' show workspaceHues;
 import 'package:ghost_md/mail/mail_name.dart' show mailNameNormal, mailNameUnfit;
 
 import 'fake_crypto.dart';
+import 'fake_forms.dart';
 
 export 'fake_crypto.dart' show fastRounds;
+export 'fake_forms.dart' show FakeAnswer, FakeForm, FakeForms;
 
 /// How many updates a note's log holds before a snapshot must cut it (docs/SHARED.md, S11), as the service keeps it
 /// (`UPDATES_KEPT`).
@@ -278,6 +280,10 @@ class FakeService {
   /// about it, and when it was first and last published, in ms.
   final Map<String, ({String blob, String meta, int created, int updated})> sites = {};
 
+  /// Forms from a share link (server/src/forms.rs): which shares are forms, and the answers waiting, sealed
+  /// (test/support/fake_forms.dart).
+  final FakeForms forms = FakeForms();
+
   /// Email to a note (server/src/mail.rs): the account's address, whether this service takes mail at all, and the
   /// mail waiting, sealed, by id. A test puts a mail here as the service would have sealed it.
   String? mailAddress;
@@ -342,6 +348,7 @@ class FakeService {
     shareAudio.clear();
     shareAudioStaging.clear();
     sites.clear();
+    forms.clear();
     mailAddress = null;
     mail.clear();
     orgs.clear();
@@ -571,6 +578,10 @@ class FakeService {
     if (bearer == null || bearer.isEmpty) return _refuse(401, 'Sign in first.');
     if (!_tokens.contains(bearer) || account == null) return _refuse(401, 'Your session has ended. Sign in again.');
     final mine = account;
+
+    // --- forms from a share link (server/src/forms.rs), kept by fake_forms.dart ---
+    final formed = forms.route(method, path, body, query, now: clock(), shared: shares.containsKey, keyed: mine.encryption != null);
+    if (formed != null) return formed;
 
     if (method == 'POST' && path == 'refresh') return _signedIn(mine);
     if (method == 'POST' && path == 'device') {

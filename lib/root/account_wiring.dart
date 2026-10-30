@@ -43,6 +43,7 @@ import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
+import '../forms/form_inbox.dart' show syncForms;
 import '../integrations/webhooks/plugin.dart' show hooksWhileOn;
 import '../live/live.dart';
 import '../live/nudge.dart';
@@ -303,6 +304,9 @@ class WiredAccount {
       // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
       // Webhooks plugin is on.
       hooksIn: hooksWhileOn,
+      // Answers to a form shared by its link, filed as tickets (docs/FORMS.md): on every device, a claim on the service
+      // keeping each to one of them.
+      formsIn: syncForms,
       // Claude's key and choices, the Slack and Discord channels, the GitHub token: the same on every device, each
       // sealed on its own (lib/sync/sealed_keys.dart; Matt, 2026-10-26).
       sealedKeys: SealedKeys(items: connectionItems, prefs: settings, device: () => thisDevice(device).id, heard: connectionChanges(), kept: device),

@@ -7,6 +7,7 @@
 //!   /api/v1/sites/*    a note or a notebook published as a site, see `sites.rs`
 //!   /api/v1/mail/*     email to a note: an account's private address and the mail sent to it, sealed, see `mail.rs`
 //!   /api/v1/hooks/*, /api/hooks/{token}  incoming hooks: a URL that adds to a note, what it takes sealed, see `hooks.rs`
+//!   /api/v1/forms/*, /api/forms/{id}  forms from a share link: answers sealed in the browser, filed as tickets, see `forms.rs`
 //!   /api/v1/meet/*, /api/internal/meet/*  Ghost in a Google Meet: bookings, and recordings sealed, see `meet.rs`
 //!   /api/v1/discord/*, /api/internal/discord/*  Ghost in a Discord call: a Discord user linked, calls as bookings, see `discord.rs`
 //!   /api/v1/orgs/*     organizations: teams invited by handle, see `orgs.rs`
@@ -42,6 +43,7 @@
 mod accounts;
 mod discord;
 mod format;
+mod forms;
 mod google;
 mod guard;
 mod hooks;
@@ -79,6 +81,8 @@ mod sites_tests;
 mod mail_tests;
 #[cfg(test)]
 mod hooks_tests;
+#[cfg(test)]
+mod forms_tests;
 #[cfg(test)]
 mod meet_tests;
 #[cfg(test)]
@@ -204,6 +208,8 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
             .merge(mail::router(accounts.clone()))
             // Incoming hooks (docs/INTEGRATIONS.md): a URL that adds to a note, what it is posted sealed on arrival.
             .merge(hooks::router(accounts.clone()))
+            // Forms from a share link (docs/FORMS.md): answers sealed in the visitor's browser, filed as tickets by a device.
+            .merge(forms::router(accounts.clone()))
             // Ghost in a Google Meet (docs/MEET.md): a device's bookings and sealed recordings, and the bot's loopback routes.
             .merge(meet::router(accounts.clone(), meet::bot_token()))
             // Ghost in a Discord call (docs/DISCORD_CALLS.md): a Discord user linked by a code, its calls booked as meetings.
@@ -279,6 +285,8 @@ async fn main() {
     // Hook posts thirty days old go, whether or not a device ever took them (hooks.rs).
     if let Some(accounts) = &accounts {
         hooks::sweep_every_hour(accounts.clone());
+        // And answers to a form thirty days old, filed or not (forms.rs).
+        forms::sweep_every_hour(accounts.clone());
     }
     let listener = match tokio::net::TcpListener::bind(&bind).await {
         Ok(listener) => listener,

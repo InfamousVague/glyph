@@ -499,6 +499,7 @@ const Map<String, LucideIcon> _marks = {
   'rule-added': Lucide.scrollText,
   'summary-written': Lucide.audioLines,
   'sync-conflict': Lucide.triangleAlert,
+  'form-answer': Lucide.ticket,
   'mention': Lucide.atSign,
   'page-expired': Lucide.shieldCheck,
 };

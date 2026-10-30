@@ -24,10 +24,11 @@ import 'preferences.dart' show NotificationPrefs;
 /// Made by the service, about an organization; the words it needs ride in `body`, in the clear (`SERVER_KINDS`).
 const List<String> serverKinds = ['invite', 'invite-accepted', 'invite-declined', 'member-joined', 'member-left', 'member-removed', 'role-changed', 'org-renamed', 'org-deleted'];
 
-/// Made by this account for itself, sealed; the MCP server posts the first five, the app the rest (`SELF_KINDS`). The
-/// last, a verified page whose time ran out (lib/verified/verified.dart; Matt, 2026-10-30: "add all 12"), is the app's
-/// own and has no web counterpart yet.
-const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'page-expired'];
+/// Made by this account for itself, sealed; the MCP server posts the first five, the app the rest (`SELF_KINDS`).
+/// `form-answer` is a ticket filed from an answer to a form (lib/forms/form_inbox.dart; Matt, 2026-10-30): an older
+/// build does not know it, and draws nothing for it. `page-expired`, a verified page whose time ran out
+/// (lib/verified/verified.dart; Matt, 2026-10-30: "add all 12"), is the app's own and has no web counterpart yet.
+const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'form-answer', 'page-expired'];
 
 /// Written by the service on a member's word, to another member of the organization, sealed under the organization
 /// key (lib/mentions/mention_notices.dart; server/src/notifications.rs): who sent it and the organization ride in the
@@ -59,6 +60,8 @@ const Map<String, String> kindHues = {
   'rule-added': 'violet',
   'summary-written': 'sea',
   'sync-conflict': 'ember',
+  // A ticket written from an answer to a form: a note written, sea.
+  'form-answer': 'sea',
   'page-expired': 'amber',
   'mention': 'violet',
 };
@@ -90,6 +93,8 @@ const Map<String, String> _categoryOf = {
   'rule-added': 'claude',
   'summary-written': 'summaries',
   'sync-conflict': 'conflicts',
+  // Someone outside asked for something: shown as an invitation is, with no switch to turn it off.
+  'form-answer': 'invites',
   // A person's own business, with no switch, as an invitation has none: someone asked something of them, or a page
   // they vouch for wants looking at. The bell's Mentions filter shows the first.
   'mention': 'mentions',
@@ -307,6 +312,8 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
       return open('summary-written') ? 'A meeting was written up: ${opened!.title}' : 'A meeting was written up';
     case 'sync-conflict':
       return open('sync-conflict') ? '${opened!.title} was kept twice: both devices had changed it' : 'A note was kept twice';
+    case 'form-answer':
+      return open('form-answer') ? 'A new answer to ${opened!.by ?? 'a form'}: ${opened.title}' : 'A form was answered';
     case 'mention':
       return open('mention') ? '${_text(opened!.by, _who(n.from))} mentioned you in ${opened.title}' : '${_who(n.from)} mentioned you in a note';
     case 'page-expired':

@@ -7,13 +7,18 @@
 /// `columns:`, `sort:`), which stay for the pencil. The deeper reaches of the grammar (and, or, nested conditions)
 /// are the pencil's; this is the common query made plain.
 ///
-/// What differs: nothing in what it offers or writes. The sheet is lib/sheet/sheet.dart, built while it is open.
+/// What differs: nothing in what it offers or writes of the web's. The sheet is lib/sheet/sheet.dart, built while it
+/// is open. The port's own (Matt, 2026-10-30, "add all 12"): the drawn timeline and the chart among the ways to show
+/// it; a calendar's day field, a timeline's two fields and its zoom, each where that view is shown; and a chart's
+/// shape, its bars, what they measure and their split, and the rollups (a ready one a tap, each taken off with
+/// another), which in simple mode sit behind More, opened in place (docs/DESIGN.md, simple mode).
 library;
 
 import 'package:flutter/widgets.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
+import '../../core/preferences.dart' show preferences;
 import '../../core/query/query.dart';
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
@@ -85,13 +90,70 @@ const List<({String value, String label})> builderGroups = <({String value, Stri
   (value: 'priority', label: 'By priority'),
 ];
 
+/// The ways to show a query, in the order the builder offers them.
+const List<ShowAs> builderViews = <ShowAs>[ShowAs.table, ShowAs.list, ShowAs.board, ShowAs.calendar, ShowAs.timeline, ShowAs.chart, ShowAs.gantt, ShowAs.count];
+
+/// The day field a calendar puts a record on (`date:`); null is the first it has (`DATE_FIELDS`, the port's own).
+const List<({String? value, String label})> builderDays = <({String? value, String label})>[
+  (value: null, label: 'The first day it has'),
+  (value: 'due', label: 'Due'),
+  (value: 'scheduled', label: 'Scheduled'),
+  (value: 'start', label: 'Start'),
+  (value: 'date', label: 'Date'),
+  (value: 'created', label: 'Created'),
+];
+
+/// A timeline's start fields (`start:`) and end fields (`end:`); null is the default, `start` and `due`.
+const List<({String? value, String label})> builderStarts = <({String? value, String label})>[
+  (value: null, label: 'Start'),
+  (value: 'scheduled', label: 'Scheduled'),
+  (value: 'created', label: 'Created'),
+  (value: 'date', label: 'Date'),
+];
+const List<({String? value, String label})> builderEnds = <({String? value, String label})>[
+  (value: null, label: 'Due'),
+  (value: 'end', label: 'End'),
+  (value: 'date', label: 'Date'),
+];
+
+/// What a chart's bars are of (`x:`), what they measure (`y:`) and what splits them (`series:`).
+const List<({String? value, String label})> builderX = <({String? value, String label})>[
+  (value: null, label: 'Status'),
+  (value: 'assignee', label: 'Person'),
+  (value: 'priority', label: 'Priority'),
+  (value: 'tags', label: 'Tags'),
+  (value: 'notebook', label: 'Notebook'),
+  (value: 'due', label: 'Due'),
+];
+const List<({String? value, String label})> builderY = <({String? value, String label})>[
+  (value: null, label: 'How many'),
+  (value: 'sum(estimate)', label: 'Estimate, added up'),
+  (value: 'sum(hours)', label: 'Hours, added up'),
+  (value: 'percent', label: 'How much is done'),
+];
+const List<({String? value, String label})> builderSeries = <({String? value, String label})>[
+  (value: null, label: 'Not split'),
+  (value: 'status', label: 'By status'),
+  (value: 'assignee', label: 'By person'),
+  (value: 'priority', label: 'By priority'),
+];
+
+/// Ready rollups, each a column worked out over the notes a record is linked with (lib/core/query/rollup.dart).
+const List<({String name, String line, String label})> builderRollups = <({String name, String line, String label})>[
+  (name: 'open', line: 'open = count(links where status != done)', label: 'Open notes it links to'),
+  (name: 'done', line: 'done = percent(links)', label: 'How much of what it links to is done'),
+  (name: 'linked', line: 'linked = count(backlinks)', label: 'Notes that link to it'),
+  (name: 'hours', line: 'hours = sum(hours of backlinks)', label: 'Hours on the notes that link to it'),
+  (name: 'todos', line: 'todos = percent(tasks)', label: 'Its to-dos ticked'),
+];
+
 /// A row's mark, at the size its slot gives it (`.icon svg { inline-size: 18px }`).
 Widget _mark(LucideIcon icon) => AppIcon(icon, size: 18);
 
 bool _same(String? a, String? b) => (a ?? '').trim().toLowerCase() == (b ?? '').trim().toLowerCase();
 
-class QueryBuilder extends StatelessWidget {
-  const QueryBuilder({super.key, required this.body, required this.onBody, required this.onLines, required this.onClose});
+class QueryBuilder extends StatefulWidget {
+  const QueryBuilder({super.key, required this.body, required this.onBody, required this.onLines, required this.onClose, this.simple});
 
   /// The current fence body, the lines between the fences.
   final String body;
@@ -103,12 +165,54 @@ class QueryBuilder extends StatelessWidget {
   final VoidCallback onLines;
   final VoidCallback onClose;
 
+  /// Whether the app is in simple mode, the chart's and the rollups' rows behind More; the preference where unsaid.
+  final bool? simple;
+
+  @override
+  State<QueryBuilder> createState() => _QueryBuilderState();
+}
+
+class _QueryBuilderState extends State<QueryBuilder> {
+  bool _more = false;
+
   @override
   Widget build(BuildContext context) {
+    final body = widget.body;
+    final onBody = widget.onBody;
+    final onLines = widget.onLines;
+    final onClose = widget.onClose;
     final kind = builderKind(clauseValue(body, 'from'));
     final where = clauseValue(body, 'where');
     final group = clauseValue(body, 'group');
-    final show = (clauseValue(body, 'show') ?? '').trim().toLowerCase();
+    // `view:` is read as `show:`, and written where it is the line the body has.
+    final showLine = clauseValue(body, 'show') == null && clauseValue(body, 'view') != null ? 'view' : 'show';
+    final show = (clauseValue(body, showLine) ?? '').trim().toLowerCase();
+    final shown = ShowAs.values.where((each) => each.name == show).firstOrNull ?? (show == 'graph' ? ShowAs.chart : null);
+    final simple = widget.simple ?? preferences.value.simple;
+    final more = !simple || _more;
+    final rollups = rollupNames(body);
+
+    /// A heading and its rows, each a value of [clause] where null takes the line off.
+    List<Widget> choices(String heading, String clause, List<({String? value, String label})> each, {String id = ''}) {
+      final said = clauseValue(body, clause);
+      final has = said != null && said.isNotEmpty;
+      return <Widget>[
+        SheetHeading(heading),
+        SheetGroup(
+          children: <Widget>[
+            for (final one in each)
+              SheetRow(
+                key: ValueKey<String>('${id.isEmpty ? clause : id}:${one.value ?? ''}'),
+                label: one.label,
+                chosen: one.value == null ? !has : _same(said, one.value),
+                onPress: () => onBody(withClause(body, clause, one.value)),
+              ),
+            if (has && !each.any((one) => one.value != null && _same(said, one.value)))
+              SheetRow(key: ValueKey<String>('${id.isEmpty ? clause : id}:own'), label: 'Your own: $said', hint: 'Edit with the pencil', chosen: true, onPress: onLines),
+          ],
+        ),
+      ];
+    }
     final filters = builderFilters[kind]!;
     // Statuses, people and priorities are a to-do's and a ticket's: a note and an event have none to group by.
     final grouped = kind != QueryKind.notes && kind != QueryKind.events;
@@ -160,16 +264,69 @@ class QueryBuilder extends StatelessWidget {
         const SheetHeading('Show'),
         SheetGroup(
           children: <Widget>[
-            for (final view in const <ShowAs>[ShowAs.table, ShowAs.list, ShowAs.board, ShowAs.calendar, ShowAs.gantt, ShowAs.count])
+            for (final view in builderViews)
               SheetRow(
                 key: ValueKey<String>('show:${view.name}'),
                 icon: _mark(queryViews[view]!.icon),
-                label: queryViews[view]!.label,
-                chosen: show.isNotEmpty ? show == view.name : view == ShowAs.table,
-                onPress: () => onBody(withClause(body, 'show', view.name)),
+                label: view == ShowAs.gantt ? 'Gantt (Mermaid)' : queryViews[view]!.label,
+                chosen: show.isNotEmpty ? show == view.name || shown == view : view == ShowAs.table,
+                onPress: () => onBody(withClause(body, showLine, view.name)),
               ),
           ],
         ),
+        if (shown == ShowAs.calendar) ...choices('Put each on', 'date', builderDays),
+        if (shown == ShowAs.timeline) ...<Widget>[
+          ...choices('Bars start on', 'start', builderStarts),
+          ...choices('Bars end on', 'end', builderEnds),
+          ...choices('Zoom', 'zoom', const <({String? value, String label})>[
+            (value: null, label: 'As wide as the bars'),
+            (value: 'week', label: 'Week'),
+            (value: 'month', label: 'Month'),
+            (value: 'quarter', label: 'Quarter'),
+          ]),
+        ],
+        if (!more)
+          SheetGroup(
+            children: <Widget>[
+              SheetRow(
+                key: const ValueKey<String>('more'),
+                icon: _mark(Lucide.ellipsis),
+                label: 'More',
+                hint: shown == ShowAs.chart ? 'The chart and rollups' : 'Rollups over linked notes',
+                onPress: () => setState(() => _more = true),
+              ),
+            ],
+          )
+        else ...<Widget>[
+          if (shown == ShowAs.chart) ...<Widget>[
+            ...choices('Chart', 'chart', const <({String? value, String label})>[(value: null, label: 'Bars'), (value: 'line', label: 'A line'), (value: 'pie', label: 'A pie')]),
+            ...choices('Bars of', 'x', builderX),
+            ...choices('Each measures', 'y', builderY),
+            ...choices('Split', 'series', builderSeries),
+          ],
+          const SheetHeading('Rollups'),
+          SheetGroup(
+            children: <Widget>[
+              for (final name in rollups)
+                SheetRow(
+                  key: ValueKey<String>('rollup-off:$name'),
+                  icon: _mark(Lucide.x),
+                  label: 'Take off “$name”',
+                  onPress: () => onBody(withRollup(body, name, null)),
+                ),
+              for (final ready in builderRollups)
+                if (!rollups.contains(ready.name))
+                  SheetRow(
+                    key: ValueKey<String>('rollup:${ready.name}'),
+                    icon: _mark(Lucide.plus),
+                    label: ready.label,
+                    hint: ready.line,
+                    onPress: () => onBody(withRollup(body, ready.name, ready.line)),
+                  ),
+              SheetRow(key: const ValueKey<String>('rollup:own'), label: 'Your own', hint: 'rollup: name = count(links where …), with the pencil', onPress: onLines),
+            ],
+          ),
+        ],
       ],
     );
   }

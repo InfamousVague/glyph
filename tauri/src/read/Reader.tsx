@@ -17,6 +17,8 @@ import { geoTagOf } from '../app/core/geotag.ts';
 import { lookOf } from '../app/core/look.ts';
 import { Byline } from '../app/authors/Byline.tsx';
 import { drawnBody } from './drawn.ts';
+import { formOf } from './form.ts';
+import { FormRead } from './FormRead.tsx';
 import { meetingOf, summaryOf } from './meeting.ts';
 import { MeetingRead } from './MeetingRead.tsx';
 import { useReadMode } from './readMode.ts';
@@ -96,6 +98,9 @@ export function Reader() {
     );
   }
   const found = readShareLink(location.href);
+  // A form (form.ts): a shared note holding a ```form fence is filled in here rather than read (docs/FORMS.md).
+  const form = state.shared.kind === 'note' && state.shared.pages[0] ? formOf(state.shared.pages[0].body) : null;
+  if (form && found) return <FormRead id={found.id} title={state.shared.title} body={state.shared.pages[0]!.body} def={form} />;
   return (
     <>
       <Read shared={state.shared} page={page} setPage={setPage} dark={isDark} saving={saving} setSaving={setSaving} copied={copied} setCopied={setCopied} mapOn={mapOn} setMapOn={setMapOn} />

@@ -49,6 +49,7 @@ import '../core/front_matter.dart';
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
+import '../forms/form_def.dart' show isFormBody, publicFormBody;
 import '../meet/meet_note.dart' show ghostLineStart;
 import '../sync/notes.dart' show imageNames;
 import 'carried.dart';
@@ -467,6 +468,9 @@ class Shares extends ChangeNotifier {
   /// What [note]'s share holds: its pages, and a meeting's turns and the recording it names.
   Shared _sharedOf(Note note, List<Note> notes, ShareEntry kept) {
     final shared = sharedOf(note, notes, place: kept.place, places: kept.places);
+    // A form (lib/forms/form_def.dart) shares its introduction and its fields, not where its answers go: the reader
+    // page draws it as a form (docs/FORMS.md).
+    if (shared.kind == 'note' && isFormBody(note.body)) return Shared(kind: 'note', title: shared.title, pages: [SharedPage(title: shared.title, body: publicFormBody(shared.pages.first.body))], at: shared.at, note: shared.note);
     if (shared.kind != 'note' || !isMeeting(note)) return shared;
     final audio = kept.recording ? SharedAudio.fromJson(kept.audio) : null;
     return shared.withMeeting(sharedMeeting(note, at: prefs.value.meetings[note.id]?.toInt() ?? note.createdAt, audio: audio));
