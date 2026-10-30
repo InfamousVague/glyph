@@ -110,9 +110,35 @@ struct Cut {
     speech: bool,
 }
 
+/// What a capture is for. A dictation (`DICTATION`, every capture until 2026-10-30) guesses at the words still being
+/// said and keeps every sample for its rewinds and its tape. The words of a meeting being recorded by something else
+/// (`MEETING`: the phone's meeting service has the microphone and the tape, MeetingService.kt; Matt, 2026-10-30: "If
+/// possible add real time transcriptions for meetings") do neither: each phrase is transcribed once, when it is
+/// finished, which is a fraction of a dictation's inferences (native/src/capture.rs measures it), and nothing is held
+/// but the window being heard, so an hour costs no more memory than a minute. Its rewind does nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mode {
+    /// Whether partials run: a guess every 700 ms of new speech.
+    pub partials: bool,
+    /// Whether every sample is kept, for a rewind and the tape.
+    pub keep: bool,
+}
+
+impl Mode {
+    pub const DICTATION: Mode = Mode { partials: true, keep: true };
+    pub const MEETING: Mode = Mode { partials: false, keep: false };
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Mode::DICTATION
+    }
+}
+
 /// One capture's worth of state. Create one per press of the side key.
 pub struct Streamer<T: Transcribe> {
     transcriber: T,
+    mode: Mode,
     vad: Vad,
 
     /// The uncommitted audio. `audio[0]` is absolute sample `base`.
@@ -150,8 +176,14 @@ pub struct Streamer<T: Transcribe> {
 
 impl<T: Transcribe> Streamer<T> {
     pub fn new(transcriber: T) -> Streamer<T> {
+        Streamer::with_mode(transcriber, Mode::DICTATION)
+    }
+
+    /// A capture for what [`Mode`] says.
+    pub fn with_mode(transcriber: T, mode: Mode) -> Streamer<T> {
         Streamer {
             transcriber,
+            mode,
             vad: Vad::new(),
             audio: Vec::new(),
             energy: Vec::new(),
@@ -176,7 +208,9 @@ impl<T: Transcribe> Streamer<T> {
     /// This is where pauses are found and cuts are decided - see the module
     /// header for why that happens here and not in `tick`.
     pub fn feed(&mut self, samples: &[f32]) {
-        self.recording.extend(samples.iter().map(|&s| to_pcm(s)));
+        if self.mode.keep {
+            self.recording.extend(samples.iter().map(|&s| to_pcm(s)));
+        }
         self.take_in(samples);
     }
 
@@ -321,6 +355,11 @@ impl<T: Transcribe> Streamer<T> {
     /// of the recording. Never transcribes.
     pub fn rewind(&mut self, to_ms: u64) -> Vec<Event> {
         let mut events = Vec::new();
+        // Nothing kept, nothing to wind back to: where it is, said as a rewind to here.
+        if !self.mode.keep {
+            events.push(Event::Rewound(Rewound { to_ms: self.recorded_ms(), segments: self.committed.iter().map(|c| c.segment.clone()).collect() }));
+            return events;
+        }
         let to = ms_to_samples(to_ms).min(self.recording.len()) / FRAME * FRAME;
         let kept = self.committed.iter().take_while(|c| c.end <= to).count();
         self.committed.truncate(kept);
@@ -353,8 +392,16 @@ impl<T: Transcribe> Streamer<T> {
         events
     }
 
+    /// The transcriber, for a measurement of what it was asked (native/src/capture.rs).
+    pub fn transcriber(&self) -> &T {
+        &self.transcriber
+    }
+
     /// Milliseconds of audio recorded, on the timeline segment times use.
     pub fn recorded_ms(&self) -> u64 {
+        if !self.mode.keep {
+            return samples_to_ms(self.base + self.audio.len());
+        }
         samples_to_ms(self.recording.len())
     }
 
@@ -410,7 +457,8 @@ impl<T: Transcribe> Streamer<T> {
 
     fn maybe_partial(&mut self, events: &mut Vec<Event>) -> Result<bool, String> {
         let end = self.base + self.audio.len();
-        let due = self.cuts.is_empty()
+        let due = self.mode.partials
+            && self.cuts.is_empty()
             && self.first_speech.is_some()
             && self.speech_since_partial
             && end - self.base >= PARTIAL_MIN

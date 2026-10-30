@@ -33,7 +33,7 @@ use std::sync::{mpsc, Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use super::stream::{Event, Failure, Streamer, Transcribe};
+use super::stream::{Event, Failure, Mode, Streamer, Transcribe};
 
 /// How often the worker wakes to feed and tick when nothing has told it to.
 ///
@@ -103,7 +103,17 @@ impl Capture {
     /// the one it was created with). It is passed in rather than asked for so
     /// that `Transcribe` stays a one-method trait a test can implement in five
     /// lines.
-    pub fn start<T, F>(transcriber: T, abort: Arc<AtomicBool>, mut sink: F) -> Capture
+    pub fn start<T, F>(transcriber: T, abort: Arc<AtomicBool>, sink: F) -> Capture
+    where
+        T: Transcribe + Send + 'static,
+        F: FnMut(Event) + Send + 'static,
+    {
+        Capture::start_with(transcriber, abort, sink, Mode::DICTATION)
+    }
+
+    /// `start`, for what `mode` says: a dictation, or the words of a meeting something else records
+    /// (stream.rs [`Mode`]).
+    pub fn start_with<T, F>(transcriber: T, abort: Arc<AtomicBool>, mut sink: F, mode: Mode) -> Capture
     where
         T: Transcribe + Send + 'static,
         F: FnMut(Event) + Send + 'static,
@@ -122,7 +132,7 @@ impl Capture {
         let thread = std::thread::Builder::new()
             .name("glyph-whisper".to_string())
             .spawn(move || {
-                let outcome = run(&worker_shared, &worker_abort, transcriber, &mut sink);
+                let outcome = run(&worker_shared, &worker_abort, transcriber, &mut sink, mode);
                 let mut mailbox = worker_shared.lock();
                 mailbox.closed = true;
                 // Nobody will apply it: dropping the sender tells the waiter so.
@@ -224,8 +234,9 @@ fn run<T: Transcribe>(
     abort: &AtomicBool,
     transcriber: T,
     sink: &mut impl FnMut(Event),
+    mode: Mode,
 ) -> Result<Stopped, String> {
-    let mut streamer = Streamer::new(transcriber);
+    let mut streamer = Streamer::with_mode(transcriber, mode);
     let mut incoming = Vec::new();
     loop {
         let (command, rewind) = {

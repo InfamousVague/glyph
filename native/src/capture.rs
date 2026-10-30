@@ -17,8 +17,11 @@
 //! - `capture_fetch_model {mirrors?}` (job) -> the status, emitting `capture://model-progress {receivedBytes,
 //!   totalBytes}`; `capture_fetch_refine_model {mirrors?}` (job) with `capture://refine-model-progress`.
 //!   `mirrors` is models.rs's.
-//! - `capture_start` (job) -> `null`: loads the model if it is not loaded and starts a capture; one already
-//!   running is cancelled, not refused. Await its end before the first push.
+//! - `capture_start {partials?, keep?}` (job) -> `null`: loads the model if it is not loaded and starts a capture;
+//!   one already running is cancelled, not refused. Await its end before the first push. With `partials: false`
+//!   no guesses run, and with `keep: false` no sample is kept (whisper/stream.rs `Mode`): the words of a meeting
+//!   the phone's meeting service records (Matt, 2026-10-30), answered `{partials, keep}` so the app knows the core
+//!   took them; a core from before ignores them, runs a dictation and answers `null`.
 //! - `capture_push {pcm}` -> `null`: base64 of little-endian f32, 16 kHz mono. Returns at once; inference never
 //!   runs here. Await each before the next: the isolate applies them in the order sent.
 //! - `capture_stop {recordAs?, append?}` (job) -> `{transcript, recordedMs}`. With `recordAs` the audio is kept
@@ -61,7 +64,7 @@ use crate::model_files::ModelStatus;
 use crate::whisper::{
     engine::{Engine, Session},
     model,
-    stream::Event,
+    stream::{Event, Mode},
     worker::Capture,
 };
 
@@ -240,6 +243,16 @@ struct Push {
     pcm: String,
 }
 
+/// `capture_start`'s arguments, each its dictation's when left out (whisper/stream.rs `Mode`): `partials` false runs no
+/// guesses, `keep` false keeps no samples (a meeting whose own service records it; nothing to stop with `recordAs`).
+#[derive(Deserialize, Default)]
+struct Start {
+    #[serde(default)]
+    partials: Option<bool>,
+    #[serde(default)]
+    keep: Option<bool>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Stop {
@@ -305,25 +318,31 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
                 said::<ModelStatus>(crate::models::fetch_reporting(&models, gate, &spec, &mirrors, event, None)?)
             })
         }
-        "capture_start" => started("capture-start", move |_| {
-            state().refine_abort.store(true, Ordering::Relaxed);
-            // A meeting's write-up in progress stops within a graph computation too: a person who has started
-            // talking gets the cores (guards.rs). The capture counts as running from here, before its model loads.
-            let _starting = crate::guards::capture_starting();
-            crate::guards::abort_with("capturing");
-            // A tap an earlier capture left open belongs to the capture this replaces: the meeting that wants one
-            // asks again once this has started.
-            crate::kept::system_audio::state().stop();
-            let engine = engine(&models)?;
-            let abort = Arc::new(AtomicBool::new(false));
-            let session = Session::new(engine, Arc::clone(&abort))?;
-            let capture = Capture::start(session, abort, emit);
-            let previous = crate::guards::change_capture(&state().capture, |slot| slot.replace(capture));
-            if let Some(previous) = previous {
-                previous.cancel();
-            }
-            Ok(Value::Null)
-        }),
+        "capture_start" => {
+            let Start { partials, keep } = if args.is_null() { Start::default() } else { read(command, args)? };
+            let mode = Mode { partials: partials.unwrap_or(true), keep: keep.unwrap_or(true) };
+            started("capture-start", move |_| {
+                state().refine_abort.store(true, Ordering::Relaxed);
+                // A meeting's write-up in progress stops within a graph computation too: a person who has started
+                // talking gets the cores (guards.rs). The capture counts as running from here, before its model loads.
+                let _starting = crate::guards::capture_starting();
+                crate::guards::abort_with("capturing");
+                // A tap an earlier capture left open belongs to the capture this replaces: the meeting that wants one
+                // asks again once this has started.
+                crate::kept::system_audio::state().stop();
+                let engine = engine(&models)?;
+                let abort = Arc::new(AtomicBool::new(false));
+                let session = Session::new(engine, Arc::clone(&abort))?;
+                let capture = Capture::start_with(session, abort, emit, mode);
+                let previous = crate::guards::change_capture(&state().capture, |slot| slot.replace(capture));
+                if let Some(previous) = previous {
+                    previous.cancel();
+                }
+                // A dictation's answer is null, as it always was; a capture of another mode says which, so the app
+                // knows this core took the arguments (one from before ran a dictation and answered null).
+                Ok(if mode == Mode::DICTATION { Value::Null } else { json!({ "partials": mode.partials, "keep": mode.keep }) })
+            })
+        }
         "capture_push" => {
             use base64::Engine as _;
             let Push { pcm } = read(command, args).map_err(|_| "capture_push takes { \"pcm\": base64 } of little-endian f32 PCM".to_string())?;
@@ -670,5 +689,97 @@ pub(crate) mod tests {
         assert!(asked("capture_rewind", json!({}))["err"].as_str().unwrap().starts_with("invalid args for command `capture_rewind`"));
         assert!(asked("capture_refine", json!({ "id": "n" }))["err"].as_str().unwrap().starts_with("invalid args for command `capture_refine`"));
         assert_eq!(asked("capture_discard_recording", json!({ "id": "a/b" }))["err"], "not a note id");
+    }
+
+    /// A meeting's words beside its recording (Matt, 2026-10-30: "If possible add real time transcriptions for
+    /// meetings"): `capture_start {partials: false, keep: false}` says it took them, guesses at nothing, keeps no tape.
+    #[test]
+    fn a_meeting_s_capture_says_its_mode_shows_no_guesses_and_keeps_no_tape() {
+        let _one = lock(&crate::guards::TEST_SERIAL);
+        let Some(_) = core() else { return eprintln!("SKIPPED: GLYPH_MODELS_DIR is not a folder") };
+        let wav = models().unwrap().join("fixture.wav");
+        assert_eq!(job("capture_start", json!({ "partials": false, "keep": false }), Duration::from_secs(60)), Ok(json!({ "partials": false, "keep": false })));
+        let before = heard(|event, _| event.starts_with("capture://")).len();
+        for pcm in chunks(&wav) {
+            assert_eq!(asked("capture_push", json!({ "pcm": pcm })), json!({ "ok": null }));
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let stopped = job("capture_stop", json!({ "recordAs": "meeting-words" }), Duration::from_secs(120)).unwrap();
+        let events: Vec<(String, Value)> = heard(|event, _| event.starts_with("capture://")).into_iter().skip(before).collect();
+        assert!(!events.iter().any(|(event, payload)| event == "capture://partial" && payload["text"].as_str().is_some_and(|t| !t.is_empty())), "no guesses");
+        assert!(events.iter().any(|(event, _)| event == "capture://segment"), "the phrases, each once");
+        assert!(stopped["transcript"].as_str().unwrap().split_whitespace().count() >= 5, "{stopped}");
+        assert_eq!(stopped["recordedMs"], Value::Null, "no tape: the meeting service keeps the recording");
+        // A dictation's start answers as it always did.
+        assert_eq!(job("capture_start", json!({}), Duration::from_secs(60)), Ok(Value::Null));
+        assert_eq!(job("capture_cancel", json!({}), Duration::from_secs(20)), Ok(Value::Null));
+    }
+
+    /// Times each window the real model is handed, by pass.
+    struct Timed {
+        session: Session,
+        spent: [Duration; 2],
+        calls: [usize; 2],
+        audio: [usize; 2],
+    }
+
+    impl crate::whisper::stream::Transcribe for Timed {
+        fn transcribe(&mut self, audio: &[f32], prompt: &str, pass: crate::whisper::stream::Pass) -> Result<String, String> {
+            let which = usize::from(pass == crate::whisper::stream::Pass::Commit);
+            let began = std::time::Instant::now();
+            let out = self.session.transcribe(audio, prompt, pass);
+            self.spent[which] += began.elapsed();
+            self.calls[which] += 1;
+            self.audio[which] += audio.len();
+            out
+        }
+    }
+
+    /// What the live words cost a minute of talk, measured with the real model on this machine (the cost the
+    /// "Live transcript during meetings" setting is decided on; docs/MEET.md, "Live words on this device"). The
+    /// fixture over and over with a second's pause between, fed as fast as the model takes it and ticked every
+    /// 250 ms of audio, which is the most a capture ever asks: on a slower machine fewer guesses fit, never more.
+    /// Prints the numbers; asserts only that a meeting's words cost a fraction of a dictation's.
+    #[test]
+    fn what_a_meeting_s_live_words_cost_a_minute_of_talk() {
+        let _one = lock(&crate::guards::TEST_SERIAL);
+        let Some((_, _, core)) = core() else { return eprintln!("SKIPPED: GLYPH_MODELS_DIR is not a folder") };
+        let one = crate::whisper::wav::read(&models().unwrap().join("fixture.wav")).unwrap();
+        let minute = 60 * crate::whisper::SAMPLE_RATE;
+        let mut audio = Vec::with_capacity(minute);
+        while audio.len() < minute {
+            audio.extend_from_slice(&one);
+            audio.extend(std::iter::repeat_n(0.0f32, crate::whisper::SAMPLE_RATE));
+        }
+        audio.truncate(minute);
+        let engine = engine(&crate::models::dir(core)).unwrap();
+        let mut spent = Vec::new();
+        for mode in [Mode::DICTATION, Mode::MEETING] {
+            let session = Session::new(Arc::clone(&engine), Arc::new(AtomicBool::new(false))).unwrap();
+            let mut streamer = crate::whisper::stream::Streamer::with_mode(Timed { session, spent: [Duration::ZERO; 2], calls: [0; 2], audio: [0; 2] }, mode);
+            let began = std::time::Instant::now();
+            for chunk in audio.chunks(crate::whisper::SAMPLE_RATE / 4) {
+                streamer.feed(chunk);
+                streamer.tick().unwrap();
+            }
+            streamer.finish().unwrap();
+            let wall = began.elapsed();
+            let t = streamer.transcriber();
+            let total = t.spent[0] + t.spent[1];
+            eprintln!(
+                "{}: a minute of talk cost {:.1} s of decoding ({} guesses, {:.1} s; {} phrases, {:.1} s; {:.0} s of audio handed over) in {:.1} s, {} threads",
+                if mode == Mode::MEETING { "meeting" } else { "dictation" },
+                total.as_secs_f64(),
+                t.calls[0],
+                t.spent[0].as_secs_f64(),
+                t.calls[1],
+                t.spent[1].as_secs_f64(),
+                (t.audio[0] + t.audio[1]) as f64 / crate::whisper::SAMPLE_RATE as f64,
+                wall.as_secs_f64(),
+                crate::whisper::engine::whisper_threads(),
+            );
+            spent.push(total);
+        }
+        assert!(spent[1] * 2 < spent[0], "a meeting's words cost {:?}, a dictation's {:?}", spent[1], spent[0]);
     }
 }

@@ -337,3 +337,73 @@ fn a_click_in_a_pause_is_not_speech() {
     assert!(events.is_empty(), "{events:?}");
     assert!(streamer.transcriber.calls.is_empty());
 }
+
+/// A meeting's talk as the streamer hears it: phrases of `phrase` ms each followed by `pause` ms of quiet, for `ms`.
+fn talk(ms: usize, phrase: usize, pause: usize) -> Vec<f32> {
+    let mut out = Vec::new();
+    while out.len() < ms_to_samples(ms as u64) {
+        out.extend(speech(phrase));
+        out.extend(silence(pause));
+    }
+    out.truncate(ms_to_samples(ms as u64));
+    out
+}
+
+/// What a capture of `mode` hands the model over `audio`, in seconds of audio by pass: guesses, then commits.
+fn asked_of(mode: Mode, audio: &[f32]) -> (Streamer<Counting>, f64, f64, Vec<Event>) {
+    let mut streamer = Streamer::with_mode(Counting::default(), mode);
+    let events = run(&mut streamer, audio);
+    let seconds = |pass: Pass| streamer.transcriber.calls.iter().filter(|(_, p)| *p == pass).map(|(n, _)| *n as f64 / SAMPLE_RATE as f64).sum::<f64>();
+    let (partial, commit) = (seconds(Pass::Partial), seconds(Pass::Commit));
+    (streamer, partial, commit, events)
+}
+
+#[test]
+fn a_meeting_s_words_are_each_phrase_once_with_no_guesses_and_the_same_phrases_as_a_dictation() {
+    // Five minutes of a meeting: four-second phrases, a second's pause between.
+    let audio = talk(5 * 60_000, 4_000, 1_000);
+    let (dictation, guessed, committed, heard) = asked_of(Mode::DICTATION, &audio);
+    let (meeting, no_guesses, also_committed, words) = asked_of(Mode::MEETING, &audio);
+    assert!(meeting.transcriber.calls.iter().all(|(_, pass)| *pass == Pass::Commit), "a meeting's words are never guessed at");
+    assert!(!words.iter().any(|e| matches!(e, Event::Partial(_))), "and no guess is ever shown");
+    assert_eq!(no_guesses, 0.0);
+    // The same phrases, cut at the same places: a guess never moves a cut.
+    let times = |events: &[Event]| segments(events).iter().map(|s| (s.start_ms, s.end_ms)).collect::<Vec<_>>();
+    assert_eq!(times(&words), times(&heard));
+    assert!((also_committed - committed).abs() < 0.01, "{also_committed} {committed}");
+    let minutes = 5.0;
+    eprintln!(
+        "per minute of talk the model is handed: dictation {:.1} s in {:.1} calls ({:.1} s of it guesses), meeting {:.1} s in {:.1} calls",
+        (guessed + committed) / minutes,
+        dictation.transcriber.calls.len() as f64 / minutes,
+        guessed / minutes,
+        also_committed / minutes,
+        meeting.transcriber.calls.len() as f64 / minutes,
+    );
+    assert!(meeting.transcriber.calls.len() * 2 < dictation.transcriber.calls.len(), "{} {}", meeting.transcriber.calls.len(), dictation.transcriber.calls.len());
+}
+
+#[test]
+fn a_meeting_s_words_keep_nothing_but_the_window_heard_and_its_rewind_does_nothing() {
+    let audio = talk(3 * 60_000, 4_000, 1_000);
+    let mut meeting = Streamer::with_mode(Counting::default(), Mode::MEETING);
+    let mut most_held = 0;
+    for chunk in audio.chunks(ms_to_samples(250)) {
+        meeting.feed(chunk);
+        meeting.tick().unwrap();
+        most_held = most_held.max(meeting.audio.len());
+    }
+    assert!(meeting.recording.is_empty(), "nothing kept for a tape: the meeting service keeps that");
+    assert!(most_held <= WINDOW_CAP, "held {most_held} samples");
+    assert_eq!(meeting.recorded_ms(), 3 * 60_000, "the time still runs, for the phrases' times");
+    let before = meeting.committed.len();
+    let rewound = meeting.rewind(1_000);
+    let Some(Event::Rewound(r)) = rewound.first() else { panic!("{rewound:?}") };
+    assert_eq!((r.to_ms, r.segments.len()), (3 * 60_000, before), "nothing wound back");
+    assert_eq!(meeting.take_recording().len(), 0);
+    // A dictation keeps every sample, as it always did.
+    let mut dictation = Streamer::new(Counting::default());
+    run(&mut dictation, &audio);
+    assert_eq!(dictation.recorded_ms(), 3 * 60_000);
+    assert_eq!(dictation.take_recording().len(), ms_to_samples(3 * 60_000));
+}
