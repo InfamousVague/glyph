@@ -128,6 +128,7 @@ import '../core/geotag.dart' show GeoTag, withGeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
 import '../core/place_tags.dart' show PlaceTags;
+import '../editor/comments/comment_gutter.dart';
 import '../editor/comments/comments.dart';
 import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt;
 import '../core/place_refs.dart' as place_refs;
@@ -1860,8 +1861,17 @@ class NoteDeskState extends State<NoteDesk> {
           clipboard: _clipboard,
           onPasteImage: _pictures?.pasteImage,
           boards: true,
-          // The note's own scroll is heard here, where the page's editor heard its scroller.
-          child: NotificationListener<ScrollUpdateNotification>(onNotification: (scrolled) => _scrolled(view, scrolled), child: page),
+          // The comment glyph beside a line, in its gutter (Matt, 2026-10-30: "When hovering a line show the comment
+          // icon in the gutter"): over the page as the + is, on the note's words while they are what is shown.
+          child: CommentGutter(
+            view: view,
+            onStart: _comments.start,
+            onOpen: _comments.hooks.open,
+            colour: _comments.hooks.colour,
+            allowed: () => !_listening && view != null && _ofWords.of(view.state.doc),
+            // The note's own scroll is heard here, where the page's editor heard its scroller.
+            child: NotificationListener<ScrollUpdateNotification>(onNotification: (scrolled) => _scrolled(view, scrolled), child: page),
+          ),
         ),
       ),
     );
