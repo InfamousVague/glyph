@@ -49,6 +49,8 @@ import '../live/nudge.dart';
 import '../live/open.dart';
 import '../live/poke.dart';
 import '../mail/mail_in.dart';
+import '../meet/live_captions.dart';
+import '../meet/meet_api.dart' show MeetApi;
 import '../meet/meet_in.dart';
 import '../plugins/discord/calls.dart' show discordCallsFollowPlugin;
 import '../orgs/org_keys.dart';
@@ -161,7 +163,11 @@ class _AccountDocs implements TeamDocStore {
 
 /// The account's objects for this device, and their bundle for the screens.
 class WiredAccount {
-  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive, this.phone, this._saved, this._changed);
+  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive, this.phone, this._saved, this._changed, [this.captions]);
+
+  /// A meeting's live captions while Ghost is in it (lib/meet/live_captions.dart); none where meetings are not offered.
+  final LiveCaptions? captions;
+  VoidCallback? _stopCaptions;
 
   /// Makes everything over this device's own stores. [core] is the library's core; [touched] is told after this
   /// device changes a note and [refresh] reads the list again after a pass changed notes (`CoreLibrary`'s two);
@@ -276,7 +282,41 @@ class WiredAccount {
       liveTyping: typing,
       kept: device,
     );
-    return WiredAccount._(services, engine, docs, live, noteLive, phone, touched, notesChanged);
+    // A meeting's captions while Ghost is in it, sealed to the account and opened here as they come
+    // (lib/meet/live_captions.dart): the meeting's note made at the first, and its words live in its Transcript.
+    final captions = meetIn == null
+        ? null
+        : LiveCaptions(
+            hooks: LiveCaptionsHooks(
+              open: (meeting, n, wrapped, data) async {
+                final pair = await keys.encryptionKey();
+                if (pair == null) throw StateError('this device has not got the account’s encryption key yet');
+                return openLive(crypto, pair, meeting: meeting, n: n, wrapped: wrapped, data: data);
+              },
+              catchUp: (meeting, after) async {
+                final session = account.session;
+                return session == null ? null : MeetApi(api).live(session.token, meeting, after: after);
+              },
+              noteFor: (meeting) async {
+                if (account.session == null) return null;
+                final booked = meetIn.meetings?.where((m) => m.id == meeting).firstOrNull;
+                return liveNoteFor(
+                  meeting,
+                  notes: notes,
+                  prefs: settings,
+                  kept: device,
+                  title: booked?.title,
+                  now: DateTime.now().millisecondsSinceEpoch,
+                  made: () async {
+                    await refresh();
+                    unawaited(engine.syncNow().catchError((Object _) {}));
+                  },
+                );
+              },
+              ended: (noteId) => markLiveNoteEnded(device, noteId, DateTime.now().millisecondsSinceEpoch),
+            ),
+          );
+    return WiredAccount._(services, engine, docs, live, noteLive, phone, touched, notesChanged, captions);
   }
 
   /// What says a note was saved here, and that the notes changed: what the shares follow.
@@ -319,12 +359,17 @@ class WiredAccount {
       NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow),
       PokeHooks(sync: engine.syncNow, meetings: services.meetIn?.readNow),
     );
+    // And on that connection, a meeting's captions while Ghost is in it.
+    final heard = captions;
+    if (heard != null) _stopCaptions = live.hub.listenCaptions((frame) => unawaited(heard.heard(frame)));
   }
 
   /// The app came back to the front.
   void resumed() {
     live.resumed();
     engine.resumed();
+    // What a meeting's captions said while the app was behind, from the frames the service kept.
+    unawaited(captions?.catchUpAll());
   }
 
   /// The app left the front: the relay's socket is let go until it is back.
@@ -336,6 +381,7 @@ class WiredAccount {
     services.sites?.dispose();
     services.mailIn?.dispose();
     services.meetIn?.dispose();
+    _stopCaptions?.call();
     live.dispose();
     phone.dispose();
     engine.dispose();

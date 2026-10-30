@@ -2,8 +2,11 @@
 /// screen can go off, and Discard and Done. A port of `src/app/capture/MeetingScreen.tsx` and
 /// MeetingScreen.module.css.
 ///
-/// Its own small screen rather than the recorder, because a meeting is recorded and not read: no live words, no
-/// reader, no cues, nothing of the note, since the side key can open it over the lock screen.
+/// Its own small screen rather than the recorder, because a meeting is recorded and not read: no reader, no cues,
+/// nothing of the note, since the side key can open it over the lock screen. Its words come up under the cassette as
+/// a few lines while the screen is on and the setting allows (Matt, 2026-10-30: "If possible add real time
+/// transcriptions for meetings"; lib/capture/meeting_live_words.dart), each phrase once it is finished, and go when
+/// the screen does: what the service records is the meeting, and the write-up after it its transcript.
 ///
 /// It holds nothing the recorder holds. No `setCapturing`, which keeps the screen on and stops the take when the
 /// screen goes off - "the screen can go off" is this screen's whole point - and no hold on the queues. The service
@@ -49,7 +52,10 @@ import '../../core/back.dart';
 import '../../core/stored.dart';
 import '../../shell/header_pane.dart';
 import '../../tapes/tape_art.dart';
+import '../../meet/live_transcript.dart' show LiveTranscripts, liveTranscripts;
+import '../../meet/ui/live_transcript_view.dart' show LiveLines;
 import '../meeting_live.dart';
+import '../meeting_live_words.dart' show MeetingLiveWords, meetingLiveWordsHere;
 import '../tape.dart';
 
 /// What the phone says when asked to let Ghost.md notify (`NotificationsAnswer`, core/host.ts): allowed already,
@@ -113,9 +119,16 @@ class MeetingScreenHost {
 }
 
 class MeetingScreen extends StatefulWidget {
-  const MeetingScreen({super.key, required this.noteId, required this.fromAssistant, required this.onLeave, required this.live, required this.host});
+  const MeetingScreen({super.key, required this.noteId, required this.fromAssistant, required this.onLeave, required this.live, required this.host, this.liveWords, this.words});
 
   final String noteId;
+
+  /// What hears the meeting's words while this screen is up (meeting_live_words.dart); this device's where none is
+  /// given, and nothing on a phone whose build has none.
+  final MeetingLiveWords? liveWords;
+
+  /// The live words shown; this device's where none are given.
+  final LiveTranscripts? words;
 
   /// Opened by the side key: leaving hands a locked phone back to its lock screen, as a capture does.
   final bool fromAssistant;
@@ -162,10 +175,21 @@ class _MeetingScreenState extends State<MeetingScreen> {
     });
     // The counter runs between the service's answers, from when the meeting began where the service said.
     _timer = Timer.periodic(const Duration(milliseconds: 250), (_) => setState(() => _now = _clock()));
+    // Up on the screen: the meeting's words are heard while it is, the screen on (Matt, 2026-10-30).
+    final words = _liveWords;
+    if (words != null) {
+      _offWords = words.watch(widget.noteId);
+      words.addListener(_changed);
+    }
   }
+
+  MeetingLiveWords? get _liveWords => widget.liveWords ?? meetingLiveWordsHere;
+  VoidCallback? _offWords;
 
   @override
   void dispose() {
+    if (_offWords != null) _liveWords?.removeListener(_changed);
+    _offWords?.call();
     _timer?.cancel();
     _offState?.call();
     _offNotified?.call();
@@ -255,6 +279,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
         child: TapeArt(bare: true, playing: mine, positionMs: elapsedMs, lengthMs: math.max(tapeMs, elapsedMs), hue: tapeHue(widget.noteId)),
       ),
       line(const TextSpan(text: 'Recording. The screen can go off and you can leave. Stop here or from the notification.')),
+      // The meeting's words as they are said, while the screen is on (Matt, 2026-10-30): a few lines, the newest last;
+      // or why there are none.
+      if (mine && _liveWords != null) ...[
+        if ((widget.words ?? liveTranscripts).isLive(widget.noteId)) LiveLines(noteId: widget.noteId, store: widget.words) else if (_liveWords!.why(widget.noteId) case final why?) line(TextSpan(text: why), status: true),
+      ],
       if (mine && live.otherApps == true)
         line(TextSpan(text: '${live.otherAppsHeard == true ? 'Recording sound from other apps too.' : 'Listening for sound from other apps too.'} Media and games, never calls.'), status: true)
       else if (mine && live.otherAppsNote != null && live.otherAppsNote!.isNotEmpty)

@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart' show AccountScope, AccountServices;
+import '../../capture/meeting_live_words.dart' show LiveWordsChoice, LiveWordsSetting, liveWordsSetting, liveWordsWord;
 import '../../capture/voice_log.dart';
 import '../../claude/claude_settings.dart' show ClaudeSettings, claudeSettings;
 import '../../core/iphone_app.dart' show recordsVoice;
@@ -36,6 +37,7 @@ List<SettingsFindable> recordingFindable({required bool android, bool signedIn =
         SettingsFindable('Better words', 'refine clean up transcript'),
         SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
       ],
+      const SettingsFindable('Live transcript during meetings', 'real time live words captions meeting transcript as they speak battery charging'),
       if (android) ...const [
         SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
         SettingsFindable('Tell me when a meeting is written up', 'notification notify alert written up'),
@@ -87,10 +89,13 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 ///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
-  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude, this.services});
+  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude, this.services, this.liveWords});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
+
+  /// This device's Live transcript during meetings (lib/capture/meeting_live_words.dart); the app's own when null.
+  final LiveWordsSetting? liveWords;
   final SettingsFeatures features;
 
   /// Whether this is an Android phone; asked of the platform when null.
@@ -234,6 +239,42 @@ class _RecordingPaneState extends State<RecordingPane> {
           disabledReason: features.meetingSound ? null : features.meetingSoundWhy,
         );
 
+        // A meeting's words as it records (Matt, 2026-10-30: "If possible add real time transcriptions for meetings"),
+        // this device's own choice: a phone's is Off, While charging (its default) or On, since even a phrase at a
+        // time keeps the model busy a fifth to a third of the meeting; the Mac's a switch, on.
+        final liveWords = widget.liveWords ?? liveWordsSetting;
+        final words = ValueListenableBuilder<LiveWordsChoice>(
+          valueListenable: liveWords,
+          builder: (context, choice, _) => SettingRow(
+            key: const ValueKey('live-words'),
+            label: 'Live transcript during meetings',
+            hint: Text(
+              android
+                  ? 'The words come up under the cassette and in the meeting’s Transcript while the screen is on, from the sound being recorded. The write-up after the meeting replaces them.'
+                  : 'The words come up as they are said while a meeting records. Off, each is heard once it is finished and none show until Done.',
+            ),
+            layout: android ? SettingRowLayout.stacked : SettingRowLayout.trailing,
+            control: android
+                ? GlacierSegmentedControl(
+                    ariaLabel: 'Live transcript during meetings',
+                    fullWidth: true,
+                    size: GlacierSegmentedSize.sm,
+                    options: const [
+                      GlacierSegmentedOption(value: 'off', label: Text('Off')),
+                      GlacierSegmentedOption(value: 'charging', label: Text('While charging')),
+                      GlacierSegmentedOption(value: 'on', label: Text('On')),
+                    ],
+                    value: liveWordsWord(choice),
+                    onValueChange: (value) => liveWords.value = LiveWordsChoice.values.firstWhere((c) => c.name == value, orElse: () => choice),
+                  )
+                : GlacierSwitch(
+                    ariaLabel: 'Live transcript during meetings',
+                    checked: choice != LiveWordsChoice.off,
+                    onCheckedChange: (on) => liveWords.value = on ? LiveWordsChoice.on : LiveWordsChoice.off,
+                  ),
+          ),
+        );
+
         final canNotify = features.canNotifyMeetings;
         final allow = features.onAllowMeetingNotices;
         final bytes = features.tapes ?? 0;
@@ -244,6 +285,7 @@ class _RecordingPaneState extends State<RecordingPane> {
         final deviceRows = <Widget>[
           if (android && features.meetings) ...[
             sound,
+            words,
             SettingRow(
               label: 'Tell me when a meeting is written up',
               hint: Text(
@@ -280,7 +322,7 @@ class _RecordingPaneState extends State<RecordingPane> {
               ),
             ),
           ],
-          if (!android) sound,
+          if (!android) ...[sound, words],
         ];
         // Every meeting's settings, one card for every kind (meeting_settings.dart): drawn where there is a meeting
         // to have them, a recorder's or the account's.

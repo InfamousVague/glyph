@@ -25,7 +25,7 @@ import '../web/page_net_stub.dart' if (dart.library.js_interop) '../web/page_net
 
 /// What the relay says (`LiveEvents`).
 class LiveEvents {
-  const LiveEvents({required this.ready, required this.joined, required this.peers, required this.message, required this.down, this.poke});
+  const LiveEvents({required this.ready, required this.joined, required this.peers, required this.message, required this.down, this.poke, this.captions});
 
   /// Signed in: this socket's connection id, which is what `from` means on a message.
   final void Function(int id) ready;
@@ -48,6 +48,11 @@ class LiveEvents {
   /// server/src/live.rs POKES): no id, nothing of it, only that there is something to fetch. An older service sends
   /// none.
   final void Function(String what)? poke;
+
+  /// A frame of a meeting's live captions while Ghost is in it (`{t: captions, meeting, seq | partial, wrapped, data}`,
+  /// or `{t: captions, meeting, ended: true}`; server/src/meet/live.rs), sealed to the account and not yet opened
+  /// (lib/meet/live_captions.dart). An older service sends none.
+  final void Function(Map<String, Object?> frame)? captions;
 }
 
 /// The rooms, each the account's own or an organization's (docs/SHARED.md, S6: `org` names whose, and the relay
@@ -266,6 +271,10 @@ class WebSocketTransport implements LiveTransport {
       case 'poke':
         final what = frame['what'];
         if (what is String && what.isNotEmpty) events.poke?.call(what);
+      case 'captions':
+        // A meeting's live captions, sealed to the account (server/src/meet/live.rs): handed on unopened.
+        final meeting = frame['meeting'];
+        if (meeting is String && meeting.isNotEmpty) events.captions?.call(frame.cast<String, Object?>());
       default:
         // `error` frames say a request was refused; the socket stays, and there is nothing a device can do about
         // one.

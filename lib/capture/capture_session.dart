@@ -74,7 +74,12 @@ class CaptureSessionState extends ChangeNotifier {
     this.fireNativeHaptic,
     this.info,
     this.warn,
+    this.guesses = true,
   });
+
+  /// Whether the words still being said are guessed at (engine.dart [CaptureHandlers.guesses]): false for a meeting
+  /// recorded with its live transcript off.
+  final bool guesses;
 
   /// Opened by the side key, where the OS has already buzzed: no buzz of its own as it starts.
   final bool fromAssistant;
@@ -189,6 +194,7 @@ class CaptureSessionState extends ChangeNotifier {
           setError(message);
         },
         onModelProgress: (received, total) => _set(() => _download = (received: received, total: total)),
+        guesses: guesses,
       ));
       if (mine.cancelled) {
         unawaited(Future<void>.sync(started.cancel));

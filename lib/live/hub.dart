@@ -101,6 +101,16 @@ class LiveHub {
   bool _refused = false;
   void Function(String what)? _poked;
   void Function()? _back;
+  void Function(Map<String, Object?> frame)? _captions;
+
+  /// [heard] is handed each frame of a meeting's live captions as it comes (lib/meet/live_captions.dart), on the
+  /// connection held for the pokes. One listener; answers the way to stop.
+  void Function() listenCaptions(void Function(Map<String, Object?> frame) heard) {
+    _captions = heard;
+    return () {
+      if (identical(_captions, heard)) _captions = null;
+    };
+  }
 
   LiveTransport _connect() {
     final held = _transport;
@@ -124,6 +134,7 @@ class LiveHub {
         if (why == 'signIn') _refused = true;
       },
       poke: (what) => _poked?.call(what),
+      captions: (frame) => _captions?.call(frame),
     );
     final made = deps.connect?.call(events) ?? WebSocketTransport(url: deps.url, token: deps.token, events: events);
     if (_resting) made.rest();
@@ -250,6 +261,7 @@ class LiveHub {
     _rooms.clear();
     _kept = false;
     _poked = null;
+    _captions = null;
     _back = null;
     _transport?.close();
     _transport = null;

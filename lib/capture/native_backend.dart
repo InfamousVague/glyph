@@ -28,7 +28,7 @@ import '../core/native/ghost_core.dart';
 import 'engine.dart';
 import 'markdown.dart' show Segment;
 
-class NativeCaptureBackend implements CaptureBackend {
+class NativeCaptureBackend implements CaptureBackend, GuessFreeStart {
   NativeCaptureBackend(this.core, {this.mirrors});
 
   final GhostCore core;
@@ -48,6 +48,19 @@ class NativeCaptureBackend implements CaptureBackend {
 
   @override
   Future<void> start() => _job('capture_start');
+
+  @override
+  Future<void> startWithoutGuesses() => _job('capture_start', {'partials': false});
+
+  /// `capture_start {partials: false, keep: false}`: a meeting's words, a phrase at a time and keeping nothing, beside
+  /// the meeting service's recording (meeting_live_words.dart). True where the core took the mode; a core from before
+  /// starts a dictation and answers null, which is let go at once.
+  Future<bool> startMeetingWords() async {
+    final said = await _job('capture_start', {'partials': false, 'keep': false});
+    if (said is Map && said['partials'] == false && said['keep'] == false) return true;
+    await cancel();
+    return false;
+  }
 
   @override
   Future<void> push(String pcm) => core.invoke('capture_push', {'pcm': pcm});

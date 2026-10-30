@@ -159,6 +159,9 @@ import '../editor/media/note_embeds.dart';
 import '../editor/media/source_line.dart';
 import '../links/note_links.dart' show NoteLinksHere;
 import '../meet/meet_note.dart' show awaitsWriteUp;
+import '../meet/live_transcript.dart' show isLiveNote, liveTranscripts;
+import '../meet/ui/live_transcript_view.dart';
+import '../capture/meeting_live_words.dart' show meetingRecordingHere;
 import '../editor/plus/plus.dart';
 import '../editor/input/snippets.dart' show snippetExpansion;
 import '../integrations/contacts/contact_card.dart' show PersonCardAction, showPersonCard;
@@ -1018,6 +1021,7 @@ class NoteDeskState extends State<NoteDesk> {
     _unhearRecording = _world.onRecordingChanged?.call(_recordingHeard);
     _world.eventsChanged?.addListener(_eventsChanged);
     plugins.addListener(_pluginsChanged);
+    liveTranscripts.addListener(_liveChanged);
     // While the note is open the better words wait to write it: the editor is its one writer.
     _world.holdNote?.call(widget.noteId, true);
     _land();
@@ -1055,11 +1059,38 @@ class NoteDeskState extends State<NoteDesk> {
   /// chosen for it here, else Note, and Transcript where a cassette was pressed to open it.
   late bool _reading = _transcriptView ? (rememberedTranscript(widget.noteId) ?? widget.playTape) : (widget.showTranscript || widget.playTape);
 
-  /// Whether the note shows Note and Transcript (lib/note/meeting_view.dart `hasMeetingView`).
+  /// Whether the note shows Note and Transcript (lib/note/meeting_view.dart `hasMeetingView`); and a meeting still
+  /// going on, with its words live (lib/meet/live_transcript.dart), or being recorded on this phone now.
   bool get _transcriptView {
+    if (_liveHere) return true;
     final tape = _tape;
     final body = tape?.note.body ?? _world.noteById?.call(widget.noteId)?.body ?? '';
     return hasMeetingView(body, meeting: _meeting, taped: tape != null && tape.length > 0);
+  }
+
+  /// Whether the Transcript is the meeting's live words (Matt, 2026-10-30): it has them and is still going on, or has
+  /// ended and the note has no words of its own yet to show instead; or the phone records it now, whose words come
+  /// once someone looks.
+  bool get _liveHere {
+    if (meetingRecordingHere(widget.noteId)) return true;
+    final words = liveTranscripts.of(widget.noteId);
+    if (words == null) return false;
+    if (words.live) return true;
+    final body = _world.noteById?.call(widget.noteId)?.body ?? '';
+    return isLiveNote(body) || meetingTurnsOf(body).isEmpty;
+  }
+
+  /// Whether the meeting's words are live now: the Live badge, and the Note view's way to them.
+  bool get _liveNow => meetingRecordingHere(widget.noteId) || liveTranscripts.isLive(widget.noteId);
+
+  bool _wasLive = false;
+
+  /// The live words moved: drawn again when this note's came, went or ended.
+  void _liveChanged() {
+    final now = _liveHere;
+    if (now == _wasLive && !now) return;
+    _wasLive = now;
+    if (mounted) setState(() {});
   }
 
   /// A moment of the transcript to bring into view as it opens (a find's match there), in ms.
@@ -1612,6 +1643,7 @@ class NoteDeskState extends State<NoteDesk> {
     _world.notesSynced?.removeListener(_phrasesMayHaveMoved);
     _unhearRecording?.call();
     plugins.removeListener(_pluginsChanged);
+    liveTranscripts.removeListener(_liveChanged);
     _bookmark?.dispose();
     _stripRoom.dispose();
     _band.dispose();
@@ -2316,6 +2348,8 @@ class NoteDeskState extends State<NoteDesk> {
             ),
           // A meeting's two views (lib/note/meeting_view.dart).
           if (transcriptView) MeetingViewSwitch(transcript: _reading, onChanged: _choose),
+          // And while it is going on, the Note view's small way to its live words.
+          if (transcriptView && !_reading && _liveNow) LiveTranscriptPill(onPressed: () => _choose(true), simple: _prefs.value.simple),
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
         ];
       },
@@ -2325,6 +2359,8 @@ class NoteDeskState extends State<NoteDesk> {
           ? (context) => ListenableBuilder(
                 listenable: _queues(),
                 builder: (context, _) {
+                  // A meeting still going on: its live words (lib/meet/ui/live_transcript_view.dart).
+                  if (_liveHere) return LiveTranscriptView(key: ValueKey('live-${widget.noteId}'), noteId: widget.noteId, simple: _prefs.value.simple);
                   final tape = _tape != null && _tape!.length > 0 ? _tape : null;
                   final note = tape?.note ?? _world.noteById?.call(widget.noteId);
                   if (note == null) return const SizedBox.shrink();

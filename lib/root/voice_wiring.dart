@@ -33,6 +33,7 @@ import 'dart:async';
 import 'dart:io' hide Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../ai/backend.dart' as ai;
@@ -52,6 +53,8 @@ import '../capture/voice_plan.dart' show diagnosticsOver, voiceStepOver;
 import '../capture/meeting.dart' show canRecordMeeting;
 import '../capture/meeting_host.dart';
 import '../capture/meeting_live.dart';
+import '../capture/meeting_live_words.dart';
+import '../format/battery.dart' show BatteryLike, batterySource;
 import '../capture/native_backend.dart';
 import '../capture/ui/meeting_screen.dart' show NotificationsAnswer;
 import '../capture/recorder.dart';
@@ -684,6 +687,30 @@ class Voice {
       warn: debugPrint,
     );
 
+    // A meeting's words as it records (Settings › Recording › Live transcript during meetings; Matt, 2026-10-30): the
+    // Mac's recorder shows them or not; the phone's service hands its samples to the speech model while someone looks
+    // (lib/capture/meeting_live_words.dart), while charging unless chosen otherwise.
+    recorder.meetingLiveWords = () => liveWordsSetting.value != LiveWordsChoice.off;
+    if (live != null) {
+      BatteryLike? battery;
+      try {
+        battery = await batterySource()?.call();
+      } catch (_) {
+        // A phone that will not say how its battery is: never charging, as far as the live words know.
+      }
+      recorder.liveWords = meetingLiveWordsHere = MeetingLiveWords(
+        meeting: live,
+        host: host,
+        recogniser: NativeLiveRecogniser(capture),
+        setting: liveWordsSetting,
+        charging: () => battery?.charging ?? false,
+        inFront: () {
+          final state = WidgetsBinding.instance.lifecycleState;
+          return state == null || state == AppLifecycleState.resumed;
+        },
+      );
+    }
+
     // Back on screen, whoever asked to hear of it for the queue is told.
     final offVisible = recorder.onVisible(() {
       for (final listener in visibleListeners.toList()) {
@@ -716,6 +743,8 @@ class Voice {
         unfollow?.call();
         unbind?.call();
         unawaited(heard.cancel());
+        unawaited(recorder.liveWords?.close());
+        if (identical(meetingLiveWordsHere, recorder.liveWords)) meetingLiveWordsHere = null;
         unawaited(keys.close());
         unawaited(assists.close());
       },

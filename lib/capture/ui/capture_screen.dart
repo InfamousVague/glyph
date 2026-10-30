@@ -249,6 +249,10 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   /// A meeting: from the start, or turned into one from the card before the first word (the Mac).
   late bool _meeting = widget.meeting;
 
+  /// A meeting from the start with its live transcript off (Settings › Recording › Live transcript during meetings;
+  /// Matt, 2026-10-30): its page shows no words while it records, and none are guessed at; Done writes the same note.
+  late final bool _meetingQuiet = widget.meeting && !_r.meetingLiveWords();
+
   /// When the meeting began, and the date title it is made with.
   late final int _meetingStartedAt = _r.wallNow();
   late final String _meetingTitled = meetingTitle(_meetingStartedAt, _r.locale);
@@ -409,6 +413,8 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       fireNativeHaptic: _r.host.haptic,
       info: _r.warn,
       warn: _r.warn,
+      // A meeting with its live transcript off guesses at nothing: each phrase is heard once (Matt, 2026-10-30).
+      guesses: !_meetingQuiet,
     )..addListener(_sessionChanged);
     // The recorder's start sound (Settings › Sounds; Matt, 2026-10-27), as the microphone is asked for, so it is heard
     // before the first word; and from here until the screen goes, no other sound of the app's plays over the take.
@@ -1690,7 +1696,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     final titled = target == null && _pendingTitle == null;
     // The page as it is spoken: the take's markdown, from what the screen holds of it, with the phrase still being
     // guessed. A meeting's page is its transcript, paragraphs under the heading, with no cues read into it.
-    final note = meeting ? meetingTranscript(_segments, _partial) : takeMarkdown(_segments, titled: titled, partial: _partial).markdown;
+    final note = meeting
+        ? (_meetingQuiet ? '## Transcript\n\nRecording. Its transcript comes when you press Done.' : meetingTranscript(_segments, _partial))
+        : takeMarkdown(_segments, titled: titled, partial: _partial).markdown;
     /*
      * The card of things to say while the microphone waits (say_card.dart, tips.dart `starters`). Worked out at
      * build rather than once: which note it names must not be the one being written to (the note's own Speak, or the

@@ -41,6 +41,8 @@ import java.util.concurrent.Executors
  * - `startMeeting {noteId, title}` -> "started" | "permission" | "recording" | a reason in the app's words.
  * - `startMeetingWith {noteId, title, otherApps}` -> the same, asking for the screen-share consent first.
  * - `meetingSound` -> JSON `{supported, reason}`.
+ * - `meetingLiveWords {on}` -> whether the meeting being recorded now hands its samples to the speech model as well
+ *   (on), or has stopped (off): its live words (MeetingService.liveWords).
  * - `stopMeeting`, `discardMeeting` -> null.
  * - `meetingState` -> JSON `{recording, noteId, title, startedAt, elapsedMs, silenced, otherApps, otherAppsHeard,
  *   otherAppsNote, writingUp, discarded}`.
@@ -201,6 +203,9 @@ class MeetingBridge(private val activity: Activity) {
       "isAssistant" -> result.success(isAssistant())
       "openAssistantSettings" -> result.success(openAssistantSettings())
       "deviceMaker" -> result.success(Build.MANUFACTURER ?: "")
+      // The meeting's live words (lib/capture/meeting_live_words.dart): its samples to the speech model as well, while
+      // the meeting screen or its Transcript is looked at. False with no meeting recording.
+      "meetingLiveWords" -> result.success(MeetingService.liveWords(call.argument<Boolean>("on") == true))
       else -> result.notImplemented()
     }
   }

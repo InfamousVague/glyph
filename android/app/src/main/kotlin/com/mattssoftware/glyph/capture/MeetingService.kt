@@ -160,6 +160,22 @@ class MeetingService : Service() {
     /** A meeting a kill left unfinished, finished at launch and still to be said to the page once an activity is resumed. */
     private val died = AtomicReference<String?>(null)
 
+    /**
+     * The meeting's live words (Matt, 2026-10-30: "If possible add real time transcriptions for meetings";
+     * lib/capture/meeting_live_words.dart): while on, every read is also handed to the speech model, as floats in
+     * 200 ms chunks (DictationMic.pushLive, the core's `ghost_capture_push`), after other apps' sound is mixed in, so
+     * the words are both sides of a call when the tape is. The app turns it on only while a person looks at the
+     * meeting with the screen on, and off when they stop, the screen goes off or the meeting ends; this opens no
+     * microphone, it shares the one this service holds. A chunk the core refuses (no capture running) is dropped.
+     */
+    @Volatile private var feeding = false
+
+    /** Turns the live words on or off; whether they are on (never with no meeting recording). */
+    fun liveWords(on: Boolean): Boolean {
+      feeding = on && recording
+      return feeding
+    }
+
     fun isRecording(): Boolean = recording
 
     /** The note being recorded now, or null: named in the notification tap's `open`. */
@@ -415,6 +431,7 @@ class MeetingService : Service() {
       title = null
       startedAt = null
       recording = false
+      feeding = false
       otherAppsNote = null
       clearMeeting(this)
       pushFailed(id, if (error is SecurityException) "Ghost.md needs the microphone to record a meeting." else "The meeting could not start.")
@@ -436,6 +453,9 @@ class MeetingService : Service() {
   private fun read(recorder: AudioRecord, out: RandomAccessFile) {
     val buffer = ByteArray(READ_BYTES)
     val sound = ShortArray(READ_BYTES / 2)
+    // The live words' chunk, filled from the reads while they are on (`feeding`).
+    val words = FloatArray(DictationMic.CHUNK)
+    var wordsAt = 0
     var dataLen = 0L
     var lastPatch = SystemClock.elapsedRealtime()
     try {
@@ -453,6 +473,21 @@ class MeetingService : Service() {
           otherApps?.let { if (it.running) SoundMix.mixInto(buffer, n, it.ring, sound) }
           out.write(buffer, 0, n)
           dataLen += n
+          // The same samples to the speech model, while the live words are on; never instead of the tape.
+          if (feeding) {
+            var i = 0
+            while (i + 1 < n) {
+              val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xff)).toShort()
+              words[wordsAt++] = sample / 32768f
+              if (wordsAt == words.size) {
+                DictationMic.pushLive(words, wordsAt)
+                wordsAt = 0
+              }
+              i += 2
+            }
+          } else {
+            wordsAt = 0
+          }
         }
         val at = SystemClock.elapsedRealtime()
         if (at - lastPatch >= WavSpool.PATCH_EVERY_MS) {
@@ -550,6 +585,7 @@ class MeetingService : Service() {
     endReader()
     RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     recording = false
+    feeding = false
     silenced = false
     val answer = try {
       // The note may be in a folder chosen through Android's picker, which Rust reaches through Kotlin.
@@ -659,6 +695,7 @@ class MeetingService : Service() {
     endReader()
     RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     recording = false
+    feeding = false
     silenced = false
     File(recordingsDir(this), "$id.wav").delete()
     try {
@@ -797,6 +834,7 @@ class MeetingService : Service() {
       Log.w(TAG, "destroyed while recording")
       endReader()
       recording = false
+      feeding = false
     }
     RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     dropWakeLock()

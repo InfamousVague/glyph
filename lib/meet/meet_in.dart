@@ -55,6 +55,8 @@ import 'gmt.dart';
 import 'meet_api.dart';
 import 'meet_kinds.dart';
 import 'meet_note.dart';
+import 'live_captions.dart' show settleLiveNotes;
+import 'live_transcript.dart';
 
 /// What this device can do with a meeting's sound (lib/meet/tape.dart is the app's).
 abstract interface class MeetDevice {
@@ -131,11 +133,28 @@ Future<int> syncMeet(MeetPassContext ctx) async {
   final meet = MeetApi(ctx.api);
   var written = await nameSpeakers(ctx);
   final waiting = await meet.takes(ctx.token);
+  // A meeting's note made at its first live caption whose take never came, settled (live_captions.dart); not one whose
+  // take is waiting (an iPhone's, left a day for a device that keeps the sound).
+  written += await settleLiveNotes(
+    kept: ctx.kept,
+    now: ctx.now(),
+    waiting: {for (final take in waiting ?? const <WaitingTake>[]) if (take.meeting.isNotEmpty) meetLiveNoteId(take.meeting)},
+    note: (id) async {
+      final note = await ctx.notes.get(id);
+      if (note == null) return null;
+      return (body: note.body, write: (String body) => ctx.notes.apply(note.copyWith(body: body, updatedAt: ctx.now())).then<void>((_) {}));
+    },
+  );
   if (waiting == null || waiting.isEmpty) return written;
   EncryptionKey? pair;
   for (final take in waiting) {
-    final noteId = meetNoteId(take.id);
-    if (await ctx.notes.get(noteId) != null) {
+    // A meeting Ghost was in has had a note since its first live caption (live_transcript.dart): the take is filed
+    // into that one, the person's words in it kept, and its live words handed over to the take's.
+    final liveId = take.meeting.isNotEmpty ? meetLiveNoteId(take.meeting) : null;
+    final live = liveId == null ? null : await ctx.notes.get(liveId);
+    final noteId = live != null ? liveId! : meetNoteId(take.id);
+    final handing = live != null && isLiveNote(live.body);
+    if (!handing && await ctx.notes.get(noteId) != null) {
       // Filed before, maybe by a build that kept no meeting against it.
       if (take.meeting.isNotEmpty && meetingNotesOf(ctx.prefs.value)[take.meeting] != noteId) ctx.prefs.update((was) => withMeetingNote(was, take.meeting, noteId));
     } else {
@@ -166,14 +185,22 @@ Future<int> syncMeet(MeetPassContext ctx) async {
         continue;
       }
       final startedAt = opened.startedAt > 0 ? opened.startedAt : (take.at > 0 ? take.at : now);
+      final filed = meetNoteBody(opened, now: now, writeUp: writeUp, why: opened.audio.isEmpty ? CaptionsOnly.noSound : CaptionsOnly.notKept);
+      // The live note, read again here: the person may have written in it while the take came.
+      final was = handing ? await ctx.notes.get(noteId) ?? live : null;
       await ctx.notes.apply(Note(
         id: noteId,
-        body: meetNoteBody(opened, now: now, writeUp: writeUp, why: opened.audio.isEmpty ? CaptionsOnly.noSound : CaptionsOnly.notKept),
-        createdAt: startedAt,
+        body: was != null && isLiveNote(was.body) ? handedOver(was.body, filed) : filed,
+        createdAt: was?.createdAt ?? startedAt,
         updatedAt: now,
         source: NoteSource.capture,
+        starred: was?.starred ?? false,
         recordingMs: ms,
+        path: was?.path,
+        revision: was?.revision ?? 1,
       ));
+      // Its live words are the take's now.
+      liveTranscripts.forget(noteId);
       written += 1;
       final meeting = take.meeting.isNotEmpty ? take.meeting : opened.meeting;
       ctx.prefs.update((was) => withMeetingNote(was.copyWith(meetings: {...was.meetings, noteId: startedAt}), meeting, noteId));

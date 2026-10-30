@@ -43,7 +43,13 @@ enum EngineKind { whisper, browser, simulated }
 
 /// What a session tells whoever started it.
 class CaptureHandlers {
-  const CaptureHandlers({required this.onPartial, required this.onSegment, required this.onError, this.onModelProgress});
+  const CaptureHandlers({required this.onPartial, required this.onSegment, required this.onError, this.onModelProgress, this.guesses = true});
+
+  /// Whether the words still being said are guessed at as they come ([onPartial]). A meeting recorded with its live
+  /// transcript off is not (Settings › Recording › Live transcript during meetings; meeting_live_words.dart): each
+  /// phrase is heard once, when it is finished, which is a fraction of the work. A backend that cannot say so
+  /// ([GuessFreeStart]) guesses as before.
+  final bool guesses;
 
   /// Best guess for speech not yet committed; replaces the previous one.
   final void Function(String text) onPartial;
@@ -307,6 +313,12 @@ abstract class CaptureBackend {
   Future<List<Segment>> refine({required String id, required int fromMs, required String promptTail});
 }
 
+/// A backend that can start a capture that guesses at nothing ([CaptureHandlers.guesses]): `capture_start {partials:
+/// false}`, the tape kept as a dictation's is. A core from before takes it as a dictation.
+abstract interface class GuessFreeStart {
+  Future<void> startWithoutGuesses();
+}
+
 // ---- the platform's own recogniser ---------------------------------------------------------------------------------
 
 /// One result of a recogniser: its best transcript, and whether it is final (the web's `results[i][0].transcript`
@@ -340,6 +352,10 @@ const int _recordingGeneration = 6;
 /// keep pushing, or its audio is interleaved chunk by chunk with the live session's, and the tape plays back as a
 /// stutter of two copies a few milliseconds apart that Whisper can't make sense of.
 Object? _owner;
+
+/// Whether a dictation holds the native capture now: a meeting's live words (meeting_live_words.dart) never take it
+/// from one, and never let it go under one.
+bool get dictationCapturing => _owner != null;
 
 final Stopwatch _sinceLoad = Stopwatch()..start();
 double _performanceNow() => _sinceLoad.elapsedMicroseconds / 1000;
@@ -470,7 +486,11 @@ class CaptureEngine {
     final keepsAudio = await hasNativeGeneration(_recordingGeneration);
 
     try {
-      await backend.start();
+      if (!handlers.guesses && backend is GuessFreeStart) {
+        await (backend as GuessFreeStart).startWithoutGuesses();
+      } else {
+        await backend.start();
+      }
     } catch (_) {
       unlistenAll();
       rethrow;

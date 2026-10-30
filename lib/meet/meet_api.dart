@@ -341,4 +341,16 @@ class MeetApi {
 
   /// Take [id] is filed: the sealed copy goes from the service.
   Future<void> drop(String token, String id) => api.call('DELETE', 'meet/takes/${Uri.encodeComponent(id)}', token: token);
+
+  /// Meeting [id]'s live captions the service keeps, sealed, after frame [after] (server/src/meet/live.rs):
+  /// `{live, first, frames: [{seq, wrapped, data}]}`; null from a service from before live captions, or for a meeting
+  /// that is not the account's.
+  Future<Map<String, Object?>?> live(String token, String id, {int after = 0}) async {
+    try {
+      return await api.callMap('GET', 'meet/${Uri.encodeComponent(id)}/live${after > 0 ? '?after=$after' : ''}', token: token);
+    } on ApiError catch (failure) {
+      if (failure.status == 404 || meetNoRoute(failure)) return null;
+      rethrow;
+    }
+  }
 }

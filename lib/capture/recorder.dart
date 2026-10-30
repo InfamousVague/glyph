@@ -40,6 +40,7 @@ import 'engine.dart';
 import 'voice_plan.dart' show VoiceStep;
 import 'landing.dart';
 import 'meeting_live.dart';
+import 'meeting_live_words.dart' show MeetingLiveWords;
 import 'refine.dart';
 import 'spoken/inline.dart' show SpokenFormat;
 import 'system_sound.dart';
@@ -320,6 +321,16 @@ class Recorder {
   /// the card of things to say offers "Meeting instead" where it can.
   final bool canRecordMeeting;
 
+  /// Whether a meeting recorded in this recorder shows its words as they are said (Settings › Recording › Live
+  /// transcript during meetings; meeting_live_words.dart): on the Mac, the recorder records a meeting itself. Off, its
+  /// page shows none and its words are heard a phrase at a time, guessing at nothing; the transcript is the same at
+  /// Done. On unless set.
+  bool Function() meetingLiveWords = () => true;
+
+  /// A meeting recorded by the phone's service, its words live while someone looks (meeting_live_words.dart); set by
+  /// `lib/root` where there is a service.
+  MeetingLiveWords? liveWords;
+
   /// The page's clock in milliseconds (`performance.now()`), and the wall's (`Date.now()`).
   final double Function() now;
   final int Function() wallNow;
@@ -348,6 +359,8 @@ class Recorder {
   /// told.
   void lifecycle(AppLifecycleState state) {
     meetingLive?.visibilityChanged();
+    // A meeting's live words stop the moment the app leaves the front (the screen off), and start again with it.
+    liveWords?.check();
     if (state != AppLifecycleState.resumed) return;
     for (final listener in _visible.toList()) {
       listener();

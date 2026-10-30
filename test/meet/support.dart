@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/account/crypto_api.dart';
+import 'package:ghost_md/core/bytes.dart' show toBase64Url;
+import 'package:ghost_md/meet/live_captions.dart' show liveKeyContext, liveSealContext;
 import 'package:ghost_md/meet/meet_api.dart';
 
 /// A take laid out as the service lays one out before sealing it (server/src/meet.rs `pack`, `GMT1`).
@@ -35,6 +37,16 @@ Future<({String wrapped, Uint8List sealed})> sealedTake(AccountCrypto crypto, St
   final wrapped = await crypto.wrapFor(pub, raw, takeWrapContext(id));
   final key = await crypto.importSealKey(raw);
   return (wrapped: wrapped, sealed: await crypto.sealBytes(key, payload, takeSealContext(id)));
+}
+
+/// A frame of a meeting's live captions sealed as the service seals one (server/src/meet/live.rs): a fresh key wrapped
+/// to the account in `meet-live-key:<meeting>:<n>`, the words sealed in `meet-live:<meeting>:<n>`, both base64url.
+Future<({String wrapped, String data})> sealedLive(AccountCrypto crypto, String pub, String meeting, String n, {List<Map<String, Object?>> lines = const [], Map<String, Object?>? partial, int startedAt = 1792159200000}) async {
+  final raw = crypto.randomBytes(32);
+  final wrapped = await crypto.wrapFor(pub, raw, liveKeyContext(meeting, n));
+  final key = await crypto.importSealKey(raw);
+  final payload = Uint8List.fromList(utf8.encode(jsonEncode({'v': 1, 'meeting': meeting, 'startedAt': startedAt, 'lines': lines, 'partial': partial})));
+  return (wrapped: wrapped, data: toBase64Url(await crypto.sealBytes(key, payload, liveSealContext(meeting, n))));
 }
 
 /// The service's meeting routes in memory (docs/MEET.md, "Routes"), in front of another fetcher for the rest. As a
@@ -79,6 +91,11 @@ class FakeMeet {
 
   /// `PUT meet/kinds` is refused, as a connection dropping does, while this is true.
   bool failKinds = false;
+
+  /// Each meeting's live captions the service keeps, `{seq, wrapped, data}` in order; and the meetings whose feed is
+  /// over.
+  final Map<String, List<Map<String, Object?>>> live = {};
+  final Set<String> liveOver = {};
 
   Fetcher over(Fetcher rest) => (request) async {
         final path = request.url.path.replaceFirst(RegExp(r'^.*/v1/'), '');
@@ -139,6 +156,18 @@ class FakeMeet {
           }
           if (take == null) return FetchResponse.json(404, {'error': 'No recording by that id. Another of your devices may have taken it.'});
           return FetchResponse(200, headers: {'content-type': 'application/octet-stream', 'x-glyph-wrapped': take.wrapped, 'x-glyph-meeting': take.meeting}, bytes: take.sealed);
+        }
+        // A meeting's live captions kept, sealed (server/src/meet/live.rs): the frames after `after`.
+        if (path.startsWith('meet/') && path.endsWith('/live') && request.method == 'GET') {
+          final id = Uri.decodeComponent(path.substring('meet/'.length, path.length - '/live'.length));
+          final after = int.tryParse(request.url.queryParameters['after'] ?? '') ?? 0;
+          final frames = live[id];
+          if (frames == null) return FetchResponse.json(200, {'live': false, 'first': null, 'frames': <Object?>[]});
+          return FetchResponse.json(200, {
+            'live': !liveOver.contains(id),
+            'first': frames.isEmpty ? 1 : frames.first['seq'],
+            'frames': [for (final f in frames) if ((f['seq'] as int) > after) f],
+          });
         }
         if (path.startsWith('meet/') && request.method == 'DELETE') {
           final id = Uri.decodeComponent(path.substring('meet/'.length));

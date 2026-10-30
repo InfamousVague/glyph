@@ -94,6 +94,16 @@ object DictationMic {
   /** native/src/capture.rs: 0 when the running capture took them, 1 when none is running, 2 when they could not be read. */
   @JvmStatic private external fun push(samples: FloatArray, count: Int): Int
 
+  /**
+   * The meeting service's samples to the running capture, for a meeting's live words (MeetingService.liveWords): the
+   * same door as a direct dictation's, 0 when taken and 1 when no capture is running. A native error is 2.
+   */
+  @JvmStatic fun pushLive(samples: FloatArray, count: Int): Int = try {
+    push(samples, count)
+  } catch (error: Throwable) {
+    2
+  }
+
   private val main = Handler(Looper.getMainLooper())
   @Volatile private var sink: EventChannel.EventSink? = null
   @Volatile private var session: Session? = null

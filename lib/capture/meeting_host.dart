@@ -32,6 +32,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'meeting_live.dart';
+import 'meeting_live_words.dart' show LiveWordsHost;
 import 'system_sound.dart' show SoundSupport;
 import '../core/host_platform.dart';
 
@@ -39,7 +40,7 @@ import '../core/host_platform.dart';
 /// `recordingDone`, `notified`, `capture`, `screenOff`) and [argument] what it was called with (JSON, or null).
 typedef HostEvent = ({String name, String? argument});
 
-class DeviceMeetingHost implements MeetingHost {
+class DeviceMeetingHost implements MeetingHost, LiveWordsHost {
   DeviceMeetingHost._(this._visible);
 
   static const MethodChannel channel = MethodChannel('ghost_md/meeting');
@@ -223,4 +224,20 @@ class DeviceMeetingHost implements MeetingHost {
 
   /// `Build.MANUFACTURER`, such as "samsung".
   Future<String> deviceMaker() async => await channel.invokeMethod<String>('deviceMaker') ?? '';
+
+  /// The meeting service starts, or stops, handing what it records to the speech model as well, for the meeting's
+  /// live words (lib/capture/meeting_live_words.dart; MeetingService.kt `liveWords`): whether it did. A build from
+  /// before has no such method, and answers false.
+  @override
+  Future<bool> feed(bool on) => meetingLiveWords(on);
+
+  Future<bool> meetingLiveWords(bool on) async {
+    try {
+      return await channel.invokeMethod<bool>('meetingLiveWords', {'on': on}) ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
 }
