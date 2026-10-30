@@ -31,8 +31,8 @@
 /// again from these (speakers.dart `phraseSpeakers`) on every device, long after the captions have gone.
 ///
 /// Filed where nothing will write it up (no sound came, the sound could not be kept here, or the device has no
-/// write-up: an iPhone), the captions are the transcript at once, in the `**Name:** words` shape, and the first
-/// line says so.
+/// write-up: an iPhone), the captions are the transcript at once, in turns, `**Name (0:04):** words` (a long one cut
+/// about a minute apart, speakers.dart `captionTurnLines`), and the first line says so.
 ///
 /// The title is the invite's; with none, the date's, as a meeting recorded on the device is named
 /// (lib/capture/meeting.dart `meetingTitle`). A note's id is made from the take's ([meetNoteId]), as a mail's is
@@ -126,7 +126,8 @@ String meetNoteBody(OpenedTake take, {required int now, required bool writeUp, C
     CaptionsOnly.noSound => ' No sound came with it, so this is from $whose captions.\n',
     CaptionsOnly.notKept => ' This is from $whose captions: the recording could not be kept on this device.\n',
   });
-  final paragraphs = captionParagraphs(turns);
+  // Timed, a turn a paragraph and a long one cut about a minute apart, as every meeting's transcript is (2026-10-30).
+  final paragraphs = captionTurnLines(turns);
   out.write(paragraphs.isEmpty ? '\n## Transcript\n\n$who showed no captions.\n' : '\n## Transcript\n\n${paragraphs.join('\n\n')}\n');
   return out.toString();
 }
@@ -137,19 +138,48 @@ const String _writingUp = ' It is being written up on your device.';
 /// Whether [body]'s first line still says its write-up is to come (taken off by [withSpeakers] once it has).
 bool awaitsWriteUp(String body) => body.contains(_writingUp);
 
-/// [body] with each part of Whisper's transcript given its speaker from the note's captions, and the captions
+/// [body] with Whisper's transcript in turns, each given its speaker from the note's captions, and the captions
 /// dropped (see the header); null while there is nothing to do yet (no transcript from the write-up, or no words
-/// heard in it). With no captions kept there is no one to name: once the transcript has come, only the first line's
-/// "being written up" is taken off (2026-10-19: it stayed under a finished write-up), and a note without it comes back
-/// as it is.
+/// heard in it). The first line's "being written up" is taken off (2026-10-19: it stayed under a finished write-up).
+///
+/// Every way out writes turns, each timed (Matt, 2026-10-30: "some of the meeting transcripts still go into one
+/// giant block instead of maintaining the name (timestamp): prefix on each line"; speakers.dart `turnsTranscript`).
+/// This used to give up in two places and leave the write-up's words as it wrote them, which for a meeting was one
+/// paragraph (its paragraphs broke only at a silence of a second and a half, and Whisper's phrases over a call's
+/// sound abut): with no phrases to name it dropped the captions and kept that block, and with no captions it took the
+/// line off and kept it too. Now, with no phrases, the captions' own turns are the transcript, names and times; with
+/// no captions, a transcript not already in turns is written in turns from its phrases, named by nobody (or by the
+/// transcript's own names, where it has them); and with captions that meet none of the phrases, the captions' turns.
+/// A transcript already in turns, with no captions to name it better, is left as it is.
 String? withSpeakers(String body, List<Segment> segments) {
   if (transcriptOf(body) == null || (sectionOf(body, '## Transcript') ?? '').isEmpty) return null;
-  if (sectionOf(body, captionsHeading) == null) return body.replaceFirst(_writingUp, '');
-  final turns = turnsOf(body);
-  var out = withoutSection(body, captionsHeading).replaceFirst(_writingUp, '');
-  if (segments.isEmpty || turns.isEmpty) return out;
-  final paragraphs = speakerParagraphs(segments, alignSpeakers(segments, turns), timed: true);
-  if (paragraphs.isEmpty) return out;
-  out = withTranscript(out, '## Transcript\n\n${paragraphs.join('\n\n')}');
-  return out.endsWith('\n') ? out : '$out\n';
+  final captions = sectionOf(body, captionsHeading) != null;
+  final out = (captions ? withoutSection(body, captionsHeading) : body).replaceFirst(_writingUp, '');
+  if (!captions && transcriptTimed(body)) return out;
+  final transcript = turnsTranscript(segments, body);
+  if (transcript == null) return out;
+  final written = withTranscript(out, transcript);
+  return written.endsWith('\n') ? written : '$written\n';
+}
+
+/// A meeting's transcript made again in turns from what the note keeps (Rebuild transcript, on its tape; Matt,
+/// 2026-10-30): its phrases, named from its captions where it still keeps them, else from [captions] (the newest
+/// captions its versions kept, for a meeting whose captions went before this was mended), else as its transcript
+/// names them. Nothing is heard again, and nothing above `## Transcript` moves (the summary, the meeting's line, the
+/// person's words), so it is one edit of the transcript's lines. Null where there is nothing to make it from: no
+/// phrases kept and no captions.
+String? rebuiltTranscript(String body, List<Segment> segments, {List<CaptionTurn>? captions}) {
+  final kept = turnsOf(body);
+  final named = kept.any((turn) => turn.speaker.isNotEmpty) ? kept : (captions != null && captions.any((turn) => turn.speaker.isNotEmpty) ? captions : null);
+  return turnsTranscript(segments, body, captions: named);
+}
+
+/// The newest captions a note's versions kept ([versions], newest last, each a whole text the note once had), for
+/// [rebuiltTranscript]; null where none of them kept any with a name.
+List<CaptionTurn>? captionsOfVersions(List<String> versions) {
+  for (final text in versions.reversed) {
+    final turns = turnsOf(text);
+    if (turns.any((turn) => turn.speaker.isNotEmpty && turn.text.trim().isNotEmpty)) return turns;
+  }
+  return null;
 }

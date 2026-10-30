@@ -87,6 +87,7 @@ import '../list_append.dart' show appendToList, placeWords;
 import '../live_route.dart';
 import '../markdown.dart';
 import '../meeting.dart';
+import '../meeting_turns.dart' show meetingTranscript;
 import '../offers.dart' show placingOf;
 import '../place.dart';
 import '../quiet.dart';
@@ -1689,7 +1690,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     final titled = target == null && _pendingTitle == null;
     // The page as it is spoken: the take's markdown, from what the screen holds of it, with the phrase still being
     // guessed. A meeting's page is its transcript, paragraphs under the heading, with no cues read into it.
-    final note = meeting ? renderTranscript(_segments, _partial) : takeMarkdown(_segments, titled: titled, partial: _partial).markdown;
+    final note = meeting ? meetingTranscript(_segments, _partial) : takeMarkdown(_segments, titled: titled, partial: _partial).markdown;
     /*
      * The card of things to say while the microphone waits (say_card.dart, tips.dart `starters`). Worked out at
      * build rather than once: which note it names must not be the one being written to (the note's own Speak, or the

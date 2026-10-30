@@ -1,0 +1,45 @@
+[
+  {
+    "why": "abutting phrases, a turn a minute",
+    "segments": [
+      [0, 10000, "We start with the board."],
+      [10000, 20000, "Then the pricing page."],
+      [20000, 30000, "Sam has the draft."],
+      [30000, 40000, "It goes out Friday."],
+      [40000, 50000, "Any questions?"],
+      [50000, 60000, "None so far."],
+      [60000, 70000, "Next, the hiring plan."],
+      [70000, 80000, "Two roles open."],
+      [80000, 90000, "One is filled."],
+      [90000, 100000, "The other by December."],
+      [100000, 110000, "Good."],
+      [110000, 120000, "Moving on."],
+      [120000, 130000, "Last, the offsite."]
+    ],
+    "paragraphs": [
+      "(0:00) We start with the board. Then the pricing page. Sam has the draft. It goes out Friday. Any questions? None so far.",
+      "(1:00) Next, the hiring plan. Two roles open. One is filled. The other by December. Good. Moving on.",
+      "(2:00) Last, the offsite."
+    ]
+  },
+  {
+    "why": "a pause over three seconds starts a turn, one of three does not",
+    "segments": [[0, 2000, "hello there"], [6000, 8000, "after a pause."], [11000, 12000, "and on"]],
+    "paragraphs": ["(0:00) Hello there", "(0:06) After a pause. And on"]
+  },
+  {
+    "why": "spaces made one, an empty phrase skipped, a capital first",
+    "segments": [[0, 1000, "  so   we  "], [1000, 2000, "   "], [1500, 3000, "agreed."]],
+    "paragraphs": ["(0:00) So we agreed."]
+  },
+  {
+    "why": "an hour in",
+    "segments": [[3725000, 3727000, "an hour in."]],
+    "paragraphs": ["(1:02:05) An hour in."]
+  },
+  {
+    "why": "nothing heard",
+    "segments": [],
+    "paragraphs": []
+  }
+]

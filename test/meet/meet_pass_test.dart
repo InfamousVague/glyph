@@ -169,7 +169,7 @@ void main() {
     expect(d.meet.takes.keys, [takeId]);
     expect(await syncMeet(context(d, now: 1792161900000 + day + 1)), 1);
     final note = d.device.notes.held[meetNoteId(takeId)]!;
-    expect(note.body, contains('This is from Meet’s captions: the recording could not be kept on this device.\n\n## Transcript\n\n**Sam Lee:** Good morning everyone.\n\n**Daniel:** The pricing page is drafted.\n'));
+    expect(note.body, contains('This is from Meet’s captions: the recording could not be kept on this device.\n\n## Transcript\n\n**Sam Lee (0:01):** Good morning everyone.\n\n**Daniel (0:11):** The pricing page is drafted.\n'), reason: 'timed turns, as every meeting transcript is (2026-10-30)');
     expect(note.recordingMs, isNull);
     expect(preferences.value.meetings, contains(note.id));
     expect(d.device.kept.read<Object?>(pendingKey, null, (raw) => raw), isNull, reason: 'nothing to write up');

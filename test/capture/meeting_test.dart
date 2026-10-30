@@ -104,9 +104,10 @@ void main() {
     test('heads the body a meeting note is made with, over its transcript', () {
       final body = meetingBody('Meeting, 26 Sep 14:05', const [
         Segment(text: 'we settled the date.', startMs: 0, endMs: 1000),
-        Segment(text: 'A different one.', startMs: 4000, endMs: 5000),
+        Segment(text: 'A different one.', startMs: 5000, endMs: 6000),
       ]);
-      expect(body, '# Meeting, 26 Sep 14:05\n\n## Transcript\n\nWe settled the date.\n\nA different one.');
+      // Timed turns, a new one after the pause (lib/capture/meeting_turns.dart; 2026-10-30).
+      expect(body, '# Meeting, 26 Sep 14:05\n\n## Transcript\n\n(0:00) We settled the date.\n\n(0:05) A different one.');
       expect(dateTitled(body), true);
     });
   });

@@ -724,7 +724,8 @@ impl Run<'_> {
         let recording = Recording::new(ms as i64, self.progress.segments.clone()).map_err(Stop::Failed)?;
         let mut library = self.dirs.library().map_err(Stop::Failed)?;
         library.set_recording(self.id, Some(&recording)).map_err(failed)?.ok_or_else(|| Stop::Failed("no such note".into()))?;
-        let paragraphs = crate::transcript::paragraphs(&self.progress.segments);
+        // A meeting's turns, each timed, never one block (Matt, 2026-10-30; transcript.rs `meeting_paragraphs`).
+        let paragraphs = crate::transcript::meeting_paragraphs(&self.progress.segments);
         let mut written = None;
         for _ in 0..2 {
             let note = library.get_note(self.id).map_err(failed)?.ok_or_else(|| Stop::Failed("no such note".into()))?;

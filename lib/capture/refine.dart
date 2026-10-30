@@ -24,7 +24,7 @@
 /// pass that kills the app cannot kill it at every launch: three tries and the job is dropped.
 ///
 /// A meeting's job (`meeting`, the Mac's recorder) renders its better phrases as the transcript the note was written
-/// with (markdown.dart `renderTranscript`), in place of the transcript it has, with the summary above it left as it
+/// with (meeting_turns.dart `meetingTranscript`, in timed turns), in place of the transcript it has, with the summary above it left as it
 /// stands. A meeting recorded by the phone's service never has a job here: its phrases are the write-up's own. And
 /// no pass starts while that write-up is running (meeting_live.dart `writeUpRunning`), since both want the same
 /// speech model; Rust's own guard is the hard one, and this the polite one.
@@ -52,7 +52,8 @@ import '../core/stored.dart';
 import '../core/summary_text.dart' show summarySection, withSummary;
 import '../meet/speakers.dart' show namedTranscript;
 import 'engine.dart' show CaptureBackend, CaptureEventRefineModelProgress, CaptureEventRefineProgress;
-import 'markdown.dart' show Segment, renderTranscript, withTranscript;
+import 'markdown.dart' show Segment, withTranscript;
+import 'meeting_turns.dart' show meetingTranscript;
 import 'meeting_live.dart' show ExternalStore;
 import 'place.dart' show Placing;
 import 'refine_text.dart' show refinedBody, refinedSegments;
@@ -565,8 +566,8 @@ class Refining {
     if (note.body.trimRight() == asSaved) {
       // A meeting's better phrases are its transcript again, under whatever stands above it (the title, its summary),
       // with the speakers its words named kept on them (lib/meet/speakers.dart `namedTranscript`; Matt, 2026-10-26),
-      // and unnamed, as before, where they named none.
-      final better = job.meeting == true ? withTranscript(note.body, namedTranscript(refined, note.body) ?? renderTranscript(refined)) : refinedBody(job, refined);
+      // and in turns with nobody named where they named none (lib/capture/meeting_turns.dart; Matt, 2026-10-30).
+      final better = job.meeting == true ? withTranscript(note.body, namedTranscript(refined, note.body) ?? meetingTranscript(refined)) : refinedBody(job, refined);
       try {
         await updateNote(job.id, ours && summarySection(better, kept) == null ? withSummary(better, section.text, kept: kept) : better, note.revision);
       } catch (_) {

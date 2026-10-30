@@ -32,7 +32,7 @@ void main() {
       await capture.untilFinished(1, 4000);
       final saved = capture.finished.single.note!;
       expect(dateTitled(saved.body), isTrue);
-      expect(saved.body, matches(RegExp(r'^# Meeting, .+\n\n## Transcript\n\nWe settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$')));
+      expect(saved.body, matches(RegExp(r'^# Meeting, .+\n\n## Transcript\n\n\(0:\d\d\) We settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$')));
       expect(saved.source, NoteSource.capture);
       expect(saved.recordingMs, 200000);
       expect(capture.prefs.meetings[saved.id], isA<num>());

@@ -6,9 +6,12 @@
 /// - **Alignment.** Each of Whisper's segments is given the speaker whose turns overlap it longest ([alignSpeakers]).
 ///   A caption shows a moment after the words are said, so a turn is moved earlier by [captionLagMs] before it is
 ///   compared. A segment no turn overlaps takes the nearest turn's speaker within [nearestMs], and otherwise none.
-/// - **The transcript.** Consecutive segments of one speaker are one paragraph, `**Name:** words`; a segment with no
-///   speaker is a paragraph of its words alone ([speakerParagraphs]). With no Whisper at all, the captions' own turns
-///   are the transcript, in the same shape ([captionParagraphs]).
+/// - **The transcript is turns, every one timed** (Matt, 2026-10-30: "some of the meeting transcripts still go into
+///   one giant block instead of maintaining the name (timestamp): prefix on each line"): consecutive segments of one
+///   speaker are a turn, `**Name (0:12):** words`, `(0:40) words` with no speaker, a new one after a pause and once
+///   one has run a minute (lib/capture/meeting_turns.dart, [speakerParagraphs] `timed`). With no Whisper at all, or
+///   Whisper the captions meet nowhere, the captions' own turns are the transcript, in the same shape
+///   ([captionTurnLines]); [turnsTranscript] chooses. [captionParagraphs] is the untimed shape of before, for a model.
 /// - **The captions kept in the note** until the write-up comes are the turns with when each began,
 ///   `**Name (0:12):** words` under `## Captions` ([captionsSection]), which [turnsOf] reads back: so the alignment
 ///   needs nothing but the note, on whichever of the account's devices writes it up.
@@ -34,7 +37,9 @@ library;
 
 import 'dart:math' as math;
 
+import '../capture/meeting_turns.dart';
 import '../core/note.dart' show Segment;
+import '../core/text.dart' show capitalise;
 import '../tapes/tape.dart' show counter;
 import 'gmt.dart';
 
@@ -69,6 +74,10 @@ class CaptionTurn {
 
 /// How long the last turn is taken to last: a fifth of a second a character, at least two seconds.
 int _guessMs(String text) => math.max(2000, text.length * 200 ~/ 3);
+
+/// The longest a turn's words could take to say, for the alignment: a tenth of a second a character (speech is
+/// about fifteen a second) and five seconds more.
+int _saidMostMs(String text) => 5000 + text.length * 100;
 
 /// The Material Symbols words Meet draws icons with inside its captions, which a block read as text can begin with
 /// (see the header): never a speaker's name. Lower case, as a ligature is written; a person's name is not, so only
@@ -127,7 +136,16 @@ List<CaptionTurn> captionTurns(List<CaptionLine> lines) {
 
 /// The speaker of each of [segments], or null for one no turn can be given to (see the header).
 List<String?> alignSpeakers(List<Segment> segments, List<CaptionTurn> turns, {int lagMs = captionLagMs}) {
-  final named = [for (final turn in turns) if (turn.speaker.isNotEmpty) turn];
+  // A turn with words is held to as long as they could take to say ([_saidMostMs]): one the captions stopped after
+  // (a stretch Meet showed none for, the meeting's last) does not name every phrase to the next caption, or to the
+  // end; those are nobody's, said as a time alone (2026-10-30). A turn with no words (a Discord call's) runs to the next.
+  final named = [
+    for (final (i, turn) in turns.indexed)
+      if (turn.speaker.isNotEmpty)
+        turn.text.trim().isEmpty
+            ? turn
+            : CaptionTurn(speaker: turn.speaker, startMs: turn.startMs, endMs: i + 1 < turns.length ? math.min(turn.endMs, turn.startMs + _saidMostMs(turn.text)) : turn.startMs + _saidMostMs(turn.text), text: turn.text),
+  ];
   return [
     for (final segment in segments) _speakerOf(segment, named, lagMs),
   ];
@@ -163,23 +181,21 @@ String? _speakerOf(Segment segment, List<CaptionTurn> turns, int lagMs) {
   return nearest?.speaker;
 }
 
-/// The transcript's paragraphs from Whisper's [segments] and each one's speaker (see the header). With [timed], each
-/// paragraph says when its first phrase began, `**Sam Lee (0:12):** words`, and one with no speaker `(0:40) words`:
-/// the shape the captions are kept in ([captionsSection]), which the transcript's view lights by.
+/// The transcript's paragraphs from Whisper's [segments] and each one's speaker (see the header). With [timed], they
+/// are the meeting's turns (lib/capture/meeting_turns.dart): a new one on a change of speaker, after a pause, and
+/// once one has run a minute, each saying when it began, `**Sam Lee (0:12):** words`, and one with no speaker
+/// `(0:40) words`: the shape the captions are kept in ([captionsSection]), which the transcript's view lights by.
+/// Without, a speaker's whole run is one paragraph, `**Sam Lee:** words`, as a model is given it.
 List<String> speakerParagraphs(List<Segment> segments, List<String?> speakers, {bool timed = false}) {
+  if (timed) return turnLines(segments, speakers);
   final out = <String>[];
   String? current;
   var words = <String>[];
-  var startMs = 0;
   var open = false;
   void flush() {
     if (!open) return;
     final text = words.join(' ').trim();
-    if (text.isNotEmpty) {
-      final at = counter(startMs);
-      final name = current;
-      out.add(name == null ? (timed ? '($at) $text' : text) : (timed ? '**$name ($at):** $text' : '**$name:** $text'));
-    }
+    if (text.isNotEmpty) out.add(current == null ? text : '**$current:** $text');
     words = <String>[];
     open = false;
   }
@@ -191,13 +207,74 @@ List<String> speakerParagraphs(List<Segment> segments, List<String?> speakers, {
     if (!open || speaker != current) {
       flush();
       current = speaker;
-      startMs = segment.startMs;
       open = true;
     }
     words.add(text);
   }
   flush();
   return out;
+}
+
+/// The captions' own turns as a transcript's paragraphs, every one timed and named where the captions name it:
+/// what a write-up with no phrases to name, or phrases the captions do not meet, writes rather than Whisper's words
+/// as one block (Matt, 2026-10-30). A turn longer than a minute is cut at its sentences about a minute apart, each
+/// piece timed by where its words fall in the turn, so a monologue reads as the turns Whisper's would. A turn with no
+/// words (a Discord call's) is no paragraph.
+List<String> captionTurnLines(List<CaptionTurn> turns) {
+  final out = <String>[];
+  for (final turn in turns) {
+    final text = turn.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) continue;
+    final span = turn.endMs - turn.startMs;
+    if (span <= turnMostMs) {
+      out.add(turnLine(turn.speaker, turn.startMs, capitalise(text)));
+      continue;
+    }
+    final total = math.max(1, _wordsIn(text));
+    var before = 0;
+    var piece = <String>[];
+    var pieceAt = turn.startMs;
+    for (final sentence in text.split(RegExp(r'(?<=[.!?])\s+'))) {
+      final at = turn.startMs + span * before ~/ total;
+      if (piece.isNotEmpty && at - pieceAt >= turnMostMs) {
+        out.add(turnLine(turn.speaker, pieceAt, capitalise(piece.join(' '))));
+        piece = <String>[];
+      }
+      if (piece.isEmpty) pieceAt = at;
+      piece.add(sentence);
+      before += _wordsIn(sentence);
+    }
+    if (piece.isNotEmpty) out.add(turnLine(turn.speaker, pieceAt, capitalise(piece.join(' '))));
+  }
+  return out;
+}
+
+/// A meeting's `## Transcript` section made from what is kept of it, in turns, every one timed (Matt, 2026-10-30):
+/// Whisper's [segments] named from [captions] (the note's own `## Captions` where none are given) by when each was
+/// said ([alignSpeakers]); with no captions, named as the note's transcript names them ([phraseSpeakers]: its timed
+/// paragraphs, or its named ones by where the words fall), or by nobody. Where the captions name people who said
+/// something but meet none of the phrases (their clocks apart), and where there are no phrases at all, it is the
+/// captions' own turns ([captionTurnLines]), names and times, never Whisper's words as one block. Null where there is
+/// nothing to write.
+String? turnsTranscript(List<Segment> segments, String body, {List<CaptionTurn>? captions}) {
+  final phrases = [for (final s in segments) if (s.text.trim().isNotEmpty) s];
+  final turns = captions ?? turnsOf(body);
+  final named = turns.any((turn) => turn.speaker.isNotEmpty);
+  final spoken = turns.any((turn) => turn.speaker.isNotEmpty && turn.text.trim().isNotEmpty);
+  final List<String> lines;
+  if (phrases.isNotEmpty) {
+    final speakers = named ? alignSpeakers(phrases, turns) : phraseSpeakers(phrases, body);
+    lines = named && spoken && !speakers.any((s) => s != null) ? captionTurnLines(turns) : turnLines(phrases, speakers);
+  } else {
+    lines = captionTurnLines(turns);
+  }
+  return lines.isEmpty ? null : '## Transcript\n\n${lines.join('\n\n')}';
+}
+
+/// Whether every paragraph of [body]'s transcript says when it began: a transcript in turns already.
+bool transcriptTimed(String body) {
+  final paragraphs = transcriptParagraphs(body);
+  return paragraphs.isNotEmpty && paragraphs.every((p) => p.startMs != null);
 }
 
 /// One paragraph of a meeting's written transcript, as [transcriptParagraphs] reads it: who spoke (null for nobody

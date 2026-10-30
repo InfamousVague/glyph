@@ -364,7 +364,7 @@ void main() {
       expect(queued()[0]['meeting'], true);
       await tester.advance(0);
       // Rendered as a transcript under the date title: no title from the first sentence, no dictated shape.
-      expect(notes['n1']?.body, '# Meeting, 26 Sep 14:05\n\n## Transcript\n\nGrocery run. Oat milk and eggs.');
+      expect(notes['n1']?.body, matches(RegExp(r'^# Meeting, 26 Sep 14:05\n\n## Transcript\n\n\(0:\d\d\) Grocery run\. Oat milk and eggs\.$')), reason: 'in a timed turn (2026-10-30)');
       prefs = prefs.copyWith(meetings: {});
     });
 

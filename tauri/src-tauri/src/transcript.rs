@@ -141,6 +141,71 @@ pub fn paragraphs(segments: &[RecordedSegment]) -> Vec<String> {
     out
 }
 
+/// A pause longer than this between two of a meeting's phrases starts another
+/// turn: the app's `turnPauseMs` (lib/capture/meeting_turns.dart).
+pub const MEETING_PAUSE_MS: u64 = 3000;
+
+/// How long a meeting's turn runs before its next phrase starts another: the
+/// app's `turnMostMs`, a minute.
+pub const TURN_MOST_MS: u64 = 60_000;
+
+/// The tape's counter: `0:07`, `12:40`, `1:02:03` (the app's `counter`).
+pub fn counter(ms: u64) -> String {
+    let total = ms / 1000;
+    let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60);
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m}:{s:02}")
+    }
+}
+
+/// A meeting's phrases as its transcript's turns, every one timed: `(0:04)
+/// words` (Matt, 2026-10-30: "some of the meeting transcripts still go into one
+/// giant block instead of maintaining the name (timestamp): prefix on each line
+/// please address"). The twin of the app's `meetingTranscript`
+/// (lib/capture/meeting_turns.dart) with nobody named, line for line, so the
+/// app finds the write-up's words already in turns. A new turn starts after a
+/// pause over [`MEETING_PAUSE_MS`] and once a turn has run [`TURN_MOST_MS`];
+/// a phrase's spaces are made one, its words joined by a space, each turn
+/// starts with a capital, and so does a phrase after a finished sentence. [`paragraphs`], which breaks at a 1.5 s silence
+/// only, wrote a meeting as one paragraph: Whisper's phrases over a call's
+/// sound abut, and the 38-minute standup of 2026-10-29 had no such silence.
+/// The meeting step names the turns from the captions afterwards
+/// (lib/meet/meet_note.dart `withSpeakers`).
+pub fn meeting_paragraphs(segments: &[RecordedSegment]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut words: Vec<String> = Vec::new();
+    let (mut start, mut end) = (0u64, 0u64);
+    fn flush(words: &mut Vec<String>, start: u64, out: &mut Vec<String>) {
+        let text = words.join(" ");
+        let text = text.trim();
+        if !text.is_empty() {
+            out.push(format!("({}) {}", counter(start), capitalise(text)));
+        }
+        words.clear();
+    }
+    for segment in segments {
+        let text = segment.text.split_whitespace().collect::<Vec<_>>().join(" ");
+        if text.is_empty() {
+            continue;
+        }
+        let open = !words.is_empty();
+        if !open || segment.start_ms.saturating_sub(end) > MEETING_PAUSE_MS || segment.start_ms.saturating_sub(start) >= TURN_MOST_MS {
+            flush(&mut words, start, &mut out);
+            start = segment.start_ms;
+            end = segment.end_ms;
+        } else if segment.end_ms > end {
+            end = segment.end_ms;
+        }
+        // A phrase after a finished sentence starts one, whatever case it came in.
+        let said = if words.last().is_some_and(|last| last.ends_with(['.', '!', '?'])) { capitalise(&text) } else { text };
+        words.push(said);
+    }
+    flush(&mut words, start, &mut out);
+    out
+}
+
 /// The byte offset of the `## Transcript` line in `body`, if it has one.
 fn transcript_at(body: &str) -> Option<usize> {
     let mut at = 0;
@@ -345,6 +410,30 @@ mod tests {
                 return None;
             }
         }
+    }
+
+    /// A meeting's turns agree with the app's (test/capture/fixtures/meeting_turns.json, which
+    /// test/meet/transcript_turns_test.dart asserts `meetingTranscript` on): the Flutter app is the
+    /// repository's root, the parent of the directory holding this crate's `package.json`.
+    #[test]
+    fn a_meetings_turns_agree_with_the_apps_fixture() {
+        let path = repo_dir().expect("the repository, or GLYPH_REPO_DIR").join("../test/capture/fixtures/meeting_turns.json");
+        let source = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let cases: Vec<serde_json::Value> = serde_json::from_str(&source).expect("the fixture is a list of cases");
+        assert!(cases.len() >= 5);
+        for case in cases {
+            let segments: Vec<RecordedSegment> = case["segments"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|s| segment(s[2].as_str().unwrap(), s[0].as_u64().unwrap(), s[1].as_u64().unwrap()))
+                .collect();
+            let want: Vec<String> = case["paragraphs"].as_array().unwrap().iter().map(|p| p.as_str().unwrap().to_string()).collect();
+            assert_eq!(meeting_paragraphs(&segments), want, "{}", case["why"]);
+        }
+        assert_eq!(counter(0), "0:00");
+        assert_eq!(counter(762_999), "12:42");
+        assert_eq!(counter(3_723_000), "1:02:03");
     }
 
     /// The fixture both twins are asserted on (capture/markdown.test.ts reads it too).

@@ -10,7 +10,7 @@
 /// The title is the date and the time, "Meeting, 26 Sep 14:05", in the locale's own order of day and month
 /// (core/summary_text.dart `dateTitled` knows the shape, and swaps it for the model's heading once the summary
 /// comes). The body a meeting is written with is its title and its transcript under a `## Transcript` heading, no
-/// cues and no title from the first sentence (markdown.dart `renderTranscript`); Rust's write-up writes the same
+/// cues and no title from the first sentence, in timed turns (meeting_turns.dart `meetingTranscript`); Rust's write-up writes the same
 /// shape from the phone's own transcription, so a note reads the same whichever side wrote it.
 ///
 /// What differs:
@@ -25,7 +25,8 @@
 library;
 
 import '../core/locale_dates.dart';
-import 'markdown.dart' show Segment, renderTranscript;
+import 'markdown.dart' show Segment;
+import 'meeting_turns.dart' show meetingTranscript;
 
 /// The binary generation with the meeting service, its host bridge and the write-up commands (`MEETING_GENERATION`).
 const int meetingGeneration = 20;
@@ -73,4 +74,4 @@ String meetingTitle(int ms, [String? locale]) {
 }
 
 /// The body a meeting note is made with: its date title over its transcript.
-String meetingBody(String title, List<Segment> segments, [String partial = '']) => '# $title\n\n${renderTranscript(segments, partial)}';
+String meetingBody(String title, List<Segment> segments, [String partial = '']) => '# $title\n\n${meetingTranscript(segments, partial)}';
