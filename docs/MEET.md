@@ -715,3 +715,113 @@ has no meeting routes. Its foot, **Meetings**, opened Settings › Meetings. Tak
 upcoming meetings from the home page"), with its tests; the shelf of recordings stays, every kind on it. A booked occurrence of a recurring meeting
 (the list's `series`) has the repeat mark for its calendar, as on Settings › Meetings. Tests:
 test/meet/home_meetings_test.dart, test/meet/meet_recurring_test.dart.
+
+## Live captions
+
+Matt, 2026-10-30: "If possible add real time transcriptions for meetings". A meeting's words reached the person only
+with its take, after the call. Now the captions the bot reads go to the account's devices as the meeting goes, and a
+meeting recorded on a phone shows its own words while someone looks.
+
+### How they travel
+
+1. **The bot** (meet/bot/lib/live.mjs `LiveFeed`): the lines the caption timeline finishes, and the line still being
+   said (`CaptionTimeline.saying`, its words not yet written), go to `POST /api/internal/meet/{id}/live` as
+   `{ startedAt, lines: [{ at, speaker, text }], partial }`, at most every 1.5 s, one batch at a time so the call's loop
+   never waits. Nothing new is nothing sent; lines are kept through a failure (400 at most: the take has them all); a
+   429 waits a gap more; 404 (a service from before) or 409 (Ghost is not in the meeting) turns it off for the call. The
+   take's NDJSON is as it was, and the end sends what is left before the take. No word goes to the log.
+2. **The service** (server/src/meet/live.rs): the bot's route, on this machine and with its token as the others are, for
+   a meeting Ghost is joining or in. Each batch is sealed in that request to the account's encryption public key as a
+   take is (`seal_in_place`: a fresh key a frame, wrapped by ECIES in `meet-live-key:<meeting>:<n>`, the frame
+   AES-256-GCM with `meet-live:<meeting>:<n>` as associated data, `<n>` its `seq`, or `p<k>` for the line being said
+   alone), and the clear words are wiped as the batch goes. The frame goes at once to every signed-in socket of the
+   account, on the connection the app holds for the pokes (server/src/live.rs `Pokes::say`):
+   `{ t: "captions", meeting, seq | partial, wrapped, data }`. A frame with finished lines is kept, sealed and in
+   memory alone, for the catch-up; one with only the line being said is not. The take, or the meeting done, failed or
+   skipped, ends the feed: `{ t: "captions", meeting, ended: true }`.
+3. **The device** (lib/meet/live_captions.dart): each frame opened with the account's private key, in order and once;
+   one past the next (a socket that dropped, an app that was behind, a device come to the front mid-meeting) is caught
+   up first from `GET /api/v1/meet/{id}/live?after=<seq>`; one that will not open is let go. The lines go into the
+   meeting's live words (lib/meet/live_transcript.dart), its turns by the meeting's rules
+   (lib/capture/meeting_turns.dart), named and timed by the captions.
+
+| | Request | Answer |
+|---|---|---|
+| `POST /api/internal/meet/{id}/live` (the bot's) | `{ startedAt?, lines, partial? }` | 204. 400 more than 100 lines, a line over 2000 characters or a name over 120, a time below 0; 404 no such meeting; 409 `{ error, id, state }` Ghost is not joining or in it, or its account has no key; 413 a body over 64 KB; 429 past 20 at once or 2 a second, a meeting; 503 8 meetings live at once |
+| `GET /api/v1/meet/{id}/live?after=<seq>` (a device's) | | `{ live, first, frames: [{ seq, wrapped, data }] }`: the kept frames after `seq`; `first`, where the kept ones begin (the oldest go past 4 MB a meeting). `{ live: false, first: null, frames: [] }` for a meeting with no feed. 404 for another account's meeting, as every route here answers; 429 past 120 a minute, an account |
+
+**What is in the clear.** As for a take: the bot reads the captions from the page and holds them while it sends them;
+the service has them in memory for the moment of sealing, and wipes them. Nothing of them is ever on disk or in a log;
+what is kept for the catch-up is ciphertext. A feed nothing has come to for half an hour is forgotten, and the hourly
+sweep forgets one too.
+
+**Older apps and services.** An older app ignores a frame it does not know (lib/live/transport.dart's `default`). An
+older bot sends nothing to the new route, and an older service answers it 404, which turns the bot's feed off.
+
+### The note while Ghost is in it
+
+A meeting Ghost is in has a note from its first caption on, so the person can open it, write their own notes in it
+while the meeting runs, and read its Transcript live:
+
+- **One note on every device.** Its id is made from the booking's (`meetLiveNoteId`), and its words are the same on
+  every device (`# <the invite's title>`, then "Ghost is in this meeting now. Its transcript comes in as people
+  speak."): no date and no time, nothing a device's own clock or language would say differently, so two devices that
+  make it at once make one note. It is marked a meeting (`prefs.meetings`) and kept against the booking
+  (`meetingNotes`), as a filed one is. A device that made it once does not make it again after the person deleted it.
+- **Never written as the captions come**, in batches or otherwise. Every device of the account hears the same captions:
+  two of them growing the same `## Captions` section is two insertions at one place, a conflict to sync
+  (lib/core/merge_words.dart), and in a team's note every batch would be an edit to every member. The take carries
+  every caption all the same, and is filed seconds after the meeting ends (the `take` poke).
+- **The take is filed into it** in one edit (meet_in.dart `syncMeet`, `handedOver`): the take's title and line, the
+  person's own words where they wrote them, then the take's sections; its live words are then forgotten, and the
+  write-up goes on as before.
+- **No take**: a meeting whose take never comes (the bot failed, or never said it was over) has its line changed once,
+  an hour after the meeting ended or six after the note was made, to "Ghost was in this meeting, but its recording
+  didn't reach Ghost.md." (`settleLiveNotes`), the same words on every device; never while its take waits.
+
+### The Transcript live
+
+lib/meet/ui/live_transcript_view.dart, on the note desk (lib/root/note_desk.dart): while the meeting goes on its note
+has Note and Transcript, and the Note view a small **Live transcript** pill. Transcript is the live turns, each its
+speaker and time over its words as the finished transcript's are (`TranscriptTurn`), the line being said last in the
+lighter ink, a **Live** badge over them. It follows the newest words until the person scrolls up to read back; **Back
+to live** over the foot takes it down again and follows from there. Ended, the badge goes and a line says the
+transcript is on its way; the take's turns take its place once the note has them. Simple shows it too, calm: the
+badge's dot and the pill's in the ink.
+
+### Live words on this device
+
+A meeting recorded on the phone (lib/capture/meeting_live_words.dart `MeetingLiveWords`): the meeting service has the
+microphone and keeps the tape; while the meeting screen, or the meeting's note at its Transcript, is up and the app in
+front (so the screen is on), the service also hands what it records, other apps' sound mixed in when the meeting has
+it (both sides of a call), to the speech model (MeetingService.kt `liveWords`, `DictationMic.pushLive`, the core's
+`ghost_capture_push`). The core hears it in the meeting's own mode (`capture_start {partials: false, keep: false}`,
+whisper/stream.rs `Mode::MEETING`): each phrase transcribed once, when it is finished, no guesses at the words still
+being said, and nothing kept but the window being heard, so an hour costs no more memory than a minute. Each phrase is
+timed from the meeting's start and named by nobody, as the write-up names nobody where it cannot. The meeting screen
+shows the last few under the cassette (`LiveLines`), or why there are none.
+
+- **Only while a meeting the person started records.** The screen off, the app left, the screen closed, the meeting
+  stopped: the model lets go at once and the service stops handing samples over. It opens no microphone. A dictation
+  started meanwhile keeps the model; the meeting's words wait for it.
+- **The write-up still runs after the meeting** and replaces the live words, as now.
+- **An older build** (a service with no `meetingLiveWords`, a core that answers `capture_start` with null) has none,
+  and the screen says so.
+- **The Mac** records a meeting in its recorder, whose page shows the words as they come, as it always did. With the
+  setting off it shows none and guesses at none (`capture_start {partials: false}`); the note at Done is the same.
+
+**What it costs**, measured (native/src/capture.rs `what_a_meeting_s_live_words_cost_a_minute_of_talk`, the real model,
+`ggml-base.en-q5_1`, on an Apple M5 with 4 threads while other builds ran, load about 9; the fixture over a minute with
+a second's pause between): a dictation's capture spent 118.4 s decoding a minute of talk (68 guesses, 98.8 s; 13
+phrases, 19.6 s), more than the minute itself, so on a phone it would fall behind; the meeting's mode spent 17.2 s (13
+phrases, no guesses), under a third of the minute on four cores. whisper.cpp pads every window to 30 s, so a pass
+costs much the same however short its phrase: what is saved is the number of passes (the counting model in
+stream/tests.rs: 84 calls a minute against 12).
+
+**Settings › Recording › Live transcript during meetings**, this device's own (`glyph-meeting-live-words`), since a
+phone's battery and a Mac's are not one choice: on a phone **Off**, **While charging** or **On**, While charging at
+first, because even a phrase at a time keeps four cores busy a fifth to a third of the meeting while the screen is on;
+on the Mac a switch, on. Tests: test/capture/meeting_live_words_test.dart, test/capture_ui/meeting_screen_live_test.dart,
+test/settings/live_words_setting_test.dart; for the captions test/meet/live_captions_test.dart,
+test/root/live_transcript_test.dart, server/src/meet_live_tests.rs, meet/bot/test/live.test.mjs. Pictures:
+test/root/live_transcript_shots_test.dart into build/feature-shots/live-transcript/.

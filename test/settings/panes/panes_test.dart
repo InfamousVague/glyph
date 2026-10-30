@@ -406,7 +406,7 @@ void main() {
       await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, meetingSoundWhy: 'Update Ghost.md to include sound from other apps.', onAllowMeetingNotices: () => ++asked > 0 && false));
       // Then the sorting every meeting shares, whatever plugin it came from (lib/meet/ui/meeting_settings.dart); Sync
       // meeting recordings waits for an account.
-      expect(rowLabels(tester, 'Meetings'), ['Include sound from other apps', 'Tell me when a meeting is written up', 'Write up straight away', 'Sort meetings into workspaces']);
+      expect(rowLabels(tester, 'Meetings'), ['Include sound from other apps', 'Live transcript during meetings', 'Tell me when a meeting is written up', 'Write up straight away', 'Sort meetings into workspaces']);
       // The sound has no switch where the device cannot, and says why.
       expect(tester.widget<SettingRow>(rowCalled('Include sound from other apps')).control, isNull);
       expect(find.text('Update Ghost.md to include sound from other apps.'), findsOneWidget);
@@ -762,7 +762,7 @@ void main() {
       const notDrawn = {
         // The way in the form already is has no row: "I have an account" is drawn once another way is chosen.
         'account': {'I have an account'},
-        'recording': {'Include sound from other apps', 'Tell me when a meeting is written up', 'Write up straight away'},
+        'recording': {'Include sound from other apps', 'Live transcript during meetings', 'Tell me when a meeting is written up', 'Write up straight away'},
         // Library folder draws its cards once it is handed the folder's calls (library_folder_pane_test.dart holds
         // both names to the page there); with none, as here, it is the page of a build that cannot choose.
         'library': {'Where your notes are', 'Good to know'},

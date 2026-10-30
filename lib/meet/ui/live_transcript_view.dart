@@ -175,8 +175,11 @@ class _LiveTranscriptViewState extends State<LiveTranscriptView> {
     final saying = words?.saying != null;
     final room = t.space(2);
     final small = t.textAt(t.fontSize('sm'), color: t.color('app-ink-3'));
-    final lines = <Widget>[
-      Padding(
+    final gutter = EdgeInsetsDirectional.fromSTEB(math.max(0, t.len('app-gutter-start') - room), 0, math.max(0, t.len('app-gutter-end') - room), 0);
+    // The badge and what the words are stay over the turns, which scroll under them: in view whichever turn is.
+    final head = Padding(
+      padding: gutter.add(EdgeInsets.only(top: t.space(2), bottom: t.space(2))),
+      child: Padding(
         padding: EdgeInsets.symmetric(horizontal: room),
         child: Row(
           children: [
@@ -194,7 +197,8 @@ class _LiveTranscriptViewState extends State<LiveTranscriptView> {
           ],
         ),
       ),
-      SizedBox(height: t.space(3)),
+    );
+    final lines = <Widget>[
       if (turns.isEmpty)
         Padding(
           padding: EdgeInsets.symmetric(horizontal: room),
@@ -205,17 +209,25 @@ class _LiveTranscriptViewState extends State<LiveTranscriptView> {
         TranscriptTurn(key: ValueKey('live-turn-$i'), turn: turn, light: saying && i == turns.length - 1 ? TranscriptLight.coming : TranscriptLight.reading),
       ],
     ];
-    final padding = EdgeInsetsDirectional.fromSTEB(math.max(0, t.len('app-gutter-start') - room), t.space(4), math.max(0, t.len('app-gutter-end') - room), t.space(24));
+    final padding = gutter.add(EdgeInsets.only(top: t.space(2), bottom: t.space(24)));
     return Stack(
       children: [
-        NotificationListener<ScrollNotification>(
-          onNotification: _scrolled,
-          child: SingleChildScrollView(
-            key: const ValueKey('live-transcript'),
-            controller: _scroll,
-            padding: padding,
-            child: SizedBox(width: double.infinity, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: lines)),
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            head,
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _scrolled,
+                child: SingleChildScrollView(
+                  key: const ValueKey('live-transcript'),
+                  controller: _scroll,
+                  padding: padding,
+                  child: SizedBox(width: double.infinity, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: lines)),
+                ),
+              ),
+            ),
+          ],
         ),
         PositionedDirectional(
           start: 0,
