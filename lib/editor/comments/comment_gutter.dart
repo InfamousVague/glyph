@@ -25,10 +25,18 @@
 ///   its threads' filled glyphs, which open them.
 ///
 /// Simple mode has it too: commenting on a line is one of the basics, and the glyph is all there is of it.
+///
+/// **A heading's fold triangle shares the gutter** (lib/editor/view/section_folds.dart), before the comment glyph: a
+/// pointer over a heading that folds brings it as it brings the glyph, a folded heading wears it all the time, and
+/// under a finger (where there is no comment glyph) every heading that folds wears it, the gutter's whole square
+/// its target. Where the gutter has room for both side by side (a page to read on a wide window) the triangle stands
+/// before the glyph's square; where it is one square wide (a phone, the usual column), a heading's square is split,
+/// the triangle at its outer edge and the comment glyph, a little smaller, against the words. Never one over the other.
 library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -46,6 +54,7 @@ import '../../shell/wide_screen.dart' show mousePointer;
 import '../editor.dart';
 import '../view/editor_view.dart';
 import '../view/lines.dart' show docLineInFence;
+import '../view/section_folds.dart' show FoldTriangle, gutterFolds, toggleFold;
 import 'comments.dart' show commentsOf;
 
 /// The glyph arriving and leaving: a beat, quicker than the +'s rise.
@@ -84,6 +93,16 @@ Map<int, List<Thread>> threadsByLine(EditorState state) {
   }
   return found;
 }
+
+/// What the fold's triangle says, to a pointer and to a screen reader.
+const String foldGlyphTip = 'Fold this section';
+const String unfoldGlyphTip = 'Unfold this section';
+
+/// The fold triangle's width beside the comment glyph, from the gutter's square.
+double foldGlyphWidth(double box) => (box * 0.42).clamp(9.0, 12.0);
+
+/// What stands in the gutter beside a line.
+enum GutterSlot { comment, fold }
 
 /// "1 comment", "3 comments".
 String commentCountWords(int count) => count == 1 ? '1 comment' : '$count comments';
@@ -127,11 +146,21 @@ class CommentGutterState extends State<CommentGutter> {
   Doc? _doc;
   Map<int, List<Thread>> _threads = const <int, List<Thread>>{};
 
+  /// The headings that fold, as the gutter draws them now.
+  List<({int line, int from, bool folded})> _folds = const [];
+
   /// The line the glyph that starts a comment is shown beside now, for a test; null when none is.
   int? get hoveredLine => _canAdd ? _hover : null;
 
   /// The lines that wear a filled glyph, for a test.
   Iterable<int> get threadLines => _threads.keys;
+
+  /// The headings whose fold triangle is shown now, for a test.
+  Iterable<int> get foldLines => [
+        if (_foldsShown)
+          for (final fold in _folds)
+            if (!_fine || fold.folded || fold.line == _hover) fold.line,
+      ];
 
   EditorView? get _view => widget.view;
 
@@ -142,9 +171,13 @@ class CommentGutterState extends State<CommentGutter> {
 
   bool get _allowed => _view != null && _fine && (widget.allowed?.call() ?? true);
 
+  /// The fold triangles are drawn under a finger as well as beside a pointer.
+  bool get _foldsShown => _view != null && (widget.allowed?.call() ?? true);
+
   void _read() {
     final view = _view;
     final doc = view?.state.doc;
+    _folds = view == null ? const [] : gutterFolds(view.state);
     if (identical(doc, _doc)) return;
     _doc = doc;
     _threads = view == null ? const <int, List<Thread>>{} : threadsByLine(view.state);
@@ -153,7 +186,8 @@ class CommentGutterState extends State<CommentGutter> {
   void _viewChanged() {
     if (!mounted) return;
     _repaint.value += 1;
-    if (identical(_view?.state.doc, _doc)) return;
+    final view = _view;
+    if (identical(view?.state.doc, _doc) && (view == null || listEquals(gutterFolds(view.state), _folds))) return;
     // During a frame's build or layout (the editor tells its listeners of a measure from inside one) this waits for
     // the frame to end.
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
@@ -235,7 +269,7 @@ class CommentGutterState extends State<CommentGutter> {
 
   /// Where the glyph for line [number] stands on the screen: a square [box] wide whose end is the words' start,
   /// level with the middle of the line's first row. Null where the line is not drawn.
-  Rect? _placeOf(int number, double box) {
+  Rect? _placeOf(int number, double box, [GutterSlot kind = GutterSlot.comment]) {
     final view = _view;
     if (view == null || number > view.state.doc.lines) return null;
     final line = view.lineAt(view.state.doc.line(number).from);
@@ -244,7 +278,16 @@ class CommentGutterState extends State<CommentGutter> {
     final middle = rows.isEmpty ? line.size.height / 2 : (rows.first.top + rows.first.bottom) / 2;
     final at = line.localToGlobal(Offset(0, middle));
     final gutter = view.look?.env.gutter ?? box;
-    return Rect.fromLTWH(at.dx + (gutter > box ? gutter - box : 0), at.dy - box / 2, box, box);
+    final square = at.dx + (gutter > box ? gutter - box : 0);
+    final top = at.dy - box / 2;
+    // A heading beside a pointer has its triangle before the comment glyph's square (see the header).
+    if (_fine && _folds.any((each) => each.line == number)) {
+      final fold = foldGlyphWidth(box);
+      final roomy = gutter >= box + fold;
+      if (kind == GutterSlot.fold) return Rect.fromLTWH(roomy ? square - fold : at.dx, top, fold, box);
+      if (!roomy) return Rect.fromLTWH(at.dx + fold, top, gutter - fold, box);
+    }
+    return Rect.fromLTWH(square, top, box, box);
   }
 
   /// What the page keeps clear above and below the words (the header's glass, the foot's smoke): no glyph is drawn
@@ -284,6 +327,27 @@ class CommentGutterState extends State<CommentGutter> {
     final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _read();
     final slots = <Widget>[];
+    final gutter = _view?.look?.env.gutter ?? box;
+    final fold = foldGlyphWidth(box);
+    final narrow = gutter < box + fold;
+    final foldLines = {for (final each in _folds) each.line};
+    // The comment glyph's square, split with a heading's triangle where the gutter is one square wide.
+    double commentWidth(int line) => _fine && narrow && foldLines.contains(line) ? gutter - fold : box;
+    if (_foldsShown) {
+      final view = _view!;
+      for (final each in _folds) {
+        final shown = !_fine || each.folded || each.line == _hover;
+        slots.add(
+          _Slot(
+            key: ValueKey<String>('fold-gutter-${each.line}'),
+            line: each.line,
+            kind: GutterSlot.fold,
+            width: _fine ? fold : box,
+            child: _FoldGlyph(height: box, folded: each.folded, visible: shown, still: still, onPress: () => toggleFold(view, each.from)),
+          ),
+        );
+      }
+    }
     if (_allowed) {
       for (final MapEntry(key: line, value: threads) in _threads.entries) {
         final open = threads.where((thread) => thread.resolved == null).toList();
@@ -293,7 +357,8 @@ class CommentGutterState extends State<CommentGutter> {
           _Slot(
             key: ValueKey<String>('comment-gutter-thread-$line'),
             line: line,
-            child: _ThreadGlyph(box: box, count: count, hue: hue, resolved: open.isEmpty, onPress: () => _open(threads)),
+            width: commentWidth(line),
+            child: _ThreadGlyph(box: commentWidth(line), count: count, hue: hue, resolved: open.isEmpty, onPress: () => _open(threads)),
           ),
         );
       }
@@ -303,7 +368,8 @@ class CommentGutterState extends State<CommentGutter> {
           _Slot(
             key: const ValueKey<String>('comment-gutter-add'),
             line: shown,
-            child: _AddGlyph(box: box, visible: _hover == shown, still: still, onPress: () => _start(shown)),
+            width: commentWidth(shown),
+            child: _AddGlyph(box: commentWidth(shown), visible: _hover == shown, still: still, onPress: () => _start(shown)),
           ),
         );
       }
@@ -389,6 +455,64 @@ class _AddGlyphState extends State<_AddGlyph> {
                       builder: (context, color, _) => AppIcon(Lucide.messageSquarePlus, size: size, strokeWidth: 2.2, color: color ?? ink),
                     ),
                   ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A heading's fold triangle: muted, darker under the pointer; down while open, at the words while folded.
+class _FoldGlyph extends StatefulWidget {
+  const _FoldGlyph({required this.height, required this.folded, required this.visible, required this.still, required this.onPress});
+
+  final double height;
+  final bool folded;
+  final bool visible;
+  final bool still;
+  final VoidCallback onPress;
+
+  @override
+  State<_FoldGlyph> createState() => _FoldGlyphState();
+}
+
+class _FoldGlyphState extends State<_FoldGlyph> {
+  bool _over = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = (widget.height * 0.42).clamp(8.0, 11.0);
+    final ink = _over ? t.color('app-ink-2') : t.color('app-ink-3');
+    final said = widget.folded ? unfoldGlyphTip : foldGlyphTip;
+    return IgnorePointer(
+      ignoring: !widget.visible,
+      child: AnimatedOpacity(
+        opacity: widget.visible ? 1 : 0,
+        duration: widget.still ? Duration.zero : commentGlyphFade,
+        curve: Curves.easeOut,
+        child: ExcludeSemantics(
+          excluding: !widget.visible,
+          child: Semantics(
+            button: true,
+            expanded: !widget.folded,
+            label: said,
+            onTap: widget.onPress,
+            excludeSemantics: true,
+            child: _GutterTip(
+              message: said,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => _over = true),
+                onExit: (_) => setState(() => _over = false),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onPress,
+                  onLongPress: () {},
+                  child: Center(child: FoldTriangle(folded: widget.folded, size: size, color: ink)),
                 ),
               ),
             ),
@@ -547,15 +671,24 @@ class _GutterTipState extends State<_GutterTip> {
 
 /// A glyph and the line it stands beside.
 class _Slot extends ParentDataWidget<_SlotData> {
-  const _Slot({super.key, required this.line, required super.child});
+  const _Slot({super.key, required this.line, required this.width, this.kind = GutterSlot.comment, required super.child});
 
   final int line;
+
+  /// How wide its place is: the gutter's square, or less beside a heading's triangle.
+  final double width;
+  final GutterSlot kind;
 
   @override
   void applyParentData(RenderObject renderObject) {
     final data = renderObject.parentData! as _SlotData;
-    if (data.line == line) return;
-    data.line = line;
+    if (data.line == line && data.width == width && data.kind == kind) return;
+    final wider = data.width != width;
+    data
+      ..line = line
+      ..width = width
+      ..kind = kind;
+    if (wider) renderObject.parent?.markNeedsLayout();
     renderObject.parent?.markNeedsPaint();
   }
 
@@ -565,6 +698,8 @@ class _Slot extends ParentDataWidget<_SlotData> {
 
 class _SlotData extends ContainerBoxParentData<RenderBox> {
   int line = 0;
+  double width = 0;
+  GutterSlot kind = GutterSlot.comment;
   bool drawn = false;
 }
 
@@ -574,7 +709,7 @@ class _Follower extends MultiChildRenderObjectWidget {
 
   final Listenable repaint;
   final double box;
-  final Rect? Function(int line, double box) place;
+  final Rect? Function(int line, double box, GutterSlot kind) place;
   final EdgeInsets Function() clear;
 
   @override
@@ -624,7 +759,7 @@ class RenderCommentGutter extends RenderBox with ContainerRenderObjectMixin<Rend
     markNeedsLayout();
   }
 
-  Rect? Function(int line, double box) place;
+  Rect? Function(int line, double box, GutterSlot kind) place;
   EdgeInsets Function() clear;
 
   @override
@@ -641,7 +776,8 @@ class RenderCommentGutter extends RenderBox with ContainerRenderObjectMixin<Rend
   @override
   void performLayout() {
     for (var child = firstChild; child != null; child = (child.parentData! as _SlotData).nextSibling) {
-      child.layout(BoxConstraints.tight(Size.square(_box)));
+      final width = (child.parentData! as _SlotData).width;
+      child.layout(BoxConstraints.tight(Size(width > 0 ? width : _box, _box)));
     }
   }
 
@@ -655,7 +791,7 @@ class RenderCommentGutter extends RenderBox with ContainerRenderObjectMixin<Rend
   void _placeAll(Rect room) {
     for (var child = firstChild; child != null; child = (child.parentData! as _SlotData).nextSibling) {
       final data = child.parentData! as _SlotData;
-      final rect = attached ? place(data.line, _box) : null;
+      final rect = attached ? place(data.line, _box, data.kind) : null;
       if (rect == null) {
         data.drawn = false;
         continue;

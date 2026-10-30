@@ -8,6 +8,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/app/preferences.dart';
+import 'package:ghost_md/art/app_icon.dart';
+import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/images.dart';
@@ -98,7 +100,7 @@ void main() {
   });
 
   group('the embed', () {
-    testWidgets('draws a note with its name and an Open, its front matter left out, and opens it from a tap', (tester) async {
+    testWidgets('draws a note as a quoted card with its name, a link\'s mark and Edit in source, its front matter left out, and opens it from a tap', (tester) async {
       final embedded = Embedded();
       await embedded.show(tester, '# Trip\n\n![[Packing]]\n\nAfter.');
       expect(find.byType(DrawnNoteEmbed), findsOneWidget);
@@ -106,7 +108,8 @@ void main() {
       expect(editorText('![[Packing]]'), findsNothing);
       expect(editorText('Sun cream and a hat.'), findsOneWidget);
       expect(editorText('tags: trip'), findsNothing);
-      await tester.tap(find.text('Open'));
+      expect(find.descendant(of: find.byType(DrawnNoteEmbed), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.link2)), findsOneWidget);
+      await tester.tap(find.text('Edit in source'));
       await tester.pump();
       await tester.tap(editorText('Sun cream and a hat.'), warnIfMissed: false);
       await tester.pump();
@@ -121,28 +124,44 @@ void main() {
       expect(editorText('Shoes'), findsNothing);
       expect(editorText('The ferry leaves at nine'), findsOneWidget);
       expect(editorText('Trams up the hill'), findsNothing);
-      await tester.tap(find.text('Open').last);
+      await tester.tap(find.text('Edit in source').last);
       await tester.pump();
       expect(embedded.opened, ['Lisbon#^ferry']);
     });
 
-    testWidgets('says so when the heading or the name is not there, and leaves a missing note and a canvas to others', (tester) async {
+    testWidgets('says so when the heading, the name or the note is not there, and leaves a canvas to its frame', (tester) async {
       final embedded = Embedded();
       await embedded.show(tester, '![[Packing#Nowhere]]\n\n![[Lisbon#^gone]]\n\n![[Nobody]]\n\n![[Map]]');
       expect(find.text('Packing has no heading “Nowhere”.'), findsOneWidget);
       expect(find.text('Lisbon has no line named ^gone.'), findsOneWidget);
+      expect(find.text('No note is called “Nobody” yet.'), findsOneWidget);
+      expect(editorText('![[Nobody]]'), findsNothing);
+      // Nothing to open: a press puts the caret on its line, to change it.
+      expect(find.bySemanticsLabel('Edit in source: Nobody'), findsNothing);
+      await tester.tap(find.text('No note is called “Nobody” yet.'));
+      await tester.pump();
+      await tester.pump();
       expect(editorText('![[Nobody]]'), findsOneWidget);
       expect(editorText('![[Map]]'), findsOneWidget);
+      expect(embedded.opened, isEmpty);
     });
 
-    testWidgets('draws two levels at most and never a note inside itself', (tester) async {
+    testWidgets('draws two levels at most, and a loop says so rather than drawing round in a circle', (tester) async {
       final embedded = Embedded();
-      // Trip draws Loop, which would draw Trip again: that line stays its link.
+      // Trip draws Loop, which would draw Trip again; and Trip names itself.
       await embedded.show(tester, '# Trip\n\n![[Loop]]\n\n![[Trip]]\n\n![[Lisbon]]');
-      // Lisbon draws Packing in it, two levels down; Loop's own embed of Trip is its link.
-      expect(find.byType(DrawnNoteEmbed), findsNWidgets(3));
-      expect(editorText('![[Trip]]'), findsNWidgets(2));
+      // Loop, the loop inside it, Trip's own, Lisbon, and Packing in Lisbon two levels down.
+      expect(find.byType(DrawnNoteEmbed), findsNWidgets(5));
+      expect(find.text('A note is not drawn inside itself.'), findsOneWidget);
+      expect(find.text('“Trip” has this note in it, so it is not drawn again here.'), findsOneWidget);
+      expect(find.bySemanticsLabel('From Trip, not drawn again'), findsNWidgets(1), reason: 'the one in Trip itself; the one inside Loop is drawn read only, unread');
       expect(editorText('Sun cream and a hat.'), findsOneWidget);
+    });
+
+    testWidgets('a loop two notes round is found from either side', (tester) async {
+      final embedded = Embedded()..bodies['Trip'] = '# Trip\n\n![[Loop]]';
+      await embedded.show(tester, '# Loop\n\nIt draws the trip.\n\n![[Trip]]');
+      expect(find.text('“Loop” has this note in it, so it is not drawn again here.'), findsOneWidget);
     });
 
     testWidgets('steps aside for its line while the caret is on it, and a press on its name puts the caret there', (tester) async {

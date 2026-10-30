@@ -43,6 +43,7 @@ import 'query_layout.dart';
 import 'query_look.dart';
 import 'query_parts.dart';
 import 'query_view.dart' show QueryViewState;
+import 'ticket_marks.dart';
 
 /// What a lane's + makes a ticket with, or null where it makes none: a lane of a status or of words, whose value
 /// the ticket is given so it lands where it was typed, or the one lane of a board that is not grouped. The "No …"
@@ -189,6 +190,8 @@ class _QueryBoardState extends State<QueryBoard> {
         ),
       ),
       if (QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts, fills: true),
+      // A ticket's lock and its sub-tickets' progress (ticket_marks.dart).
+      if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks),
     ];
     return Part(
       'card',

@@ -296,7 +296,7 @@ function Read({
             <div className={styles.note} data-look={look ?? undefined}>
               <Byline authors={authorsOf(current.body)} />
               {mode === 'read' ? (
-                <Rendered body={drawnBody(summaryOf(current.body, current.title))} known={known} open={open} />
+                <Rendered body={drawnBody(summaryOf(current.body, current.title))} known={known} open={open} bodyOf={bodyOf} />
               ) : (
               <Editor
                 key={`summary:${current.title}`}
@@ -345,7 +345,7 @@ function Read({
             </Suspense>
           ) : null}
           {mode === 'read' ? (
-            <Rendered key={`${page}:${current.title}`} body={drawnBody(current.body)} known={known} open={open} />
+            <Rendered key={`${page}:${current.title}`} body={drawnBody(current.body)} known={known} open={open} bodyOf={bodyOf} />
           ) : (
           <Editor
             key={`${page}:${current.title}`}

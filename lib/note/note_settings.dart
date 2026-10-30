@@ -205,6 +205,15 @@ class NoteTicketKey {
   final ValueChanged<String> onChange;
 }
 
+/// A notebook's template for its new pages, as its front matter names it, and the press that chooses another
+/// (Matt, 2026-10-30, of a list of plain-Markdown features: "add all 12").
+@immutable
+class NotePageTemplate {
+  const NotePageTemplate({required this.name, required this.onChoose});
+  final String? name;
+  final VoidCallback onChoose;
+}
+
 /// The view switch for the More sheet's row (simple mode): what the note is drawn as, whether its page rather than
 /// its source is up, and the switch itself (note_tools.dart `viewSwitchWords`).
 @immutable
@@ -285,6 +294,7 @@ class NoteSettings extends StatefulWidget {
     this.name,
     this.journal,
     this.ticketKey,
+    this.pageTemplate,
     this.onSpeak,
     this.speakLabel = 'Talk into this note',
     this.look,
@@ -336,6 +346,10 @@ class NoteSettings extends StatefulWidget {
 
   /// A notebook's ticket key and its write; absent on anything else, a journal included.
   final NoteTicketKey? ticketKey;
+
+  /// A notebook's template for its new pages (lib/notes/place_templates.dart): its name, and the press that chooses
+  /// it. Absent, no row. Simple mode keeps it behind More…, with the rest of the notebook's own keys.
+  final NotePageTemplate? pageTemplate;
 
   /// Talk into this note, or, on a journal, speak a new entry.
   final VoidCallback? onSpeak;
@@ -699,6 +713,22 @@ class _NoteSettingsState extends State<NoteSettings> {
                   : 'Give it a key, and New ticket numbers its tickets, like a Jira project.'),
         ),
       ],
+      if (name != null && widget.pageTemplate != null)
+        SheetGroup(
+          children: [
+            SheetRow(
+              key: const ValueKey('note-page-template'),
+              icon: _lucide(Lucide.copyPlus, 2.1),
+              label: 'Set template…',
+              hint: switch (widget.pageTemplate!.name) { final named? => 'New pages start from $named.', null => 'New pages start with their title alone.' },
+              onPress: () {
+                final choose = widget.pageTemplate!.onChoose;
+                widget.onClose();
+                choose();
+              },
+            ),
+          ],
+        ),
     ];
 
     // Reading it: the look and Find in both modes; the bookmark and the board are simple's "fancy", behind More….

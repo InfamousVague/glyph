@@ -60,6 +60,15 @@ describe('listing and reading', () => {
     expect(whole).toMatchObject({ body: '# Groceries\n\n- eggs', rev: 1 });
   });
 
+  it('reads a note with section embeds and toggles as its Markdown, the embeds not drawn in', async () => {
+    const { service, call } = await connected();
+    // The app draws ![[Note#Heading]] as the section and <details> as a toggle; the note is still these words.
+    const body = '# Trip\n\n![[Packing#Clothes]]\n\n![[Packing]]\n\n<details>\n<summary>Later</summary>\n\nThe coast.\n\n</details>\n';
+    await service.deviceWrites(aNote('t', body));
+    await service.deviceWrites(aNote('p', '# Packing\n\n## Clothes\n\nShoes.'));
+    expect((JSON.parse((await call('read_note', { id: 't' })).text) as { body: string }).body).toBe(body);
+  });
+
   it('finds words in titles and bodies alike, with the words around the first match', async () => {
     const { service, call } = await connected();
     const before = 'a'.repeat(100);

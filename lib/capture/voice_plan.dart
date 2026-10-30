@@ -114,26 +114,30 @@ final class VoiceAppend<N extends Candidate> extends VoiceAction<N> {
 
 /// A new list with [items], or a new note with [body] (the words, as sentences).
 final class VoiceCreate<N extends Candidate> extends VoiceAction<N> {
-  const VoiceCreate({required this.title, required this.items, required this.tasks, this.body});
+  const VoiceCreate({required this.title, required this.items, required this.tasks, this.body, this.template, this.place});
 
   final String title;
   final List<String> items;
   final bool tasks;
   final String? body;
 
+  /// A template said for it and the place it goes in ("new bug in Kiln"; template_ask.dart).
+  final String? template;
+  final String? place;
+
   @override
   String get kind => 'create';
 
-  VoiceCreate<N> copyWith({String? title, List<String>? items}) => VoiceCreate<N>(title: title ?? this.title, items: items ?? this.items, tasks: tasks, body: body);
+  VoiceCreate<N> copyWith({String? title, List<String>? items}) => VoiceCreate<N>(title: title ?? this.title, items: items ?? this.items, tasks: tasks, body: body, template: template, place: place);
 
   @override
-  bool operator ==(Object other) => other is VoiceCreate && other.title == title && _same(other.items, items) && other.tasks == tasks && other.body == body;
+  bool operator ==(Object other) => other is VoiceCreate && other.title == title && _same(other.items, items) && other.tasks == tasks && other.body == body && other.template == template && other.place == place;
 
   @override
-  int get hashCode => Object.hash(kind, title, Object.hashAll(items), tasks, body);
+  int get hashCode => Object.hash(kind, title, Object.hashAll(items), tasks, body, template, place);
 
   @override
-  String toString() => '{do: create, title: $title, items: $items, tasks: $tasks${body == null ? '' : ', body: $body'}}';
+  String toString() => '{do: create, title: $title, items: $items, tasks: $tasks${body == null ? '' : ', body: $body'}${template == null ? '' : ', template: $template, in: $place'}}';
 }
 
 bool _same(List<String> a, List<String> b) {

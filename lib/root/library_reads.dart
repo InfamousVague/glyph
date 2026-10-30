@@ -13,6 +13,7 @@
 library;
 
 import '../book/journal_months.dart' show inTimeOrder;
+import '../book/ticket_links.dart';
 import '../book/tickets.dart';
 import '../core/aliases.dart';
 import '../core/book.dart';
@@ -58,6 +59,7 @@ class LibraryReads {
     _places.clear();
     _shown = null;
     _entries = null;
+    _progress = null;
     _find = null;
     _notebookOf = null;
     _people = null;
@@ -178,7 +180,11 @@ class LibraryReads {
   /// What the open note's panel and its `[[GHO-12]]`s are drawn with (`useTickets`): the workflow of the notebook it
   /// is in, the people the library names, the other tickets, the ticket a key or a title names, and the key a ticket
   /// with none would get from its notebook, read across every note, the Trash's too, so no number is given twice.
-  TicketOptions ticketOptions(String noteId, {required void Function(String target) open}) {
+  ///
+  /// And its sub-tickets, Add sub-ticket ([addSub], the root's), and the rings a Blocked by or a Parent would make,
+  /// refused (lib/book/ticket_links.dart).
+  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub}) {
+    TicketEntry? self() => entries.where((entry) => entry.note.id == noteId).firstOrNull;
     Note? notebook() {
       for (final note in notes) {
         if (note.id == noteId) return notebookOf(note);
@@ -202,6 +208,35 @@ class LibraryReads {
         return entry == null ? null : ticketChoice(entry);
       },
       open: open,
+      subTickets: () {
+        final entry = self();
+        return entry == null ? const <TicketChoice>[] : [for (final child in subTicketsOf(entry, entries)) ticketChoice(child)];
+      },
+      addSubTicket: addSub == null ? null : (title) => addSub(noteId, title),
+      problem: (key, value) {
+        final entry = self();
+        if (entry == null) return null;
+        final targets = linkTargets(value is List ? value.join(', ') : value?.toString());
+        return switch (key) {
+          'blocked-by' => blockedByProblem(entry, targets, entries),
+          'parent' => parentProblem(entry, targets.firstOrNull, entries),
+          _ => null,
+        };
+      },
     );
   }
+
+  /// A ticket's lock and its sub-tickets' progress, by note id, for a board or a query that lists it: what blocks it
+  /// that is not done, and how many of its sub-tickets are (lib/book/ticket_links.dart). Null for a note that is no
+  /// ticket, or a ticket with neither.
+  ({List<String> blockers, TicketProgress? progress})? ticketMarks(String noteId) {
+    final progress = (_progress ??= progressByParent(entries))[noteId];
+    final entry = entries.where((each) => each.note.id == noteId).firstOrNull;
+    if (entry == null) return null;
+    final blockers = entry.ticket.blockedBy.isEmpty ? const <TicketEntry>[] : openBlockers(entry, ticket);
+    if (blockers.isEmpty && progress == null) return null;
+    return (blockers: [for (final blocker in blockers) ticketWords(blocker)], progress: progress);
+  }
+
+  Map<String, TicketProgress>? _progress;
 }

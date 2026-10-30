@@ -215,7 +215,7 @@ bool _namesATitle(String said, List<String> titles) {
 List<VoiceAction<N>> _actionsOf<N extends Candidate>(FinalPlan<N> plan) => switch (plan) {
       PlanPlace<N>() => [VoiceAppend<N>(note: plan.note, text: plan.text, placement: plan.placement)],
       PlanCreateList<N>() => [VoiceCreate<N>(title: plan.title, items: plan.items ?? const [], tasks: false)],
-      PlanCreateNote<N>() => [VoiceCreate<N>(title: plan.title, items: const [], tasks: false, body: plan.body)],
+      PlanCreateNote<N>() => [VoiceCreate<N>(title: plan.title, items: const [], tasks: false, body: plan.body, template: plan.template, place: plan.place)],
     };
 
 String _describe<N extends Candidate>(List<VoiceAction<N>> actions, String? note) {

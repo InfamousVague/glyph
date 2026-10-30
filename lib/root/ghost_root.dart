@@ -137,6 +137,9 @@ import '../notes/note_actions.dart';
 import '../notes/note_menu.dart';
 import '../notes/note_templates.dart';
 import '../notes/own_templates.dart' hide templateOf;
+import '../notes/place_templates.dart';
+import '../notes/template_choice.dart';
+import '../book/ticket_links.dart' show subTicketBody;
 import '../notes/notes_drawer.dart';
 import '../notes/notices.dart' as notices;
 import '../notes/notifications_drawer.dart';
@@ -156,7 +159,7 @@ import '../claude/claude_bar.dart';
 import '../claude/claude_dock.dart';
 import '../claude/claude_ear.dart' show recorderEar;
 import '../claude/claude_inbox.dart';
-import '../claude/claude_run.dart' show ClaudeDesk;
+import '../claude/claude_run.dart' show ClaudeDesk, ClaudeRun, ClaudeState;
 import '../claude/claude_runner.dart';
 import '../claude/claude_settings.dart' show claudeSettings;
 import '../claude/claude_tools.dart' show ClaudeNotes, NoteBrief, NoteHit, NoteRead;
@@ -180,6 +183,11 @@ import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/registry.dart' show Registry, plugins;
+import '../plugins/slack/channels.dart' show channels, postToChannel;
+import '../plugins/slack/mrkdwn.dart' show noteMessage;
+import '../plugins/discord/channels.dart' show discordChannels, postToDiscord;
+import '../plugins/discord/markdown.dart' show discordFitted, discordNoteText;
+import '../editor/buttons/button_run.dart' show ButtonWorld;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
 import '../market/market_screen.dart';
@@ -242,6 +250,8 @@ import '../sounds/sounds.dart' show sounds;
 part 'root_claude.dart';
 part 'root_commands.dart';
 part 'root_parts.dart';
+part 'root_buttons.dart';
+part 'root_templates.dart';
 part 'root_voice.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
@@ -1216,7 +1226,11 @@ class _GhostRootState extends State<GhostRoot> {
     write: (id, change) => unawaited(_writeNote(id, change)),
     addTicket: _addFromQuery,
     // `[[GHO-12]]` finds the ticket by its key too.
-    tickets: (id) => _reads.ticketOptions(id, open: _openTitle),
+    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket),
+    // A ticket's lock and its sub-tickets' progress on a board or a query that lists it (lib/book/ticket_links.dart).
+    ticketMarks: _reads.ticketMarks,
+    // What a button in a note reaches past it with (root_buttons.dart).
+    buttons: _buttonWorld,
     openWithin: _openTitleWithin,
     openCanvas: _openCanvasWithin,
     openPage: _openPageWithin,
@@ -1280,7 +1294,30 @@ class _GhostRootState extends State<GhostRoot> {
     link: _linkMention,
     localGraph: (id, title) => _showGraph(focus: id, title: title),
     say: (message) => _say(context, message),
+    placeOf: _keptWhere,
+    readable: _readableHere,
   );
+
+  /// Where a note is kept, in words: its workspace as its path names it ("Ghost.md › Clients"), else its file's
+  /// folder; the foot's "Linked from" says it beside each title.
+  String? _keptWhere(String id) {
+    final workspace = _workspaces.workspaceOf(id);
+    if (workspace != null) return workspacePathName(_workspaces.value.list, workspace.id);
+    final path = _library.noteOf(id)?.path;
+    if (path == null || !path.contains('/')) return null;
+    return path.substring(0, path.lastIndexOf('/')).replaceAll('/', ' › ');
+  }
+
+  /// Whether a note may be listed beside another: any of the account's own, and a team note while the account is in
+  /// its organization. One this device could not open is not in the library to be asked of.
+  bool _readableHere(String id) {
+    final workspace = _workspaces.workspaceOf(id);
+    if (workspace == null) return true;
+    final org = orgOfWorkspace(_workspaces.value.list, workspace.id);
+    final orgs = _services?.orgs;
+    if (org == null || orgs == null) return true;
+    return orgs.orgsState().list.any((row) => row.id == org);
+  }
 
   /// The graph of the notes over the app (lib/links/graph_view.dart): the whole library's, or the notes round
   /// [focus]. A note opened from it opens where it was left. Archived notes are put away, and left out.
@@ -1830,6 +1867,7 @@ class _GhostRootState extends State<GhostRoot> {
     _localOnly.addListener(_localOnlyMoved);
     // Who Claude's page in Settings reads as signed in (plugins/claude): this build's account, where it has one.
     claudeHandle = () => _services?.session?.handle;
+    templateAuthor = () => _services?.session?.handle ?? '';
     // Where Lovart's images are kept before their lines are written (lib/plugins/lovart/keep.dart).
     if (_pictures != null) lovartPictureStore = _pictures;
     // Settings › Lovart's run over the recent notes, the root's job: one the app went under goes on, once Lovart is

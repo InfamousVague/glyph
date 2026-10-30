@@ -29,6 +29,7 @@ extension _RootParts on _GhostRootState {
     store: _workspaces,
     onRename: (folder) => _manageFolder(folder),
     onDelete: (folder) => _manageFolder(folder, deleting: true),
+    onSetTemplate: (folder) => unawaited(_setFolderTemplate(folder)),
     onNoteMenu: _menu.open,
     child: Stack(
       fit: StackFit.expand,
@@ -825,6 +826,7 @@ extension _RootParts on _GhostRootState {
         library: _library,
         workspaces: _workspaces,
         newNote: _new,
+        newFromTemplate: () => unawaited(_newFromTemplate()),
         newNotebook: () => _newBook(NewBookKind.notebook),
         newJournal: () => _newBook(NewBookKind.journal),
         newEntry: (id) => unawaited(_newEntry(id)),
@@ -925,6 +927,7 @@ extension _RootParts on _GhostRootState {
         _newInto = null;
       }),
       onNote: () => _new(into),
+      onTemplate: () => unawaited(_newFromTemplate(into)),
       onCanvas: () => _newCanvas(into),
       onBook: () => _newBook(NewBookKind.notebook, into),
       // Today's note (lib/notes/daily_notes.dart): the account's own, not offered from an organization's +.
@@ -985,6 +988,9 @@ extension _RootParts on _GhostRootState {
       onOrganization: _services == null ? null : _openOrganizationSettings,
       notesIn: _notesIn,
       onTrashNotes: _trashNotes,
+      // A folder's own template (root_templates.dart): Set template… on its sheet, and what it is now.
+      onSetTemplate: sheet.editing == null || isOrgWorkspace(sheet.editing!.id) ? null : (folder) => unawaited(_setFolderTemplate(folder)),
+      templateOf: (folder) => _folderTemplate(folder.id)?.name,
     );
   }
 

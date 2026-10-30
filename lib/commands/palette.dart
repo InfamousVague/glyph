@@ -141,6 +141,7 @@ class PaletteDoing {
     required this.openNote,
     this.openNoteWhereLeft,
     required this.newNote,
+    this.newFromTemplate,
     this.newNotebook,
     this.newJournal,
     this.newEntry,
@@ -188,6 +189,9 @@ class PaletteDoing {
   /// A note opened by name, from outside it: a book where it was left. Absent, [openNote].
   final void Function(String id)? openNoteWhereLeft;
   final VoidCallback newNote;
+
+  /// New from template…: one of your templates chosen, and a note made from it (Matt, 2026-10-30). Absent, no command.
+  final VoidCallback? newFromTemplate;
 
   /// The New notebook sheet. Required on the web; null until notebooks are ported.
   final VoidCallback? newNotebook;
@@ -391,6 +395,7 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
 
   // ---- making and going -------------------------------------------------------------------------------------------
   add('new', 'New note', 'Notes', 'write blank create add', doing.newNote, shortcut: '⌘N');
+  if (doing.newFromTemplate case final fromTemplate?) add('new:template', 'New from template…', 'Notes', 'template pattern start bug meeting', fromTemplate);
   // "book" and "chapters" stay among its words: a book was a notebook's name once.
   final simple = world.simple;
   final newNotebook = simple ? null : doing.newNotebook;

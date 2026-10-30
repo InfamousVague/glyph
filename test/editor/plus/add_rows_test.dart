@@ -389,4 +389,17 @@ void main() {
       expect(topRows(later(database: false), now).map((row) => row.id), isNot(contains('query')));
     });
   });
+
+  group('a toggle, where the editor draws one (lib/editor/view/section_folds.dart)', () {
+    AddGates toggling({bool toggles = true, bool simple = false}) => readGates(picture: true, video: false, place: false, note: true, canvas: false, toggles: toggles, simple: simple);
+
+    test('is in More after the callout, in simple mode\'s More, and in the / palette; not where it is not drawn', () {
+      final more = moreRows(toggling()).map((row) => row.id).toList();
+      expect(more.indexOf('toggle'), more.indexOf('callout') + 1);
+      expect(simpleTopRows(toggling(simple: true)).map((row) => row.id), isNot(contains('toggle')), reason: 'simple keeps it behind More');
+      expect(simpleMoreRows(toggling(simple: true), now).map((row) => row.words), contains('A toggle'));
+      expect(allRows(toggling(), now).map((row) => row.words), contains('A toggle'));
+      expect(moreRows(toggling(toggles: false)).map((row) => row.id), isNot(contains('toggle')));
+    });
+  });
 }

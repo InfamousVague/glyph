@@ -30,6 +30,7 @@
 /// book when its candidate's `noteBody` (the web's `note?.body`) says so, read with `lib/core/book.dart`.
 library;
 
+import 'template_ask.dart';
 import 'dart:math' as math;
 
 import '../core/book.dart' show isBookBody;
@@ -322,22 +323,27 @@ final class PlanCreateList<N extends Candidate> extends FinalPlan<N> {
 /// recording (`create-note`; on the web `FinalPlan` has it beside `Plan`'s). [body] is the words as sentences, or ''
 /// for a note with a title alone.
 final class PlanCreateNote<N extends Candidate> extends FinalPlan<N> {
-  const PlanCreateNote({required this.title, required this.body});
+  const PlanCreateNote({required this.title, required this.body, this.template, this.place});
 
   final String title;
   final String body;
+
+  /// A template said for it, by a word of its name, and the notebook or folder it goes in ("new bug in Kiln";
+  /// template_ask.dart): the root makes it from that template there.
+  final String? template;
+  final String? place;
 
   @override
   String get kind => 'create-note';
 
   @override
-  bool operator ==(Object other) => other is PlanCreateNote && other.title == title && other.body == body;
+  bool operator ==(Object other) => other is PlanCreateNote && other.title == title && other.body == body && other.template == template && other.place == place;
 
   @override
-  int get hashCode => Object.hash(kind, title, body);
+  int get hashCode => Object.hash(kind, title, body, template, place);
 
   @override
-  String toString() => '{kind: create-note, title: $title, body: $body}';
+  String toString() => '{kind: create-note, title: $title, body: $body${template == null ? '' : ', template: $template, in: $place'}}';
 }
 
 /// A table asked for, in a named note or this one: read so the reader at Done can turn it down, since a recording
@@ -794,6 +800,9 @@ final RegExp _restEnd = RegExp(r'[\s.!?]+$');
 /// directions and put go north") (`planFinalCommand`). A [PlanCreateNote] is the one plan this answers that
 /// [planCommand] never does.
 Plan<N>? planFinalCommand<N extends Candidate>(String words, {required List<N> notes}) {
+  // "New bug in Kiln": a note from a template, in a notebook or a folder (template_ask.dart).
+  final asked = templateAsk(_stripStopCue(words.replaceFirst(_lead, '').trim()));
+  if (asked != null) return PlanCreateNote<N>(title: asked.title ?? '', body: '', template: asked.template, place: asked.place);
   final said = _createNote.firstMatch(_stripStopCue(words.replaceFirst(_lead, '').trim()))?.group(1);
   if (said != null && said.isNotEmpty) {
     final inside = _inTheNote.firstMatch(said.replaceFirst(_stopsAtEnd, '').trim());

@@ -32,6 +32,7 @@ import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show ChipLook, FieldMenu, chipLook, dayLabel, daySaid;
 import '../looks/look.dart' show layoutUnitFloor;
 import 'query_layout.dart';
+import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
 
 /// " priority" at the end of a chip's label, which a chip in a query's row leaves unsaid.
@@ -39,7 +40,7 @@ final RegExp _priorityWord = RegExp(r' priority$');
 
 /// What a row and a cell need from the query's drawing to act and to name days (`Acts`).
 class QueryActs {
-  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle});
+  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks});
 
   final String today;
   final String? locale;
@@ -58,6 +59,9 @@ class QueryActs {
   /// A pointer went down on a control of a thing that can be carried (its box, a value's button): the press is the
   /// control's, and the thing is not lifted by it (`event.stopPropagation()` on the page).
   final void Function(int pointer)? onControl;
+
+  /// A ticket's lock and its sub-tickets' progress, for its card and its row (ticket_marks.dart); absent, neither.
+  final TicketMarks Function(QueryRow row)? marks;
 
   /// One field of a record set, or taken off with null: a day carried on a calendar, a bar's ends on a timeline (the
   /// port's own). Absent where nothing it lists can be changed.

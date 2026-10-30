@@ -9,6 +9,8 @@
 ///     {{title}}     2026-09-28 14.05            the entry's name; empty for a new note, which has none yet
 ///     {{journal}}   Diary                       the journal's name
 ///     {{next-id}}   GHO-13                      the next ticket's key where the note is made (below)
+///     {{author}}    Matt                        who makes the note: the account's name, or nothing signed out
+///     {{cursor}}    (nothing)                   where a new note's caret goes ([cursorMark]); taken out once read
 ///     {{date:FORMAT}} and {{time:FORMAT}}       Moment's tokens, as Obsidian takes them, and the ISO week (below)
 ///
 /// Anything else is left as it was typed.
@@ -105,9 +107,15 @@ String _withNextIdLines(String text, String next) {
 /// `{{title}}`, `{{journal}}`, `{{next-id}}`, and `{{date:FORMAT}}` and `{{time:FORMAT}}` in Moment's tokens.
 /// Anything else is left as it was typed. [said] is `{{date}}`, `{{time}}` and `{{weekday}}` already written for
 /// [at], by a caller that fills a year of entries (lib/book/journal_months.dart); absent, written here.
-String fillTemplate(String text, {required DateTime at, String title = '', String journal = '', String? nextId, ({String date, String time, String weekday})? said}) {
+///
+/// `{{author}}` is [author], and `{{cursor}}` is [cursor]: nothing, unless a caller that places a caret hands
+/// [cursorMark] to find again (lib/notes/note_templates.dart `fillNoteTemplate`; Matt, 2026-10-30, a place's own
+/// template: "{{date}}, {{time}}, {{title}}, {{author}} and {{cursor}}").
+String fillTemplate(String text, {required DateTime at, String title = '', String journal = '', String? nextId, ({String date, String time, String weekday})? said, String author = '', String cursor = ''}) {
   final next = nextId ?? '';
   final values = <String, String>{
+    'author': author,
+    'cursor': cursor,
     'date': said?.date ?? longDay(at),
     'time': said?.time ?? clockTime(at),
     'weekday': said?.weekday ?? weekdayName(at),
@@ -122,6 +130,9 @@ String fillTemplate(String text, {required DateTime at, String title = '', Strin
     return values[name] ?? m.group(0)!;
   });
 }
+
+/// What `{{cursor}}` is filled with by a caller that finds it again: a character no note is typed with.
+const String cursorMark = '\u{E000}';
 
 /// "1st", "22nd", "11th".
 /// The meridiem as the phone's language says it on a 12-hour clock: "PM" in English (`meridiem`).

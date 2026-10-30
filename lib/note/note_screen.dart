@@ -114,7 +114,9 @@ import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
 import '../core/page_scroll.dart' show pullRestPhysics;
-import '../notes/note_templates.dart' show NoteTemplate, fillNoteTemplate;
+import '../notes/note_templates.dart' show NoteTemplate, builtIns, fillNoteTemplate;
+import '../notes/place_templates.dart' show notebookTemplateName, templateNamed, withNotebookTemplate;
+import '../notes/template_choice.dart' show chooseTemplate;
 import '../notes/pull_to_refresh.dart';
 import '../notes/template_cards.dart';
 import '../home/home_icons.dart' show HomeGlyph;
@@ -193,6 +195,7 @@ class NoteSeams {
     this.headRoom,
     this.problem,
     this.links,
+    this.foot,
     this.focusMode = false,
     this.verify,
   });
@@ -334,6 +337,11 @@ class NoteSeams {
 
   /// The links between notes: the Links tool and its count, and the More sheet's rows for them.
   final NoteLinksSeam? links;
+
+  /// What is drawn under the note's last line, outside its words (lib/links/backlinks_foot.dart, "Linked from"): asked
+  /// only while the note's words are what is up, not under a canvas, a notebook's index, a book's or a canvas's
+  /// source, or the transcript. Given the column's own start where the page is one to read on a wide window.
+  final Widget Function(BuildContext context, double? columnStart)? foot;
 
   /// Whether the note's editor has focus mode in it (lib/editor/focus/focus_mode.dart, which lib/root/note_desk.dart
   /// puts there): then the More sheet has its row, and the page room under the last line for the typewriter.
@@ -1297,6 +1305,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// A notebook's own keys written from the More sheet (its ticket key; kept as a journal, its template and its
   /// place switch): as the notebook's own changes are, and into the editor where its Markdown is the view, so the
   /// next keystroke there does not write the old keys back (`writeNotebook`).
+  /// Set template… on a notebook's More sheet: one of the templates, or None, written as its `page-template:`.
+  Future<void> _choosePageTemplate() async {
+    final templates = widget.templates ?? builtIns;
+    final chosen = await chooseTemplate(context, title: 'Template for new pages', note: 'Every new page and ticket made in this notebook starts from it.', templates: templates, none: true, chosen: templateNamed(templates, notebookTemplateName(_typedBody)));
+    if (!mounted || chosen == null) return;
+    _writeKeys((was) => withNotebookTemplate(was, chosen.template?.name));
+  }
+
   void _writeKeys(String Function(String was) change) {
     final next = change(_saving.body);
     if (next == _saving.body) return;
@@ -1838,6 +1854,10 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         // every extension of the note's resolved (tool/perf.sh mac, canvas-open and notebook-open: 3 to 4 ms of the
         // opening frame's 12).
         _EditorBehind(hidden: !_words || _listening, later: !_words, builder: (context) => widget.editorBuilder(context, spec)),
+        // "Linked from" under the last line (lib/links/backlinks_foot.dart): the note's words only, never the
+        // transcript, a canvas's or a book's source.
+        if (_words && _raw && !_listening && !_typed && seams.foot != null)
+          SliverToBoxAdapter(child: seams.foot!(context, columnStart)),
         // A notebook's index and a journal end clear of the dock, as a note's words do.
         if (!_words && !_drawing && dockRings > 0) SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom') + pageDockRoom(t, dockRings))),
         // `{shown === 'transcript' ? <div className={styles.body}><TranscriptWords tape={tape} /></div> : null}`:
@@ -2071,6 +2091,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             )
           : null,
       // A notebook's ticket key (docs/DESIGN.md §157), written as its other keys are. Not a journal's.
+      // A notebook's template for its new pages (lib/notes/place_templates.dart), written as its other keys are.
+      pageTemplate: _notebookRows && !_isJournal && !widget.readOnly ? NotePageTemplate(name: notebookTemplateName(_typedBody), onChoose: () => unawaited(_choosePageTemplate())) : null,
       ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',

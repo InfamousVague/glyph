@@ -128,6 +128,8 @@ import '../core/geotag.dart' show GeoTag, withGeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
 import '../core/place_tags.dart' show PlaceTags;
+import '../editor/buttons/button_builder.dart' show buildButton;
+import '../editor/buttons/buttons.dart' show ButtonHooks, ButtonWorld, noteButtons;
 import '../editor/comments/comment_gutter.dart';
 import '../editor/comments/comments.dart';
 import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt;
@@ -185,6 +187,7 @@ import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/transcript_fold.dart';
+import '../editor/view/section_folds.dart' show SectionFolds, sectionFolds;
 import '../editor/view/text_panel.dart' show EditorTextPanels, TextPanel, textPanels;
 import '../files/attachment_store.dart' show KeptAttachment;
 import '../files/files_kit.dart';
@@ -307,6 +310,8 @@ class NoteDeskWorld {
     this.write,
     this.addTicket,
     this.tickets,
+    this.ticketMarks,
+    this.buttons,
     this.openWithin,
     this.openCanvas,
     this.openPage,
@@ -399,6 +404,13 @@ class NoteDeskWorld {
   /// What a ticket's panel and a `[[GHO-12]]` are drawn with, for the note by that id; absent, the front matter is
   /// folded as any note's is.
   final TicketOptions Function(String noteId)? tickets;
+
+  /// A ticket's lock and its sub-tickets' progress, for a board or a query that lists it (lib/book/ticket_links.dart).
+  final TicketMarks Function(String noteId)? ticketMarks;
+
+  /// What a button in a note does past the note (lib/editor/buttons; Matt, 2026-10-30): a post, Claude, a note opened or
+  /// made. Absent, a button sets its fields and opens its links, and does nothing else.
+  final ButtonWorld? buttons;
 
   /// A title opened from inside a notebook, in its tab's place (`openTitleWithin`); [open] where it is left out.
   final void Function(String title)? openWithin;
@@ -864,6 +876,8 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.
     if (_world.queryNotes != null) queries(() => _queries),
+    // `[Move to done](ghost:set?status=Done)` drawn as a button that does it (lib/editor/buttons).
+    noteButtons(ButtonHooks(noteId: () => widget.noteId, title: () => widget.title, world: () => _world.buttons, say: _sayOnNote)),
     // ![[A canvas]] on a line of its own draws that canvas in a frame (Editor.tsx `canvasFrames`).
     if (_world.bodyOf != null)
       canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor))),
@@ -907,6 +921,9 @@ class NoteDeskState extends State<NoteDesk> {
     // A meeting's transcript and captions folded out of its words, Note and Transcript over it (Matt, 2026-10-30):
     // never typed into from here, and a find's match or a landing in them opens the transcript at it.
     transcriptFold(TranscriptFold(meeting: (doc) => _meeting || ghostFiled(doc.sliceString(0, doc.length < 800 ? doc.length : 800)), reveal: _revealInTranscript)),
+    // A heading's section folded from its triangle in the gutter, and `<details>` drawn as a toggle (Matt,
+    // 2026-10-30, "add all 12"): what is folded is this device's, kept for the note (lib/editor/view/section_folds.dart).
+    sectionFolds(SectionFolds(noteId: widget.noteId)),
     findBarExtensions,
     // The phone's spell checker, asked about the words near the caret a moment after the person stops, and a red
     // wave under each it would have otherwise (lib/editor/spell; the page's `spellcheck="true"`). Nothing on a
@@ -1000,6 +1017,7 @@ class NoteDeskState extends State<NoteDesk> {
           write: (id, change) => _world.write?.call(id, change),
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
+          ticketMarks: _world.ticketMarks,
         );
 
   /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
@@ -1024,6 +1042,7 @@ class NoteDeskState extends State<NoteDesk> {
           },
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
+          ticketMarks: _world.ticketMarks,
           listedWritable: () => !widget.readOnly && _world.write != null,
         );
 
@@ -1841,6 +1860,15 @@ class NoteDeskState extends State<NoteDesk> {
     return contact == null ? null : mentionOf(contact);
   }
 
+  /// The +'s A button: built in its sheet, and its line written where the caret was, the note's focus back.
+  Future<void> _addButton(EditorViewLike view) async {
+    final line = await buildButton(context, templates: [for (final template in _world.ticketTemplates?.call() ?? const <NoteTemplate>[]) template.name]);
+    if (line == null || !mounted || _leaving) return;
+    final at = view.state.selection.main.head;
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: at, insert: line), selection: EditorSelection.single(at + line.length), userEvent: 'input.button', scrollIntoView: true));
+    view.focus();
+  }
+
   /// The +'s A person: the one picked written where the caret was, and the note has the focus back.
   Future<void> _addPerson(EditorViewLike view) async {
     final name = await _pickPerson();
@@ -1880,6 +1908,8 @@ class NoteDeskState extends State<NoteDesk> {
           blanks: true,
           // Simple mode (GHST-103): the basics first, the rest behind More.
           simple: _prefs.value.simple,
+          // A `<details>` toggle, in More and the `/` palette (lib/editor/view/section_folds.dart).
+          toggles: true,
           // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
           onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
@@ -1888,6 +1918,8 @@ class NoteDeskState extends State<NoteDesk> {
           onScan: FilesKit.current?.scans != true || widget.readOnly || view == null ? null : () => unawaited(_putFile(view, () => FilesKit.current!.scan(name: scanName(DateTime.now())))),
           // Someone from the phone's contacts, where Settings › Contacts is on.
           onPerson: !phoneContacts.on || widget.readOnly || view == null ? null : () => unawaited(_addPerson(view)),
+          // A button, made in its small builder and written at the caret (lib/editor/buttons/button_builder.dart).
+          onButton: widget.readOnly || view == null ? null : () => unawaited(_addButton(view)),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
         ),
@@ -2231,8 +2263,11 @@ class NoteDeskState extends State<NoteDesk> {
         if (mounted) unawaited(taped.sayWhereAudioIs());
       });
     }
+    final links = _links;
     final seams = NoteSeams(
-      links: _links?.seam,
+      links: links?.seam,
+      // "Linked from" under the note's last line (Matt, 2026-10-30, "add all 12"), drawn by the links' piece.
+      foot: links == null ? null : (context, start) => links.foot(context, start: start, writable: !widget.readOnly),
       saving: (flush) => _flush = flush,
       closing: (close) => _closeNote = close,
       // A note that wears its tape is talked into from the tape's Add: its own mic steps out.

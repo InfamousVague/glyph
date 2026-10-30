@@ -22,6 +22,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/art.dart';
+import '../core/preferences.dart' show preferences;
 import '../core/workspaces.dart';
 import '../shell/pop_menu.dart';
 import 'folder_drag.dart';
@@ -29,11 +30,14 @@ import 'note_menu.dart' show byMouse;
 
 /// What a folder's menu does, from the root: its sheet to rename it, or at Delete.
 class FolderMenuScope extends InheritedWidget {
-  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onNoteMenu, required super.child});
+  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onSetTemplate, this.onNoteMenu, required super.child});
 
   final WorkspaceStore store;
   final ValueChanged<Workspace> onRename;
   final ValueChanged<Workspace> onDelete;
+
+  /// Set template…: the template every new note made in the folder starts from (lib/notes/place_templates.dart).
+  final ValueChanged<Workspace>? onSetTemplate;
 
   /// A note's menu at a point in the window, for a list that was handed none of its own.
   final void Function(String noteId, Offset at)? onNoteMenu;
@@ -41,7 +45,7 @@ class FolderMenuScope extends InheritedWidget {
   static FolderMenuScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<FolderMenuScope>();
 
   @override
-  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onNoteMenu != onNoteMenu;
+  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu;
 }
 
 /// The right-click a folder's tile, chip or row answers: its menu at the pointer, a mouse's other button only. An
@@ -95,6 +99,9 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
         children: [
           if (onOpen != null) GlacierMenuItem(key: const ValueKey('folder-menu-open'), icon: icon(Lucide.folderOpen), onSelect: onOpen, child: const Text('Open')),
           GlacierMenuItem(key: const ValueKey('folder-menu-rename'), icon: icon(Lucide.pencil), onSelect: () => scope.onRename(folder), child: const Text('Rename…')),
+          // A template for the folder's new notes (Matt, 2026-10-30): simple mode keeps it on the folder's sheet,
+          // behind its More.
+          if (scope.onSetTemplate != null && !preferences.value.simple) GlacierMenuItem(key: const ValueKey('folder-menu-template'), icon: icon(Lucide.copyPlus), onSelect: () => scope.onSetTemplate!(folder), child: const Text('Set template…')),
           if (context.mounted) ...folderMoveRows(context, store, FolderCarry.folder(folder.id, folder.name)),
           const GlacierMenuSeparator(),
           GlacierMenuItem(

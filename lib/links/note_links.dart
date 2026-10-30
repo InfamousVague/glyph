@@ -6,6 +6,8 @@
 /// - **On the More sheet**, under "Links and outline": Links (lib/links/links_panel.dart, "Linked from" and
 ///   "Mentioned in"), Outline (lib/links/outline.dart, with the note's length: lib/links/word_count.dart), Local
 ///   graph (lib/links/graph_view.dart) and Copy link to this line (lib/links/line_link.dart).
+/// - **At the foot of the note's words**: "Linked from" and "Mentioned in" (lib/links/backlinks_foot.dart), drawn
+///   under its last line wherever the note has a note linking to it ([NoteLinksHere.foot]).
 /// - **In the side panel**, on a screen wide enough for two panes (a Fold opened, a Mac): a Links tab and an
 ///   Outline tab beside the book's index and the history ([asideLinks], [asideOutline]). The outline there follows
 ///   the page as it scrolls, so the note's screen hands its editor and its page over as they arrive
@@ -23,6 +25,7 @@ import '../editor/view/editor_view.dart';
 import '../note/note_screen.dart' show NoteLinksSeam;
 import '../note/note_settings.dart' show NoteSheetItem, NoteSheetSection;
 import '../sheet/kit.dart';
+import 'backlinks_foot.dart';
 import 'line_link.dart';
 import 'links_panel.dart';
 import 'outline.dart';
@@ -31,7 +34,7 @@ import 'word_count.dart';
 /// What the app gives every note's links.
 @immutable
 class NoteLinksApp {
-  const NoteLinksApp({required this.indexer, required this.openAt, required this.say, this.link, this.localGraph});
+  const NoteLinksApp({required this.indexer, required this.openAt, required this.say, this.link, this.localGraph, this.placeOf, this.readable});
 
   final LinkIndexer indexer;
 
@@ -46,6 +49,12 @@ class NoteLinksApp {
 
   /// A toast.
   final void Function(String message) say;
+
+  /// Where a note is kept, in words, for the foot's rows: its workspace, else its folder.
+  final String? Function(String id)? placeOf;
+
+  /// Whether a note may be listed: a team note of an organization the account is still in, or any of its own.
+  final bool Function(String id)? readable;
 }
 
 /// The note on screen's editor and page, while it has both: what the side panel's outline follows.
@@ -163,6 +172,20 @@ class NoteLinksHere {
       ],
     );
   }
+
+  /// "Linked from" at the foot of the note's words (lib/links/backlinks_foot.dart). [writable] is whether a
+  /// mention may be linked from here: not from a note in the Trash.
+  Widget foot(BuildContext context, {double? start, bool writable = true}) => BacklinksFoot(
+        key: ValueKey('backlinks-foot:$noteId'),
+        indexer: app.indexer,
+        noteId: noteId,
+        onOpen: app.openAt,
+        onLink: writable ? app.link : null,
+        placeOf: app.placeOf,
+        readable: app.readable,
+        start: start,
+        end: start,
+      );
 
   void dispose() {
     if (identical(_open[noteId], this)) _open.remove(noteId);
