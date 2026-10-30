@@ -93,6 +93,7 @@ import '../editor/view/column.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/sliver.dart';
 import '../editor/view/view_mode.dart';
+import '../forms/form_def.dart' show newFormWords;
 import '../home/home_icons.dart' show HomeGlyph;
 import '../note/byline.dart';
 import '../note/page_head.dart';
@@ -868,7 +869,7 @@ class _BookWordsState extends State<BookWords> {
 
 // ---- the view -----------------------------------------------------------------------------------------------------
 
-enum _Adding { page, existing, ticket }
+enum _Adding { page, existing, ticket, form }
 
 /// One page of a notebook as its index and its read-through draw it ([BookViewState._pageOf]): whether there is a
 /// note by its title, and what that note's words say of it. Each answer is worked out the first time it is asked
@@ -929,6 +930,7 @@ class BookView extends StatefulWidget {
     this.setStatus,
     this.openTicket,
     this.ticketTemplates = const <NoteTemplate>[],
+    this.offersForms = false,
     this.spot,
     this.kept,
     this.clock,
@@ -977,6 +979,11 @@ class BookView extends StatefulWidget {
 
   /// The templates a ticket can start from, a Bug report and a Feature among them (lib/notes/note_templates.dart).
   final List<NoteTemplate> ticketTemplates;
+
+  /// Whether New form… is offered beside Add a page: a page holding a ```form fence whose answers become this
+  /// notebook's tickets (lib/forms/form_def.dart, docs/FORMS.md), made through [openNew]. The note screen's notebook
+  /// offers it; the web's index, which the reference pictures are of, has none.
+  final bool offersForms;
 
   /// The book note's id, to keep where it was left; absent, nothing is kept.
   final String? spot;
@@ -1364,6 +1371,18 @@ class BookViewState extends State<BookView> {
       _adding = null;
     });
     openTicket(name, template);
+  }
+
+  /// A form named in its field, into the index as a page is, then made from a form's first words - its fence filing
+  /// into this notebook, which the page's template filling names (`{{journal}}`) - and opened (docs/FORMS.md).
+  void _addForm() {
+    final name = jsTrim(_draft.text);
+    final openNew = widget.openNew;
+    if (name.isEmpty || openNew == null) return;
+    widget.onChange(withChapter(widget.body, name));
+    _draft.clear();
+    setState(() => _adding = null);
+    openNew(name, newFormWords());
   }
 
   void _addPicked() {
@@ -1994,6 +2013,20 @@ class BookViewState extends State<BookView> {
     }
     final adding = _adding;
     final draft = jsTrim(_draft.text);
+    if (adding == _Adding.form) {
+      return FlexWrap(
+        key: const ValueKey('book-add'),
+        gap: gap,
+        children: [
+          FlexItem(
+            basis: t.lenOf('14rem'),
+            child: _PageField(key: const ValueKey('book-form-title'), label: 'New form’s title', placeholder: 'Report a bug', controller: _draft, onSubmitted: _addForm, onEscape: _closeAdding),
+          ),
+          BookAction(key: const ValueKey('book-add-open'), label: 'Add and open', onPressed: draft.isEmpty ? null : _addForm),
+          BookQuiet(label: 'Cancel', onPressed: _closeAdding),
+        ],
+      );
+    }
     if (adding == _Adding.page || adding == _Adding.ticket) {
       final ticket = adding == _Adding.ticket;
       void submit() => ticket ? _addTicket() : _addNew();
@@ -2109,6 +2142,8 @@ class BookViewState extends State<BookView> {
         if (widget.openTicket != null && ticketKey != null && ticketKey.isNotEmpty)
           BookAction(key: const ValueKey('book-new-ticket'), icon: Lucide.ticket, label: 'New ticket', onPressed: () => setState(() => _adding = _Adding.ticket)),
         BookAction(key: const ValueKey('book-add-existing'), icon: Lucide.bookOpen, label: 'Add a note you have', onPressed: () => setState(() => _adding = _Adding.existing)),
+        // A form whose answers become this notebook's tickets (lib/forms/form_def.dart, docs/FORMS.md).
+        if (widget.offersForms && widget.openNew != null) BookAction(key: const ValueKey('book-new-form'), icon: Lucide.textCursorInput, label: 'New form…', onPressed: () => setState(() => _adding = _Adding.form)),
         if (chapters.isNotEmpty) BookAction(key: const ValueKey('book-read'), icon: Lucide.bookOpen, label: 'Read straight through', onPressed: () => _setReading(true)),
       ],
     );

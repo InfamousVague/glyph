@@ -24,8 +24,10 @@ import 'preferences.dart' show NotificationPrefs;
 /// Made by the service, about an organization; the words it needs ride in `body`, in the clear (`SERVER_KINDS`).
 const List<String> serverKinds = ['invite', 'invite-accepted', 'invite-declined', 'member-joined', 'member-left', 'member-removed', 'role-changed', 'org-renamed', 'org-deleted'];
 
-/// Made by this account for itself, sealed; the MCP server posts the first five, the app the last two (`SELF_KINDS`).
-const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict'];
+/// Made by this account for itself, sealed; the MCP server posts the first five, the app the rest (`SELF_KINDS`).
+/// `form-answer` is a ticket filed from an answer to a form (lib/forms/form_inbox.dart; Matt, 2026-10-30): an older
+/// build does not know it, and draws nothing for it.
+const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'form-answer'];
 
 /// Every kind this build knows (`KINDS`).
 const List<String> kinds = [...serverKinds, ...selfKinds];
@@ -51,6 +53,8 @@ const Map<String, String> kindHues = {
   'rule-added': 'violet',
   'summary-written': 'sea',
   'sync-conflict': 'ember',
+  // A ticket written from an answer to a form: a note written, sea.
+  'form-answer': 'sea',
 };
 
 bool isKind(Object? value) => value is String && kinds.contains(value);
@@ -77,6 +81,8 @@ const Map<String, String> _categoryOf = {
   'rule-added': 'claude',
   'summary-written': 'summaries',
   'sync-conflict': 'conflicts',
+  // Someone outside asked for something: shown as an invitation is, with no switch to turn it off.
+  'form-answer': 'invites',
 };
 
 /// The category of a kind this build knows: one of [categories], or `invites`.
@@ -289,6 +295,8 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
       return open('summary-written') ? 'A meeting was written up: ${opened!.title}' : 'A meeting was written up';
     case 'sync-conflict':
       return open('sync-conflict') ? '${opened!.title} was kept twice: both devices had changed it' : 'A note was kept twice';
+    case 'form-answer':
+      return open('form-answer') ? 'A new answer to ${opened!.by ?? 'a form'}: ${opened.title}' : 'A form was answered';
   }
   // A kind this build does not know is not drawn (`listed`); asked for anyway, it has no words.
   return '';

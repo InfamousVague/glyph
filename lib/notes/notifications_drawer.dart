@@ -460,6 +460,7 @@ const Map<String, LucideIcon> _marks = {
   'rule-added': Lucide.scrollText,
   'summary-written': Lucide.audioLines,
   'sync-conflict': Lucide.triangleAlert,
+  'form-answer': Lucide.ticket,
 };
 
 /// One notification (`Row`): its mark, its sentence and the line under it, when, and Accept and Decline for an

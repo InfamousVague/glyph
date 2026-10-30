@@ -93,3 +93,48 @@ String monthName(String month, [String? locale]) {
   final at = dateOfDay('$month-01');
   return at != null ? (locale == null ? toldDate(at, DateForm.yMMMM) : null) ?? '${_months[at.month - 1]} ${at.year}' : month;
 }
+
+// ---- a week (the port's own, 2026-10-30) -------------------------------------------------------------------------
+
+/// The Monday of the week [day] is in.
+String mondayOf(String day) {
+  final at = dateOfDay(day);
+  return at == null ? day : isoDayAfter(day, -(at.weekday - 1))!;
+}
+
+/// The Monday [count] weeks after the week [day] is in (before, for a negative count).
+String weekAfter(String day, int count) => isoDayAfter(mondayOf(day), 7 * count)!;
+
+/// The week [day] is in, Monday first, each day with the rows on it in the order they came; every day is "in" it.
+List<CalendarDay> weekDays(String day, List<QueryRow> rows, String today) {
+  final monday = mondayOf(day);
+  final byDay = <String, List<QueryRow>>{};
+  for (final row in rows) {
+    final on = row.day;
+    if (on == null || on.isEmpty) continue;
+    byDay.putIfAbsent(on, () => []).add(row);
+  }
+  return [
+    for (var i = 0; i < 7; i += 1)
+      if (isoDayAfter(monday, i) case final each?) CalendarDay(day: each, date: int.parse(each.substring(8)), inMonth: true, today: each == today, rows: byDay[each] ?? const []),
+  ];
+}
+
+/// A week's days as a heading says them: `5 – 11 Oct 2026`, `28 Sep – 4 Oct 2026`, `29 Dec 2025 – 4 Jan 2026`.
+String weekName(String day) {
+  final monday = mondayOf(day);
+  final first = dateOfDay(monday);
+  final last = dateOfDay(isoDayAfter(monday, 6) ?? monday);
+  if (first == null || last == null) return day;
+  String short(DateTime at) => _months[at.month - 1].substring(0, 3);
+  if (first.year != last.year) return '${first.day} ${short(first)} ${first.year} – ${last.day} ${short(last)} ${last.year}';
+  if (first.month != last.month) return '${first.day} ${short(first)} – ${last.day} ${short(last)} ${last.year}';
+  return '${first.day} – ${last.day} ${short(last)} ${last.year}';
+}
+
+/// How many of [rows] fall in the week [day] is in.
+int inWeek(List<QueryRow> rows, String day) {
+  final monday = mondayOf(day);
+  final sunday = isoDayAfter(monday, 6)!;
+  return rows.where((row) => row.day != null && row.day!.compareTo(monday) >= 0 && row.day!.compareTo(sunday) <= 0).length;
+}

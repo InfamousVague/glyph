@@ -56,6 +56,7 @@ import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
+import '../forms/form_inbox.dart' show FormPass, FormPassContext;
 import '../integrations/webhooks/incoming.dart' show HookPass, HookPassContext;
 import '../mail/mail_in.dart' show MailPass, MailPassContext;
 import '../meet/meet_in.dart' show MeetPass, MeetPassContext;
@@ -340,6 +341,7 @@ class SyncEngine {
     this.mailIn,
     this.meetIn,
     this.hooksIn,
+    this.formsIn,
     this.sealedKeys,
     NotesPass? notesPass,
     PrefsPass? prefsPass,
@@ -398,6 +400,11 @@ class SyncEngine {
   /// Incoming webhooks (lib/integrations/webhooks/incoming.dart `syncHooks`): what was posted to the account's hooks,
   /// put into its notes just before the notes step, which then sends them on. Null where it is not offered.
   final HookPass? hooksIn;
+
+  /// Forms from a share link (lib/forms/form_inbox.dart `syncForms`): which shared notes are forms told to the service,
+  /// and each answer filed as a ticket in its notebook, just before the notes step, which then sends them on. Null
+  /// where it is not offered.
+  final FormPass? formsIn;
 
   /// The keys and connections that follow the account (sealed_keys.dart), gathered and applied around the settings'
   /// pass. Null where none travel.
@@ -878,6 +885,31 @@ class SyncEngine {
         );
         _movedSome(added ?? 0);
         if ((added ?? 0) > 0) await _changed();
+      }
+
+      // Answers to the account's forms, and its teams', filed as tickets (docs/FORMS.md).
+      final forms = formsIn;
+      if (forms != null) {
+        final filed = await step(
+          'Forms',
+          () => forms(FormPassContext(
+            token: token,
+            api: api,
+            crypto: crypto,
+            pair: () async => (await ensureEncryptionKey(EncryptionKeyContext(token: token, accountKey: accountKey, keys: keys, api: api, crypto: crypto))).pair,
+            notes: notes,
+            files: files,
+            now: _now,
+            prefs: () => prefs.value,
+            kept: _device,
+            workspaceOf: (id) => _workspaces.workspaceOf(id)?.id,
+            orgOf: _workspaces.orgOf,
+            fileNote: _workspaces.fileNote,
+            told: (id, title, form) async => record?.record('form-answer', {'noteId': id, 'title': title, 'by': form}),
+          )),
+        );
+        _movedSome(filed ?? 0);
+        if ((filed ?? 0) > 0) await _changed();
       }
 
       final notesKey = _stateKey(accountId, 'notes');

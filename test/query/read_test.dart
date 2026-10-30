@@ -197,13 +197,15 @@ void main() {
     });
 
     test('reads show as any of its ways, and the other words for them', () {
-      for (final way in ['table', 'list', 'board', 'calendar', 'gantt', 'count']) {
+      for (final way in ['table', 'list', 'board', 'calendar', 'gantt', 'count', 'timeline', 'chart']) {
         expect(read('show: $way').show?.name, way);
       }
-      expect(ShowAs.values.map((way) => way.name), ['table', 'list', 'board', 'calendar', 'gantt', 'count']);
+      expect(ShowAs.values.map((way) => way.name), ['table', 'list', 'board', 'calendar', 'gantt', 'count', 'timeline', 'chart']);
       expect(read('show: Kanban').show, ShowAs.board);
-      expect(read('show: timeline').show, ShowAs.gantt);
-      expect(problem('show: pie').message, '“pie” isn’t a way to show a query: table, list, board, calendar, gantt or count.');
+      // The port draws its own timeline (lib/core/query/timeline.dart), where the web reads the word as a gantt.
+      expect(read('show: timeline').show, ShowAs.timeline);
+      expect(read('view: chart').show, ShowAs.chart);
+      expect(problem('show: pie').message, '“pie” isn’t a way to show a query: table, list, board, calendar, timeline, chart, gantt or count.');
     });
 
     test('reads columns and totals as lists of fields', () {
@@ -230,7 +232,7 @@ void main() {
     });
 
     test('lists them all where nothing is near', () {
-      expect(problem('colour: red').message, '“colour” isn’t a line a query has: it has from, where, sort, group, show, columns, total and limit.');
+      expect(problem('colour: red').message, '“colour” isn’t a line a query has: it has from, where, sort, group, show, columns, total, limit and rollup, and a view’s date, start, end, zoom, chart, x, y and series.');
     });
 
     test('says how a line is written where it has no colon', () {

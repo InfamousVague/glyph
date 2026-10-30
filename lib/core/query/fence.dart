@@ -10,7 +10,7 @@ library;
 
 import '../boards/fence.dart' show clampHeight;
 import '../item_syntax.dart' show jsTrim;
-import 'read.dart' show QueryData, ShowAs, jsonNumber;
+import 'read.dart' show QueryData, ShowAs, fieldName, jsonNumber;
 
 class QueryFence extends QueryData {
   const QueryFence({required this.from, required this.to, required this.body, required this.height});
@@ -115,9 +115,49 @@ String withClause(String body, String clause, String? value) {
   return next.join('\n');
 }
 
+final RegExp _rollupName = RegExp(r'^\s*([^=\s]+)\s*=');
+
+/// A query's body with the `rollup:` line called [name] set to [value] (`open = count(links)`), taken out with
+/// null, or added after the last line where there is none: a query has a rollup line for each, so [withClause],
+/// which keeps one line a clause, does not write them (the port's own, 2026-10-30).
+String withRollup(String body, String name, String? value) {
+  final re = _clauseLine('rollup');
+  final key = fieldName(name);
+  final next = <String>[];
+  var set = false;
+  for (final line in body.split('\n')) {
+    final found = re.firstMatch(line);
+    final said = found == null ? null : _rollupName.firstMatch(found.group(5) ?? '')?.group(1);
+    if (set || said == null || fieldName(said) != key) {
+      next.add(line);
+      continue;
+    }
+    set = true;
+    if (value != null) next.add('${found!.group(1)}rollup${found.group(3)}:${found.group(4)}$value');
+  }
+  if (!set && value != null) {
+    while (next.isNotEmpty && jsTrim(next.last).isEmpty) {
+      next.removeLast();
+    }
+    next.add('rollup: $value');
+  }
+  return next.join('\n');
+}
+
+/// The names of a body's rollups, in order.
+List<String> rollupNames(String body) {
+  final re = _clauseLine('rollup');
+  return [
+    for (final line in body.split('\n'))
+      if (re.firstMatch(line) case final found?)
+        if (_rollupName.firstMatch(found.group(5) ?? '')?.group(1) case final name?) fieldName(name),
+  ];
+}
+
 /// A query's body with `show:` set, for the view switcher: a list becomes a board or a table with from: and where:
 /// kept.
-String withShow(String body, ShowAs show) => withClause(body, 'show', show.name);
+/// A body that says `view:` (read as `show:`) has that line written instead.
+String withShow(String body, ShowAs show) => withClause(body, clauseValue(body, 'show') == null && clauseValue(body, 'view') != null ? 'view' : 'show', show.name);
 
 final RegExp _trailing = RegExp(r'\s+$');
 

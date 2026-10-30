@@ -23,7 +23,8 @@
 /// caret there. A to-do's box ticks it where it is written: in this note with the same edit a tap on the box makes
 /// (commands/task_toggle.dart `toggleBox`, its boards settled in the same undo), and in another through the screen
 /// ([QueryOptions.write] with lib/core/query/tick.dart). A card dragged to another lane sets the field the board
-/// groups by, and a value picked from its sheet (fields/field_picker.dart) sets that field: both through one writer,
+/// groups by, a record carried to another day of a calendar or a timeline's bar carried by its ends sets that day's
+/// field, and a value picked from its sheet (fields/field_picker.dart) sets that field: all through one writer,
 /// into the editor for this note and through the screen for another (lib/core/query/move.dart). Nothing else in a
 /// drawn query writes anything.
 ///
@@ -73,7 +74,10 @@ import 'query_look.dart';
 import 'query_view.dart';
 
 export 'query_builder.dart';
+export 'query_calendar.dart';
+export 'query_chart.dart';
 export 'query_timeline.dart';
+export 'query_timeline_view.dart';
 export 'query_layout.dart' show Part;
 export 'query_look.dart' show QueryLook;
 export 'query_view.dart';
@@ -500,6 +504,13 @@ class DrawnQuery extends StatelessWidget {
           : null,
       // Read when a person's sheet opens, not on every draw: it reads every note.
       people: () => options == null ? const <String>[] : peopleIn(library().map((note) => note.body)),
+      // A relation's chip opens the note it names, as a [[link]] does (the port's own, 2026-10-30).
+      onOpenTitle: options == null || read == null
+          ? null
+          : (title) {
+              final note = noteNamed(read, title);
+              if (note != null && note.id != options.noteId) options.open(note.id, null);
+            },
     );
   }
 }
