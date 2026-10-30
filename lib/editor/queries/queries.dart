@@ -23,7 +23,8 @@
 /// caret there. A to-do's box ticks it where it is written: in this note with the same edit a tap on the box makes
 /// (commands/task_toggle.dart `toggleBox`, its boards settled in the same undo), and in another through the screen
 /// ([QueryOptions.write] with lib/core/query/tick.dart). A card dragged to another lane sets the field the board
-/// groups by, and a value picked from its sheet (fields/field_picker.dart) sets that field: both through one writer,
+/// groups by, a record carried to another day of a calendar or a timeline's bar carried by its ends sets that day's
+/// field, and a value picked from its sheet (fields/field_picker.dart) sets that field: all through one writer,
 /// into the editor for this note and through the screen for another (lib/core/query/move.dart). Nothing else in a
 /// drawn query writes anything.
 ///
@@ -52,11 +53,13 @@ import 'dart:async';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart' show GlacierToast, GlacierToastAction, GlacierToastController, HapticKind, fireMotor;
 
+import '../../book/ticket_links.dart' show TicketProgress;
 import '../../book/tickets.dart' show peopleIn;
 import '../../core/book.dart' show withChapter;
 import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/item_syntax.dart' show taskBox;
-import '../../core/properties.dart' show withProperty;
+import '../../core/properties.dart' show StatusCategory, statusCategory, withProperty;
+import '../../sheet/ask_first.dart';
 import '../../core/query/query.dart';
 import '../commands/task_toggle.dart' show toggleBox;
 import '../editor.dart';
@@ -71,7 +74,10 @@ import 'query_look.dart';
 import 'query_view.dart';
 
 export 'query_builder.dart';
+export 'query_calendar.dart';
+export 'query_chart.dart';
 export 'query_timeline.dart';
+export 'query_timeline_view.dart';
 export 'query_layout.dart' show Part;
 export 'query_look.dart' show QueryLook;
 export 'query_view.dart';
@@ -82,7 +88,7 @@ typedef NoteChange = String? Function(String body);
 
 /// What the screen hands the editor for its queries: the library, and how to reach and write what a query lists.
 class QueryOptions {
-  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable});
+  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks});
 
   /// Every note a query reads: the library a screen shows, without the Trash, the archive, the Guide or templates'
   /// pages.
@@ -118,7 +124,15 @@ class QueryOptions {
   /// Its own lines stay as they are: no pencil, no switcher, no builder, no line under the board to set its height
   /// and no + in a lane, since each of those writes the words the query is drawn in.
   final bool Function()? listedWritable;
+
+  /// A ticket's lock (what blocks it that is not done) and its sub-tickets' progress, by note id, drawn on its card and
+  /// its row (lib/book/ticket_links.dart; Matt, 2026-10-30). Absent, neither is drawn, and a move to done asks nothing.
+  final TicketMarks Function(String noteId)? ticketMarks;
 }
+
+/// A ticket's lock and its sub-tickets' progress, as a board draws them: what blocks it, by key, and how many of its
+/// sub-tickets are done; null for neither.
+typedef TicketMarks = ({List<String> blockers, TicketProgress? progress})?;
 
 /// The library changed: every query is run and drawn again.
 final StateEffectType<Null> refreshQueries = StateEffect.define<Null>();
@@ -335,9 +349,22 @@ class DrawnQuery extends StatelessWidget {
     /// said, with an Undo that puts back the value it came from (Matt, 2026-10-27, of the board over HelloTrade
     /// Tickets' index, whose `where: status != Done` keeps a Done lane with nothing in it: a card dropped there
     /// went quietly). Nothing is said of a card that stays where it can be seen.
-    void moved(QueryRow row, String? value) {
-      final field = result?.group;
-      if (field == null || !writable || row.kind == RecordKind.event) return;
+    /// Whether moving [row]'s [field] to [value] asks first: a status that is done, for a ticket not done yet that
+    /// still waits on another (Matt, 2026-10-30: a blocked ticket "can't be moved to done without a confirmation").
+    bool asksFirst(QueryRow row, String field, String? value) {
+      if (field.toLowerCase() != 'status' || value == null || row.category == StatusCategory.done) return false;
+      if (statusCategory(value, row.workflow) != StatusCategory.done) return false;
+      final blockers = options?.ticketMarks?.call(row.noteId)?.blockers;
+      return blockers != null && blockers.isNotEmpty;
+    }
+
+    Future<bool> askDone(QueryRow row, String value) {
+      final blockers = options?.ticketMarks?.call(row.noteId)?.blockers ?? const <String>[];
+      final list = blockers.length <= 1 ? blockers.join() : '${blockers.sublist(0, blockers.length - 1).join(', ')} and ${blockers.last}';
+      return askFirst(context, FirstAsk(title: 'Move ${row.id ?? 'it'} to $value?', note: 'It still waits on $list, which ${blockers.length == 1 ? 'isn’t' : 'aren’t'} done.', yes: 'Move it anyway'));
+    }
+
+    void moveNow(QueryRow row, String field, String? value) {
       final groups = result!.groups;
       final from = groups.where((group) => group.rows.any((each) => each.key == row.key)).firstOrNull;
       final was = from == null ? null : laneValue(from);
@@ -363,6 +390,27 @@ class DrawnQuery extends StatelessWidget {
           },
         ),
       );
+    }
+
+    void moved(QueryRow row, String? value) {
+      final field = result?.group;
+      if (field == null || !writable || row.kind == RecordKind.event) return;
+      // A ticket that still waits on another asks before it is moved to done (ticket_marks.dart).
+      if (asksFirst(row, field, value)) {
+        unawaited(askDone(row, value!).then((yes) {
+          if (yes) moveNow(row, field, value);
+        }));
+        return;
+      }
+      moveNow(row, field, value);
+    }
+
+    /// A status picked from a cell's sheet: as [setField], asking first where the ticket still waits on another.
+    void setAsked(QueryRow row, String field, String? value) {
+      if (!asksFirst(row, field, value)) return setField(row, field, value);
+      unawaited(askDone(row, value!).then((yes) {
+        if (yes) setField(row, field, value);
+      }));
     }
 
     final add = options?.add;
@@ -437,7 +485,8 @@ class DrawnQuery extends StatelessWidget {
       },
       // The field the board groups by, set to the lane the card was dropped in.
       onMove: moved,
-      onSet: setField,
+      onSet: setAsked,
+      ticketMarks: options?.ticketMarks,
       onAdd: editable && query != null && add != null && ticketDraft(query, null, null) != null
           ? (lane, title) {
               final draft = ticketDraft(query, result?.group, lane);
@@ -455,6 +504,13 @@ class DrawnQuery extends StatelessWidget {
           : null,
       // Read when a person's sheet opens, not on every draw: it reads every note.
       people: () => options == null ? const <String>[] : peopleIn(library().map((note) => note.body)),
+      // A relation's chip opens the note it names, as a [[link]] does (the port's own, 2026-10-30).
+      onOpenTitle: options == null || read == null
+          ? null
+          : (title) {
+              final note = noteNamed(read, title);
+              if (note != null && note.id != options.noteId) options.open(note.id, null);
+            },
     );
   }
 }

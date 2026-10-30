@@ -93,6 +93,13 @@ Each of the 38 is below once, by what it would take.
    names a picture on the internet draws without it.
 3. **A query's timeline** (section 18): Mermaid's own gantt by the same road, so a bitmap fitted to the card, with
    nothing to scroll sideways.
+   Since 2026-10-30 (Matt, "add all 12") the port has query views the page has not got: `show: timeline` is a
+   timeline the app draws, rows and bars carried by their ends (the page reads the word as `gantt`, which stays
+   Mermaid's), `show: chart` (bars, a line, a pie), a wide window's calendar of named days and its week, records
+   carried from day to day, `rollup:` columns over linked notes, and the view lines `date:`, `start:`, `end:`,
+   `zoom:`, `chart:`, `x:`, `y:` and `series:` (lib/core/query/read.dart). On a phone's head the switcher keeps
+   the page's six places, the drawn timeline in the gantt's and the chart in the count's while neither is shown,
+   so every piece of test/editor/queries/reference_test.dart is where the page's is; a wider head has every way.
 4. **A canvas's chart card** (section 21): the same bitmap, which softens when the canvas is zoomed in past the
    size it was made for.
 5. **A blank's lookup names itself as the app** (section 27): a request from Dart has no browser's User-Agent, so

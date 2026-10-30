@@ -12,7 +12,7 @@
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
 //! `store/prefs.rs`, `store/shares.rs` (and a shared meeting's recording, `store/share_audio.rs`), `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
 //! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md), `store/notifications.rs`
-//! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note), `store/hooks.rs` (incoming hooks) and `store/meet.rs` (Ghost
+//! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note), `store/hooks.rs` (incoming hooks), `store/forms.rs` (forms from a share link and the answers to them, sealed; its tables are its own `SCHEMA`) and `store/meet.rs` (Ghost
 //! in a Google Meet: its bookings, and its recordings sealed as files beside the recordings) and `store/discord.rs` (Ghost in a
 //! Discord call: which Discord user is which account, and the codes that link them; its tables are its own `SCHEMA`) -
 //! each an `impl Store` of its own, so a caller still holds one `Store`.
@@ -25,6 +25,7 @@
 
 mod accounts;
 mod discord;
+mod forms;
 mod hooks;
 mod keys;
 mod mail;
@@ -43,6 +44,7 @@ mod sites;
 
 pub use accounts::DeleteAccount;
 pub use discord::DISCORD_UID;
+pub use forms::{Claim as FormClaim, FormItem, FormRow, FormState, FormWrite};
 pub use hooks::{HookItem, HookRow, HookWrite};
 pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
 pub use notes::NoteRow;
@@ -495,6 +497,7 @@ fn schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.execute_batch(SCHEMA)?;
     conn.execute_batch(discord::SCHEMA)?;
+    conn.execute_batch(forms::SCHEMA)?;
     add_missing_columns(conn)?;
     conn.execute(KIND_FROM_LINK, []).map(|_| ())
 }

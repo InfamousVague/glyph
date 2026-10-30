@@ -24,6 +24,12 @@
 ///   name and cells at the widths they have in the table.
 /// - **The month's name** is English (lib/core/query/calendar.dart says why).
 /// - **The timeline** is Mermaid's own drawing, as the page's is, photographed (query_timeline.dart).
+///
+/// The port's own (Matt, 2026-10-30, "add all 12"): a drawn timeline (query_timeline_view.dart, `show: timeline`), a
+/// chart (query_chart.dart, `show: chart`), a calendar on a wide window as a month of named days or a week
+/// (query_calendar.dart), a record carried from day to day on any calendar, and a relation's chips that open the
+/// notes they name. The switcher has the drawn timeline and the chart, and the Mermaid gantt only while it is the
+/// one shown (docs/PARITY.md says why its pieces part from the page's).
 library;
 
 import 'dart:math' as math;
@@ -42,9 +48,14 @@ import '../items/field_menu.dart' show DayPicker;
 import 'lane_carry.dart';
 import 'query_board.dart';
 import 'query_builder.dart';
+import 'query_calendar.dart';
+import 'query_chart.dart';
 import 'query_timeline.dart';
+import 'query_timeline_view.dart';
 import 'query_layout.dart';
+import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
+import 'ticket_marks.dart';
 import 'query_parts.dart';
 
 /// The ways a query can be shown, for the switcher: each with its mark and a word, in the order docs/QUERIES.md
@@ -54,9 +65,27 @@ const Map<ShowAs, ({LucideIcon icon, String label})> queryViews = <ShowAs, ({Luc
   ShowAs.list: (icon: Lucide.list, label: 'List'),
   ShowAs.board: (icon: Lucide.squareKanban, label: 'Board'),
   ShowAs.calendar: (icon: Lucide.calendarDays, label: 'Calendar'),
-  ShowAs.gantt: (icon: Lucide.chartGantt, label: 'Timeline'),
+  ShowAs.gantt: (icon: Lucide.workflow, label: 'Gantt'),
   ShowAs.count: (icon: Lucide.sigma, label: 'Count'),
+  ShowAs.timeline: (icon: Lucide.chartGantt, label: 'Timeline'),
+  ShowAs.chart: (icon: Lucide.chartNoAxesCombined, label: 'Chart'),
 };
+
+/// The ways the switcher offers, in its order (the port's own). A head as narrow as a phone's has room for six, as
+/// the page's had: the table, the list, the board, the calendar, the drawn timeline and the chart, whose place is
+/// the count's or the Mermaid gantt's while either is the way shown; a wider one has every way, the gantt only while
+/// it is shown. The builder offers them all.
+List<ShowAs> switcherViews(ShowAs? shown, {required bool wide}) => <ShowAs>[
+  ShowAs.table,
+  ShowAs.list,
+  ShowAs.board,
+  ShowAs.calendar,
+  ShowAs.timeline,
+  if (wide) ...<ShowAs>[ShowAs.chart, ShowAs.count, if (shown == ShowAs.gantt) ShowAs.gantt] else if (shown == ShowAs.count || shown == ShowAs.gantt) shown! else ShowAs.chart,
+];
+
+/// How wide a query's head is for the switcher to have every way.
+const double wideHead = 560;
 
 /// A sheet open on one record's field (`Picking`).
 class _Picking {
@@ -90,7 +119,12 @@ class QueryView extends StatefulWidget {
     this.onAdd,
     this.people,
     this.dayPicker,
+    this.ticketMarks,
+    this.onOpenTitle,
   }) : linesEditable = linesEditable ?? editable;
+
+  /// A ticket's lock and its sub-tickets' progress, by note id (ticket_marks.dart).
+  final TicketMarks Function(String noteId)? ticketMarks;
 
   final QueryLook look;
 
@@ -145,6 +179,9 @@ class QueryView extends StatefulWidget {
   /// The app's calendar, for a day's sheet's Pick a date.
   final DayPicker? dayPicker;
 
+  /// Opens the note a relation's chip names, by its title. Absent, a chip is words.
+  final void Function(String title)? onOpenTitle;
+
   @override
   State<QueryView> createState() => QueryViewState();
 }
@@ -169,6 +206,9 @@ class QueryViewState extends State<QueryView> {
       onMove: widget.onMove,
       onAdd: widget.editable ? widget.onAdd : null,
       onControl: (pointer) => controlPointer = pointer,
+      marks: switch (widget.ticketMarks) { final marks? => (row) => row.id == null || row.kind == RecordKind.task ? null : marks(row.noteId), null => null },
+      onSet: widget.editable ? widget.onSet : null,
+      onOpenTitle: widget.onOpenTitle,
       pickable: (row, field) => canPick && picksField(row, field),
       pick: (row, column, cell) {
         final pick = pickOf(row, column.field, cell, widget.today ?? result.today, widget.people ?? () => const <String>[]);
@@ -263,6 +303,7 @@ class QueryViewState extends State<QueryView> {
     final onSet = widget.onSet;
     final nothing = empty && !(result.show == ShowAs.board && result.groups.length > 1) && !(result.show == ShowAs.calendar && widget.dayEvents.isNotEmpty);
     final totals = result.totals.isNotEmpty && result.show != ShowAs.table && result.show != ShowAs.count;
+    final canDay = acts.editable && acts.onSet != null;
     return _frame('Query: $words', <Widget>[
       QueryHead(
         look: look,
@@ -281,10 +322,23 @@ class QueryViewState extends State<QueryView> {
         switch (result.show) {
           ShowAs.table => QueryTable(look: look, result: result, acts: acts, state: this),
           ShowAs.board => QueryBoard(look: look, result: result, acts: acts, state: this, height: widget.height, onHeight: widget.onHeight),
-          ShowAs.calendar => QueryCalendar(look: look, rows: rows, acts: acts, events: widget.dayEvents),
+          ShowAs.calendar => QueryCalendar(
+            look: look,
+            rows: rows,
+            acts: acts,
+            events: widget.dayEvents,
+            onDay: !canDay
+                ? null
+                : (row, field, day) {
+                    fireMotor(HapticKind.selection);
+                    acts.onSet!(row, field, day);
+                  },
+          ),
           ShowAs.gantt => QueryGantt(look: look, result: result, today: acts.today),
           ShowAs.count => QueryCount(look: look, result: result),
           ShowAs.list => QueryList(look: look, result: result, acts: acts, state: this),
+          ShowAs.timeline => QueryTimelineView(look: look, result: result, acts: acts),
+          ShowAs.chart => QueryChart(look: look, result: result, acts: acts),
         },
       if (totals) QueryTotals(look: look, totals: result.totals),
       if (_building && onBody != null)
@@ -421,7 +475,7 @@ class QueryHead extends StatelessWidget {
 
     // .head { display: flex; align-items: center; gap: var(--glacier-space-2);
     //   min-block-size: var(--glacier-space-8); color: var(--app-ink-3) }
-    return Part(
+    return LayoutBuilder(builder: (context, constraints) => Part(
       'head',
       child: CssRow(
         gap: look.space(2),
@@ -455,7 +509,7 @@ class QueryHead extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          for (final (index, way) in ShowAs.values.indexed) ...<Widget>[if (index > 0) const SizedBox(width: 1), view(way)],
+                          for (final (index, way) in switcherViews(show, wide: constraints.maxWidth >= wideHead).indexed) ...<Widget>[if (index > 0) const SizedBox(width: 1), view(way)],
                         ],
                       ),
                     ),
@@ -481,7 +535,7 @@ class QueryHead extends StatelessWidget {
             ),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -516,6 +570,7 @@ class QueryRowLine extends StatelessWidget {
           children: <Widget>[
             if (keyed) CssItem(whole: true, child: QueryKeyLine(look: look, id: id)),
             QueryName(look: look, row: row, acts: acts, hideKey: keyLine),
+            if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks, bar: false),
             if (result != null && QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts),
           ],
         ),
@@ -901,8 +956,12 @@ const List<String> _weekdays = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'
 /// The query as a month (`CalendarView`): the month's weeks, a dot for each record on its day, and the day picked
 /// listed under it. A calendar of to-dos is handed the calendars' events too ([events], docs/CALENDAR.md): each is a
 /// ring beside the day's dots and a quiet line above the day's to-dos, its hours first.
+///
+/// The port's own (2026-10-30): a window wide enough draws query_calendar.dart's month of named days or a week
+/// instead; Today comes back to today's month where another is shown; and where [onDay] is given, a record held in
+/// the day's list is carried onto a day of the month, which sets the field its day is from.
 class QueryCalendar extends StatefulWidget {
-  const QueryCalendar({super.key, required this.look, required this.rows, required this.acts, this.events = const []});
+  const QueryCalendar({super.key, required this.look, required this.rows, required this.acts, this.events = const [], this.onDay});
 
   final QueryLook look;
   final List<QueryRow> rows;
@@ -910,6 +969,10 @@ class QueryCalendar extends StatefulWidget {
 
   /// The events on the month's days, as rows; drawn quieter than [rows], and never opened or ticked.
   final List<QueryRow> events;
+
+  /// A record carried to [day]: its [field] (the query's `date:`, else the field its day came from) set to it.
+  /// Absent, nothing is carried.
+  final void Function(QueryRow row, String field, String day)? onDay;
 
   @override
   State<QueryCalendar> createState() => _QueryCalendarState();
@@ -919,16 +982,52 @@ class _QueryCalendarState extends State<QueryCalendar> {
   late String _month = openingMonth(widget.rows, widget.acts.today);
   String? _picked;
 
+  /// The days a record held in the day's list can be carried to.
+  final DayTargets _targets = DayTargets();
+
+  @override
+  void dispose() {
+    _targets.dispose();
+    super.dispose();
+  }
+
   void _turn(int by) => setState(() {
     _month = monthAfter(_month, by);
     _picked = null;
   });
 
+  /// A record dropped on [day]: the field its day is from set to it, and that day picked.
+  void _drop(QueryRow row, String day) {
+    final onDay = widget.onDay;
+    final field = row.dayField ?? 'due';
+    if (onDay == null || field == 'updated' || row.kind == RecordKind.event) return;
+    onDay(row, field, day);
+    setState(() => _picked = day);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => constraints.maxWidth >= wideCalendar
+        ? QueryWideCalendar(
+            look: widget.look,
+            rows: widget.rows,
+            acts: widget.acts,
+            events: widget.events,
+            month: _month,
+            onMonth: (month) => setState(() {
+              _month = month;
+              _picked = null;
+            }),
+            onDay: widget.onDay == null ? null : _drop,
+          )
+        : _phone(context),
+  );
+
+  Widget _phone(BuildContext context) {
     final look = widget.look;
     final acts = widget.acts;
     final rows = widget.rows;
+    final drops = widget.onDay == null ? null : _drop;
     final weeks = monthWeeks(_month, rows, acts.today);
     final days = <CalendarDay>[for (final week in weeks) ...week];
     // The events by day, from the same month: what each day's rings and quiet lines are.
@@ -1010,7 +1109,12 @@ class _QueryCalendarState extends State<QueryCalendar> {
       // .dayCell[data-picked] { box-shadow: inset 0 0 0 1.5px var(--app-ink-2) }
       final radius = BorderRadius.circular(look.t.radius('sm'));
       return Expanded(
-        child: Semantics(
+        child: DayDrop(
+          look: look,
+          day: day.day,
+          targets: drops == null ? null : _targets,
+          radius: radius,
+          child: Semantics(
           container: true,
           button: true,
           selected: picked,
@@ -1047,6 +1151,7 @@ class _QueryCalendarState extends State<QueryCalendar> {
             ),
           ),
         ),
+        ),
       );
     }
 
@@ -1077,6 +1182,7 @@ class _QueryCalendarState extends State<QueryCalendar> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
                 _RoundButton(look: look, name: 'turn', icon: Lucide.chevronLeft, label: 'The month before', stroke: 2.4, onTap: () => _turn(-1)),
+                // Today, where another month is shown, after the name: the bar's arrows stay where they are.
                 // .monthName { display: inline-flex; align-items: baseline; gap: var(--glacier-space-2);
                 //   font-weight: var(--glacier-font-weight-semibold) }
                 Part(
@@ -1091,6 +1197,27 @@ class _QueryCalendarState extends State<QueryCalendar> {
                         PageWords(name, look.sans(look.em, weight: 'semibold'), line: look.line, softWrap: false),
                         SizedBox(width: look.space(2)),
                         Part('count', child: PageWords('${inMonth(rows, _month)}', look.sans(look.xs, weight: 'semibold', color: look.ink3, tabular: true), line: look.lineXs, softWrap: false)),
+                        if (_month != monthOf(acts.today)) ...<Widget>[
+                          SizedBox(width: look.space(2)),
+                          Semantics(
+                            container: true,
+                            button: true,
+                            label: 'Today’s month',
+                            onTap: () => setState(() {
+                              _month = monthOf(acts.today);
+                              _picked = null;
+                            }),
+                            excludeSemantics: true,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => setState(() {
+                                _month = monthOf(acts.today);
+                                _picked = null;
+                              }),
+                              child: Part('today', child: PageWords('Today', look.sans(look.xs, weight: 'semibold', color: look.ink2), line: look.lineXs, softWrap: false)),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1148,7 +1275,8 @@ class _QueryCalendarState extends State<QueryCalendar> {
                     Part('dayListHead', child: PageWords(daySaid(shown.day, acts.today, acts.locale), look.sans(look.em, weight: 'semibold', color: look.ink2), line: look.line)),
                     for (final event in eventsOn[shown.day] ?? const <QueryRow>[]) QueryEventLine(look: look, row: event),
                     if (shown.rows.isNotEmpty)
-                      for (final (index, row) in shown.rows.indexed) QueryRowLine(look: look, row: row, acts: acts, first: index == 0, keyLine: false)
+                      for (final (index, row) in shown.rows.indexed)
+                        DayCarrier(look: look, row: row, targets: _targets, onDay: drops != null && carriesDay(row, acts) ? drops : null, child: QueryRowLine(look: look, row: row, acts: acts, first: index == 0, keyLine: false))
                     else if (!eventsOn.containsKey(shown.day))
                       Padding(
                         padding: EdgeInsets.symmetric(vertical: look.space(1)),

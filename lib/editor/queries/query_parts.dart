@@ -32,6 +32,7 @@ import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show ChipLook, FieldMenu, chipLook, dayLabel, daySaid;
 import '../looks/look.dart' show layoutUnitFloor;
 import 'query_layout.dart';
+import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
 
 /// " priority" at the end of a chip's label, which a chip in a query's row leaves unsaid.
@@ -39,7 +40,7 @@ final RegExp _priorityWord = RegExp(r' priority$');
 
 /// What a row and a cell need from the query's drawing to act and to name days (`Acts`).
 class QueryActs {
-  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl});
+  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks});
 
   final String today;
   final String? locale;
@@ -58,6 +59,16 @@ class QueryActs {
   /// A pointer went down on a control of a thing that can be carried (its box, a value's button): the press is the
   /// control's, and the thing is not lifted by it (`event.stopPropagation()` on the page).
   final void Function(int pointer)? onControl;
+
+  /// A ticket's lock and its sub-tickets' progress, for its card and its row (ticket_marks.dart); absent, neither.
+  final TicketMarks Function(QueryRow row)? marks;
+
+  /// One field of a record set, or taken off with null: a day carried on a calendar, a bar's ends on a timeline (the
+  /// port's own). Absent where nothing it lists can be changed.
+  final void Function(QueryRow row, String field, String? value)? onSet;
+
+  /// Opens the note a relation's chip names, by its title (the port's own). Absent, a chip is words.
+  final void Function(String title)? onOpenTitle;
 }
 
 /// A press that is a control's own, said to whoever might lift the thing it is on.
@@ -198,6 +209,33 @@ class QueryTag extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: 0.3 * em),
         decoration: BoxDecoration(color: QueryLook.mix(look.ink2, 0.09), borderRadius: BorderRadius.circular(0.35 * em)),
         child: Text(text, softWrap: false, textScaler: TextScaler.noScaling, style: style.copyWith(height: (glyph.ascent + glyph.descent) / em)),
+      ),
+    );
+  }
+}
+
+/// A note a relation names, as a chip: a tag's ground under its title, a little wider (the port's own).
+class QueryLinkChip extends StatelessWidget {
+  const QueryLinkChip({super.key, required this.look, required this.title, required this.parent});
+
+  final QueryLook look;
+  final String title;
+
+  /// The type of the words it stands in.
+  final double parent;
+
+  @override
+  Widget build(BuildContext context) {
+    final em = 0.92 * parent;
+    final style = look.sans(em, color: look.ink2);
+    final glyph = glyphBox(style);
+    return Part(
+      'relationChip',
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 0.35 * em),
+        decoration: BoxDecoration(color: QueryLook.mix(look.ink2, 0.09), borderRadius: BorderRadius.circular(0.35 * em)),
+        // Words alone, as a tag's chip is: a table lays its cells out on their baselines, which a drawn mark has not got.
+        child: Text(title, softWrap: false, textScaler: TextScaler.noScaling, style: style.copyWith(height: (glyph.ascent + glyph.descent) / em)),
       ),
     );
   }
@@ -558,6 +596,21 @@ Widget? cellView(QueryLook look, Cell cell, {required String field, required Que
       }
       // .people { display: inline-flex; align-items: baseline; gap: var(--glacier-space-1) }
       return Part('people', child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: chips));
+    case ListCell(:final items, :final links) when links:
+      // A relation, `project: [[Kiln]]`: each note it names a chip, as a tag is, that opens it (the port's own).
+      final style = look.sans(parent, color: brief ? look.ink2 : (quiet ? look.ink3 : null));
+      final open = acts.onOpenTitle;
+      final chips = <Widget>[];
+      for (final item in items) {
+        if (chips.isNotEmpty) chips.add(SizedBox(width: look.space(1)));
+        final chip = PageWords.rich(TextSpan(children: <InlineSpan>[WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: QueryLinkChip(look: look, title: item, parent: parent))]), style, line: line, softWrap: false);
+        chips.add(
+          open == null
+              ? chip
+              : Semantics(container: true, button: true, label: 'Open $item', onTap: () => open(item), excludeSemantics: true, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => open(item), child: chip)),
+        );
+      }
+      return Part('relation', child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: chips));
     case ListCell(:final items, :final tags):
       // .list { display: inline-flex; align-items: baseline; gap: var(--glacier-space-1) }
       // .item + .item::before { content: ', '; margin-inline-start: -0.25em }

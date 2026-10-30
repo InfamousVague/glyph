@@ -1,0 +1,190 @@
+/* A form from a share link (FormRead.tsx): its introduction, its fields, and the thanks, in the reader's own look. */
+
+.page {
+  max-inline-size: 40rem;
+}
+
+/* A phone: the 16px gutter every page of the reader keeps there. */
+@media (max-width: 34rem) {
+  .page {
+    padding-inline: 16px;
+  }
+}
+
+.intro {
+  margin-block-end: var(--glacier-space-5);
+  color: var(--glacier-text);
+}
+
+/* The page's room under a read note is for a thumb at its end; here the fields follow at once. */
+.intro > * {
+  padding-block-end: 0;
+}
+
+.intro > * > :last-child {
+  margin-block-end: 0;
+}
+
+.form {
+  display: grid;
+  gap: var(--glacier-space-5);
+}
+
+.field {
+  display: grid;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+.label {
+  font-weight: var(--glacier-font-weight-medium);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text);
+  padding: 0;
+}
+
+.optional {
+  font-weight: normal;
+  color: var(--glacier-text-muted);
+}
+
+.input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-text);
+  background: var(--app-paper-2);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  resize: vertical;
+}
+
+.input:focus-visible,
+.file:focus-visible,
+.choice input:focus-visible,
+.send:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.field[data-problem] .input {
+  border-color: var(--glacier-text);
+}
+
+.choices {
+  display: grid;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.choices .label {
+  margin-block-end: var(--glacier-space-1);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-block-size: 2.5rem;
+  padding: 0 var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--glacier-text);
+}
+
+.choice input {
+  accent-color: var(--app-ink);
+  margin: 0;
+}
+
+.fileRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.file {
+  max-inline-size: 100%;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.problem::before {
+  content: '— ';
+  color: var(--glacier-text-muted);
+}
+
+.closed {
+  margin: 0;
+  padding: var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+  color: var(--glacier-text);
+}
+
+.sendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.send {
+  appearance: none;
+  min-block-size: 2.75rem;
+  padding: 0 var(--glacier-space-5);
+  font: inherit;
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--app-paper);
+  background: var(--app-ink);
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* The field for bots: off the page, never seen, never tabbed to. */
+.trap {
+  position: absolute;
+  inset-inline-start: -10000px;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+}
+
+.thanks {
+  display: grid;
+  gap: var(--glacier-space-3);
+  padding-block-start: var(--glacier-space-6);
+}
+
+.thanks p {
+  margin: 0;
+}

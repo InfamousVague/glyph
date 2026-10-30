@@ -14,6 +14,7 @@ import { noteTitle, withoutFrontMatter } from '../tauri/src/app/core/noteTitle.t
 import { isOrgWorkspace, orgWorkspaceId } from '../tauri/src/app/core/orgs/types.ts';
 import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../tauri/src/app/core/properties.ts';
 import { titleKey } from '../tauri/src/app/core/titleKey.ts';
+import { folderTemplatePage, fromTemplatePage } from './placeTemplates.ts';
 import { imageMarkdown } from '../tauri/src/app/core/imageRefs.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 import { canMove, effective, fileNameOf, fileStem, folderAtPath, folderFor, folderName, freshId, orgFolderNames, orgOf, pathName, tidyName, workspaceFamily, type Kept } from './folders.ts';
@@ -717,16 +718,17 @@ export function buildServer(
     {
       title: 'Create a note',
       description:
-        'A new note in the account, as if typed in the app: markdown, with the first line as its title. Give a `title` and it becomes a `# Title` heading above the body. It appears on every signed-in device at its next sync. Give a `workspace` to make it there: in an organization’s, it is the team’s from its first word, on every member’s devices.',
+        'A new note in the account, as if typed in the app: markdown, with the first line as its title. Give a `title` and it becomes a `# Title` heading above the body. It appears on every signed-in device at its next sync. Give a `workspace` to make it there: in an organization’s, it is the team’s from its first word, on every member’s devices. A folder with a template of its own (a page of the Templates notebook whose `folders:` names it) starts the note from that template, filled, with your words under it; `use_template: false` makes it from your words alone.',
       inputSchema: {
         body: z.string().describe(`The note’s markdown. Ghost.md’s marks all work: headings, lists, \`- [ ]\` to-dos, tables, \`\`\`board fences. ${BLANKS}`),
         title: z.string().optional().describe('A title to put above the body as a heading, if the body does not start with one.'),
         pinned: z.boolean().optional().describe('Pin it to the top of the list.'),
         workspace: z.string().optional().describe('The workspace or folder to make it in: its id, its path (“Ghost.md › Clients”) or its name, from list_workspaces. Left out, the note is the account’s own and in no workspace.'),
+        use_template: z.boolean().optional().describe('Start from the folder’s own template where it has one. On by default.'),
         author: authorField,
       },
     },
-    async ({ body, title, pinned, workspace, author }) =>
+    async ({ body, title, pinned, workspace, use_template, author }) =>
       guarded(async () => {
         const heading = title?.trim();
         const words = heading && !/^#\s/.test(body.trimStart()) ? `# ${heading}\n\n${body.trim()}` : body;
@@ -739,7 +741,9 @@ export function buildServer(
           into = resolveSpace(settings, workspace);
         }
         const org = into ? orgOf(settings!.list, into.id) : null;
-        const signed = authored(words, author);
+        // The folder's own template, where it has one (placeTemplates.ts).
+        const page = into && use_template !== false && !isOrgWorkspace(into) ? folderTemplatePage((await account.list()).map((r) => ({ body: r.note.body })), settings!.list, into) : null;
+        const signed = authored(page ? fromTemplatePage(page.body, words, { at: new Date(), author: account.handle ?? '' }) : words, author);
         // In a folder of an organization's, the note's path is the folder's, which is how every member's device files
         // it there (GHST-107); the file is named after its title, as the library names a new one.
         const folder = into && org && !isOrgWorkspace(into) ? folderFor(into, settings!.list) : null;

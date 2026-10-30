@@ -327,6 +327,11 @@ class Recorder {
   /// Done. On unless set.
   bool Function() meetingLiveWords = () => true;
 
+  /// A note from a template said for a place ("new bug in Kiln"; template_ask.dart), set by `lib/root`: the words the
+  /// note starts with, and what files it there once it is made; null where no template answers to the word or no
+  /// notebook or folder to the place, and the recording is then made a note as before.
+  ({String body, void Function(String noteId) file})? Function(String template, String place, String title) fromTemplate = (_, _, _) => null;
+
   /// A meeting recorded by the phone's service, its words live while someone looks (meeting_live_words.dart); set by
   /// `lib/root` where there is a service.
   MeetingLiveWords? liveWords;

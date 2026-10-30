@@ -26,7 +26,7 @@ import 'package:flutter/foundation.dart';
 import '../book/journal.dart' show uniqueTitle;
 import '../core/front_matter.dart';
 import '../core/properties.dart' show withFrontMatterValue;
-import '../core/template.dart' show fillTemplate, firstOpenAt;
+import '../core/template.dart' show cursorMark, fillTemplate, firstOpenAt;
 
 export '../book/journal.dart' show uniqueTitle;
 export '../core/properties.dart' show withFrontMatterValue;
@@ -119,6 +119,10 @@ const List<NoteTemplate> builtIns = [
 /// A day's sentence on a day that already has a note by its name (`DAY_TAKEN_SENTENCE`).
 const String dayTakenSentence = 'Today has a note by this name. This makes a second.';
 
+/// Who makes a note, for a template's `{{author}}` wherever one is filled: the account's name, told by the root once
+/// it has an account; nothing until then.
+String Function()? templateAuthor;
+
 /// A template filled for a note made now (`FilledTemplate`).
 @immutable
 class FilledTemplate {
@@ -147,21 +151,27 @@ final RegExp _firstHeading = RegExp(r'^(#{1,6} +)(.*)$');
 /// settled, then measured, so the caret and the record are both the final words' (`fillNoteTemplate`). [nextId] is
 /// the next ticket key where the note is made, and [title] the name it is made with, where it has one already. A
 /// template's own front matter is kept in front of the words, never counted among them.
-FilledTemplate fillNoteTemplate(NoteTemplate template, DateTime at, Set<String> taken, {String? nextId, String title = ''}) {
-  final filled = fillTemplate(template.words, at: at, nextId: nextId, title: title);
+///
+/// `{{author}}` is [author], or [templateAuthor]'s where it is left out; a `{{cursor}}` the template has is where the caret goes, ahead of the first line left
+/// open, and is taken out of the words.
+FilledTemplate fillNoteTemplate(NoteTemplate template, DateTime at, Set<String> taken, {String? nextId, String title = '', String? author}) {
+  final filled = fillTemplate(template.words, at: at, nextId: nextId, title: title, author: author ?? templateAuthor?.call() ?? '', cursor: cursorMark);
   final start = frontMatterOffset(filled);
   final front = filled.substring(0, start);
   var words = filled.substring(start);
   final newline = words.indexOf('\n');
   final first = newline < 0 ? words : words.substring(0, newline);
   final heading = _firstHeading.firstMatch(first);
-  final named = heading?.group(2)?.trim() ?? '';
+  final named = heading?.group(2)?.replaceAll(cursorMark, '').trim() ?? '';
   var name = named;
-  if (heading != null && named.isNotEmpty) {
+  if (heading != null && named.isNotEmpty && !heading.group(2)!.contains(cursorMark)) {
     name = uniqueTitle(named, taken);
     if (name != named) words = '${heading.group(1)}$name${newline < 0 ? '' : words.substring(newline)}';
   }
+  // The first `{{cursor}}` is the caret's, and every one is taken out.
+  final marked = words.indexOf(cursorMark);
+  words = words.replaceAll(cursorMark, '');
   final look = template.look;
   final body = look != null ? withLook(front + words, look) : front + words;
-  return FilledTemplate(words: words, body: body, title: name, caret: frontMatterOffset(body) + firstOpenAt(words), renamed: name != named);
+  return FilledTemplate(words: words, body: body, title: name, caret: frontMatterOffset(body) + (marked >= 0 ? marked : firstOpenAt(words)), renamed: name != named);
 }

@@ -115,11 +115,13 @@ class PeopleValue extends Value {
   Object? toJson() => {'kind': kind, 'names': names};
 }
 
-/// Tags, labels, links: [tags] for a list of tags, which hold the tags inside them.
+/// Tags, labels, links: [tags] for a list of tags, which hold the tags inside them; [links] for the notes a field's
+/// `[[links]]` name, a relation (the port's own, which its JSON leaves out: the web's has no such key).
 class ListValue extends Value {
-  const ListValue(this.items, {required this.tags});
+  const ListValue(this.items, {required this.tags, this.links = false});
   final List<String> items;
   final bool tags;
+  final bool links;
   @override
   String get kind => 'list';
   @override
@@ -157,6 +159,9 @@ Value _people(Iterable<String> names) {
 }
 
 Value _list(List<String> items, [bool tags = false]) => items.isNotEmpty ? ListValue([...items], tags: tags) : emptyValue;
+
+/// The notes `[[links]]` name, as a relation.
+Value _links(List<String> items) => items.isNotEmpty ? ListValue([...items], tags: false, links: true) : emptyValue;
 
 /// Whether a value says nothing: no value, no priority, a list with nothing in it (`isEmpty`).
 bool isEmptyValue(Value value) => switch (value) {
@@ -200,7 +205,7 @@ Value _inferred(String? said) {
   if (isIsoDay(clean)) return DayValue(clean);
   final number = writtenNumber(clean);
   if (number != null) return NumberValue(number, clean);
-  if (clean.contains('[[')) return _list(linkTargets(clean));
+  if (clean.contains('[[')) return _links(linkTargets(clean));
   if (clean.startsWith('[') && clean.endsWith(']')) return _list(propertyList(clean));
   return TextValue(clean);
 }
@@ -221,7 +226,7 @@ Value _typed(String key, String? said, List<String> workflow) {
     case PropertyKind.person:
       return _people(propertyList(clean));
     case PropertyKind.links:
-      return _list(linkTargets(clean));
+      return clean.contains('[[') ? _links(linkTargets(clean)) : _list(linkTargets(clean));
     case PropertyKind.link:
       final targets = linkTargets(clean);
       return _text(targets.isEmpty ? null : targets.first);

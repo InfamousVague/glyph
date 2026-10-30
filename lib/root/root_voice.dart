@@ -91,6 +91,8 @@ extension _RootVoice on _GhostRootState {
       _capture = capture;
     });
     _voiceKnown.complete();
+    // "New bug in Kiln": a note from a template, in a notebook or a folder (root_templates.dart).
+    voice.recorder.fromTemplate = _voiceFromTemplate;
     // A short recording from the watch goes to Claude where Claude is shown here (lib/root/root_claude.dart).
     voice.watch?.claude = _RootWatchClaude(this);
     // The phone's write-up changed a note: the note's own screen, if it is open, takes it.

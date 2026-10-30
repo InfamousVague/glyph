@@ -1,0 +1,39 @@
+{
+  "jwk": {
+    "key_ops": [
+      "deriveBits"
+    ],
+    "ext": true,
+    "kty": "EC",
+    "x": "b3x2h4ynAj4NjmgQjqudDOcU1n2_GLTxV1NuA6FnBVA",
+    "y": "Ycxk4_XN4yM1-K0_lRFcCGPUm3Spi0zX8UX4RIPzlAw",
+    "crv": "P-256",
+    "d": "f6qRVe66UAJb42YS4WIIi88x_13ZHhtxbrTVIYOItsI"
+  },
+  "public": "BG98doeMpwI-DY5oEI6rnQznFNZ9vxi08VdTbgOhZwVQYcxk4_XN4yM1-K0_lRFcCGPUm3Spi0zX8UX4RIPzlAw",
+  "form": "Zm9ybS1vbmUtc2hhcmUtaWQ",
+  "answer": "YW5zd2VyLWZpeHR1cmUtMDAx",
+  "sealed": {
+    "wraps": [
+      {
+        "to": "BG98doeMpwI-DY5oEI6rnQznFNZ9vxi08VdTbgOhZwVQYcxk4_XN4yM1-K0_lRFcCGPUm3Spi0zX8UX4RIPzlAw",
+        "wrap": "BAnd6Gdxklrwa7od9g9QQ164XrBvShhlo6i_XYOEV806IvKJBowRy4OqUMMORSMeGP7uibkYhmfpgVtbs2JoT2F2YXGq5bDiliJRkV8dw-fb8QqWtYIbx1xHGUmhUpILjnQAd7xHwavfGD7PSE8O6Q1omYN-uUefbYxWH70"
+      }
+    ],
+    "blob": "Abs9yJ4WIE4ILwwpfSvqC4zl0Bz8Smlf69TlUH_znwXp1sSf5VYKLSuDpPXMsheShSjZnitcPUiNFbJGM-zQLbTo5HhYYOuezP4dUEyB6sn8cj7Cu25EKZ2trydw4sMn1FLwFg7wgPQxHjx5KPtz_oZ5QbRJbOkq5995WcxcnCjViIecxen8IHaEa3h5HLJN7kiBMi3ucnyPTHk"
+  },
+  "payload": {
+    "v": 1,
+    "answers": [
+      [
+        "Summary",
+        "Crash on launch ✓, “quoted”"
+      ],
+      [
+        "What happened",
+        "It closes\nat once."
+      ]
+    ],
+    "at": 1792275541000
+  }
+}

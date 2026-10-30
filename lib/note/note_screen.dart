@@ -114,7 +114,9 @@ import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
 import '../core/page_scroll.dart' show pullRestPhysics;
-import '../notes/note_templates.dart' show NoteTemplate, fillNoteTemplate;
+import '../notes/note_templates.dart' show NoteTemplate, builtIns, fillNoteTemplate;
+import '../notes/place_templates.dart' show notebookTemplateName, templateNamed, withNotebookTemplate;
+import '../notes/template_choice.dart' show chooseTemplate;
 import '../notes/pull_to_refresh.dart';
 import '../notes/template_cards.dart';
 import '../home/home_icons.dart' show HomeGlyph;
@@ -1298,6 +1300,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// A notebook's own keys written from the More sheet (its ticket key; kept as a journal, its template and its
   /// place switch): as the notebook's own changes are, and into the editor where its Markdown is the view, so the
   /// next keystroke there does not write the old keys back (`writeNotebook`).
+  /// Set template… on a notebook's More sheet: one of the templates, or None, written as its `page-template:`.
+  Future<void> _choosePageTemplate() async {
+    final templates = widget.templates ?? builtIns;
+    final chosen = await chooseTemplate(context, title: 'Template for new pages', note: 'Every new page and ticket made in this notebook starts from it.', templates: templates, none: true, chosen: templateNamed(templates, notebookTemplateName(_typedBody)));
+    if (!mounted || chosen == null) return;
+    _writeKeys((was) => withNotebookTemplate(was, chosen.template?.name));
+  }
+
   void _writeKeys(String Function(String was) change) {
     final next = change(_saving.body);
     if (next == _saving.body) return;
@@ -2076,6 +2086,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             )
           : null,
       // A notebook's ticket key (docs/DESIGN.md §157), written as its other keys are. Not a journal's.
+      // A notebook's template for its new pages (lib/notes/place_templates.dart), written as its other keys are.
+      pageTemplate: _notebookRows && !_isJournal && !widget.readOnly ? NotePageTemplate(name: notebookTemplateName(_typedBody), onChoose: () => unawaited(_choosePageTemplate())) : null,
       ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',

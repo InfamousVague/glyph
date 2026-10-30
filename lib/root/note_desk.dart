@@ -128,6 +128,8 @@ import '../core/geotag.dart' show GeoTag, withGeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
 import '../core/place_tags.dart' show PlaceTags;
+import '../editor/buttons/button_builder.dart' show buildButton;
+import '../editor/buttons/buttons.dart' show ButtonHooks, ButtonWorld, noteButtons;
 import '../editor/comments/comment_gutter.dart';
 import '../editor/comments/comments.dart';
 import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt;
@@ -305,6 +307,8 @@ class NoteDeskWorld {
     this.write,
     this.addTicket,
     this.tickets,
+    this.ticketMarks,
+    this.buttons,
     this.openWithin,
     this.openCanvas,
     this.openPage,
@@ -397,6 +401,13 @@ class NoteDeskWorld {
   /// What a ticket's panel and a `[[GHO-12]]` are drawn with, for the note by that id; absent, the front matter is
   /// folded as any note's is.
   final TicketOptions Function(String noteId)? tickets;
+
+  /// A ticket's lock and its sub-tickets' progress, for a board or a query that lists it (lib/book/ticket_links.dart).
+  final TicketMarks Function(String noteId)? ticketMarks;
+
+  /// What a button in a note does past the note (lib/editor/buttons; Matt, 2026-10-30): a post, Claude, a note opened or
+  /// made. Absent, a button sets its fields and opens its links, and does nothing else.
+  final ButtonWorld? buttons;
 
   /// A title opened from inside a notebook, in its tab's place (`openTitleWithin`); [open] where it is left out.
   final void Function(String title)? openWithin;
@@ -852,6 +863,8 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.
     if (_world.queryNotes != null) queries(() => _queries),
+    // `[Move to done](ghost:set?status=Done)` drawn as a button that does it (lib/editor/buttons).
+    noteButtons(ButtonHooks(noteId: () => widget.noteId, title: () => widget.title, world: () => _world.buttons, say: _sayOnNote)),
     // ![[A canvas]] on a line of its own draws that canvas in a frame (Editor.tsx `canvasFrames`).
     if (_world.bodyOf != null)
       canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor))),
@@ -991,6 +1004,7 @@ class NoteDeskState extends State<NoteDesk> {
           write: (id, change) => _world.write?.call(id, change),
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
+          ticketMarks: _world.ticketMarks,
         );
 
   /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
@@ -1015,6 +1029,7 @@ class NoteDeskState extends State<NoteDesk> {
           },
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
+          ticketMarks: _world.ticketMarks,
           listedWritable: () => !widget.readOnly && _world.write != null,
         );
 
@@ -1831,6 +1846,15 @@ class NoteDeskState extends State<NoteDesk> {
     return contact == null ? null : mentionOf(contact);
   }
 
+  /// The +'s A button: built in its sheet, and its line written where the caret was, the note's focus back.
+  Future<void> _addButton(EditorViewLike view) async {
+    final line = await buildButton(context, templates: [for (final template in _world.ticketTemplates?.call() ?? const <NoteTemplate>[]) template.name]);
+    if (line == null || !mounted || _leaving) return;
+    final at = view.state.selection.main.head;
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: at, insert: line), selection: EditorSelection.single(at + line.length), userEvent: 'input.button', scrollIntoView: true));
+    view.focus();
+  }
+
   /// The +'s A person: the one picked written where the caret was, and the note has the focus back.
   Future<void> _addPerson(EditorViewLike view) async {
     final name = await _pickPerson();
@@ -1876,6 +1900,8 @@ class NoteDeskState extends State<NoteDesk> {
           onScan: FilesKit.current?.scans != true || widget.readOnly || view == null ? null : () => unawaited(_putFile(view, () => FilesKit.current!.scan(name: scanName(DateTime.now())))),
           // Someone from the phone's contacts, where Settings › Contacts is on.
           onPerson: !phoneContacts.on || widget.readOnly || view == null ? null : () => unawaited(_addPerson(view)),
+          // A button, made in its small builder and written at the caret (lib/editor/buttons/button_builder.dart).
+          onButton: widget.readOnly || view == null ? null : () => unawaited(_addButton(view)),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
         ),
@@ -2183,6 +2209,8 @@ class NoteDeskState extends State<NoteDesk> {
         openNew: widget.readOnly ? null : _world.openPage,
         openTicket: widget.readOnly || _world.openTicket == null ? null : (title, template) => _world.openTicket!(title, body, template),
         ticketTemplates: _world.ticketTemplates?.call() ?? const <NoteTemplate>[],
+        // New form… (docs/FORMS.md): a form whose answers become this notebook's tickets.
+        offersForms: !widget.readOnly,
         titles: _world.pageTitles ?? _world.titles,
         bodyOf: _world.bodyOf,
         spot: widget.noteId,

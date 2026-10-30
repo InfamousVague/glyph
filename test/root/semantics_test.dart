@@ -54,6 +54,8 @@ void main() {
     final rows = [for (final node in nodes) if (node.flagsCollection.isButton && node.hasAction(SemanticsAction.tap)) node.label];
     expect(rows, [
       'Note\nA page of markdown, typed or said.',
+      // One of your templates, chosen (lib/root/root_templates.dart; Matt, 2026-10-30).
+      'New from template…\nOne of your templates, its date, time and name filled in.',
       // Today's note (lib/notes/daily_notes.dart), the port's own, named by the phone's day.
       'Today\nThe note for ${dailyTitle(DateTime.now())}, opened, or made the first time.',
       'Canvas\nCards on a page with lines between them.',
