@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.3.92",
+    "date": "2026-10-31",
+    "title": "Twelve new things for your notes",
+    "items": [
+      {"icon": "link", "words": "Notes show \"Linked from\" at their foot, and ![[Note#Heading]] shows a section as a live card.", "kind": "new"},
+      {"icon": "chevron-down", "words": "Headings fold from the gutter, and <details> blocks are toggles you can add from the +.", "kind": "new"},
+      {"icon": "calendar-days", "words": "Queries can be a calendar, a timeline or a chart, with rollups across linked notes.", "kind": "new"},
+      {"icon": "file-text", "words": "Folders and notebooks can have a template, and buttons in a note run an action.", "kind": "new"},
+      {"icon": "list-checks", "words": "Tickets get sub-tickets with a progress bar, and blocked tickets ask before they're done.", "kind": "new"},
+      {"icon": "at-sign", "words": "Type @ to mention a teammate or a day, and verify a page as the team's current truth.", "kind": "new"},
+      {"icon": "send", "words": "Share a form anyone can fill in: answers arrive sealed and land as tickets.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.3.91",
     "date": "2026-10-30",
     "title": "Claude's notes, a tap away",
