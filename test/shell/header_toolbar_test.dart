@@ -328,6 +328,21 @@ void main() {
       });
     }
 
+    // Matt, 2026-10-30: "The colors for the dropdown more menu are missing on general deployments though I see the
+    // colored icons on my end": he was on Command centre, whose ••• wears each row's hue; the default's was grey.
+    barTest('its ••• wears each row’s hue, as Command centre’s does, never the muted grey', (tester) async {
+      await pumpShell(tester, version: version, window: folded);
+      await tester.tap(find.byKey(HeaderAct.keyOf('overflow')));
+      await tester.pump(const Duration(milliseconds: 300));
+      final t = GlacierTheme.of(tester.element(find.byKey(HeaderAct.keyOf('overflow'))));
+      final glyphs = tester.widgetList<HeaderGlyph>(find.byType(HeaderGlyph)).where((glyph) => glyph.size == 16).toList();
+      expect(glyphs, isNotEmpty);
+      for (final glyph in glyphs) {
+        expect(glyph.color, isNot(t.color('glacier-text-muted')), reason: glyph.act.id);
+      }
+      expect({for (final glyph in glyphs) glyph.color}.length, greaterThan(1), reason: 'more than one hue');
+    });
+
     barTest('Developer’s choice switches the bar to it', (tester) async {
       // From today's bar, the one choice that draws none of these (chosen once the app is up: a launch reads the
       // device's word, nothing, the default).
