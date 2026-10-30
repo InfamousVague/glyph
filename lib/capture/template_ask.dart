@@ -14,7 +14,7 @@ library;
 typedef TemplateAsk = ({String template, String place, String? title});
 
 final RegExp _ask = RegExp(
-  r"^(?:(?:please\s+)?(?:make|create|start|add|open|write)\s+(?:me\s+)?)?(?:a\s+|an\s+)?new\s+([\w’'-]+(?:\s+[\w’'-]+)?)\s+(?:in|into|under|for)\s+(?:the\s+|my\s+)?(.+?)(?:\s+(?:notebook|folder|workspace))?(?:\s+(?:called|named|titled)\s+(.+?))?[\s.!?]*$",
+  r"^(?:(?:please\s+)?(?:make|create|start|add|open|write)\s+(?:me\s+)?)?(?:a\s+|an\s+)?new\s+([\w’'-]+(?:\s+[\w’'-]+)?)\s+(?:in|into|under)\s+(?:the\s+|my\s+)?(.+?)(?:\s+(?:notebook|folder|workspace))?(?:\s+(?:called|named|titled)\s+(.+?))?[\s.!?]*$",
   caseSensitive: false,
 );
 
@@ -23,7 +23,7 @@ const Set<String> plainNotes = {'note', 'page', 'one'};
 
 /// A name or a list said where the template's word would be: "a new note called groceries for the week" is a note's
 /// name, not a template for a place.
-final RegExp _naming = RegExp(r'\b(?:called|named|titled|with|and|list)\b', caseSensitive: false);
+final RegExp _naming = RegExp(r'\b(?:called|named|titled|with|and|list|lists|item|items|entry|entries|line|lines|task|tasks|to-?dos?)\b', caseSensitive: false);
 
 /// The ask in [words], or null where they are not one.
 TemplateAsk? templateAsk(String words) {
@@ -32,6 +32,7 @@ TemplateAsk? templateAsk(String words) {
   final template = found.group(1)!.trim();
   final place = found.group(2)!.trim();
   final title = found.group(3)?.trim();
-  if (template.isEmpty || place.isEmpty || _naming.hasMatch(template)) return null;
+  // A place said with a comma is words after it, an item's ("new item for the field guide, Trees"), not a name.
+  if (template.isEmpty || place.isEmpty || place.contains(',') || _naming.hasMatch(template)) return null;
   return (template: template, place: place, title: title == null || title.isEmpty ? null : title);
 }

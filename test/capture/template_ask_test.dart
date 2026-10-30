@@ -11,7 +11,7 @@ void main() {
     expect(templateAsk('new bug in Kiln'), (template: 'bug', place: 'Kiln', title: null));
     expect(templateAsk('Make a new meeting in Work called Standup.'), (template: 'meeting', place: 'Work', title: 'Standup'));
     expect(templateAsk('create a new feature in the Ghost.md notebook'), (template: 'feature', place: 'Ghost.md', title: null));
-    expect(templateAsk('a new bug report for my Kiln folder named Login loops'), (template: 'bug report', place: 'Kiln', title: 'Login loops'));
+    expect(templateAsk('a new bug report in my Kiln folder named Login loops'), (template: 'bug report', place: 'Kiln', title: 'Login loops'));
     expect(templateAsk('new note in Kiln'), (template: 'note', place: 'Kiln', title: null));
   });
 
@@ -19,6 +19,9 @@ void main() {
     expect(templateAsk('add milk to the shopping list'), isNull);
     expect(templateAsk('make a new note called groceries for the week'), isNull, reason: 'a name, not a template for a place');
     expect(templateAsk('new list in Kiln'), isNull);
+    expect(templateAsk('new item for the field guide, Trees'), isNull, reason: 'an item for a notebook, not a template');
+    expect(templateAsk('new item in the field guide'), isNull);
+    expect(templateAsk('new bug in Kiln, the login loops'), isNull, reason: 'words after a comma are the note’s, not a place’s name');
   });
 
   test('a finished recording that says one is a new note with its template and place', () {
