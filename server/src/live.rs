@@ -228,6 +228,18 @@ impl Pokes {
         }
     }
 
+    /// A frame to every signed-in socket of `account` at once, with no gap: a meeting's live captions, sealed to the
+    /// account (meet/live.rs), which a device ignores where it does not know `t`. A socket whose queue is full misses it
+    /// and catches up from the kept frames; another account's sockets never hear it.
+    pub fn say(&self, account: i64, frame: Value) {
+        let poked = self.lock();
+        let Some(sockets) = poked.sockets.get(&account) else { return };
+        let frame = text(frame);
+        for socket in sockets {
+            let _ = socket.out.try_send(frame.clone());
+        }
+    }
+
     /// The poke a gap held back, said at its end, to whichever sockets the account has by then.
     fn after_gap(&self, account: i64, what: Poke) {
         let mut poked = self.lock();

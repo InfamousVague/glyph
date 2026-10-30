@@ -78,6 +78,8 @@ pub struct Accounts {
     pub store: Arc<Store>,
     /// The relay's signed-in sockets by account, for the word that something came for one (live.rs, POKES).
     pub pokes: Arc<crate::live::Pokes>,
+    /// The meetings Ghost is in, their captions sealed as they come, for the account's devices (meet/live.rs).
+    pub captions: Arc<crate::meet::live::LiveCaptions>,
     issuer: Issuer,
     challenges: Challenges,
     by_address: guard::RateLimiter<IpAddr>,
@@ -101,6 +103,7 @@ impl Accounts {
         Arc::new(Self {
             store,
             pokes: Arc::default(),
+            captions: Arc::default(),
             issuer,
             challenges: Challenges::default(),
             by_address: guard::RateLimiter::new(SIGN_IN_PER_ADDRESS, now),

@@ -82,6 +82,8 @@ mod hooks_tests;
 #[cfg(test)]
 mod meet_tests;
 #[cfg(test)]
+mod meet_live_tests;
+#[cfg(test)]
 mod discord_tests;
 
 use axum::extract::{Request, State};

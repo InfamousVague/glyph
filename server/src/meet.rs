@@ -83,12 +83,15 @@
 //!   GET    /api/v1/meet/takes           the recordings waiting, sealed: id, meeting, size, when, the wrapped key
 //!   GET    /api/v1/meet/takes/{id}      one recording's sealed bytes, raw; the wrapped key in `x-glyph-wrapped`
 //!   DELETE /api/v1/meet/takes/{id}      taken: a device has it
+//!   GET    /api/v1/meet/{id}/live?after=<seq>  the meeting's live captions kept so far, sealed (meet/live.rs)
 //!   GET    /api/v1/meet/kinds           { meet, zoom }: which kinds of meeting Ghost is booked into
 //!   PUT    /api/v1/meet/kinds           { meet?, zoom? } the plugins' switches, as the device has them
 //!
 //!   GET    /api/internal/meet/due       what the bot should be in, or on its way to
 //!   POST   /api/internal/meet/{id}/state  { state, detail? } where the bot is with a meeting
 //!   PUT    /api/internal/meet/{id}/take   multipart: `audio` and `captions`, sealed on arrival
+//!   POST   /api/internal/meet/{id}/live   { startedAt?, lines, partial? } the captions so far, sealed on arrival and
+//!                                         passed to the account's devices as they come (meet/live.rs)
 //!
 //! The internal routes answer only a request made on this machine - the socket's peer is loopback and no proxy header
 //! is present (every request through Caddy comes from loopback too, carrying `X-Forwarded-For`) - that carries the
@@ -108,6 +111,7 @@
 #![allow(clippy::result_large_err)]
 
 pub mod ics;
+pub mod live;
 
 use crate::accounts::Accounts;
 use crate::identity::Claims;
@@ -705,6 +709,8 @@ pub fn sweep(store: &Store, now: i64) -> (usize, usize) {
 /// not: it is of a meeting an hour over, and the next read shows it.
 pub fn sweep_poking(accounts: &Accounts, now: i64) -> (usize, usize) {
     advance_poking(accounts, now);
+    // Live captions nothing has come to for half an hour, forgotten (meet/live.rs).
+    accounts.captions.forget_stale(now);
     accounts.store.sweep_meet(now, CLEAR_FOR, KEPT_FOR)
 }
 
@@ -1115,7 +1121,67 @@ pub(crate) async fn set_state(State(bot): State<Arc<Bot>>, Path(id): Path<String
     if b.state != body.state || b.detail != detail {
         bot.accounts.pokes.poke(b.account, Poke::Meet);
     }
+    // Over: its live captions are too (meet/live.rs).
+    if ENDED.contains(&body.state.as_str()) {
+        end_live(&bot.accounts, &b.id);
+    }
     Json(json!({ "id": b.id, "state": body.state })).into_response()
+}
+
+/// Meeting `id`'s live captions over: forgotten, and its account's devices told so.
+fn end_live(accounts: &Accounts, id: &str) {
+    if let Some(account) = accounts.captions.end(id) {
+        accounts.pokes.say(account, live::ended_frame(id));
+    }
+}
+
+/// A batch of the captions while Ghost is in meeting `id` (meet/live.rs): sealed to its account here, the clear words
+/// wiped, and the frame passed to the account's signed-in devices at once. 409 for a meeting Ghost is not joining or in
+/// (the bot stops sending), or whose account has no key; 429 past the meeting's pace.
+pub(crate) async fn post_live(State(bot): State<Arc<Bot>>, Path(id): Path<String>, Json(batch): Json<live::Batch>) -> Response {
+    let Some(b) = bot.accounts.store.meet_booking(&id).filter(|b| base64url(&id, 1..=64) && b.series.is_none()) else {
+        return error(StatusCode::NOT_FOUND, "No meeting by that id.");
+    };
+    if !matches!(b.state.as_str(), "joining" | "in_call") {
+        return (StatusCode::CONFLICT, Json(json!({ "error": "Ghost is not in that meeting.", "id": b.id, "state": b.state }))).into_response();
+    }
+    if let Some(why) = batch.refused() {
+        return error(StatusCode::BAD_REQUEST, why);
+    }
+    let Some(public) = bot.accounts.store.account_key(b.account).map(|k| k.pub_key) else {
+        return error(StatusCode::CONFLICT, "That meeting's account has no encryption key to seal it to.");
+    };
+    match bot.accounts.captions.send(&b.id, b.account, &public, batch, now_ms()) {
+        live::Sent::Frame(frame) => {
+            bot.accounts.pokes.say(b.account, frame);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        live::Sent::Empty => StatusCode::NO_CONTENT.into_response(),
+        live::Sent::Busy => error(StatusCode::TOO_MANY_REQUESTS, "Too many batches. Slow down."),
+        live::Sent::Full => error(StatusCode::SERVICE_UNAVAILABLE, "Too many meetings are live at once."),
+        live::Sent::Failed => error(StatusCode::INTERNAL_SERVER_ERROR, "Those captions could not be sealed."),
+    }
+}
+
+#[derive(Deserialize)]
+struct LiveQuery {
+    #[serde(default)]
+    after: Option<u64>,
+}
+
+/// The live captions kept for the account's meeting `id`, sealed, after frame `after` (meet/live.rs): what a device
+/// coming to the front mid-meeting catches up with. 404 for another account's meeting, as every route here answers.
+async fn get_live(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims, Query(query): Query<LiveQuery>) -> Response {
+    let b = match own(&accounts, who.sub, &id) {
+        Ok(b) => b,
+        Err(refused) => return refused,
+    };
+    if !accounts.captions.may_get(who.sub) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "Too many requests. Slow down.");
+    }
+    let mut response = Json(accounts.captions.since(&b.id, who.sub, query.after.unwrap_or(0), now_ms())).into_response();
+    response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 /// A field's bytes appended to `into`, refused past `limit` in all.
@@ -1235,6 +1301,8 @@ pub(crate) async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>
         return error(StatusCode::INTERNAL_SERVER_ERROR, "That take could not be kept.");
     };
     bot.accounts.store.set_meet_state(&b.id, "done", b.detail.as_deref(), now_secs());
+    // The take has every line: the live captions are over (meet/live.rs).
+    end_live(&bot.accounts, &b.id);
     // The account's devices fetch it now, not at their next pass; the word covers the meeting being done as well.
     bot.accounts.pokes.poke(b.account, Poke::Take);
     Json(json!({ "take": take, "size": size })).into_response()
@@ -1249,6 +1317,7 @@ pub fn router(accounts: Arc<Accounts>, bot_token: Option<String>) -> Router {
         .route("/api/v1/meet/takes/{id}", get(get_take).delete(delete_take))
         .route("/api/v1/meet/series/{id}", delete(stop_series))
         .route("/api/v1/meet/{id}", delete(skip))
+        .route("/api/v1/meet/{id}/live", get(get_live))
         .with_state(accounts.clone());
     if let Some(token) = bot_token {
         let bot = Arc::new(Bot::new(accounts, &token));
@@ -1256,6 +1325,7 @@ pub fn router(accounts: Arc<Accounts>, bot_token: Option<String>) -> Router {
             .route("/api/internal/meet/due", get(due))
             .route("/api/internal/meet/{id}/state", post(set_state))
             .route("/api/internal/meet/{id}/take", put(put_take).layer(DefaultBodyLimit::max(TAKE_BODY)))
+            .route("/api/internal/meet/{id}/live", post(post_live).layer(DefaultBodyLimit::max(live::BODY_MOST)))
             .route_layer(middleware::from_fn_with_state(bot.clone(), bot_only))
             .with_state(bot);
         routes = routes.merge(internal);
