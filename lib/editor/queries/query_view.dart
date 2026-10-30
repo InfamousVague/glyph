@@ -44,7 +44,9 @@ import 'query_board.dart';
 import 'query_builder.dart';
 import 'query_timeline.dart';
 import 'query_layout.dart';
+import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
+import 'ticket_marks.dart';
 import 'query_parts.dart';
 
 /// The ways a query can be shown, for the switcher: each with its mark and a word, in the order docs/QUERIES.md
@@ -90,7 +92,11 @@ class QueryView extends StatefulWidget {
     this.onAdd,
     this.people,
     this.dayPicker,
+    this.ticketMarks,
   }) : linesEditable = linesEditable ?? editable;
+
+  /// A ticket's lock and its sub-tickets' progress, by note id (ticket_marks.dart).
+  final TicketMarks Function(String noteId)? ticketMarks;
 
   final QueryLook look;
 
@@ -169,6 +175,7 @@ class QueryViewState extends State<QueryView> {
       onMove: widget.onMove,
       onAdd: widget.editable ? widget.onAdd : null,
       onControl: (pointer) => controlPointer = pointer,
+      marks: switch (widget.ticketMarks) { final marks? => (row) => row.id == null || row.kind == RecordKind.task ? null : marks(row.noteId), null => null },
       pickable: (row, field) => canPick && picksField(row, field),
       pick: (row, column, cell) {
         final pick = pickOf(row, column.field, cell, widget.today ?? result.today, widget.people ?? () => const <String>[]);
@@ -516,6 +523,7 @@ class QueryRowLine extends StatelessWidget {
           children: <Widget>[
             if (keyed) CssItem(whole: true, child: QueryKeyLine(look: look, id: id)),
             QueryName(look: look, row: row, acts: acts, hideKey: keyLine),
+            if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks, bar: false),
             if (result != null && QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts),
           ],
         ),

@@ -176,6 +176,7 @@ class AddGates {
     this.database = true,
     this.blank = true,
     this.person = false,
+    this.button = false,
     this.simple = false,
   });
 
@@ -212,6 +213,9 @@ class AddGates {
   /// A contact can be picked from the phone's address book: Settings › Contacts is on.
   final bool person;
 
+  /// A button can be built (lib/editor/buttons/button_builder.dart): the screen opens the builder.
+  final bool button;
+
   /// Simple mode (`Preferences.simple`): the basics first, the rest behind More (see the header).
   final bool simple;
 }
@@ -233,6 +237,7 @@ AddGates readGates({
   bool database = true,
   bool blank = true,
   bool person = false,
+  bool button = false,
   bool simple = false,
   List<PlusEffect> effects = const <PlusEffect>[],
   List<PlusInsert> inserts = const <PlusInsert>[],
@@ -252,6 +257,7 @@ AddGates readGates({
   database: database,
   blank: blank,
   person: person,
+  button: button,
   simple: simple,
 );
 
@@ -392,6 +398,8 @@ List<AddRow> _fullMoreRows(AddGates gates) => <AddRow>[
   const AddRow(id: 'tag', words: 'A tag'),
   const AddRow(id: 'counter', words: 'A counter'),
   const AddRow(id: 'sum', words: 'A sum'),
+  // A link that runs an action when pressed (lib/core/note_buttons.dart), made in a small builder.
+  if (gates.button) const AddRow(id: 'button', words: 'A button'),
   // A question for the AI where its answer belongs (docs/DESIGN.md §145): writing one needs no model. Under a table
   // with an empty cell, a blank in every one.
   if (gates.blank) const AddRow(id: 'blank', words: 'A blank for the AI'),

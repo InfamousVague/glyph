@@ -118,6 +118,7 @@ class AddConfig {
     this.tickets = false,
     this.blanks = false,
     this.onPerson,
+    this.onButton,
     this.simple = false,
   });
 
@@ -162,6 +163,9 @@ class AddConfig {
   /// A person: the screen opens the contacts to pick from and writes the one picked ([writePerson]); absent where
   /// Settings › Contacts is off.
   final VoidCallback? onPerson;
+
+  /// A button: the screen opens the builder and writes the line it answers (lib/editor/buttons/button_builder.dart).
+  final VoidCallback? onButton;
 
   /// Simple mode (`Preferences.simple`, GHST-103): the basics on the first page with a line each, the rest behind
   /// More (add_rows.dart `simpleTopRows`). Read as the list opens, with the other gates.
@@ -441,6 +445,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       database: config.databases,
       blank: config.blanks,
       person: config.onPerson != null,
+      button: config.onButton != null,
       simple: config.simple,
       effects: config.effects,
       inserts: config.inserts,
@@ -624,6 +629,8 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       config.onPlace?.call();
     } else if (row.id == 'person') {
       config.onPerson?.call();
+    } else if (row.id == 'button') {
+      config.onButton?.call();
     } else if (writeRow(view, row.id, now, effects: config.effects, inserts: config.inserts) && !view.hasFocus) {
       view.focus();
     }

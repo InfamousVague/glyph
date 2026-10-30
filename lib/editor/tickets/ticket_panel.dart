@@ -24,6 +24,7 @@
 /// - `:hover` grounds and `title=` tooltips are a pointer's and are left out.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
@@ -32,10 +33,11 @@ import 'package:glacier/glacier.dart' show GlacierTextSelectionControls, Glacier
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
-import '../../book/tickets.dart' show TicketChoice, waitingOn;
+import '../../book/tickets.dart' show TicketChoice, Wait, waitingOn;
 import '../../core/days.dart' show isIsoDay;
 import '../../core/properties.dart';
 import '../../core/task_fields.dart' show priorityOf;
+import '../../sheet/ask_first.dart';
 import '../../sheet/css.dart' show snapBorder;
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
@@ -52,7 +54,7 @@ import 'ticket_rows.dart';
 /// What the screen hands the editor for a ticket's panel and its keys: the library's tickets, read when they are
 /// drawn (`TicketOptions`).
 class TicketOptions {
-  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId});
+  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem});
 
   /// The workflow this note's status moves through: its notebook's (lib/book/tickets.dart), or the default.
   final List<String> Function() statuses;
@@ -72,6 +74,17 @@ class TicketOptions {
   /// The key this note would get from its notebook, for a ticket that has none yet (lib/book/tickets.dart
   /// `nextTicketId`).
   final String? Function()? nextId;
+
+  /// The tickets whose `parent:` is this one (lib/book/ticket_links.dart; Matt, 2026-10-30): its Sub-tickets and their
+  /// progress. Absent, none are shown.
+  final List<TicketChoice> Function()? subTickets;
+
+  /// Add sub-ticket: a ticket of that title made with this one as its parent. Absent, no Add.
+  final void Function(String title)? addSubTicket;
+
+  /// Why a value cannot be written for Blocked by or Parent, in a sentence, or null where it can: a ring, a ticket
+  /// waiting on itself however far round (lib/book/ticket_links.dart `blockedByProblem`, `parentProblem`).
+  final String? Function(String key, Object? value)? problem;
 }
 
 /// A property's name, as the panel says it (lib/core/properties.dart `ticketProperties`).
@@ -407,7 +420,9 @@ class _TicketPanelState extends State<TicketPanel> {
     final record = ticket.id ?? '';
     switch (key) {
       case 'status':
-        return StatusSheet(look: look, value: ticket.status, statuses: statuses, onClose: close, onPick: (value) => widget.write('status', value));
+        return StatusSheet(look: look, value: ticket.status, statuses: statuses, onClose: close, onPick: (value) => unawaited(_writeStatus(ticket, value, statuses)));
+      case 'sub-ticket':
+        return SubTicketSheet(onClose: close, onAdd: (title) => options.addSubTicket?.call(title));
       case 'priority':
         return FieldPicker(pick: PriorityPick(value: ticket.priority), label: 'Priority', record: record, onClose: close, onPick: (value) => widget.write('priority', value));
       case 'assignee':
@@ -418,6 +433,73 @@ class _TicketPanelState extends State<TicketPanel> {
       default:
         return TicketsSheet(what: key, ticket: ticket, options: options, write: widget.write, onClose: close);
     }
+  }
+
+  /// Its sub-tickets: a bar of how many are done, each one a tap away, and Add sub-ticket (Matt, 2026-10-30, of a
+  /// list of plain-Markdown features: "add all 12"). Under the rows, ruled off as the foot is.
+  Widget _subTickets(List<TicketChoice> children, {required bool adds}) {
+    final done = children.where((child) => child.category == StatusCategory.done).length;
+    final fraction = children.isEmpty ? 0.0 : done / children.length;
+    final options = widget.options;
+    return Padding(
+      padding: EdgeInsets.only(top: look.space(1), bottom: look.space(1)),
+      child: Part(
+        'subTickets',
+        child: Container(
+          padding: EdgeInsets.only(top: look.space(2)),
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: look.rule))),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Semantics(
+                container: true,
+                label: 'Sub-tickets, $done of ${children.length} done',
+                excludeSemantics: true,
+                child: Row(
+                  children: <Widget>[
+                    Expanded(child: PageWords('Sub-tickets', look.sans(look.em, color: look.ink3), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Part('progressWords', child: PageWords('$done of ${children.length} done', look.sans(look.xs, color: look.ink3), line: look.lineXs, softWrap: false)),
+                  ],
+                ),
+              ),
+              SizedBox(height: look.space(1)),
+              Part('progress', child: TicketProgressBar(look: look, fraction: fraction)),
+              SizedBox(height: look.space(2)),
+              LayoutBuilder(
+                builder: (context, constraints) => CssWrap(
+                  gap: look.space(1),
+                  rowGap: look.space(1),
+                  align: CssAlign.center,
+                  children: <Widget>[
+                    for (final child in children) _link(child, waiting: false, onOpen: options == null ? null : () => options.open(child.key ?? child.title), room: constraints.maxWidth),
+                    if (adds) _round('addSub', Lucide.plus, 13, label: 'Add sub-ticket', words: 'Add', wide: true, onTap: () => _pick('sub-ticket')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A status picked: written, unless it is a done one while the ticket still waits on another, which asks first
+  /// (Matt, 2026-10-30: a blocked ticket "can't be moved to done without a confirmation").
+  Future<void> _writeStatus(Ticket ticket, String status, List<String> statuses) async {
+    final write = widget.write;
+    final options = widget.options;
+    final waits = options == null ? <Wait<TicketChoice>>[] : waitingOn<TicketChoice>(ticket, options.find);
+    if (statusCategory(status, statuses) == StatusCategory.done && waits.isNotEmpty) {
+      final named = [for (final wait in waits) wait.found.key ?? '“${wait.found.title}”'];
+      final list = named.length == 1 ? named.single : '${named.sublist(0, named.length - 1).join(', ')} and ${named.last}';
+      final yes = await askFirst(
+        context,
+        FirstAsk(title: 'Move ${ticket.id ?? 'it'} to $status?', note: 'It still waits on $list, which ${named.length == 1 ? 'isn’t' : 'aren’t'} done.', yes: 'Move it anyway'),
+      );
+      if (!yes) return;
+    }
+    write('status', status);
   }
 
   /// The widest single letter of [text]: what words that break anywhere come to at their narrowest.
@@ -502,6 +584,9 @@ class _TicketPanelState extends State<TicketPanel> {
       if (options != null)
         for (final wait in waitingOn<TicketChoice>(ticket, options.find)) (target: wait.target, found: wait.found),
     ];
+    // Its sub-tickets (lib/book/ticket_links.dart): how many are done, and Add sub-ticket.
+    final children = options?.subTickets?.call() ?? const <TicketChoice>[];
+    final adds = editable && options?.addSubTicket != null;
     // A ticket made with no key (a Bug report from the blank page) takes its notebook's next, a tap away.
     final id = ticket.id;
     final offered = (id == null || id.isEmpty) && editable ? options?.nextId?.call() : null;
@@ -656,7 +741,8 @@ class _TicketPanelState extends State<TicketPanel> {
                     ],
                   ),
                 ),
-                if (hidden.isNotEmpty || (others.isNotEmpty && editable))
+                if (children.isNotEmpty) _subTickets(children, adds: adds),
+                if (hidden.isNotEmpty || (others.isNotEmpty && editable) || (adds && children.isEmpty))
                   // .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
                   //   gap: var(--glacier-space-1) var(--glacier-space-3); margin-block-start: var(--glacier-space-1);
                   //   padding-block-start: var(--glacier-space-2); border-block-start: 1px solid var(--app-rule) }
@@ -691,6 +777,26 @@ class _TicketPanelState extends State<TicketPanel> {
                                         AppIcon(Lucide.plus, size: 13, color: look.ink3),
                                         SizedBox(width: look.space(1)),
                                         Flexible(child: PageWords(hidden.map(labelOf).join(', '), look.sans(look.xs, color: look.ink3), line: look.lineXs, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            // Add sub-ticket, where the ticket has none yet: a quiet word at the foot, as More's is.
+                            if (adds && children.isEmpty)
+                              _tap(
+                                label: 'Add sub-ticket',
+                                onTap: () => _pick('sub-ticket'),
+                                child: Part(
+                                  'addSub',
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: look.space(1)),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        AppIcon(Lucide.listTree, size: 13, color: look.ink3),
+                                        SizedBox(width: look.space(1)),
+                                        Flexible(child: PageWords('Sub-ticket', look.sans(look.xs, color: look.ink3), line: look.lineXs, softWrap: false, maxLines: 1)),
                                       ],
                                     ),
                                   ),
@@ -982,6 +1088,21 @@ class TicketsSheet extends StatefulWidget {
 class _TicketsSheetState extends State<TicketsSheet> {
   String _typed = '';
 
+  /// Why the last pick was not written: a ring (Matt, 2026-10-30: "Cycles are refused with a clear message").
+  String? _refused;
+
+  /// [value] written for [key], unless it would make a ring, which is said and not written.
+  bool _wrote(String key, Object? value) {
+    final problem = widget.options.problem?.call(key, value);
+    if (problem != null) {
+      setState(() => _refused = problem);
+      return false;
+    }
+    if (_refused != null) setState(() => _refused = null);
+    widget.write(key, value);
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final options = widget.options;
@@ -997,6 +1118,8 @@ class _TicketsSheetState extends State<TicketsSheet> {
         if (needle.isEmpty || '${choice.key ?? ''} ${choice.title}'.toLowerCase().contains(needle)) choice,
     ];
     void chose(String key, Object? value) {
+      final problem = widget.options.problem?.call(key, value);
+      if (problem != null) return setState(() => _refused = problem);
       final write = widget.write;
       widget.onClose();
       write(key, value);
@@ -1008,7 +1131,7 @@ class _TicketsSheetState extends State<TicketsSheet> {
         for (final target in holds(choice) ? kept : <String>[...kept, choice.key ?? choice.title])
           linkTo(options.find(target) ?? TicketChoice(key: null, title: target, status: null, category: StatusCategory.todo)),
       ];
-      widget.write('blocked-by', linksValue(links));
+      _wrote('blocked-by', linksValue(links));
     }
 
     final label = labelOf(widget.what);
@@ -1018,6 +1141,7 @@ class _TicketsSheetState extends State<TicketsSheet> {
       children: <Widget>[
         SheetTitle.text(label),
         SheetField(label: 'Find a ticket', value: _typed, placeholder: 'Its key or its title', onChange: (text) => setState(() => _typed = text)),
+        if (_refused != null) SheetNote(_refused!),
         SheetGroup(
           children: <Widget>[
             if (choices.isEmpty) SheetRow(label: needle.isNotEmpty ? 'No ticket by that key or title.' : 'No other tickets yet.'),
@@ -1031,6 +1155,74 @@ class _TicketsSheetState extends State<TicketsSheet> {
                 onPress: () => many ? toggle(choice) : chose('parent', holds(choice) ? null : linkTo(choice)),
               ),
             if (!many && current.isNotEmpty) SheetRow(label: 'No parent', onPress: () => chose('parent', null)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A sub-ticket's progress: a thin track, filled in the done colour as far as its sub-tickets are done.
+class TicketProgressBar extends StatelessWidget {
+  const TicketProgressBar({super.key, required this.look, required this.fraction, this.height = 4});
+
+  final QueryLook look;
+  final double fraction;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(height / 2);
+    return ClipRRect(
+      borderRadius: radius,
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            ColoredBox(color: look.t.colorOf('color-mix(in oklch, var(--app-ink) 10%, transparent)')),
+            FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: fraction.clamp(0.0, 1.0), child: ColoredBox(color: look.t.color('glacier-green-9'))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Add sub-ticket's sheet: its title typed, and Add, which makes it with this ticket as its parent.
+class SubTicketSheet extends StatefulWidget {
+  const SubTicketSheet({super.key, required this.onAdd, required this.onClose});
+
+  final void Function(String title) onAdd;
+  final VoidCallback onClose;
+
+  @override
+  State<SubTicketSheet> createState() => _SubTicketSheetState();
+}
+
+class _SubTicketSheetState extends State<SubTicketSheet> {
+  String _title = '';
+
+  void _add() {
+    final title = _title.trim();
+    if (title.isEmpty) return;
+    final add = widget.onAdd;
+    widget.onClose();
+    add(title);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Sheet(
+      key: const ValueKey('sub-ticket-sheet'),
+      label: 'Add sub-ticket',
+      onClose: widget.onClose,
+      children: <Widget>[
+        SheetTitle.text('Add sub-ticket'),
+        SheetGroup(
+          children: <Widget>[
+            SheetField(label: 'Title', value: _title, autoFocus: true, placeholder: 'What it is', onChange: (text) => setState(() => _title = text), onSubmitted: (_) => _add()),
+            SheetRow(key: const ValueKey('sub-ticket-add'), label: 'Add', hint: 'A ticket of its own, under this one.', disabled: _title.trim().isEmpty, onPress: _add),
           ],
         ),
       ],

@@ -919,7 +919,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     for (final action in actions) {
       switch (action) {
         case VoiceCreate<TakeCandidate<Note>>():
-          final created = await _createFinal(action.title, action.items, action.tasks, action.body);
+          final created = await _createFinal(action.title, action.items, action.tasks, action.body, template: action.template, place: action.place);
           if (created != null) {
             made.add(created.id);
             if (first == null) {
@@ -985,8 +985,15 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   }
 
   /// The confirmed new list or note of a finished recording: its title, then its items as a list, or its words.
-  Future<Note?> _createFinal(String title, List<String> items, bool tasks, String? body) {
-    final named = listTitle(title);
+  Future<Note?> _createFinal(String title, List<String> items, bool tasks, String? body, {String? template, String? place}) async {
+    // "New bug in Kiln": the template's words, filed there once made (Recorder.fromTemplate).
+    final from = template == null || place == null ? null : _r.fromTemplate(template, place, title);
+    if (from != null) {
+      final made = await _createFinalNote(from.body);
+      if (made != null) from.file(made.id);
+      return made;
+    }
+    final named = listTitle(title.isEmpty ? (template ?? '') : title);
     if (body != null && body.isNotEmpty) return _createFinalNote('$named\n\n$body');
     return _createFinalNote(items.isNotEmpty ? appendToList(named, items, asTasks: tasks).body : named);
   }

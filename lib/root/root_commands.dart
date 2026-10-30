@@ -189,7 +189,9 @@ extension _RootCommands on _GhostRootState {
   void _openTitleWithin(String title) {
     final on = _onScreen;
     if (on != null && isTemplatesBody(on.body)) return _openTemplatePage(title);
-    _openTitleFrom(title, within: true);
+    // A notebook with a template of its own starts its new pages from it (root_templates.dart).
+    final notebook = on != null && isBookBody(on.body) ? on.body : null;
+    _openTitleFrom(title, within: true, make: notebook == null ? null : (named) => _pageFromTemplate(named, notebook) ?? '# $named\n\n');
   }
 
   /// A template's page by its name, the oldest of it, made where there is none: marked, named by its `title:`, its
@@ -226,7 +228,9 @@ extension _RootCommands on _GhostRootState {
   /// status; and its template filled for it, or its title alone.
   void _openTicketWithin(String title, String notebook, NoteTemplate? template) {
     final id = nextTicketId(notebook, [for (final note in _library.value) note.body]);
-    final words = template == null ? null : fillNoteTemplate(template, DateTime.now(), _takenTitles, nextId: id, title: title).body;
+    // Just the title, in a notebook with a template of its own: that template (root_templates.dart).
+    final from = template ?? _notebookTemplate(notebook);
+    final words = from == null ? null : fillNoteTemplate(from, DateTime.now(), _takenTitles, nextId: id, title: title, author: _author).body;
     _openTitleFrom(title, within: true, make: (named) => newTicketBody(named, id: id, statuses: statusesOf(notebook), words: words));
   }
 
@@ -466,11 +470,15 @@ extension _RootCommands on _GhostRootState {
   /// [template] (the home screen's Checklist: "A checklist") makes it as that template's card on its blank page does
   /// (NoteScreen `startFrom`): filled, its name settled against every other note's, the caret in its first open line,
   /// and its record kept, so a note left without a word of the person's own is taken back.
-  void _new([String? into, NoteTemplate? template]) {
+  ///
+  /// With no [template], the template of the folder it is made in, where that folder or one it is inside has one
+  /// (root_templates.dart; Matt, 2026-10-30): from the +, the dock, the command search and the folder's own New note.
+  void _new([String? into, NoteTemplate? chosen]) {
+    final template = chosen ?? _folderTemplate(into);
     Note make() {
       if (template == null) return _showMade('', caret: const Caret.at(0), fresh: true, into: into);
       final now = DateTime.now();
-      final filled = fillNoteTemplate(template, now, _takenTitles);
+      final filled = fillNoteTemplate(template, now, _takenTitles, author: _author);
       final note = _showMade(filled.body, caret: Caret.at(filled.caret), fresh: true, into: into);
       _untouched.remember(note.id, UntouchedRecord(title: filled.title, words: filled.words, at: now.millisecondsSinceEpoch));
       return note;

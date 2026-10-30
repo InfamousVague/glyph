@@ -69,6 +69,7 @@ import 'package:glacier/glacier.dart';
 import '../ai/support/authors.dart' show authorsAcross;
 import '../canvas/json_canvas.dart' show canvasNoteBody, isCanvasBody;
 import '../canvas/json_canvas.dart' as json_canvas show Canvas;
+import '../notes/place_templates.dart' show notebookTemplateName;
 import '../core/back.dart';
 import '../core/book.dart';
 import '../core/front_matter.dart' show frontMatterEnd;
@@ -1394,18 +1395,22 @@ class BookViewState extends State<BookView> {
   /// (`pageLines`).
   List<_StartRow> _pageLines(String title) {
     final now = _now();
+    // A notebook with a template of its own starts a page from it where nothing else is chosen (lib/notes/
+    // place_templates.dart).
+    final own = notebookTemplateName(widget.body);
     return [
       for (final each in pageStarts())
-        (id: each.id, name: each.name, line: each.text.isNotEmpty ? startLine(each.text, widget.title, now) : (title.isNotEmpty ? title : 'The page’s title, and nothing under it')),
+        (id: each.id, name: each.id == justTheTitle.id && own != null ? own : each.name, line: each.text.isNotEmpty ? startLine(each.text, widget.title, now) : (own != null ? 'The notebook’s template, ${title.isNotEmpty ? '“$title”' : 'the page’s title'} its name' : (title.isNotEmpty ? title : 'The page’s title, and nothing under it'))),
     ];
   }
 
   /// A ticket's ways to start: its key and title alone, then each ticket's template, said in its sentence
   /// (`ticketLines`).
   List<_StartRow> _ticketLines(String? key, String title) {
-    final alone = '${key != null && key.isNotEmpty ? '$key-…' : 'Its key'}, ${title.isNotEmpty ? '“$title”' : 'its title'} and its status, and nothing under them';
+    final own = notebookTemplateName(widget.body);
+    final alone = own != null ? 'The notebook’s template, with its key and status' : '${key != null && key.isNotEmpty ? '$key-…' : 'Its key'}, ${title.isNotEmpty ? '“$title”' : 'its title'} and its status, and nothing under them';
     return [
-      (id: justTheTitle.id, name: justTheTitle.name, line: alone),
+      (id: justTheTitle.id, name: own ?? justTheTitle.name, line: alone),
       for (final each in widget.ticketTemplates) (id: each.id, name: each.name, line: each.sentence),
     ];
   }

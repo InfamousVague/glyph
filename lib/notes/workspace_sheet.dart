@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/icons.dart';
+import '../core/preferences.dart' show preferences;
 import '../core/workspaces.dart' show Workspace, WorkspaceStore, orgOfWorkspace, workspacePathName;
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
@@ -30,7 +31,7 @@ import 'workspace_swatch.dart';
 ///   goes (the web's `deleteWorkspace(id, { trashNotes: true })`). Without [onTrashNotes] the row that would use it
 ///   is there and cannot be pressed.
 class WorkspaceManageSheet extends StatefulWidget {
-  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, this.deleting = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes});
+  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, this.deleting = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes, this.onSetTemplate, this.templateOf});
 
   final WorkspaceStore store;
 
@@ -59,11 +60,19 @@ class WorkspaceManageSheet extends StatefulWidget {
   /// Puts these notes in the trash: "Delete, and move the notes to Trash".
   final void Function(List<String> noteIds)? onTrashNotes;
 
+  /// Set template…, for a folder's new notes (lib/notes/place_templates.dart), and the name of the one it has now;
+  /// left out, no row. Simple mode keeps it behind the sheet's More.
+  final ValueChanged<Workspace>? onSetTemplate;
+  final String? Function(Workspace folder)? templateOf;
+
   @override
   State<WorkspaceManageSheet> createState() => _WorkspaceManageSheetState();
 }
 
 class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
+  /// Simple mode's More… pressed: the template's row in its place.
+  bool _moreShown = false;
+
   late String _name = widget.editing?.name ?? '';
   late String _hue = widget.editing?.hue ?? 'ink';
 
@@ -300,6 +309,24 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
                 hint: editing.parent == null ? 'At the top now.' : 'In ${workspacePathName(widget.store.value.list, editing.parent!)} now.',
                 onPress: () => setState(() => _moving = true),
               ),
+            ],
+          ),
+        if (!making && widget.onSetTemplate != null)
+          SheetGroup(
+            children: [
+              if (preferences.value.simple && !_moreShown)
+                SheetRow(key: const ValueKey('workspace-more'), label: 'More…', hint: 'The template its new notes start from.', onPress: () => setState(() => _moreShown = true))
+              else
+                SheetRow(
+                  key: const ValueKey('workspace-template'),
+                  label: 'Set template…',
+                  hint: switch (widget.templateOf?.call(editing)) { final name? => 'New notes here start from $name.', null => 'New notes here start blank.' },
+                  onPress: () {
+                    final set = widget.onSetTemplate!;
+                    widget.onClose();
+                    set(editing);
+                  },
+                ),
             ],
           ),
         if (!making)
