@@ -1377,9 +1377,9 @@ class _GhostRootState extends State<GhostRoot> {
   /// And to Discord (lib/plugins/discord/meetings.dart), beside them.
   MeetingDiscordPoster? _discordMeetings;
 
-  /// A note's share link for the Discord plugin's cut of a long note: the link the note's Share sheet copies, made or
-  /// found again by the app's share.
-  Future<String> _discordShare(String noteId) async {
+  /// A note's share link: the link the note's Share sheet copies, made or found again by the app's share. The Discord
+  /// plugin's cut of a long note, and the Claude chat's Copy link on a note Claude wrote.
+  Future<String> _shareLinkFor(String noteId) async {
     final shares = _services?.shares;
     final note = await _library.get(noteId);
     if (shares == null || note == null) throw StateError('no share to make here');
@@ -1756,7 +1756,7 @@ class _GhostRootState extends State<GhostRoot> {
     if (identical(meetingSlackPoster, _slackMeetings)) meetingSlackPoster = null;
     if (identical(meetingDiscordPoster, _discordMeetings)) meetingDiscordPoster = null;
     // A method's tear-off is equal to another of it, never the same object.
-    if (discordShareLink == _discordShare) {
+    if (discordShareLink == _shareLinkFor) {
       discordShareLink = null;
       discordCanShare = () => discordShareLink != null;
     }
@@ -1876,7 +1876,7 @@ class _GhostRootState extends State<GhostRoot> {
     if (_voicePreviews != null) elevenLabsPlayer = _voicePreviews;
     // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
     // build has an account signed in (lib/plugins/discord/discord.dart).
-    discordShareLink = _discordShare;
+    discordShareLink = _shareLinkFor;
     discordCanShare = () => _services?.shares != null && (_services?.signedIn ?? false);
     // The plugins' switches, for what the root draws of them: Claude on every dock, its chat and its bar.
     _pluginsHeard.addListener(_pluginsMoved);
