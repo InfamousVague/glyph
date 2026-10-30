@@ -207,6 +207,9 @@ class AboutPane extends StatelessWidget {
             if (!simple) help(Lucide.fileCode, 'Specification', 'Exactly how every extension and AI fill is written, and the standard Markdown under them.', open == null ? null : () => open('spec')),
             if (offersGuideBook) help(Lucide.bookOpenText, guideTitle, 'The whole app in $guideChapters short chapters. Added to your notes the first time, and opened after that.', onGuideBook),
             if (!simple) help(Lucide.shapes, 'Examples', 'A sample note, a board and two canvases, to add to your notes.', open == null ? null : () => open('examples')),
+            // Every release this build carries and what changed in each (lib/changelog; Matt, 2026-10-30), the page the What's
+            // new card's See all changes opens.
+            help(Lucide.sparkles, 'Changelog', "What's new in every release, newest first.", open == null ? null : () => open('changelog')),
           ],
         ),
         // The releases are over-the-air builds, which an iPhone never runs: the App Store says what's new there.

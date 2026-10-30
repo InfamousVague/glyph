@@ -4,6 +4,7 @@ import '../account/ui_state.dart';
 import '../core/mac_app.dart' show macAppStore;
 import '../core/preferences.dart';
 import '../art/art.dart' show AppIcon, Lucide;
+import '../changelog/changelog_pane.dart';
 import '../core/workspaces.dart' show Workspace;
 import '../market/market_items.dart' show marketLanding;
 import '../meet/ui/meeting_settings.dart' show meetingsGoSaid, recordingSectionId;
@@ -292,7 +293,7 @@ bool meetingPagesInSimple(SettingsFacts facts) {
 /// ([meetingPagesInSimple]), for its Meetings card, the rest of it behind More. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
 /// Export, Recording, AI, the Market and the plugins' pages, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
-const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'recording', 'theme', 'sounds', 'about', 'cheatsheet', 'developer', 'test-results'};
+const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'recording', 'theme', 'sounds', 'about', 'cheatsheet', 'changelog', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
@@ -611,6 +612,22 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => _static('A sample note, a board and two canvases', facts),
     settings: (facts) => examplesFindable,
     pane: ExamplesPane.hosted,
+    listed: false,
+    parent: 'about',
+  ),
+  // The Changelog (lib/changelog/changelog_pane.dart; Matt, 2026-10-30: "Add a changelog popup modal that shows after
+  // every update with iconography"): every release, newest first, behind About's Help and the What's new card's See all
+  // changes, in Simple too.
+  SettingsSectionSpec(
+    id: 'changelog',
+    label: 'Changelog',
+    words: "what's new whats new changelog releases updates versions history",
+    glyph: SettingsGlyph.sparkles,
+    group: 3,
+    webFile: 'settings/AboutPane.tsx',
+    // Found by its name and its words: its cards are the releases, which a search of the settings does not list.
+    summary: (facts) => _static('What changed in every release', facts),
+    pane: ChangelogPane.hosted,
     listed: false,
     parent: 'about',
   ),

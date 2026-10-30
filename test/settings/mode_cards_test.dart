@@ -86,14 +86,14 @@ void main() {
 
   group('the table', () {
     test('in Simple is Account, Notifications, Appearance, Sounds and About with its cheat sheet, and in Advanced everything', () {
-      expect(_among(_facts(_simple)), ['account', 'notifications', 'theme', 'sounds', 'about', 'cheatsheet']);
+      expect(_among(_facts(_simple)), ['account', 'notifications', 'theme', 'sounds', 'about', 'cheatsheet', 'changelog']);
       // The hidden pages answer to their own switch, in either mode.
-      expect(_among(_facts(_simple, developer: true)), ['account', 'notifications', 'theme', 'sounds', 'about', 'cheatsheet', 'developer', 'test-results']);
+      expect(_among(_facts(_simple, developer: true)), ['account', 'notifications', 'theme', 'sounds', 'about', 'cheatsheet', 'changelog', 'developer', 'test-results']);
       // The meeting plugins' pages, which were Meetings, are kept in Simple too, but listed only for an account whose
       // service has Ghost in meetings, and these facts have no account (test/plugins/meetings_test.dart lists them).
       // Recording with them, for the Meetings card every kind shares (test/meet/meeting_sorting_test.dart).
       expect(_among(_facts(_simple, developer: true)).toSet(), simpleSections.difference({'plugin:google-meet', 'plugin:zoom', 'recording'}));
-      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'sounds', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'snippets', 'market', 'about', 'cheatsheet', 'spec', 'examples'];
+      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'sounds', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'snippets', 'market', 'about', 'cheatsheet', 'spec', 'examples', 'changelog'];
       expect(_among(_facts(_advanced)), everything);
       // Until the choice is made the app is advanced, and so is Settings.
       expect(_among(_facts(const Preferences(theme: 'light'))), everything);

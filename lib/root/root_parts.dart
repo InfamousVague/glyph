@@ -100,6 +100,14 @@ extension _RootParts on _GhostRootState {
           if (guide == null || !guide.open || _launchUp || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
           return (guide.page, guide.tooSoon, _capture != null, _modelsForGuide);
         }, _guidePart),
+        // What's new after an update (lib/changelog/whats_new.dart; Matt, 2026-10-30: "Add a changelog popup modal that
+        // shows after every update with iconography"): raised only once nothing else is in the way (the launch screen,
+        // the walkthrough, a recording, a setup or any other sheet; _whatsNewClear), and up until it is put away.
+        _part('whatsNew', () {
+          final whatsNew = _whatsNew, waiting = whatsNew?.waiting, running = whatsNew?.running;
+          if (whatsNew == null || !whatsNew.up || waiting == null || running == null) return null;
+          return (waiting, running);
+        }, _whatsNewPart),
         // Something another app shared: its sheet, over the app, one share at a time (lib/share/ui/share_in_sheet.dart).
         _part('shareIn', () => _sharing.isEmpty || _launching ? null : _sharing.first, _shareInPart),
         _part('launch', () => _launching ? (_launchLoading, _launchNotes, _updatesAt, _launchSync, _voice) : null, _launchPart),
@@ -1036,6 +1044,13 @@ extension _RootParts on _GhostRootState {
           _shell.currentState?.openOrganization(id);
         },
       );
+
+  /// The What's new card, while it is up: the releases since the version last seen, Got it, See all changes.
+  Widget _whatsNewPart(BuildContext context) {
+    final whatsNew = _whatsNew, waiting = whatsNew?.waiting, running = whatsNew?.running;
+    if (whatsNew == null || waiting == null || running == null) return _nothing;
+    return WhatsNewCard(version: running, releases: waiting.releases, more: waiting.more, onClose: _whatsNewDone, onSeeAll: () => _whatsNewDone(seeAll: true));
+  }
 
   Widget _guidePart(BuildContext context) {
     final guide = _guide;

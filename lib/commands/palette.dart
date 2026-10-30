@@ -153,6 +153,7 @@ class PaletteDoing {
     required this.forward,
     required this.settings,
     this.cheatSheet,
+    this.changelog,
     this.guide,
     this.academy,
     this.notifications,
@@ -211,6 +212,9 @@ class PaletteDoing {
 
   /// Settings at the cheat sheet. Required on the web.
   final VoidCallback? cheatSheet;
+
+  /// Settings at the Changelog, every release and what changed in it (lib/changelog).
+  final VoidCallback? changelog;
 
   /// The welcome walkthrough, and the Academy. Required on the web; null until each is ported.
   final VoidCallback? guide;
@@ -471,6 +475,8 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (organizations != null) add('organizations', 'Organizations', app, 'teams team org members invite', organizations);
   final cheatSheet = doing.cheatSheet;
   if (cheatSheet != null) add('cheatsheet', 'Cheat sheet', app, 'marks markdown reference help', cheatSheet);
+  final changelog = doing.changelog;
+  if (changelog != null) add('changelog', 'What’s new', app, "changelog what's new whats new releases updates version history", changelog);
   final academy = doing.academy;
   if (academy != null) add('academy', 'Ghost Academy', app, 'learn lessons markdown teach', academy);
   final guide = doing.guide;
