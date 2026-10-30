@@ -124,12 +124,14 @@ void main() {
         ('cheatsheet', 3, SettingsGlyph.bookOpen),
         ('spec', 3, SettingsGlyph.fileCode),
         ('examples', 3, SettingsGlyph.shapes),
+        // Every release and what changed in it (lib/changelog, 2026-10-30), behind About's Help.
+        ('changelog', 3, SettingsGlyph.sparkles),
         ('developer', 4, SettingsGlyph.terminal),
         ('test-results', 4, SettingsGlyph.flaskConical),
       ]);
       // The sub-pages are off the list: Daily notes, the port's own, behind Workspaces; Import behind Export; the rest
       // behind About.
-      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('import', 'export'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
+      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('import', 'export'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about'), ('changelog', 'about')]);
       // Every one is a page (lib/settings/panes/, and Appearance): none waits on a feature that is not ported.
       expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], isEmpty);
       final web = Directory('tauri/src/app');

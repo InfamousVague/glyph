@@ -87,11 +87,14 @@ void main() {
     // Focus mode is the port's own (Matt, 2026-10-27: "build ... focus mode"), after the themes.
     final ported = [for (final row in page) if (!waiting.contains(row)) row];
     ported.insert(ported.lastIndexWhere((row) => row.startsWith('Theme: ')) + 1, 'Focus mode');
+    // What's new, the Changelog in Settings (lib/changelog, 2026-10-30), after the cheat sheet.
+    ported.insert(ported.indexOf('Cheat sheet') + 1, 'What’s new');
     expect(offered(), ported);
     // With nowhere to open Settings at a page, neither of the commands that would.
     final bare = [for (final command in paletteCommands(world(), doing(pages: false))) command.descriptor.id];
     expect(bare, isNot(contains('organizations')));
     expect(bare, isNot(contains('cheatsheet')));
+    expect(bare, isNot(contains('changelog')));
     await away(tester);
   });
 

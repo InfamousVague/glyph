@@ -219,7 +219,7 @@ void main() {
       expect(tester.widget<PaneHero>(find.byType(PaneHero)).title, ghostVersion);
       // Help's six, then what the build says of itself (lib/core/build_facts.dart).
       expect(rowLabels(tester), [
-        'Ghost Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples',
+        'Ghost Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples', 'Changelog',
         'Version', 'Built', 'Commit', 'Kind', 'Dart', 'Runs on', 'Account service', 'Updates from',
       ]);
       expect(hintOf(tester, 'Version'), '$ghostVersion (${versionCodeOf(ghostVersion)})');
@@ -344,7 +344,8 @@ void main() {
       expect(tester.getRect(find.text('HELP')).topLeft, offsetMoreOrLessEquals(const Offset(31.24, 370.72), epsilon: 0.75));
       expect(tester.getRect(inRow('Ghost Academy', find.text('Ghost Academy'))).topLeft, offsetMoreOrLessEquals(const Offset(78.69, 407.03), epsilon: 0.75));
       expect(tester.getRect(inRow('Examples', find.text('Examples', skipOffstage: false))).topLeft, offsetMoreOrLessEquals(const Offset(78.69, 938.98), epsilon: 1.5));
-      expect(tester.getRect(find.text("WHAT'S NEW", skipOffstage: false)).top, closeTo(1032.77, 1.5));
+      // The page's 1032.77, a row lower for Help's Changelog, the port's own (lib/changelog, 2026-10-30).
+      expect(tester.getRect(find.text("WHAT'S NEW", skipOffstage: false)).top, closeTo(1123.58, 1.5));
       await endSettings(tester);
     });
   });

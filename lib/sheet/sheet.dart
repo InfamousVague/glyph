@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -35,7 +37,21 @@ import 'sheet_drag.dart';
 /// - `--sheet-ground` and `--sheet-inset-top`, which a pinned strip inside a sheet reads, are not published.
 /// - A screen reader is given a way to dismiss it (`onDismiss`), where the page's scrim was a bare `div`.
 class Sheet extends StatefulWidget {
-  const Sheet({super.key, required this.label, required this.onClose, this.onBack, this.onScrimPointerDown, required this.children});
+  const Sheet({super.key, required this.label, required this.onClose, this.onBack, this.onScrimPointerDown, this.centred, required this.children});
+
+  /// How many sheets are up now, anywhere in the app: what waits for every other sheet to be put away before it comes
+  /// (the What's new card, lib/changelog/whats_new.dart, never over a plugin's setup or any other question). Told a
+  /// frame after a sheet comes or goes, never while one is being built.
+  static ValueListenable<int> get shown => _shown;
+  static final ValueNotifier<int> _shown = ValueNotifier(0);
+  static int _counted = 0;
+
+  static void _count(int by) {
+    _counted += by;
+    SchedulerBinding.instance
+      ..addPostFrameCallback((_) => _shown.value = _counted)
+      ..scheduleFrame();
+  }
 
   /// What the dialog is called, for a screen reader.
   final String label;
@@ -48,6 +64,10 @@ class Sheet extends StatefulWidget {
 
   /// A press on the scrim, before its tap: the canvas's + sheet keeps it from the canvas's own gestures under it.
   final void Function(PointerDownEvent event)? onScrimPointerDown;
+
+  /// A window in the middle rather than a drawer from the foot, with no grip: true for a wide window that is not a
+  /// desktop's (the opened Fold), false for a drawer even there. Null is the platform's: a window on a desktop.
+  final bool? centred;
 
   /// The sheet's blocks, top to bottom, under the grip.
   final List<Widget> children;
@@ -82,6 +102,7 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
     // sheet stood squeezed over the keyboard. What held the focus gives it up here; a field of the sheet's own that
     // asks for it as it is built still gets it.
     FocusManager.instance.primaryFocus?.unfocus();
+    Sheet._count(1);
     _spring.addListener(() => _pulled.value = _from * (1 - SheetDrag.springCurve.transform(_spring.value)));
   }
 
@@ -91,7 +112,7 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
     if (_started) return;
     _started = true;
     final t = context.tokens;
-    _enter.duration = Duration(milliseconds: _desktop(t) ? 200 : 320);
+    _enter.duration = Duration(milliseconds: _centred(t) ? 200 : 320);
     if (t.reducedMotion) {
       // `@media (prefers-reduced-motion: reduce) { .scrim, .sheet { animation: none } }`
       _enter.value = 1;
@@ -101,6 +122,9 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
   }
 
   static bool _desktop(Tokens t) => t.attrs['platform'] == 'desktop';
+
+  /// A window in the middle: [Sheet.centred], else a desktop's.
+  bool _centred(Tokens t) => widget.centred ?? _desktop(t);
 
   void _move(double dy, {required bool animated}) {
     _spring.stop();
@@ -114,6 +138,7 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    Sheet._count(-1);
     _enter.dispose();
     _spring.dispose();
     _pulled.dispose();
@@ -179,7 +204,7 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
   Widget _overlay(BuildContext overlayContext) {
     final t = context.tokens;
     final media = MediaQuery.of(overlayContext);
-    final desktop = _desktop(t);
+    final desktop = _centred(t);
     final keyboard = media.viewInsets.bottom;
     // `100dvh`: the window as it is now, less the keyboard that the page's window is shortened by.
     final dvh = media.size.height - keyboard;

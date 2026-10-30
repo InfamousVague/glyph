@@ -88,6 +88,10 @@ flutter:
     # it runs.
     - assets/academy/
     - assets/plugin-setup/
+    # What changed in each release, newest first (lib/changelog; Matt, 2026-10-30: "Add a changelog popup modal that
+    # shows after every update with iconography"): the What's new card after an update and Settings › About › Changelog.
+    # tool/cutover-build.sh refuses a version with no entry here (tool/changelog_check.sh).
+    - assets/changelog.json
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
   # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness

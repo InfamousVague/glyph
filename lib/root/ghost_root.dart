@@ -112,6 +112,8 @@ import '../diag/scene_bench.dart' show showSceneBench;
 import '../editor/queries/queries.dart' show NoteChange;
 import '../format/device_facts.dart' show DeviceFactsController;
 import '../format/gist.dart' show gistVisible, gistsCameBack, holdGistsFor, pauseGists, wakeGistsOn;
+import '../changelog/changelog.dart';
+import '../changelog/whats_new.dart';
 import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
@@ -181,6 +183,7 @@ import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
 import '../market/market_screen.dart';
+import '../settings/panes/about_pane.dart' show ghostVersion;
 import '../settings/panes/plugins_pane.dart' show pluginPageId;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
@@ -204,6 +207,7 @@ import '../shell/ai_chip.dart';
 import '../shell/app_shell.dart';
 import '../shell/page_dock.dart';
 import '../shell/screen.dart';
+import '../sheet/sheet.dart' show Sheet;
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart' show mobileDevice, mousePointer, splitFits;
 import '../simple/simple_home.dart';
@@ -273,7 +277,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.tapePreviews, this.updates, this.locator, this.placeLookup, this.placeSearch, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.tapePreviews, this.updates, this.locator, this.placeLookup, this.placeSearch, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares, this.whatsNew});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -329,6 +333,10 @@ class GhostRoot extends StatefulWidget {
   /// The welcome walkthrough's place in the app (lib/guide/guide_state.dart). The app over a core makes its own,
   /// which opens by itself on a first launch; a test brings one, or has none and is never walked through.
   final GuideController? guide;
+
+  /// What's new after an update (lib/changelog/whats_new.dart): what waits to be shown, and the version this device
+  /// last saw. The app over a core makes its own; a test hands one in, or there is none.
+  final WhatsNew? whatsNew;
 
   /// The app's one player of a note's recording (lib/tapes/phone_player.dart on a phone). Absent, a spoken note
   /// draws no tape.
@@ -778,6 +786,57 @@ class _GhostRootState extends State<GhostRoot> {
   void _updatesChanged() {
     _updatesAt += 1;
     _tick.tell();
+    // The phone says which version this is a moment after the app opens, and the Mac whether it put it in place.
+    _settleWhatsNew();
+  }
+
+  /// What's new: the changelog read, the version running told as soon as it is known, and the card raised once
+  /// nothing else is in the way ([_whatsNewClear]).
+  void _startWhatsNew() {
+    final whatsNew = _whatsNew;
+    if (whatsNew == null) return;
+    whatsNew.addListener(_tick.tell);
+    Sheet.shown.addListener(_tick.tell);
+    _tick.addListener(_whatsNewCheck);
+    unawaited(loadChangelog().then((_) => _settleWhatsNew()));
+  }
+
+  void _settleWhatsNew() {
+    final whatsNew = _whatsNew, changelog = bundledChangelog;
+    if (whatsNew == null || changelog == null || !mounted) return;
+    // Where there is an updater the phone's word is the version (it answers a moment after the first frame); a build
+    // with none (an iPhone's) is the version it was built as.
+    final updates = widget.updates, installed = updates?.installed;
+    final running = whatsNew.runningVersion ?? (updates == null ? ghostVersion : installed?.version);
+    whatsNew.settle(changelog: changelog, running: running, justUpdated: installed?.justUpdated ?? false);
+  }
+
+  /// Nothing the person is in the middle of: the launch screen gone, no walkthrough, no way into an account, no
+  /// recording, nothing shared in waiting, Settings, the palette and every sheet put away (a plugin's setup among them).
+  bool get _whatsNewClear =>
+      !_launchUp &&
+      !(_guide?.open ?? false) &&
+      !(_gate?.open ?? false) &&
+      !(_shell.currentState?.screen.isRecording ?? false) &&
+      !(_voice?.live?.state?.recording ?? false) &&
+      _sharing.isEmpty &&
+      !_settings &&
+      !(_commands.currentState?.isOpen ?? false) &&
+      Sheet.shown.value == 0;
+
+  /// Raises the card once the way is clear, after the change being told has been drawn.
+  void _whatsNewCheck() {
+    final whatsNew = _whatsNew;
+    if (whatsNew == null || whatsNew.up || whatsNew.waiting == null || !_whatsNewClear) return;
+    scheduleMicrotask(() {
+      if (mounted && _whatsNewClear) whatsNew.raise();
+    });
+  }
+
+  /// The card put away, by Got it or any other way: the version is seen. [seeAll] opens the Changelog after it.
+  void _whatsNewDone({bool seeAll = false}) {
+    _whatsNew?.seen();
+    if (seeAll) _openSettingsAt('changelog');
   }
 
   /// The AI of the note on screen, or its review's stage: the scene over the window.
@@ -894,6 +953,10 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// The walkthrough (shell/useGuide.ts): open by itself on the first launch that is not the side key's capture,
   /// and from Settings and the palette after. Made as the root is, the device's memory having been read by then.
+  /// What's new (lib/changelog/whats_new.dart): made as the root starts, before the walkthrough has written anything,
+  /// so a fresh install can be told from a device that ran the app before.
+  late final WhatsNew? _whatsNew = widget.whatsNew ?? (_real ? WhatsNew(store: _stored) : null);
+
   late final GuideController? _guide = widget.guide ??
       (_real ? GuideController(launchedByKey: (widget.voiceMaking?.assistant ?? false) && widget.voiceMaking?.launch == 'capture') : null);
 
@@ -1662,6 +1725,10 @@ class _GhostRootState extends State<GhostRoot> {
     claudeSettings.removeListener(_claudeKeyMoved);
     appAssistant.removeListener(_claudeKeyMoved);
     _guide?.removeListener(_changed);
+    _whatsNew?.removeListener(_tick.tell);
+    if (_whatsNew != null) Sheet.shown.removeListener(_tick.tell);
+    _tick.removeListener(_whatsNewCheck);
+    if (widget.whatsNew == null) _whatsNew?.dispose();
     // The updates are the process's, as the core is: let go of, never disposed.
     widget.updates?.removeListener(_updatesChanged);
     if (widget.guide == null) _guide?.dispose();
@@ -1753,6 +1820,7 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void initState() {
     super.initState();
+    _startWhatsNew();
     _smoke();
     _wispEdge.addListener(_smoke);
     // Local only turning on or off changes which plugins are on without a switch moving: the registry is told of

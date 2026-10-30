@@ -127,6 +127,7 @@ const Map<String, String> _hues = {
   'test-results': 'mint',
   // The sub-pages About opens keep the cheat sheet's yellow; a plugin's brings its own.
   'cheatsheet': 'yellow',
+  'changelog': 'yellow',
   'examples': 'yellow',
   'spec': 'yellow',
 };
