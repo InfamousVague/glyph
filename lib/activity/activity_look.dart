@@ -61,7 +61,7 @@ LucideIcon? kindIcon(JobKind kind) => switch (kind) {
     };
 
 /// A job's glyph at [size]: [kind]'s, drawn as [look] says (running, waiting, needing you), moving while it runs and
-/// [moving] allows. [fraction] fills the downloads' ring; null turns it. A [plugin]'s job wears that plugin's mark
+/// [moving] allows. [fraction] is the ring's and the bar's to show, never the glyph's. A [plugin]'s job wears that plugin's mark
 /// instead (job_mark.dart), still, dimmed while it waits; one that needs the person is the still red dot whoever's it is.
 class JobGlyph extends StatefulWidget {
   const JobGlyph({super.key, required this.kind, this.look, this.size = 18, this.fraction, this.moving = true, this.color, this.plugin});
@@ -192,11 +192,11 @@ class JobGlyphState extends State<JobGlyph> with SingleTickerProviderStateMixin 
       case JobKind.audio:
         return CustomPaint(painter: _ReelsPainter(turn: beat, colour: colour));
       case JobKind.downloads:
-        final f = widget.fraction;
-        return CustomPaint(
-          painter: _FillPainter(fraction: f ?? 1, start: f == null ? beat : 0, colour: colour, spinning: f == null),
-          child: Center(child: AppIcon(Lucide.arrowDown, size: size * 0.6, color: colour, strokeWidth: 2.6)),
-        );
+        // The arrow alone, settling down a little and back each beat: the ring round it and the tray's bar already say
+        // how far (Matt, 2026-10-30: "The download icon on the activity has a progress bar in a progress bar just show
+        // the download icon on the activity not a second progress circle").
+        final drop = math.sin(beat * math.pi);
+        return Transform.translate(offset: Offset(0, size * 0.08 * drop), child: AppIcon(Lucide.arrowDown, size: size, color: colour, strokeWidth: 2.2));
     }
   }
 }
@@ -270,38 +270,4 @@ class _ReelsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ReelsPainter old) => old.turn != turn || old.colour != colour;
-}
-
-/// A ring filling: a faint track, and [fraction] of it drawn from the top; [spinning], a quarter of it going round
-/// from [start].
-class _FillPainter extends CustomPainter {
-  const _FillPainter({required this.fraction, required this.start, required this.colour, required this.spinning});
-
-  final double fraction;
-  final double start;
-  final Color colour;
-  final bool spinning;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final stroke = math.max(1.6, size.width * 0.1);
-    final rect = (Offset.zero & size).deflate(stroke / 2 + 0.5);
-    canvas.drawArc(rect, 0, 2 * math.pi, false, Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..color = colour.withValues(alpha: colour.a * 0.25));
-    final arc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..color = colour;
-    if (spinning) {
-      canvas.drawArc(rect, -math.pi / 2 + start * 2 * math.pi, math.pi / 2, false, arc);
-    } else {
-      canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * fraction.clamp(0.0, 1.0), false, arc);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_FillPainter old) => old.fraction != fraction || old.start != start || old.colour != colour || old.spinning != spinning;
 }
