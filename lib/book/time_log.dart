@@ -59,7 +59,7 @@ class TimeEntry {
 }
 
 final RegExp _heading = RegExp(r'^#{1,6}\s+(.*?)\s*#*\s*$');
-final RegExp _entry = RegExp(r'^\s*[-*+]\s+(\d{4}-\d{2}-\d{2})\s*(?:[·|,]|\s-\s)?\s*(.*)$');
+final RegExp _entry = RegExp(r'^\s*[-*+]\s+(\d{4}-\d{2}-\d{2})\s*(?:[·|,]|-(?=\s))?\s*(.*)$');
 final RegExp _sep = RegExp(r'\s*(?:·|\||,|\s-\s)\s*');
 
 /// Where the log's lines are: the index of its heading line and of the line after its last, in [lines]; null where

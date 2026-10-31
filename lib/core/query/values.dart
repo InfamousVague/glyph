@@ -34,6 +34,7 @@ import '../../verified/verified.dart' show verifiedQueryWords;
 import '../days.dart' show isIsoDay, isoDay, isoDayAfter;
 import '../item_syntax.dart' show jsTrim;
 import '../properties.dart';
+import '../durations.dart' show spentMinutes;
 import '../sums.dart' show writtenNumber;
 import '../task_fields.dart' show TaskFields, dateKeys, priorities, priorityOf, priorityRank, samePerson;
 import 'collate.dart';
@@ -206,6 +207,8 @@ Value _inferred(String? said) {
   if (isIsoDay(clean)) return DayValue(clean);
   final number = writtenNumber(clean);
   if (number != null) return NumberValue(number, clean);
+  // Time spent, `3h 20m` (lib/core/durations.dart): its hours, so it sorts, compares and adds up as time.
+  if (spentMinutes(clean) case final minutes?) return NumberValue(minutes / 60, clean);
   if (clean.contains('[[')) return _links(linkTargets(clean));
   if (clean.startsWith('[') && clean.endsWith(']')) return _list(propertyList(clean));
   return TextValue(clean);

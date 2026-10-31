@@ -23,7 +23,7 @@
 /// `columns: title, open`, `total: open` and a chart's `y: sum(open)` all read it.
 library;
 
-import '../durations.dart' show spentMinutes, spentTotal;
+import '../durations.dart' show spentTotal;
 import '../properties.dart' show StatusCategory, linkTargets;
 import '../sums.dart' show leadingNumber, totalOf, writtenNumber;
 import 'read.dart';
@@ -34,15 +34,12 @@ import 'values.dart';
 typedef FieldLook = Value Function(QueryRecord record, String field);
 
 /// A value as a number, where it is one: a number, or words that start with one, as a total reads them (`5h`,
-/// `$1,200 a month`). Time spent (`3h 20m`, lib/core/durations.dart) is its hours, 3.33, not the 3 it starts with.
+/// `$1,200 a month`).
 double? numberOf(Value value) => switch (value) {
       NumberValue(:final value) => value,
-      TextValue(:final text) => switch (spentMinutes(text)) {
-          final minutes? => minutes / 60,
-          null => switch (leadingNumber(text)) {
-              final lead? => writtenNumber(lead),
-              null => null,
-            },
+      TextValue(:final text) => switch (leadingNumber(text)) {
+          final lead? => writtenNumber(lead),
+          null => null,
         },
       _ => null,
     };
