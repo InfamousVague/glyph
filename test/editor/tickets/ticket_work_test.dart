@@ -1,7 +1,6 @@
 // A ticket's work in its panel (lib/editor/tickets/ticket_work.dart; Matt, 2026-10-31): its time with Start, Stop and
 // Add time…, a long timer's question, and its pull requests as chips with their state and checks. On a phone and a
 // desktop, light and dark, with pictures into build/feature-shots/tickets-automation/ under --update-goldens.
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/summary_handoff.dart' show SummaryDevice;
