@@ -56,10 +56,14 @@ class NoteMentions {
     return [for (final handle in _members.keys) (handle: handle, hue: hue(handle))];
   }
 
-  late final MentionPicker picker = MentionPicker(people: people, me: () => me, today: _today);
+  /// The handle a bare day is signed with: yours in a team's note (`@matt @2026-11-06`, so whose day it is stands in
+  /// the words; docs/MARKDOWN_FIRST.md §11 decision 18), none in a note of your own.
+  String? owner() => orgId == null ? null : me;
+
+  late final MentionPicker picker = MentionPicker(people: people, me: () => me, today: _today, owner: owner);
 
   /// The editor's extension: the chips always, the picker where the note can be written.
-  Extension extension({required bool readOnly}) => mentions(MentionHooks(hue: hue, today: _today, picking: readOnly ? null : picker));
+  Extension extension({required bool readOnly}) => mentions(MentionHooks(hue: hue, today: _today, picking: readOnly ? null : picker, owner: owner));
 
   /// The chips drawn again in the colours as they are now.
   void recolour() {

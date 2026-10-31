@@ -48,6 +48,25 @@ void main() {
         expect(view.state.doc.toString(), 'Ask @sam ');
         await away(tester);
       });
+
+      testWidgets('a day picked in a team’s note is signed with you, unless the person it is for is named before it; $where, $theme', (tester) async {
+        final picker = MentionPicker(people: () => const [(handle: 'sam', hue: 'sea')], me: () => 'matt', today: () => friday, owner: () => 'matt');
+        final view = EditorView(wholeDocument: true, state: EditorState.create(doc: 'Done by @', selection: EditorSelection.single(9), extensions: noteExtensions(more: <Extension>[mentions(MentionHooks(picking: picker, today: () => friday, owner: () => 'matt'))])));
+        addTearDown(view.destroy);
+        picker.asked(view, const MentionAsk(8, ''));
+        await pumpPage(tester, ListenableBuilder(listenable: picker, builder: (context, _) => MentionList(picker: picker)), size: size, theme: theme);
+        await tester.tap(find.byKey(const ValueKey('mention-day-2026-10-31')));
+        await tester.pump();
+        expect(view.state.doc.toString(), 'Done by @matt @2026-10-31 ');
+        // Sam's day: Sam named right before it.
+        final sams = MentionPicker(people: () => const [(handle: 'sam', hue: 'sea')], me: () => 'matt', today: () => friday, owner: () => 'matt');
+        final other = EditorView(wholeDocument: true, state: EditorState.create(doc: 'Ask @sam @', selection: EditorSelection.single(10), extensions: noteExtensions(more: <Extension>[mentions(MentionHooks(picking: sams, today: () => friday, owner: () => 'matt'))])));
+        addTearDown(other.destroy);
+        sams.asked(other, const MentionAsk(9, ''));
+        sams.pick(sams.choices.firstWhere((choice) => choice.value == '2026-10-31'));
+        expect(other.state.doc.toString(), 'Ask @sam @2026-10-31 ');
+        await away(tester);
+      });
     }
   }
 }
