@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/days.dart' show isoDay;
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/buttons/button_builder.dart';
 import 'package:ghost_md/editor/buttons/buttons.dart';
@@ -127,7 +128,10 @@ void main() {
       expect(button('Move to done'), findsOneWidget);
       await tester.tap(button('Move to done'));
       await settle(tester);
-      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\nassignee: Sam\n---\n# Launch\n\n[Move to done](ghost:set?status=Done&assignee=Sam)\n', reason: 'the key keeps the case it was written in');
+      // A ticket's status is written through withStatus (lib/core/properties.dart, c09da2a9), so the day it moved
+      // and the day it was finished go with it, on the clock's day: a button has no clock of its own.
+      final today = isoDay(DateTime.now());
+      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\nstatus-since: $today\ndone: $today\nassignee: Sam\n---\n# Launch\n\n[Move to done](ghost:set?status=Done&assignee=Sam)\n', reason: 'the key keeps the case it was written in');
       expect(asks, isEmpty, reason: 'a set reaches nothing past the note');
     });
   }
