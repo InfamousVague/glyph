@@ -52,7 +52,9 @@ void main() {
   });
 
   group('a command’s write, and its undo, through the real core', () {
-    commandCases(() async => library, id: (name) => '$name-$cases', skip: skip);
+    // Not `late-3` or `new-7`: since dcf7080b an `id:` shaped like a ticket's key (frontmatter.rs `is_issue_key`,
+    // GHO-12) is the ticket's, never a note's, and a note's id is never that shape (the core's are UUIDs).
+    commandCases(() async => library, id: (name) => '$name-case$cases', skip: skip);
 
     test('are in the note’s file: the words added, taken out again, and a made note’s file gone', () async {
       final id = await core.newId(), other = await core.newId(), m1 = await core.newId(), m2 = await core.newId();

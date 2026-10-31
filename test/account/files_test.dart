@@ -46,11 +46,11 @@ void main() {
     expect(await files.read(CoreFileKind.image, 'abc.jpg'), isNull);
     expect(await files.exists(CoreFileKind.image, 'abc.jpg'), isFalse);
     expect(await files.write(CoreFileKind.image, 'abc.jpg', jpeg), isTrue);
-    expect(File('$data/images/abc.jpg').readAsBytesSync(), jpeg);
+    expect(File('$data/Library/image/abc.jpg').readAsBytesSync(), jpeg);
     expect(await files.read(CoreFileKind.image, 'abc.jpg'), jpeg);
     expect(await files.exists(CoreFileKind.image, 'abc.jpg'), isTrue);
     expect(await files.digest(CoreFileKind.image, 'abc.jpg'), await crypto.sha16(jpeg));
-    expect(await files.where(CoreFileKind.image, 'abc.jpg'), (path: '$data/images/abc.jpg', bytes: 6));
+    expect(await files.where(CoreFileKind.image, 'abc.jpg'), (path: '$data/Library/image/abc.jpg', bytes: 6));
     // The Tauri command's own refusals.
     Future<String> refused(String name, List<int> bytes) async {
       try {
@@ -99,7 +99,7 @@ void main() {
     await files.adopt(CoreFileKind.recording, 'n2', '$cache/sync/r-n2.opened');
     expect(File('$cache/sync/r-n2.opened').existsSync(), isFalse, reason: 'moved in');
     expect(await files.digest(CoreFileKind.recording, 'n2'), digest);
-    expect(File('$data/recordings/n2.wav').readAsBytesSync(), wav);
+    expect(File('$data/Library/recordings/n2.wav').readAsBytesSync(), wav);
 
     // What is not a recording is not adopted, and is left for whoever opened it.
     File('$cache/sync/bad').writeAsBytesSync(utf8.encode('ID3'));
