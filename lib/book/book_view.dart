@@ -73,11 +73,12 @@ import '../notes/place_templates.dart' show notebookTemplateName;
 import '../core/back.dart';
 import '../core/book.dart';
 import '../core/front_matter.dart' show frontMatterEnd;
+import '../core/days.dart' show isoDay;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/library.dart';
 import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle, sameTitle, titleKey, withoutFrontMatter;
-import '../core/properties.dart' show Ticket, notebookKey, statusesOf, ticketOf, withProperty;
+import '../core/properties.dart' show Ticket, notebookKey, statusesOf, ticketOf, withStatus;
 import '../core/properties.dart' as properties show isTicket;
 import '../core/stored.dart';
 import '../editor/fields/field_picker.dart';
@@ -2345,7 +2346,7 @@ class BookPages {
   Future<void> setStatus(String page, String? status) async {
     final found = titled(page);
     if (found == null) return;
-    final next = withProperty(found.body, 'status', status);
+    final next = withStatus(found.body, status, today: isoDay(clock?.call() ?? DateTime.now()));
     if (next == found.body) return;
     await library.save(found.id, next);
     await library.refresh().catchError((Object _) {});

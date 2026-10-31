@@ -475,7 +475,7 @@ class _RootClaudeShelf implements ClaudeShelf {
     final key = nextTicketId(book.body, [for (final note in _library.value) note.body]);
     var body = newTicketBody(title, id: key, statuses: statusesOf(book.body));
     for (final (field, value) in fields) {
-      body = withProperty(body, field, value);
+      body = withTicketProperty(body, field, value);
     }
     body = _under(body, details);
     final made = await _library.createNote(body);

@@ -207,7 +207,14 @@ class MeetingService : Service() {
      */
     fun isEnding(): Boolean = instance?.ending?.get() == true
 
-    /** Where the tape goes, and where Rust reads it from: `RECORDINGS` in src-tauri/src/paths.rs. Rename both together. */
+    /**
+     * Where the tape is spooled while a meeting records: `RECORDINGS` in src-tauri/src/paths.rs, the folder beside
+     * the library every build before 2026-10-31 kept its tapes in. Rust reads it from here and from under the library
+     * both (library/attachments.rs `Places`), and `RecordingJob.finish` brings the finished tape under the library
+     * (`Library/recordings/<id>.wav`, where the player and sync then find it); one a kill cut short is brought in at
+     * the next open of the core. So this service never needs to know where the library is, and `discard` deletes the
+     * tape here, where it is until the Stop. Rename `RECORDINGS` and this together.
+     */
     fun recordingsDir(context: Context): File = File(context.dataDir, "recordings")
 
     /** Done, from the page. Nothing when no meeting is being recorded. */

@@ -20,7 +20,7 @@ import '../ai/note_ai.dart' show NoteAi;
 import '../ai/note_review.dart' show ReviewHost;
 import '../ai/start.dart' as ai_start;
 import '../ai/summaries.dart' show SummaryKind;
-import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
+import '../ai/summary_keep.dart' show keptTextIn, summaryUnchangedIn;
 import '../ai/summary_text.dart' show summarySection;
 import '../ai/support/runnable.dart' show cannotRun;
 import '../art/art.dart';

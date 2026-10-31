@@ -19,20 +19,24 @@ import java.io.File
  * can sound at once, as two elements did.
  *
  * THE CHANNEL, `ghost_md/tape` for one and `ghost_md/clip` for the other:
- * - `load {noteId}` -> the recording's length in ms, stopped at its start; an error where there is no such file or
- *   it cannot be read. `load {file}` the same for a sound file a note links (`<data>/images/files/<name>`, a voice-over
- *   among them) and `load {cached}` for a sound kept in the cache (`<cache>/sounds/<name>`, an ElevenLabs voice's
- *   preview): lib/tapes/phone_player.dart `loadArguments`.
+ * - `load {noteId, dirs?}` -> the recording's length in ms, stopped at its start; an error where there is no such
+ *   file or it cannot be read. `load {file, dirs?}` the same for a sound file a note links (a voice-over among them)
+ *   and `load {cached}` for a sound kept in the cache (`<cache>/sounds/<name>`, an ElevenLabs voice's preview):
+ *   lib/tapes/phone_player.dart `loadArguments`.
  * - `play`, `pause` -> null; `seek {ms}` -> null.
- * - `onDevice {noteId}` -> whether that note's recording is a file here (the `rec` scheme's 200 or 404).
+ * - `onDevice {noteId, dirs?}` -> whether that note's recording is a file here (the `rec` scheme's 200 or 404).
  * - `release` -> null: the player let go.
  *
  * THE EVENTS on the channel's name with `/events` after it, each a map: `{event: "position", ms}` ten times a second while it plays
  * (the element's `timeupdate`), `{event: "playing", on}`, `{event: "ended"}` and `{event: "failed"}`.
  *
- * Only ever a file under the app's own `recordings` folder, named by a note's id, or under its files' or its cache's
- * sounds' folder, named as the app names a kept file: an id is letters, digits, `-` and `_`, a name that and an
- * extension, so nothing a caller says can name a file anywhere else.
+ * WHERE THE FILES ARE is the core's to say, not this player's: `dirs` is the list of folders the Rust core reads a
+ * recording (or a note's file) from, the first the one it writes to (library/attachments.rs `Places`, asked by Dart
+ * through `attachment_places`: `<data>/Library/recordings/` and, from an older build, `<data>/recordings/`; a
+ * library in a folder of the person's has its own). The file is the first of those folders that has it. With no
+ * `dirs` (a Dart that has not asked the core yet) the old folder beside the library is looked in alone, as before
+ * 2026-10-31. Only ever a file named by a note's id or as the app names a kept file: an id is letters, digits,
+ * `-` and `_`, a name that and an extension, so nothing a caller says can name a file outside the folders given.
  */
 class TapePlayer(private val context: Context, private val channel: String = CHANNEL) {
     private val main = Handler(Looper.getMainLooper())
@@ -56,11 +60,11 @@ class TapePlayer(private val context: Context, private val channel: String = CHA
         MethodChannel(messenger, channel).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
-                    "load" -> result.success(load(soundOf(call.argument<String>("file"), call.argument<String>("cached")) ?: fileOf(call.argument<String>("noteId"))))
+                    "load" -> result.success(load(soundOf(call.argument<String>("file"), call.argument<String>("cached"), dirsOf(call)) ?: fileOf(call.argument<String>("noteId"), dirsOf(call))))
                     "play" -> { play(); result.success(null) }
                     "pause" -> { pause(); result.success(null) }
                     "seek" -> { player?.seekTo(call.argument<Int>("ms") ?: 0); result.success(null) }
-                    "onDevice" -> result.success(fileOf(call.argument<String>("noteId"))?.isFile == true)
+                    "onDevice" -> result.success(fileOf(call.argument<String>("noteId"), dirsOf(call))?.isFile == true)
                     "release" -> { release(); result.success(null) }
                     else -> result.notImplemented()
                 }
@@ -70,17 +74,24 @@ class TapePlayer(private val context: Context, private val channel: String = CHA
         }
     }
 
+    /** The folders a call says to look in (`dirs`), as the core listed them; null where it says none. */
+    private fun dirsOf(call: io.flutter.plugin.common.MethodCall): List<File>? =
+        call.argument<List<*>>("dirs")?.filterIsInstance<String>()?.map { File(it) }?.takeIf { it.isNotEmpty() }
+
+    /** `name` in the first of `dirs` that has it, or in the first of them where none has (so `isFile` says no). */
+    private fun firstOf(dirs: List<File>, name: String): File = dirs.map { File(it, name) }.firstOrNull { it.isFile } ?: File(dirs.first(), name)
+
     /** The recording's file for a note's id, or null for an id that is not one. */
-    private fun fileOf(noteId: String?): File? {
+    private fun fileOf(noteId: String?, dirs: List<File>?): File? {
         if (noteId == null || !ID.matches(noteId)) return null
-        return File(File(context.dataDir, "recordings"), "$noteId.wav")
+        return firstOf(dirs ?: listOf(File(context.dataDir, "recordings")), "$noteId.wav")
     }
 
     /** A sound file a note links, or one in the cache's sounds, by its kept name; null where neither is asked for. */
-    private fun soundOf(file: String?, cached: String?): File? {
+    private fun soundOf(file: String?, cached: String?, dirs: List<File>?): File? {
         val name = file ?: cached ?: return null
         if (!NAME.matches(name)) throw IllegalStateException("That is not a sound this app keeps.")
-        return if (file != null) File(File(File(context.dataDir, "images"), "files"), name) else File(File(context.cacheDir, "sounds"), name)
+        return if (file != null) firstOf(dirs ?: listOf(File(File(context.dataDir, "images"), "files")), name) else File(File(context.cacheDir, "sounds"), name)
     }
 
     private fun load(file: File?): Int {

@@ -21,7 +21,7 @@ library;
 
 import '../core/book.dart' show withChapter;
 import '../book/book_view.dart' show withoutChapter;
-import '../core/properties.dart' show withProperty;
+import '../core/properties.dart' show withTicketProperty;
 import 'labels.dart' show withLabelsChanged;
 
 /// A change to one note's words: the words in, the words out; null, or the same words, for nothing to write.
@@ -63,7 +63,7 @@ class ChangeLabels extends BulkEdit {
 
 /// Each ticket's words with [edit] made.
 String bulkBody(String body, BulkEdit edit) => switch (edit) {
-      SetField(:final field, :final value) => withProperty(body, field, value),
+      SetField(:final field, :final value) => withTicketProperty(body, field, value),
       ChangeLabels(:final add, :final remove) => withLabelsChanged(body, add: add, remove: remove),
     };
 

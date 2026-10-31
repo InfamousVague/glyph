@@ -10,6 +10,9 @@ void main() {
     test('sets a ticket’s front-matter status to the lane it lands in', () {
       expect(movedBody(ticket, 0, '', RecordKind.ticket, 'status', 'In review'), contains('status: In review'));
       expect(movedBody(ticket, 0, '', RecordKind.ticket, 'status', 'In review'), isNot(contains('In progress')));
+      // And the day it moved, for the planning (lib/core/properties.dart `withStatus`).
+      expect(movedBody(ticket, 0, '', RecordKind.ticket, 'status', 'In review'), contains('status-since: '));
+      expect(movedBody(ticket, 0, '', RecordKind.ticket, 'status', 'Done'), contains('done: '));
     });
 
     test('clears the field when dropped in the "No …" lane', () {

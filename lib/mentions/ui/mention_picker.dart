@@ -106,12 +106,22 @@ String _capital(String words) => words.isEmpty ? words : '${words[0].toUpperCase
 
 /// The picker: what is asked, the rows that answer it, and which one Enter takes.
 class MentionPicker extends ChangeNotifier implements MentionPicking {
-  MentionPicker({required this.people, required this.me, DateTime Function()? today}) : _today = today ?? DateTime.now;
+  MentionPicker({required this.people, required this.me, DateTime Function()? today, this.owner}) : _today = today ?? DateTime.now;
 
   /// Who can be named in this note now (see the header), asked as the list is drawn.
   List<MentionPerson> Function() people;
   String? Function() me;
   final DateTime Function() _today;
+
+  /// The handle a picked day is signed with, `@matt @2026-11-06` (lib/editor/items/mentions.dart `MentionHooks.owner`):
+  /// the person's own in a team's note; null, or absent, in a note of their own.
+  String? Function()? owner;
+
+  /// What a pick writes: a day signed in a team's note, unless the line already names its person before the at sign.
+  TransactionSpec _written(EditorState state, MentionAsk ask, String value) {
+    final line = state.doc.lineAt(ask.from);
+    return mentionWritten(ask, value, owner: owner?.call(), before: line.text.substring(0, ask.from - line.from));
+  }
 
   EditorViewLike? _view;
   MentionAsk? _ask;
@@ -157,7 +167,7 @@ class MentionPicker extends ChangeNotifier implements MentionPicking {
         notifyListeners();
         return true;
       case 'Enter' || 'Tab':
-        target.dispatch(target.state.update(mentionWritten(ask, _choices[_index].value)));
+        target.dispatch(target.state.update(_written(target.state, ask, _choices[_index].value)));
         return true;
     }
     return false;
@@ -167,7 +177,7 @@ class MentionPicker extends ChangeNotifier implements MentionPicking {
   void pick(MentionChoice choice) {
     final view = _view, ask = _ask;
     if (view == null || ask == null) return;
-    view.dispatch(mentionWritten(ask, choice.value));
+    view.dispatch(_written(view.state, ask, choice.value));
     view.focus();
   }
 

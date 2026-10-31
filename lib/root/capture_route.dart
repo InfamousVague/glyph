@@ -44,6 +44,7 @@ import '../capture/meeting.dart' show meetingTitle;
 import '../capture/meeting_live.dart';
 import '../capture/place.dart' as place;
 import '../capture/recorder.dart';
+import '../editor/media/clip_refs.dart' show withTapeId;
 import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/template.dart' show Placing;
@@ -345,10 +346,12 @@ class CaptureRoute {
     try {
       final startedAt = _now();
       final title = meetingTitle(startedAt, voice.recorder.locale);
-      // Marked a meeting in its own words (lib/meet/meeting_mark.dart), and in the preferences below.
-      final note = await world.createNote(withMeetingMark('# $title\n', MeetingMark(startMs: startedAt, kind: 'phone')), source: NoteSource.capture);
+      // The tape's name in the note's own words as well as this device's record (lib/editor/media/clip_refs.dart), and
+      // the meeting marked in its own words (lib/meet/meeting_mark.dart), and in the preferences below.
+      final tape = voice.recorder.newTapeId();
+      final note = await world.createNote(withMeetingMark(withTapeId('# $title\n', tape), MeetingMark(startMs: startedAt, kind: 'phone')), source: NoteSource.capture);
       world.fileNewNote(note.id);
-      voice.recorder.tapes?.setTapeId(note.id, voice.recorder.newTapeId());
+      voice.recorder.tapes?.setTapeId(note.id, tape);
       final filed = world.filedIn?.call(note.id);
       _prefs.update((now) => withAppFiled(now.copyWith(meetings: {...now.meetings, note.id: startedAt}), note.id, filed));
       // Its write-up queued as the phone's own (`enqueueSummary(id, 'meeting', {native: true})`).

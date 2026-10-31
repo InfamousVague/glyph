@@ -92,10 +92,14 @@ void main() {
   test('one Undo puts every note back, and leaves one changed since', () async {
     final now = {...bodies};
     final versions = <(String, String, String)>[];
+    final unconditional = <String>{};
     final world = MergeWorld(
       body: (id) async => now[id],
       write: (id, body) async => now[id] = body,
-      keepVersion: (id, text, label) async => versions.add((id, label, text)),
+      keepVersion: (id, text, label, {bool always = false}) async {
+        versions.add((id, label, text));
+        if (always) unconditional.add(id);
+      },
       kept: MemoryStored(),
       clock: () => 5,
     );
@@ -105,6 +109,9 @@ void main() {
     expect(ticketOf(now['dup']!)?.status, 'Duplicate');
     expect(versions.map((v) => v.$2).toSet(), {'Before merging GHO-4 into GHO-1'});
     expect(versions.map((v) => v.$1), containsAll(['target', 'dup', 'plan', 'team']));
+    // The target and the duplicate keep theirs whatever their switch says (MARKDOWN_FIRST §11, decision 21); a note
+    // whose links were rewritten only where it keeps versions.
+    expect(unconditional, {'target', 'dup'});
     expect(mergeOf(world.kept, 'dup')?.targetId, 'target');
     // The Undo: everything back as one step.
     expect(await undoMerge(record, world), isEmpty);

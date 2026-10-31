@@ -24,10 +24,10 @@
 
 /// The keys the library manages, which are never the page's: a one-block file
 /// has them beside the page's keys, and `read` takes them out of the body.
-/// mod.rs `MANAGED_KEYS` (the six written today) and `trashed`, which the trash
-/// slice is adding; the Dart side's `libraryKeys` (lib/core/front_matter.dart)
-/// is this list.
-pub const LIBRARY_KEYS: &[&str] = &["id", "created", "updated", "source", "pinned", "archived", "trashed"];
+/// mod.rs `MANAGED_KEYS` (the seven written today, `recording-ms` the newest:
+/// a recording's length, mod.rs `set_recording`) and `trashed`, the trash's; the
+/// Dart side's `libraryKeys` (lib/core/front_matter.dart) is this list.
+pub const LIBRARY_KEYS: &[&str] = &["id", "created", "updated", "source", "pinned", "archived", "trashed", "recording-ms"];
 
 /// Whether writers merge the library's keys into the page's block (one `---`
 /// block in the file) rather than writing a block of their own above it. OFF:

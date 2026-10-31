@@ -14,6 +14,7 @@ library;
 
 import 'front_matter.dart' show frontMatterValue;
 import 'images.dart' show imageRef;
+import 'item_syntax.dart' show jsTrim;
 import 'properties.dart' show withFrontMatterValue;
 
 /// The key.
@@ -34,6 +35,18 @@ String? bannerOf(String body) {
 
 /// The value written for the picture [name].
 String bannerValue(String name) => '"![](image/$name)"';
+
+/// The value that says the note is to have no banner, `banner: none`: one taken off on purpose stays off
+/// (docs/MARKDOWN_FIRST.md §5, gap 13; Matt, 2026-10-31). Lovart's "once per note" was a list on the device, so a
+/// library restored from its files alone gave a note its banner again; the note's own word survives. An older build
+/// reads it as no banner ([bannerOf] is null for it).
+const String bannerNone = 'none';
+
+/// Whether the note says it is to have no banner.
+bool bannerDeclined(String body) => jsTrim(frontMatterValue(body, bannerKey) ?? '').toLowerCase() == bannerNone;
+
+/// The body saying it is to have no banner, whatever it had.
+String withoutBanner(String body) => withFrontMatterValue(body, bannerKey, bannerNone);
 
 /// The body with its banner the picture [name], or none for null; front matter made where there was none, and taken
 /// away again where the banner was all it held.

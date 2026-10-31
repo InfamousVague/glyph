@@ -8,7 +8,7 @@
 /// nothing gives the body back unchanged. Pure.
 library;
 
-import '../properties.dart' show withProperty;
+import '../properties.dart' show withTicketProperty;
 import '../task_fields.dart' show fieldsOf, withAssignee, withField;
 import 'records.dart' show RecordKind;
 
@@ -27,7 +27,7 @@ String withTaskField(String line, String field, String? value) {
   return withField(line, field, value);
 }
 
-String? movedBody(String body, int line, String source, RecordKind kind, String field, String? value) {
+String? movedBody(String body, int line, String source, RecordKind kind, String field, String? value, {List<String>? workflow}) {
   if (kind == RecordKind.task) {
     final lines = body.split('\n');
     final at = line >= 0 && line < lines.length && lines[line] == source ? line : lines.indexOf(source);
@@ -38,5 +38,5 @@ String? movedBody(String body, int line, String source, RecordKind kind, String 
     lines[at] = next;
     return lines.join('\n');
   }
-  return withProperty(body, field, value);
+  return withTicketProperty(body, field, value, workflow: workflow);
 }

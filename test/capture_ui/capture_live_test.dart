@@ -10,6 +10,7 @@ import 'package:ghost_md/capture/ui/capture_cards.dart';
 import 'package:ghost_md/core/book.dart' show bookNoteBody;
 import 'package:ghost_md/core/canvas_body.dart' show isCanvasBody;
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/editor/media/clip_refs.dart' show tapeIdOf, withTapeId;
 
 import '../support/render.dart';
 import 'support/harness.dart';
@@ -135,7 +136,9 @@ void main() {
       await second.open();
       final done = await second.doneAndFinished();
       expect(second.anyCard, isFalse);
-      expect(second.notes.bodies, ['# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n']);
+      // The take names its tape in the note's front matter (lib/editor/media/clip_refs.dart); the words under it are these.
+      expect(second.notes.bodies.map((body) => withTapeId(body, null)), ['# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n']);
+      expect(tapeIdOf(second.notes.bodies.single), isNotNull);
       final recordedAs = second.stops.single!.recordAs!;
       expect(second.backend.reassigned, [(recordedAs, 'house', false)]);
       expect(done.note?.id, 'house');
@@ -315,7 +318,9 @@ void main() {
       expect(stored.segments, [seg('Call Sam.', 1500)]);
       expect(capture.refines, hasLength(1));
       final job = capture.refines.single;
-      expect((job.id, job.baseBody, job.savedBody, job.titled), ('house', house, '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n', false));
+      // The better words check against the note as saved, its tape named in it (lib/editor/media/clip_refs.dart).
+      expect((job.id, job.baseBody, withTapeId(job.savedBody, null), job.titled), ('house', house, '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n', false));
+      expect(tapeIdOf(job.savedBody), isNotNull);
       // The command, and the phrase its words were read from: the better words put the live words there.
       expect(job.skip, [const Span(startMs: 0, endMs: 900), const Span(startMs: 1500, endMs: 2400)]);
       expect(job.placing, isA<PlacingLists>().having((placing) => placing.task, 'task', true));
@@ -645,7 +650,8 @@ void main() {
       await capture.say('Call Sam.', 1000);
       await capture.doneAndFinished();
       final job = capture.refines[0];
-      expect((job.baseBody, job.savedBody, job.titled), ('Moon base', 'Moon base\n\nCall Sam.', false));
+      expect((job.baseBody, withTapeId(job.savedBody, null), job.titled), ('Moon base', 'Moon base\n\nCall Sam.', false));
+      expect(tapeIdOf(job.savedBody), isNotNull, reason: 'the tape named in the note (lib/editor/media/clip_refs.dart)');
       await capture.close();
     });
 

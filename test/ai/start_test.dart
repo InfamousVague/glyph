@@ -236,8 +236,11 @@ void main() {
       expect(started, const SummaryLanded(section));
       expect(requests, isEmpty);
       // Signed by the AI as a run's landing is (ai/note_landing.dart).
-      expect(v.state.doc.toString(), '---\nauthors: Ghost\n---\n# Planning call\n\n$section\n\nWe started with the launch.');
+      expect(withoutSummaryFacts(v.state.doc.toString()), '---\nauthors: Ghost\n---\n# Planning call\n\n$section\n\nWe started with the launch.');
       expect(summarySection(v.state.doc.toString())?.text, section);
+      // And the summary's facts, so the note itself says what the app wrote (summary_keep.dart `withSummaryFacts`).
+      expect(summaryFactsOf(v.state.doc.toString())?.text, section);
+      expect(summaryFactsOf(v.state.doc.toString())?.model, 'qwen3.5-4b');
       // Marked as the AI's lines, with the bookmark put away, and the before and after in the log for Undo.
       expect(v.state.field(aiChangesField), isNotEmpty);
       expect(v.state.field(landingField), isNull);
@@ -246,7 +249,7 @@ void main() {
       keepSummary('n', const KeptSummary(text: section, model: 'm', at: 1, forMs: 1000));
       final again = startRecordingRun(v, 'n', ready, recording.withText('# T\nA newer line.\n\n- [ ] One thing.'));
       expect(again, const SummaryLanded('## Summary\nA newer line.\n\n- [ ] One thing.'));
-      expect(v.state.doc.toString(), '---\nauthors: Ghost\n---\n# Planning call\n\n## Summary\nA newer line.\n\n- [ ] One thing.\n\nWe started with the launch.');
+      expect(withoutSummaryFacts(v.state.doc.toString()), '---\nauthors: Ghost\n---\n# Planning call\n\n## Summary\nA newer line.\n\n- [ ] One thing.\n\nWe started with the launch.');
       expect(startRecordingRun(v, 'n', ready, recording.withText(answer)), const SummaryRefused('edited'));
       expect(readSummary('n')?.text, section);
     });

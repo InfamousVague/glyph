@@ -19,17 +19,21 @@ import java.io.File
  * `MediaPlayer` drawing into a texture of Flutter's, which the card lays over its poster.
  *
  * THE CHANNEL `ghost_md/film`:
- * - `open {name}` -> `{id, width, height, ms, turn}`: the texture's id, the film's size as it is stored, its
- *   length, and the quarter turns the app must still make to stand it upright (0 where the texture turns it
- *   itself); an error where there is no such film or it cannot be played.
+ * - `open {name, dirs?}` -> `{id, width, height, ms, turn}`: the texture's id, the film's size as it is stored,
+ *   its length, and the quarter turns the app must still make to stand it upright (0 where the texture turns it
+ *   itself); an error where there is no such film or it cannot be played. `dirs` is the list of folders the Rust
+ *   core reads a film from, the first the one it writes to (library/attachments.rs `Places`, asked by Dart through
+ *   `attachment_places`: `<data>/Library/video/` and, from an older build, `<data>/video/`; a library in a folder
+ *   of the person's has its own), and the film is the first of them that has it; with no `dirs` the old folder
+ *   beside the library is looked in alone, as before 2026-10-31.
  * - `play {id}`, `pause {id}`, `seek {id, ms}` -> null; `close {id}` -> null: the player and its texture let go.
  *
  * THE EVENTS on `ghost_md/film/events`, each a map with the film's `id`: `{event: "position", ms}` ten times a
  * second while it plays (the element's `timeupdate`) and after a seek, `{event: "playing", on}`, `{event: "ended"}`
  * and `{event: "failed"}` (the element's `error`).
  *
- * Only ever a file under the app's own `video` folder, by the name its note's line carries: a plain id and one
- * film extension (native/src/kept/videos.rs `valid_name`), so nothing a caller says can name a file anywhere else.
+ * Only ever a file in one of those folders, by the name its note's line carries: a plain id and one film extension
+ * (native/src/kept/videos.rs `valid_name`), so nothing a caller says can name a file outside the folders given.
  * Several may be open at once (a card's own and none other is the usual case); starting one never stops another
  * here, which is the app's to decide, as the page's `playing` was.
  */
@@ -70,7 +74,7 @@ class FilmPlayer(private val context: Context, private val textures: TextureRegi
             try {
                 val playing = (call.argument<Number>("id"))?.toLong()?.let { open[it] }
                 when (call.method) {
-                    "open" -> result.success(open(call.argument<String>("name")))
+                    "open" -> result.success(open(call.argument<String>("name"), call.argument<List<*>>("dirs")?.filterIsInstance<String>()?.map { File(it) }?.takeIf { it.isNotEmpty() }))
                     "play" -> { playing?.let(::play); result.success(null) }
                     "pause" -> { playing?.let(::pause); result.success(null) }
                     "seek" -> {
@@ -89,14 +93,18 @@ class FilmPlayer(private val context: Context, private val textures: TextureRegi
         }
     }
 
-    /** The film's file for the name a note's line carries, or null for a name that is not one. */
-    private fun fileOf(name: String?): File? {
+    /**
+     * The film's file for the name a note's line carries, in the first of `dirs` that has it (or the first of them,
+     * where none has, so `isFile` says no); null for a name that is not one.
+     */
+    private fun fileOf(name: String?, dirs: List<File>?): File? {
         if (name == null || !NAME.matches(name)) return null
-        return File(File(context.dataDir, "video"), name)
+        val folders = dirs ?: listOf(File(context.dataDir, "video"))
+        return folders.map { File(it, name) }.firstOrNull { it.isFile } ?: File(folders.first(), name)
     }
 
-    private fun open(name: String?): Map<String, Any> {
-        val file = fileOf(name)
+    private fun open(name: String?, dirs: List<File>?): Map<String, Any> {
+        val file = fileOf(name, dirs)
         if (file == null || !file.isFile) throw IllegalStateException(MISSING)
         val producer = textures.createSurfaceProducer()
         val made = MediaPlayer()

@@ -13,7 +13,7 @@ import 'runs.dart' show RunHandle;
 /// What is asked (`SummaryAsk`).
 @immutable
 class SummaryAsk {
-  const SummaryAsk({required this.words, this.context, required this.model, required this.maxTokens, required this.replace, this.text});
+  const SummaryAsk({required this.words, this.context, required this.model, required this.maxTokens, required this.replace, this.text, this.forMs = 0});
 
   /// The recording's words, or the notes on its parts joined.
   final String words;
@@ -29,14 +29,18 @@ class SummaryAsk {
   /// The model's finished answer, when the queue already has it: landed as it is, the model not asked again.
   final String? text;
 
+  /// The tape's length as the summary is asked for, in ms; 0 where there is none or it is not known. Written into
+  /// the note with the summary's other facts (summary_keep.dart `withSummaryFacts`). The port's own.
+  final int forMs;
+
   /// This ask with the finished answer in hand (`{ ...ask, text }`).
-  SummaryAsk withText(String text) => SummaryAsk(words: words, context: context, model: model, maxTokens: maxTokens, replace: replace, text: text);
+  SummaryAsk withText(String text) => SummaryAsk(words: words, context: context, model: model, maxTokens: maxTokens, replace: replace, text: text, forMs: forMs);
 
   /// This ask, replacing or not (`{ ...ask, replace }`).
-  SummaryAsk replacing(bool replace) => SummaryAsk(words: words, context: context, model: model, maxTokens: maxTokens, replace: replace, text: text);
+  SummaryAsk replacing(bool replace) => SummaryAsk(words: words, context: context, model: model, maxTokens: maxTokens, replace: replace, text: text, forMs: forMs);
 
   /// This ask of other words (`{ ...ask, words }`).
-  SummaryAsk ofWords(String words) => SummaryAsk(words: words, context: context, model: model, maxTokens: maxTokens, replace: replace, text: text);
+  SummaryAsk ofWords(String words) => SummaryAsk(words: words, context: context, model: model, maxTokens: maxTokens, replace: replace, text: text, forMs: forMs);
 }
 
 /// A run in the editor to follow, or the section landed at once from an answer already in hand, or why not

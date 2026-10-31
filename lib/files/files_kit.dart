@@ -70,8 +70,9 @@ class FilesKit implements sync_local.MediaFiles {
     unawaited(kit.device.canScan().then((can) => kit.scans = can));
     unawaited(kit.takeInSharedFiles());
     // Where the pictures and files are is the core's to say (lib/files/attachment_places.dart), before the sidecars
-    // are read in from there.
+    // are read in from there; the store of the files follows the same answer.
     unawaited(AttachmentPlaces.ask(invoke, dataDir: dataDir).then((places) {
+      kit.store.follow(places);
       kit.texts.follow(places);
       return kit.texts.load();
     }).then<void>((_) {

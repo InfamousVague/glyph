@@ -8,7 +8,9 @@
 /// - **A day** is a chip in the second ink, and in red once it has passed (today is not past).
 /// - **A day typed as words** - `@today`, `@tomorrow`, `@next friday`, `@in 3 days`, `@nov 6` - becomes the day,
 ///   `@2026-11-06`, as the space after it is typed, the way a snippet's trigger becomes its words
-///   (lib/editor/input/snippets.dart): one step, which Undo takes back to the words as they were typed.
+///   (lib/editor/input/snippets.dart): one step, which Undo takes back to the words as they were typed. In a team's
+///   note a bare day is signed, `@matt @2026-11-06` (lib/mentions/mention_syntax.dart `signedDay`; MARKDOWN_FIRST
+///   §11 decision 18), unless a person is named right before it; a note of the person's own keeps the bare day.
 /// - **The picker**: an at sign typed where a mention may open asks for one ([mentionAsk]): the words typed after it
 ///   are the question, and whoever made the editor shows the people and days that answer it and writes the one
 ///   picked ([MentionHooks.picking], lib/mentions/ui/mention_picker.dart). The arrow keys, Enter, Tab and Escape are
@@ -22,6 +24,7 @@ import 'dart:ui' show Color;
 import '../../comments/ui/card.dart' show hued;
 import '../../core/workspaces.dart' show workspaceHues;
 import '../../core/item_syntax.dart' show listLead;
+import '../../core/days.dart' show isIsoDay;
 import '../../mentions/mention_syntax.dart';
 import '../commands/commands.dart' show KeyBinding;
 import '../editor.dart';
@@ -36,13 +39,17 @@ import 'inline_box.dart';
 
 /// What the editor asks of whoever made it, each asked as it is used.
 class MentionHooks {
-  const MentionHooks({this.hue, this.today, this.picking});
+  const MentionHooks({this.hue, this.today, this.picking, this.owner});
 
   /// The hue a person wears here: a workspace hue for a member of the note's organization, null for anyone else.
   final String? Function(String handle)? hue;
 
   /// The day it is; the clock's when absent.
   final DateTime Function()? today;
+
+  /// The handle a bare day typed here is signed with (`@matt @2026-11-06`): the person's own in a team's note; null,
+  /// or absent, in a note of their own, where the day stays bare.
+  final String? Function()? owner;
 
   /// Told of the at sign's question as it changes, and handed the list's keys while one is asked; none, and an at
   /// sign asks nothing.
@@ -141,9 +148,10 @@ bool _quietAt(EditorState state, int at) {
 }
 
 /// What a pick writes over the at sign and the words after it: `@handle ` or `@2026-11-06 `, the caret after the
-/// space, as one step of its own.
-TransactionSpec mentionWritten(MentionAsk ask, String value) {
-  final text = '@$value ';
+/// space, as one step of its own. A day in a team's note is signed with [owner] (`signedDay`), unless [before], the
+/// line up to the at sign, already names the person it is for.
+TransactionSpec mentionWritten(MentionAsk ask, String value, {String? owner, String before = ''}) {
+  final text = isIsoDay(value) ? '${signedDay(value, owner: owner, before: before)} ' : '@$value ';
   return TransactionSpec(
     changes: ChangeSpec(from: ask.from, to: ask.to, insert: text),
     selection: EditorSelection.single(ask.from + text.length),
@@ -168,8 +176,8 @@ bool _endsWithSpaceAtCaret(Transaction tr) {
 }
 
 /// A transaction that typed a space after a day typed as words, as the one that writes the day there instead; the
-/// transaction itself otherwise.
-Object dayOnSpace(Transaction tr, DateTime today) {
+/// transaction itself otherwise. [owner] signs the day in a team's note (`signedDay`).
+Object dayOnSpace(Transaction tr, DateTime today, {String? owner}) {
   if (!tr.docChanged || !tr.isUserEvent('input.type') || tr.isUserEvent('input.type.compose')) return tr;
   if (!_endsWithSpaceAtCaret(tr)) return tr;
   final space = tr.newSelection.main.head;
@@ -182,10 +190,11 @@ Object dayOnSpace(Transaction tr, DateTime today) {
   final from = line.from + before.from;
   final after = tr.state;
   if (_quietAt(after, from)) return tr;
-  final written = ChangeSet.of(ChangeSpec(from: from + 1, to: space - 1, insert: day), after.doc.length);
+  final signed = signedDay(day, owner: owner, before: line.text.substring(0, before.from));
+  final written = ChangeSet.of(ChangeSpec(from: from, to: space - 1, insert: signed), after.doc.length);
   return TransactionSpec(
     changes: tr.changes.compose(written),
-    selection: EditorSelection.single(from + 1 + day.length + 1),
+    selection: EditorSelection.single(from + signed.length + 1),
     effects: <StateEffect<Object?>>[closeMentionAsk.of(true)],
     userEvent: 'input.complete',
     annotations: isolateHistory.of('full'),
@@ -322,7 +331,7 @@ Extension mentions(MentionHooks hooks) {
     _hooks.of(hooks),
     mentionAsk,
     _chips,
-    EditorState.transactionFilter.of((tr) => dayOnSpace(tr, today())),
+    EditorState.transactionFilter.of((tr) => dayOnSpace(tr, today(), owner: hooks.owner?.call())),
     EditorViewLike.updateListener.of((update) {
       final picking = hooks.picking;
       if (picking == null) return;

@@ -38,6 +38,7 @@ use serde_json::{json, Value};
 
 use crate::dispatch::{read, Core};
 use crate::jobs::{self, JobConfig, JobResult, Phase, Progress};
+use crate::library::{AttachmentKind, Places};
 
 const COMMANDS: &[&str] = &["ai_keep_job_config", "recording_result_take", "recording_job_state", "recording_digest", "recording_delete", "write_up_finish", "write_up_run", "write_up_cancel"];
 
@@ -120,14 +121,24 @@ pub struct Deleted {
     pub freed_bytes: u64,
 }
 
-fn delete_recordings(recordings: &Path, jobs: &Path, ids: &[String]) -> Deleted {
+/// Each recording gone from every folder it is read from (library/attachments.rs `Places`: under the library, and
+/// beside it from an older build), with its write-up files.
+fn delete_recordings(recordings: &Places, jobs: &Path, ids: &[String]) -> Deleted {
     let mut deleted = Deleted { removed: Vec::new(), freed_bytes: 0 };
     for id in ids {
-        let Some(file) = crate::recordings::recording_file(recordings, id) else { continue };
-        let bytes = std::fs::metadata(&file).map(|meta| meta.len()).unwrap_or(0);
-        if std::fs::remove_file(&file).is_ok() {
+        if !crate::fsx::plain_id(id) {
+            continue;
+        }
+        let mut was_there = false;
+        for file in recordings.dirs().iter().filter_map(|dir| crate::recordings::recording_file(dir, id)) {
+            let bytes = std::fs::metadata(&file).map(|meta| meta.len()).unwrap_or(0);
+            if std::fs::remove_file(&file).is_ok() {
+                was_there = true;
+                deleted.freed_bytes += bytes;
+            }
+        }
+        if was_there {
             deleted.removed.push(id.clone());
-            deleted.freed_bytes += bytes;
         }
         let _one = crate::lock::lock(&crate::guards::PROGRESS_FILE);
         let _ = std::fs::remove_file(jobs::progress_path(jobs, id));
@@ -178,7 +189,8 @@ fn said<T: Serialize>(value: T) -> Result<Value, String> {
 
 pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, String> {
     let data = core.data_dir().to_path_buf();
-    let recordings = data.join(crate::paths::RECORDINGS);
+    // Where the tapes are is the library's to say (library/attachments.rs): under it, and beside it from an older build.
+    let recordings = core.attachments().of(AttachmentKind::Recording).clone();
     let jobs_dir = jobs::dir(&data);
     match command {
         "ai_keep_job_config" => {
@@ -193,7 +205,7 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
         "recording_job_state" => said(jobs::list(&jobs_dir).into_iter().map(JobState::from).collect::<Vec<_>>()),
         "recording_digest" => {
             let ById { id } = read(command, args)?;
-            let Some(file) = crate::recordings::recording_file(&recordings, &id) else { return Ok(json!({ "id": crate::work::start("digest", |_| Ok(Value::Null))? })) };
+            let Some(file) = crate::fsx::plain_id(&id).then(|| recordings.place(&format!("{id}.wav"))) else { return Ok(json!({ "id": crate::work::start("digest", |_| Ok(Value::Null))? })) };
             Ok(json!({ "id": crate::work::start("digest", move |_| said(digest_of(&file)))? }))
         }
         "recording_delete" => {
@@ -230,10 +242,11 @@ mod tests {
         let source = std::fs::read_to_string(&source).unwrap_or_else(|e| panic!("{}: {e}", source.display()));
         let squeezed = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
         let (theirs, mine) = (squeezed(&source), squeezed(include_str!("recording.rs")));
-        // The bodies that decide what is read and removed, compared without their line breaks.
+        // The bodies that decide what is read and removed, compared without their line breaks. Not the removal of a
+        // tape: since 2026-10-31 this crate's reads every folder a tape may be in (library/attachments.rs), where the
+        // Tauri app's looks beside the library alone.
         for body in [
             "let result: JobResult = crate::fsx::read_json(&jobs::result_path(jobs, id))?; let _one = crate::lock::lock(&crate::guards::PROGRESS_FILE); let _ = std::fs::remove_file(jobs::result_path(jobs, id)); let _ = std::fs::remove_file(jobs::progress_path(jobs, id)); Some(result)",
-            "let Some(file) = crate::recordings::recording_file(recordings, id) else { continue }; let bytes = std::fs::metadata(&file).map(|meta| meta.len()).unwrap_or(0); if std::fs::remove_file(&file).is_ok() { deleted.removed.push(id.clone()); deleted.freed_bytes += bytes; }",
             "crate::fsx::write_atomically(&jobs::config_path(jobs), &json)",
             "Some(Digest { sha256: hash.iter().map(|b| format!(\"{b:02x}\")).collect(), bytes })",
         ] {
@@ -275,8 +288,10 @@ mod tests {
         assert!(!jobs::progress_path(&jobs, "n1").exists(), "the progress goes with the result");
         assert_eq!(call(&core, "recording_result_take", json!({ "id": "../n1" })), Ok(Value::Null));
 
+        // n1 beside the library, as an older build or the phone's meeting service leaves a tape; n2 under it.
         std::fs::write(recordings.join("n1.wav"), b"abc").unwrap();
-        std::fs::write(recordings.join("n2.wav"), vec![0u8; 500]).unwrap();
+        std::fs::create_dir_all(root.join("data/Library/recordings")).unwrap();
+        std::fs::write(root.join("data/Library/recordings/n2.wav"), vec![0u8; 500]).unwrap();
         std::fs::write(jobs::progress_path(&jobs, "n1"), b"{}").unwrap();
         std::fs::write(root.join("data/escape.wav"), b"x").unwrap();
         // The digest is a job; this test owns no listener, so it reads the events of its own process.
@@ -286,9 +301,10 @@ mod tests {
         assert_eq!(end["ok"], json!({ "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "bytes": 3 }));
         assert_eq!(digest_of(&recordings.join("none.wav")), None);
         let deleted = call(&core, "recording_delete", json!({ "ids": ["n1", "gone", "../escape"] })).unwrap();
-        assert_eq!(deleted, json!({ "removed": ["n1"], "freedBytes": 3 }));
+        assert_eq!(deleted, json!({ "removed": ["n1"], "freedBytes": 3 }), "removed from beside the library, where it was");
         assert!(!recordings.join("n1.wav").exists() && !jobs::progress_path(&jobs, "n1").exists());
-        assert!(recordings.join("n2.wav").exists() && root.join("data/escape.wav").exists());
+        assert!(root.join("data/Library/recordings/n2.wav").exists() && root.join("data/escape.wav").exists());
+        assert_eq!(call(&core, "recording_delete", json!({ "ids": ["n2"] })).unwrap(), json!({ "removed": ["n2"], "freedBytes": 500 }), "and from under it");
     }
 
     /// A meeting's tape through the three doors with summaries off (the speech model alone): closed, written up,

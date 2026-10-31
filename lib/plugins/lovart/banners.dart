@@ -30,7 +30,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/background_jobs.dart';
 import '../../core/banner.dart';
-import '../../core/front_matter.dart' show frontMatterFence, frontMatterOffset;
+import '../../core/front_matter.dart' show frontMatterEnd, frontMatterFence, frontMatterOffset;
 import '../../core/images.dart' show PictureStore;
 import '../../core/note.dart' show Note;
 import '../../core/note_facts.dart' show NoteFacts;
@@ -122,11 +122,14 @@ void _markDone(PluginHost on, String id) {
 final RegExp _word = RegExp(r'[\p{L}\p{N}]+', unicode: true);
 
 /// Whether [note] is one a banner is made for by itself (the rules above), banner and keys aside. [replacing], one
-/// that may have one already: a run's Redo black-and-white headers in colour (banner_run.dart).
-bool wantsBanner(Note note, {bool replacing = false}) {
+/// that may have one already: a run's Redo black-and-white headers in colour (banner_run.dart). A note that says
+/// `banner: none` (lib/core/banner.dart `bannerDeclined`: one taken off on purpose, which a restore must not undo)
+/// wants none, unless the run asked for notes whose header was taken off ([takenOff]).
+bool wantsBanner(Note note, {bool replacing = false, bool takenOff = false}) {
   if (note.archivedAt != null) return false;
   final body = note.body;
   if (!replacing && bannerOf(body) != null) return false;
+  if (!takenOff && bannerDeclined(body)) return false;
   final facts = NoteFacts.read(body);
   if (facts.isTicket || facts.isCanvas || facts.isTemplatePage || facts.isTemplatesBook) return false;
   // A notebook's index is its cover, and has one (Matt, 2026-10-27: "The root index of a book doesn't have the header
@@ -227,7 +230,7 @@ class LovartBanners {
     final asked = again || replacing != null;
     if ((!asked && _done(_on).contains(id)) || lovartBannerMaking.value.contains(id)) return false;
     final note = await getNote(id);
-    if (note == null || !wantsBanner(note, replacing: replacing != null) || bannerOf(note.body) != replacing) return false;
+    if (note == null || !wantsBanner(note, replacing: replacing != null, takenOff: again) || bannerOf(note.body) != replacing) return false;
     // Marked before Lovart is asked: once per note, whatever happens next.
     _markDone(_on, id);
     final lovart = client != null ? client!() : (_host == null ? lovartClient() : LovartClient.kept(via: _host));
@@ -309,6 +312,17 @@ class LovartBanners {
   }
   return (line: 1, next: (text) => '---\n$value\n---\n$text');
 }
+
+/// The note's banner taken off on purpose: its `banner:` line in the front matter becomes `banner: none`
+/// (lib/core/banner.dart `withoutBanner`), through the editor's line writer so it is one step of the note's history.
+Future<void> removeBanner(NoteEditing editing) async {
+  final lines = editing.body().split('\n');
+  final end = frontMatterEnd(lines);
+  final replaced = end > 0 && editing.replaceLine((text, line) => line < end && _bannerLine.hasMatch(text), (_) => '$bannerKey: $bannerNone');
+  editing.say(replaced ? 'Header image removed. This note stays without one.' : 'This note has no header image.');
+}
+
+final RegExp _bannerLine = RegExp(r'^\s*banner\s*:', caseSensitive: false);
 
 /// A banner for the open note, made now: the cog's "Header image", which makes one again where there is one.
 Future<void> makeBanner(NoteEditing editing) async {

@@ -46,7 +46,7 @@ void main() {
     test('takes triage: off, writes the day, and moves a triage’s own status on', () {
       final body = ticket('GHO-10', 'Retry', status: 'New', more: 'triage: true\n');
       final out = triagedBody(body, today, defaultStatuses);
-      expect(out, '---\ntype: ticket\nid: GHO-10\nstatus: To do\ntriaged: 2026-10-28\n---\n# Retry\n');
+      expect(out, '---\ntype: ticket\nid: GHO-10\nstatus: To do\ntriaged: 2026-10-28\nstatus-since: 2026-10-28\n---\n# Retry\n');
       expect(triagedBody(ticket('A-1', 'A', status: 'In progress'), today, defaultStatuses), contains('status: In progress'));
       final again = libraryOf([note('x', out)]);
       expect(triageList(again, today), isEmpty);
