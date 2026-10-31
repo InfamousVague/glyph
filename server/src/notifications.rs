@@ -12,6 +12,7 @@
 //!   POST   /api/v1/notifications/read            { ids?, all?, before? }  read marks
 //!   PUT    /api/v1/notifications/{id}            { read?, hidden? }
 //!   POST   /api/v1/orgs/{org}/mentions           { id, to: [handle], blob, generation }  a member's mention of members
+//!   POST   /api/v1/orgs/{org}/ticket-events      { id, to: [handle], blob, generation }  a ticket's watchers told
 //!
 //! A mention (Matt, 2026-10-30: "add all 12": @mentions of people) is the one row a device has written into another
 //! account's feed: a member who names members in a team note tells each of them, through the service, with a blob
@@ -21,6 +22,12 @@
 //! answers who was told. It cannot read the note, the line or who else was named. The id is the mention's, the same
 //! from every device of the sender (lib/mentions/mention_notices.dart), and a recipient who has a row by it already
 //! is passed over, so a mention sent twice lands once. Thirty posts a minute per account, twenty handles a post.
+//!
+//! A ticket's watchers (Matt, 2026-10-31: "Watchers are told in their bell when status, assignee or due changes, when
+//! a comment is added, or when it's closed") are told the same way, through a route of their own so an older service
+//! answers 404 and the device holds them (lib/book/ticket_events.dart): a `ticket` row in each watcher's feed, sealed
+//! under the organization key, once per id - a batch of one ticket's changes, the same id from any device - and the
+//! same checks, limits and answer as a mention's. Its own thirty a minute, beside the mentions'.
 //!
 //! A post is the device's to make, so it is limited to sixty a minute per account, a blob to 8 KB and a body to 16 KB;
 //! a kind the service writes cannot be posted. A post with an id the account already has answers that row's revision
@@ -66,12 +73,18 @@ pub struct Notifications {
     accounts: Arc<Accounts>,
     posts: guard::RateLimiter<i64>,
     mentions: guard::RateLimiter<i64>,
+    tickets: guard::RateLimiter<i64>,
 }
 
 impl Notifications {
     pub fn new(accounts: Arc<Accounts>) -> Arc<Self> {
         let now = Instant::now();
-        Arc::new(Self { accounts, posts: guard::RateLimiter::new(POSTS_PER_MINUTE, now), mentions: guard::RateLimiter::new(MENTIONS_PER_MINUTE, now) })
+        Arc::new(Self {
+            accounts,
+            posts: guard::RateLimiter::new(POSTS_PER_MINUTE, now),
+            mentions: guard::RateLimiter::new(MENTIONS_PER_MINUTE, now),
+            tickets: guard::RateLimiter::new(MENTIONS_PER_MINUTE, now),
+        })
     }
 }
 
@@ -192,6 +205,31 @@ async fn mention(State(notifications): State<Arc<Notifications>>, Path(org): Pat
     }
 }
 
+/// `POST v1/orgs/{org}/ticket-events`: a ticket's watchers told of a batch of its changes (see the header), checked and
+/// answered as a mention is, in words of its own.
+async fn ticket_event(State(notifications): State<Arc<Notifications>>, Path(org): Path<String>, who: Claims, Json(body): Json<MentionBody>) -> Result<Response, Response> {
+    if !notifications.tickets.take(who.sub, Instant::now()) {
+        return Err(error(StatusCode::TOO_MANY_REQUESTS, "Too many ticket changes in a minute. Try again shortly."));
+    }
+    if !valid_id(&body.id) {
+        return Err(error(StatusCode::BAD_REQUEST, "That change's id could not be read."));
+    }
+    if body.to.is_empty() || body.to.len() > MENTION_HANDLES || body.to.iter().any(|handle| handle.is_empty() || handle.len() > 64) {
+        return Err(error(StatusCode::BAD_REQUEST, "A ticket's change tells one to twenty members."));
+    }
+    if body.generation < 1 {
+        return Err(error(StatusCode::BAD_REQUEST, "That change's key could not be read."));
+    }
+    if !base64url(&body.blob, 1..=BLOB_LIMIT) {
+        return Err(error(StatusCode::BAD_REQUEST, "That change is empty or too large."));
+    }
+    match notifications.accounts.store.notify_members("ticket", who.sub, &org, &body.id, &body.to, &body.blob, body.generation, now_secs()) {
+        Ok(told) => Ok(Json(json!({ "told": told })).into_response()),
+        Err(MentionWrite::NotMember) => Err(error(StatusCode::NOT_FOUND, "No such organization.")),
+        Err(MentionWrite::Failed) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, "That change could not be kept.")),
+    }
+}
+
 #[derive(Deserialize)]
 struct ReadBody {
     #[serde(default)]
@@ -238,6 +276,7 @@ pub fn router(accounts: Arc<Accounts>) -> Router {
         .route("/api/v1/notifications/read", post_to(mark_read))
         .route("/api/v1/notifications/{id}", axum::routing::put(set))
         .route("/api/v1/orgs/{id}/mentions", post_to(mention))
+        .route("/api/v1/orgs/{id}/ticket-events", post_to(ticket_event))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .with_state(Notifications::new(accounts))
 }

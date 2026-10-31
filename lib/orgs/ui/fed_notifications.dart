@@ -19,7 +19,7 @@ import '../../notes/notifications_drawer.dart';
 
 /// The notifications drawer for [services]; with none, the signed-out drawer.
 class FedNotificationsDrawer extends StatelessWidget {
-  const FedNotificationsDrawer({super.key, required this.services, required this.onClose, required this.onOpenNote, required this.onOpenOrganization, required this.onAccount, this.emptyArt, this.now});
+  const FedNotificationsDrawer({super.key, required this.services, required this.onClose, required this.onOpenNote, required this.onOpenOrganization, required this.onAccount, this.emptyArt, this.now, this.onUnwatch});
 
   final AccountServices? services;
   final VoidCallback onClose;
@@ -28,6 +28,9 @@ class FedNotificationsDrawer extends StatelessWidget {
   final VoidCallback onAccount;
   final Widget? emptyArt;
   final int? now;
+
+  /// A ticket's row's Unwatch (lib/notes/notifications_drawer.dart).
+  final void Function(String noteId)? onUnwatch;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +62,7 @@ class FedNotificationsDrawer extends StatelessWidget {
             onAccount: onAccount,
             emptyArt: emptyArt,
             now: now ?? services?.now(),
+            onUnwatch: onUnwatch,
           );
         },
       ),

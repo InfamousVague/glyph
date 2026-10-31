@@ -121,6 +121,8 @@ extension _RootCommands on _GhostRootState {
   /// (lib/root/voice_wiring.dart `inTime`): a phone slower than that opens the note as it is, and the write-up is
   /// put into it, open, when the queue is there (lib/ai/summaries.dart).
   Future<void> _openNoteFromLink(String id) async {
+    // The morning's ticket digest, from its reminder (root_tickets.dart).
+    if (id == digestNoteId) return _openDigest();
     await _voiceKnown.future.timeout(const Duration(seconds: 3), onTimeout: () {});
     if (!mounted) return;
     await _voice?.summaries?.landNativeResult(id).then<void>((_) {}, onError: (Object _) {});

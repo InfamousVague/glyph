@@ -66,19 +66,19 @@ void main() {
   testWidgets('is not drawn where nothing can raise them: no account service, or a phone with no half', (tester) async {
     // A build with no account service makes no notices at all.
     await pumpSettings(tester, const SingleChildScrollView(child: Padding(padding: EdgeInsets.all(16), child: NotificationsPane(signedIn: true))));
-    expect(titles(tester), ['What reaches you']);
+    expect(titles(tester), ['What reaches you', 'Ticket digest']);
     await endSettings(tester);
     // A desktop, an iPhone, an Android build from before them: the phone answers nothing.
     phone.there = false;
     await open(tester);
-    expect(titles(tester), ['What reaches you']);
+    expect(titles(tester), ['What reaches you', 'Ticket digest']);
     expect(find.text('Allow notifications'), findsNothing);
     await endSettings(tester);
   });
 
   testWidgets('is drawn once the phone has answered, in the page’s words, after the switches and before the footnote', (tester) async {
     await open(tester);
-    expect(titles(tester), ['What reaches you', 'On this phone']);
+    expect(titles(tester), ['What reaches you', 'Ticket digest', 'On this phone']);
     expect(hintOf(tester, 'Phone notifications'), _on);
     expect(find.text(_footer, skipOffstage: false), findsOneWidget);
     expect(tester.widget<GlacierSwitch>(theSwitch()).checked, isTrue, reason: 'on unless it was turned off');

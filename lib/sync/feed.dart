@@ -374,7 +374,8 @@ class NotificationFeed extends ChangeNotifier {
         if (org == null || find == null || generation is! num) return null;
         final key = await find(org.id, generation.toInt());
         if (key == null) return null;
-        final opened = NotificationDetails.fromJson(await crypto.open(key, blob, 'mention:${org.id}:$id'));
+        // Sealed for its kind: `mention:<org>:<id>`, a ticket's change `ticket:<org>:<id>` (lib/book/ticket_events.dart).
+        final opened = NotificationDetails.fromJson(await crypto.open(key, blob, '${n.kind}:${org.id}:$id'));
         // The kind inside the seal is the one trusted: a mention's blob opens as a mention or not at all.
         return opened?.kind == n.kind ? opened : null;
       }

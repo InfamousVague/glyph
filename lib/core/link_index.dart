@@ -428,6 +428,10 @@ class LinkIndex {
   Iterable<String> get ids => _notes.keys;
   LinkFacts? factsOf(String id) => _notes[id];
 
+  /// The notes whose words say [word] ([wordsIn]'s form: lower case, letters and digits): what a ticket's likely
+  /// duplicates are first looked for in (lib/book/ticket_duplicates.dart).
+  Set<String> notesSaying(String word) => _byWord[word] ?? const <String>{};
+
   /// [facts] in place of whatever was kept for its note.
   void put(LinkFacts facts) {
     remove(facts.id);

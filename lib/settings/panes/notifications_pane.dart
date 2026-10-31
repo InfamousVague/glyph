@@ -14,6 +14,7 @@ import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
 import '../../reminders/reminder_host.dart' show ReminderHost, phoneReminders;
 import 'reminders_section.dart';
+import 'ticket_digest_section.dart';
 
 /// What Settings' search finds on Notifications (`findable`, src/app/settings/NotificationsPane.findable.ts): the four
 /// switches, and the card of organizations to mute once there is one to draw it for.
@@ -25,6 +26,8 @@ List<SettingsFindable> notificationsFindable({required bool orgs}) => [
       const SettingsFindable('Summaries', 'meeting written up summary recording'),
       const SettingsFindable('Conflicts', 'sync kept twice both devices'),
       if (orgs) const SettingsFindable('Mute an organization', 'silence quiet team news'),
+      // The morning's ticket digest (ticket_digest_section.dart).
+      ...ticketDigestFindable,
     ];
 
 /// Notifications' row in the list: how many of the four switches are on.
@@ -167,6 +170,9 @@ class NotificationsPane extends StatelessWidget {
                     ),
                 ],
               ),
+            // The morning's ticket digest (lib/book/ticket_digest.dart; Matt, 2026-10-31): the account's choices, on
+            // every device, under what the bell takes in.
+            TicketDigestSection(store: store, reminders: reminders),
             if (phone != null && state != null)
               PaneSection(
                 title: 'On this phone',

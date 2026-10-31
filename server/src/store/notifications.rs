@@ -37,7 +37,12 @@ pub const SERVER_KINDS: &[&str] = &[
     "org-renamed",
     "org-deleted",
     "mention",
+    "ticket",
 ];
+
+/// The kinds a member's word writes into other members' feeds (`notify_members`): a mention, and a change to a ticket
+/// they watch (Matt, 2026-10-31: watchers). Each is one of [`SERVER_KINDS`], so no device posts one of its own.
+pub const MEMBER_KINDS: &[&str] = &["mention", "ticket"];
 
 /// Why a notification was not written.
 #[derive(Debug, PartialEq, Eq)]
@@ -217,7 +222,19 @@ impl Store {
     /// themselves, and one whose account already has a row by `id` are passed over, so the same mention sent again
     /// from the sender's other device, or after a lost answer, lands once. `MentionWrite::NotMember` when the sender
     /// is not a member of `org` themselves.
+    #[allow(clippy::too_many_arguments)]
     pub fn notify_mentioned(&self, from: i64, org: &str, id: &str, to: &[String], blob: &str, generation: i64, now: i64) -> Result<Vec<String>, MentionWrite> {
+        self.notify_members("mention", from, org, id, to, blob, generation, now)
+    }
+
+    /// A member's word to other members of `org`, as [`Self::notify_mentioned`] tells it, of any of [`MEMBER_KINDS`]: a
+    /// `ticket` row is a ticket's watchers told what changed on it (src/notifications.rs `ticket_event`; Matt,
+    /// 2026-10-31), written once per id per member as a mention is. A kind not among them writes nothing.
+    #[allow(clippy::too_many_arguments)]
+    pub fn notify_members(&self, kind: &str, from: i64, org: &str, id: &str, to: &[String], blob: &str, generation: i64, now: i64) -> Result<Vec<String>, MentionWrite> {
+        if !MEMBER_KINDS.contains(&kind) {
+            return Err(MentionWrite::Failed);
+        }
         let mut conn = self.lock();
         let tx = conn.transaction().map_err(|_| MentionWrite::Failed)?;
         let name: Option<String> = tx
@@ -253,8 +270,8 @@ impl Store {
             let body = serde_json::json!({ "name": name, "generation": generation }).to_string();
             tx.execute(
                 "INSERT INTO notifications (account_id, id, rev, kind, from_id, org_id, body, blob, state, created_at, read_at, hidden) \
-                 VALUES (?1, ?2, ?3, 'mention', ?4, ?5, ?6, ?7, NULL, ?8, NULL, 0)",
-                params![to, id, rev, from, org, body, blob, now],
+                 VALUES (?1, ?2, ?3, ?9, ?4, ?5, ?6, ?7, NULL, ?8, NULL, 0)",
+                params![to, id, rev, from, org, body, blob, now, kind],
             )
             .map_err(|_| MentionWrite::Failed)?;
             Self::prune_notifications(&tx, to, now).map_err(|_| MentionWrite::Failed)?;
