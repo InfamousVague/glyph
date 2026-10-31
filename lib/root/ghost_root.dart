@@ -255,6 +255,7 @@ import '../simple/simple_pane.dart';
 import '../tapes/clip_player.dart' show TapeClipPlayer;
 import '../tapes/player.dart' show TapePlayer;
 import '../tapes/previews.dart' show TapePreviews;
+import '../team/presence_avatars.dart' show PagePresence, PagePresenceScope, PresenceAvatars;
 import '../tickets/bulk.dart';
 import '../tickets/labels.dart' show labelColoursOf, labelsIn, withLabelColour;
 import '../tickets/tickets_reads.dart';
@@ -620,6 +621,14 @@ class _GhostRootState extends State<GhostRoot> {
         )
       : null;
   late final AccountServices? _services = widget.services ?? _wired?.services;
+
+  /// Who is on each team page now (docs/TEAMSPACES.md, "Presence"; lib/team/presence.dart): the organizations' rooms
+  /// read by page, this account left out, for the avatars in the note's header and the dots in the sidebar. None in a
+  /// build with no account of its own.
+  late final PagePresence? _onPages = switch (_wired) {
+    final WiredAccount wired => PagePresence.of(wired.live.presence, handle: () => wired.live.account.session?.handle),
+    _ => null,
+  };
 
   /// Whether the way into an account is up (shell/account_gate.dart): made once what this device kept is read.
   AccountGateState? _gate;
@@ -1940,6 +1949,7 @@ class _GhostRootState extends State<GhostRoot> {
     _life?.dispose();
     _gate?.dispose();
     _wired?.live.presence.removeListener(_presenceChanged);
+    _onPages?.dispose();
     _wired?.dispose();
     _pictures?.dispose();
     widget.launchSeat?.rise(_launchFacts);

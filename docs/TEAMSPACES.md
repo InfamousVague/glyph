@@ -62,3 +62,11 @@ inbox with filters: Mentions, Tickets, Docs, Team). Auto-follow when you create,
 
 Who is on a page now: avatars in the note's header and a dot beside the page's sidebar row, from the live channel the
 team notes already use; nothing stored.
+
+Built (2026-10-31): nothing new on the wire. Each organization's own room (lib/live/presence.dart) already says, sealed
+under the org key, which note each member's device has open (`at`, said by lib/live/open.dart as a team note opens,
+unsaid as it closes; the awareness renews every 15 s and forgets a device unheard for 30; a device whose app goes behind
+another drops its socket and the relay says it left). `lib/team/presence.dart` (`PagePresence`) reads those rooms by
+page, this account's own devices and the AIs left out; `lib/team/presence_avatars.dart` draws it: `PresenceAvatars`
+in the bar (`AppShell.barChip`, every header version) and in simple mode's note header, `PresenceDot` and
+`PresenceMarked` for sidebar rows, all reading the `PagePresenceScope` the root puts over the shell.

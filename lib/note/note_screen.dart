@@ -125,6 +125,7 @@ import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
 import '../shell/screen.dart' show Caret;
 import '../shell/top_bar_tools.dart';
+import '../team/presence_avatars.dart' show PresenceAvatars;
 import '../sheet/css.dart';
 import 'byline.dart';
 import 'format_bar.dart';
@@ -1989,7 +1990,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                 child: prefs.simple
                     // Simple mode's own header (GHST-105): ‹ Notes, ⋯ and Done; the shell's plain path draws no bar.
                     // Back only where the shell asks for it (a phone, one window): beside the list there is none.
-                    ? NoteSimpleHeader(backLabel: widget.back ? widget.backLabel : null, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null)
+                    ? NoteSimpleHeader(backLabel: widget.back ? widget.backLabel : null, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null, presence: PresenceAvatars(noteId: _id, end: t.space(2)))
                     : LayoutBuilder(
                   builder: (context, box) => widget.back
                       // Simple mode's plain shell (GHST-105) has no bar and so no Home: the note's own Back at the
