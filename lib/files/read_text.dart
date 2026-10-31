@@ -3,10 +3,14 @@
 ///
 /// **The sidecar.** One plain text file beside the thing it was read in, named for it with `.ocr.txt` after:
 ///
-///     images/5f0c2e9a-….jpg            a picture
-///     images/5f0c2e9a-….jpg.ocr.txt    the words read in it
-///     images/files/8d1e4b7c-….pdf      a file
+///     Library/image/5f0c2e9a-….jpg          a picture (under the library since 2.3.94; `images/` before)
+///     Library/image/5f0c2e9a-….jpg.ocr.txt  the words read in it
+///     images/files/8d1e4b7c-….pdf           a file
 ///     images/files/8d1e4b7c-….pdf.ocr.txt
+///
+/// Where each kind is, the core says ([AttachmentPlaces]): a sidecar is written beside where its thing is written
+/// now, and read from every folder its kind is still read from, so one an older build wrote beside the old folder
+/// is found until the core brings it under the library at the next open.
 ///
 /// UTF-8, the words line by line as they were read. A file of several pages has each page's words in turn, the
 /// pages apart by a form feed (U+000C), as `pdftotext` writes them, so page three's words are what comes after the
@@ -31,8 +35,9 @@ import 'package:flutter/foundation.dart';
 
 import '../core/attachment_refs.dart';
 import '../core/images.dart' show imageRef;
+import 'attachment_places.dart';
 import '../core/note_text.dart' show SearchExtra;
-import 'attachment_store.dart' show attachmentsFolder, readTextSuffix;
+import 'attachment_store.dart' show readTextSuffix;
 
 /// What separates one page's words from the next in a sidecar.
 const String pageBreak = '\f';
@@ -93,11 +98,17 @@ List<String> pagesOf(String text) => text.split(pageBreak);
 /// no form feed inside a page.
 String textOfPages(List<String> pages) => pages.map((page) => page.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll(pageBreak, ' ').trimRight()).join(pageBreak);
 
-/// The sidecars of one data folder, and every one's words in memory.
+/// The sidecars of one device's attachments, and every one's words in memory.
 class ReadTexts extends ChangeNotifier implements SearchExtra {
-  ReadTexts({required String dataDir}) : _images = '$dataDir/images';
+  ReadTexts({required String dataDir, AttachmentPlaces? places}) : places = places ?? AttachmentPlaces.legacy(dataDir);
 
-  final String _images;
+  /// Where the pictures and files are: the old folders until [follow] is told the core's answer.
+  AttachmentPlaces places;
+
+  /// Takes the core's answer for where the attachments are (lib/files/files_kit.dart `start`, before [load]).
+  void follow(AttachmentPlaces told) {
+    places = told;
+  }
 
   /// Every sidecar's words, by its thing's key; empty until [load] has read them.
   final Map<String, String> _words = <String, String>{};
@@ -115,10 +126,13 @@ class ReadTexts extends ChangeNotifier implements SearchExtra {
   /// How many things have words here (an empty sidecar counts: it was read).
   int get count => _words.length;
 
-  /// Where the words of [thing] are kept; null for a name that may not name a file.
-  String? pathOf(ReadThing thing) {
+  /// Where the words of [thing] are written; null for a name that may not name a file.
+  String? pathOf(ReadThing thing) => pathsOf(thing)?.first;
+
+  /// Where the words of [thing] may be, the folder they are written to first; null for a name that may not name a file.
+  List<String>? pathsOf(ReadThing thing) {
     if (!(thing.picture ? _pictureName : attachmentName).hasMatch(thing.name)) return null;
-    return thing.picture ? '$_images/${thing.name}$readTextSuffix' : '$_images/$attachmentsFolder/${thing.name}$readTextSuffix';
+    return [for (final dir in thing.picture ? places.image : places.file) '$dir/${thing.name}$readTextSuffix'];
   }
 
   /// Whether [thing] has been read here.
@@ -129,7 +143,7 @@ class ReadTexts extends ChangeNotifier implements SearchExtra {
 
   /// Every sidecar there is, read in off the UI's isolate. Once; again only after [forgetAll].
   Future<void> load() => _loading ??= () async {
-        final found = await compute(_readAll, _images);
+        final found = await compute(_readAll, (pictures: places.image, files: places.file));
         // Words made or arrived while the folder was read are newer than what was on disk.
         for (final entry in found.entries) {
           _words.putIfAbsent(entry.key, () => entry.value);
@@ -151,23 +165,24 @@ class ReadTexts extends ChangeNotifier implements SearchExtra {
     _changed();
   }
 
-  /// The words of [thing] as kept on disk, for sync to send; null where there are none.
+  /// The words of [thing] as kept on disk, for sync to send; null where there are none. From the first folder that
+  /// has them.
   Future<String?> readKept(ReadThing thing) async {
     final had = _words[thing.key];
     if (had != null || _loaded) return had;
-    final path = pathOf(thing);
-    if (path == null) return null;
-    try {
-      return await File(path).readAsString();
-    } on FileSystemException {
-      return null;
+    for (final path in pathsOf(thing) ?? const <String>[]) {
+      try {
+        return await File(path).readAsString();
+      } on FileSystemException {
+        // Not in this folder.
+      }
     }
+    return null;
   }
 
-  /// [thing] is gone, and its words with it.
+  /// [thing] is gone, and its words with it, from every folder they may be in.
   Future<void> forget(ReadThing thing) async {
-    final path = pathOf(thing);
-    if (path != null) {
+    for (final path in pathsOf(thing) ?? const <String>[]) {
       try {
         final file = File(path);
         if (await file.exists()) await file.delete();
@@ -215,8 +230,9 @@ class ReadTexts extends ChangeNotifier implements SearchExtra {
 
 final RegExp _pictureName = RegExp(r'^[A-Za-z0-9_-]{1,64}\.(?:jpg|jpeg|png|webp)$');
 
-/// Every sidecar under `images/` and `images/files/`, by key: read on a worker isolate.
-Map<String, String> _readAll(String images) {
+/// Every sidecar in the pictures' folders and the files' folders, by key, each from the first folder that has it:
+/// read on a worker isolate.
+Map<String, String> _readAll(({List<String> pictures, List<String> files}) places) {
   final found = <String, String>{};
   void read(String folder, String prefix) {
     final dir = Directory(folder);
@@ -226,6 +242,7 @@ Map<String, String> _readAll(String images) {
       final file = entry.uri.pathSegments.last;
       if (!file.endsWith(readTextSuffix)) continue;
       final name = file.substring(0, file.length - readTextSuffix.length);
+      if (found.containsKey('$prefix$name')) continue;
       try {
         found['$prefix$name'] = entry.readAsStringSync();
       } on FileSystemException {
@@ -236,8 +253,12 @@ Map<String, String> _readAll(String images) {
     }
   }
 
-  read(images, 'image/');
-  read('$images/$attachmentsFolder', 'file/');
+  for (final folder in places.pictures) {
+    read(folder, 'image/');
+  }
+  for (final folder in places.files) {
+    read(folder, 'file/');
+  }
   return found;
 }
 

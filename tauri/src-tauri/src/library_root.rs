@@ -73,6 +73,17 @@ pub fn open_root(data_dir: &Path, root: &Root) -> Result<Library, String> {
     }
 }
 
+/// The attachments brought in under `library` from wherever an older build kept them, and the layout recorded in
+/// its `library.json` (library/attachments.rs): at every open of the Flutter core (`Core::open`), and after a move of
+/// the library's folder (library_commands.rs `relocate`, in both apps; in the Tauri app no kind has moved, so it
+/// gathers nothing there). What cannot move is said in the log and left where it is still read from.
+pub fn settle_attachments(library: &Library, data_dir: &Path) {
+    library.attachments(data_dir).gather(|line| eprintln!("[glyph] {line}"));
+    if let Err(e) = library.mark_attachments() {
+        eprintln!("[glyph] the attachment layout could not be recorded in library.json: {e}");
+    }
+}
+
 /// Whether one of two folders is the other or inside it: a library cannot move into itself, or into a folder that
 /// holds it, without listing its own notes twice. Compared as the disk has them (`canonicalize`), so a link or a
 /// `..` cannot hide the overlap.
