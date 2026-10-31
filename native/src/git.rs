@@ -42,6 +42,16 @@
 //! **The index.** gix has no `git add`: a commit here hashes every file of the folder into blobs and trees itself
 //! (`snapshot`), then writes the index from the committed tree with each file's stat, so the next status is git's
 //! quick one (a stat per file, content read only where the stat changed).
+//!
+//! **Measured, 2026-10-31**, on the Mac (M-series), release, `tests::timings`: a 500-file, 20 MB library commits in
+//! 155 ms and pushes in 160 ms (its objects are 4.5 MB); a clean status is 2 to 14 ms; a cold clone of it is 80 ms
+//! and a shallow one 90 ms, both over `file://`, so the network is not in those; a one-file commit is 26 ms, its
+//! push 32 ms, the other clone's fetch of it 16 ms. A phone is three to five times slower at the file work and
+//! bound by the connection for the rest. What gix adds to the libraries (stripped release, by tool/build-native.sh):
+//! the phone's arm64 .so with the engines 14.4 MB to 23.2 MB (+8.9 MB), without them 4.9 MB to 15.6 MB (+10.7 MB,
+//! +8.9 MB under fat LTO, 11.6 MB in all at opt-level s with LTO); the Mac's universal dylib 9.4 MB to 29.5 MB
+//! (the arm64 slice 4.6 MB to 14.4 MB); the iPhone's static library 27 MB to 64 MB a slice, of which the app's
+//! link keeps what it reaches. All three targets build as the script builds them, nothing added to the toolchain.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
