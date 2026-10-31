@@ -230,7 +230,9 @@ String withStatus(String body, String? status, {String? today, List<String>? wor
     out = withProperty(out, statusSinceKey, null);
     return withProperty(out, doneKey, null);
   }
-  var out = withProperty(body, 'status', next);
+  // The key in the case the note wrote it (`Status:`), as the panel's `writeProperty` keeps it.
+  final key = propertiesOf(body).map((property) => property.key).firstWhere((written) => written.toLowerCase() == 'status', orElse: () => 'status');
+  var out = withProperty(body, key, next);
   final changed = _statusWords(was) != _statusWords(next);
   if (changed) out = withProperty(out, statusSinceKey, day);
   final done = statusCategory(next, workflow) == StatusCategory.done;
