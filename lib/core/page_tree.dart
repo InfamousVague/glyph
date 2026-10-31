@@ -61,7 +61,7 @@ import 'library.dart' show NoteLibrary;
 import 'note.dart';
 import 'note_facts.dart';
 import 'note_folders.dart' show folderFor, inboxFolder, orgsFolder, workspacesFolder;
-import 'properties.dart' show linkTargets, withProperty, yamlValue;
+import 'properties.dart' show linkTargets, withFrontMatterValue, withProperty, yamlValue;
 import 'title_key.dart' show titleKey;
 import 'workspaces.dart';
 
@@ -284,6 +284,20 @@ class TeamspaceSettings {
 
   @override
   int get hashCode => Object.hash(isTeamspace, docs, Object.hashAll(pinned), icon);
+}
+
+/// A home page's [body] with its `docs:` set to [mode] (Matt, 2026-10-31: "A per-space setting": how a teamspace's
+/// pages open), every other line as it was; front matter made where the page had none. The teamspace's settings
+/// write it over the space's `Home.md` and save that as a note's words are saved; [TeamspaceSettings.of] reads it
+/// back. Written through the one front matter writer (properties.dart `withFrontMatterValue`), so it follows the
+/// one-block switch wherever that stands.
+String withDocsMode(String body, DocsMode mode) => withFrontMatterValue(body, 'docs', mode.name);
+
+/// A page's [body] with its `icon:` set to [icon] (an emoji, a shortcode, an icon pack's name: [PageIcon.of] reads
+/// each), quoted where YAML would read it as something else; null or blank takes the key off.
+String withPageIcon(String body, String? icon) {
+  final said = icon?.trim() ?? '';
+  return withFrontMatterValue(body, 'icon', said.isEmpty ? null : yamlValue(said));
 }
 
 /// The home page a new organization is given, `orgs/<Org>/Home.md` ([Space.homePath]): the settings' front matter,

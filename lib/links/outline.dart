@@ -99,17 +99,22 @@ void unawaitedScroll(Future<void> scrolled) => scrolled.then<void>((_) {}, onErr
 /// The outline drawn: a row for each heading, indented by its level below the note's highest, [current] marked.
 /// [compact] is the side panel's smaller type; without it the rows are the sheet's size.
 class OutlineList extends StatelessWidget {
-  const OutlineList({super.key, required this.headings, required this.current, required this.onPick, this.compact = false});
+  const OutlineList({super.key, required this.headings, required this.current, required this.onPick, this.compact = false, this.quiet = false});
 
   final List<OutlineHeading> headings;
   final int current;
   final ValueChanged<OutlineHeading> onPick;
   final bool compact;
 
+  /// Nothing at all for a note with no headings, where the outline stands beside the page on its own (the doc page's
+  /// rail, lib/note/doc_page.dart) rather than on a page asked for.
+  final bool quiet;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     if (headings.isEmpty) {
+      if (quiet) return const SizedBox.shrink();
       return Padding(
         padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(1)),
         child: Text('No headings yet. A line that starts with # is one.', style: t.textAt(t.fontSize('sm'), color: t.color('glacier-text-muted'))),
@@ -170,7 +175,7 @@ class OutlineList extends StatelessWidget {
 /// The outline of an open note that follows it: its headings read again as the words change, and the mark moved
 /// as the page scrolls, each at most once a frame.
 class LiveOutline extends StatefulWidget {
-  const LiveOutline({super.key, required this.view, required this.page, this.onPicked, this.compact = false});
+  const LiveOutline({super.key, required this.view, required this.page, this.onPicked, this.compact = false, this.quiet = false});
 
   final EditorView view;
   final ScrollPosition page;
@@ -178,6 +183,9 @@ class LiveOutline extends StatefulWidget {
   /// Told after a heading was gone to: the sheet closes.
   final VoidCallback? onPicked;
   final bool compact;
+
+  /// [OutlineList.quiet].
+  final bool quiet;
 
   @override
   State<LiveOutline> createState() => _LiveOutlineState();
@@ -244,6 +252,7 @@ class _LiveOutlineState extends State<LiveOutline> {
         headings: _headings,
         current: _current,
         compact: widget.compact,
+        quiet: widget.quiet,
         onPick: (heading) {
           widget.onPicked?.call();
           scrollToHeading(widget.view, widget.page, heading.from);

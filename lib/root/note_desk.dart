@@ -2371,6 +2371,9 @@ class NoteDeskState extends State<NoteDesk> {
       // A page's notebook, its place in it and the pages either side, over and under its words.
       bookBar: (context, place) => BookBar(place: place, open: _openWithin),
       bookFoot: (context, place) => BookFoot(place: place, open: _openWithin),
+      // A doc page's crumbs, steps and sub-page cards open a page by its id; its Add cover keeps a picture first.
+      openNote: _world.openAt == null ? null : (id) => _world.openAt!(id, null),
+      pickCover: widget.readOnly ? null : _world.pickPicture,
       // A change to the canvas is a change to the note: written into the body as the spec's JSON, and saved the way
       // typing is.
       canvas: (context, body, onChange) {
