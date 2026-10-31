@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Air</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="../theme.js"></script>
+    <script src="strip.js" defer></script>
+    <!-- Version 1, Air: after Notion's home page. One centred column, one idea a screen, the picture doing the talking. -->
+    <style>
+      .bar { position: sticky; inset-block-start: 0; z-index: 10; background: color-mix(in oklch, var(--paper) 85%, transparent); backdrop-filter: blur(14px); }
+      .bar-in { display: flex; align-items: center; gap: 1.5rem; inline-size: min(100% - 2rem, 64rem); margin-inline: auto; block-size: 3.75rem; }
+      .brand { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 700; text-decoration: none; }
+      .brand img { inline-size: 1.75rem; block-size: 1.75rem; border-radius: 0.5rem; }
+      .bar ul { display: flex; gap: 1.25rem; list-style: none; margin: 0 auto; padding: 0; font-size: var(--glacier-font-size-sm); color: var(--ink-2); }
+      .bar ul a { text-decoration: none; }
+      .bar ul a:hover { color: var(--ink); }
+      @media (max-width: 760px) { .bar ul { display: none; } .bar .pill { margin-inline-start: auto; } }
+      .col { inline-size: min(100% - 2rem, 44rem); margin-inline: auto; text-align: center; }
+      .hero { padding-block: 7rem 3rem; }
+      h1 { font-size: clamp(2.6rem, 6.5vw, 4.5rem); letter-spacing: -0.035em; line-height: 1.02; }
+      .lead { margin: 1.5rem auto 0; max-inline-size: 34rem; font-size: var(--glacier-font-size-lg); color: var(--ink-2); line-height: 1.45; }
+      .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; margin-block-start: 2rem; }
+      .hero .fine { margin-block-start: 1rem; }
+      .with { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem 1.6rem; margin: 4rem auto 0; padding: 0; list-style: none; font-size: var(--glacier-font-size-sm); color: var(--ink-3); }
+      .with li { display: inline-flex; align-items: center; gap: 0.4rem; }
+      .pic { inline-size: min(100% - 2rem, 64rem); margin: 3.5rem auto 0; }
+      .one { padding-block: 8rem 0; }
+      .one .col h2 { font-size: clamp(2rem, 4.2vw, 3rem); letter-spacing: -0.03em; }
+      .one .col p { margin: 1rem auto 0; max-inline-size: 32rem; color: var(--ink-2); font-size: var(--glacier-font-size-lg); line-height: 1.45; }
+      .one .eyebrow { display: inline-flex; align-items: center; gap: 0.4rem; margin-block-end: 1rem; font-size: var(--glacier-font-size-sm); font-weight: 600; color: var(--hue); }
+      .one .phones { display: flex; justify-content: center; gap: 2rem; margin-block-start: 3rem; }
+      .one .phones .phone { max-inline-size: 15rem; margin: 0; }
+      .one .phones .phone:nth-child(2) { transform: translateY(2.5rem); }
+      .one figcaption { margin-block-start: 1rem; text-align: center; }
+      .three { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 2.5rem; inline-size: min(100% - 2rem, 54rem); margin: 8rem auto 0; padding: 0; list-style: none; text-align: center; }
+      .three h3 { margin-block-start: 0.8rem; font-size: var(--glacier-font-size-md); }
+      .three p { margin-block-start: 0.35rem; color: var(--ink-2); font-size: var(--glacier-font-size-sm); }
+      .three .i-lead { inline-size: 2.4em; block-size: 2.4em; padding: 0.55em; border-radius: 0.6em; }
+      .get { padding-block: 9rem 6rem; }
+      .get .ways { inline-size: min(100% - 2rem, 48rem); margin: 2rem auto 0; }
+      .foot { padding: 2rem 1rem 6rem; text-align: center; color: var(--ink-3); font-size: var(--glacier-font-size-sm); }
+      .foot a { margin-inline: 0.5rem; }
+      @media (max-width: 640px) { .one .phones { flex-direction: column; align-items: center; } .one .phones .phone:nth-child(2) { transform: none; } .one { padding-block-start: 5rem; } }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="#top"><img src="../icon.png" alt="" /><span>Ghost.md</span></a>
+        <ul><li><a href="#claude">Claude</a></li><li><a href="#teams">Teams</a></li><li><a href="#markdown">Markdown</a></li><li><a href="../market.html">Market</a></li><li><a href="/docs/">Docs</a></li></ul>
+        <a class="pill pill-ink" href="#get">Get Ghost.md</a>
+      </nav>
+    </header>
+    <main id="top">
+      <section class="hero">
+        <div class="col">
+          <h1>Notes, boards and plans, in plain Markdown.</h1>
+          <p class="lead">Every note is a file you own, sealed when it syncs. Claude, your calendar, Notion, GitHub and Slack are a switch away.</p>
+          <div class="ctas"><a class="pill pill-ink pill-lg" href="#get"><svg class="i"><use href="../icons.svg#i-download"/></svg><span>Get Ghost.md</span></a><a class="pill pill-lg" href="https://attack.fm/glyph/">Open in your browser</a></div>
+          <p class="fine">No account needed. Android, iPhone, Mac, Windows and the web.</p>
+        </div>
+        <figure class="pic"><div class="laptop"><img src="../shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen: a search, two pinned notes, recent notes as cards, and the week's notes below." /></div></figure>
+        <ul class="with" aria-label="Works with">
+          <li><svg class="brand-mark brand-claude"><use href="marks.svg#claude-mark"/></svg>Claude</li>
+          <li><svg class="i"><use href="../icons.svg#i-calendar-days"/></svg>Google Calendar</li>
+          <li><svg class="brand-mark"><use href="marks.svg#notion-mark"/></svg>Notion</li>
+          <li><svg class="i"><use href="../icons.svg#i-git-branch"/></svg>GitHub</li>
+          <li><svg class="i"><use href="../icons.svg#i-hash"/></svg>Slack</li>
+          <li><svg class="i"><use href="../icons.svg#i-webhook"/></svg>Webhooks</li>
+        </ul>
+      </section>
+
+      <section class="one" id="claude" style="--hue: var(--hue-coral)">
+        <div class="col">
+          <p class="eyebrow"><svg class="brand-mark brand-claude"><use href="marks.svg#claude-mark"/></svg>Claude</p>
+          <h2>Ask, and watch it write.</h2>
+          <p>Claude lives in the app with your own key, and writes into your notes as it thinks. Or connect Claude's own apps and let them read and write your notes, live.</p>
+        </div>
+        <div class="phones">
+          <figure class="phone"><img src="../shots/claude-chat.webp" width="390" height="844" loading="lazy" alt="The Claude chat answering from a Packing note." /></figure>
+          <figure class="phone"><img src="../shots/claude-typing.webp" width="390" height="844" loading="lazy" alt="Claude typing into a note, its caret labelled Claude." /></figure>
+        </div>
+      </section>
+
+      <section class="one" id="teams" style="--hue: var(--hue-mint)">
+        <div class="col">
+          <p class="eyebrow"><svg class="i"><use href="../icons.svg#i-users"/></svg>For teams</p>
+          <h2>Tickets, cycles and a Gantt, in files the team owns.</h2>
+          <p>Give a notebook a key and its notes become tickets. Boards, a Gantt and a roadmap are drawn from a query, and all of it stays Markdown.</p>
+        </div>
+        <figure class="pic"><div class="laptop"><img src="../shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart in a note: tasks as bars across November, arrows between them, two milestones, a red line on today." /></div><figcaption class="fine">Drag a bar to move or stretch it. <code>show: gantt</code> draws one from any query.</figcaption></figure>
+      </section>
+
+      <section class="one" id="calendar" style="--hue: var(--hue-blue)">
+        <div class="col">
+          <p class="eyebrow"><svg class="i"><use href="../icons.svg#i-calendar-days"/></svg>Calendar</p>
+          <h2>Your day, on one page.</h2>
+          <p>Connect Google Calendar and today's events sit at the head of home, above your notes. A to-do with a due day is on your calendar seconds later.</p>
+        </div>
+        <div class="phones"><figure class="phone"><img src="../shots/calendar.webp" width="390" height="844" loading="lazy" alt="A month calendar of to-dos beside the day's meetings from Google Calendar." /></figure></div>
+      </section>
+
+      <section class="one" id="meetings" style="--hue: var(--hue-green)">
+        <div class="col">
+          <p class="eyebrow"><svg class="i"><use href="../icons.svg#i-audio-lines"/></svg>Meetings</p>
+          <h2>Ghost goes to your meetings.</h2>
+          <p>Invite it to a Meet or Zoom call and it joins by itself, writes the transcript as the call runs, and files the summary as a note with the to-dos as to-dos.</p>
+        </div>
+        <div class="phones"><figure class="phone"><img src="../shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's note: its tape at the top, then the transcript by speaker." /></figure></div>
+      </section>
+
+      <section class="one" id="markdown" style="--hue: var(--hue-yellow)">
+        <div class="col">
+          <p class="eyebrow"><svg class="i"><use href="../icons.svg#i-file-text"/></svg>Plain Markdown</p>
+          <h2>Files you own, all the way down.</h2>
+          <p>Journals, boards, canvases, notebooks and tickets are <code>.md</code> files in a folder. Open them in Obsidian or on GitHub, and back them up with git.</p>
+        </div>
+        <ul class="three hue-cycle">
+          <li><svg class="i i-lead"><use href="../icons.svg#i-lock"/></svg><h3>Sealed before it syncs</h3><p>Encrypted on the device, end to end. The service can't read a word.</p></li>
+          <li><svg class="i i-lead"><use href="../icons.svg#i-rotate-ccw-clock"/></svg><h3>Every version, kept like git</h3><p>A timeline of who changed what, beside the note, in a file you can send.</p></li>
+          <li><svg class="i i-lead"><use href="../icons.svg#i-puzzle"/></svg><h3>Plugins, when you want them</h3><p>Notion, Slack, GitHub, Todoist, Lovart and more, each a switch in the Market.</p></li>
+        </ul>
+      </section>
+
+      <section class="get" id="get">
+        <div class="col"><h2>Get Ghost.md</h2><p class="fine" style="margin-top:.6rem">Free, and no account needed.</p></div>
+        <ul class="ways">
+          <li><a class="way" href="/glyph.apk" download><svg class="i"><use href="../icons.svg#i-smartphone"/></svg><span><b>Android</b><span>The app, from here</span></span></a></li>
+          <li><a class="way" href="https://apps.apple.com/app/ghost-markdown/id6818598896"><svg class="i"><use href="../icons.svg#i-shopping-bag"/></svg><span><b>iPhone</b><span>On the App Store</span></span></a></li>
+          <li><a class="way" href="/glyph.dmg" download><svg class="i"><use href="../icons.svg#i-laptop"/></svg><span><b>Mac</b><span>macOS 13.1 or later</span></span></a></li>
+          <li><a class="way" href="/glyph-setup.exe" download><svg class="i"><use href="../icons.svg#i-monitor"/></svg><span><b>Windows</b><span>Windows 10 or later</span></span></a></li>
+          <li><a class="way" href="https://attack.fm/glyph/"><svg class="i"><use href="../icons.svg#i-globe"/></svg><span><b>Browser</b><span>No install</span></span></a></li>
+        </ul>
+      </section>
+    </main>
+    <footer class="foot"><a href="/docs/">Docs</a><a href="../reference.html">Formatting reference</a><a href="../privacy.html">Privacy</a></footer>
+  </body>
+</html>

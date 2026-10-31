@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Terminal</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="strip.js" defer></script>
+    <!-- Version 3, Terminal: after GitHub's home page and git's. Dark, code first; the lines that draw each feature beside it. -->
+    <style>
+      body { font-size: var(--glacier-font-size-sm); }
+      .bar { border-block-end: 1px solid var(--rule); background: var(--paper); }
+      .bar-in { display: flex; align-items: center; gap: 1.25rem; inline-size: min(100% - 2rem, 80rem); margin-inline: auto; block-size: 3.5rem; }
+      .brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; text-decoration: none; }
+      .brand img { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 0.4rem; }
+      .bar ul { display: flex; gap: 1rem; list-style: none; margin: 0; padding: 0; color: var(--ink-2); }
+      .bar ul a { text-decoration: none; }
+      .bar .right { margin-inline-start: auto; display: flex; gap: 0.5rem; }
+      .bar .pill { min-block-size: 2rem; border-radius: 0.4rem; }
+      @media (max-width: 900px) { .bar ul { display: none; } }
+      .wrap { inline-size: min(100% - 2rem, 80rem); }
+      .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; padding-block: 5rem 3rem; }
+      .hero h1 { font-size: clamp(2.4rem, 4.5vw, 3.6rem); letter-spacing: -0.03em; }
+      .hero h1 em { font-style: normal; color: var(--hue-green); }
+      .hero .lead { margin-block-start: 1rem; max-inline-size: 32rem; font-size: var(--glacier-font-size-md); color: var(--ink-2); }
+      .hero .ctas { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-block-start: 1.5rem; }
+      .hero .ctas .pill { border-radius: 0.5rem; }
+      .hero .pill-go { background: var(--hue-green); border-color: var(--hue-green); color: oklch(0.15 0 0); }
+      .term { border: 1px solid var(--rule); border-radius: 0.6rem; background: oklch(0.09 0 0); overflow: hidden; box-shadow: var(--shadow); }
+      .term header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-block-end: 1px solid var(--rule); color: var(--ink-3); font-family: var(--mono); font-size: 0.72rem; }
+      .term header i { inline-size: 0.6rem; block-size: 0.6rem; border-radius: 50%; background: var(--rule); }
+      .term header span { margin-inline-start: 0.5rem; }
+      .term pre { padding: 1rem; font-size: 0.8rem; line-height: 1.6; color: var(--ink-2); }
+      .term .p { color: var(--hue-green); }
+      .term .c { color: var(--ink-3); }
+      .term .k { color: var(--hue-blue); }
+      .term .s { color: var(--hue-yellow); }
+      .term .w { color: var(--ink); }
+      .strip { display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; padding-block: 1.25rem; border-block: 1px solid var(--rule); color: var(--ink-3); font-family: var(--mono); font-size: 0.78rem; }
+      .strip b { color: var(--ink); font-weight: 500; }
+      .sec { padding-block: 4rem; }
+      .sec > header { max-inline-size: 44rem; margin-block-end: 2rem; }
+      .sec h2 { font-size: var(--glacier-font-size-2xl); }
+      .sec > header p { margin-block-start: 0.6rem; color: var(--ink-2); font-size: var(--glacier-font-size-md); }
+      .kicker { display: inline-flex; align-items: center; gap: 0.4rem; margin-block-end: 0.75rem; font-family: var(--mono); font-size: 0.75rem; color: var(--hue); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 0.6rem; overflow: hidden; list-style: none; margin: 0; padding: 0; }
+      .grid li { display: grid; grid-template-rows: auto auto 1fr; gap: 0.5rem; padding: 1.25rem; background: var(--paper); }
+      .grid h3 { display: flex; align-items: center; gap: 0.5rem; font-size: var(--glacier-font-size-md); }
+      .grid p { color: var(--ink-2); }
+      .grid pre { margin-block-start: 0.5rem; padding: 0.7rem 0.8rem; border-radius: 0.4rem; background: oklch(0.09 0 0); border: 1px solid var(--rule); font-size: 0.74rem; line-height: 1.55; color: var(--ink-2); }
+      .grid .shot { margin-block-start: 0.5rem; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
+      .list { list-style: none; margin: 0; padding: 0; counter-reset: n; }
+      .list li { display: grid; grid-template-columns: 2.2rem 1fr; gap: 0.75rem; padding-block: 1rem; border-block-start: 1px solid var(--rule); counter-increment: n; }
+      .list li::before { content: counter(n, decimal-leading-zero); font-family: var(--mono); color: var(--hue-green); padding-block-start: 0.2rem; }
+      .list b { display: block; margin-block-end: 0.2rem; font-size: var(--glacier-font-size-md); }
+      .list p { color: var(--ink-2); }
+      .tree { font-family: var(--mono); font-size: 0.8rem; line-height: 1.7; color: var(--ink-2); padding: 1rem 1.25rem; border: 1px solid var(--rule); border-radius: 0.6rem; background: oklch(0.09 0 0); }
+      .tree b { color: var(--ink); font-weight: 500; }
+      .tree .d { color: var(--hue-blue); }
+      .tree .h { color: var(--ink-3); }
+      .connect { display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; padding: 1rem 1.25rem; border: 1px solid var(--rule); border-radius: 0.6rem; background: oklch(0.09 0 0); font-family: var(--mono); font-size: 0.85rem; }
+      .connect .pill { min-block-size: 2rem; border-radius: 0.4rem; }
+      .get .ways { margin-block-start: 1.5rem; }
+      .get .way { border-radius: 0.6rem; }
+      .foot { padding: 2rem 0 5rem; border-block-start: 1px solid var(--rule); color: var(--ink-3); font-size: 0.8rem; }
+      .foot .wrap { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+      .foot a { text-decoration: none; }
+      @media (max-width: 860px) { .hero, .two { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="#top"><img src="../icon.png" alt="" /><span>Ghost.md</span></a>
+        <ul><li><a href="#features">Features</a></li><li><a href="#teams">Teams</a></li><li><a href="#claude">Claude</a></li><li><a href="#files">Files</a></li><li><a href="../market.html">Market</a></li><li><a href="/docs/">Docs</a></li><li><a href="../reference.html">Reference</a></li></ul>
+        <div class="right"><a class="pill" href="https://attack.fm/glyph/">Open in browser</a><a class="pill pill-ink" href="#get">Download</a></div>
+      </nav>
+    </header>
+    <main id="top" class="wrap">
+      <section class="hero">
+        <div>
+          <p class="kicker" style="--hue: var(--hue-green)"><svg class="i"><use href="../icons.svg#i-file-text"/></svg>v2.3.94 · plain Markdown, sealed sync, Claude built in</p>
+          <h1>Notes and tickets as <em>files</em>. Boards, Gantts and queries as <em>text</em>.</h1>
+          <p class="lead">Ghost.md keeps everything as <code>.md</code> files in a folder you own: journals, boards, canvases, a team's tickets. Obsidian opens them, GitHub renders them, git backs them up. Claude reads and writes them, in the app or through a connector.</p>
+          <div class="ctas"><a class="pill pill-go pill-lg" href="#get"><svg class="i"><use href="../icons.svg#i-download"/></svg><span>Download</span></a><a class="pill pill-lg" href="#claude"><svg class="i"><use href="../icons.svg#i-plug"/></svg><span>Connect Claude</span></a></div>
+        </div>
+        <figure class="term" aria-label="A terminal">
+          <header><i></i><i></i><i></i><span>~/Ghost/Library/workspaces/Product</span></header>
+          <pre><span class="p">$</span> <span class="w">ls</span>
+<span class="k">.glyph/</span>  <span class="k">Meetings/</span>  Launch plan.md  Launch plan.versions  PRD-11 Login loop.md
+<span class="p">$</span> <span class="w">head -8 "PRD-11 Login loop.md"</span>
+<span class="c">---</span>
+<span class="k">type:</span> <span class="s">ticket</span>
+<span class="k">id:</span> <span class="s">PRD-11</span>
+<span class="k">status:</span> <span class="s">In progress</span>
+<span class="k">assignee:</span> <span class="s">Sam</span>
+<span class="k">priority:</span> <span class="s">highest</span>
+<span class="c">---</span>
+# Login loop
+<span class="p">$</span> <span class="w">git log --oneline | head -3</span>
+<span class="s">8bf4ec9</span> Launch plan: the board
+<span class="s">dfb138c</span> Date picked
+<span class="s">0351c39</span> Launch plan
+<span class="p">$</span> <span class="w">claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp</span>
+<span class="c">Added HTTP MCP server glyph</span> <span class="w">▌</span></pre>
+        </figure>
+      </section>
+      <p class="strip"><span><b>Android</b> apk</span><span><b>iPhone</b> App Store</span><span><b>Mac</b> dmg, notarized</span><span><b>Windows</b> setup.exe</span><span><b>Web</b> attack.fm/glyph</span><span><b>No account needed</b></span><span><b>E2E</b> sealed sync</span><span><b>No lock-in</b> plain files</span></p>
+
+      <section class="sec" id="features">
+        <header><p class="kicker" style="--hue: var(--hue-purple)"><svg class="i"><use href="../icons.svg#i-square-kanban"/></svg>Marks</p><h2>A few plain marks, drawn as tools.</h2><p>The file stays text. Any Markdown app opens it; Obsidian Tasks and GitHub read the same marks.</p></header>
+        <ul class="grid hue-cycle">
+          <li><h3><svg class="i i-lead"><use href="../icons.svg#i-list-todo"/></svg>To-dos with details</h3><p>A person, a priority and a due day on any to-do, drawn as chips you tap.</p><pre>- [ ] Renew the insurance @matt ⏫ 📅 2026-10-02</pre></li>
+          <li><h3><svg class="i i-lead"><use href="../icons.svg#i-ticket"/></svg>Tickets</h3><p>Front matter says it is a ticket. Its fields become a panel; a notebook with a key numbers them.</p><pre>---
+type: ticket
+id: PRD-11
+status: In progress
+---</pre></li>
+          <li><h3><svg class="i i-lead"><use href="../icons.svg#i-database"/></svg>Queries</h3><p>What matches across every note, as a table, list, board, calendar, Gantt, chart or count.</p><pre>```query
+from: tickets [[Product]]
+where: status != Done
+show: gantt
+```</pre></li>
+          <li><h3><svg class="i i-lead"><use href="../icons.svg#i-layout-grid"/></svg>Boards</h3><p>Named items in columns. Drag a card to move it.</p><pre>```board
+To do: ship-page
+Done: pick-date
+```</pre></li>
+          <li><h3><svg class="i i-lead"><use href="../icons.svg#i-workflow"/></svg>Rules</h3><p>Sentences, run as the notebook's tickets change.</p><pre>```rules
+When status becomes Done,
+post to Slack #launches.
+```</pre></li>
+          <li><h3><svg class="i i-lead"><use href="../icons.svg#i-calculator"/></svg>Sums, diagrams, embeds</h3><p>A line starting <code>=</code> shows its answer. A mermaid fence is drawn. A YouTube link alone is a card.</p><pre>= $45 + $18 * 2   → $81</pre></li>
+        </ul>
+      </section>
+
+      <section class="sec" id="teams">
+        <header><p class="kicker" style="--hue: var(--hue-mint)"><svg class="i"><use href="../icons.svg#i-users"/></svg>For teams</p><h2>Tickets, cycles and a Gantt, in files the team owns.</h2></header>
+        <div class="two">
+          <ol class="list">
+            <li><b>Tickets in notebooks</b><p>Keys like HT-12, statuses, assignees, due days, priorities, labels, components, sub-tickets with a progress bar, templates.</p></li>
+            <li><b>Boards, tables, calendars, charts, rollups</b><p>One query fence, shown any way. Pick a few cards and change them all at once.</p></li>
+            <li><b>Cycles, epics, roadmap</b><p>Burndown and velocity, unfinished work carried over, epics that add up their tickets.</p></li>
+            <li><b>My tickets and Triage</b><p>Everything assigned to you, by when it's due. Triage by keys: J/K move, A assign, P priority, T done.</p></li>
+            <li><b>Forms that land as tickets</b><p>Share a link; each answer arrives sealed and becomes a ticket in the notebook.</p></li>
+            <li><b>Pull requests, timers, watchers, history, digest, duplicates</b><p>A GitHub PR on its ticket; Start/Stop; a morning digest; Merge into… with one Undo.</p></li>
+          </ol>
+          <figure><img class="shot" src="../shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart drawn from a query." /><p class="fine" style="margin-top:.6rem">Organizations seal a team's notes with a key only members hold. Live cursors, @mentions, verified pages, comments in the margin.</p></figure>
+        </div>
+      </section>
+
+      <section class="sec" id="claude">
+        <header><p class="kicker" style="--hue: var(--hue-coral)"><svg class="brand-mark brand-claude"><use href="marks.svg#claude-mark"/></svg>Claude</p><h2>Built in, and connected.</h2><p>In the app with your own Anthropic key, kept in the device's secure storage. Or from claude.ai, Claude Desktop and Claude Code through the connector, which reads, searches and writes notes, tickets and comments, and shows as online while it works.</p></header>
+        <div class="two">
+          <div class="connect"><code id="mcp">https://ghostmarkdown.com/api/mcp</code><button class="pill" type="button" data-copy="#mcp">Copy</button></div>
+          <pre class="tree"><b class="h"># Claude Code</b>
+claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp
+<b class="h"># claude.ai, Claude Desktop</b>
+Settings › Connectors › Add custom connector</pre>
+        </div>
+      </section>
+
+      <section class="sec" id="files">
+        <header><p class="kicker" style="--hue: var(--hue-yellow)"><svg class="i"><use href="../icons.svg#i-folder-tree"/></svg>Your files</p><h2>Plain Markdown, all the way down.</h2><p>One folder. Every note a <code>.md</code> file named after its title; versions beside it, kept like git; attachments under Library/. Back it up to any git host with the plugin, or publish it as a site.</p></header>
+        <div class="two">
+          <pre class="tree"><span class="d">Library/</span>
+├── <span class="d">.glyph/</span>            <span class="h">config.json: folders, settings</span>
+├── <span class="d">.trash/</span>
+├── <span class="d">image/</span> <span class="d">file/</span> <span class="d">video/</span> <span class="d">recordings/</span>
+├── <span class="d">Inbox/</span>
+└── <span class="d">workspaces/</span>
+    └── <span class="d">Product/</span>
+        ├── <span class="d">Meetings/</span>
+        ├── <b>Launch plan.md</b>
+        ├── <b>Launch plan.versions</b>   <span class="h">v1..v3, who and when</span>
+        ├── <b>Product.md</b>              <span class="h">the notebook: key, statuses, rules</span>
+        └── <b>PRD-11 Login loop.md</b></pre>
+          <ol class="list">
+            <li><b>Every version, kept like git</b><p>A line saying who and when, then the lines out (<code>-</code>) and in (<code>+</code>). Every fiftieth is a whole copy.</p></li>
+            <li><b>Sealed before it syncs</b><p>Encrypted on the device, end to end. No account needed at all.</p></li>
+            <li><b>Take it all with you</b><p>One <code>.ghostex</code> export, or the folder itself: it already is the export.</p></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="sec get" id="get">
+        <header><h2>Get Ghost.md</h2><p>Free. The downloads are the release's own files.</p></header>
+        <ul class="ways">
+          <li><a class="way" href="/glyph.apk" download><svg class="i"><use href="../icons.svg#i-smartphone"/></svg><span><b>Android</b><span>glyph.apk</span></span></a></li>
+          <li><a class="way" href="https://apps.apple.com/app/ghost-markdown/id6818598896"><svg class="i"><use href="../icons.svg#i-shopping-bag"/></svg><span><b>iPhone</b><span>App Store</span></span></a></li>
+          <li><a class="way" href="/glyph.dmg" download><svg class="i"><use href="../icons.svg#i-laptop"/></svg><span><b>Mac</b><span>glyph.dmg</span></span></a></li>
+          <li><a class="way" href="/glyph-setup.exe" download><svg class="i"><use href="../icons.svg#i-monitor"/></svg><span><b>Windows</b><span>glyph-setup.exe</span></span></a></li>
+          <li><a class="way" href="https://attack.fm/glyph/"><svg class="i"><use href="../icons.svg#i-globe"/></svg><span><b>Browser</b><span>attack.fm/glyph</span></span></a></li>
+        </ul>
+      </section>
+    </main>
+    <footer class="foot"><div class="wrap"><span>Ghost.md</span><a href="/docs/">Docs</a><a href="../reference.html">Formatting reference</a><a href="../market.html">Market</a><a href="../privacy.html">Privacy</a><a href="../delete-account.html">Delete your account</a></div></footer>
+    <script>
+      document.querySelectorAll('[data-copy]').forEach(function (b) { b.addEventListener('click', function () { var t = document.querySelector(b.dataset.copy).textContent.trim(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1500); }, function () { b.textContent = 'Select it'; }); }); });
+    </script>
+  </body>
+</html>

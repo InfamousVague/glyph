@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Readme</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="../theme.js"></script>
+    <script src="strip.js" defer></script>
+    <!-- Version 5, Readme: after a README rendered on GitHub. The site as one document, a table of contents down the side, tables of what works where. -->
+    <style>
+      body { font-size: 0.95rem; line-height: 1.55; }
+      .top { border-block-end: 1px solid var(--rule); background: var(--paper-2); }
+      .top-in { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; inline-size: min(100% - 2rem, 80rem); margin-inline: auto; block-size: 3.25rem; font-size: 0.9rem; }
+      .top img { inline-size: 1.25rem; block-size: 1.25rem; border-radius: 0.3rem; }
+      .top .sep { color: var(--ink-4); }
+      .top b { font-weight: 600; }
+      .top .right { margin-inline-start: auto; display: flex; gap: 0.4rem; }
+      .top .pill { min-block-size: 1.9rem; border-radius: 0.4rem; font-size: 0.8rem; padding-inline: 0.7rem; }
+      .page { display: grid; grid-template-columns: 15rem 1fr; gap: 3rem; inline-size: min(100% - 2rem, 80rem); margin: 2rem auto 6rem; }
+      .toc { position: sticky; inset-block-start: 1rem; align-self: start; font-size: 0.85rem; }
+      .toc p { margin-block-end: 0.5rem; font-weight: 600; color: var(--ink-3); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+      .toc ol { list-style: none; margin: 0; padding: 0; border-inline-start: 1px solid var(--rule); }
+      .toc a { display: block; padding: 0.25rem 0.75rem; color: var(--ink-2); text-decoration: none; border-inline-start: 2px solid transparent; margin-inline-start: -1px; }
+      .toc a:hover { color: var(--ink); border-color: var(--ink-3); }
+      .toc ol ol { border: 0; margin-inline-start: 0.75rem; }
+      .toc ol ol a { font-size: 0.8rem; padding-block: 0.15rem; }
+      .doc { min-inline-size: 0; max-inline-size: 56rem; }
+      .doc h1 { font-size: 2rem; padding-block-end: 0.4rem; border-block-end: 1px solid var(--rule); margin-block-end: 1rem; letter-spacing: -0.02em; }
+      .doc h2 { font-size: 1.45rem; margin: 2.2rem 0 0.8rem; padding-block-end: 0.3rem; border-block-end: 1px solid var(--rule); letter-spacing: -0.015em; }
+      .doc h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+      .doc p { margin-block: 0.6rem; }
+      .doc ul, .doc ol { margin-block: 0.5rem; padding-inline-start: 1.5rem; }
+      .doc li { margin-block: 0.2rem; }
+      .doc li::marker { color: var(--ink-3); }
+      .badges { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-block: 0.75rem 1.25rem; }
+      .badge { display: inline-flex; font-family: var(--mono); font-size: 0.7rem; border-radius: 0.25rem; overflow: hidden; border: 1px solid var(--rule); }
+      .badge span { padding: 0.15rem 0.45rem; }
+      .badge span:first-child { background: var(--paper-3); color: var(--ink-2); }
+      .badge span:last-child { background: var(--hue); color: white; }
+      table { inline-size: 100%; border-collapse: collapse; margin-block: 0.75rem 1.25rem; font-size: 0.86rem; }
+      th, td { padding: 0.45rem 0.7rem; border: 1px solid var(--rule); text-align: start; vertical-align: top; }
+      th { background: var(--paper-2); font-weight: 600; }
+      tr:nth-child(even) td { background: color-mix(in oklch, var(--paper-2) 50%, var(--paper)); }
+      td .y { color: var(--hue-green); font-weight: 700; }
+      td .n { color: var(--ink-4); }
+      td .s { color: var(--hue-yellow); font-size: 0.75rem; }
+      .doc pre { padding: 0.8rem 1rem; border-radius: 0.5rem; background: var(--paper-2); border: 1px solid var(--rule); font-size: 0.8rem; line-height: 1.5; margin-block: 0.6rem 1rem; }
+      .doc blockquote { margin: 0.75rem 0; padding: 0.1rem 1rem; border-inline-start: 4px solid var(--rule); color: var(--ink-2); }
+      .doc img.shot { margin-block: 0.5rem 1rem; }
+      .doc .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      details { margin-block: 0.5rem; border: 1px solid var(--rule); border-radius: 0.5rem; padding: 0.5rem 0.9rem; }
+      summary { cursor: pointer; font-weight: 600; }
+      kbd { font-family: var(--mono); font-size: 0.75em; padding: 0.1em 0.4em; border: 1px solid var(--rule); border-block-end-width: 2px; border-radius: 0.3em; background: var(--paper-2); }
+      .doc .ways { margin-block: 0.75rem 1rem; }
+      .doc .way { border-radius: 0.5rem; padding-block: 0.6rem; }
+      @media (max-width: 860px) { .page { grid-template-columns: 1fr; } .toc { position: static; } .doc .two { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="top-in">
+        <img src="../icon.png" alt="" /><span>ghostmarkdown</span><span class="sep">/</span><b>ghost.md</b>
+        <div class="right"><a class="pill" href="/docs/">Docs</a><a class="pill" href="../market.html">Market</a><a class="pill pill-ink" href="#install">Download</a></div>
+      </div>
+    </header>
+    <div class="page">
+      <nav class="toc" aria-label="Contents">
+        <p>Contents</p>
+        <ol>
+          <li><a href="#install">Install</a></li>
+          <li><a href="#what">What it is</a></li>
+          <li><a href="#marks">Marks</a><ol><li><a href="#marks-todos">To-dos</a></li><li><a href="#marks-tickets">Tickets</a></li><li><a href="#marks-queries">Queries</a></li><li><a href="#marks-rules">Rules</a></li></ol></li>
+          <li><a href="#teams">Teams</a></li>
+          <li><a href="#claude">Claude</a></li>
+          <li><a href="#calendar">Calendar and meetings</a></li>
+          <li><a href="#plugins">Plugins</a></li>
+          <li><a href="#files">Files on disk</a></li>
+          <li><a href="#platforms">Platform matrix</a></li>
+          <li><a href="#privacy">Privacy</a></li>
+          <li><a href="#links">Links</a></li>
+        </ol>
+      </nav>
+      <main class="doc">
+        <h1>Ghost.md</h1>
+        <p class="badges hue-cycle"><span class="badge"><span>version</span><span>2.3.94</span></span><span class="badge"><span>format</span><span>CommonMark + front matter</span></span><span class="badge"><span>sync</span><span>end-to-end sealed</span></span><span class="badge"><span>account</span><span>optional</span></span><span class="badge"><span>platforms</span><span>5</span></span><span class="badge"><span>plugins</span><span>22</span></span></p>
+        <p>Notes, journals, boards, canvases, notebooks and a team's tickets, kept as plain Markdown on your own devices and sealed when they sync. Claude, your calendar, Notion, GitHub and Slack are a switch away. No account needed.</p>
+
+        <h2 id="install">Install</h2>
+        <ul class="ways">
+          <li><a class="way" href="/glyph.apk" download><svg class="i"><use href="../icons.svg#i-smartphone"/></svg><span><b>Android</b><span>glyph.apk</span></span></a></li>
+          <li><a class="way" href="https://apps.apple.com/app/ghost-markdown/id6818598896"><svg class="i"><use href="../icons.svg#i-shopping-bag"/></svg><span><b>iPhone</b><span>App Store</span></span></a></li>
+          <li><a class="way" href="/glyph.dmg" download><svg class="i"><use href="../icons.svg#i-laptop"/></svg><span><b>Mac</b><span>glyph.dmg, 13.1+</span></span></a></li>
+          <li><a class="way" href="/glyph-setup.exe" download><svg class="i"><use href="../icons.svg#i-monitor"/></svg><span><b>Windows</b><span>glyph-setup.exe</span></span></a></li>
+          <li><a class="way" href="https://attack.fm/glyph/"><svg class="i"><use href="../icons.svg#i-globe"/></svg><span><b>Browser</b><span>attack.fm/glyph</span></span></a></li>
+        </ul>
+        <p>The downloads are the release's own files; the app updates itself from the same place. Connect Claude Code in one line:</p>
+        <pre><code>claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp</code></pre>
+
+        <h2 id="what">What it is</h2>
+        <ul>
+          <li><b>Every note is a <code>.md</code> file</b>, named after its title, in a folder you own. Journals, boards, canvases, notebooks and tickets are Markdown too, so Obsidian opens them and GitHub renders them.</li>
+          <li><b>Sealed sync.</b> With an account, notes, tapes and pictures are encrypted on the device, end to end. Without one, nothing of yours is on a server.</li>
+          <li><b>Claude built in</b> with your own key, and a connector for Claude's own apps.</li>
+          <li><b>Voice.</b> Speak a note, record a meeting with the phone locked; the device transcribes and summarises.</li>
+          <li><b>Versions kept like git</b>, in a file beside the note.</li>
+          <li><b>Teams.</b> Organizations, live cursors, comments, tickets, cycles, a Gantt, forms, rules.</li>
+        </ul>
+        <img class="shot" src="../shots/desk.webp" width="1280" height="800" loading="lazy" alt="Ghost.md on a wide screen." />
+
+        <h2 id="marks">Marks</h2>
+        <p>A few plain marks on top of Markdown, drawn as tools. The file stays text. Every mark, with an example to copy, is on <a href="../reference.html">the formatting reference</a>.</p>
+        <h3 id="marks-todos">To-dos that carry their details</h3>
+        <pre><code>- [ ] Renew the insurance @matt ⏫ 📅 2026-10-02</code></pre>
+        <p>A person, a priority and a due day, as Obsidian Tasks writes them, drawn as chips you tap to change. A due day lands on your calendar; a place reminds you when you get there (Android).</p>
+        <h3 id="marks-tickets">Tickets</h3>
+        <div class="two"><pre><code>---
+type: ticket
+id: PRD-11
+status: In progress
+assignee: Sam
+priority: highest
+labels: [auth, mobile]
+estimate: 3
+blocked_by: PRD-9
+---
+# Login loop</code></pre><div><p>A note whose front matter says it is a ticket. Its fields become a panel at the top; a notebook with a key numbers them.</p><table><tr><th>Field</th><th>Drawn as</th></tr><tr><td>status</td><td>a chip from the notebook's list</td></tr><tr><td>assignee</td><td>a person, with their picture</td></tr><tr><td>priority</td><td>lowest … highest, stale marks</td></tr><tr><td>labels, components</td><td>coloured chips, filterable</td></tr><tr><td>estimate, cycle, epic</td><td>points, burndown, rollup</td></tr><tr><td>blocked_by</td><td>a check before Done</td></tr></table></div></div>
+        <h3 id="marks-queries">Queries</h3>
+        <div class="two"><pre><code>```query
+from: tickets [[Product]]
+where: status != Done
+sort: priority, due
+show: board | table | list | calendar
+      | timeline | gantt | chart | rollup
+total: estimate
+```</code></pre><div><p>What matches across every note, drawn any way. Totals add up as you go; pick a few cards and change them all at once.</p><pre><code>```board
+To do: ship-page
+In progress: record-demo
+Done: pick-date
+```</code></pre></div></div>
+        <h3 id="marks-rules">Rules, sums, diagrams, embeds</h3>
+        <pre><code>```rules
+When status becomes Done, post to Slack #launches.
+When a ticket is made with label bug, assign Sam.
+```
+= $45 + $18 * 2        → $81
+```mermaid
+flowchart LR; Idea --> Ticket --> Done
+```
+https://www.youtube.com/watch?v=…     (a card that plays)</code></pre>
+
+        <h2 id="teams">Teams</h2>
+        <table>
+          <tr><th>Feature</th><th>What it does</th></tr>
+          <tr><td>Tickets in notebooks</td><td>Keys like HT-12, statuses, assignees, due days, priorities, labels, components, sub-tickets with a progress bar, templates for new ones</td></tr>
+          <tr><td>Boards, tables, calendars, charts, rollups</td><td>One <code>query</code> fence, shown any way; bulk edits with one Undo</td></tr>
+          <tr><td>Gantt</td><td><code>show: gantt</code>; drag to move or stretch, link what waits on what, milestones, today's line, Week/Month/Quarter</td></tr>
+          <tr><td>Cycles, epics, roadmap</td><td>Burndown and velocity, unfinished work carried to the next cycle, epics that add up their tickets</td></tr>
+          <tr><td>My tickets, Triage</td><td>Everything assigned to you by due day; Triage by keys <kbd>J</kbd> <kbd>K</kbd> move, <kbd>A</kbd> assign, <kbd>P</kbd> priority, <kbd>T</kbd> done</td></tr>
+          <tr><td>Forms</td><td>Share a link; each answer arrives sealed and becomes a ticket, no account needed to fill it</td></tr>
+          <tr><td>Rules</td><td>Sentences in a <code>rules</code> fence, run as tickets change</td></tr>
+          <tr><td>Pull requests, timers</td><td>A GitHub PR sits on its ticket; Start and Stop keep time spent</td></tr>
+          <tr><td>Watchers, history, digest</td><td>Hear of changes, read each ticket's history, a morning digest of what is due</td></tr>
+          <tr><td>Duplicates, merge</td><td>Possible duplicates shown as a ticket is made; Merge into… with one Undo</td></tr>
+          <tr><td>Organizations</td><td>Shared notebooks and folders sealed with a key only members hold; live cursors, @mentions, verified pages, comments, an audit log</td></tr>
+          <tr><td>Meetings</td><td>Ghost joins Meet and Zoom, writes the transcript as the call runs, posts the summary to Slack</td></tr>
+        </table>
+        <img class="shot" src="../shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart drawn from a query." />
+
+        <h2 id="claude">Claude</h2>
+        <p><b>In the app</b> with your own Anthropic key, kept in the device's secure storage: ask in the chat and the note opens as Claude starts writing, word by word at its own caret, its thinking shown. Talk to it from the dock. Android, iPhone and the Mac.</p>
+        <p><b>Through the connector</b> from claude.ai, Claude Desktop and Claude Code: it reads, searches and writes notes, tickets and comments, shows as online while it works, signs what it writes, and never writes over an edit from another device.</p>
+        <pre><code>https://ghostmarkdown.com/api/mcp</code></pre>
+        <blockquote>"Make a ticket for the login loop, highest priority, for Sam." → a ticket note, its fields in front matter, in the notebook you name.</blockquote>
+
+        <h2 id="calendar">Calendar and meetings</h2>
+        <ul>
+          <li>Google Calendar: today's events at the head of home; a to-do with a due day is an all-day event within seconds, moves when the day changes, goes when ticked off.</li>
+          <li>Any iCal address (iCloud, Outlook, Fastmail): events in, nothing to sign in to. Only events Ghost.md made are ever changed.</li>
+          <li>Events you can query: <code>from: events</code>, shown as a list, table, month or timeline.</li>
+          <li>Meetings: invite <code>you@in.ghostmarkdown.com</code> to a Meet or Zoom call, or paste a link. Every occurrence of a series. Transcript with speakers; summary written on your device; filed into the right workspace's Meetings folder.</li>
+        </ul>
+
+        <h2 id="plugins">Plugins</h2>
+        <p>All built in, off by default, each a switch in <a href="../market.html">the Market</a>. Local only holds back every one that uses the internet.</p>
+        <table>
+          <tr><th>Plugin</th><th>Does</th><th>Android</th><th>iPhone</th><th>Mac</th></tr>
+          <tr><td>Claude, OpenAI, Gemini, Aster, custom</td><td>AI in the app with your own key</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Notion</td><td>List items as tasks on a Notion board, in step both ways</td><td><span class="y">✓</span></td><td><span class="n">–</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>GitHub</td><td>A note linked to a repo sends its items as issues; PRs on tickets</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Slack, Discord</td><td>Post a note, a summary or the team's news to a channel</td><td><span class="y">✓</span></td><td><span class="n">–</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Calendar</td><td>Google Calendar and any iCal</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Google Meet, Zoom</td><td>Send Ghost to take notes</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Todoist, Things</td><td>Bring projects in: tasks, due days, priorities, labels</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Webhooks</td><td>Out when notes change; in from Zapier, Make, IFTTT or curl</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Lovart</td><td>Images from <code>{image: …}</code> cues and moodboards</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>ElevenLabs</td><td>Your notes read aloud in a voice you choose</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Back up to git</td><td>Commit the library to any host, push as you write, publish as a site</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+          <tr><td>Contacts, Place reminders</td><td>People on your to-dos; a reminder when you arrive</td><td><span class="y">✓</span></td><td><span class="s">Contacts</span></td><td><span class="s">Contacts</span></td></tr>
+          <tr><td>Keyboard modes, Marks, Rich embeds</td><td>Vim or Emacs keys; smoke, highlights, asides; YouTube, Spotify, Figma cards</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+        </table>
+
+        <h2 id="files">Files on disk</h2>
+        <pre><code>Library/
+├── .glyph/config.json          folders and library settings
+├── .trash/                     as in Obsidian
+├── image/  file/  video/  recordings/
+├── Inbox/
+└── workspaces/
+    └── Product/
+        ├── Product.md          the notebook: key, statuses, rules
+        ├── Launch plan.md
+        ├── Launch plan.versions
+        ├── PRD-11 Login loop.md
+        ├── Roadmap.canvas
+        └── Meetings/2026-10-30 Standup.md</code></pre>
+        <details><summary>Launch plan.versions</summary><pre><code># Ghost.md versions 1
+v1 2026-09-26T11:03:47.000Z matt 0351c39d full
+  +# Launch plan
+  +- [ ] Ship the pricing page ^ship-page
+  +- [ ] Pick a launch date ^pick-date
+v2 2026-09-29T16:20:05.000Z sam dfb138ca "Date picked"
+  =2
+  -- [ ] Pick a launch date ^pick-date
+  +- [x] Pick a launch date ^pick-date</code></pre><p>Each version is who and when, then the lines it took out and put in, as git keeps a change. Every fiftieth is a whole copy, and each is checked against its hash.</p></details>
+
+        <h2 id="platforms">Platform matrix</h2>
+        <table>
+          <tr><th></th><th>Android</th><th>iPhone</th><th>Mac</th><th>Windows</th><th>Web</th></tr>
+          <tr><td>Notes, boards, canvases, notebooks, queries</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+          <tr><td>Sealed sync, organizations, live cursors</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+          <tr><td>Claude in the app</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">–</td><td class="n">–</td></tr>
+          <tr><td>Claude connector</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+          <tr><td>Speak a note, record a meeting</td><td class="y">✓</td><td class="n">–</td><td class="y">✓</td><td class="n">–</td><td class="n">–</td></tr>
+          <tr><td>Calendar, plugins catalog</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">–</td><td class="n">–</td></tr>
+          <tr><td>Place reminders</td><td class="y">✓</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+          <tr><td>Versions on disk</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="s">browser storage</td></tr>
+        </table>
+
+        <h2 id="privacy">Privacy</h2>
+        <ul>
+          <li>No account needed; without one, nothing of yours is on a server.</li>
+          <li>Notes, tapes and pictures are encrypted on the device, end to end. A team's notes with a key only its members hold.</li>
+          <li>No ads, no analytics, no trackers, in the app or on this site.</li>
+          <li>Export everything as one <code>.ghostex</code> file, or just copy the folder.</li>
+          <li>Connecting Claude through the hosted connector lets it read your notes while connected; run the connector on your own computer to keep your key there. <a href="../privacy.html">The privacy policy.</a></li>
+        </ul>
+
+        <h2 id="links">Links</h2>
+        <ul><li><a href="/docs/">Ghost.md Docs</a>, the book</li><li><a href="../reference.html">Formatting reference</a></li><li><a href="../market.html">The Market</a></li><li><a href="../lovart.html">Lovart</a></li><li><a href="../privacy.html">Privacy</a> · <a href="../delete-account.html">Delete your account</a></li></ul>
+      </main>
+    </div>
+  </body>
+</html>

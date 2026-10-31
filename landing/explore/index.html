@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Ten versions of the site</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="../theme.js"></script>
+    <script src="strip.js" defer></script>
+    <style>
+      main { inline-size: min(100% - 2rem, 64rem); margin: 4rem auto 8rem; }
+      h1 { font-size: var(--glacier-font-size-3xl); margin-block-end: 0.5rem; }
+      .lead { color: var(--ink-2); max-inline-size: 48rem; margin-block-end: 2.5rem; }
+      .axis { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: 2rem; }
+      .axis span { font-size: 0.8rem; padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2); }
+      ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+      li a { display: grid; grid-template-rows: auto 1fr auto; gap: 0.6rem; block-size: 100%; padding: 1.1rem 1.2rem 1rem; border: 1px solid var(--rule); border-radius: 1rem; text-decoration: none; background: var(--paper); transition: border-color 160ms var(--ease), transform 160ms var(--ease); }
+      li a:hover { border-color: var(--hue); transform: translateY(-2px); }
+      .n { font-family: var(--mono); font-size: 0.75rem; color: var(--hue); font-weight: 700; }
+      h2 { font-size: var(--glacier-font-size-xl); }
+      h2 small { display: block; margin-block-start: 0.25rem; font-size: 0.8rem; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+      li p { color: var(--ink-2); font-size: var(--glacier-font-size-sm); }
+      .meter { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--ink-3); }
+      .meter i { display: inline-flex; gap: 2px; }
+      .meter b { inline-size: 0.55rem; block-size: 0.55rem; border-radius: 2px; background: var(--rule); }
+      .meter b.on { background: var(--hue); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Ten versions of ghostmarkdown.com</h1>
+      <p class="lead">The same app and the same words, laid out ten ways, from a page with almost nothing on it to one with everything on it. Each borrows from a site worth borrowing from: Notion, Discord, GitHub, Linear, Vercel, Raycast, Apple. The boxes say how much is on the page.</p>
+      <div class="axis"><span>Density: 1 is a sentence a screen, 5 is a spec sheet</span><span>Every download and address is the real one</span><span>Light, dark and the named themes follow your pick on the home page</span></div>
+      <ol class="hue-cycle">
+        <li><a href="01-air.html"><span class="n">01</span><h2>Air<small>After Notion</small></h2><p>One centred column, a big sentence, a big picture, and nothing crowding either. The quietest version.</p><span class="meter">Density <i><b class="on"></b><b></b><b></b><b></b><b></b></i></span></a></li>
+        <li><a href="02-blocks.html"><span class="n">02</span><h2>Blocks<small>After Discord</small></h2><p>Full-width bands in colour, display type you can read from across the room, pictures zig-zagging down the page.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b></b><b></b><b></b></i></span></a></li>
+        <li><a href="03-terminal.html"><span class="n">03</span><h2>Terminal<small>After GitHub and git</small></h2><p>Dark, code first: a terminal in the hero, the file tree, a grid of features with the lines that draw them.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b><b></b></i></span></a></li>
+        <li><a href="04-bento.html"><span class="n">04</span><h2>Bento<small>After Vercel and Stripe</small></h2><p>A short hero, then everything in one grid of cards of different sizes, each a feature with its picture.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b><b></b></i></span></a></li>
+        <li><a href="05-readme.html"><span class="n">05</span><h2>Readme<small>After a README on GitHub</small></h2><p>The site as a document: a table of contents down the side, headings, tables of what works where, code blocks. The densest version.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b></i></span></a></li>
+        <li><a href="06-palette.html"><span class="n">06</span><h2>Palette<small>After Raycast</small></h2><p>The hero is a command palette: type to find a feature, press a row to read about it. Keyboard shortcuts everywhere.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b></b><b></b></i></span></a></li>
+        <li><a href="07-shell.html"><span class="n">07</span><h2>Shell<small>After a product tour</small></h2><p>The whole page lives inside an app window: a sidebar of sections on the left, the section on the right, as if you were already in Ghost.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b></b><b></b></i></span></a></li>
+        <li><a href="08-slides.html"><span class="n">08</span><h2>Slides<small>After Apple and Arc</small></h2><p>One feature per screen, snapping as you scroll, a dot for each down the side. The least on any screen.</p><span class="meter">Density <i><b class="on"></b><b></b><b></b><b></b><b></b></i></span></a></li>
+        <li><a href="09-feed.html"><span class="n">09</span><h2>Feed<small>After Linear's changelog</small></h2><p>The page is the app's real changelog, newest first, with the downloads and the connector pinned beside it.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b><b></b></i></span></a></li>
+        <li><a href="10-specs.html"><span class="n">10</span><h2>Specs<small>After a tech-specs page</small></h2><p>Definition lists and a platform matrix: every feature on one line, every platform in one column, no pictures at all.</p><span class="meter">Density <i><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b></i></span></a></li>
+      </ol>
+    </main>
+  </body>
+</html>

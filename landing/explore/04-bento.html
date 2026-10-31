@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Bento</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="../theme.js"></script>
+    <script src="strip.js" defer></script>
+    <!-- Version 4, Bento: after Vercel's and Stripe's. A short hero and then one grid, every feature a card sized to what it has to show. -->
+    <style>
+      .bar-in { display: flex; align-items: center; gap: 1.25rem; inline-size: min(100% - 2rem, 76rem); margin-inline: auto; block-size: 3.75rem; }
+      .brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; text-decoration: none; }
+      .brand img { inline-size: 1.6rem; block-size: 1.6rem; border-radius: 0.45rem; }
+      .bar ul { display: flex; gap: 1.1rem; list-style: none; margin: 0 auto; padding: 0; font-size: var(--glacier-font-size-sm); color: var(--ink-2); }
+      .bar ul a { text-decoration: none; }
+      @media (max-width: 760px) { .bar ul { display: none; } .bar .pill { margin-inline-start: auto; } }
+      .wrap { inline-size: min(100% - 2rem, 76rem); }
+      .hero { padding-block: 4rem 2.5rem; text-align: center; }
+      h1 { font-size: clamp(2.4rem, 5.5vw, 4rem); letter-spacing: -0.035em; }
+      .hero p { margin: 1rem auto 0; max-inline-size: 36rem; color: var(--ink-2); font-size: var(--glacier-font-size-lg); }
+      .hero .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; margin-block-start: 1.5rem; }
+      .bento { display: grid; grid-template-columns: repeat(12, 1fr); gap: 0.9rem; list-style: none; margin: 0; padding: 0; }
+      .card { position: relative; display: flex; flex-direction: column; gap: 0.5rem; min-block-size: 16rem; padding: 1.3rem; border: 1px solid var(--rule); border-radius: 1.1rem; background: var(--paper); overflow: hidden; }
+      .card.tint { background: var(--paper-2); }
+      .card h3 { display: flex; align-items: center; gap: 0.5rem; font-size: var(--glacier-font-size-lg); letter-spacing: -0.015em; }
+      .card p { color: var(--ink-2); font-size: var(--glacier-font-size-sm); max-inline-size: 36rem; }
+      .card .img { margin: auto -1.3rem -1.3rem; padding: 1rem 1.3rem 0; }
+      .card .img img { display: block; inline-size: 100%; block-size: auto; border-radius: 0.6rem 0.6rem 0 0; border: 1px solid var(--rule); border-block-end: 0; }
+      .card .phone { margin: auto 0 -3.5rem auto; max-inline-size: 11rem; }
+      .card .phone img { border-radius: 1.4rem; }
+      .card.row { flex-direction: row; gap: 1.5rem; }
+      .card.row > div { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
+      .span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-7 { grid-column: span 7; } .span-6 { grid-column: span 6; } .span-5 { grid-column: span 5; } .span-4 { grid-column: span 4; } .span-3 { grid-column: span 3; }
+      .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-block-start: auto; }
+      .chips span { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border-radius: 999px; border: 1px solid var(--rule); font-size: 0.78rem; }
+      .card pre { margin-block-start: auto; padding: 0.8rem 0.9rem; border-radius: 0.6rem; background: var(--paper-2); font-size: 0.76rem; line-height: 1.55; }
+      .card.tint pre { background: var(--paper); }
+      .stat { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+      .stat small { display: block; margin-block-start: 0.35rem; font-size: var(--glacier-font-size-sm); font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+      .connect { display: flex; gap: 0.5rem; align-items: center; margin-block-start: auto; padding: 0.5rem 0.5rem 0.5rem 0.9rem; border: 1px solid var(--rule); border-radius: 0.7rem; background: var(--paper); font-family: var(--mono); font-size: 0.8rem; }
+      .connect code { flex: 1; background: none; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .connect .pill { min-block-size: 1.9rem; }
+      .card.get { min-block-size: 0; }
+      .card.get .ways { margin-block-start: 0.5rem; }
+      .foot { padding: 3rem 0 6rem; color: var(--ink-3); font-size: var(--glacier-font-size-sm); }
+      .foot .wrap { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+      .foot a { text-decoration: none; }
+      @media (max-width: 980px) { .span-8, .span-7, .span-6, .span-5, .span-4, .span-3 { grid-column: span 6; } }
+      @media (max-width: 640px) { .bento > * { grid-column: span 12 !important; } .card.row { flex-direction: column; } }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="#top"><img src="../icon.png" alt="" /><span>Ghost.md</span></a>
+        <ul><li><a href="#claude">Claude</a></li><li><a href="#teams">Teams</a></li><li><a href="#files">Files</a></li><li><a href="../market.html">Market</a></li><li><a href="/docs/">Docs</a></li></ul>
+        <a class="pill pill-ink" href="#get">Download</a>
+      </nav>
+    </header>
+    <main id="top" class="wrap">
+      <section class="hero">
+        <h1>Everything in plain Markdown.</h1>
+        <p>Notes, journals, boards, canvases, notebooks and a team's tickets, as files you own, sealed when they sync. Claude, your calendar, Notion, GitHub and Slack are a switch away.</p>
+        <div class="ctas"><a class="pill pill-ink pill-lg" href="#get"><svg class="i"><use href="../icons.svg#i-download"/></svg><span>Get Ghost.md</span></a><a class="pill pill-lg" href="https://attack.fm/glyph/">Open in your browser</a></div>
+      </section>
+
+      <ul class="bento hue-cycle">
+        <li class="card span-8" id="claude" style="--hue: var(--hue-coral)">
+          <h3><svg class="brand-mark brand-claude"><use href="marks.svg#claude-mark"/></svg>Claude, built in and connected.</h3>
+          <p>Ask in the app with your own key and watch Claude write into your notes, word by word at its own caret. Or add Ghost.md as a connector and claude.ai, Claude Desktop and Claude Code read, search and write your notes, tickets and comments, shown as online while they work.</p>
+          <div class="connect"><code id="mcp">https://ghostmarkdown.com/api/mcp</code><button class="pill" type="button" data-copy="#mcp">Copy</button></div>
+        </li>
+        <li class="card span-4 tint">
+          <h3><svg class="i i-lead"><use href="../icons.svg#i-eye"/></svg>Watch it type.</h3>
+          <p>Its thinking streams in, with a line for every note it reads or changes. Type anywhere and the following stops.</p>
+          <figure class="phone"><img src="../shots/claude-typing.webp" width="390" height="844" loading="lazy" alt="Claude typing into a note." /></figure>
+        </li>
+
+        <li class="card span-12" id="teams" style="--hue: var(--hue-mint)">
+          <h3><svg class="i i-lead"><use href="../icons.svg#i-chart-gantt"/></svg>Tickets, cycles and a Gantt, in files the team owns.</h3>
+          <p>Give a notebook a key and its notes become tickets. Boards, a Gantt you can drag, burndowns, epics and a roadmap are drawn from a query, and all of it stays Markdown: front matter and fences, readable in Obsidian or on GitHub.</p>
+          <div class="img"><img src="../shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart drawn from a query." /></div>
+        </li>
+
+        <li class="card span-4"><h3><svg class="i i-lead"><use href="../icons.svg#i-ticket"/></svg>Tickets</h3><p>Keys, statuses, assignees, due days, priorities, labels, sub-tickets, templates, forms that land as tickets.</p><div class="img"><img src="../shots/teams-epic.webp" width="1600" height="1000" loading="lazy" alt="An epic's panel with its tickets." /></div></li>
+        <li class="card span-4"><h3><svg class="i i-lead"><use href="../icons.svg#i-layout-grid"/></svg>Boards, tables, charts</h3><p>One query fence, shown as a board, table, list, calendar, chart or rollup. Pick cards and change them all at once.</p><div class="img"><img src="../shots/teams-board.webp" width="1600" height="1000" loading="lazy" alt="A query drawn as a board." /></div></li>
+        <li class="card span-4"><h3><svg class="i i-lead"><use href="../icons.svg#i-refresh-cw"/></svg>Cycles and epics</h3><p>A burndown and velocity, unfinished work carried over, epics that add up their tickets, a roadmap from milestones.</p><div class="img"><img src="../shots/teams-cycle.webp" width="1600" height="1000" loading="lazy" alt="A cycle's burndown." /></div></li>
+
+        <li class="card span-5 tint" id="calendar" style="--hue: var(--hue-blue)"><h3><svg class="i i-lead"><use href="../icons.svg#i-calendar-days"/></svg>Your calendar, in your notes.</h3><p>Today's events at the head of home. A to-do with a due day is on Google Calendar seconds later. Any iCal address works too.</p><pre>```query
+from: events
+where: start >= today
+show: calendar
+```</pre></li>
+        <li class="card span-4" id="meetings" style="--hue: var(--hue-green)"><h3><svg class="i i-lead"><use href="../icons.svg#i-audio-lines"/></svg>Ghost goes to your meetings.</h3><p>Invite it to a Meet or Zoom call. It joins, writes the transcript live, and files a summary with the to-dos as to-dos.</p><figure class="phone"><img src="../shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's transcript." /></figure></li>
+        <li class="card span-3" style="--hue: var(--hue-purple)"><h3><svg class="i i-lead"><use href="../icons.svg#i-mic"/></svg>Speak a note.</h3><p>Say it and it arrives as Markdown, its to-dos as to-dos. Record with the phone locked; the device writes the summary.</p><p class="stat" style="margin-top:auto">0<small>words of yours sent anywhere to be heard</small></p></li>
+
+        <li class="card span-6 row" id="files" style="--hue: var(--hue-yellow)">
+          <div><h3><svg class="i i-lead"><use href="../icons.svg#i-folder-tree"/></svg>Files you own.</h3><p>One folder. Every note a <code>.md</code> file named after its title, versions beside it kept like git, attachments under Library/. Back it up to any git host, or publish it as a site.</p></div>
+          <pre>Library/
+├── .glyph/config.json
+├── .trash/
+├── image/ file/ recordings/
+└── workspaces/Product/
+    ├── Launch plan.md
+    ├── Launch plan.versions
+    └── PRD-11 Login loop.md</pre>
+        </li>
+        <li class="card span-3 tint"><h3><svg class="i i-lead"><use href="../icons.svg#i-rotate-ccw-clock"/></svg>Every version.</h3><p>Who changed what, when; restore any, and undo the restore.</p><pre>v2 sam "Date picked"
+  =3
+  -- [ ] Pick a date
+  +- [x] Pick a date</pre></li>
+        <li class="card span-3"><h3><svg class="i i-lead"><use href="../icons.svg#i-lock"/></svg>Sealed.</h3><p>No account needed. With one, everything is encrypted on the device, end to end. No ads, no analytics.</p><p class="stat" style="margin-top:auto">E2E<small>on notes, tapes, pictures and a team's key</small></p></li>
+
+        <li class="card span-4" id="market" style="--hue: var(--hue-purple)"><h3><svg class="i i-lead"><use href="../icons.svg#i-shopping-bag"/></svg>The Market.</h3><p>Plugins, themes, fonts and icons, all built in. Adding one is a switch, nothing to download.</p><div class="chips"><span><svg class="brand-mark"><use href="marks.svg#notion-mark"/></svg>Notion</span><span>Slack</span><span>GitHub</span><span>Discord</span><span>Todoist</span><span>Things</span><span>Lovart</span><span>ElevenLabs</span><span>Webhooks</span><span>Zoom</span><span>Contacts</span><span>+ 11</span></div></li>
+        <li class="card span-4 tint" style="--hue: var(--hue-red)"><h3><svg class="i i-lead"><use href="../icons.svg#i-users"/></svg>Write together.</h3><p>Organizations with live cursors in each member's colour, @mentions, verified pages, comments in the margin, an audit log. Sealed with a key only members hold.</p><div class="img"><img src="../shots/teams-verified.webp" width="1600" height="1000" loading="lazy" alt="A verified team note with @mentions." /></div></li>
+        <li class="card span-4" style="--hue: var(--hue-mint)"><h3><svg class="i i-lead"><use href="../icons.svg#i-sparkles"/></svg>Themes and fonts.</h3><p>Dawn, Boreal, Ember, Sakura, Meadow, Tide, Dusk. Inter, Maple Mono, Fira Code, JetBrains Mono, Plex, Atkinson, Lora.</p><p class="stat" style="margin-top:auto">10 <small>themes · 8 fonts · 22 plugins</small></p></li>
+
+        <li class="card span-12 get" id="get">
+          <h3>Get Ghost.md</h3>
+          <p>Free, no account needed. Android, iPhone, Mac, Windows and the web.</p>
+          <ul class="ways">
+            <li><a class="way" href="/glyph.apk" download><svg class="i"><use href="../icons.svg#i-smartphone"/></svg><span><b>Android</b><span>The app, from here</span></span></a></li>
+            <li><a class="way" href="https://apps.apple.com/app/ghost-markdown/id6818598896"><svg class="i"><use href="../icons.svg#i-shopping-bag"/></svg><span><b>iPhone</b><span>App Store</span></span></a></li>
+            <li><a class="way" href="/glyph.dmg" download><svg class="i"><use href="../icons.svg#i-laptop"/></svg><span><b>Mac</b><span>macOS 13.1 or later</span></span></a></li>
+            <li><a class="way" href="/glyph-setup.exe" download><svg class="i"><use href="../icons.svg#i-monitor"/></svg><span><b>Windows</b><span>Windows 10 or later</span></span></a></li>
+            <li><a class="way" href="https://attack.fm/glyph/"><svg class="i"><use href="../icons.svg#i-globe"/></svg><span><b>Browser</b><span>No install</span></span></a></li>
+          </ul>
+        </li>
+      </ul>
+    </main>
+    <footer class="foot"><div class="wrap"><span>Ghost.md</span><a href="/docs/">Docs</a><a href="../reference.html">Reference</a><a href="../market.html">Market</a><a href="../privacy.html">Privacy</a></div></footer>
+    <script>
+      document.querySelectorAll('[data-copy]').forEach(function (b) { b.addEventListener('click', function () { var t = document.querySelector(b.dataset.copy).textContent.trim(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1500); }, function () { b.textContent = 'Select it'; }); }); });
+    </script>
+  </body>
+</html>

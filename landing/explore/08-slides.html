@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Slides</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="../theme.js"></script>
+    <script src="strip.js" defer></script>
+    <!-- Version 8, Slides: after Apple's product pages and Arc's. One feature a screen, snapping as you scroll, a dot for each down the side. -->
+    <style>
+      html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+      .bar { position: fixed; inset-inline: 0; inset-block-start: 0; z-index: 10; display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; mix-blend-mode: difference; color: white; }
+      .bar .brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; text-decoration: none; }
+      .bar .brand img { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 0.4rem; mix-blend-mode: normal; }
+      .bar a.get { margin-inline-start: auto; font-size: var(--glacier-font-size-sm); font-weight: 600; text-decoration: none; }
+      .slide { min-block-size: 100svh; display: grid; place-items: center; scroll-snap-align: start; padding: 5rem 1.25rem 4rem; }
+      .slide-in { inline-size: min(100%, 64rem); display: grid; gap: 2.5rem; align-items: center; text-align: center; }
+      .slide h1, .slide h2 { font-size: clamp(2.2rem, 6vw, 4.5rem); letter-spacing: -0.04em; line-height: 1; }
+      .slide p { margin: 1rem auto 0; max-inline-size: 30rem; color: var(--ink-2); font-size: var(--glacier-font-size-lg); line-height: 1.4; }
+      .slide .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; margin-block-start: 1.75rem; }
+      .slide .laptop { max-inline-size: 56rem; }
+      .slide .phone { max-inline-size: 15rem; }
+      .slide .phones { display: flex; justify-content: center; gap: 1.5rem; }
+      .slide .phones .phone { margin: 0; max-inline-size: 13rem; }
+      .side { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; text-align: start; }
+      .side p { margin-inline: 0; }
+      .side .ctas { justify-content: flex-start; }
+      .tint { background: var(--paper-2); }
+      .ink { background: var(--ink); color: var(--paper); }
+      .ink p { color: color-mix(in oklch, var(--paper) 72%, var(--ink)); }
+      .hue { background: color-mix(in srgb, var(--hue) 14%, var(--paper)); }
+      .dots { position: fixed; inset-inline-end: 1.25rem; inset-block-start: 50%; transform: translateY(-50%); z-index: 10; display: grid; gap: 0.7rem; list-style: none; margin: 0; padding: 0; }
+      .dots a { display: block; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--ink-4); transition: transform 200ms var(--ease), background-color 200ms var(--ease); }
+      .dots a:hover { transform: scale(1.4); }
+      .dots a[aria-current] { background: var(--ink); transform: scale(1.5); }
+      .ink .dots a[aria-current] { background: var(--paper); }
+      .ways { inline-size: min(100%, 52rem); margin: 2rem auto 0; }
+      .small { font-size: 0.8rem; color: var(--ink-3); display: flex; gap: 1rem; justify-content: center; margin-block-start: 2rem; }
+      .small a { text-decoration: none; }
+      @media (max-width: 760px) { .side { grid-template-columns: 1fr; text-align: center; } .side .ctas { justify-content: center; } .side p { margin-inline: auto; } .dots { display: none; } .slide .phones { flex-wrap: wrap; } }
+    </style>
+  </head>
+  <body>
+    <header class="bar"><a class="brand" href="#s1"><img src="../icon.png" alt="" /><span>Ghost.md</span></a><a class="get" href="#s9">Download</a></header>
+    <ol class="dots" aria-label="Slides"><li><a href="#s1" aria-label="Start"></a></li><li><a href="#s2" aria-label="Markdown"></a></li><li><a href="#s3" aria-label="Claude"></a></li><li><a href="#s4" aria-label="Teams"></a></li><li><a href="#s5" aria-label="Calendar"></a></li><li><a href="#s6" aria-label="Meetings"></a></li><li><a href="#s7" aria-label="Market"></a></li><li><a href="#s8" aria-label="Private"></a></li><li><a href="#s9" aria-label="Download"></a></li></ol>
+    <main>
+      <section class="slide" id="s1"><div class="slide-in"><div><h1>Notes, boards and plans,<br />in plain Markdown.</h1><p>Files you own, sealed when they sync. Claude built in.</p><div class="ctas"><a class="pill pill-ink pill-lg" href="#s9">Get Ghost.md</a><a class="pill pill-lg" href="https://attack.fm/glyph/">Open in your browser</a></div></div><figure class="laptop"><img src="../shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen." /></figure></div></section>
+      <section class="slide tint" id="s2"><div class="slide-in side"><figure class="phones"><figure class="phone"><img src="../shots/home.webp" width="390" height="844" loading="lazy" alt="Home." /></figure><figure class="phone"><img src="../shots/board.webp" width="390" height="844" loading="lazy" alt="A board." /></figure></figure><div><h2>Every note is a file.</h2><p>Journals, boards, canvases, notebooks and tickets are <code>.md</code> files in a folder. Obsidian opens them. GitHub renders them. git keeps them.</p></div></div></section>
+      <section class="slide" id="s3" style="--hue: var(--hue-coral)"><div class="slide-in side"><div><h2>Ask Claude.<br />Watch it write.</h2><p>In the app with your own key, word by word at its own caret. Or from claude.ai, Claude Desktop and Claude Code through the connector.</p></div><figure class="phones"><figure class="phone"><img src="../shots/claude-chat.webp" width="390" height="844" loading="lazy" alt="The Claude chat." /></figure><figure class="phone"><img src="../shots/claude-typing.webp" width="390" height="844" loading="lazy" alt="Claude typing." /></figure></figure></div></section>
+      <section class="slide ink" id="s4"><div class="slide-in"><div><h2>A whole team, in a notebook.</h2><p>Tickets, boards, a Gantt you can drag, cycles, epics, forms and rules, all drawn from queries, all still Markdown.</p></div><figure class="laptop"><img src="../shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart." /></figure></div></section>
+      <section class="slide hue" id="s5" style="--hue: var(--hue-blue)"><div class="slide-in side"><figure class="phone"><img src="../shots/calendar.webp" width="390" height="844" loading="lazy" alt="The calendar." /></figure><div><h2>Your day, on one page.</h2><p>Google Calendar's events at the head of home. A to-do with a due day is on your calendar seconds later.</p></div></div></section>
+      <section class="slide" id="s6" style="--hue: var(--hue-green)"><div class="slide-in side"><div><h2>Send Ghost to the meeting.</h2><p>It joins Meet or Zoom by itself, writes the transcript as the call runs, and files the summary with the to-dos as to-dos.</p></div><figure class="phone"><img src="../shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's note." /></figure></div></section>
+      <section class="slide tint" id="s7" style="--hue: var(--hue-purple)"><div class="slide-in side"><figure class="phone"><img src="../shots/plugins.webp" width="390" height="844" loading="lazy" alt="Plugins." /></figure><div><h2>Switch on what you need.</h2><p>Notion, Slack, GitHub, Todoist, Things, Lovart, ElevenLabs and more are built in and off until you say. <a href="../market.html">The Market</a> has them all.</p></div></div></section>
+      <section class="slide ink" id="s8"><div class="slide-in"><div><h2>Yours, and only yours.</h2><p>No account needed. With one, everything is sealed on the device, end to end. No ads, no analytics. Take it all with you, any time.</p></div></div></section>
+      <section class="slide" id="s9"><div class="slide-in"><div><h2>Get Ghost.md</h2><p>Free. Android, iPhone, Mac, Windows and the web.</p></div><ul class="ways"><li><a class="way" href="/glyph.apk" download><svg class="i"><use href="../icons.svg#i-smartphone"/></svg><span><b>Android</b><span>The app, from here</span></span></a></li><li><a class="way" href="https://apps.apple.com/app/ghost-markdown/id6818598896"><svg class="i"><use href="../icons.svg#i-shopping-bag"/></svg><span><b>iPhone</b><span>App Store</span></span></a></li><li><a class="way" href="/glyph.dmg" download><svg class="i"><use href="../icons.svg#i-laptop"/></svg><span><b>Mac</b><span>macOS 13.1 or later</span></span></a></li><li><a class="way" href="/glyph-setup.exe" download><svg class="i"><use href="../icons.svg#i-monitor"/></svg><span><b>Windows</b><span>Windows 10 or later</span></span></a></li><li><a class="way" href="https://attack.fm/glyph/"><svg class="i"><use href="../icons.svg#i-globe"/></svg><span><b>Browser</b><span>No install</span></span></a></li></ul><p class="small"><a href="/docs/">Docs</a><a href="../reference.html">Reference</a><a href="../market.html">Market</a><a href="../privacy.html">Privacy</a></p></div></section>
+    </main>
+    <script>
+      (function () {
+        var dots = Array.prototype.slice.call(document.querySelectorAll('.dots a'));
+        var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+        if (!('IntersectionObserver' in window)) return;
+        var seen = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (!e.isIntersecting) return;
+            dots.forEach(function (d) { if (d.getAttribute('href') === '#' + e.target.id) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current'); });
+            document.body.classList.toggle('ink', e.target.classList.contains('ink'));
+          });
+        }, { threshold: 0.6 });
+        slides.forEach(function (s) { seen.observe(s); });
+      })();
+    </script>
+  </body>
+</html>

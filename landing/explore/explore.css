@@ -1,0 +1,70 @@
+/*
+ * The ten explorations of ghostmarkdown.com (landing/explore/, 2026-10-31; Matt: "Create ten versions of the website
+ * with different content densities and layouts look at apps like notion discord and other developer tools like git
+ * for inspiration"). What every version shares: the site's tokens and colours (../site.css), the same pieces the home
+ * page is built from (pills, the icon on its hue square, the laptop and the phone the screens sit in), and a small
+ * strip at the foot to flip between versions. Each page's own layout is in its own <style>.
+ */
+
+:root {
+  --ease: var(--glacier-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.06), 0 12px 40px -12px oklch(0 0 0 / calc(var(--lift) * 0.5));
+  --hue: var(--hue-blue);
+}
+body { line-height: 1.5; font-size: var(--glacier-font-size-md); }
+h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; line-height: 1.1; font-weight: 700; }
+p { margin: 0; }
+a { color: inherit; }
+img { max-inline-size: 100%; }
+code, pre { font-family: var(--mono); }
+code { font-size: 0.9em; padding: 0.1em 0.35em; border-radius: 0.3em; background: var(--wash); }
+pre { margin: 0; overflow: auto; }
+pre code { padding: 0; background: none; font-size: 0.85em; }
+.unseen { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.fine { color: var(--ink-3); font-size: var(--glacier-font-size-sm); }
+.wrap { inline-size: min(100% - 2rem, 72rem); margin-inline: auto; }
+
+/* Icons: Lucide's, from the site's sprite; on a square of their hue when leading. */
+.i { inline-size: 1.15em; block-size: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.i-lead { box-sizing: border-box; inline-size: 1.7em; block-size: 1.7em; padding: 0.36em; border-radius: 0.34em; background: color-mix(in srgb, var(--hue) 16%, transparent); color: var(--hue); }
+.brand-mark { inline-size: 1.15em; block-size: 1.15em; flex: none; fill: currentColor; }
+.brand-claude { color: #d97757; }
+.hue-cycle > :nth-child(6n + 1) { --hue: var(--hue-blue); }
+.hue-cycle > :nth-child(6n + 2) { --hue: var(--hue-purple); }
+.hue-cycle > :nth-child(6n + 3) { --hue: var(--hue-coral); }
+.hue-cycle > :nth-child(6n + 4) { --hue: var(--hue-green); }
+.hue-cycle > :nth-child(6n + 5) { --hue: var(--hue-yellow); }
+.hue-cycle > :nth-child(6n + 6) { --hue: var(--hue-mint); }
+
+/* Pills. */
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-block-size: 2.5rem; padding: 0 1.1rem; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper); color: var(--ink); font: inherit; font-size: var(--glacier-font-size-sm); font-weight: 600; text-decoration: none; white-space: nowrap; cursor: pointer; transition: transform 160ms var(--ease), background-color 160ms var(--ease); }
+.pill:hover { background: var(--paper-2); }
+.pill:active { transform: scale(0.98); }
+.pill-ink { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.pill-ink:hover { background: color-mix(in oklch, var(--ink) 88%, var(--paper)); }
+.pill-lg { min-block-size: 3rem; padding: 0 1.4rem; font-size: var(--glacier-font-size-md); }
+.pill-hue { border-color: var(--hue); background: var(--hue); color: white; }
+.pill-hue:hover { background: color-mix(in oklch, var(--hue) 85%, black); }
+
+/* The app's screens, in a laptop or a phone. */
+.laptop { max-inline-size: 60rem; margin: 0 auto; padding: 0.6rem 0.6rem 0; border-radius: 1rem 1rem 0 0; background: oklch(0.13 0 0); box-shadow: inset 0 0 0 1px oklch(0.3 0 0), var(--shadow); }
+.laptop img { display: block; inline-size: 100%; block-size: auto; border-radius: 0.5rem 0.5rem 0 0; }
+.phone { inline-size: 100%; max-inline-size: 18rem; margin: 0 auto; padding: 0.45rem; border-radius: 2rem; background: oklch(0.13 0 0); box-shadow: inset 0 0 0 1px oklch(0.3 0 0), var(--shadow); }
+.phone img { display: block; inline-size: 100%; block-size: auto; border-radius: 1.6rem; }
+.shot { display: block; inline-size: 100%; block-size: auto; border-radius: 0.6rem; border: 1px solid var(--rule); }
+figure { margin: 0; }
+
+/* The ways to get it: the release's own files, as on the home page. */
+.ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
+.way { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; border: 1px solid var(--rule); border-radius: 0.9rem; background: var(--paper); color: inherit; text-decoration: none; }
+.way:hover { border-color: var(--ink-3); }
+.way b { display: block; }
+.way span span { display: block; color: var(--ink-3); font-size: var(--glacier-font-size-sm); }
+
+/* The strip at the foot of each version: which this is, and the others. */
+.x-strip { position: fixed; inset-block-end: 0.75rem; inset-inline-end: 0.75rem; z-index: 50; display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.4rem 0.3rem 0.8rem; border: 1px solid var(--rule); border-radius: 999px; background: color-mix(in oklch, var(--paper) 88%, transparent); backdrop-filter: blur(12px); font-size: 0.78rem; color: var(--ink-2); box-shadow: var(--shadow); }
+.x-strip a { display: inline-flex; align-items: center; justify-content: center; min-inline-size: 1.7rem; block-size: 1.7rem; padding: 0 0.5rem; border-radius: 999px; color: var(--ink); text-decoration: none; }
+.x-strip a:hover { background: var(--wash); }
+.x-strip a[aria-current] { background: var(--ink); color: var(--paper); }
+@media (max-width: 640px) { .x-strip { inset-inline: 0.75rem; justify-content: space-between; } .x-strip .x-n { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }

@@ -1,0 +1,271 @@
+[
+  {
+    "version": "2.3.94",
+    "date": "2026-10-31",
+    "title": "Your notes are the files, and the files can live in git",
+    "items": [
+      {"icon": "git-branch", "words": "Back up to git: a new plugin commits your library to a repository on GitHub or any host, pushes as you write, and restores a fresh device from a clone.", "kind": "new"},
+      {"icon": "globe", "words": "Publish as a website: a switch in the plugin turns the repository into a static site on GitHub Pages, with search and a sidebar from your folders.", "kind": "new"},
+      {"icon": "image", "words": "Pictures, files and recordings now live inside the library folder, where the notes link them.", "kind": "better"},
+      {"icon": "trash-2", "words": "The trash is a .trash folder in the library, as in Obsidian, so a restore keeps trashed notes trashed.", "kind": "better"},
+      {"icon": "share-2", "words": "Share links survive a restore: each one's key is kept sealed under your account, and the note says it is shared.", "kind": "better"},
+      {"icon": "file-text", "words": "Tickets and notebooks written as one front-matter block are read, so a ticket made in Obsidian works, and canvases get a .canvas file.", "kind": "better"},
+      {"icon": "archive", "words": "Folders, meeting marks, snippets and the versions switch are kept in the library too, so a fresh device rebuilds them from the files.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.93",
+    "date": "2026-10-31",
+    "title": "A Gantt you can drag, and tickets that run themselves",
+    "items": [
+      {"icon": "chart-gantt", "words": "Gantt charts are plain Markdown you drag: move, resize and link tasks, and old Mermaid gantts convert in a tap.", "kind": "new"},
+      {"icon": "refresh-cw", "words": "Cycles with a burndown, estimates and velocity, epics and milestones, and priority chips with stale marks.", "kind": "new"},
+      {"icon": "list-filter", "words": "My tickets across every notebook, a Triage list worked by keys, and bulk edits with one Undo.", "kind": "new"},
+      {"icon": "tag", "words": "Coloured labels and components on tickets, filterable and groupable everywhere.", "kind": "new"},
+      {"icon": "flag", "words": "Rules like \"When status becomes Done, post to Slack\", GitHub PRs on tickets, and Start/Stop timers.", "kind": "new"},
+      {"icon": "eye", "words": "Watch tickets to hear of changes, see each ticket's history, and get a morning digest of what's due.", "kind": "new"},
+      {"icon": "copy", "words": "Possible duplicates are shown, and Merge into… moves comments and links with one Undo.", "kind": "new"}
+    ]
+  },
+  {
+    "version": "2.3.92",
+    "date": "2026-10-31",
+    "title": "Twelve new things for your notes",
+    "items": [
+      {"icon": "link", "words": "Notes show \"Linked from\" at their foot, and ![[Note#Heading]] shows a section as a live card.", "kind": "new"},
+      {"icon": "chevron-down", "words": "Headings fold from the gutter, and <details> blocks are toggles you can add from the +.", "kind": "new"},
+      {"icon": "calendar-days", "words": "Queries can be a calendar, a timeline or a chart, with rollups across linked notes.", "kind": "new"},
+      {"icon": "file-text", "words": "Folders and notebooks can have a template, and buttons in a note run an action.", "kind": "new"},
+      {"icon": "list-checks", "words": "Tickets get sub-tickets with a progress bar, and blocked tickets ask before they're done.", "kind": "new"},
+      {"icon": "at-sign", "words": "Type @ to mention a teammate or a day, and verify a page as the team's current truth.", "kind": "new"},
+      {"icon": "send", "words": "Share a form anyone can fill in: answers arrive sealed and land as tickets.", "kind": "new"}
+    ]
+  },
+  {
+    "version": "2.3.91",
+    "date": "2026-10-30",
+    "title": "Claude's notes, a tap away",
+    "items": [
+      {"icon": "file-text", "words": "Under Claude's reply, a card lists every note it made or changed, New or Changed; tap one to open it.", "kind": "new"},
+      {"icon": "link", "words": "Copy link on each of those notes puts its share link on the clipboard.", "kind": "new"}
+    ]
+  },
+  {
+    "version": "2.3.90",
+    "date": "2026-10-30",
+    "title": "Meetings, live",
+    "items": [
+      {"icon": "users", "words": "Meetings Ghost's bot is in (Google Meet and Zoom) show their transcript live, named and timed, while the call runs.", "kind": "new"},
+      {"icon": "mic", "words": "Meetings recorded on your phone show live words under the cassette and in Transcript while the screen is on.", "kind": "new"},
+      {"icon": "settings", "words": "Settings › Recording › Live transcript during meetings: on the phone it runs while charging unless you choose otherwise.", "kind": "new"},
+      {"icon": "file-text", "words": "A meeting's note is there from its first words, so you can write in it during the call.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.89",
+    "date": "2026-10-30",
+    "title": "What's new, and comments in the margin",
+    "items": [
+      {"icon": "sparkles", "words": "What's new in Ghost.md shows after every update, with a full changelog in Settings › About.", "kind": "new"},
+      {"icon": "message-square-plus", "words": "Hover a line to comment on it: a comment glyph appears in the margin beside it.", "kind": "new"},
+      {"icon": "message-square", "words": "Lines with comments show their count in the margin, and a click opens the thread.", "kind": "new"},
+      {"icon": "download", "words": "Downloads in the activity ring show just their arrow, without a second progress circle inside the ring.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.88",
+    "date": "2026-10-30",
+    "title": "Meetings in turns",
+    "items": [
+      {"icon": "users", "words": "Meeting transcripts are split into turns, each one starting with who spoke and when.", "kind": "fixed"},
+      {"icon": "text", "words": "A meeting's note has Note and Transcript buttons, so the transcript stays out of the way while you write.", "kind": "new"},
+      {"icon": "play", "words": "In Transcript, the turn being heard is lit, and tapping a turn plays the recording from there.", "kind": "new"},
+      {"icon": "rotate-ccw", "words": "Rebuild, on a meeting's tape, writes the transcript's turns again from what was recorded.", "kind": "new"},
+      {"icon": "search", "words": "Finding words that are in the transcript opens Transcript right at that turn.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.87",
+    "date": "2026-10-30",
+    "items": [
+      {"icon": "palette", "words": "The header's ••• menu shows each row's coloured icon in the default layout too.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.86",
+    "date": "2026-10-30",
+    "title": "Updates in Activity",
+    "items": [
+      {"icon": "download", "words": "App updates now live in the activity tray, with a green badge on the ring when one is waiting.", "kind": "better"},
+      {"icon": "lovart", "words": "Work a plugin is doing wears that plugin's own logo in the tray and its chips.", "kind": "new"},
+      {"icon": "info", "words": "Settings › About keeps your version, and Check for updates opens the tray to show what it found.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.85",
+    "date": "2026-10-29",
+    "items": [
+      {"icon": "circle-check", "words": "When nothing is running, the activity ring holds a grey check: all done and in sync.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.84",
+    "date": "2026-10-29",
+    "title": "Always-on activity ring",
+    "items": [
+      {"icon": "activity", "words": "The activity ring is always in the header, grey when nothing is happening.", "kind": "better"},
+      {"icon": "ellipsis", "words": "All notes by folder and New note are now the first two rows of the header's ••• menu.", "kind": "better"},
+      {"icon": "refresh-cw", "words": "The sync's bar fills as your notes sync instead of spinning.", "kind": "better"},
+      {"icon": "gauge", "words": "The sync's bar no longer sits full while there's still more to sync.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.83",
+    "date": "2026-10-29",
+    "title": "A new default header",
+    "items": [
+      {"icon": "layout-grid", "words": "Grouped command is now the header's default layout.", "kind": "better"},
+      {"icon": "search", "words": "The home page always has a way to search, whichever header you use.", "kind": "fixed"},
+      {"icon": "circle-check", "words": "Result chips never cover a page's own buttons, like Hide or Stop.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.82",
+    "date": "2026-10-29",
+    "title": "See what's happening",
+    "items": [
+      {"icon": "activity", "words": "An activity ring in the header shows what Ghost.md is working on, in colour, with a tray of the details.", "kind": "new"},
+      {"icon": "history", "words": "The tray lists running, waiting and failed work, and what was done today and over the past week.", "kind": "new"},
+      {"icon": "check-circle-2", "words": "Finished work leaves a small result chip with a way to open it.", "kind": "new"},
+      {"icon": "refresh-cw", "words": "Notes waiting to sync wear a small arrow by their title, and uploads show a thin bar as they go.", "kind": "new"},
+      {"icon": "sparkles", "words": "A meeting's summary streams into its note as it is written, and header images shimmer where they'll land.", "kind": "new"},
+      {"icon": "smartphone", "words": "Progress shows outside the app too: Android notifications, the Mac's Dock and menu bar, and iPhone Live Activities.", "kind": "new"},
+      {"icon": "sun-moon", "words": "Big jobs ask before they start, with their cost, and Calm draws all of it in ink.", "kind": "new"}
+    ]
+  },
+  {
+    "version": "2.3.81",
+    "date": "2026-10-29",
+    "title": "One note per meeting",
+    "items": [
+      {"icon": "users", "words": "A meeting is one note on every device: the summary at the top, the transcript below and the recording with it.", "kind": "fixed"},
+      {"icon": "sparkles", "words": "A meeting's summary no longer goes missing when the transcript arrives from another device.", "kind": "fixed"},
+      {"icon": "link", "words": "Opening your own meeting's share link opens the meeting itself, not a \"(shared)\" copy.", "kind": "fixed"},
+      {"icon": "rotate-cw", "words": "A summary that still hasn't arrived ten minutes later is written again.", "kind": "better"},
+      {"icon": "gauge", "words": "Long meetings sync faster and use far less memory on your phone.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.80",
+    "date": "2026-10-29",
+    "title": "Safer team moves",
+    "items": [
+      {"icon": "shield-check", "words": "A note dragged out of an organization stays safe, even if another of your devices runs an older version.", "kind": "fixed"},
+      {"icon": "refresh-cw", "words": "For two weeks after a move, your up-to-date devices put the note back if an older one removes it.", "kind": "better"},
+      {"icon": "pencil", "words": "Words you wrote in the note meanwhile are kept, not an older copy.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.79",
+    "date": "2026-10-29",
+    "title": "Drag into organizations",
+    "items": [
+      {"icon": "folder-input", "words": "Dragging a note or a folder into or out of an organization now asks to confirm instead of refusing.", "kind": "better"},
+      {"icon": "users", "words": "The question says who will be able to read and edit it before anything moves.", "kind": "new"},
+      {"icon": "folder", "words": "It works from folder tiles, the folder strip, the workspace pills and the sidebar alike.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.78",
+    "date": "2026-10-29",
+    "title": "Reading, polished",
+    "items": [
+      {"icon": "book-open", "words": "Links in a notebook open with a tap, in its own words and in its pages.", "kind": "new"},
+      {"icon": "eye", "words": "Shared notes on the web open in a clean Read view, with a Markdown toggle for the source.", "kind": "new"},
+      {"icon": "list-checks", "words": "In the web's Read view, to-dos line up with the bullets around them.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.77",
+    "date": "2026-10-29",
+    "title": "Links that open",
+    "items": [
+      {"icon": "link", "words": "Tapping or clicking a link in a note opens it, instead of putting the cursor in it.", "kind": "fixed"},
+      {"icon": "table", "words": "Links inside a table's cells open with a tap too.", "kind": "fixed"},
+      {"icon": "pencil", "words": "To edit a link, tap just after it, use the arrow keys, or press and hold.", "kind": "better"},
+      {"icon": "laptop", "words": "On a Mac, Cmd-click opens a link even while you're editing it.", "kind": "new"}
+    ]
+  },
+  {
+    "version": "2.3.76",
+    "date": "2026-10-29",
+    "title": "Real logos",
+    "items": [
+      {"icon": "notion", "words": "Plugins wear their companies' real logos, like Notion, GitHub, Todoist and Discord.", "kind": "new"},
+      {"icon": "video", "words": "Zoom's plugin shows a video camera, drawn in your chosen icon pack.", "kind": "better"},
+      {"icon": "google-meet", "words": "Google Meet's logo is shown in white on its own colour, and the Meetings page has a plain meetings icon.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.75",
+    "date": "2026-10-29",
+    "title": "Listen along",
+    "items": [
+      {"icon": "share-2", "words": "A shared meeting can carry its recording, so anyone with the link can listen along.", "kind": "new"},
+      {"icon": "play", "words": "The shared page plays the cassette and lights each part of the transcript as it's heard.", "kind": "new"},
+      {"icon": "text", "words": "Switch a shared meeting between Summary and Transcript, with who spoke and when on every turn.", "kind": "new"},
+      {"icon": "audio-lines", "words": "Meeting recordings sync, so any of your devices can share one.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.74",
+    "date": "2026-10-29",
+    "title": "Search everything",
+    "items": [
+      {"icon": "search", "words": "The command search finds every setting and every plugin, not just your notes.", "kind": "new"},
+      {"icon": "settings", "words": "Choosing a setting from the search opens Settings right at it, lit up so you can spot it.", "kind": "new"},
+      {"icon": "gauge", "words": "Searching Settings stays quick as you type each letter.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.73",
+    "date": "2026-10-29",
+    "title": "Aster",
+    "items": [
+      {"icon": "aster", "words": "The Aster plugin brings Aster's models to Ghost.md with your own Aster key.", "kind": "new"},
+      {"icon": "bot", "words": "Type the name of any model Aster offers, even one that isn't in its list yet.", "kind": "new"},
+      {"icon": "calculator", "words": "The spending meter counts Aster's work at Aster's own prices.", "kind": "new"}
+    ]
+  },
+  {
+    "version": "2.3.72",
+    "date": "2026-10-29",
+    "title": "Guided setup",
+    "items": [
+      {"icon": "volume-2", "words": "Every plugin you set up now has a short spoken setup that walks you through it.", "kind": "new"},
+      {"icon": "github", "words": "Notion, Google Calendar and GitHub sign in and check the connection right inside their setup.", "kind": "better"},
+      {"icon": "keyboard-modes", "words": "Keyboard modes needs nothing set up: pick Vim or Emacs on its page.", "kind": "better"}
+    ]
+  },
+  {
+    "version": "2.3.71",
+    "date": "2026-10-29",
+    "title": "More AI models",
+    "items": [
+      {"icon": "gemini", "words": "OpenAI, Gemini and any OpenAI-compatible model can now be added as plugins beside Claude.", "kind": "new"},
+      {"icon": "bot", "words": "Settings › AI › Assistant chooses which model answers your chats and which writes up your meetings.", "kind": "new"},
+      {"icon": "keyboard-modes", "words": "The Keyboard modes plugin brings Vim or Emacs keys to your notes on a hardware keyboard.", "kind": "new"},
+      {"icon": "notion", "words": "Signing in to Notion works again.", "kind": "fixed"}
+    ]
+  },
+  {
+    "version": "2.3.70",
+    "date": "2026-10-29",
+    "title": "Folders at hand",
+    "items": [
+      {"icon": "folder", "words": "A folder button by Home opens all your notes by folder, in the icon view.", "kind": "new"},
+      {"icon": "laptop", "words": "On a desktop, the dock rests at its small size.", "kind": "better"},
+      {"icon": "list-filter", "words": "The Filters panel no longer clips the row you've chosen.", "kind": "fixed"}
+    ]
+  }
+]

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md · Feed</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="explore.css" />
+    <script src="../theme.js"></script>
+    <script src="strip.js" defer></script>
+    <!-- Version 9, Feed: after Linear's changelog. The page is the app's own changelog (changelog.json, a copy of assets/changelog.json), newest first, with the downloads and the connector pinned beside it. -->
+    <style>
+      .bar-in { display: flex; align-items: center; gap: 1rem; inline-size: min(100% - 2rem, 70rem); margin-inline: auto; block-size: 3.5rem; font-size: var(--glacier-font-size-sm); }
+      .brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; text-decoration: none; font-size: 1rem; }
+      .brand img { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 0.4rem; }
+      .bar ul { display: flex; gap: 1rem; list-style: none; margin: 0 auto; padding: 0; color: var(--ink-2); }
+      .bar ul a { text-decoration: none; }
+      @media (max-width: 760px) { .bar ul { display: none; } .bar .pill { margin-inline-start: auto; } }
+      .wrap { inline-size: min(100% - 2rem, 70rem); }
+      .hero { padding-block: 3.5rem 2rem; border-block-end: 1px solid var(--rule); }
+      h1 { font-size: clamp(2rem, 4.5vw, 3.2rem); letter-spacing: -0.03em; max-inline-size: 40rem; }
+      .hero p { margin-block-start: 0.75rem; max-inline-size: 40rem; color: var(--ink-2); font-size: var(--glacier-font-size-lg); }
+      .hero .ctas { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-block-start: 1.25rem; }
+      .cols { display: grid; grid-template-columns: 1fr 18rem; gap: 3rem; padding-block: 2.5rem 6rem; }
+      .feed { list-style: none; margin: 0; padding: 0; }
+      .rel { display: grid; grid-template-columns: 9rem 1fr; gap: 1.5rem; padding-block: 2rem; border-block-end: 1px solid var(--rule); }
+      .rel .when { font-size: 0.8rem; color: var(--ink-3); position: sticky; inset-block-start: 1rem; align-self: start; }
+      .rel .when b { display: block; font-family: var(--mono); font-size: 0.95rem; color: var(--ink); margin-block-end: 0.2rem; }
+      .rel .when .tag { display: inline-block; margin-block-start: 0.5rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--rule); font-size: 0.7rem; }
+      .rel h2 { font-size: var(--glacier-font-size-xl); letter-spacing: -0.02em; margin-block-end: 0.75rem; }
+      .rel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+      .rel li { display: flex; gap: 0.6rem; align-items: flex-start; color: var(--ink-2); font-size: var(--glacier-font-size-sm); }
+      .rel li .i-lead { inline-size: 1.6rem; block-size: 1.6rem; padding: 0.35rem; flex: none; }
+      .rel li .kind { flex: none; margin-inline-start: auto; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-4); padding-block-start: 0.35rem; }
+      .rel figure { margin-block-start: 1rem; }
+      .rel figure img { display: block; inline-size: 100%; border-radius: 0.6rem; border: 1px solid var(--rule); }
+      .more { margin-block-start: 1.5rem; }
+      .rail { position: sticky; inset-block-start: 1rem; align-self: start; display: grid; gap: 1rem; }
+      .box { padding: 1rem 1.1rem; border: 1px solid var(--rule); border-radius: 0.9rem; background: var(--paper); font-size: var(--glacier-font-size-sm); }
+      .box h3 { font-size: var(--glacier-font-size-md); margin-block-end: 0.6rem; }
+      .box .ways { grid-template-columns: 1fr; gap: 0.4rem; }
+      .box .way { padding: 0.5rem 0.7rem; border-radius: 0.6rem; }
+      .box .way span span { display: none; }
+      .box code.addr { display: block; padding: 0.5rem 0.6rem; border-radius: 0.4rem; background: var(--paper-2); font-size: 0.72rem; overflow-wrap: anywhere; margin-block: 0.5rem; }
+      .box ul.what { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; color: var(--ink-2); }
+      .box ul.what li { display: flex; gap: 0.45rem; align-items: center; }
+      .box .i { color: var(--hue); }
+      .foot { padding-block: 0 5rem; color: var(--ink-3); font-size: 0.8rem; display: flex; gap: 1rem; }
+      .foot a { text-decoration: none; }
+      @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } .rail { position: static; } .rel { grid-template-columns: 1fr; gap: 0.5rem; } .rel .when { position: static; } }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="#top"><img src="../icon.png" alt="" /><span>Ghost.md</span></a>
+        <ul><li><a href="#feed">What's new</a></li><li><a href="../market.html">Market</a></li><li><a href="/docs/">Docs</a></li><li><a href="../reference.html">Reference</a></li></ul>
+        <a class="pill pill-ink" href="#get">Download</a>
+      </nav>
+    </header>
+    <main id="top" class="wrap">
+      <section class="hero">
+        <h1>Notes, boards and plans, in plain Markdown. Shipping most days.</h1>
+        <p>Ghost.md keeps everything as files you own, sealed when they sync, with Claude built in. Below is what changed, newest first, straight from the app's own changelog.</p>
+        <div class="ctas"><a class="pill pill-ink pill-lg" href="#get"><svg class="i"><use href="../icons.svg#i-download"/></svg><span>Get Ghost.md</span></a><a class="pill pill-lg" href="https://attack.fm/glyph/">Open in your browser</a></div>
+      </section>
+      <div class="cols">
+        <ol class="feed" id="feed" aria-live="polite"><li class="rel"><div class="when"><b>…</b>Loading the changelog</div><div></div></li></ol>
+        <aside class="rail">
+          <div class="box" id="get"><h3>Get Ghost.md</h3><ul class="ways">
+            <li><a class="way" href="/glyph.apk" download><svg class="i"><use href="../icons.svg#i-smartphone"/></svg><span><b>Android</b></span></a></li>
+            <li><a class="way" href="https://apps.apple.com/app/ghost-markdown/id6818598896"><svg class="i"><use href="../icons.svg#i-shopping-bag"/></svg><span><b>iPhone</b></span></a></li>
+            <li><a class="way" href="/glyph.dmg" download><svg class="i"><use href="../icons.svg#i-laptop"/></svg><span><b>Mac</b></span></a></li>
+            <li><a class="way" href="/glyph-setup.exe" download><svg class="i"><use href="../icons.svg#i-monitor"/></svg><span><b>Windows</b></span></a></li>
+            <li><a class="way" href="https://attack.fm/glyph/"><svg class="i"><use href="../icons.svg#i-globe"/></svg><span><b>Browser</b></span></a></li>
+          </ul><p class="fine" style="margin-top:.6rem">Free. No account needed.</p></div>
+          <div class="box" style="--hue:#d97757"><h3><svg class="brand-mark brand-claude"><use href="marks.svg#claude-mark"/></svg> Connect Claude</h3><p>claude.ai, Claude Desktop and Claude Code read and write your notes through the connector.</p><code class="addr">https://ghostmarkdown.com/api/mcp</code><p class="fine">Or ask Claude in the app, with your own key.</p></div>
+          <div class="box" style="--hue: var(--hue-green)"><h3>Always</h3><ul class="what">
+            <li><svg class="i"><use href="../icons.svg#i-file-text"/></svg>Every note a .md file you own</li>
+            <li><svg class="i"><use href="../icons.svg#i-lock"/></svg>Sealed end to end when it syncs</li>
+            <li><svg class="i"><use href="../icons.svg#i-rotate-ccw-clock"/></svg>Versions kept like git</li>
+            <li><svg class="i"><use href="../icons.svg#i-users"/></svg>Teams, tickets, a Gantt, forms</li>
+            <li><svg class="i"><use href="../icons.svg#i-calendar-days"/></svg>Google Calendar and any iCal</li>
+            <li><svg class="i"><use href="../icons.svg#i-audio-lines"/></svg>Ghost in your Meet and Zoom calls</li>
+            <li><svg class="i"><use href="../icons.svg#i-puzzle"/></svg>22 plugins, all built in, off by default</li>
+          </ul></div>
+        </aside>
+      </div>
+      <footer class="foot"><span>Ghost.md</span><a href="/docs/">Docs</a><a href="../reference.html">Reference</a><a href="../market.html">Market</a><a href="../privacy.html">Privacy</a></footer>
+    </main>
+    <script>
+      (function () {
+        var feed = document.getElementById('feed');
+        var SHOTS = { '2.3.94': null, '2.3.93': '../shots/teams-gantt.webp', '2.3.92': '../shots/teams-form.webp', '2.3.90': '../shots/meetings.webp', '2.3.91': '../shots/claude-chat.webp' };
+        var HUES = ['var(--hue-blue)', 'var(--hue-purple)', 'var(--hue-coral)', 'var(--hue-green)', 'var(--hue-yellow)', 'var(--hue-mint)'];
+        var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        var when = function (d) { try { return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return d; } };
+        Promise.all([
+          fetch('changelog.json').then(function (r) { return r.json(); }),
+          fetch('../icons.svg').then(function (r) { return r.text(); }).catch(function () { return ''; }),
+        ]).then(function (got) {
+          var log = got[0], ids = {};
+          (got[1].match(/id="i-[a-z0-9-]+"/g) || []).forEach(function (m) { ids[m.slice(4, -1)] = true; });
+          var icon = function (name) { return 'i-' + (ids['i-' + name] ? name : 'sparkles'); };
+          var html = '';
+          log.slice(0, 14).forEach(function (rel, n) {
+            var items = (rel.items || []).map(function (it, i) {
+              return '<li style="--hue:' + HUES[i % 6] + '"><svg class="i i-lead"><use href="../icons.svg#' + icon(it.icon) + '"/></svg><span>' + esc(it.words) + '</span>' + (it.kind ? '<span class="kind">' + esc(it.kind) + '</span>' : '') + '</li>';
+            }).join('');
+            var shot = SHOTS[rel.version] ? '<figure><img src="' + SHOTS[rel.version] + '" loading="lazy" alt="" /></figure>' : '';
+            html += '<li class="rel" id="v' + esc(rel.version).replace(/\./g, '-') + '"><div class="when"><b>' + esc(rel.version) + '</b>' + when(rel.date) + (n === 0 ? '<span class="tag">Latest</span>' : '') + '</div><div><h2>' + esc(rel.title) + '</h2><ul>' + items + '</ul>' + shot + '</div></li>';
+          });
+          feed.innerHTML = html + '<li class="more"><p class="fine">' + (log.length > 14 ? (log.length - 14) + ' earlier releases are in the app, under What\'s new.' : 'That is every release in the app\'s changelog.') + '</p></li>';
+          if (location.hash && document.getElementById(location.hash.slice(1))) document.getElementById(location.hash.slice(1)).scrollIntoView();
+        }).catch(function () {
+          feed.innerHTML = '<li class="rel"><div class="when"><b>?</b></div><div><h2>The changelog did not load.</h2><p class="fine">Open this page from a web server; a file:// page can\'t fetch changelog.json.</p></div></li>';
+        });
+      })();
+    </script>
+  </body>
+</html>
