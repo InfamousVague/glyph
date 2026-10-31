@@ -688,6 +688,31 @@ void main() {
       expect((copy.body, copy.formatted, copy.formattedFor), ('the Mac’s words', 'The Mac’s words.', 9));
     });
   });
+
+  group('the trash as a folder', () {
+    // The port's own (library/trash.rs, 2026-10-31): a trashed note's file is under `.trash/` at its own path, and
+    // the path is part of a note's mark, so a trashing is a change that travels, and so is a restore. Here the
+    // devices' notes are maps; the Rust library's `apply_note` moving the file to the path that arrives is the
+    // library's own test (trash.rs).
+    test('a note trashed on one device arrives on the other with its path under .trash/, and comes back out when restored', () async {
+      final (api: _, :phone, :mac) = await pair();
+      final one = note('a', '# Plan', createdAt: 1, updatedAt: 1, path: 'workspaces/Work/Plan.md');
+      phone.notes['a'] = one;
+      await phone.run();
+      await mac.run();
+      phone.notes['a'] = one.copyWith(path: () => '.trash/workspaces/Work/Plan.md');
+      await phone.run();
+      expect(await mac.run(), Outcome(changed: 1), reason: 'a move into the trash is a change that travels');
+      expect(mac.notes['a']?.path, '.trash/workspaces/Work/Plan.md');
+      expect(mac.notes['a']?.inTrash, isTrue);
+      expect((mac.notes['a']?.body, mac.notes['a']?.updatedAt), ('# Plan', 1), reason: 'not an edit: the words and the time stand');
+      phone.notes['a'] = one;
+      await phone.run();
+      expect(await mac.run(), Outcome(changed: 1));
+      expect(mac.notes['a']?.path, 'workspaces/Work/Plan.md');
+      expect(await mac.run(), Outcome(), reason: 'and the restore does not come back as a change');
+    });
+  });
 }
 
 /// A device's notes as the library gives them: whole from `get`, and without what only `get` answers from `list`.
