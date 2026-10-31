@@ -222,7 +222,7 @@ fn two_handles_opened_at_once_on_an_older_index_both_open() {
         }
         let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
         let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
         let rows: i64 = index.query_row("SELECT count(*) FROM notes", [], |row| row.get(0)).unwrap();
         assert_eq!(rows, 1, "round {round}: the rows the first rebuild filled are still there");
     }

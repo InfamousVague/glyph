@@ -32,6 +32,7 @@ import 'dart:typed_data';
 
 import '../core/bytes.dart';
 import '../core/native/core.dart';
+import '../core/note.dart' show isTrashedPath, livePathOf, trashedPathOf;
 import 'shelf.dart';
 
 /// The commands [WebStore] answers. Every other one is the worker's (crypto, documents, ids) or not in a browser.
@@ -44,6 +45,8 @@ const Set<String> webStoreCommands = {
   'delete_note',
   'set_note_starred',
   'set_note_archived',
+  'trash_note',
+  'restore_note',
   'set_note_recording',
   'store_apply',
   'apply_command_mutation',
@@ -143,6 +146,18 @@ class WebStore {
       case 'set_note_archived':
         final at = args['archived'] == true ? _now() : null;
         return _front(_string(args, 'id'), (note) => note['archivedAt'] = at);
+      // The trash as a folder (library/trash.rs): the note's path moves under `.trash/` and back, numbered where the
+      // name is taken, and nothing else about the note changes.
+      case 'trash_note':
+        return _front(_string(args, 'id'), (note) {
+          final path = note['path'] as String?;
+          if (path != null && !isTrashedPath(path)) note['path'] = _freeLike(trashedPathOf(path), note['id'] as String);
+        });
+      case 'restore_note':
+        return _front(_string(args, 'id'), (note) {
+          final path = note['path'] as String?;
+          if (path != null && isTrashedPath(path)) note['path'] = _freeLike(livePathOf(path)!, note['id'] as String);
+        });
       case 'set_note_recording':
         return _setRecording(_string(args, 'id'), args['recordingMs'], args['segments']);
       case 'store_apply':
@@ -336,6 +351,21 @@ class WebStore {
   }
 
   /// Changes what the front matter holds, and not the note's time (`set_front`).
+  /// [wanted], or the first of `Stem 2.md`, `Stem 3.md` … in its folder that no other note than [id] holds
+  /// (`unique_name`, for a move into or out of the trash).
+  String _freeLike(String wanted, String id) {
+    bool taken(String path) => _notes.entries.any((entry) => entry.key != id && entry.value['path'] == path);
+    if (!taken(wanted)) return wanted;
+    final at = wanted.lastIndexOf('/');
+    final folder = at < 0 ? '' : wanted.substring(0, at + 1);
+    final name = wanted.substring(at + 1);
+    final stem = name.toLowerCase().endsWith('.md') ? name.substring(0, name.length - 3) : name;
+    for (var n = 2; ; n += 1) {
+      final next = '$folder$stem $n.md';
+      if (!taken(next)) return next;
+    }
+  }
+
   Future<Map<String, Object?>?> _front(String id, void Function(Map<String, Object?> note) change) async {
     await _written(id);
     final row = _notes[id];

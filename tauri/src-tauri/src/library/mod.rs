@@ -18,6 +18,9 @@
 //!   `.glyph/notes/<id>.json` (sidecar.rs).
 //! - **Its versions**, when it keeps them, are `<Title>.versions` beside it
 //!   (versions.rs), renamed, moved and deleted with it.
+//! - **The trash** is `.trash/` at the root (trash.rs): a trashed note's file
+//!   moves there at its own path and back again, and the scan indexes what is
+//!   there as trashed.
 //! - **Reading** checks the files against the index first (index.rs). A file
 //!   changed by another app is read again, a new one is indexed, and a
 //!   vanished one leaves the list.
@@ -49,12 +52,14 @@ pub mod names;
 mod relocate;
 pub mod root;
 mod sidecar;
+mod trash;
 pub mod tree;
 pub mod vault;
 mod versions;
 
 pub use attachments::{Attachments, Kind as AttachmentKind, Places};
 pub use relocate::Copied;
+pub use trash::{is_trashed_path, live_path_of, trashed_path_of, TRASH};
 
 pub use move_in::open_and_move_in;
 
@@ -178,9 +183,12 @@ fn in_folder(folder: &str, name: &str) -> String {
     if folder.is_empty() { name.to_string() } else { format!("{folder}/{name}") }
 }
 
-/// Whether a path from another device can be a note's here: relative, `.md`, no dot folders or `..`.
+/// Whether a path from another device can be a note's here: relative, `.md`, no dot folders or `..` - but for the
+/// trash, `.trash/` at the root (trash.rs), so a note trashed or restored on another device moves here too. Builds
+/// before the trash was a folder refused that one with the rest, and keep the file where it is.
 fn library_path(path: &str) -> bool {
-    path.to_ascii_lowercase().ends_with(".md") && path.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
+    let rest = path.strip_prefix(".trash/").unwrap_or(path);
+    rest.to_ascii_lowercase().ends_with(".md") && rest.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
 }
 
 /// Whether a file's name is already its title's: `Stem.md`, or `Stem 2.md` for a clash. Read with its letters
