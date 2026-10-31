@@ -167,7 +167,9 @@ export default defineConfig([
      wanted, the switch is one key beside it and does not depend on the cwd
      `eslint` happens to run from. */
   {
-    files: ['src/**/*.{ts,tsx}', 'mcp/**/*.ts'],
+    /* `publish/src` is ghost-publish (publish/README.md): React rendered to strings in Node, from the reader's own
+       components, so it keeps the app's rules; its bin, client script and configs are Node files, below. */
+    files: ['src/**/*.{ts,tsx}', 'mcp/**/*.ts', 'publish/src/**/*.{ts,tsx}', 'publish/test/**/*.{ts,tsx}'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     languageOptions: {
@@ -207,7 +209,7 @@ export default defineConfig([
      test file, and declaring them here would only let a file lint clean and
      then die at run time with "describe is not defined". */
   {
-    files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}', 'mcp/**/*.test.ts'],
+    files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}', 'mcp/**/*.test.ts', 'publish/test/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-empty-function': 'off',
       'react-refresh/only-export-components': 'off',
@@ -215,11 +217,18 @@ export default defineConfig([
     },
   },
 
+  /* ghost-publish renders in Node, once, to strings: no dev server ever fast-refreshes it, so a page component may sit
+     beside the function that writes its document. */
+  {
+    files: ['publish/src/**/*.{ts,tsx}'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+
   /* The Node side: the build scripts and the Vite, Vitest and ESLint configs
      (`*.config.*` matches this file, so the gate lints itself). Node globals,
      no React, and `console` is the whole point of a build script. */
   {
-    files: ['scripts/**/*.{mjs,js,ts}', '*.config.{ts,mjs,js}'],
+    files: ['scripts/**/*.{mjs,js,ts}', '*.config.{ts,mjs,js}', 'publish/*.config.ts', 'publish/bin/*.mjs'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,
