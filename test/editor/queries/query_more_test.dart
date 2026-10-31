@@ -1,10 +1,11 @@
 // What a drawn query does that the page's own cases do not hold (it has none for `QueryBuilder.tsx`, the switcher
-// or a board's height), and the timeline (lib/editor/queries/query_timeline.dart): that Mermaid is handed the text
-// `ganttOf` writes, with the card's rules, and what stands in the card before, after and in place of its picture.
+// or a board's height), and that `show: gantt` is the app's own Gantt chart (lib/editor/queries/query_gantt.dart), with
+// nothing asked of Mermaid.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/editor/diagrams/diagrams.dart';
+import 'package:ghost_md/editor/gantt/gantt_chart.dart' show GanttChart;
 import 'package:ghost_md/editor/queries/queries.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/sheet/kit.dart';
@@ -111,11 +112,9 @@ void main() {
     });
   });
 
-  // docs/PARITY.md, Differs 23. QueryView.tsx `GanttView`: `drawDiagram(result.gantt.code)`, Mermaid's own gantt in
-  // `<div className="cm-mermaid gantt">`; the text in a `<pre>` until it is drawn; "This timeline could not be drawn
-  // here." when it cannot be; and the count of what has no day.
-  group('a timeline', () {
-    QueryResult run(String lines) => runQuery(readQuery(lines).query!, libraryOf(library), today);
+  // The Mermaid picture `show: gantt` was (docs/PARITY.md, Differs 23) is the app's own Gantt chart now
+  // (lib/editor/queries/query_gantt.dart; Matt, 2026-10-31): nothing is asked of Mermaid, and the chart is drawn.
+  group('a Gantt chart', () {
     late HeldBridge bridge;
 
     setUp(() {
@@ -123,75 +122,13 @@ void main() {
       diagramStore = DiagramStore(bridge: bridge, decode: smallPicture);
     });
 
-    testWidgets('hands Mermaid the text the page hands it, drawn for the card: its width, its type, no gutter, and the card\'s three inks', (tester) async {
-      await open(tester, fence('from: tickets\nshow: gantt\ngroup: status'));
-      final result = run('from: tickets\nshow: gantt\ngroup: status');
-      expect(bridge.asked, hasLength(1));
-      final ask = bridge.asked.single;
-      expect(ask.code, result.gantt!.code);
-      expect(ask.code, startsWith('%%{init: '));
-      expect(ask.code, contains('\ngantt\n'));
-      final look = QueryLook.of(tester.element(drawn), null);
-      expect(ask.gutter, 0, reason: '.gantt { padding-inline: 0 !important }');
-      expect(ask.em, look.em, reason: 'the card\'s own size');
-      expect(ask.note, ask.ui, reason: 'the card is set in the interface\'s face');
-      expect(ask.room, closeTo(boxOf(tester, parts('lines')).width, 0.01), reason: 'as wide as the card\'s room');
-      expect(ask.timeline, isNotNull);
-      expect((ask.timeline!.tick, ask.timeline!.rule, ask.timeline!.section), (look.ink3, look.rule, look.ink2));
-      expect(ask.toJson()['timeline'], isA<Map<String, Object?>>());
-      expect(ask.timeline!.day, today, reason: 'the card\'s own today');
-      // A diagram in a note asks with none, and is never taken for a timeline's picture.
-      expect(askFor(ask.code).key, isNot(ask.key));
-    });
-
-    testWidgets('shows its text until the picture comes, then the picture, called Timeline; and says what it could not place', (tester) async {
-      await open(tester, fence('from: tickets\nshow: gantt\ngroup: status'));
-      expect(parts('lines'), findsOneWidget);
-      expect(wordsOf(tester, parts('lines')), contains('dateFormat YYYY-MM-DD'));
-      expect(parts('gantt'), findsNothing);
-      expect(wordsOf(tester, drawn), isNot(contains('could not be drawn')));
-      bridge.finish(0, block: const Size(300, 150), at: const Rect.fromLTWH(0, 10, 300, 130));
-      await tester.pump();
-      await tester.pump();
-      expect(parts('gantt'), findsOneWidget);
-      expect(parts('lines'), findsNothing);
-      expect(find.bySemanticsLabel('Timeline'), findsOneWidget);
-      expect(tester.getSize(parts('gantt')).height, closeTo(150, 0.01), reason: 'the block Mermaid drew, its padding with it');
-      expect(wordsOf(tester, drawn), contains('One has no start or due day, and is not on the timeline.'));
-      expect(find.byType(CustomPaint).evaluate().where((e) => (e.widget as CustomPaint).painter.runtimeType.toString() == 'GanttPainter'), isEmpty, reason: 'no drawing of the app\'s own');
-    });
-
-    // Mermaid draws a line down the bars at today, and the page drew a timeline again each time the app was opened
-    // (mermaid.ts `drawn` is a map in memory). A picture here outlives the app, in the folder, by its key.
-    testWidgets('a picture kept is today\'s only: the same card on another day is drawn again', (tester) async {
-      final doc = fence('from: tickets\nshow: gantt\ngroup: status');
-      await open(tester, doc);
-      bridge.finish(0, block: const Size(300, 150), at: const Rect.fromLTWH(0, 10, 300, 130));
-      await tester.pump();
-      await tester.pump();
-      await open(tester, doc);
-      expect(bridge.asked, hasLength(1), reason: 'the same day: the picture it has');
-      expect(parts('gantt'), findsOneWidget);
-      await pumpQueries(tester, doc, options: optionsOver(() => library, Asked()), today: '2026-10-09');
-      expect(bridge.asked, hasLength(2), reason: 'the next day: asked again');
-      expect(bridge.asked.last.code, bridge.asked.first.code);
-      expect(bridge.asked.last.timeline!.day, '2026-10-09');
-      expect(bridge.asked.last.key, isNot(bridge.asked.first.key));
-    });
-
-    testWidgets('a timeline that cannot be drawn keeps its text and says so, in the page\'s words', (tester) async {
-      await open(tester, fence('from: tickets\nshow: gantt'));
-      bridge.fail(0, '');
-      await tester.pump();
-      await tester.pump();
-      expect(parts('lines'), findsOneWidget);
-      expect(wordsOf(tester, drawn), contains('This timeline could not be drawn here.'));
-    });
-
-    testWidgets('is one sentence where no record has a day, and nothing is asked of Mermaid', (tester) async {
-      await open(tester, fence('from: tickets\nwhere: id = GHO-4\nshow: gantt'));
-      expect(wordsOf(tester, drawn), contains('Nothing here has a start or a due day to put on a timeline.'));
-      expect(bridge.asked, isEmpty);
+    testWidgets('show: gantt and show: timeline are the app’s own chart, and nothing is asked of Mermaid', (tester) async {
+      for (final show in ['gantt', 'timeline']) {
+        await open(tester, fence('from: tickets\nshow: $show\ngroup: status'));
+        expect(find.byType(GanttChart), findsOneWidget);
+        expect(bridge.asked, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
     });
   });
 }

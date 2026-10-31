@@ -1,10 +1,8 @@
 // Drawn queries held to the web page: every case test/editor/queries/fixtures/reference.mjs measured in Chromium
 // (the web app's own CodeMirror with `queries()` over a fixed library) drawn here, and each line's box, the card's,
 // and every named piece inside it (lib/editor/queries/query_layout.dart `Part`) compared with the page's element of
-// the same class, in order, to half a pixel. The timeline is held too: it is Mermaid's own
-// picture, drawn for this test by the app's diagram page in Chromium (test/editor/diagrams/support.dart
-// `PicturedBridge`, tool/diagram_fixtures.mjs), and its block is where the page's `.cm-mermaid.gantt` is
-// (lib/editor/queries/query_timeline.dart; docs/PARITY.md, Differs 23).
+// the same class, in order, to half a pixel. The page's `show: gantt` is Mermaid's picture and the app's is its own
+// Gantt chart (lib/editor/queries/query_gantt.dart, 2026-10-31), so those cases are skipped.
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -46,7 +44,10 @@ void main() {
   final only = Platform.environment['EDITOR_CASE'];
   for (final name in PageFixture.names(queryFixtures)) {
     if (only != null && only.isNotEmpty && !name.contains(only)) continue;
-    testWidgets('$name: lines, the card and its pieces where the page has them', (tester) async {
+    // `show: gantt` is the app's own chart since 2026-10-31 (lib/editor/queries/query_gantt.dart), where the page's is
+    // Mermaid's picture: those two cases hold a drawing this app no longer makes.
+    final mermaidGantt = PageFixture.read(queryFixtures, name).doc.contains('show: gantt');
+    testWidgets('$name: lines, the card and its pieces where the page has them', skip: mermaidGantt, (tester) async {
       final fixture = PageFixture.read(queryFixtures, name);
       // With the open note at the fixture's own day, not the day this runs (support.dart `PageFixture.open`).
       final library = <QueryNote>[...fixture.library, fixture.open];

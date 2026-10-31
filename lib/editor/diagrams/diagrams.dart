@@ -44,6 +44,10 @@ import 'dart:async';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../../art/app_icon.dart';
+import '../../art/lucide.g.dart';
+import '../../core/gantt/mermaid.dart' show isMermaidGantt, mermaidToGantt;
+import '../../sheet/ask_first.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/note_face.dart';
@@ -248,11 +252,24 @@ class DrawnDiagramState extends State<DrawnDiagram> {
         return _text(t, look, em, gutter);
       },
     );
-    return Semantics(
+    final drawn = Semantics(
       container: true,
       image: true,
       label: 'Diagram',
       child: open == null ? block : GestureDetector(behavior: HitTestBehavior.opaque, onTap: open, child: block),
+    );
+    // A Mermaid gantt can become the app's own chart, to drag (lib/editor/gantt; Matt, 2026-10-31).
+    if (open == null || !diagramConvertButtons || !isMermaidGantt(widget.code)) return drawn;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        drawn,
+        Padding(
+          padding: EdgeInsets.fromLTRB(gutter, layoutUnitFloor(0.3 * em), gutter, layoutUnitFloor(0.3 * em)),
+          child: Align(alignment: Alignment.centerLeft, child: ConvertGanttButton(onPressed: () => convertMermaidGantt(context, view!, widget.from))),
+        ),
+      ],
     );
   }
 
@@ -300,6 +317,78 @@ class DrawnDiagramState extends State<DrawnDiagram> {
       ),
     );
   }
+}
+
+/// Whether a Mermaid gantt in a note that can be changed has its Convert under it: off for the tests that hold a
+/// diagram's block to the page's, which has none.
+@visibleForTesting
+bool diagramConvertButtons = true;
+
+/// The words of the Convert to interactive Gantt that a Mermaid gantt has under it.
+const String convertGanttWords = 'Convert to interactive Gantt';
+
+/// The pill under a drawn Mermaid gantt that turns it into a ```gantt fence.
+class ConvertGanttButton extends StatelessWidget {
+  const ConvertGanttButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Semantics(
+      button: true,
+      label: convertGanttWords,
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: const ValueKey<String>('diagram-convert-gantt'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) + 2),
+          decoration: ShapeDecoration(color: t.colorOf('color-mix(in srgb, var(--app-ink) 7%, transparent)'), shape: const StadiumBorder()),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              AppIcon(Lucide.chartGantt, size: t.fontSize('xs') * 1.2, color: t.color('app-ink-2')),
+              SizedBox(width: t.space(1)),
+              Text(convertGanttWords, style: t.textAt(t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Mermaid gantt whose fence opens at [from] written as a ```gantt fence (lib/core/gantt/mermaid.dart), one step of
+/// the undo. Where something Mermaid says cannot come with it, that is said first, and nothing is written unless the
+/// person goes on.
+Future<void> convertMermaidGantt(BuildContext context, EditorViewLike view, int from) async {
+  Diagram? found() {
+    final doc = view.state.doc;
+    if (from > doc.length) return null;
+    final open = doc.lineAt(from);
+    if (open.from != from) return null;
+    return diagramsIn(doc.toString()).where((each) => each.from == open.number).firstOrNull;
+  }
+
+  final diagram = found();
+  if (diagram == null) return;
+  final converted = mermaidToGantt(diagram.code);
+  if (converted.notes.isNotEmpty) {
+    final go = await askFirst(context, FirstAsk(title: 'Convert to an interactive Gantt?', note: 'Some of it can’t come with it: ${converted.notes.join(' ')}', yes: 'Convert'));
+    if (!go) return;
+  }
+  final again = found();
+  if (again == null || again.code != diagram.code) return;
+  final doc = view.state.doc;
+  final open = doc.line(again.from);
+  final close = doc.line(again.to);
+  final mark = RegExp(r'^\s*(`{3,}|~{3,})').firstMatch(open.text)?.group(1) ?? '```';
+  final body = converted.body.isEmpty ? '' : '${converted.body}\n';
+  view.dispatch(TransactionSpec(changes: ChangeSpec(from: open.from, to: close.to, insert: '${mark}gantt\n$body$mark'), userEvent: 'input.gantt', annotations: isolateHistory.of('full')));
+  fireMotor(HapticKind.success);
 }
 
 /// As many lines as the words come to: nothing is cut.

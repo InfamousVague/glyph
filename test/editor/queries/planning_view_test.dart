@@ -5,6 +5,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/planning/history.dart';
+import 'package:ghost_md/editor/gantt/gantt_chart.dart' show GanttChart;
 import 'package:ghost_md/editor/queries/queries.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/sheet/kit.dart';
@@ -155,11 +156,12 @@ void main() {
     semantics.dispose();
   });
 
+  // The timeline is the Gantt chart since 2026-10-31 (lib/editor/queries/query_gantt.dart).
   testWidgets('a roadmap is drawn on the timeline: the epic and the milestone', (tester) async {
     await open(tester, 'from: notes [[Kiln]]\nshow: roadmap');
-    expect(find.byType(QueryTimelineView), findsOneWidget);
-    expect(parts('timelineName'), findsNWidgets(2));
-    expect(wordsOf(tester, find.byType(QueryTimelineView)), allOf(contains('Second kiln'), contains('v2 launch')));
+    expect(find.byType(GanttChart), findsOneWidget);
+    expect(parts('ganttName'), findsNWidgets(2));
+    expect(wordsOf(tester, find.byType(GanttChart)), allOf(contains('Second kiln'), contains('v2 launch')));
     expect(tester.takeException(), isNull);
   });
 

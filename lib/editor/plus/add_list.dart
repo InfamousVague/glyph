@@ -121,6 +121,7 @@ class AddConfig {
     this.onButton,
     this.simple = false,
     this.toggles = false,
+    this.gantt = false,
   });
 
   /// A picture: the screen opens its picker.
@@ -174,6 +175,9 @@ class AddConfig {
 
   /// Whether A toggle is offered: once the editor draws `<details>` as one (lib/editor/view/section_folds.dart).
   final bool toggles;
+
+  /// Whether A Gantt chart is offered: where the editor draws a ```gantt fence (lib/editor/gantt).
+  final bool gantt;
 }
 
 /// Where the card goes ([placeList]): its corner, its width, and how tall its scrolling rows may be (null for as
@@ -304,6 +308,7 @@ const Map<String, LucideIcon> _icons = <String, LucideIcon>{
   'dated': Lucide.calendarPlus,
   'ticket': Lucide.ticket,
   'chart': Lucide.network,
+  'gantt': Lucide.chartGantt,
   'formula': Lucide.squareRadical,
   'canvas': Lucide.workflow,
   'footnote': Lucide.asterisk,
@@ -453,6 +458,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       button: config.onButton != null,
       simple: config.simple,
       toggles: config.toggles,
+      gantt: config.gantt,
       effects: config.effects,
       inserts: config.inserts,
     );

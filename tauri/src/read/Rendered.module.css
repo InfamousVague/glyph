@@ -295,3 +295,98 @@ button.embedTitle:hover {
 .embedName {
   font-family: var(--glacier-font-mono);
 }
+
+/* A ```gantt fence (gantt.ts): its list, readable, since the reader draws no charts. */
+.gantt {
+  margin: 0 0 0.85em;
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
+}
+
+.ganttTitle {
+  margin: 0 0 0.4em;
+  font-weight: 600;
+}
+
+.ganttSection {
+  margin: 0.7em 0 0.2em;
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--app-ink-2);
+  text-transform: none;
+}
+
+.ganttTasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ganttTasks li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25em 0.6em;
+  padding: 0.25em 0;
+  border-top: 1px solid color-mix(in srgb, var(--app-rule) 60%, transparent);
+}
+
+.ganttMark {
+  flex: none;
+  inline-size: 0.9em;
+  block-size: 0.45em;
+  border-radius: 999px;
+  background: var(--glacier-teal-9, var(--app-ink-2));
+  align-self: center;
+}
+
+.ganttTasks li[data-milestone] .ganttMark {
+  inline-size: 0.55em;
+  block-size: 0.55em;
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.ganttTasks li[data-done] .ganttName {
+  color: var(--app-ink-3);
+  text-decoration: line-through;
+}
+
+.ganttName {
+  flex: 1 1 10em;
+}
+
+.ganttDays,
+.ganttMeta {
+  font-size: 0.85em;
+  color: var(--app-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ganttProgress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.85em;
+  color: var(--app-ink-3);
+}
+
+.ganttTrack {
+  display: block;
+  inline-size: 3em;
+  block-size: 0.35em;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--app-ink) 12%, transparent);
+}
+
+.ganttTrack > span {
+  display: block;
+  block-size: 100%;
+  background: var(--app-ink-2);
+}
+
+.ganttProgress em {
+  font-style: normal;
+}

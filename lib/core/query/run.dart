@@ -23,7 +23,7 @@
 ///
 /// The port's own (2026-10-30): a rollup is a field like any other, read through rollup.dart's [FieldLook], and a
 /// column of its own where `columns:` is unsaid; a calendar's day is its `date:` field where one is written, a
-/// timeline's bar runs from its `start:` field to its `end:` (`start` and `due`), and a chart's bars are worked out
+/// Gantt chart's bar runs from its `start:` field to its `end:` (`start` and `due`; lib/core/gantt/query.dart), and a chart's bars are worked out
 /// here (chart.dart). None of it is in a result's JSON unless asked for, so every query the web runs runs the same.
 ///
 /// What differs: `Column`, `Row` and `Group` are [QueryColumn], [QueryRow] and [QueryGroup], since Flutter has a
