@@ -144,7 +144,7 @@ bool _picking() {
 
 /// A ticket's card or row that can be picked: the press that picks it heard, and drawn picked.
 class QuerySelectable extends StatefulWidget {
-  const QuerySelectable({super.key, required this.selection, required this.row, required this.order, required this.child, this.radius = 0, this.boxed = true, this.drawn = true});
+  const QuerySelectable({super.key, required this.selection, required this.row, required this.order, required this.child, this.radius = 0, this.boxed = true, this.drawn = true, this.outset = 0});
 
   final QuerySelection selection;
   final QueryRow row;
@@ -160,6 +160,10 @@ class QuerySelectable extends StatefulWidget {
 
   /// Whether it is drawn picked here: a table's row is grounded whole by the table instead.
   final bool drawn;
+
+  /// How far outside its box the ring of a picked one is drawn: a list's row runs to the card's padding, and its
+  /// ring stands clear of its words.
+  final double outset;
 
   /// Whether [row] can be picked at all.
   static bool can(QueryRow row) => row.kind == RecordKind.ticket;
@@ -271,15 +275,8 @@ class _QuerySelectableState extends State<QuerySelectable> {
             selected: picked,
             child: !widget.drawn
                 ? widget.child
-                : DecoratedBox(
-                    position: DecorationPosition.foreground,
-                    decoration: picked
-                        ? BoxDecoration(
-                            color: t.color('glacier-accent-9').withValues(alpha: 0.10),
-                            border: Border.all(color: t.color('glacier-accent-9'), width: 1.5),
-                            borderRadius: BorderRadius.circular(widget.radius),
-                          )
-                        : const BoxDecoration(),
+                : CustomPaint(
+                    foregroundPainter: picked ? _Picked(color: t.color('glacier-accent-9'), radius: widget.radius, outset: widget.outset) : null,
                     child: widget.child,
                   ),
           ),
@@ -287,6 +284,29 @@ class _QuerySelectableState extends State<QuerySelectable> {
       ),
     );
   }
+}
+
+/// A picked ticket's ground and ring, drawn over it and [outset] beyond its sides.
+class _Picked extends CustomPainter {
+  const _Picked({required this.color, required this.radius, required this.outset});
+
+  final Color color;
+  final double radius;
+  final double outset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Out to the sides only: two rows picked one under the other keep a ring each.
+    final box = RRect.fromRectAndRadius(Rect.fromLTRB(-outset, 1, size.width + outset, size.height - 1), Radius.circular(radius + outset / 2));
+    canvas.drawRRect(box, Paint()..color = color.withValues(alpha: 0.08));
+    canvas.drawRRect(box.deflate(0.75), Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_Picked old) => old.color != color || old.radius != radius || old.outset != outset;
 }
 
 /// The box dragged from a query's empty ground with a mouse, which picks every ticket it touches: Shift held adds them
@@ -580,7 +600,7 @@ class _BulkBarState extends State<BulkBar> {
           label: '$count picked',
           child: Container(
             key: const ValueKey('bulk-bar'),
-            constraints: BoxConstraints(maxWidth: t.lenOf('46rem')),
+            constraints: BoxConstraints(maxWidth: t.lenOf('60rem')),
             padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
             decoration: BoxDecoration(
               color: t.color('app-paper'),

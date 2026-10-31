@@ -81,10 +81,10 @@ class QueryActs {
   final Map<String, String> Function(QueryRow row)? labelColours;
 
   /// [child], a ticket's card or row, as one that can be picked where anything is.
-  Widget selectable(QueryRow row, Widget child, {double radius = 0, bool boxed = true, bool drawn = true}) {
+  Widget selectable(QueryRow row, Widget child, {double radius = 0, bool boxed = true, bool drawn = true, double outset = 0}) {
     final picked = selection;
     if (picked == null || !QuerySelectable.can(row)) return child;
-    return QuerySelectable(selection: picked, row: row, order: order ?? () => const <String>[], radius: radius, boxed: boxed, drawn: drawn, child: child);
+    return QuerySelectable(selection: picked, row: row, order: order ?? () => const <String>[], radius: radius, boxed: boxed, drawn: drawn, outset: outset, child: child);
   }
 }
 

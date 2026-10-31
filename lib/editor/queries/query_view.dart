@@ -661,7 +661,7 @@ class QueryRowLine extends StatelessWidget {
           ],
         ),
       ),
-    ), radius: look.t.radius('sm'));
+    ), radius: look.t.radius('sm'), outset: look.space(2));
   }
 }
 
