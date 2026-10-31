@@ -490,12 +490,19 @@ class _ChartPainter extends CustomPainter {
       }
       return;
     }
-    // A line: one for each series, a dot at each bar's place.
+    // A line: one for each series, a dot at each bar's place. A point with nothing to measure is left out, and the
+    // line breaks there: a burndown's days still to come (lib/core/query/planning.dart).
     for (var s = 0; s < data.series.length; s += 1) {
       final path = Path();
+      var drawing = false;
       for (var bar = 0; bar < data.buckets.length; bar += 1) {
+        if (data.points[bar][s].value == null) {
+          drawing = false;
+          continue;
+        }
         final at = geometry.point(bar, s);
-        bar == 0 ? path.moveTo(at.dx, at.dy) : path.lineTo(at.dx, at.dy);
+        drawing ? path.lineTo(at.dx, at.dy) : path.moveTo(at.dx, at.dy);
+        drawing = true;
       }
       final colour = picked != null && picked!.series != null && picked!.series != s ? QueryLook.mix(_colour(s), 0.32) : _colour(s);
       canvas.drawPath(
@@ -507,6 +514,7 @@ class _ChartPainter extends CustomPainter {
           ..color = colour,
       );
       for (var bar = 0; bar < data.buckets.length; bar += 1) {
+        if (data.points[bar][s].value == null) continue;
         final at = geometry.point(bar, s);
         final big = picked?.bar == bar && (picked?.series == null || picked?.series == s);
         canvas.drawCircle(at, big ? 5 : 3, Paint()..color = colour);

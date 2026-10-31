@@ -462,3 +462,56 @@ CarryOffer? carryOfferOf(Query query, PlanningIndex plan, String? notebook) {
   ];
   return left.isEmpty ? null : CarryOffer(from: from, to: to, noteIds: left);
 }
+
+// ---- a ticket's panel -------------------------------------------------------------------------------------------
+
+/// What a ticket's panel says of its planning (lib/editor/tickets/ticket_panel.dart): the cycle it is in and those it
+/// could be moved to, how long it has sat, how far its epic is, and the milestones it could be for.
+class TicketPlanning {
+  const TicketPlanning({this.cycle, this.current, this.cycles = const [], this.staleDays, this.progress, this.milestones = const [], this.milestone, this.milestoneDay});
+
+  /// Its own cycle, and today's in its notebook.
+  final Cycle? cycle;
+  final Cycle? current;
+
+  /// The cycles its notebook offers: the last two, today's and the next two.
+  final List<Cycle> cycles;
+  final int? staleDays;
+
+  /// Where it is an epic: how far its tickets are.
+  final EpicProgress? progress;
+
+  /// The milestone notes, the soonest first, with their days.
+  final List<({String title, String? day})> milestones;
+
+  /// Its milestone (its own, else its epic's), and that milestone's day.
+  final String? milestone;
+  final String? milestoneDay;
+}
+
+/// The panel's planning for ticket [noteId]; null where it is no ticket the library has.
+TicketPlanning? ticketPlanningOf(PlanningIndex plan, String noteId) {
+  final record = plan.notes[noteId];
+  if (record == null || record.kind != RecordKind.ticket) return null;
+  final book = plan.bookFor(record.notebook);
+  final now = book.current(plan.today);
+  final offered = <Cycle>[];
+  if (now != null) {
+    final before = book.before(now);
+    final earlier = before == null ? null : book.before(before);
+    final next = book.after(now);
+    final later = next == null ? null : book.after(next);
+    offered.addAll([?earlier, ?before, now, ?next, ?later]);
+  }
+  final milestone = plan.milestoneOf(record);
+  return TicketPlanning(
+    cycle: plan.cycleOf(record),
+    current: now,
+    cycles: offered,
+    staleDays: plan.staleDaysOf(record),
+    progress: (record.ticket?.epic ?? false) ? plan.progressOf(record) : null,
+    milestones: [for (final each in plan.milestones) (title: each.title, day: milestoneDayOf(each.props))],
+    milestone: milestone,
+    milestoneDay: plan.milestoneDay(milestone),
+  );
+}

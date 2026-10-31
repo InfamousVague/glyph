@@ -90,4 +90,11 @@ void main() {
       expect(carryWords(4, next), 'Move 4 unfinished to 2026-C47');
     });
   });
+
+  test('a cycle’s days are said in words', () {
+    expect(cycleDaysWords(const Cycle(name: '2026-C45', start: '2026-11-02', end: '2026-11-15')), '2–15 Nov');
+    expect(cycleDaysWords(const Cycle(name: '2026-C43', start: '2026-10-19', end: '2026-11-01')), '19 Oct – 1 Nov');
+    expect(cycleDaysWords(const Cycle(name: '2026-C53', start: '2026-12-28', end: '2027-01-10')), '28 Dec 2026 – 10 Jan 2027');
+    expect(cycleDaysWords(const Cycle(name: 'Someday', start: null, end: null)), '');
+  });
 }

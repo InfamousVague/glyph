@@ -21,27 +21,40 @@ export '../items/field_chips.dart' show dayLabel;
 /// The keys the panel always shows a row for, set or not: what a ticket is mostly asked (`ALWAYS_SHOWN`).
 const List<String> alwaysShown = <String>['status', 'assignee', 'priority', 'due'];
 
-/// The rows the panel shows past those once set, or when More is pressed (`SHOWN_WHEN_SET`).
-const List<String> shownWhenSet = <String>['start', 'estimate', 'blocked-by', 'parent', 'labels'];
+/// The rows the panel shows past those once set, or when More is pressed (`SHOWN_WHEN_SET`). A cycle and a milestone
+/// are the port's own (Matt, 2026-10-31; lib/core/planning).
+const List<String> shownWhenSet = <String>['start', 'estimate', 'cycle', 'blocked-by', 'parent', 'milestone', 'labels'];
+
+/// The rows Simple mode keeps behind More even once set (lib/core/preferences.dart `simple`): a team's planning,
+/// which a person keeping their own tickets need not see.
+const Set<String> advancedRows = <String>{'cycle', 'milestone'};
 
 /// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), and how the note
 /// looks.
 const Set<String> _unsaid = <String>{'type', 'id', 'look'};
 
 /// The panel's rows for a ticket's front matter: the four always, then any of the rest that is set, or all of them
-/// with [more].
-List<String> panelRows(String front, [bool more = false]) {
+/// with [more]. In [simple] mode the advanced ones wait for More, set or not; where the host draws no planning
+/// ([planned] false), they are rows only once written.
+List<String> panelRows(String front, [bool more = false, bool simple = false, bool planned = true]) {
   final set = <String>{
     for (final property in propertiesOf(front))
       if (propertyList(property.value).isNotEmpty) property.key.toLowerCase(),
   };
-  return <String>[...alwaysShown, ...shownWhenSet.where((key) => more || set.contains(key))];
+  // `epic:` is read as the parent (lib/core/properties.dart), so its row is Parent's.
+  if (set.contains('epic')) set.add('parent');
+  bool shows(String key) {
+    if (!planned && advancedRows.contains(key)) return set.contains(key);
+    return more || (set.contains(key) && !(simple && advancedRows.contains(key)));
+  }
+
+  return <String>[...alwaysShown, ...shownWhenSet.where(shows)];
 }
 
 /// The rows waiting behind More: the ticket keys the panel would show if they were set.
-List<String> hiddenRows(String front) {
-  final shown = panelRows(front).toSet();
-  return <String>[...shownWhenSet.where((key) => !shown.contains(key))];
+List<String> hiddenRows(String front, [bool simple = false, bool planned = true]) {
+  final shown = panelRows(front, false, simple, planned).toSet();
+  return <String>[...shownWhenSet.where((key) => !shown.contains(key) && (planned || !advancedRows.contains(key)))];
 }
 
 /// The keys a ticket holds that are not a ticket's, in order, as written: the quiet line under the panel.

@@ -31,6 +31,7 @@ import '../fields/field_picker.dart' show StatusIcon;
 import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show ChipLook, FieldMenu, chipLook, dayLabel, daySaid;
 import '../looks/look.dart' show layoutUnitFloor;
+import 'plan_marks.dart' show PriorityChip;
 import 'query_layout.dart';
 import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
@@ -40,7 +41,7 @@ final RegExp _priorityWord = RegExp(r' priority$');
 
 /// What a row and a cell need from the query's drawing to act and to name days (`Acts`).
 class QueryActs {
-  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks});
+  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks, this.planning = false});
 
   final String today;
   final String? locale;
@@ -69,6 +70,11 @@ class QueryActs {
 
   /// Opens the note a relation's chip names, by its title (the port's own). Absent, a chip is words.
   final void Function(String title)? onOpenTitle;
+
+  /// Whether a ticket's planning is drawn (plan_marks.dart; Matt, 2026-10-31): its priority as a coloured chip, its
+  /// estimate, an epic's points and stale. The host's to say, as it says a ticket's lock; without it a query is drawn
+  /// as the page drew it.
+  final bool planning;
 }
 
 /// A press that is a control's own, said to whoever might lift the thing it is on.
@@ -537,7 +543,9 @@ class QueryPicked extends StatelessWidget {
 /// A cell, drawn as what it holds (`CellView`). [quiet] is a row that is finished with, whose days are not late;
 /// [brief] is a list's or a card's line of them, where a priority is its mark alone and an empty cell is nothing at
 /// all. [parent] is the type it stands in.
-Widget? cellView(QueryLook look, Cell cell, {required String field, required QueryActs acts, required bool quiet, required bool brief, List<String>? workflow, required double parent}) {
+///
+/// [ticket] is a ticket's row, whose priority is its coloured chip (plan_marks.dart), Urgent to Low.
+Widget? cellView(QueryLook look, Cell cell, {required String field, required QueryActs acts, required bool quiet, required bool brief, List<String>? workflow, required double parent, bool ticket = false}) {
   final line = pageLine(parent, QueryLook.leading);
   switch (cell) {
     case EmptyCell():
@@ -564,6 +572,8 @@ Widget? cellView(QueryLook look, Cell cell, {required String field, required Que
         excludeSemantics: true,
         child: Part('day', child: PageWords(dayLabel(day, acts.today, acts.locale), look.sans(parent, color: color ?? (brief ? look.ink2 : null), tabular: true), line: line, softWrap: false)),
       );
+    case PriorityCell(:final name) when ticket:
+      return Part('priority', child: _onLine(look, parent, PriorityChip(look: look, name: name, size: look.xs)));
     case PriorityCell(:final name):
       final chip = chipLook(FieldSpan(kind: FieldKind.priority, from: 0, to: 0, key: 'priority', value: name), today: acts.today, done: quiet, locale: acts.locale);
       if (chip == null) return null;
@@ -677,7 +687,7 @@ class QueryMeta extends StatelessWidget {
     final quiet = row.category == StatusCategory.done || row.done == true;
     final cells = <Widget>[];
     for (final (column, cell) in shown(row, result)) {
-      final drawn = cellView(look, cell, field: column.field, acts: acts, quiet: quiet, brief: true, workflow: row.workflow, parent: look.xs);
+      final drawn = cellView(look, cell, field: column.field, acts: acts, quiet: quiet, brief: true, workflow: row.workflow, parent: look.xs, ticket: acts.planning && row.kind == RecordKind.ticket);
       if (drawn == null) continue;
       cells.add(Part('metaCell', child: QueryPicked(look: look, row: row, column: column, cell: cell, acts: acts, child: drawn)));
     }

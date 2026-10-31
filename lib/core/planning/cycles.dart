@@ -309,3 +309,14 @@ String withCycle(String body, Cycle? cycle) => withProperty(body, 'cycle', cycle
 
 /// "Move 4 unfinished to 2026-C47": what the one action that carries a cycle's unfinished tickets on is called.
 String carryWords(int count, Cycle to) => 'Move $count unfinished to ${to.name}';
+
+const List<String> _monthWords = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/// A cycle's days in words: `2–15 Nov`, `26 Oct – 8 Nov`, `28 Dec 2026 – 10 Jan 2027`; '' for a cycle with none.
+String cycleDaysWords(Cycle cycle) {
+  if (!cycle.dated) return '';
+  final from = dateOfDay(cycle.start!)!, to = dateOfDay(cycle.end!)!;
+  if (from.year != to.year) return '${from.day} ${_monthWords[from.month - 1]} ${from.year} – ${to.day} ${_monthWords[to.month - 1]} ${to.year}';
+  if (from.month != to.month) return '${from.day} ${_monthWords[from.month - 1]} – ${to.day} ${_monthWords[to.month - 1]}';
+  return '${from.day}–${to.day} ${_monthWords[to.month - 1]}';
+}
