@@ -193,6 +193,7 @@ class GitBackup extends ChangeNotifier {
   Timer? _floorTimer;
   bool _pending = false;
   bool _running = false;
+  bool _disposed = false;
   bool _waitingForForeground = false;
   BackupOutcome? _last;
 
@@ -211,7 +212,7 @@ class GitBackup extends ChangeNotifier {
     _quietTimer?.cancel();
     _quietTimer = Timer(quietFor, () => unawaited(_tick('quiet')));
     _floorTimer ??= Timer(floorAt, () => unawaited(_tick('floor')));
-    notifyListeners();
+    _tell();
   }
 
   /// The app came to the front (iPhone): whatever waited runs now.
@@ -223,7 +224,7 @@ class GitBackup extends ChangeNotifier {
   }
 
   Future<void> _tick(String why) async {
-    if (!_pending || _running) return;
+    if (_disposed || !_pending || _running) return;
     if (foregroundOnly && !_inForeground()) {
       _waitingForForeground = true;
       return;
@@ -241,8 +242,13 @@ class GitBackup extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _disarm();
     super.dispose();
+  }
+
+  void _tell() {
+    if (!_disposed) notifyListeners();
   }
 
   GitWho _who() {
@@ -272,7 +278,7 @@ class GitBackup extends ChangeNotifier {
     if (_running) return _last ?? const BackupOutcome(skipped: 'already running');
     _running = true;
     _disarm();
-    notifyListeners();
+    _tell();
     JobHandle? job;
     try {
       final where = await place();
@@ -314,7 +320,7 @@ class GitBackup extends ChangeNotifier {
       return _last = BackupOutcome(failure: said);
     } finally {
       _running = false;
-      notifyListeners();
+      _tell();
     }
   }
 
@@ -446,7 +452,7 @@ class GitBackup extends ChangeNotifier {
       if (where.isMirror) Directory(where.path).deleteSync(recursive: true);
     }
     setGitBackupSettings(const GitBackupSettings(), via);
-    notifyListeners();
+    _tell();
   }
 }
 

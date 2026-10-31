@@ -11,17 +11,19 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../ai/summary_handoff.dart' show SummaryDevice, thisDevice;
-import '../../core/background_jobs.dart' show BackgroundJobs, NoBackgroundJobs;
+import '../../core/background_jobs.dart' show Activity, BackgroundJobs, NoBackgroundJobs;
 import '../../core/library.dart' show NoteLibrary;
 import '../../core/library_folder.dart' show LibraryFolder, LibraryStatus;
 import '../../core/native/core.dart' show CoreInvoke;
 import '../../core/preferences.dart';
+import '../../files/attachment_places.dart';
 import '../registry.dart' show plugins;
 import '../types.dart' show PluginHost;
 import 'backup.dart';
 import 'claim.dart';
 import 'manifest.dart' as git;
 import 'place.dart';
+import 'publish.dart';
 import 'repo.dart';
 import 'restore.dart';
 import 'settings.dart';
@@ -45,6 +47,11 @@ class GitBackupService {
     BackgroundJobs background = const NoBackgroundJobs(),
     PluginHost? via,
     this.onOpenConflicts,
+    // A test's own: where the attachments are, the token, the record, the publisher's files.
+    Future<AttachmentPlaces?> Function()? places,
+    Future<GitAuth> Function()? auth,
+    Activity? activity,
+    Future<PublishBundle?> Function()? publishBundle,
   })  : via = via ?? git.host,
         claims = PusherClaims(device: device ?? thisDevice, preferences: preferences, setPreferences: setPreferences, syncNow: syncNow, accountHeld: accountHeld, isPhone: isPhone) {
     backup = GitBackup(
@@ -61,8 +68,12 @@ class GitBackupService {
       inForeground: inForeground,
       background: background,
       onOpenConflicts: onOpenConflicts,
+      places: places,
+      auth: auth,
+      activity: activity,
+      publishBundle: publishBundle,
     );
-    restore = GitRestore(invoke: invoke, appData: appData);
+    restore = GitRestore(invoke: invoke, appData: appData, places: places);
   }
 
   final CoreInvoke invoke;

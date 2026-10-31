@@ -255,8 +255,8 @@ void main() {
           // The sync: the account's copy takes a live claim of another's over mine (lib/sync/prefs.dart `merged`).
           syncNow: () async {
             final merged = chosenPusherClaim(prefs.more[pusherClaimKey], account[pusherClaimKey], now: now);
-            account = {...account, if (merged != null) pusherClaimKey: merged};
-            prefs = prefs.copyWith(more: {...prefs.more, if (merged != null) pusherClaimKey: merged});
+            account = {...account, pusherClaimKey: ?merged};
+            prefs = prefs.copyWith(more: {...prefs.more, pusherClaimKey: ?merged});
           },
           accountHeld: () => account,
           isPhone: phone,

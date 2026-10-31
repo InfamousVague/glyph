@@ -80,6 +80,8 @@ tauri = { path = "shims/tauri", optional = true }
 # rustls here is told to use ring, the provider the voice downloads already carry; webpki-roots is the trust store,
 # since rustls's platform verifier wants a Kotlin half on Android. gix-pack is named outright for `generate`,
 # the pack writer a push needs and gix's own features never turn on.
+# `parallel` stays: without it gix's object store is an `Rc`, and the pack writer the push stands on wants a `Send`
+# handle (the Back up to git plugin, 2026-10-31, tried dropping it for size and the push did not build).
 gix = { version = "0.90", default-features = false, features = ["blocking-http-transport-reqwest-rust-tls", "worktree-mutation", "revision", "sha1", "parallel"] }
 gix-pack = { version = "0.77", default-features = false, features = ["generate", "streaming-input", "object-cache-dynamic"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
@@ -155,6 +157,120 @@ whisper-rs-sys = { path = "../tauri/src-tauri/vendor/whisper-rs-sys" }
 # gix-transport 0.62.0 as published, but its reqwest-with-rustls feature asks reqwest for `rustls-no-provider` rather
 # than `rustls`, which would compile aws-lc-rs (a C library, a second cipher provider beside ring) into every target.
 gix-transport = { path = "vendor/gix-transport" }
+
+
+# The git crates built for size in release (the Back up to git plugin, 2026-10-31): git is not where the phone spends
+# its time, and `opt-level = "s"` on them alone keeps the rest of the core as it was.
+[profile.release.package.gix]
+opt-level = "s"
+[profile.release.package.gix-actor]
+opt-level = "s"
+[profile.release.package.gix-attributes]
+opt-level = "s"
+[profile.release.package.gix-bitmap]
+opt-level = "s"
+[profile.release.package.gix-chunk]
+opt-level = "s"
+[profile.release.package.gix-command]
+opt-level = "s"
+[profile.release.package.gix-commitgraph]
+opt-level = "s"
+[profile.release.package.gix-config]
+opt-level = "s"
+[profile.release.package.gix-config-value]
+opt-level = "s"
+[profile.release.package.gix-credentials]
+opt-level = "s"
+[profile.release.package.gix-date]
+opt-level = "s"
+[profile.release.package.gix-diff]
+opt-level = "s"
+[profile.release.package.gix-dir]
+opt-level = "s"
+[profile.release.package.gix-discover]
+opt-level = "s"
+[profile.release.package.gix-error]
+opt-level = "s"
+[profile.release.package.gix-filter]
+opt-level = "s"
+[profile.release.package.gix-fs]
+opt-level = "s"
+[profile.release.package.gix-glob]
+opt-level = "s"
+[profile.release.package.gix-hash]
+opt-level = "s"
+[profile.release.package.gix-hashtable]
+opt-level = "s"
+[profile.release.package.gix-ignore]
+opt-level = "s"
+[profile.release.package.gix-imara-diff]
+opt-level = "s"
+[profile.release.package.gix-index]
+opt-level = "s"
+[profile.release.package.gix-lock]
+opt-level = "s"
+[profile.release.package.gix-negotiate]
+opt-level = "s"
+[profile.release.package.gix-note]
+opt-level = "s"
+[profile.release.package.gix-object]
+opt-level = "s"
+[profile.release.package.gix-odb]
+opt-level = "s"
+[profile.release.package.gix-pack]
+opt-level = "s"
+[profile.release.package.gix-packetline]
+opt-level = "s"
+[profile.release.package.gix-parallel]
+opt-level = "s"
+[profile.release.package.gix-path]
+opt-level = "s"
+[profile.release.package.gix-pathspec]
+opt-level = "s"
+[profile.release.package.gix-prompt]
+opt-level = "s"
+[profile.release.package.gix-protocol]
+opt-level = "s"
+[profile.release.package.gix-quote]
+opt-level = "s"
+[profile.release.package.gix-ref]
+opt-level = "s"
+[profile.release.package.gix-refspec]
+opt-level = "s"
+[profile.release.package.gix-revision]
+opt-level = "s"
+[profile.release.package.gix-revwalk]
+opt-level = "s"
+[profile.release.package.gix-sec]
+opt-level = "s"
+[profile.release.package.gix-shallow]
+opt-level = "s"
+[profile.release.package.gix-status]
+opt-level = "s"
+[profile.release.package.gix-submodule]
+opt-level = "s"
+[profile.release.package.gix-tempfile]
+opt-level = "s"
+[profile.release.package.gix-trace]
+opt-level = "s"
+[profile.release.package.gix-transport]
+opt-level = "s"
+[profile.release.package.gix-traverse]
+opt-level = "s"
+[profile.release.package.gix-url]
+opt-level = "s"
+[profile.release.package.gix-utils]
+opt-level = "s"
+[profile.release.package.gix-validate]
+opt-level = "s"
+[profile.release.package.gix-worktree]
+opt-level = "s"
+[profile.release.package.gix-worktree-state]
+opt-level = "s"
+[profile.release.package.gix-worktree-stream]
+opt-level = "s"
+[profile.release.package.gix-zlib]
+opt-level = "s"
 
 # Panics must unwind (the default): ffi.rs catches them at the boundary. Do not set `panic = "abort"`.
 [profile.release]

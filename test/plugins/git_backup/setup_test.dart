@@ -116,10 +116,12 @@ void main() {
   test('the check: no token or no address sends back; reachable and empty, with the size; one with a backup already; over 200 MB a warning; refused token let go of; no connection; a syncing Library refused', () async {
     Future<SetupResult> check(GitBackupSetupHooks on) => gitBackupSetup(hooks: on).steps.whereType<SetupCheck>().single.run();
     var result = await check(hooks());
-    expect((result.kind, result.pasteAgain, result.words), (SetupCheckKind.failed, true, contains('No token')));
+    expect((result.kind, result.pasteAgain), (SetupCheckKind.failed, true));
+    expect(result.words, contains('No token'));
     await git.host.secrets.write(git.tokenSecret, token);
     result = await check(hooks());
-    expect((result.kind, result.words), (SetupCheckKind.failed, contains('No repository address')));
+    expect(result.kind, SetupCheckKind.failed);
+    expect(result.words, contains('No repository address'));
     setGitBackupSettings(const GitBackupSettings(remote: 'https://github.com/me/notes.git'));
     result = await check(hooks());
     expect(result.kind, SetupCheckKind.ok);
@@ -127,7 +129,8 @@ void main() {
     result = await check(hooks(fetch: () async => const GitDivergence(remote: 'abc', state: 'behind', ahead: 0, behind: 3)));
     expect(result.words, contains('already has a backup'));
     result = await check(hooks(sizes: () async => const RepoSizes(committed: FolderSize(250000000, 3000), recordings: FolderSize.none, orgsExcluded: FolderSize(5000, 2), video: FolderSize.none, git: FolderSize.none)));
-    expect((result.kind, result.words), (SetupCheckKind.warn, allOf(contains('250 MB'), contains('over 200 MB'), contains('organizations’ notes'))));
+    expect(result.kind, SetupCheckKind.warn);
+    expect(result.words, allOf(contains('250 MB'), contains('over 200 MB'), contains('organizations’ notes')));
     result = await check(hooks(fetch: () async => throw const GitFailure(GitTrouble.signIn, 'Sign-in refused: 401')));
     expect((result.kind, result.pasteAgain), (SetupCheckKind.failed, true));
     expect(gitToken(), isEmpty, reason: 'never kept once refused');
@@ -135,7 +138,8 @@ void main() {
     result = await check(hooks(fetch: () async => throw const GitFailure(GitTrouble.noConnection, 'No connection: dns')));
     expect(result.words, contains('couldn’t be reached'));
     result = await check(hooks(adopt: ({required remote, authUser}) async => 'Your Library is inside iCloud Drive, which syncs every file by itself.'));
-    expect((result.kind, result.words), (SetupCheckKind.failed, contains('iCloud Drive')));
+    expect(result.kind, SetupCheckKind.failed);
+    expect(result.words, contains('iCloud Drive'));
     expect(gitBackupSetup(hooks: hooks()).ready(), isTrue, reason: 'a token and a remote');
   });
 }

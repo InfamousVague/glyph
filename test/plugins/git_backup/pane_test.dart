@@ -94,9 +94,12 @@ void main() {
         preferences: () => prefs,
         setPreferences: (change) => prefs = change(prefs),
         syncNow: () async {},
+        // The old places for the attachments, as the engine test has them; no token (a file remote); the test's record.
+        places: () async => AttachmentPlaces.legacy(appData),
+        auth: () async => GitAuth.none,
+        activity: on.record,
+        publishBundle: () async => null,
       );
-      // The old places for the attachments, as the engine test has them.
-      service.backup = GitBackup(invoke: core.invoke, place: service.place, handle: () => 'matt', holdsPusher: service.claims.holds, pusherElsewhere: service.claims.elsewhere, auth: () async => GitAuth.none, appData: appData, places: () async => AttachmentPlaces.legacy(appData), activity: on.record, publishBundle: () async => null, warn: (_) {});
       GitBackupService.current = service;
     });
 
