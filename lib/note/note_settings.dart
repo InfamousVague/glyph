@@ -205,6 +205,15 @@ class NoteTicketKey {
   final ValueChanged<String> onChange;
 }
 
+/// A notebook's rules for its tickets and its GitHub repos (lib/book/rules_sheet.dart), said in a line, and the press
+/// that opens them.
+@immutable
+class NoteTicketRules {
+  const NoteTicketRules({required this.summary, required this.onOpen});
+  final String summary;
+  final VoidCallback onOpen;
+}
+
 /// A notebook's template for its new pages, as its front matter names it, and the press that chooses another
 /// (Matt, 2026-10-30, of a list of plain-Markdown features: "add all 12").
 @immutable
@@ -294,6 +303,7 @@ class NoteSettings extends StatefulWidget {
     this.name,
     this.journal,
     this.ticketKey,
+    this.ticketRules,
     this.pageTemplate,
     this.onSpeak,
     this.speakLabel = 'Talk into this note',
@@ -346,6 +356,10 @@ class NoteSettings extends StatefulWidget {
 
   /// A notebook's ticket key and its write; absent on anything else, a journal included.
   final NoteTicketKey? ticketKey;
+
+  /// A notebook's rules and GitHub (lib/book/rules_sheet.dart; Matt, 2026-10-31): what it has, and the press that opens
+  /// them. Absent, no row; off where the notebook cannot be edited. Simple mode keeps it behind More….
+  final NoteTicketRules? ticketRules;
 
   /// A notebook's template for its new pages (lib/notes/place_templates.dart): its name, and the press that chooses
   /// it. Absent, no row. Simple mode keeps it behind More…, with the rest of the notebook's own keys.
@@ -713,6 +727,22 @@ class _NoteSettingsState extends State<NoteSettings> {
                   : 'Give it a key, and New ticket numbers its tickets, like a Jira project.'),
         ),
       ],
+      if (name != null && widget.ticketRules != null)
+        SheetGroup(
+          children: [
+            SheetRow(
+              key: const ValueKey('note-ticket-rules'),
+              icon: _lucide(Lucide.workflow, 2.1),
+              label: 'Rules and GitHub…',
+              hint: widget.ticketRules!.summary,
+              onPress: () {
+                final open = widget.ticketRules!.onOpen;
+                widget.onClose();
+                open();
+              },
+            ),
+          ],
+        ),
       if (name != null && widget.pageTemplate != null)
         SheetGroup(
           children: [

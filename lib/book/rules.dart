@@ -356,6 +356,9 @@ RuleWhen? _whenOf(String text) {
   return null;
 }
 
+/// A test as typed, `priority is High`, or null where it is none: the builder's And.
+RuleCondition? ruleConditionOf(String text) => _conditionOf(text);
+
 RuleCondition? _conditionOf(String text) {
   final found = _condition.firstMatch(jsTrim(text));
   if (found == null) return null;

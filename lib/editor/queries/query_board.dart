@@ -38,6 +38,7 @@ import '../../core/query/query.dart';
 import '../boards/board_box.dart' show LaneSnap, LaneSnapPhysics;
 import '../boards/divider.dart' show BoardSplit;
 import '../boards/navigate.dart' show boardEdge, noteScroller;
+import '../tickets/ticket_work.dart' show ticketCardTimer;
 import 'lane_carry.dart';
 import 'query_layout.dart';
 import 'query_look.dart';
@@ -192,6 +193,8 @@ class _QueryBoardState extends State<QueryBoard> {
       if (QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts, fills: true),
       // A ticket's lock and its sub-tickets' progress (ticket_marks.dart).
       if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks),
+      // A ticket's timer (lib/editor/tickets/ticket_work.dart), where the app has timers and the card can be changed.
+      if (id != null && id.isNotEmpty && acts.editable) ?ticketCardTimer?.call(look, row.noteId, title: row.name, ticketKey: id),
     ];
     return Part(
       'card',

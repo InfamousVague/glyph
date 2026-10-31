@@ -104,6 +104,7 @@ import '../core/workspaces.dart';
 import '../book/book_spot.dart' show ChapterSpot, writeBookSpot;
 import '../book/journal.dart' show JournalWriter, entryPlaceOf, templateOf, withEntryPlace, withJournal, withTemplate, withoutJournal;
 import '../book/template_picker.dart' show EntryPlaceDevice;
+import '../book/rules_sheet.dart' show openTicketRules, rulesSummary;
 import '../book/tickets.dart' show withNotebookKey;
 import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
@@ -2093,6 +2094,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       // A notebook's ticket key (docs/DESIGN.md §157), written as its other keys are. Not a journal's.
       // A notebook's template for its new pages (lib/notes/place_templates.dart), written as its other keys are.
       pageTemplate: _notebookRows && !_isJournal && !widget.readOnly ? NotePageTemplate(name: notebookTemplateName(_typedBody), onChoose: () => unawaited(_choosePageTemplate())) : null,
+      // A notebook's rules for its tickets and its GitHub repos (lib/book/rules_sheet.dart), written as its other keys are.
+      ticketRules: _notebookRows && !_isJournal && !widget.readOnly ? NoteTicketRules(summary: rulesSummary(_typedBody), onOpen: () => unawaited(openTicketRules(context, body: () => _typedBody, write: _writeKeys))) : null,
       ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',

@@ -50,11 +50,12 @@ import '../looks/look.dart' show layoutUnitFloor;
 import '../queries/query_layout.dart';
 import '../queries/query_look.dart';
 import 'ticket_rows.dart';
+import 'ticket_work.dart';
 
 /// What the screen hands the editor for a ticket's panel and its keys: the library's tickets, read when they are
 /// drawn (`TicketOptions`).
 class TicketOptions {
-  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem});
+  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.work});
 
   /// The workflow this note's status moves through: its notebook's (lib/book/tickets.dart), or the default.
   final List<String> Function() statuses;
@@ -85,6 +86,9 @@ class TicketOptions {
   /// Why a value cannot be written for Blocked by or Parent, in a sentence, or null where it can: a ring, a ticket
   /// waiting on itself however far round (lib/book/ticket_links.dart `blockedByProblem`, `parentProblem`).
   final String? Function(String key, Object? value)? problem;
+
+  /// Its time and its pull requests, under its rows (ticket_work.dart; Matt, 2026-10-31). Absent, neither is shown.
+  final TicketWorkOptions? work;
 }
 
 /// A property's name, as the panel says it (lib/core/properties.dart `ticketProperties`).
@@ -741,6 +745,7 @@ class _TicketPanelState extends State<TicketPanel> {
                     ],
                   ),
                 ),
+                if (options?.work case final work?) TicketWork(look: look, front: widget.front, editable: editable, options: work, names: names),
                 if (children.isNotEmpty) _subTickets(children, adds: adds),
                 if (hidden.isNotEmpty || (others.isNotEmpty && editable) || (adds && children.isEmpty))
                   // .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
