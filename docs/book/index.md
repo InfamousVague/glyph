@@ -1,6 +1,7 @@
 ---
 title: "Ghost.md Docs"
 book: true
+type: docs
 ---
 # Ghost.md Docs
 

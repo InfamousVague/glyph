@@ -107,7 +107,9 @@ describe('resources', () => {
     await service.deviceWrites(aNote('c', '# Gone', { updatedAt: WRITTEN + 1 }));
     await call('delete_notes', { ids: ['c'] });
     const { resources } = await client.listResources();
+    // The docs guide first (prompts.ts), the one resource that is no note, then the notes.
     expect(resources).toEqual([
+      { uri: 'ghost://guide/docs', name: 'ghost-docs-guide', title: 'Writing docs on Ghost.md', mimeType: 'text/markdown', description: 'How Ghost.md keeps docs, the tools that make them, and the markdown that works well in them.' },
       { uri: 'ghost://note/a', name: 'Groceries', mimeType: 'text/markdown', description: 'Changed 2023-11-14 · Folder: Home', title: 'A Ghost.md note' },
       { uri: 'ghost://note/b', name: 'Trip', mimeType: 'text/markdown', description: 'Changed 2023-11-14', title: 'A Ghost.md note' },
     ]);
@@ -119,8 +121,9 @@ describe('resources', () => {
     const { service, client } = await connected();
     for (let i = 0; i < 105; i += 1) await service.deviceWrites(aNote(`n${i}`, `# Note ${i}`, { updatedAt: WRITTEN + i }));
     const { resources } = await client.listResources();
-    expect(resources.length).toBe(100);
-    expect(resources[0]!.name).toBe('Note 104');
+    const notes = resources.filter((r) => r.uri.startsWith('ghost://note/'));
+    expect(notes.length).toBe(100);
+    expect(notes[0]!.name).toBe('Note 104');
   });
 
   it('reads a note’s markdown, and refuses an id no note has', async () => {
@@ -161,10 +164,10 @@ describe('resources', () => {
 });
 
 describe('prompts', () => {
-  it('offers the four, and each tells Claude what to do with which tools', async () => {
+  it('offers the five, and each tells Claude what to do with which tools', async () => {
     const { client } = await connected();
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(['weekly-review', 'plan-my-day', 'tidy-note', 'ask-claude-inbox']);
+    expect(prompts.map((p) => p.name)).toEqual(['weekly-review', 'plan-my-day', 'tidy-note', 'ask-claude-inbox', 'ghost-docs-guide']);
     expect(prompts.find((p) => p.name === 'tidy-note')?.arguments).toEqual([{ name: 'title', description: 'The note’s title.', required: true }]);
     const words = async (name: string, args?: Record<string, string>) => {
       const { messages } = await client.getPrompt({ name, ...(args ? { arguments: args } : {}) });

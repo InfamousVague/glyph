@@ -12,6 +12,11 @@
 /// (template_picker.dart). Its place switch starts as this device's Tag new notes, whatever the device can do, so a
 /// journal made on the Mac keeps the places of the entries made on the phone.
 ///
+/// Or docs (lib/core/docs_book.dart; Matt, 2026-10-31: "There should be a specific type of notebook for docs that we
+/// made"): a third choice, Docs, beside them where the app hands [NewBookSheet.onCreateDocs], and in advanced mode
+/// only (GHST-103: simple mode keeps the two it had). It picks pages as a notebook does, and makes an index of one
+/// part, Getting started, with them in it; the rest of its parts are added on its index, or by an AI.
+///
 ///     NewBookSheet     the sheet
 ///     NewBooks         what its two makings write to the library (App.tsx `createBook`, `createJournal`)
 ///
@@ -28,6 +33,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/book.dart' show bookNoteBody, isBookBody;
+import '../core/docs_book.dart' show DocsPart, docsBookBody, docsStarterPart;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/library.dart';
 import '../core/note.dart';
@@ -42,11 +48,11 @@ import 'row_drag.dart';
 import 'template_picker.dart';
 
 /// What the sheet makes (`kind`).
-enum NewBookKind { notebook, journal }
+enum NewBookKind { notebook, journal, docs }
 
 /// The New notebook sheet (`NewBookSheet`).
 class NewBookSheet extends StatefulWidget {
-  const NewBookSheet({super.key, required this.open, required this.onClose, required this.titles, required this.onCreate, this.onCreateJournal, this.kind = NewBookKind.notebook, this.isCanvas, this.tagNewNotes, this.device = const EntryPlaceDevice(), this.clock});
+  const NewBookSheet({super.key, required this.open, required this.onClose, required this.titles, required this.onCreate, this.onCreateJournal, this.onCreateDocs, this.kind = NewBookKind.notebook, this.isCanvas, this.tagNewNotes, this.device = const EntryPlaceDevice(), this.clock, this.simple});
 
   final bool open;
   final VoidCallback onClose;
@@ -57,6 +63,12 @@ class NewBookSheet extends StatefulWidget {
 
   /// Makes a journal with its template and its place switch; absent, no Journal choice.
   final void Function(String title, String template, bool place)? onCreateJournal;
+
+  /// Makes docs with the pages chosen in their first part; absent, or in simple mode, no Docs choice.
+  final void Function(String title, List<String> pages)? onCreateDocs;
+
+  /// Whether the app is in simple mode; the preference where it is left out.
+  final bool Function()? simple;
 
   /// Which is chosen as the sheet opens: the palette's New journal opens it on Journal.
   final NewBookKind kind;
@@ -79,7 +91,7 @@ class _NewBookSheetState extends State<NewBookSheet> {
   String _name = '';
   String _find = '';
   List<String> _pages = const <String>[];
-  late NewBookKind _kind = widget.onCreateJournal != null ? widget.kind : NewBookKind.notebook;
+  late NewBookKind _kind = _offered(widget.kind);
   String _template = defaultTemplate;
   late bool _place = _tagNewNotes();
   late final RowDrag _rows = RowDrag((from, to) {
@@ -94,6 +106,17 @@ class _NewBookSheetState extends State<NewBookSheet> {
 
   bool _tagNewNotes() => widget.tagNewNotes?.call() ?? preferences.value.tagNewNotes;
 
+  /// The kinds this sheet offers: a notebook always, a journal where it can be made, docs where they can be and the
+  /// app is not in simple mode.
+  List<NewBookKind> get _kinds => [
+        NewBookKind.notebook,
+        if (widget.onCreateJournal != null) NewBookKind.journal,
+        if (widget.onCreateDocs != null && !(widget.simple?.call() ?? preferences.value.simple)) NewBookKind.docs,
+      ];
+
+  /// [kind] where the sheet offers it, else a notebook.
+  NewBookKind _offered(NewBookKind kind) => _kinds.contains(kind) ? kind : NewBookKind.notebook;
+
   @override
   void didUpdateWidget(NewBookSheet oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -102,8 +125,8 @@ class _NewBookSheetState extends State<NewBookSheet> {
     // answered each draws it again while the sheet is up, which put the choices back under the person.
     final journals = widget.onCreateJournal != null;
     if (!widget.open) return;
-    if (!oldWidget.open || oldWidget.kind != widget.kind || (oldWidget.onCreateJournal != null) != journals) {
-      _kind = journals ? widget.kind : NewBookKind.notebook;
+    if (!oldWidget.open || oldWidget.kind != widget.kind || (oldWidget.onCreateJournal != null) != journals || (oldWidget.onCreateDocs != null) != (widget.onCreateDocs != null)) {
+      _kind = _offered(widget.kind);
       _place = _tagNewNotes();
     }
   }
@@ -136,8 +159,11 @@ class _NewBookSheetState extends State<NewBookSheet> {
     if (title.isEmpty) return;
     widget.onClose();
     final journal = widget.onCreateJournal;
+    final docs = widget.onCreateDocs;
     if (_kind == NewBookKind.journal && journal != null) {
       journal(title, _template, _place);
+    } else if (_kind == NewBookKind.docs && docs != null) {
+      docs(title, _pages);
     } else {
       widget.onCreate(title, _pages);
     }
@@ -154,7 +180,9 @@ class _NewBookSheetState extends State<NewBookSheet> {
     if (!widget.open) return const SizedBox.shrink();
     final t = context.tokens;
     final journal = _kind == NewBookKind.journal;
-    final heading = journal ? 'New journal' : 'New notebook';
+    final docs = _kind == NewBookKind.docs;
+    final kinds = _kinds;
+    final heading = journal ? 'New journal' : (docs ? 'New docs' : 'New notebook');
     final needle = jsTrim(_find).toLowerCase();
     final found = [
       for (final title in widget.titles)
@@ -180,18 +208,22 @@ class _NewBookSheetState extends State<NewBookSheet> {
           mainAxisSize: MainAxisSize.min,
           spacing: t.space(3),
           children: [
-            SheetField(key: const ValueKey('book-name'), label: 'Name', value: _name, placeholder: journal ? 'Diary' : 'Field guide', autoFocus: true, onChange: (text) => setState(() => _name = text), onSubmitted: (_) => _make()),
-            if (widget.onCreateJournal != null)
+            SheetField(key: const ValueKey('book-name'), label: 'Name', value: _name, placeholder: journal ? 'Diary' : (docs ? 'Handbook' : 'Field guide'), autoFocus: true, onChange: (text) => setState(() => _name = text), onSubmitted: (_) => _make()),
+            if (kinds.length > 1)
               // `.kind { display: flex }` round the More sheet's two-word choice (`.viewChoice`).
               Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: _KindChoice(kind: _kind, onKind: (kind) => setState(() => _kind = kind)),
+                child: _KindChoice(kind: _kind, kinds: kinds, onKind: (kind) => setState(() => _kind = kind)),
               ),
             if (journal) ...[
               TemplatePicker(template: _template, onTemplate: (text) => setState(() => _template = text), place: _place, onPlace: (on) => setState(() => _place = on), name: _name, device: widget.device, clock: widget.clock),
               SheetGroup(children: [SheetRow(key: const ValueKey('book-make'), label: 'Make the journal', hint: 'Empty, ready for its first entry.', onPress: _make, disabled: !named)]),
             ] else ...[
-              const SheetNote("Its pages are notes, in the order you choose. Pick any now, or add them later from the notebook's index."),
+              SheetNote(
+                docs
+                    ? 'Docs are pages in parts, numbered straight through. The pages you pick start the first part, $docsStarterPart; add pages and parts later from the index.'
+                    : "Its pages are notes, in the order you choose. Pick any now, or add them later from the notebook's index.",
+              ),
               if (_pages.isNotEmpty)
                 Semantics(
                   container: true,
@@ -268,7 +300,7 @@ class _NewBookSheetState extends State<NewBookSheet> {
                 children: [
                   SheetRow(
                     key: const ValueKey('book-make'),
-                    label: 'Make the notebook',
+                    label: docs ? 'Make the docs' : 'Make the notebook',
                     hint: _pages.isNotEmpty ? '${_pages.length} page${_pages.length == 1 ? '' : 's'}, in this order.' : 'Empty, with its index ready.',
                     onPress: _make,
                     disabled: !named,
@@ -359,10 +391,13 @@ class _NewBookSheetState extends State<NewBookSheet> {
 /// each word `min-block-size: 2rem; padding: 0 var(--glacier-space-3); font-size: sm; font-weight: semibold`, the
 /// chosen one ink on the page's ground turned round.
 class _KindChoice extends StatelessWidget {
-  const _KindChoice({required this.kind, required this.onKind});
+  const _KindChoice({required this.kind, required this.kinds, required this.onKind});
 
   final NewBookKind kind;
+  final List<NewBookKind> kinds;
   final ValueChanged<NewBookKind> onKind;
+
+  static const Map<NewBookKind, String> _labels = {NewBookKind.notebook: 'Notebook', NewBookKind.journal: 'Journal', NewBookKind.docs: 'Docs'};
 
   @override
   Widget build(BuildContext context) {
@@ -379,7 +414,7 @@ class _KindChoice extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final (value, label) in const [(NewBookKind.notebook, 'Notebook'), (NewBookKind.journal, 'Journal')])
+            for (final (value, label) in [for (final each in kinds) (each, _labels[each]!)])
               GlacierPressable(
                 key: ValueKey('book-kind:${value.name}'),
                 // `role="radio" aria-checked`
@@ -429,6 +464,13 @@ class NewBooks {
 
   Future<Note> createBook(String title, List<String> pages) async {
     final made = await library.createNote(bookNoteBody(title, pages));
+    await library.refresh().catchError((Object _) {});
+    return library.noteOf(made.id) ?? made;
+  }
+
+  /// Docs with [pages] in their first part ([docsStarterPart]), as the sheet's Docs makes them.
+  Future<Note> createDocs(String title, List<String> pages) async {
+    final made = await library.createNote(docsBookBody(title, parts: [DocsPart(docsStarterPart, pages)]));
     await library.refresh().catchError((Object _) {});
     return library.noteOf(made.id) ?? made;
   }

@@ -74,6 +74,7 @@ import '../core/back.dart';
 import '../core/book.dart';
 import '../core/front_matter.dart' show frontMatterEnd;
 import '../core/days.dart' show isoDay;
+import '../core/docs_book.dart' show docsPartHeads, isDocsBody;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/library.dart';
 import '../core/note.dart';
@@ -1815,6 +1816,8 @@ class BookViewState extends State<BookView> {
     final ticketKey = own.key;
     final muted = t.color('glacier-text-muted');
     final statusOf = _statusOf;
+    // Docs draw their parts over the pages each opens (lib/core/docs_book.dart); any other notebook's list is plain.
+    final parts = isDocsBody(body) ? docsPartHeads(body, chapters) : null;
 
     final blocks = <Widget>[
       if (authors.isNotEmpty) NoteByline(authors: authors),
@@ -1837,7 +1840,8 @@ class BookViewState extends State<BookView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (var i = 0; i < chapters.length; i += 1)
+                for (var i = 0; i < chapters.length; i += 1) ...[
+                  if (parts?[i] case final part?) _part(t, part, first: i == 0),
                   DragRow(
                     key: ValueKey('book-row-$i'),
                     drag: _drag,
@@ -1845,6 +1849,7 @@ class BookViewState extends State<BookView> {
                     radius: t.radius('sm'),
                     child: _row(context, t, em, chapters, numbers, i),
                   ),
+                ],
               ],
             ),
           ),
@@ -1873,6 +1878,23 @@ class BookViewState extends State<BookView> {
   }
 
   /// One row of the index (`.row`): its grip, its number, the chapter and its tools.
+  /// A part's heading over the first page in it, for docs (`.part`, `.partTitle` of `BookView.module.css`, which the
+  /// published site draws): `padding: space-5 0 space-1` (none above the first), a hairline under it, and its words
+  /// small, semibold and muted, `letter-spacing: 0.01em`.
+  Widget _part(Tokens t, String part, {required bool first}) {
+    final sm = t.fontSize('sm');
+    return Semantics(
+      header: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('glacier-border-subtle'), width: snapBorder(context, 1)))),
+        child: Padding(
+          padding: EdgeInsets.only(top: first ? 0 : t.space(5), bottom: t.space(1)),
+          child: cssLines(part, t.textAt(sm, weight: 'semibold', color: t.color('glacier-text-muted'), tracking: 0.01 * sm), maxLines: 2),
+        ),
+      ),
+    );
+  }
+
   Widget _row(BuildContext context, Tokens t, double em, List<Chapter> chapters, List<String> numbers, int i, {bool ghost = false}) {
     if (ghostPerf) Perf.count('book.row');
     final chapter = chapters[i];

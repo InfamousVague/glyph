@@ -1,12 +1,17 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { DOCS_GUIDE } from './docs.ts';
 
 /**
  * The connector's prompts (docs/CLAUDE_LIVE.md, "Resources, prompts, subscriptions"; Matt: "Build all of these"):
  * the slash commands Claude's app offers for this server. Each is a user message telling Claude what to do and with
  * which of the tools, so the work is the tools' and every rule they keep still holds: a weekly review, a plan for the
- * day, a note tidied as suggestions to keep or revert, and the Ask Claude inbox worked through.
+ * day, a note tidied as suggestions to keep or revert, the Ask Claude inbox worked through, and docs written by the
+ * guide to them (ghost-docs-guide, also a resource to attach: ghost://guide/docs).
  */
+
+/** Where the docs guide is read as a resource. */
+export const DOCS_GUIDE_URI = 'ghost://guide/docs';
 
 /** The personal note the inbox prompt and a scheduled routine work through (docs/CLAUDE_LIVE.md, "The Ask Claude inbox"). */
 export const INBOX_TITLE = 'Ask Claude';
@@ -112,5 +117,36 @@ export function registerPrompts(server: McpServer, now: () => Date = () => new D
           'When they are all done, tell me in a few lines what was asked and what you did.',
         ].join('\n'),
       ),
+  );
+
+  // Docs (mcp/docs.ts; Matt, 2026-10-31: "add instructions for AI to know how to use it"): the fuller guide, as a
+  // prompt that starts the writing and as a resource to attach, beside the paragraph the instructions carry.
+  server.registerPrompt(
+    'ghost-docs-guide',
+    {
+      title: 'Write docs',
+      description: 'Docs on Ghost.md — a guide, handbook, manual or wiki — planned and made with create_docs, by the guide to how Ghost.md keeps them.',
+      argsSchema: { topic: z.string().optional().describe('What the docs are about, and who they are for.') },
+    },
+    ({ topic }) =>
+      said(
+        [
+          topic?.trim() ? `Write docs on Ghost.md about ${topic.trim()}.` : 'Help me write docs on Ghost.md. Ask me what they are about and who they are for, then go on.',
+          '',
+          '1. Plan them first: the parts and the pages in each, one topic a page, every title short and unique. Show me the plan in a few lines before writing, unless I have said to go ahead.',
+          '2. Check no note already has those titles: list_notes with a `query` for each one in doubt. If docs on this exist, add to them with add_doc_page instead.',
+          '3. Make them with create_docs, in the workspace I name (an organization’s for a team), each page opening with a sentence saying what it is for.',
+          '4. Tell me what you made: the docs’ name and their parts, with the number of pages in each.',
+          '',
+          DOCS_GUIDE,
+        ].join('\n'),
+      ),
+  );
+
+  server.registerResource(
+    'ghost-docs-guide',
+    DOCS_GUIDE_URI,
+    { title: 'Writing docs on Ghost.md', description: 'How Ghost.md keeps docs, the tools that make them, and the markdown that works well in them.', mimeType: 'text/markdown' },
+    (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: DOCS_GUIDE }] }),
   );
 }

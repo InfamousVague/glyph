@@ -71,6 +71,7 @@ import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
+import '../core/docs_book.dart' show DocsPart, docsBookBody, docsStarterPart, isDocsBody;
 import '../core/export_all.dart' show ExportAll;
 import '../export/ghostex_calls.dart';
 import '../importer/importer.dart' show Importer;

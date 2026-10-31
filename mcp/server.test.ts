@@ -333,7 +333,7 @@ describe('the account', () => {
     const status = JSON.parse((await call('account_status')).text) as Record<string, unknown>;
     expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, inTrash: 0, archived: 1, pinned: 1, changedSinceLastRead: 2, organizations: [], connections: 1 });
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_picture', 'add_journal_entry', 'set_note_flags', 'delete_notes', 'restore_notes', 'list_workspaces', 'file_notes', 'create_folder', 'rename_folder', 'move_folder', 'delete_folder', 'get_rules', 'add_rule', 'account_status', 'list_comments', 'add_comment', 'reply_to_comment', 'resolve_comment']);
+    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_picture', 'add_journal_entry', 'create_docs', 'add_doc_page', 'set_note_flags', 'delete_notes', 'restore_notes', 'list_workspaces', 'file_notes', 'create_folder', 'rename_folder', 'move_folder', 'delete_folder', 'get_rules', 'add_rule', 'account_status', 'list_comments', 'add_comment', 'reply_to_comment', 'resolve_comment']);
   });
 
   it('asks the hosted server’s caller when an entry was written, since its clock is not the person’s', async () => {

@@ -138,6 +138,26 @@ void main() {
       );
 
   group('the index view', () {
+    // Docs (lib/core/docs_book.dart; Matt, 2026-10-31: "a specific type of notebook for docs").
+    testWidgets('draws docs’ parts over the pages each opens, and no heading over a plain notebook’s', (tester) async {
+      const docs = '---\ntitle: "Field guide"\nbook: true\ntype: docs\n---\n# Field guide\n\nHow it works.\n\n## Getting started\n\n1. [[Introduction]]\n2. [[Trees]]\n\n## Further on\n\n3. [[Birds]]\n';
+      await show(tester, body: docs);
+      expect(rows(tester), ['Introduction', 'Trees', 'Birds']);
+      final parts = [for (final name in ['Getting started', 'Further on']) find.descendant(of: find.byKey(const ValueKey('book-index-list')), matching: find.text(name))];
+      for (final part in parts) {
+        expect(part, findsOneWidget);
+      }
+      // Each over the first of its pages, the numbers going straight through.
+      expect(tester.getTopLeft(parts[0]).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('book-row-0'))).dy));
+      expect(tester.getTopLeft(parts[1]).dy, greaterThan(tester.getTopLeft(find.byKey(const ValueKey('book-row-1'))).dy));
+      expect(tester.getTopLeft(parts[1]).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('book-row-2'))).dy));
+      expect(find.descendant(of: find.byKey(const ValueKey('book-row-2')), matching: find.text('3')), findsOneWidget);
+      await away(tester);
+      await show(tester, body: docs.replaceFirst('type: docs\n', ''));
+      expect(find.descendant(of: find.byKey(const ValueKey('book-index-list')), matching: find.text('Getting started')), findsNothing);
+      await away(tester);
+    });
+
     testWidgets('lists the chapters numbered, opens one on a tap, and says which is not written yet', (tester) async {
       final opened = <String>[];
       await show(tester, known: (t) => t != 'Birds', open: opened.add);

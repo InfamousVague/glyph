@@ -267,6 +267,20 @@ the functionality of the Claude in app to better prevent this". lib/claude/claud
 The system prompt says to use the two tools for notebooks and tickets, to make one ticket and read it back before
 the rest, and that front matter comes before the `# Title`.
 
+Docs (Matt, 2026-10-31: "There should be a specific type of notebook for docs that we made, add it to the Claude and
+other AI connector"): a notebook saying `type: docs`, its index `## ` parts of pages numbered straight through
+(lib/core/docs_book.dart), and two more tools in claude_books.dart, offered to every provider:
+
+- **`create_docs`** `{title, about?, parts: [{title, pages: [{title, body, icon?}]}], folder?}`: every title checked
+  first (one a link can name, none twice, none a note has, at most 60 pages), then the index (`docsBookBody`) and each
+  page (`docsPageBody`), all filed in the folder, an organization's making them the team's.
+- **`add_doc_page`** `{docs, part, title, body, icon?, position?}`: the page made and filed where the docs are, and
+  its line put under its part (`withDocsPage`; a part not there is added at the end), numbered in.
+
+The system prompt carries `claudeDocsSystem`, the paragraph the connector's instructions carry too (mcp/docs.ts
+`DOCS_INSTRUCTIONS`): when to make docs, one topic a page, titles short and unique, `## ` for a page's outline, links
+between pages, never `book:`/`type: docs` by hand.
+
 ## Typing as Claude writes
 
 When a writing tool's words start, the note is made or found, opened (lib/root/root_claude.dart `_RootClaudeDesk`),

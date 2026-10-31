@@ -1064,6 +1064,7 @@ extension _RootParts on _GhostRootState {
         isCanvas: (title) => isCanvasBody(_reads.titled(title)?.body ?? ''),
         onCreate: (title, pages) => _showMade(bookNoteBody(title, pages), into: _bookInto),
         onCreateJournal: (title, template, place) => _showMade(journal.journalNoteBody(title, template, place)),
+        onCreateDocs: (title, pages) => _showMade(docsBookBody(title, parts: [DocsPart(docsStarterPart, pages)]), into: _bookInto),
         // A journal's "With where you are": the prompt from the press that turned it on, and why it cannot.
         device: _places == null
             ? const EntryPlaceDevice()

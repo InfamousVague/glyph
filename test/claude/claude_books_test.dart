@@ -10,6 +10,7 @@ import 'package:ghost_md/claude/claude_tools.dart';
 import 'package:ghost_md/claude/live_typing.dart';
 import 'package:ghost_md/claude/messages_api.dart';
 import 'package:ghost_md/claude/sse.dart';
+import 'package:ghost_md/core/docs_book.dart' show DocsPart, docsParts, isDocsBody;
 import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/editor.dart';
@@ -176,6 +177,27 @@ class _Shelf implements ClaudeShelf {
 
   @override
   Future<void> trash(String id) async => trashed.add(id);
+
+  @override
+  Future<String> make(String body) => notes.create(body);
+
+  @override
+  Future<void> change(String id, String Function(String body) change) async => notes.bodies[id] = change(notes.bodies[id]!);
+
+  @override
+  ({String id, String title})? findDocs(String asked) {
+    for (final MapEntry(:key, :value) in notes.bodies.entries) {
+      if (!isDocsBody(value) || trashed.contains(key)) continue;
+      if (key == asked || noteTitle(value).toLowerCase() == asked.toLowerCase()) return (id: key, title: noteTitle(value));
+    }
+    return null;
+  }
+
+  @override
+  bool hasNote(String title) => notes.bodies.entries.any((e) => !trashed.contains(e.key) && noteTitle(e.value).toLowerCase() == title.toLowerCase());
+
+  @override
+  String? workspaceOf(String id) => store.workspaceOf(id)?.id;
 }
 
 WorkspaceStore _store() => WorkspaceStore(
@@ -246,6 +268,72 @@ void main() {
     });
   });
 
+  group('the docs tools', () {
+    Map<String, Object?> page(String title, [String body = 'What it is for.', String? icon]) => {'title': title, 'body': body, 'icon': ?icon};
+
+    test('make docs in an organization\'s folder: the index of parts, and every page, all the team\'s', () async {
+      final done = await books.answer(ClaudeBookTool.docs, {
+        'title': 'Onboarding handbook',
+        'about': 'For new people at HelloTrade.',
+        'folder': 'HelloTrade',
+        'parts': [
+          {'title': 'Getting started', 'pages': [page('Welcome', 'Who we are.\n\n## Your first week\n\nMeet [[Tools]].', '👋'), page('Tools')]},
+          {'title': 'How we work', 'pages': [page('Shipping')]},
+        ],
+      });
+      final said = jsonDecode(done.said) as Map;
+      final id = said['id'] as String;
+      final index = notes.bodies[id]!;
+      expect(isDocsBody(index), isTrue);
+      expect(index, contains('For new people at HelloTrade.\n\n## Getting started\n\n1. [[Welcome]]\n2. [[Tools]]\n\n## How we work\n\n3. [[Shipping]]\n'));
+      expect(done.step, 'Made the docs Onboarding handbook, 3 pages');
+      final pages = [for (final part in said['parts'] as List) for (final p in (part as Map)['pages'] as List) (p as Map)['id'] as String];
+      expect(pages, hasLength(3));
+      expect(notes.bodies[pages.first], '---\nicon: 👋\n---\n# Welcome\n\nWho we are.\n\n## Your first week\n\nMeet [[Tools]].\n');
+      for (final made in [id, ...pages]) {
+        expect(store.workspaceOf(made)?.id, 'org-ht', reason: 'filed with the docs, the team\'s');
+        expect(shelf.isTeams(made), isTrue);
+      }
+      expect(claudeMade, containsAll([id, ...pages]));
+    });
+
+    test('add a page under its part, numbered in, filed where the docs are; a part they have not got is made', () async {
+      final done = await books.answer(ClaudeBookTool.docs, {
+        'title': 'Field guide',
+        'folder': 'Mine',
+        'parts': [
+          {'title': 'Basics', 'pages': [page('Soil'), page('Water')]},
+          {'title': 'Plants', 'pages': [page('Oaks')]},
+        ],
+      });
+      final id = (jsonDecode(done.said) as Map)['id'] as String;
+      final added = await books.answer(ClaudeBookTool.docPage, {'docs': 'field guide', 'part': 'Basics', 'title': 'Light', 'body': 'How much sun.', 'position': 1});
+      final pageId = (jsonDecode(added.said) as Map)['id'] as String;
+      expect(added.step, 'Added Light to Field guide');
+      expect(noteTitle(notes.bodies[pageId]!), 'Light');
+      expect(store.workspaceOf(pageId)?.id, 'w-mine');
+      expect(docsParts(notes.bodies[id]!), const [DocsPart('Basics', ['Light', 'Soil', 'Water']), DocsPart('Plants', ['Oaks'])]);
+      expect(notes.bodies[id], contains('1. [[Light]]\n2. [[Soil]]\n3. [[Water]]\n\n## Plants\n\n4. [[Oaks]]\n'));
+      await books.answer(ClaudeBookTool.docPage, {'docs': id, 'part': 'Pests', 'title': 'Aphids', 'body': 'Small and green.'});
+      expect(notes.bodies[id], endsWith('## Pests\n\n5. [[Aphids]]\n'));
+    });
+
+    test('refuse what would go wrong, before anything is made', () async {
+      Future<void> refused(String tool, Map<String, Object?> input, String says) =>
+          expectLater(books.answer(tool, input), throwsA(isA<ClaudeBookProblem>().having((p) => p.message, 'says', contains(says))));
+      final before = notes.bodies.length;
+      await refused(ClaudeBookTool.docs, {'title': 'Guide', 'parts': []}, 'parts');
+      await refused(ClaudeBookTool.docs, {'title': 'Guide', 'parts': [{'title': 'A', 'pages': [page('One'), page('one')]}]}, 'Two pages');
+      await refused(ClaudeBookTool.docs, {'title': 'Guide', 'parts': [{'title': 'A', 'pages': [page('Groceries')]}]}, 'already a note');
+      await refused(ClaudeBookTool.docs, {'title': 'Guide', 'parts': [{'title': 'A', 'pages': [page('Q&A #2')]}]}, 'link');
+      await refused(ClaudeBookTool.docs, {'title': 'Roadmap', 'parts': [{'title': 'A', 'pages': [page('One')]}]}, 'already a note');
+      expect(notes.bodies.length, before, reason: 'nothing made');
+      await refused(ClaudeBookTool.docPage, {'docs': 'Roadmap', 'part': 'A', 'title': 'Two', 'body': 'x'}, 'No docs');
+      await books.answer(ClaudeBookTool.notebook, {'title': 'Plans'});
+      await refused(ClaudeBookTool.docPage, {'docs': 'Plans', 'part': 'A', 'title': 'Two', 'body': 'x'}, 'No docs');
+    });
+  });
+
   group('a run', () {
     testWidgets('is offered the book tools, and told to use them for notebooks and tickets', (tester) async {
       final api = _Api([_turn(words: 'Nothing to do.')]);
@@ -254,6 +342,13 @@ void main() {
       final tools = [for (final tool in api.asked.first['tools']! as List) (tool as Map)['name']];
       expect(tools, containsAll(ClaudeBookTool.all));
       expect(api.asked.first['system'], contains('create_notebook'));
+      expect(api.asked.first['system'], contains('Writing docs on Ghost.md'));
+      // The docs tools' input is shut: nothing but the fields they name, at every level.
+      final docs = (api.asked.first['tools']! as List).cast<Map>().firstWhere((tool) => tool['name'] == ClaudeBookTool.docs)['input_schema'] as Map;
+      expect(docs['additionalProperties'], isFalse);
+      final part = ((docs['properties'] as Map)['parts'] as Map)['items'] as Map;
+      expect(part['additionalProperties'], isFalse);
+      expect((((part['properties'] as Map)['pages'] as Map)['items'] as Map)['required'], ['title', 'body']);
     });
 
     testWidgets('a note being made that is cut off before its words are whole is taken back to the Trash', (tester) async {

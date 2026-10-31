@@ -507,4 +507,34 @@ class _RootClaudeShelf implements ClaudeShelf {
     _root._delete(id);
     await _library.refresh();
   }
+
+  @override
+  Future<String> make(String body) async {
+    final made = await _library.createNote(body);
+    await _library.refresh();
+    return made.id;
+  }
+
+  @override
+  Future<void> change(String id, String Function(String body) change) async {
+    // Through its screen where it is open, so the page there keeps it, as a ticket's line goes into its notebook.
+    await _root._changeNote(id, change, userEvent: 'claude.type');
+    await _library.refresh();
+  }
+
+  @override
+  ({String id, String title})? findDocs(String asked) {
+    final key = asked.trim().toLowerCase();
+    for (final note in _live) {
+      if (!isDocsBody(note.body)) continue;
+      if (note.id == asked.trim() || noteTitle(note.body).trim().toLowerCase() == key) return (id: note.id, title: noteTitle(note.body));
+    }
+    return null;
+  }
+
+  @override
+  bool hasNote(String title) => _live.any((note) => sameTitle(noteTitle(note.body), title));
+
+  @override
+  String? workspaceOf(String id) => _workspaces.workspaceOf(id)?.id;
 }

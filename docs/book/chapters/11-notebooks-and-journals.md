@@ -69,6 +69,35 @@ A note can carry a chapter number in its title, such as `The risks · Ch. 8` or 
 
 Set a **Ticket key** in a notebook's More sheet, such as `GHO`, and its index offers **New ticket** beside **Add a page**. It asks for the title and what the ticket starts with, numbers it GHO-1, GHO-2 and on, and adds it to the index. A page that's a ticket shows its key and status on its row; tap the status to change it. See [[Lists, to-dos and tickets]].
 
+## Docs
+
+**Docs** are a notebook kept as documentation: a guide, a handbook, a manual. This book is one. Choose **Docs** under **What it is** when you make the notebook (Advanced only), and it starts with one part, **Getting started**, holding any pages you picked.
+
+Its front matter says `type: docs` beside `book: true`, and its index is in parts: each `##` heading is a part, and the pages under it are numbered straight through the book.
+
+```
+---
+title: "Onboarding handbook"
+book: true
+type: docs
+---
+# Onboarding handbook
+Everything a new person needs in their first month.
+
+## Getting started
+
+1. [[Welcome]]
+2. [[Accounts and tools]]
+
+## How we work
+
+3. [[Shipping a change]]
+```
+
+- **Each part's heading is drawn over its first page** in the index. Reading a page, the way to the next goes on into the next part.
+- **A page is any note,** as in any notebook. It can carry an `icon:` in its front matter, and its first sentence says what it's for.
+- **AI can write them.** Ask Claude, or another AI model, in the app or from Claude's own apps, for a guide or a handbook, and it makes the docs and every page, in an organization's folder for a team. It adds a page to a part later the same way. See [[Claude in Ghost.md]].
+
 ## Journals
 
 A journal is a notebook whose pages are dated entries. Write as many entries a day as you like.

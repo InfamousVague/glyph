@@ -23,6 +23,7 @@ import { suggestBody } from './suggest.ts';
 import { commentOn, replyTo, resolve, stampOf, threadsIn, type Written } from './comments.ts';
 import { enableSubscriptions, registerNoteResources } from './resources.ts';
 import { registerPrompts } from './prompts.ts';
+import { DOCS_INSTRUCTIONS, docsBookBody, docsPageBody, docsTitleProblem, isDocsBody, titlesClash, withDocsPage } from './docs.ts';
 
 /**
  * The MCP server: Glyph's notes as tools for Claude (docs/MCP.md). Matt: "make an MCP plugin for Claude so I can use
@@ -37,6 +38,12 @@ import { registerPrompts } from './prompts.ts';
  * named by its minute from the journal's template, with the words on from its time, and puts its line in the journal's
  * index, from the app's own modules (book/journal.ts, core/template.ts). `append_to_note` turns a journal down, since
  * its words are the list of its entries, and a rewrite keeps a notebook's keys as it keeps the authors and the place.
+ *
+ * Docs are a notebook whose front matter also says `type: docs` (mcp/docs.ts, lib/core/docs_book.dart; Matt,
+ * 2026-10-31: "add it to the Claude and other AI connector so they can make docs on ghost"): `create_docs` makes the
+ * index of `## ` parts and every page at once, filed together, and `add_doc_page` puts one more page under its part,
+ * numbered in. The server's instructions say when and how (`DOCS_INSTRUCTIONS`), the ghost-docs-guide prompt and
+ * resource say the rest, and a rewrite keeps the `type: docs` that makes an index docs.
  *
  * A ticket is a note whose front matter says `type: ticket` (docs/DESIGN.md §157, docs/TICKETS.md): its properties are
  * that front matter, which a rewrite keeps as the app reads it (`keepKeys`), and `read_note` finds one by its key,
@@ -198,6 +205,8 @@ export function rulesInstructions(rulesBody: string): string {
     'Ghost.md connector — these tools read and change the notes in this person’s Ghost.md account (list, search, read, create, update, append, journal entries, pin and archive). Each tool reads the account fresh, and a write is refused, never applied, if another device changed the note first.',
     '',
     `This account keeps a “${RULES_TITLE}” note: the person’s standing instructions for you here. Follow them in everything you do, and re-read them any time with get_rules. When the person asks you to always, again, or from now on do something — a repeated or standing request — record it with add_rule so it is not lost.`,
+    '',
+    DOCS_INSTRUCTIONS,
     '',
     'Their rules right now:',
     '',
@@ -493,7 +502,7 @@ export function keepKeys(before: string, next: string): string {
   const named = isBookBody(before) || isEntryTitle(frontMatterValue(before, 'title') ?? '');
   const dropped = frontMatterEnd(next.split('\n')) === 0;
   // A ticket keeps its type and its key under either name the key is written as (core/frontMatter.ts `ticketKeyValue`).
-  const ticket = isTicket(before) ? (dropped ? [...TICKET_KEYS, 'issue'] : ['type', 'id', 'issue']) : [];
+  const ticket = isTicket(before) ? (dropped ? [...TICKET_KEYS, 'issue'] : ['type', 'id', 'issue']) : isDocsBody(before) ? ['type'] : [];
   for (const key of [...KEPT_KEYS, ...(isBookBody(before) ? NOTEBOOK_KEYS : []), ...ticket]) {
     if (!named && (key === 'title' || key === 'date')) continue;
     const line = keys.find((each) => new RegExp(`^\\s*${key}\\s*:`, 'i').test(each));
@@ -919,6 +928,118 @@ export function buildServer(
         await account.postNotification('journal-entry', { noteId: made.note.id, title, by: by(author), journal: name, first: firstLine(words) });
         const settings = await settingsOf(account);
         return text({ created: whole(made, spaceOf(account, made, settings)), journal: summary(listed, spaceOf(account, listed, settings)) });
+      }),
+  );
+
+  /** A page as create_docs and add_doc_page take one. */
+  const docsPage = {
+    title: z.string().min(1).max(120).describe('The page’s title, short and unique in the account: its `# ` heading and what a [[link]] to it says. No [ ] | or #.'),
+    body: z.string().describe(`The page in markdown, under its title: a sentence saying what the page is for, then \`## \` sections. Link other pages as [[Their title]]. ${BLANKS}`),
+    icon: z.string().max(16).optional().describe('An emoji for the page, like 📦.'),
+  };
+
+  server.registerTool(
+    'create_docs',
+    {
+      title: 'Create docs',
+      description:
+        'New docs — a guide, handbook, manual or wiki — as Ghost.md keeps them: a notebook marked `type: docs` whose index is parts, each a `## ` heading with its pages numbered under it, and every page a note of its own. All filed together in `workspace` where given: an organization’s makes them the team’s. Every title is checked before anything is made. Use this, never create_note, for docs; grow them with add_doc_page.',
+      inputSchema: {
+        title: z.string().min(1).max(120).describe('The docs’ name, like “Onboarding handbook”.'),
+        about: z.string().max(600).optional().describe('A line or two under the title: what the docs cover and who they are for.'),
+        parts: z
+          .array(z.object({ title: z.string().min(1).max(120).describe('The part’s heading, like “Getting started”.'), pages: z.array(z.object(docsPage).strict()).min(1) }).strict())
+          .min(1)
+          .describe('The parts in order, each with its pages in order. At most 60 pages in all; add more with add_doc_page.'),
+        workspace: z.string().optional().describe('The workspace or folder to make them in: its id, its path (“Acme › Docs”) or its name, from list_workspaces. Left out, they are the account’s own, in no workspace.'),
+        author: authorField,
+      },
+    },
+    async ({ title, about, parts, workspace, author }) =>
+      guarded(async () => {
+        const name = title.trim();
+        const pages = parts.flatMap((part) => part.pages.map((page) => ({ ...page, title: page.title.trim() })));
+        for (const each of [name, ...pages.map((page) => page.title)]) {
+          const problem = docsTitleProblem(each);
+          if (problem) return failed(problem);
+        }
+        if (parts.some((part) => /\n/.test(part.title.trim()) || !part.title.trim())) return failed('Each part’s title is its heading, on one line.');
+        if (pages.length > 60) return failed('That is more than 60 pages in one call: make the docs with the first parts, then add the rest with add_doc_page.');
+        const twice = titlesClash([name, ...pages.map((page) => page.title)]);
+        if (twice) return failed(`Two of these are called “${twice}”: a link names one note, so give the docs and each page a title of their own.`);
+        await fresh();
+        const settings = await settingsOf(account);
+        const into = workspace?.trim() ? resolveSpace(settings, workspace) : null;
+        const taken = new Set((await account.list({ archived: true })).filter((r) => !(r.note.id in settings.trash)).map((r) => titleKey(noteTitle(r.note.body))));
+        const clash = [name, ...pages.map((page) => page.title)].find((each) => taken.has(titleKey(each)));
+        if (clash) return failed(`There is already a note called “${clash}”. Give it another title${clash === name ? ', or add to those docs with add_doc_page' : ', or link that note from a page'}.`);
+        const org = into ? orgOf(settings.list, into.id) : null;
+        // In a folder of an organization's, each note's path is the folder's, as create_note makes one (GHST-107).
+        const folder = into && org && !isOrgWorkspace(into) ? folderFor(into, settings.list) : null;
+        const make = (body: string) => account.create(authored(body, author), { ...(org ? { org } : {}), ...(folder ? { path: `${folder}/${fileStem(noteTitle(body))}.md` } : {}) });
+        const fileAll = async (ids: string[]) => {
+          if (into && (!org || folder) && ids.length) await account.changePrefs((prefs) => filedIn(prefs, ids, into.id));
+        };
+        // The index first: a page cut off after it is a page not written yet in the docs, not a note in no book.
+        const index = await make(docsBookBody(name, { about, parts: parts.map((part) => ({ title: part.title.trim(), pages: part.pages.map((page) => page.title.trim()) })) }));
+        seen('editing', index);
+        const made: NoteRecord[] = [];
+        try {
+          for (const page of pages) made.push(await make(docsPageBody(page.title, page.body, page.icon)));
+        } catch (failure) {
+          await fileAll([index.note.id, ...made.map((r) => r.note.id)]);
+          const left = pages.slice(made.length).map((page) => page.title);
+          return failed(`The docs “${name}” (${index.note.id}) were made with ${made.length} of their pages, then: ${failureText(failure)} Add the rest with add_doc_page: ${left.join(', ')}.`);
+        }
+        await fileAll([index.note.id, ...made.map((r) => r.note.id)]);
+        await account.postNotification('note-created', { noteId: index.note.id, title: name, by: by(author) });
+        const space = into ? spaceInfo(settings, into) : null;
+        let at = 0;
+        return text({
+          created: summary(index, space),
+          parts: parts.map((part) => ({ title: part.title.trim(), pages: part.pages.map(() => ({ id: made[at]!.note.id, title: titled(made[at++]!) })) })),
+        });
+      }),
+  );
+
+  server.registerTool(
+    'add_doc_page',
+    {
+      title: 'Add a page to docs',
+      description:
+        'One page added to docs made with create_docs: its line put in the index under `part` (a part the docs have not got is added at the end) and numbered in, then the page made as a note of its own where the docs are — the team’s for an organization’s docs. Safe against another device editing the index at the same time. Use this, never create_note and an edit of the index, to add to docs.',
+      inputSchema: {
+        docs: z.string().min(1).describe('The docs’ id or their title.'),
+        part: z.string().min(1).max(120).describe('The part it goes in, by its heading, like “Getting started”.'),
+        ...docsPage,
+        position: z.number().int().min(1).optional().describe('Its place in the part, from 1. Left out, it goes last.'),
+        author: authorField,
+      },
+    },
+    async ({ docs, part, title, body, icon, position, author }) =>
+      guarded(async () => {
+        const name = title.trim();
+        const problem = docsTitleProblem(name);
+        if (problem) return failed(problem);
+        if (/\n/.test(part.trim()) || !part.trim()) return failed('`part` is a heading, on one line.');
+        await fresh();
+        const target = (await account.get(docs)) ?? (await find(account, undefined, docs));
+        if (!isDocsBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is not docs. Make docs with create_docs; to add to a plain notebook, change its list of [[links]] with update_note.`);
+        const settings = await settingsOf(account);
+        const taken = (await account.list({ archived: true })).some((r) => !(r.note.id in settings.trash) && titleKey(noteTitle(r.note.body)) === titleKey(name));
+        if (taken) return failed(`There is already a note called “${name}”. Give the page another title, or link that note from a page.`);
+        seen('editing', target);
+        // The line first, as a journal's entry is: refused because another device changed the index, nothing is made.
+        const listed = await account.edit(target.note.id, (note) => ({ ...note, body: authored(withDocsPage(note.body, part, name, position), author) }));
+        // Made where the docs are: an organization's in the index's own folder, the account's filed as the index is.
+        const dir = target.note.path?.includes('/') ? target.note.path.slice(0, target.note.path.lastIndexOf('/')) : null;
+        const team = dir?.startsWith('orgs/') ?? false;
+        const made = await account.create(authored(docsPageBody(name, body, icon), author), target.org ? { org: target.org.id, ...(team ? { path: `${dir}/${fileStem(name)}.md` } : {}) } : {});
+        const filed = settings.filing[target.note.id];
+        if (filed && (!target.org || team)) await account.changePrefs((prefs) => filedIn(prefs, [made.note.id], filed));
+        await account.postNotification('note-created', { noteId: made.note.id, title: name, by: by(author) });
+        const now = await settingsOf(account);
+        return text({ created: whole(made, spaceOf(account, made, now)), docs: summary(listed, spaceOf(account, listed, now)) });
       }),
   );
 

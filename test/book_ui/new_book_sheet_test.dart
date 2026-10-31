@@ -46,6 +46,7 @@ void main() {
     bool open = true,
     List<String> titles = const [],
     bool journals = false,
+    bool docs = false,
     NewBookKind kind = NewBookKind.notebook,
     bool Function(String title)? isCanvas,
     core.Preferences Function(core.Preferences now)? prefs,
@@ -71,6 +72,7 @@ void main() {
       onCreate: (title, pages) => made.books.add('$title: ${pages.join(', ')}'),
       // A new function on every build, as the app hands one.
       onCreateJournal: journals ? (title, template, place) => made.journals.add((title, template, place)) : null,
+      onCreateDocs: docs ? (title, pages) => made.books.add('docs $title: ${pages.join(', ')}') : null,
       device: EntryPlaceDevice(
         ask: () async {
           made.asked += 1;
@@ -217,7 +219,7 @@ void main() {
       expect(find.byKey(const ValueKey('book-kind')), findsNothing);
       await show(tester, made, titles: ['Packing'], journals: true);
       expect(
-        [for (final kind in NewBookKind.values) (tester.widget<GlacierPressable>(find.byKey(ValueKey('book-kind:${kind.name}'))).semanticLabel, tester.widget<GlacierPressable>(find.byKey(ValueKey('book-kind:${kind.name}'))).toggled)],
+        [for (final kind in const [NewBookKind.notebook, NewBookKind.journal]) (tester.widget<GlacierPressable>(find.byKey(ValueKey('book-kind:${kind.name}'))).semanticLabel, tester.widget<GlacierPressable>(find.byKey(ValueKey('book-kind:${kind.name}'))).toggled)],
         [('Notebook', true), ('Journal', false)],
       );
       await press(tester, 'Journal');
@@ -227,6 +229,26 @@ void main() {
       expect(find.byKey(const ValueKey('book-found')), findsNothing);
       expect(find.text('EACH ENTRY STARTS WITH'), findsOneWidget);
       expect(find.text('Make the notebook'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('offers Docs beside them in advanced mode, never in simple, and makes docs of the pages picked', (tester) async {
+      final made = Made();
+      await show(tester, made, titles: ['Packing'], journals: true, docs: true, prefs: (now) => now.choosing('simple'));
+      expect(find.byKey(const ValueKey('book-kind:docs')), findsNothing);
+      core.preferences.update((now) => now.choosing('advanced'));
+      await show(tester, made, open: false, titles: ['Packing'], journals: true, docs: true);
+      await show(tester, made, titles: ['Packing', 'Tools'], journals: true, docs: true);
+      expect(tester.widget<GlacierPressable>(find.byKey(const ValueKey('book-kind:docs'))).semanticLabel, 'Docs');
+      await press(tester, 'Docs');
+      expect(tester.widget<Sheet>(find.byType(Sheet)).label, 'New docs');
+      expect(find.textContaining('Docs are pages in parts'), findsOneWidget);
+      await type(tester, 'Name', 'Handbook');
+      await press(tester, 'Tools');
+      await press(tester, 'Packing');
+      expect(find.text('Make the docs'), findsOneWidget);
+      await tapKey(tester, const ValueKey('book-make'));
+      expect(made.books, ['docs Handbook: Tools, Packing']);
       await away(tester);
     });
 

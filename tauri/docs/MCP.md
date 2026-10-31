@@ -13,8 +13,8 @@ It works for any Ghost.md account, and it comes two ways:
 
 ## What it can do
 
-Once it is connected, ask Claude in words. Behind them are twenty-four tools, and a twenty-fifth on the hosted server, with
-the notes as resources and four prompts beside them (below):
+Once it is connected, ask Claude in words. Behind them are twenty-six tools, and a twenty-seventh on the hosted server, with
+the notes as resources and five prompts beside them (below):
 
 | Tool | What it does |
 | --- | --- |
@@ -26,6 +26,8 @@ the notes as resources and four prompts beside them (below):
 | `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. `suggest: true` writes what is added as a suggestion. |
 | `add_picture` | A picture from the web put into a note (Matt, 2026-10-16: "Update the note with embedded links and pictures"). The editor draws only a picture the library keeps, never an address, so the connector does what a phone does: fetches the JPEG, PNG or WebP (https only, at most 15 MB, every address a name resolves to checked as public at the moment of connecting, each redirect checked again; `mcp/pictures.ts`), names it as a device names one, seals it into the account's files or, for a team's note, the organization's, and only then writes `![caption](image/<name>)` under the line asked for, or at the end. A team note whose pictures change has its row put again, since a member's device fetches pictures from the row and never from the log. |
 | `add_journal_entry` | An entry in a journal (a notebook kept as a journal, DESIGN §142), as the app writes one: a note named by the minute, "2026-09-28 14.05", started from the journal's template, with the words going on from its time line or into its to-do list, and its line added to the journal. `at` is the person's local time, `YYYY-MM-DDTHH:MM`; left out, the time where the local server runs, and the hosted one asks for it, since its clock is not yours. Never a place. |
+| `create_docs` | Docs (Matt, 2026-10-31: "a specific type of notebook for docs"): a notebook saying `type: docs` beside `book: true`, its index `## ` parts with their pages numbered straight through, and every page a note of its own (`mcp/docs.ts`, the app's `lib/core/docs_book.dart`). `{title, about?, parts: [{title, pages: [{title, body, icon?}]}], workspace?}`; every title is checked before anything is made, and all are filed together, an organization's workspace making them the team's. |
+| `add_doc_page` | One page added to docs: its line put under `part` (a part not there is added at the end) and numbered in, then the page made where the docs are. `{docs, part, title, body, icon?, position?}`. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
 | `delete_notes` | Notes moved to the Trash, as deleting a note in the app does: a synced setting (`core/trash.ts`), the note itself whole until you empty the Trash in the app. |
 | `restore_notes` | Notes taken back out of the Trash, to where they were. |
@@ -80,6 +82,7 @@ between them, so it does not offer them.
 | `weekly-review` | The notes changed in the last seven days (`list_notes`) and the open to-dos (`search_notes` for `- [ ]`) made into a review, saved with `create_note` as "Weekly review <date>". |
 | `plan-my-day` | The to-dos due today or overdue (`📅` dates), the high-priority ones, and today's notes, made into a plan for the day, shown and saved only if asked. |
 | `tidy-note` | Argument `title`. The note read, restructured and cleaned up, keeping every fact, its front matter, fences and title, and written back with `update_note` and `suggest: true`. |
+| `ghost-docs-guide` | Argument `topic`, optional. Docs planned (parts, one topic a page, unique titles) and made with `create_docs`, by the guide to how Ghost.md keeps docs and the markdown that works in them (`DOCS_GUIDE`, also the resource `ghost://guide/docs`). The server's instructions carry its short form, `DOCS_INSTRUCTIONS`. |
 | `ask-claude-inbox` | The personal note "Ask Claude" found, or made with a short explanation and an empty `- [ ]` (then nothing to do); each open request done with the tools, a one-line `  - ` answer written under it, and ticked. A scheduled routine runs the same prompt. |
 
 **Authors.** A note the AI creates, rewrites or adds to lists it among the note's authors, after the account's own
@@ -367,7 +370,8 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | `mcp/suggest.ts` | suggest mode: a change written as CriticMarkup, what is not prose written directly |
 | `mcp/comments.ts` | the comment tools' reading and writing, on the app's `core/comments/format.ts` |
 | `mcp/resources.ts` | the notes as `ghost://note/{id}` resources, and the local server's subscriptions |
-| `mcp/prompts.ts` | the four prompts |
+| `mcp/prompts.ts` | the five prompts, and the docs guide as `ghost://guide/docs` |
+| `mcp/docs.ts` | docs: the index's shape, a page added under its part, and what the AI is told of them |
 | `mcp/main.ts`, `mcp/cli.ts` | the command: its entry point, and login, status, logout and serve |
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
