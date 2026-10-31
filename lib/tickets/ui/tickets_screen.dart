@@ -238,7 +238,7 @@ class TicketsScreenState extends State<TicketsScreen> {
         _at = next;
         _current = list[next].line.noteId;
       });
-      _reveal(list[next].line.noteId);
+      _reveal(list[next].line.noteId, down: action == TriageAction.next);
       return KeyEventResult.handled;
     }
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
@@ -246,12 +246,13 @@ class TicketsScreenState extends State<TicketsScreen> {
     return KeyEventResult.handled;
   }
 
-  void _reveal(String noteId) {
+  /// The current row scrolled into view: its foot for a move down, its head for a move up.
+  void _reveal(String noteId, {required bool down}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final row = _rowKeys[noteId]?.currentContext;
-      if (row != null && row.mounted) unawaited(Scrollable.ensureVisible(row, alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd, duration: const Duration(milliseconds: 120)));
-      final again = _rowKeys[noteId]?.currentContext;
-      if (again != null && again.mounted) unawaited(Scrollable.ensureVisible(again, alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart, duration: const Duration(milliseconds: 120)));
+      if (row == null || !row.mounted) return;
+      final policy = down ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd : ScrollPositionAlignmentPolicy.keepVisibleAtStart;
+      unawaited(Scrollable.ensureVisible(row, alignmentPolicy: policy, duration: const Duration(milliseconds: 120)));
     });
   }
 

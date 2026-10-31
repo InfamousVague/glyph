@@ -22,7 +22,11 @@ export '../items/field_chips.dart' show dayLabel;
 const List<String> alwaysShown = <String>['status', 'assignee', 'priority', 'due'];
 
 /// The rows the panel shows past those once set, or when More is pressed (`SHOWN_WHEN_SET`).
-const List<String> shownWhenSet = <String>['start', 'estimate', 'blocked-by', 'parent', 'labels', 'component'];
+const List<String> shownWhenSet = <String>['start', 'estimate', 'blocked-by', 'parent', 'labels'];
+
+/// Rows the panel shows only once they are set, never offered behind More: a ticket's component (the port's own,
+/// Matt, 2026-10-31), so the panel of a ticket without one is the page's to the letter.
+const List<String> shownOnlyWhenSet = <String>['component'];
 
 /// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), how the note looks,
 /// and its component, which is a row of the panel's (the port's own, 2026-10-31).
@@ -35,7 +39,7 @@ List<String> panelRows(String front, [bool more = false]) {
     for (final property in propertiesOf(front))
       if (propertyList(property.value).isNotEmpty) property.key.toLowerCase(),
   };
-  return <String>[...alwaysShown, ...shownWhenSet.where((key) => more || set.contains(key))];
+  return <String>[...alwaysShown, ...shownWhenSet.where((key) => more || set.contains(key)), ...shownOnlyWhenSet.where(set.contains)];
 }
 
 /// The rows waiting behind More: the ticket keys the panel would show if they were set.

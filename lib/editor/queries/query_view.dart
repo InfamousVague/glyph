@@ -634,7 +634,7 @@ class QueryRowLine extends StatelessWidget {
             QueryName(look: look, row: row, acts: acts, hideKey: keyLine),
             if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks, bar: false),
             if (result != null && QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts),
-            if (result != null && QueryLabelLine.has(row, result)) QueryLabelLine(look: look, row: row, result: result, acts: acts),
+            if (result != null && QueryLabelLine.has(row, result, acts)) QueryLabelLine(look: look, row: row, result: result, acts: acts),
           ],
         ),
       ),

@@ -190,7 +190,7 @@ class _QueryBoardState extends State<QueryBoard> {
         ),
       ),
       if (QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts, fills: true),
-      if (QueryLabelLine.has(row, result)) QueryLabelLine(look: look, row: row, result: result, acts: acts),
+      if (QueryLabelLine.has(row, result, acts)) QueryLabelLine(look: look, row: row, result: result, acts: acts),
       // A ticket's lock and its sub-tickets' progress (ticket_marks.dart).
       if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks),
     ];

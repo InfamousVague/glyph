@@ -725,8 +725,9 @@ class QueryLabelLine extends StatelessWidget {
   static List<String> _labels(QueryRow row, QueryResult result) => _column(result, 'labels') ? const [] : row.labels;
   static String? _component(QueryRow row, QueryResult result) => _column(result, 'component') || result.group == 'component' ? null : row.component;
 
-  /// Whether [row] has any to draw.
-  static bool has(QueryRow row, QueryResult result) => LabelChips.has(_labels(row, result), _component(row, result));
+  /// Whether [row] has any to draw: only in the app's own drawing, which hands the labels' colours
+  /// ([QueryActs.labelColours]); a query drawn without them is the page's card to the letter.
+  static bool has(QueryRow row, QueryResult result, QueryActs acts) => acts.labelColours != null && LabelChips.has(_labels(row, result), _component(row, result));
 
   @override
   Widget build(BuildContext context) => Part(

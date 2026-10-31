@@ -65,7 +65,7 @@ class BulkActions {
 class QuerySelection extends ChangeNotifier {
   final List<String> _keys = [];
   String? _anchor;
-  final Map<String, GlobalKey> _boxes = {};
+  final Map<String, Set<GlobalKey>> _boxes = {};
 
   /// A press that picked: the tap it ends in opens nothing.
   bool swallowTap = false;
@@ -111,38 +111,29 @@ class QuerySelection extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Only the keys still drawn: a ticket that left the query is let go of.
-  void keepOnly(Set<String> drawn) {
-    final before = _keys.length;
-    _keys.removeWhere((key) => !drawn.contains(key));
-    _boxes.removeWhere((key, _) => !drawn.contains(key));
-    if (_keys.length != before) notifyListeners();
+  /// Where a row is drawn, as each of its places says (a ticket on a board grouped by its labels is in several).
+  void place(String key, GlobalKey box) => (_boxes[key] ??= <GlobalKey>{}).add(box);
+  void unplace(String key, GlobalKey box) {
+    final boxes = _boxes[key];
+    if (boxes == null) return;
+    boxes.remove(box);
+    if (boxes.isEmpty) _boxes.remove(key);
   }
 
-  /// Where a row is drawn.
-  GlobalKey boxOf(String key) => _boxes[key] ??= GlobalKey(debugLabel: 'picked $key');
+  static Rect? _rectOf(GlobalKey box) {
+    final object = box.currentContext?.findRenderObject();
+    if (object is! RenderBox || !object.attached || !object.hasSize) return null;
+    return object.localToGlobal(Offset.zero) & object.size;
+  }
 
   /// The keys whose rows a box in global coordinates touches.
-  List<String> touched(Rect box) {
-    final found = <String>[];
-    for (final MapEntry(:key, :value) in _boxes.entries) {
-      final object = value.currentContext?.findRenderObject();
-      if (object is! RenderBox || !object.attached || !object.hasSize) continue;
-      final rect = object.localToGlobal(Offset.zero) & object.size;
-      if (rect.overlaps(box)) found.add(key);
-    }
-    return found;
-  }
+  List<String> touched(Rect box) => [
+        for (final MapEntry(:key, :value) in _boxes.entries)
+          if (value.any((each) => _rectOf(each)?.overlaps(box) ?? false)) key,
+      ];
 
   /// Whether a point in global coordinates is on a row.
-  bool onRow(Offset at) {
-    for (final value in _boxes.values) {
-      final object = value.currentContext?.findRenderObject();
-      if (object is! RenderBox || !object.attached || !object.hasSize) continue;
-      if ((object.localToGlobal(Offset.zero) & object.size).contains(at)) return true;
-    }
-    return false;
-  }
+  bool onRow(Offset at) => _boxes.values.any((boxes) => boxes.any((each) => _rectOf(each)?.contains(at) ?? false));
 }
 
 /// Whether the keys held say a click picks rather than opens: Command or Control, or Shift for a run.
@@ -178,40 +169,74 @@ class QuerySelectable extends StatefulWidget {
 }
 
 class _QuerySelectableState extends State<QuerySelectable> {
+  final GlobalKey _box = GlobalKey(debugLabel: 'a ticket to pick');
   Offset? _down;
-  Duration? _at;
   PointerDeviceKind? _kind;
+  Timer? _hold;
+
+  /// How long a finger rests on a ticket before it is picked.
+  static const Duration holdToPick = Duration(milliseconds: 450);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.boxed) widget.selection.place(widget.row.key, _box);
+  }
+
+  @override
+  void didUpdateWidget(QuerySelectable old) {
+    super.didUpdateWidget(old);
+    if (old.boxed) old.selection.unplace(old.row.key, _box);
+    if (widget.boxed) widget.selection.place(widget.row.key, _box);
+  }
+
+  @override
+  void dispose() {
+    _hold?.cancel();
+    if (widget.boxed) widget.selection.unplace(widget.row.key, _box);
+    super.dispose();
+  }
+
+  bool get _mouse => _kind == PointerDeviceKind.mouse || _kind == PointerDeviceKind.trackpad;
 
   void _pressed(PointerDownEvent event) {
     widget.selection.swallowTap = false;
     _down = event.position;
-    _at = event.timeStamp;
     _kind = event.kind;
+    _hold?.cancel();
+    // A finger held still: picked as it rests, and the tap it ends in opens nothing.
+    if (!_mouse) {
+      _hold = Timer(holdToPick, () {
+        if (!mounted || _down == null) return;
+        widget.selection.toggle(widget.row.key);
+        widget.selection.swallowTap = true;
+        fireMotor(HapticKind.medium);
+      });
+    }
+  }
+
+  void _moved(PointerMoveEvent event) {
+    final down = _down;
+    if (down != null && (event.position - down).distance > 12) {
+      _hold?.cancel();
+      _down = null;
+    }
   }
 
   void _lifted(PointerUpEvent event) {
-    final down = _down, at = _at;
+    _hold?.cancel();
+    final down = _down;
     _down = null;
-    if (down == null || at == null || (event.position - down).distance > 12) return;
+    if (down == null || (event.position - down).distance > 12 || !_mouse || !_picking()) return;
     final key = widget.row.key;
     final selection = widget.selection;
-    final mouse = _kind == PointerDeviceKind.mouse || _kind == PointerDeviceKind.trackpad;
-    if (mouse && _picking()) {
-      if (HardwareKeyboard.instance.isShiftPressed) {
-        selection.range(widget.order(), key);
-      } else {
-        selection.toggle(key);
-      }
-      selection.swallowTap = true;
-      fireMotor(HapticKind.selection);
-      return;
-    }
-    // A press held on a phone: picked, and the tap it ends in opens nothing.
-    if (!mouse && event.timeStamp - at >= const Duration(milliseconds: 450)) {
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      selection.range(widget.order(), key);
+    } else {
       selection.toggle(key);
-      selection.swallowTap = true;
-      fireMotor(HapticKind.medium);
     }
+    selection.swallowTap = true;
+    fireMotor(HapticKind.selection);
   }
 
   @override
@@ -221,8 +246,12 @@ class _QuerySelectableState extends State<QuerySelectable> {
     final picked = widget.selection.has(widget.row.key);
     return Listener(
       onPointerDown: _pressed,
+      onPointerMove: _moved,
       onPointerUp: _lifted,
-      onPointerCancel: (_) => _down = null,
+      onPointerCancel: (_) {
+        _hold?.cancel();
+        _down = null;
+      },
       child: GestureDetector(
         // While any are picked, a tap anywhere on a ticket picks it or lets it go.
         onTap: widget.selection.any
@@ -237,7 +266,7 @@ class _QuerySelectableState extends State<QuerySelectable> {
             : null,
         behavior: HitTestBehavior.translucent,
         child: KeyedSubtree(
-          key: widget.boxed ? widget.selection.boxOf(widget.row.key) : null,
+          key: widget.boxed ? _box : null,
           child: Semantics(
             selected: picked,
             child: !widget.drawn
@@ -501,6 +530,8 @@ class _BulkBarState extends State<BulkBar> {
     final t = context.tokens;
     final xs = t.fontSize('xs'), sm = t.fontSize('sm');
     final count = widget.selection.length;
+    // On a phone's width the buttons are their pictures alone, so every one fits beside the count.
+    final narrow = MediaQuery.sizeOf(context).width < 600;
     Widget button(String key, String label, LucideIcon icon, VoidCallback onPressed, {bool danger = false}) => GlacierPressable(
           key: ValueKey('bulk-$key'),
           onPressed: onPressed,
@@ -514,8 +545,8 @@ class _BulkBarState extends State<BulkBar> {
                 mainAxisSize: MainAxisSize.min,
                 spacing: t.space(1),
                 children: [
-                  AppIcon(icon, size: sm + 1, strokeWidth: 2.1, color: danger ? t.color('glacier-red-11') : t.color('app-ink-2')),
-                  Text(label, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: danger ? t.color('glacier-red-11') : t.color('app-ink'))),
+                  AppIcon(icon, size: narrow ? sm + 4 : sm + 1, strokeWidth: 2.1, color: danger ? t.color('glacier-red-11') : t.color('app-ink-2')),
+                  if (!narrow) Text(label, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: danger ? t.color('glacier-red-11') : t.color('app-ink'))),
                 ],
               ),
             ),
