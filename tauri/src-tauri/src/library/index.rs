@@ -196,6 +196,9 @@ impl Library {
             .unwrap_or(entry.modified_ms);
         let archived_at = front.text("archived").and_then(|t| parse_iso(&t)).or_else(|| front.flag("archived").then_some(entry.modified_ms));
         let sidecar = self.sidecar(&id);
+        // The recording's length: the file's own word first (`recording-ms:`, mod.rs `set_recording`), the sidecar's
+        // where it says none - a note written before the key, or a sidecar from another device.
+        let recording_ms = front.text(super::RECORDING_MS).and_then(|ms| ms.trim().parse::<i64>().ok()).or(sidecar.recording_ms);
         // The row is replaced in one write transaction. Two handles are open in
         // one process now (the app's, and a meeting's write-up on its own
         // thread), and both scan the same files: as two autocommitted
@@ -217,7 +220,7 @@ impl Library {
                 front.flag("pinned") as i64,
                 archived_at,
                 id_in_file as i64,
-                sidecar.recording_ms,
+                recording_ms,
                 sidecar.formatted_for,
                 sidecar.formatted_model,
                 prior_revision,

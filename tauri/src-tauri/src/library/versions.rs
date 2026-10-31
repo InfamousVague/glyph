@@ -38,7 +38,7 @@ impl Library {
         Ok(true)
     }
 
-    /// Renames a note's file, and its versions file with it when it has one.
+    /// Renames a note's file, and its versions file (and a canvas's `.canvas`, canvas.rs) with it when it has one.
     pub(super) fn rename_note_file(&mut self, from: &str, to: &str) -> Result<()> {
         self.vault.rename(from, to)?;
         let (was, now) = (versions_path(from), versions_path(to));
@@ -48,7 +48,7 @@ impl Library {
                 self.vault.rename(&was, &now)?;
             }
         }
-        Ok(())
+        self.rename_canvas(from, to)
     }
 
     /// A note's versions file gone, with the note.

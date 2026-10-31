@@ -18,6 +18,12 @@
 //!   `.glyph/notes/<id>.json` (sidecar.rs).
 //! - **Its versions**, when it keeps them, are `<Title>.versions` beside it
 //!   (versions.rs), renamed, moved and deleted with it.
+//! - **A canvas's JSON** is `<Title>.canvas` beside it too (canvas.rs), derived
+//!   from the body for Obsidian and the publisher, and read back when another
+//!   app edits it; the `.md` is the stored form still.
+//! - **A recording's length** is `recording-ms:` in the library's block as
+//!   well as the sidecar (docs/MARKDOWN_FIRST.md §5 gap 8), read from the
+//!   block first, so a library restored from its files alone knows its tapes.
 //! - **Reading** checks the files against the index first (index.rs). A file
 //!   changed by another app is read again, a new one is indexed, and a
 //!   vanished one leaves the list.
@@ -35,6 +41,7 @@
 //! trait (vault.rs), reached through Android's Storage Access Framework for a
 //! folder chosen there (tree.rs).
 
+mod canvas;
 mod dates;
 pub mod frontmatter;
 mod index;
@@ -204,7 +211,11 @@ fn stamp(front: &mut FrontMatter, note: &Note) {
     front.set("source", (note.source != "editor").then(|| Value::Text(note.source.clone())));
     front.set("pinned", note.starred.then_some(Value::Bool(true)));
     front.set("archived", note.archived_at.map(|at| Value::Text(iso(at))));
+    front.set(RECORDING_MS, note.recording_ms.map(|ms| Value::Text(ms.to_string())));
 }
+
+/// The library's key for a recording's length, in ms (`set_recording`), read before the sidecar's (index.rs).
+pub const RECORDING_MS: &str = "recording-ms";
 
 impl Library {
     /// The library in the app's own folder, which this process reaches with `std::fs`.
@@ -302,6 +313,10 @@ impl Library {
             self.scan()?;
             return Ok(self.row(id)?.map(|row| self.note_of(row, true)));
         }
+        // A canvas another app edited beside the note (`<Title>.canvas`, canvas.rs): the note takes its JSON.
+        if let Some(edited) = self.canvas_edited(&row.path, body) {
+            return self.save_note(id, &edited, &row.source).map(Some);
+        }
         Ok(Some(self.note_of(row, true)))
     }
 
@@ -349,14 +364,12 @@ impl Library {
             path = to;
         }
         let text = join(Some(&front), body);
-        let entry = if previous_text.as_deref() == Some(text.as_str()) { None } else { Some(self.vault.write(&path, &text)?) };
-        match entry {
-            Some(entry) => self.index_file(&entry)?,
-            None => {
-                let entry = self.vault.stat(&path)?;
-                self.index_file(&entry)?;
-            }
-        }
+        let entry = match previous_text.as_deref() == Some(text.as_str()) {
+            true => self.vault.stat(&path)?,
+            false => self.vault.write(&path, &text)?,
+        };
+        self.index_file(&entry)?;
+        self.keep_canvas(&path, body, entry.modified_ms);
         self.row(id)?
             .map(|row| self.note_of(row, true))
             .ok_or_else(|| LibraryError::Index(rusqlite::Error::QueryReturnedNoRows))
@@ -432,10 +445,11 @@ impl Library {
         Ok(true)
     }
 
-    /// A note's file, its sidecar, its versions and its row, gone.
+    /// A note's file, its sidecar, its versions, its canvas file and its row, gone.
     fn delete_file(&mut self, id: &str, path: &str) -> Result<()> {
         self.vault.remove(path)?;
         self.remove_versions(path);
+        self.remove_canvas(path);
         if let Some(sidecar) = self.sidecar_path(id) {
             let _ = std::fs::remove_file(sidecar);
         }
@@ -485,7 +499,11 @@ impl Library {
 
     /// Keeps (or with `None`, forgets) a note's recording length and phrases,
     /// beside the note rather than in it. Not an edit: the words were saved
-    /// when they were said.
+    /// when they were said. The length goes into the library's own front
+    /// matter block as well, `recording-ms: 3723000` (docs/MARKDOWN_FIRST.md §5
+    /// gap 8; Matt, 2026-10-31): the sidecar under `.glyph/` is what a backup
+    /// or a clone most easily leaves behind, and without the length the note
+    /// reads as never recorded. The sidecar is still written, for a release.
     pub fn set_recording(&mut self, id: &str, recording: Option<&Recording>) -> Result<Option<Note>> {
         let _writing = writing();
         if !self.written(id)? {
@@ -495,7 +513,9 @@ impl Library {
         sidecar.recording_ms = recording.map(|r| r.ms());
         sidecar.segments = recording.map(|r| r.segments().to_vec());
         self.write_sidecar(id, &sidecar)?;
-        self.index.execute("UPDATE notes SET recording_ms = ?2 WHERE id = ?1", rusqlite::params![id, sidecar.recording_ms])?;
+        let ms = sidecar.recording_ms;
+        self.set_front(id, |front| front.set(RECORDING_MS, ms.map(|ms| Value::Text(ms.to_string()))))?;
+        self.index.execute("UPDATE notes SET recording_ms = ?2 WHERE id = ?1", rusqlite::params![id, ms])?;
         self.get_note(id)
     }
 
@@ -533,6 +553,7 @@ impl Library {
         for entry in self.vault.markdown()? {
             self.vault.remove(&entry.path)?;
             self.remove_versions(&entry.path);
+            self.remove_canvas(&entry.path);
         }
         let notes = self.vault.glyph_dir().join("notes");
         let _ = std::fs::remove_dir_all(&notes);
@@ -584,6 +605,7 @@ impl Library {
         self.write_sidecar(&note.id, &Sidecar::from(note))?;
         let entry = self.vault.keep_modified(&path, note.updated_at)?;
         self.index_file(&entry)?;
+        self.keep_canvas(&path, &note.body, entry.modified_ms);
         self.index.execute("UPDATE notes SET revision = ?2 WHERE id = ?1", rusqlite::params![note.id, note.revision])?;
         self.row(&note.id)?
             .map(|row| self.note_of(row, true))
