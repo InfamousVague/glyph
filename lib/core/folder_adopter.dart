@@ -104,6 +104,29 @@ FolderAdoption adoptFolders(WorkspaceStore workspaces, Iterable<Note> notes, {Ma
   return FolderAdoption(folders: made, filed: filed, waiting: waiting);
 }
 
+/// Files [noteId] in the folder workspace its directory [dir] names, making the folders on the way as [adoptFolders]
+/// does: `workspaces/Work/Plan` is the folder Plan inside Work, `orgs/Acme/Plan` the folder Plan in Acme's workspace.
+/// What a page moved on disk asks for afterwards (lib/core/page_tree.dart `PageMover`; docs/TEAMSPACES.md): the file
+/// is where it should be already, so the filing that follows asks the library for no move (note_folders.dart
+/// `_fileNoteAt` sees the folder is the same), and a later rename of the folder it left cannot pull it back out.
+/// A directory under neither (`Inbox/Plan`, a chosen vault's own folders) is no workspace's, and a note filed in one
+/// is unfiled, which keeps it where it is (a folder under the inbox is the inbox's). An organization this device
+/// does not know yet leaves the filing as it was.
+void fileByFolder(WorkspaceStore workspaces, String noteId, String dir, {Map<String, String> orgFolders = const {}}) {
+  final parts = [for (final part in dir.split('/')) if (part.isNotEmpty) part];
+  if (parts.length >= 2 && parts.first == workspacesFolder) {
+    final (folder, _) = _personalFolderAt(workspaces, parts.sublist(1));
+    if (folder != null) workspaces.fileNotes([noteId], folder);
+    return;
+  }
+  if (parts.length >= 2 && parts.first == orgsFolder) {
+    final org = _orgFor(workspaces, parts[1], orgFolders);
+    if (org != null) OrgFolders(workspaces, org).fileAt(noteId, parts.sublist(2));
+    return;
+  }
+  if (workspaces.workspaceOf(noteId) != null) workspaces.fileNote(noteId, null);
+}
+
 /// The personal folder at [names] from the top, each found by the name its directory is given or made inside the
 /// one before; its id, and how many were made. Null where a name cleans away to nothing, or where a folder of that
 /// name is not where the path says (`addWorkspace` with no parent answers the personal one already called that,

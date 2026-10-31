@@ -31,6 +31,34 @@ page", the publisher's sidebar if it adopts it later):
 - **Roots** per space: Personal = `Inbox/` and `workspaces/<…>/`; an organization = `orgs/<Org>/` (its `Home.md` is
   the space's home page, and the rest of the folder its tree).
 
+### Where reality differs (2026-10-31, the model's build)
+
+- **`index.md` does not stay `index.md` in the app's own folder.** The Rust library names a file after its title and
+  renames it at every save when the library is the app's own folder (library/mod.rs `follows_title`), so
+  `Plan/index.md` titled Plan is written back as `Plan/Plan.md`. The tree therefore reads a folder's page as its
+  `index.md`, else the note named as the folder (`Plan/Plan.md`, the other folder-notes convention), and at an
+  organization's top `Home.md` or a note saying `type: teamspace`. A folder page retitled in the own folder
+  (`Plan/Roadmap.md`) is a plain folder's child until the writer side changes: `follows_title` should leave
+  `index.md` and an organization's `Home.md` alone (a library change, so after every device reads both). A chosen
+  folder (an Obsidian vault) keeps `index.md` already. The new organization's home template says `title: Home` so its
+  file stays `Home.md`.
+- **Pinned pages are `pins:`.** `pinned` is one of the library's own keys (a note's pin, `pinned: true`;
+  front_matter.dart `libraryKeys`): with one front matter block (docs/MARKDOWN_FIRST.md §9 slice 7) the library would
+  read a `pinned:` list as the pin and drop it at the next unpinned write. The settings read `pins:`, and `pinned:`
+  where it is a list; the template writes neither until a page is pinned.
+- **An organization's notes** are at `orgs/<folder>/[<sub>/…]`, the folder being the organization workspace's name
+  cleaned (note_folders.dart `folderFor`), sub-folders being ordinary workspaces with `parent` set (GHST-107). A
+  folder under `orgs/` that no organization on the device answers to is in no space (as folder_adopter.dart waits for
+  it). Personal is everything else: `Inbox/`, the workspaces' folders in the workspaces' order, then a chosen vault's
+  other folders and loose files. Personal's top has no page, so it has no `order:`.
+- **Docs default to edit** for an organization with no `Home.md`, or one whose `docs:` says neither word; Personal is
+  always edit.
+- **The home's queries read the whole library**: the query grammar has no folder to read from yet.
+- **A move** goes through the library's own (`apply` with a new path moves the `.versions` and `.canvas` beside the
+  note; the recording's sidecar is keyed by id), then files the note in its new folder's workspace so a later folder
+  rename cannot pull it back out (folder_adopter.dart `fileByFolder`). A folder is moved by the workspaces' own move,
+  and nothing moves across spaces by a drag (that is filing into an organization, which shares).
+
 ## Teamspace home
 
 `orgs/<Org>/Home.md`: an ordinary note drawn as the space's home. Front matter carries the space's settings:
