@@ -1,11 +1,25 @@
 [
   {
+    "version": "2.3.95",
+    "date": "2026-10-31",
+    "title": "Teamspaces: your team's docs, laid out like a wiki",
+    "items": [
+      {"icon": "sidebar", "words": "A new sidebar: switch between Personal and each organization, with Home, Search, My tickets, Updates, Favorites and the space's pages.", "kind": "new"},
+      {"icon": "list-tree", "words": "Pages nest: add a page inside another, drag to reorder or nest, and give any page an icon. A folder with an index.md is a page.", "kind": "new"},
+      {"icon": "book-open", "words": "Doc pages get breadcrumbs, an icon and cover, who edited last, an outline beside the text, and previous and next at the foot.", "kind": "new"},
+      {"icon": "eye", "words": "Each organization chooses whether its pages open to read or to edit, set on its home page.", "kind": "new"},
+      {"icon": "users", "words": "An organization's home is its Home.md page, with its members, pinned pages, and a page for each member's tickets and docs.", "kind": "new"},
+      {"icon": "bell", "words": "Follow a page to see its changes in Updates, now an inbox with Mentions, Tickets, Docs and Team. Editing or a mention follows for you.", "kind": "new"},
+      {"icon": "circle-user", "words": "See who else is on a page: their avatars sit in the header, and a dot marks the page in the sidebar.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.3.94",
     "date": "2026-10-31",
     "title": "Your notes are the files, and the files can live in git",
     "items": [
-      {"icon": "git-branch", "words": "Back up to git: a new plugin commits your library to a repository on GitHub or any host, pushes as you write, and restores a fresh device from a clone.", "kind": "new"},
-      {"icon": "globe", "words": "Publish as a website: a switch in the plugin turns the repository into a static site on GitHub Pages, with search and a sidebar from your folders.", "kind": "new"},
+      {"icon": "git-branch", "words": "Back up to git: a new plugin commits your library to GitHub or any host, pushes as you write, and restores a new device from a clone.", "kind": "new"},
+      {"icon": "globe", "words": "Publish as a website: one switch turns the repository into a site on GitHub Pages, with search and a sidebar from your folders.", "kind": "new"},
       {"icon": "image", "words": "Pictures, files and recordings now live inside the library folder, where the notes link them.", "kind": "better"},
       {"icon": "trash-2", "words": "The trash is a .trash folder in the library, as in Obsidian, so a restore keeps trashed notes trashed.", "kind": "better"},
       {"icon": "share-2", "words": "Share links survive a restore: each one's key is kept sealed under your account, and the note says it is shared.", "kind": "better"},
