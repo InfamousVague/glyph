@@ -176,10 +176,23 @@ String _withMark(GanttTaskLine task, String kind, GanttSpan? span, String? words
   if (span != null) return words == null ? withoutSpan(task.text, span) : withSpan(task.text, span, words);
   if (words == null) return task.text;
   final at = _placeFor(task, kind);
-  // Before a progress already there, so `after: Research 60%` keeps its order.
-  final progress = task.progressSpan;
-  if (kind != 'progress' && progress != null && progress.from >= at) return withInsert(task.text, progress.from, words);
-  return withInsert(task.text, at, words);
+  // Before the first mark after it that comes later in the order, so `@sam after: Design 60%` keeps its order.
+  final rank = _rank[kind]!;
+  var before = task.text.length + 1;
+  void later(String other, GanttSpan? span) {
+    if (span != null && _rank[other]! > rank && span.from >= at && span.from < before) before = span.from;
+  }
+
+  for (final person in task.people) {
+    later('person', person.span);
+  }
+  for (final tag in task.tags) {
+    later('tag', tag.span);
+  }
+  later('colour', task.colourSpan);
+  later('after', task.afterSpan);
+  later('progress', task.progressSpan);
+  return withInsert(task.text, before <= task.text.length ? before : at, words);
 }
 
 /// A length's words for [start] to [end] in the form [dates] had: in weeks where it was and still comes to whole weeks.
