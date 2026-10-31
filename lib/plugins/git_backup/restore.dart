@@ -25,6 +25,7 @@ library;
 import 'dart:io';
 
 import '../../core/native/core.dart' show CoreInvoke;
+import '../../files/attachment_places.dart';
 import 'files.dart';
 import 'repo.dart';
 import 'settings.dart';
@@ -49,9 +50,12 @@ class RestoreOutcome {
 }
 
 class GitRestore {
-  const GitRestore({required this.invoke, required this.appData});
+  const GitRestore({required this.invoke, required this.appData, Future<AttachmentPlaces?> Function()? places}) : _places = places;
 
   final CoreInvoke invoke;
+
+  /// Where the app writes each kind of attachment (lib/files/attachment_places.dart); the core's answer unless a test's.
+  final Future<AttachmentPlaces?> Function()? _places;
 
   /// The app's data folder: the clone goes under it, and the attachments are copied into it.
   final String appData;
@@ -83,7 +87,8 @@ class GitRestore {
     progress?.call('Setting the library aside for the team');
     final held = holdOrgsAside(folder, heldRoot: '$_gitRoot/held');
     progress?.call('Linking pictures and files');
-    final attachments = AttachmentMap(repoPath: folder, appData: appData).restore();
+    final places = _places != null ? await _places() : await AttachmentPlaces.ask(invoke, dataDir: appData);
+    final attachments = AttachmentMap(repoPath: folder, places: places).restore();
     var settings = readGitConfig(folder) ?? const GitBackupSettings();
     settings = settings.copyWith(remote: remote ?? settings.remote, repoPath: folder, orgsIncluded: settings.orgsIncluded.difference(held.toSet()), setUpAt: DateTime.now());
     final notes = folderSize(folder, where: (relative) => relative.toLowerCase().endsWith('.md')).files;

@@ -47,14 +47,15 @@ class RepoPlace {
 /// folder a person named "Dropbox" themselves is refused too, which is the safe side. On Android a picked folder is
 /// a tree with no path and takes the mirror (placeFor); the app's own folder is never inside a syncing one.
 String? syncingFolder(String path) {
-  for (final part in path.split(RegExp(r'[\\/]+'))) {
+  final parts = path.split(RegExp(r'[\\/]+'));
+  for (final part in parts) {
     if (part == 'Mobile Documents' || part == 'com~apple~CloudDocs' || part == 'iCloud Drive') return 'iCloud Drive';
     if (part == 'Dropbox') return 'Dropbox';
     if (part.startsWith('OneDrive')) return 'OneDrive';
     if (part == 'Google Drive' || part.startsWith('GoogleDrive')) return 'Google Drive';
-    if (part == 'CloudStorage') return 'a cloud drive';
   }
-  return null;
+  // The Mac's folder for every file provider, when the provider's own folder was not one of the above.
+  return parts.contains('CloudStorage') ? 'a cloud drive' : null;
 }
 
 /// Why the Library cannot be the repository, in a sentence, or null where it can: the folder it is in syncs by

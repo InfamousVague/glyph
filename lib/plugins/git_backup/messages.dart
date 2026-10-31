@@ -13,7 +13,8 @@ String titleOfPath(String path) {
   return dot > 0 ? name.substring(0, dot) : name;
 }
 
-bool _isNote(String path) => path.toLowerCase().endsWith('.md') && !path.split('/').any((part) => part.startsWith('.'));
+/// A note: a `.md` outside dot folders, `.trash/` excepted (a trashed note is still the note the message names).
+bool _isNote(String path) => path.toLowerCase().endsWith('.md') && !path.split('/').any((part) => part.startsWith('.') && part != '.trash');
 
 bool _isVersions(String path) => path.endsWith('.versions');
 
@@ -45,6 +46,14 @@ String commitMessage(List<GitChange> changes, {String? Function(String path)? ti
       'renamed' => _inTrash(one.path) ? 'Trashed: ${title(one.path)}' : 'Moved: ${title(one.path)}',
       _ => 'Edit: ${title(one.path)}',
     };
+  }
+  // A move the status saw as a removal and an addition of one name (gix's status does not pair renames).
+  final removed = {for (final c in notes) if (c.kind == 'removed') titleOfPath(c.path)};
+  final added = {for (final c in notes) if (c.kind == 'added') titleOfPath(c.path)};
+  if (removed.isNotEmpty && removed.length == added.length && removed.containsAll(added) && notes.length == removed.length * 2) {
+    final moved = removed.toList()..sort();
+    final trashed = notes.where((c) => c.kind == 'added').every((c) => _inTrash(c.path));
+    return '${trashed ? 'Trashed' : 'Moved'}: ${moved.take(2).join(', ')}${moved.length > 2 ? '…' : ''}';
   }
   final kinds = notes.map((c) => c.kind).toSet();
   final titles = notes.map((c) => title(c.path)).toList();

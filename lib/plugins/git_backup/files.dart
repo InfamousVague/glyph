@@ -7,24 +7,34 @@
 /// for the same reason. `.git/` and `.trash/` are never notes: the vault's walk skips every dot folder
 /// (tauri/src-tauri/src/library/vault.rs `markdown()`), which test/plugins/git_backup/files_test.dart confirms.
 ///
-/// **Attachments.** Until the attachments slice lands on main (pictures and files under the Library at `image/` and
-/// `file/`), they live at `<app data>/images/` and `<app data>/images/files/`, and recordings at `<app data>/recordings/`.
-/// [AttachmentMap] copies each into the repository at the name the notes link ([attachmentFolders]), only what changed
-/// by size or time, and takes out of the repository what the app no longer has. When a source folder IS the
-/// repository's folder (the slice has landed and the Library holds `image/` itself) the copy is a no-op, so the swap
-/// to the real folders is a change of paths, not of code.
+/// **Attachments.** The attachments slice (2026-10-31, tauri/src-tauri/src/library/attachments.rs) moves them under
+/// the Library at the paths the notes link, a kind at a time: pictures live at `Library/image/` now; files, films and
+/// recordings are read from `Library/file/`, `video/`, `recordings/` but still written beside the app's data until
+/// the Dart store and the players read both. The core says where each kind is read from, the first folder the one
+/// written to (lib/files/attachment_places.dart `AttachmentPlaces`). [AttachmentMap] copies each kind from every
+/// folder it is read from that is not the repository's own folder into the repository at the name the notes link
+/// ([attachmentFolders]), only what changed by size or time; a repository file is taken out only where no folder of
+/// its kind has it and the repository's folder is not itself one the app reads. When a kind is settled under the
+/// Library the copy is a no-op, so the swap to the real folders is a change of places, not of code.
 library;
 
 import 'dart:io';
 
+import '../../files/attachment_places.dart';
 import 'settings.dart';
 
-/// The folders an attachment kind is committed under, and where the app keeps it until it lives in the Library.
-const List<({String repoName, String appFolder})> attachmentFolders = [
-  (repoName: 'image', appFolder: 'images'),
-  (repoName: 'file', appFolder: 'images/files'),
-  (repoName: 'recordings', appFolder: 'recordings'),
+/// The folders an attachment kind is committed under, and the kind's folders as [AttachmentPlaces] lists them.
+const List<({String repoName, List<String> Function(AttachmentPlaces) read})> attachmentFolders = [
+  (repoName: 'image', read: _image),
+  (repoName: 'file', read: _file),
+  (repoName: 'recordings', read: _recording),
 ];
+
+List<String> _image(AttachmentPlaces p) => p.image;
+List<String> _file(AttachmentPlaces p) => p.file;
+List<String> _recording(AttachmentPlaces p) => p.recording;
+
+String _normal(String path) => path.replaceAll(RegExp(r'[\\/]+$'), '');
 
 /// The `.gitignore` the plugin writes: the index and its journals, backup scratch, temp files, the Mac's clutter,
 /// films always; recordings while the switch is off; each organization not included. `.glyph/notes/` is KEPT (the
@@ -76,32 +86,6 @@ Any other Markdown app opens the folder as it is. Ghost.md's own marks are plain
 
 Made by $madeBy with Ghost.md (https://ghostmarkdown.com).
 ''';
-
-/// The GitHub Pages workflow the Publish switch commits, where the publisher's template is not yet in the tree
-/// (publish/templates/github-pages.yml): it builds nothing yet, and says so. TODO(docs/GIT_BACKUP.md): swap for the
-/// publisher's template when it lands.
-const String placeholderPagesWorkflow = '''
-# Ghost.md: publishes this library as a website with GitHub Pages. Written by the Back up to git plugin.
-# This is a placeholder until Ghost.md's publisher ships its template; it only checks the repository out.
-name: ghost-pages
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: echo "Ghost.md's publisher is not in this build yet; the site is built once it is."
-''';
-
-/// The path the workflow is committed at.
-const String pagesWorkflowPath = '.github/workflows/ghost-pages.yml';
 
 /// What a folder weighs: every file's bytes, and how many there are.
 class FolderSize {
@@ -160,8 +144,9 @@ class RepoSizes {
   final FolderSize git;
 }
 
-/// [sizes] of the repository at [repoPath], with the attachments still at [appData] counted where they are.
-RepoSizes repoSizes({required String repoPath, String? appData, required GitBackupSettings settings, required Iterable<String> orgs}) {
+/// [sizes] of the repository at [repoPath], with the attachments still beside the app's data ([places]) counted where
+/// they are.
+RepoSizes repoSizes({required String repoPath, AttachmentPlaces? places, required GitBackupSettings settings, required Iterable<String> orgs}) {
   final excludedOrgs = {for (final org in orgs) if (!settings.orgsIncluded.contains(org)) org};
   bool committed(String relative) {
     final parts = relative.split(RegExp(r'[\\/]+'));
@@ -174,19 +159,22 @@ RepoSizes repoSizes({required String repoPath, String? appData, required GitBack
   var size = folderSize(repoPath, where: committed);
   var recordings = folderSize('$repoPath/recordings');
   var video = folderSize('$repoPath/video');
-  if (appData != null && appData != repoPath) {
+  if (places != null) {
     for (final folder in attachmentFolders) {
-      final source = '$appData/${folder.appFolder}';
-      if ('$repoPath/${folder.repoName}' == source) continue;
-      final here = folderSize(source, where: (relative) => folder.repoName != 'image' || !relative.startsWith('files/'));
-      if (folder.repoName == 'recordings') {
-        recordings = recordings + here;
-        if (settings.recordings) size = size + here;
-      } else {
-        size = size + here;
+      for (final source in folder.read(places)) {
+        if (_normal(source) == _normal('$repoPath/${folder.repoName}')) continue;
+        final here = folderSize(source, where: (relative) => !relative.contains('/'));
+        if (folder.repoName == 'recordings') {
+          recordings = recordings + here;
+          if (settings.recordings) size = size + here;
+        } else {
+          size = size + here;
+        }
       }
     }
-    video = video + folderSize('$appData/video');
+    for (final source in places.video) {
+      if (_normal(source) != _normal('$repoPath/video')) video = video + folderSize(source);
+    }
   }
   var orgsExcluded = FolderSize.none;
   for (final org in excludedOrgs) {
@@ -210,26 +198,29 @@ List<String> orgFoldersAt(String repoPath) {
   return [for (final entry in dir.listSync(followLinks: false)) if (entry is Directory) entry.uri.pathSegments.where((s) => s.isNotEmpty).last]..sort();
 }
 
-/// The attachments brought into the repository at the names the notes link (see the header). [appData] is the
-/// app's data folder; where the attachments already live in the repository nothing is copied.
+/// The attachments brought into the repository at the names the notes link (see the header). [places] is where the
+/// app reads each kind; where a kind already lives in the repository nothing is copied.
 class AttachmentMap {
-  const AttachmentMap({required this.repoPath, required this.appData});
+  const AttachmentMap({required this.repoPath, required this.places});
   final String repoPath;
-  final String? appData;
+  final AttachmentPlaces? places;
 
-  /// Copies what changed and removes what is gone; answers the paths of files refused for size, so the commit can
-  /// name them. Recordings are copied only when [settings] includes them and each is under the cap.
+  /// Copies what changed and takes out what is gone from every folder of its kind (never where the repository's own
+  /// folder is one the app reads); answers the paths of files refused for size, so the commit can name them.
+  /// Recordings are copied only when [settings] includes them and each is under the cap (the cap holds for a
+  /// recording already in the repository's folder too: over it, it is left out of the commit by being taken out).
   List<String> bring(GitBackupSettings settings) {
-    final appData = this.appData;
-    if (appData == null) return const [];
+    final places = this.places;
+    if (places == null) return const [];
     final refused = <String>[];
     for (final folder in attachmentFolders) {
-      final source = Directory('$appData/${folder.appFolder}');
       final target = Directory('$repoPath/${folder.repoName}');
-      if (source.path == target.path) continue;
       if (folder.repoName == 'recordings' && !settings.recordings) continue;
+      final sources = [for (final s in folder.read(places)) if (_normal(s) != _normal(target.path)) Directory(s)];
+      final targetIsRead = folder.read(places).any((s) => _normal(s) == _normal(target.path));
       final wanted = <String>{};
-      if (source.existsSync()) {
+      for (final source in sources) {
+        if (!source.existsSync()) continue;
         for (final entry in source.listSync(followLinks: false)) {
           if (entry is! File) continue;
           final name = entry.uri.pathSegments.where((s) => s.isNotEmpty).last;
@@ -239,7 +230,7 @@ class AttachmentMap {
             refused.add('${folder.repoName}/$name');
             continue;
           }
-          wanted.add(name);
+          if (!wanted.add(name)) continue;
           final to = File('${target.path}/$name');
           if (to.existsSync() && to.lengthSync() == length && !to.lastModifiedSync().isBefore(entry.lastModifiedSync())) continue;
           target.createSync(recursive: true);
@@ -250,7 +241,12 @@ class AttachmentMap {
         for (final entry in target.listSync(followLinks: false)) {
           if (entry is! File) continue;
           final name = entry.uri.pathSegments.where((s) => s.isNotEmpty).last;
-          if (!wanted.contains(name)) entry.deleteSync();
+          if (folder.repoName == 'recordings' && entry.lengthSync() > settings.recordingsMaxBytes) {
+            if (!refused.contains('${folder.repoName}/$name')) refused.add('${folder.repoName}/$name');
+            if (!targetIsRead) entry.deleteSync();
+            continue;
+          }
+          if (!targetIsRead && !wanted.contains(name)) entry.deleteSync();
         }
       }
     }
@@ -258,15 +254,17 @@ class AttachmentMap {
   }
 
   /// The other way, after a clone: what the repository holds at `image/`, `file/` and `recordings/` copied to where
-  /// the app reads them, so the notes' pictures show. Nothing where they are one folder.
+  /// the app writes each kind (the first of its folders), so the notes' pictures show. Nothing where that is the
+  /// repository's own folder.
   int restore() {
-    final appData = this.appData;
-    if (appData == null) return 0;
+    final places = this.places;
+    if (places == null) return 0;
     var copied = 0;
     for (final folder in attachmentFolders) {
       final source = Directory('$repoPath/${folder.repoName}');
-      final target = Directory('$appData/${folder.appFolder}');
-      if (source.path == target.path || !source.existsSync()) continue;
+      final written = folder.read(places).firstOrNull;
+      if (written == null || _normal(written) == _normal(source.path) || !source.existsSync()) continue;
+      final target = Directory(written);
       for (final entry in source.listSync(followLinks: false)) {
         if (entry is! File) continue;
         final name = entry.uri.pathSegments.where((s) => s.isNotEmpty).last;

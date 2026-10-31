@@ -36,6 +36,7 @@ import '../../core/library.dart' show NoteLibrary;
 import '../../core/native/core.dart' show CoreInvoke;
 import '../../core/note.dart' show Note;
 import '../../core/note_text.dart' show noteTitle;
+import '../../files/attachment_places.dart';
 import '../types.dart' show PluginHost;
 import 'claim.dart';
 import 'files.dart';
@@ -43,6 +44,7 @@ import 'manifest.dart' as git;
 import 'merge.dart';
 import 'messages.dart';
 import 'place.dart';
+import 'publish.dart';
 import 'repo.dart';
 import 'settings.dart';
 
@@ -113,6 +115,7 @@ class GitBackup extends ChangeNotifier {
     NoteLibrary? library,
     this.appData,
     this.isPhone = false,
+    this.phoneMost = phonePushMost,
     this.foregroundOnly = false,
     bool Function()? inForeground,
     this.background = const NoBackgroundJobs(),
@@ -122,8 +125,12 @@ class GitBackup extends ChangeNotifier {
     this.floorAt = floor,
     this.freshId,
     this.onOpenConflicts,
+    Future<PublishBundle?> Function()? publishBundle,
+    Future<AttachmentPlaces?> Function()? places,
     void Function(String)? warn,
   })  : via = via ?? git.host,
+        _publishBundle = publishBundle ?? publishBundleFromAssets,
+        _places = places,
         _auth = auth,
         _library = library,
         _inForeground = inForeground ?? (() => true),
@@ -149,6 +156,9 @@ class GitBackup extends ChangeNotifier {
   /// The app's data folder, where attachments still live (files.dart); null where there is none to map.
   final String? appData;
   final bool isPhone;
+
+  /// The most a phone pushes in one go (settings.dart [phonePushMost]); a test’s own where smaller.
+  final int phoneMost;
   final bool foregroundOnly;
   final bool Function() _inForeground;
   final BackgroundJobs background;
@@ -160,6 +170,21 @@ class GitBackup extends ChangeNotifier {
 
   /// Opens the conflict copies for the person (the page's Open), from the job's row.
   final VoidCallback? onOpenConflicts;
+
+  /// The publisher's files the app carries (publish.dart), asked when Publish is on; the assets' unless a test's.
+  final Future<PublishBundle?> Function() _publishBundle;
+
+  /// Where the app reads each kind of attachment (lib/files/attachment_places.dart): the core's answer for [appData],
+  /// unless a test's own; none without an app data folder.
+  final Future<AttachmentPlaces?> Function()? _places;
+
+  Future<AttachmentPlaces?> places() async {
+    final own = _places;
+    if (own != null) return own();
+    final appData = this.appData;
+    if (appData == null) return null;
+    return AttachmentPlaces.ask(invoke, dataDir: appData);
+  }
   final void Function(String) warn;
 
   Activity get _record => _activity ?? activity;
@@ -273,7 +298,7 @@ class GitBackup extends ChangeNotifier {
         job.done(result: JobResult(outcome.elsewhere != null ? 'Up to date here; ${outcome.elsewhere!.name ?? 'another device'} pushes' : 'Nothing to back up'), quiet: !personStarted);
         updateGitBackupSettings((s) => s.copyWith(lastFailure: null), via);
       } else {
-        final words = StringBuffer(outcome.pushed ? 'Backed up' : 'Committed');
+        final words = StringBuffer(outcome.pushed ? 'Backed up' : (outcome.elsewhere != null ? 'Committed here; ${outcome.elsewhere!.name ?? 'another device'} pushes' : 'Committed'));
         if (outcome.merged > 0) words.write(', ${outcome.merged} ${outcome.merged == 1 ? 'commit' : 'commits'} merged in');
         if (outcome.conflicts.isNotEmpty) words.write(', ${outcome.conflicts.length} ${outcome.conflicts.length == 1 ? 'conflict copy' : 'conflict copies'}');
         if (outcome.refused.isNotEmpty) words.write('; ${outcome.refused.length} ${outcome.refused.length == 1 ? 'file' : 'files'} over the size cap left out');
@@ -296,8 +321,8 @@ class GitBackup extends ChangeNotifier {
   Future<BackupOutcome> _run(GitRepo repo, RepoPlace where, GitBackupSettings settings, JobHandle job) async {
     // The generated files, the attachments, the mirror.
     final orgs = orgFoldersAt(where.path);
-    _writeGenerated(where, settings, orgs);
-    final refused = AttachmentMap(repoPath: where.path, appData: appData).bring(settings);
+    await _writeGenerated(where, settings, orgs);
+    final refused = AttachmentMap(repoPath: where.path, places: await places()).bring(settings);
     if (where.isMirror) {
       final library = _library;
       if (library != null) writeMirror(where.path, library.value);
@@ -313,8 +338,18 @@ class GitBackup extends ChangeNotifier {
       if (committed != null) updateGitBackupSettings((s) => s.copyWith(lastCommitAt: clock()), via);
     }
 
-    // The push.
+    // The push, its failure carrying the commit that stands.
     if (!settings.configured) return BackupOutcome(committed: committed, refused: refused);
+    try {
+      return await _push(repo, where, settings, job, committed: committed, refused: refused);
+    } on GitFailure catch (failure) {
+      return BackupOutcome(committed: committed, refused: refused, failure: failure);
+    }
+  }
+
+  Future<BackupOutcome> _push(GitRepo repo, RepoPlace where, GitBackupSettings settings, JobHandle job, {required String? committed, required List<String> refused}) async {
+    final orgs = orgFoldersAt(where.path);
+    final keep = [for (final org in orgs) if (!settings.orgsIncluded.contains(org)) 'orgs/$org'];
     final remote = await repo.remote();
     if (remote != settings.remote) await repo.setRemote(settings.remote!);
     if (!await holdsPusher()) return BackupOutcome(committed: committed, refused: refused, elsewhere: pusherElsewhere?.call());
@@ -338,8 +373,8 @@ class GitBackup extends ChangeNotifier {
       divergence = await repo.divergence();
     }
     if (isPhone) {
-      final size = repoSizes(repoPath: where.path, appData: appData, settings: settings, orgs: orgs);
-      if (size.committed.bytes > phonePushMost) {
+      final size = repoSizes(repoPath: where.path, places: await places(), settings: settings, orgs: orgs);
+      if (size.committed.bytes > phoneMost) {
         return BackupOutcome(committed: committed, merged: merged, conflicts: conflicts, refused: refused, failure: GitFailure(GitTrouble.other, 'This backup is ${sizeWords(size.committed.bytes)}, more than a phone pushes in one go. Open Ghost.md on a Mac to push it; the phone keeps committing meanwhile.'));
       }
     }
@@ -354,17 +389,16 @@ class GitBackup extends ChangeNotifier {
     }
   }
 
-  void _writeGenerated(RepoPlace where, GitBackupSettings settings, List<String> orgs) {
+  Future<void> _writeGenerated(RepoPlace where, GitBackupSettings settings, List<String> orgs) async {
     final root = where.path;
     _writeIfChanged('$root/.gitignore', gitignoreText(settings, orgs: orgs));
     _writeIfChanged('$root/README.txt', readmeText(madeBy: _who().name));
     writeGitConfig(root, settings, madeBy: _who().name);
-    final workflow = File('$root/$pagesWorkflowPath');
-    if (settings.publish && isGitHubRemote(settings.remote)) {
-      _writeIfChanged(workflow.path, placeholderPagesWorkflow);
-    } else if (workflow.existsSync()) {
-      workflow.deleteSync();
-    }
+    // Publish as a website (publish.dart): the publisher vendored, the workflow, the site's config.
+    final publishing = settings.publish && isGitHubRemote(settings.remote);
+    final bundle = publishing ? await _publishBundle() : null;
+    final who = _who().name;
+    writePublishing(root, settings, bundle: bundle, title: who == 'Ghost.md' ? 'Notes' : '$who’s notes');
   }
 
   static void _writeIfChanged(String path, String text) {
@@ -397,7 +431,7 @@ class GitBackup extends ChangeNotifier {
       divergence: divergence,
       changes: status.changes.length,
       shallow: status.shallow,
-      sizes: sizes ? repoSizes(repoPath: where.path, appData: appData, settings: settings, orgs: orgFoldersAt(where.path)) : null,
+      sizes: sizes ? repoSizes(repoPath: where.path, places: await places(), settings: settings, orgs: orgFoldersAt(where.path)) : null,
       elsewhere: pusherElsewhere?.call(),
     );
   }

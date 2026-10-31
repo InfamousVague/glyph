@@ -748,6 +748,31 @@ the core's doors in native/src. What landed, and where it differs from the plan 
 
 ## 10. The 'Back up to git' plugin
 
+### 10.1 Shipped 2026-10-31
+
+The plugin landed as `lib/plugins/git_backup/` (docs/GIT_BACKUP.md is its own document); what below was a plan reads as
+one, and where the build differs from it:
+
+- **The repository is the Library folder** (decision 3), not the mirror this section planned; the mirror is kept for an
+  Android SAF tree alone (place.dart). A Library inside iCloud Drive, Dropbox, OneDrive or Google Drive is refused in a
+  sentence rather than mirrored.
+- **gix is in the core unconditionally** (no `git` feature): fifteen `git_*` commands (native/src/git.rs), push written
+  over gix's plumbing since gix 0.90 has none. `git_commit` takes `keep` folders from HEAD, which is how an excluded
+  organization stays as the repository last had it rather than being deleted by a device that leaves it out.
+- **Cadence, messages, author** as planned (two minutes of quiet, an hourly floor, Back up now; `Edit: <title>`,
+  `<n> notes changed: …`, `New:`/`Moved:`/`Trashed:`/`Deleted:`); no `Ghost-Device` trailer.
+- **One pusher** (decision 13) as the ticket sweep's claim, under `gitPusher`; a phone defers five minutes to a desktop.
+- **The merge** runs before every push on the pusher (the plan's Phase 2 is in from the start): `.md` through
+  `mergedWords`, a conflict copy with a FRESH id (§12's first finding), `.versions` through `mergeFiles`, binaries
+  theirs with ours beside, config key by key; a note the remote deleted goes to `.trash/` rather than being removed.
+- **Restore** holds `orgs/` aside for the team (§12's second finding) and opens the clone through `library_inspect` +
+  `library_move`; shallow first, deepened after. iOS is the clone alone; a phone never pushes over 100 MB.
+- **Attachments**: pictures are the Library's own now; files and recordings are mapped in from the app's data by the
+  core's `attachment_places` until their slice settles them. `README.txt`, not `README.md` (§12).
+- **Publish** vendors tauri/publish/ into `.glyph/publish/` with its workflow and a `publish.json`, GitHub remotes only.
+- **Not in this slice**: `.gitattributes`, `strip places before commit`, an encrypted mode, LFS, SSH, the "Repo is on my
+  own computer" row, the web client, a refusal of case-folded duplicate paths.
+
 **Git implementation.** gitoxide (`gix`), pure Rust, inside the core behind a `git` cargo feature. It builds for
 aarch64 Android, iOS and macOS with the toolchain the repo has (no cmake, no C), and its HTTPS transport
 (`blocking-http-transport-reqwest-rust-tls`) is the reqwest+rustls already in native/Cargo.lock behind the `voice`

@@ -7,6 +7,8 @@
 /// bare repository on disk.
 library;
 
+import 'dart:io' show Directory;
+
 import '../../core/native/core.dart';
 
 /// Why git could not do what was asked, by kind, so the page can say the right thing and know whether trying again
@@ -239,6 +241,8 @@ class GitRepo {
 
   /// A clone of [url] into [into], checked out, shallow (depth 1) when asked: the HEAD commit and how many files.
   static Future<({String? head, int files})> clone(CoreInvoke invoke, {required String url, required String into, GitAuth auth = GitAuth.none, bool shallow = false}) async {
+    // gix makes the folder, not its parents.
+    Directory(into).parent.createSync(recursive: true);
     try {
       final answer = _map(await invoke('git_clone', {'url': url, 'into': into, ...auth.toJson(), 'shallow': shallow}));
       return (head: answer['head'] as String?, files: (answer['files'] as num?)?.toInt() ?? 0);
