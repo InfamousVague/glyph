@@ -146,12 +146,14 @@ void main() {
     sender.heard(note('n', 'a'), note('n', 'b'));
     await tester.pump(quietFor);
     expect(sent.single.headers[signatureHeader], signatureOf('shh', sent.single.body!));
-    // The secret is the secure store's, never the settings' (decision 22): the blob names the hook, the export has no
-    // secret in it.
+    // The secret is the secure store's, never the settings' (decision 22): the blob names the hook. The export carries
+    // no hook at all, its address included, since `webhooks` is one of the preference keys settings.json leaves out
+    // (lib/core/export_all.dart secretPreferenceKeys; 83972852, kept so by e77637ee).
     expect(secure.held[webhookSecretName('h')], 'shh');
     expect(jsonEncode(prefs.value.toJson()), isNot(contains('shh')));
+    expect(jsonEncode(prefs.value.toJson()), contains('hooks.test'));
     expect(exported(), isNot(contains('shh')));
-    expect(exported(), contains('hooks.test'));
+    expect(exported(), isNot(contains('hooks.test')));
     sender.remove('h');
     await tester.pump();
     expect(secure.held.containsKey(webhookSecretName('h')), isFalse, reason: 'taken off with the hook');
