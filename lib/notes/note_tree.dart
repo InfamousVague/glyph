@@ -19,6 +19,7 @@ import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import '../activity/sync_mark.dart' show NoteSyncMarked;
+import '../team/presence_avatars.dart' show PresenceMarked;
 import 'book_place_mark.dart';
 import 'folder_drag.dart';
 import 'folder_menu.dart';
@@ -310,7 +311,7 @@ class _NoteTreeState extends State<NoteTree> {
       final titleStyle = look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold');
       final markSize = ((titleStyle.fontSize ?? look.em) * 0.8).roundToDouble();
       // Its sync after the name while it has one to say (lib/activity/sync_mark.dart): an arrow, a tick, red.
-      final name = NoteSyncMarked(
+      final name = PresenceMarked(noteId: note.id, child: NoteSyncMarked(
         note: note,
         size: markSize,
         top: compact ? null : ((titleStyle.fontSize ?? look.em) * (titleStyle.height ?? 1.3) - markSize) / 2,
@@ -322,7 +323,7 @@ class _NoteTreeState extends State<NoteTree> {
           softWrap: !compact,
           overflow: TextOverflow.ellipsis,
         ),
-      );
+      ));
       // An organization's note is dragged too: to another folder of the same organization, or once asked out of it
       // or into another ([folderVerdict]).
       return _draggable(

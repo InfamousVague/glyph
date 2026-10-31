@@ -176,7 +176,10 @@ extension _RootParts on _GhostRootState {
     final capture = _capture;
     // What the shell draws from here on, for the next change to be measured against (`_shellDraws`).
     final shown = _shellNotes = _shown;
-    return AppShell(
+    // Who is on each team page, for the header's avatars and the sidebar's dots, which read it for themselves.
+    return PagePresenceScope(
+      presence: _onPages,
+      child: AppShell(
       key: _shell,
       sheet: widget.sheet ?? context.tokens.sheet,
       notes: shown,
@@ -227,6 +230,17 @@ extension _RootParts on _GhostRootState {
       // Claude is on the home page's dock now (lib/claude/claude_dock.dart), not in the bar. Under the bar: Follow's
       // bar for an AI through the connector, and the app's own Claude's while it works (docs/CLAUDE_APP.md).
       banner: _claudeBanner(),
+      // Who else is on the team page on screen, in the bar (docs/TEAMSPACES.md, "Presence"): only while anyone is.
+      barChip: switch (_onPages) {
+        final PagePresence pages => (
+            changes: pages,
+            build: (context) {
+              final id = _shell.currentState?.shown;
+              return id == null || pages.presenceOn(id).isEmpty ? null : PresenceAvatars(key: ValueKey('presence:$id'), noteId: id);
+            },
+          ),
+        _ => null,
+      },
       noteBuilder: _note,
       // The recorder, the whole window: a fresh mount for each capture, keyed by the shell.
       captureBuilder: voice == null || capture == null
@@ -494,6 +508,7 @@ extension _RootParts on _GhostRootState {
         }
         return NotificationsDrawer(notifications: const [], prefs: preferences.value.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account, emptyArt: allRead);
       }),
+      ),
     );
   }
 

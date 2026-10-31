@@ -285,7 +285,7 @@ class _NoteToolsState extends State<NoteTools> {
 /// The row is the bar's ring high, as the advanced header's row of tools is, so the header's glass is the same
 /// height in both modes and the page starts under it where it did.
 class NoteSimpleHeader extends StatelessWidget {
-  const NoteSimpleHeader({super.key, required this.backLabel, required this.onBack, required this.onMore, this.onDone});
+  const NoteSimpleHeader({super.key, required this.backLabel, required this.onBack, required this.onMore, this.onDone, this.presence});
 
   /// The word the way back wears: where the note was opened from. "Notes", or "To-dos" for the to-do list. Null
   /// draws no Back: on a wide window the list stays beside the note, so there is nowhere to go back to.
@@ -295,6 +295,10 @@ class NoteSimpleHeader extends StatelessWidget {
 
   /// Done pressed; null draws no Done.
   final VoidCallback? onDone;
+
+  /// Who else is on a team's page, before ⋯ (lib/team/presence_avatars.dart): it keeps its own room after itself,
+  /// and draws nothing while nobody is there. Simple mode has it as advanced does: faces, not a feature to find.
+  final Widget? presence;
 
   static const Key backKey = ValueKey<String>('note-simple-back'), doneKey = ValueKey<String>('note-simple-done');
 
@@ -307,6 +311,7 @@ class NoteSimpleHeader extends StatelessWidget {
       children: [
         if (backLabel case final back?) NoteHeaderWord(key: backKey, label: back, semanticLabel: 'Back to $back', chevron: true, onPressed: onBack),
         const Spacer(),
+        ?presence,
         NoteMore(onMore: onMore),
         if (onDone != null) ...[
           SizedBox(width: t.space(2)),
