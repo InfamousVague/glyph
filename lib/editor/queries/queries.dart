@@ -58,6 +58,7 @@ import '../../book/tickets.dart' show peopleIn;
 import '../../core/book.dart' show withChapter;
 import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/item_syntax.dart' show taskBox;
+import '../../core/planning/history.dart' show StatusPast;
 import '../../core/properties.dart' show StatusCategory, statusCategory, withProperty;
 import '../../sheet/ask_first.dart';
 import '../../core/query/query.dart';
@@ -73,6 +74,7 @@ import 'lane_carry.dart' show laneValue;
 import 'query_look.dart';
 import 'query_view.dart';
 
+export 'plan_marks.dart';
 export 'query_builder.dart';
 export 'query_calendar.dart';
 export 'query_chart.dart';
@@ -88,7 +90,7 @@ typedef NoteChange = String? Function(String body);
 
 /// What the screen hands the editor for its queries: the library, and how to reach and write what a query lists.
 class QueryOptions {
-  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks});
+  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks, this.history});
 
   /// Every note a query reads: the library a screen shows, without the Trash, the archive, the Guide or templates'
   /// pages.
@@ -128,6 +130,10 @@ class QueryOptions {
   /// A ticket's lock (what blocks it that is not done) and its sub-tickets' progress, by note id, drawn on its card and
   /// its row (lib/book/ticket_links.dart; Matt, 2026-10-30). Absent, neither is drawn, and a move to done asks nothing.
   final TicketMarks Function(String noteId)? ticketMarks;
+
+  /// What the tickets' versions say of their statuses (lib/core/planning/history.dart): the days a burndown counts
+  /// down by and a stale ticket's are counted from. Absent, those are read from the tickets' own words.
+  final StatusPast? Function()? history;
 }
 
 /// A ticket's lock and its sub-tickets' progress, as a board draws them: what blocks it, by key, and how many of its
@@ -283,7 +289,8 @@ class DrawnQuery extends StatelessWidget {
     List<QueryNote> library() => _withOpen(options!.notes(), options.noteId, view.state.doc.toString());
     final events = options?.events?.call() ?? const <QueryEvent>[];
     final read = query != null && options != null ? withEvents(libraryOf(library(), _cacheOf(view)), events) : null;
-    final result = query != null && read != null ? runQuery(query, read, widget.today) : null;
+    final past = options?.history?.call();
+    final result = query != null && read != null ? runQuery(query, read, widget.today, past: past) : null;
     // A calendar of to-dos shows each day's events too, quieter than the to-dos (docs/CALENDAR.md).
     final dayEvents = result != null && read != null && result.kind == QueryKind.tasks && result.show == ShowAs.calendar && events.isNotEmpty
         ? [for (final group in runQuery(const Query(kind: QueryKind.events, show: ShowAs.calendar), read, widget.today).groups) ...group.rows]
@@ -327,7 +334,14 @@ class DrawnQuery extends StatelessWidget {
       // An event is the calendar's, not a note's to write.
       if (!writable || row.kind == RecordKind.event) return;
       fireMotor(HapticKind.selection);
-      put(row.noteId, row.kind, row.line, row.source, field, value);
+      // A roadmap's bar carried by its ends sets the days it is read from (lib/core/query/planning.dart): a ticket's
+      // start and due, a milestone note's date.
+      final written = switch (field) {
+        'roadmap-start' => row.kind == RecordKind.ticket ? 'start' : 'date',
+        'roadmap-end' => row.kind == RecordKind.ticket ? 'due' : 'date',
+        _ => field,
+      };
+      put(row.noteId, row.kind, row.line, row.source, written, value);
     }
 
     /// Whether [row] is still in the query once its [field] is [value]: the query run again over the library with
@@ -341,7 +355,7 @@ class DrawnQuery extends StatelessWidget {
       final next = movedBody(notes[at].body, row.line, row.source, row.kind, field, value);
       if (next == null || next == notes[at].body) return true;
       notes[at] = QueryNote(id: notes[at].id, body: next, createdAt: notes[at].createdAt, updatedAt: notes[at].updatedAt);
-      final again = runQuery(query, withEvents(libraryOf(notes, _cacheOf(view)), events), widget.today);
+      final again = runQuery(query, withEvents(libraryOf(notes, _cacheOf(view)), events), widget.today, past: past);
       return again.groups.any((group) => group.rows.any((each) => each.key == row.key));
     }
 
@@ -487,6 +501,34 @@ class DrawnQuery extends StatelessWidget {
       onMove: moved,
       onSet: setAsked,
       ticketMarks: options?.ticketMarks,
+      planning: options?.history != null,
+      // A cycle's unfinished tickets, each moved to the next cycle (lib/core/query/planning.dart), and said, with an
+      // Undo that puts each back.
+      onCarry: !writable || options?.history == null
+          ? null
+          : (offer) {
+              fireMotor(HapticKind.selection);
+              for (final id in offer.noteIds) {
+                put(id, RecordKind.ticket, -1, '', 'cycle', offer.to.written);
+              }
+              GlacierToastController? toasts;
+              try {
+                toasts = GlacierToast.of(context);
+              } on FlutterError {
+                toasts = null;
+              }
+              toasts?.toast(
+                message: Text('Moved ${offer.noteIds.length} to ${offer.to.name}'),
+                action: GlacierToastAction(
+                  label: 'Undo',
+                  onPress: () {
+                    for (final id in offer.noteIds) {
+                      put(id, RecordKind.ticket, -1, '', 'cycle', offer.from.written);
+                    }
+                  },
+                ),
+              );
+            },
       onAdd: editable && query != null && add != null && ticketDraft(query, null, null) != null
           ? (lane, title) {
               final draft = ticketDraft(query, result?.group, lane);

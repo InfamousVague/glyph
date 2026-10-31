@@ -13,9 +13,23 @@ void main() {
   group('the rows', () {
     test('are Status, Assignee, Priority and Due always, then each of the rest a ticket has, in the panel’s order', () {
       expect(panelRows(front), <String>['status', 'assignee', 'priority', 'due', 'estimate']);
-      // An empty list is not a value: Labels waits behind More.
-      expect(hiddenRows(front), <String>['start', 'blocked-by', 'parent', 'labels']);
-      expect(panelRows(front, true), <String>['status', 'assignee', 'priority', 'due', 'start', 'estimate', 'blocked-by', 'parent', 'labels']);
+      // An empty list is not a value: Labels waits behind More, and so do a cycle and a milestone (the port's own).
+      expect(hiddenRows(front), <String>['start', 'cycle', 'blocked-by', 'parent', 'milestone', 'labels']);
+      expect(panelRows(front, true), <String>['status', 'assignee', 'priority', 'due', 'start', 'estimate', 'cycle', 'blocked-by', 'parent', 'milestone', 'labels']);
+    });
+
+    test('keep a cycle and a milestone behind More in Simple mode, and leave them out where nothing plans them', () {
+      const planned = '---\ntype: ticket\nstatus: To do\ncycle: 2026-C45\nmilestone: "[[v2 launch]]"\n---';
+      expect(panelRows(planned), <String>['status', 'assignee', 'priority', 'due', 'cycle', 'milestone']);
+      expect(panelRows(planned, false, true), <String>['status', 'assignee', 'priority', 'due']);
+      expect(hiddenRows(planned, true), <String>['start', 'estimate', 'cycle', 'blocked-by', 'parent', 'milestone', 'labels']);
+      expect(panelRows(planned, true, true), contains('cycle'));
+      // Where the host draws no planning: the words written are rows, and nothing more is offered.
+      expect(panelRows(front, true, false, false), <String>['status', 'assignee', 'priority', 'due', 'start', 'estimate', 'blocked-by', 'parent', 'labels']);
+      expect(hiddenRows(front, false, false), <String>['start', 'blocked-by', 'parent', 'labels']);
+      expect(panelRows(planned, false, false, false), <String>['status', 'assignee', 'priority', 'due', 'cycle', 'milestone']);
+      // `epic:` is its parent's row.
+      expect(panelRows('---\ntype: ticket\nepic: "[[KLN-1]]"\n---'), contains('parent'));
     });
 
     test('leave the keys a ticket does not have to the quiet line, not its type, its id or its look', () {

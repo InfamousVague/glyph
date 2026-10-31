@@ -40,6 +40,7 @@ import '../boards/divider.dart' show BoardSplit;
 import '../boards/navigate.dart' show boardEdge, noteScroller;
 import '../tickets/ticket_work.dart' show ticketCardTimer;
 import 'lane_carry.dart';
+import 'plan_marks.dart';
 import 'query_layout.dart';
 import 'query_look.dart';
 import 'query_parts.dart';
@@ -195,6 +196,8 @@ class _QueryBoardState extends State<QueryBoard> {
       if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks),
       // A ticket's timer (lib/editor/tickets/ticket_work.dart), where the app has timers and the card can be changed.
       if (id != null && id.isNotEmpty && acts.editable) ?ticketCardTimer?.call(look, row.noteId, title: row.name, ticketKey: id),
+      // Its estimate, an epic's points, and stale (plan_marks.dart).
+      if (acts.planning && QueryPlanMarks.has(row)) QueryPlanMarks(look: look, row: row, acts: acts),
     ];
     return Part(
       'card',
