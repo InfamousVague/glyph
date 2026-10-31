@@ -13,6 +13,8 @@ import 'package:ghost_md/core/versions_store.dart';
 import 'package:ghost_md/sync/local.dart';
 import 'package:ghost_md/sync/notes.dart';
 
+import '../library/fake_core.dart';
+
 class _Bytes implements DeviceBytes {
   final Map<String, Uint8List> held = {};
   final List<String> written = [];
@@ -58,6 +60,19 @@ void main() {
       await notes.remove('a');
       expect(asked.map((each) => each.$1), ['list_notes', 'get_note', 'get_note', 'delete_note']);
       expect(asked.last.$2, {'id': 'a'});
+    });
+
+    test('move a note’s file to the path the service has for its id, never copying it (a restore that lagged a filing)', () async {
+      // A Library folder restored from a clone has `Inbox/Plan.md`; the account's copy of the same note was filed into
+      // Work since. On the first pass the service's path wins and the file moves (apply_note, library/mod.rs; the
+      // critic, docs/MARKDOWN_FIRST.md §12): one file, at the path every other device has.
+      final core = FakeCore()..seed('a', '# Plan\n\nwords', path: 'Inbox/Plan.md');
+      final notes = LibraryNotes(core.invoke);
+      final theirs = (await notes.get('a'))!.copyWith(path: () => 'workspaces/Work/Plan.md');
+      final applied = await notes.apply(theirs);
+      expect(applied.path, 'workspaces/Work/Plan.md');
+      expect(core.files, ['workspaces/Work/Plan.md']);
+      expect((await notes.list()).length, 1);
     });
 
     test('write a note exactly as given, whole: its times, its phrases, its formatted version, its folder', () async {

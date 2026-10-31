@@ -40,6 +40,7 @@ import 'locale_dates.dart';
 import 'mac_app.dart';
 import 'native/core.dart';
 import 'native/events.dart';
+import 'preferences.dart' show PreferencesStore;
 import 'stored.dart';
 
 export 'backup.dart' show sizeSaid;
@@ -63,8 +64,43 @@ String exportName(DateTime at) => 'ghostmarkdown_${at.year}-${_two(at.month)}-${
 /// (`SETTINGS_KEYS`).
 const List<String> settingsKeys = ['glyph-preferences', 'glyph-plugins', 'glyph-workspace-current', 'glyph-note-bookmarks', 'glyph-book-spots'];
 
-/// The settings as `settings.json`: each key's stored value, read as JSON where it is JSON (`settingsFile`).
-/// [read] is the device's memory, the app's own ([stored]) unless given.
+/// The preference keys that are secrets or hold them, left out of `settings.json` (docs/MARKDOWN_FIRST.md §5, gap 3;
+/// the critic, 2026-10-31): `shares` is every read-only link's id AND key, `webhooks` the outgoing hooks' secrets, and
+/// `sealedKeys` every API key and connection, sealed but still a key. Until this they went out in the clear under a
+/// README that said "No account, password or key". `calendars` is kept: since decision 22 the blob holds only each
+/// address's id and name and Google's choices, the addresses and the token being in the secure store, and an older
+/// build's blob that still carries them in the clear loses them here ([secretFree]). The web's preferences carry
+/// unknown keys at the top level (`Preferences.more`), so these are top-level keys of the `glyph-preferences` value.
+const Set<String> secretPreferenceKeys = {'shares', 'webhooks', 'sealedKeys'};
+
+final RegExp _secretName = RegExp(r'token|secret|password|webhook|sealed|refresh', caseSensitive: false);
+final RegExp _url = RegExp(r'^[a-z][a-z0-9+.-]*://', caseSensitive: false);
+
+/// [value] with every secret taken out, all the way down: the keys of [secretPreferenceKeys] at the top of the
+/// preferences; anywhere a key naming a token, a secret, a password, a webhook or a sealed value; and under
+/// `calendars`, every `url` and every URL written as a value (an iCal address is a secret). What is left is the look
+/// and the behaviour, the plugins, the workspaces, the trash, the meetings, the calendars' names: nothing that opens
+/// a link or a service (`secretFree`).
+Object? secretFree(Object? value, {bool top = false, bool calendars = false}) {
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        if (!(top && secretPreferenceKeys.contains(entry.key)) && !_secretName.hasMatch('${entry.key}') && !(calendars && entry.key == 'url'))
+          entry.key: secretFree(entry.value, calendars: calendars || (top && entry.key == 'calendars')),
+    };
+  }
+  if (value is List) {
+    return [
+      for (final each in value)
+        if (!(calendars && each is String && _url.hasMatch(each))) secretFree(each, calendars: calendars),
+    ];
+  }
+  return value;
+}
+
+/// The settings as `settings.json`: each key's stored value, read as JSON where it is JSON, the secrets taken out
+/// of the preferences ([secretFree]) (`settingsFile`). [read] is the device's memory, the app's own ([stored])
+/// unless given. Nothing reads the file back into the app, so leaving the secrets out costs no compatibility.
 String settingsFile([String? Function(String key)? read]) {
   final settings = <String, Object?>{};
   for (final key in settingsKeys) {
@@ -76,7 +112,8 @@ String settingsFile([String? Function(String key)? read]) {
     }
     if (raw == null) continue;
     try {
-      settings[key] = jsonDecode(raw);
+      final Object? value = jsonDecode(raw);
+      settings[key] = key == PreferencesStore.storageKey ? secretFree(value, top: true) : secretFree(value);
     } catch (_) {
       settings[key] = raw;
     }
@@ -103,7 +140,8 @@ String readme(String name, DateTime at) {
     'Library/file/       The files notes link (file/<name>), and beside each picture or file the words read in it.',
     'Library/video/      The films notes play (video/<name>).',
     'Library/recordings/ The recordings voice notes and meetings kept, as WAV, named by the note\'s id.',
-    'settings.json How the app looked and behaved, its plugins and workspaces. No account, password or key.',
+    'settings.json How the app looked and behaved, its plugins, workspaces, trash and meetings. The account,',
+    '              its keys, share links, calendars and webhooks are left out: nothing in here opens anything.',
     'manifest.json When it was exported, from which version, and how many notes and files.',
     '',
     'Not here: the AI and voice models (downloaded again in Settings), the search index (rebuilt from',

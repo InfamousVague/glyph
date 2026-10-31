@@ -12,6 +12,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/meet/meet_api.dart' show MeetBooking;
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/meet_note.dart';
+import 'package:ghost_md/meet/meeting_mark.dart';
 import 'package:ghost_md/sync/engine.dart';
 import 'package:ghost_md/sync/notes.dart' show LocalNotes;
 import 'package:ghost_md/sync/prefs.dart' show pickSynced;
@@ -80,7 +81,9 @@ void main() {
     expect(await syncMeet(context(d, device: phone)), 1);
     final id = meetNoteId(takeId);
     final note = d.device.notes.held[id]!;
-    expect(note.body, startsWith('# Launch sync\n\nGhost was in this meeting on '));
+    // Marked a meeting in its own words (lib/meet/meeting_mark.dart): when it began, the service, the booking.
+    expect(meetingMarkOf(note.body), const MeetingMark(startMs: 1792159200000, kind: 'meet', booking: 'm1'));
+    expect(withMeetingMark(note.body, null), startsWith('# Launch sync\n\nGhost was in this meeting on '));
     expect(note.body, contains('It is being written up on your device.\n\n## Captions\n\n**Sam Lee (0:01):** Good morning everyone.\n\n**Daniel (0:11):** The pricing page is drafted.\n'));
     expect(note.body, isNot(contains('## Transcript')), reason: 'the write-up would take words under it as the transcript');
     expect((note.createdAt, note.updatedAt, note.recordingMs, note.source), (1792159200000, 1792162000000, 90000, NoteSource.capture));

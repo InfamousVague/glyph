@@ -11,6 +11,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/book/ticket_digest.dart' show DigestSettings, digestClaimOf, withDigestSettings;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
@@ -114,6 +115,42 @@ void main() {
     // Three seconds, then the look, the wink and the fade.
     expect(waited, inInclusiveRange(3860, 3980));
     expect(find.byType(HomeScreen), findsOneWidget);
+    debugDisableShadows = true;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  // The root's own work that would sync waits for the screen to go: the morning's ticket digest is claimed through a
+  // sync pass of its own (lib/book/ticket_digest.dart), and begun under the screen it was the first pass to answer,
+  // so a signed-in launch in the digest's six hours said "In sync" without ever saying it was syncing, and went at
+  // once where the launch pass had no answer to give (2026-10-31, the two tests above failing from 08:30 to 14:30).
+  // The digest is due here whatever the clock says: its moment is the top of this hour.
+  testWidgets('the morning\'s digest, due at this launch, claims nothing under the screen and claims once it has gone', (tester) async {
+    final device = (await tester.runAsync(() => Device.make()))!;
+    final now = DateTime.now();
+    await pumpApp(
+      tester,
+      prefs: withDigestSettings(const Preferences(theme: 'light'), DigestSettings(hour: now.hour, minute: 0)),
+      home: GhostOpening<int>(
+        opened: Future<int>.value(0),
+        builder: (context, _, seat, restart) => GhostRoot(launchSeat: seat, restart: restart, library: SampleLibrary.seeded(), workspaces: device.workspaces, services: device.services, clock: () => seedNow),
+      ),
+    );
+    var waited = 0;
+    while (find.byType(LaunchScreen).evaluate().isNotEmpty && waited < 6000) {
+      if (waited == 2900) {
+        expect(line('Syncing your devices'), findsOneWidget, reason: 'the only pass under the screen is the engine\'s launch pass, and here none was started');
+        expect(device.engine!.status.value.phase, 'off', reason: 'the digest\'s claim has not synced');
+        expect(digestClaimOf(preferences.value), isNull, reason: 'nor been written');
+      }
+      await tester.pump(const Duration(milliseconds: 20));
+      waited += 20;
+    }
+    expect(waited, inInclusiveRange(3860, 3980));
+    expect(find.byType(HomeScreen), findsOneWidget);
+    // The screen gone, the digest looks, and claims the morning for this device.
+    await tester.pump();
+    expect(digestClaimOf(preferences.value)?.by, isNotNull);
     debugDisableShadows = true;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));

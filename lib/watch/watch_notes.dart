@@ -47,6 +47,7 @@ import '../capture/markdown.dart' show RenderOptions, renderNote;
 import '../capture/meeting.dart' show meetingTitle;
 import '../core/note.dart';
 import '../core/preferences.dart' show Preferences, longNoteMs;
+import '../meet/meeting_mark.dart' show MeetingMark, withMeetingMark;
 import '../mail/mail_note.dart' show mailNoteId;
 import 'watch_link.dart';
 
@@ -360,7 +361,9 @@ class WatchNotes {
     }
     final Note note;
     if (ms > meetingFromMs && writeUp != null) {
-      note = await store.makeNote(id: id, body: '# ${watchRecordingTitle(take.recordedAt)}\n', createdAt: take.recordedAt, recordingMs: ms, segments: const []);
+      // Marked a meeting in the note itself (lib/meet/meeting_mark.dart) and in the preferences ([markMeeting]).
+      final body = withMeetingMark('# ${watchRecordingTitle(take.recordedAt)}\n', MeetingMark(startMs: take.recordedAt, kind: 'phone'));
+      note = await store.makeNote(id: id, body: body, createdAt: take.recordedAt, recordingMs: ms, segments: const []);
       markMeeting?.call(id, take.recordedAt);
       writeUp(id);
     } else {

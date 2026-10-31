@@ -15,6 +15,7 @@ import 'package:ghost_md/meet/live_transcript.dart';
 import 'package:ghost_md/meet/meet_api.dart';
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/meet_note.dart';
+import 'package:ghost_md/meet/meeting_mark.dart';
 import 'package:ghost_md/sync/notes.dart' show LocalNotes;
 
 import '../account_ui/support.dart';
@@ -148,6 +149,9 @@ void main() {
     final note = (await notes.get(liveId))!;
     expect(note.body, liveNoteBody('Launch sync'));
     expect(note.body, '# Launch sync\n\n$liveLine\n');
+    // No `meeting:` mark yet (lib/meet/meeting_mark.dart): its start would be this device's clock, and the words must
+    // be the same on every device; the take's filing writes it.
+    expect(meetingMarkOf(note.body), isNull);
     expect(note.body, isNot(contains('## Captions')));
     expect(preferences.value.meetings[liveId], now);
     expect(meetingNotesOf(preferences.value), {meeting: liveId});
@@ -198,7 +202,8 @@ void main() {
     expect(notes.writes, [liveId], reason: 'one edit of the one note');
     expect(await notes.get(meetNoteId('AbCdEfGhIjKlMnOpQrStUv')), isNull, reason: 'no second note of the meeting');
     final note = (await notes.get(liveId))!;
-    expect(note.body, startsWith('# Launch sync\n\nGhost was in this meeting on '));
+    expect(withMeetingMark(note.body, null), startsWith('# Launch sync\n\nGhost was in this meeting on '));
+    expect(meetingMarkOf(note.body)?.booking, meeting, reason: 'the take’s mark, once');
     expect(note.body, contains('It is being written up on your device.\n\nMy own notes: ask about pricing.\n\n## Captions\n\n**Sam Lee (0:01):** Good morning everyone.\n\n**Daniel (0:11):** The pricing page is drafted.\n'));
     expect(note.body, isNot(contains(liveLine)));
     expect((note.createdAt, note.recordingMs), (now, 90000));

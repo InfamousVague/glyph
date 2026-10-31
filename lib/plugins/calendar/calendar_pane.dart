@@ -26,12 +26,14 @@ List<SettingsFindable> calendarFindable(Preferences prefs, {required bool offere
   ];
 }
 
-/// The row's reading: Google, and how many addresses.
+/// The row's reading: Google, and how many addresses. Counted from what the settings list, not from the secrets
+/// this device holds: an address is the account's whether or not its secret has reached this device yet
+/// (lib/calendar/setup.dart, decision 22).
 String calendarSummary(Preferences prefs) {
-  final setup = calendarSetupOf(prefs);
-  final count = setup.addresses.length;
+  final raw = prefs.more[calendarsKey];
+  final count = CalendarSetup.addressIdsIn(raw).length;
   final addresses = count == 0 ? null : (count == 1 ? '1 address' : '$count addresses');
-  if (setup.google != null) return ['Google', ?addresses].join(' · ');
+  if (raw is Map && raw['google'] is Map) return ['Google', ?addresses].join(' · ');
   return addresses ?? 'None yet';
 }
 
@@ -125,12 +127,14 @@ class _CalendarPaneState extends State<CalendarPane> {
                 'Paste a calendar’s secret address in iCal format: in Google Calendar it is under the calendar’s settings, Integrate calendar. iCloud, Outlook and Fastmail give one too. Read when the app opens and every 30 minutes.',
               ),
               children: [
-                for (final address in setup.addresses)
+                // Every address the account has, one whose secret has not reached this device yet included: said so,
+                // rather than left off the list (lib/calendar/setup.dart `listedIn`).
+                for (final address in service.listedAddresses)
                   SettingRow(
                     key: ValueKey('calendar-address-${address.id}'),
                     icon: const AppIcon(Lucide.calendarDays, size: 16),
                     label: address.label,
-                    hint: Text(_statusLine('ical:${address.id}', local: local)),
+                    hint: Text(local || address.url.isNotEmpty ? _statusLine('ical:${address.id}', local: local) : 'Its address travels sealed with your settings and hasn’t reached this device yet.'),
                     control: RowAction(onPress: () => service.removeAddress(address.id), child: const Text('Remove')),
                   ),
                 SettingsForm(
@@ -200,7 +204,9 @@ class _CalendarPaneState extends State<CalendarPane> {
                       ),
                 ],
               ),
-            if (!setup.isEmpty)
+            // Read now wherever the account has a calendar, an address whose secret is still on its way included: the
+            // read then says what it can and cannot reach.
+            if (service.listedAddresses.isNotEmpty || google != null)
               PaneSection(
                 children: [
                   SettingRow(
