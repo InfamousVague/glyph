@@ -12,7 +12,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension};
 
 use super::dates::parse_iso;
-use super::frontmatter::{join, split, Value};
+use super::frontmatter::{is_issue_key, join, read, split};
 use super::names::{file_stem, title_of};
 use super::sidecar::Sidecar;
 use super::vault::Entry;
@@ -202,10 +202,12 @@ impl Library {
             Err(e) if super::vault::not_downloaded(&e) => return Ok(None),
             Err(e) => return Err(e.into()),
         };
+        // The file's block edited in place, whatever shape it is in (frontmatter.rs `split` keeps every other
+        // line); a one-block ticket's own `id: GHO-12` moves to `issue:` rather than being written over.
         let (front, body) = split(&text);
         let mut front = front.unwrap_or_default();
         let fresh = new_id();
-        front.set("id", Some(Value::Text(fresh.clone())));
+        front.claim_id(&fresh);
         let entry = self.vault.write(path, &join(Some(&front), body))?;
         let entry = self.vault.keep_modified(path, modified_ms).unwrap_or(entry);
         Ok(Some((fresh, entry)))
@@ -223,14 +225,14 @@ impl Library {
     /// into it (`give_fresh_id`), whichever of the two this call is for.
     pub(super) fn index_file(&mut self, entry: &Entry) -> Result<()> {
         let Ok(text) = self.vault.read(&entry.path) else { return Ok(()) };
-        let (front, body) = split(&text);
-        let front = front.unwrap_or_default();
+        let (front, body) = read(&text);
         let at_path = self.row_at(&entry.path)?;
-        let named = front.text("id").filter(|id| !id.trim().is_empty());
+        // A one-block ticket written by hand may say `id: GHO-12`: that is the ticket's key, not a note's id.
+        let named = front.text("id").filter(|id| !id.trim().is_empty() && !is_issue_key(id));
         let (id, id_in_file) = match named {
             Some(id) => match self.row(&id)? {
                 Some(other) if other.path != entry.path && self.vault.exists(&other.path) => {
-                    let this_is_the_note = named_for(&entry.path, &file_stem(&title_of(body))) && !named_for(&other.path, &file_stem(&title_of(&other.body)));
+                    let this_is_the_note = named_for(&entry.path, &file_stem(&title_of(&body))) && !named_for(&other.path, &file_stem(&title_of(&other.body)));
                     let other_reid = if this_is_the_note { self.give_fresh_id(&other.path, other.modified_at)? } else { None };
                     match other_reid {
                         // The other file was the copy: it has its own id now, and this file keeps the one it carries.
@@ -283,7 +285,7 @@ impl Library {
             rusqlite::params![
                 id,
                 entry.path,
-                body,
+                &body,
                 created_at,
                 modified_ms,
                 front.text("source").unwrap_or_else(|| "editor".to_string()),
@@ -295,7 +297,7 @@ impl Library {
                 sidecar.formatted_model,
                 prior_revision,
                 super::trash::is_trashed_path(&entry.path) as i64,
-                title_of(body),
+                title_of(&body),
                 entry.size as i64,
                 entry.modified_ms,
             ],

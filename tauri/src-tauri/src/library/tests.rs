@@ -76,10 +76,13 @@ fn files_written_by_other_apps_are_indexed_and_edits_are_picked_up() {
     let fresh = library.get_note(&id).unwrap().unwrap();
     assert!(fresh.body.contains("- [x] Ship it"), "an edit made elsewhere is read again");
     assert_eq!(fresh.id, id, "the same file keeps its id until Glyph writes one in");
+    // The person's `tags:` is the page's key, read out of the one block at the top of the body; `pinned:` is the library's.
+    assert_eq!(fresh.body, "---\ntags: [trade]\n---\n# HelloTrade\n\n- [x] Ship it\n");
 
-    library.save_note(&id, "# HelloTrade\n\n- [x] Ship it\n- [ ] Tell Sam\n", "editor").unwrap();
+    library.save_note(&id, "---\ntags: [trade]\n---\n# HelloTrade\n\n- [x] Ship it\n- [ ] Tell Sam\n", "editor").unwrap();
     let text = read(&root, "Work/HelloTrade.md");
     assert!(text.starts_with("---\ntags: [trade]\npinned: true\nid: "), "Glyph adds its keys after the person's: {text}");
+    assert_eq!(text.matches("---\n").count(), 2, "and in the one block the file had: {text}");
 
     std::fs::remove_file(root.join("Work/HelloTrade.md")).unwrap();
     assert!(library.list_notes().unwrap().is_empty(), "a file deleted elsewhere leaves the list");
@@ -110,6 +113,111 @@ fn a_tickets_front_matter_is_the_pages_and_is_kept_whole() {
     library.apply_note(&Note { body: ticket.to_string(), ..remote("t1", ticket) }).unwrap();
     assert_eq!(library.get_note("t1").unwrap().unwrap().body, ticket, "a synced edit lands whole");
     assert_eq!(library.list_notes().unwrap().len(), 1);
+}
+
+/// The other shape (docs/MARKDOWN_FIRST.md §11, Matt, 2026-10-31: "one block, phased"): a ticket written by another app
+/// as ONE block, the library's keys and the page's together in any order. The index reads its id, pin and creation from
+/// it, the page sees the page's keys as a block of its own, and every write - a pin, a save, a synced edit - keeps the
+/// file one block with every key the person wrote.
+#[test]
+fn a_one_block_file_reads_as_the_pages_and_stays_one_block() {
+    let root = TempDir::new("library-one-block");
+    let mut library = Library::open_fs(&root).unwrap();
+    let file = "---\nstatus: In progress\nid: t2\ndue: 2026-11-01\ncreated: 2026-10-01T08:00:00.000Z\ntype: ticket\npinned: true\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds.\n";
+    std::fs::create_dir_all(root.join("Inbox")).unwrap();
+    std::fs::write(root.join("Inbox/Fix the fold.md"), file).unwrap();
+    assert_eq!(library.list_notes().unwrap().len(), 1);
+    let note = library.get_note("t2").unwrap().expect("indexed by the id in the one block");
+    assert!(note.starred);
+    assert_eq!(note.created_at, parse_iso("2026-10-01T08:00:00.000Z").unwrap());
+    assert_eq!(note.body, "---\nstatus: In progress\ndue: 2026-11-01\ntype: ticket\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds.\n", "the page's keys, in their order, as a block of their own");
+
+    // A managed key written: the one block keeps every page key and gains no second block.
+    library.set_starred("t2", false).unwrap();
+    let text = read(&root, "Inbox/Fix the fold.md");
+    assert_eq!(text, file.replace("pinned: true\n", ""), "{text}");
+
+    // The page's own words saved back unchanged: byte for byte.
+    let before = read(&root, "Inbox/Fix the fold.md");
+    library.save_note("t2", &note.body, "editor").unwrap();
+    assert_eq!(read(&root, "Inbox/Fix the fold.md"), before, "an unchanged round trip rewrites nothing");
+
+    // A page key changed: still one block, the library's lines first (`updated:` among them, the save's), the page's after.
+    library.save_note("t2", &note.body.replace("status: In progress", "status: Done"), "editor").unwrap();
+    let text = read(&root, "Inbox/Fix the fold.md");
+    assert!(text.contains("\nupdated: 20"), "{text}");
+    let without_updated: String = text.lines().filter(|line| !line.starts_with("updated: ")).map(|line| format!("{line}\n")).collect();
+    assert_eq!(without_updated, "---\nid: t2\ncreated: 2026-10-01T08:00:00.000Z\nstatus: Done\ndue: 2026-11-01\ntype: ticket\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds.\n");
+
+    // A synced edit lands in the one block too, with the library's keys stamped from the note.
+    let synced = Note { path: Some("Inbox/Fix the fold.md".into()), ..remote("t2", "---\nstatus: Done\ntype: ticket\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds, fixed.\n") };
+    library.apply_note(&synced).unwrap();
+    let text = read(&root, "Inbox/Fix the fold.md");
+    assert_eq!(text.matches("---\n").count(), 2, "{text}");
+    assert!(text.contains("pinned: true\n") && text.contains("source: capture\n") && text.contains("issue: GHO-14\n"), "{text}");
+    assert_eq!(library.get_note("t2").unwrap().unwrap().body, synced.body);
+    assert_eq!(library.list_notes().unwrap().len(), 1);
+}
+
+/// A one-block ticket from another app with Ghost.md's own old key, `id: GHO-12`, and no library id: the index gives
+/// the note an id of its own rather than taking the ticket's, the page reads the ticket's key, and the first write moves
+/// it to `issue:` so the library's `id:` can take the line.
+#[test]
+fn a_one_block_tickets_own_id_is_never_the_notes() {
+    let root = TempDir::new("library-one-block-id");
+    let mut library = Library::open_fs(&root).unwrap();
+    std::fs::create_dir_all(root.join("Inbox")).unwrap();
+    std::fs::write(root.join("Inbox/Loop.md"), "---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Loop\n").unwrap();
+    let notes = library.list_notes().unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_ne!(notes[0].id, "GHO-12", "a ticket's key is not a note's id");
+    assert_eq!(notes[0].body, "---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Loop\n", "the page sees the ticket's key as it was written");
+    library.set_starred(&notes[0].id, true).unwrap();
+    let text = read(&root, "Inbox/Loop.md");
+    assert_eq!(text, "---\ntype: ticket\nid: GHO-12\nstatus: To do\npinned: true\n---\n# Loop\n", "a pin alone leaves the ticket's id where it is: {text}");
+    library.save_note(&notes[0].id, "---\ntype: ticket\nid: GHO-12\nstatus: Done\n---\n# Loop\n", "editor").unwrap();
+    let text = read(&root, "Inbox/Loop.md");
+    assert!(text.contains("issue: GHO-12\n") && text.contains(&format!("id: {}\n", notes[0].id)), "{text}");
+    assert_eq!(text.matches("---\n").count(), 2, "{text}");
+    assert_eq!(library.get_note(&notes[0].id).unwrap().unwrap().body, "---\ntype: ticket\nissue: GHO-12\nstatus: Done\n---\n# Loop\n");
+}
+
+/// With the writer switched on (frontmatter.rs `ONE_BLOCK`, off until every device reads both shapes), a two-block file
+/// becomes one block at its next write, with nothing lost, and a new note's page keys are written into the library's
+/// block. Off, the two-block file is left as it is.
+#[test]
+fn with_one_block_on_a_two_block_file_is_merged_at_the_next_write() {
+    let root = TempDir::new("library-one-block-on");
+    let two = "---\nid: t3\ncreated: 2026-10-01T08:00:00.000Z\n---\n---\ntype: ticket\nid: GHO-3\nstatus: To do\n---\n# Two\n";
+    std::fs::create_dir_all(root.join("Inbox")).unwrap();
+    std::fs::write(root.join("Inbox/Two.md"), two).unwrap();
+    {
+        let mut library = Library::open_fs(&root).unwrap();
+        let note = library.get_note("t3").unwrap().unwrap();
+        assert_eq!(note.body, "---\ntype: ticket\nid: GHO-3\nstatus: To do\n---\n# Two\n");
+        library.save_note("t3", &note.body, "editor").unwrap();
+        assert_eq!(read(&root, "Inbox/Two.md"), two, "off: an unchanged round trip rewrites nothing");
+        library.set_starred("t3", true).unwrap();
+        assert_eq!(read(&root, "Inbox/Two.md"), two.replacen("---\n---", "pinned: true\n---\n---", 1), "off: a pin keeps the two blocks");
+        library.set_starred("t3", false).unwrap();
+    }
+    frontmatter::one_block_for_test(true);
+    let mut library = Library::open_fs(&root).unwrap();
+    library.set_starred("t3", true).unwrap();
+    let text = read(&root, "Inbox/Two.md");
+    assert_eq!(text, "---\nid: t3\ncreated: 2026-10-01T08:00:00.000Z\npinned: true\ntype: ticket\nissue: GHO-3\nstatus: To do\n---\n# Two\n", "on: a pin merges the blocks into one, the ticket's key as issue:");
+    let note = library.get_note("t3").unwrap().unwrap();
+    assert_eq!(note.body, "---\ntype: ticket\nissue: GHO-3\nstatus: To do\n---\n# Two\n", "the page reads the ticket's key under issue:");
+    library.save_note("t3", &note.body.replace("To do", "Done"), "editor").unwrap();
+    let text = read(&root, "Inbox/Two.md");
+    let without_updated: String = text.lines().filter(|line| !line.starts_with("updated: ")).map(|line| format!("{line}\n")).collect();
+    assert_eq!(without_updated, "---\nid: t3\ncreated: 2026-10-01T08:00:00.000Z\npinned: true\ntype: ticket\nissue: GHO-3\nstatus: Done\n---\n# Two\n", "{text}");
+    let fresh = library.save_note("t4", "---\ntype: ticket\nstatus: To do\n---\n# Fresh\n", "editor").unwrap();
+    let text = read(&root, "Inbox/Fresh.md");
+    assert_eq!(text.matches("---\n").count(), 2, "on: a new note is one block: {text}");
+    assert!(text.starts_with("---\nid: t4\ncreated: ") && text.ends_with("type: ticket\nstatus: To do\n---\n# Fresh\n"), "{text}");
+    assert_eq!(fresh.body, "---\ntype: ticket\nstatus: To do\n---\n# Fresh\n");
+    frontmatter::one_block_for_test(false);
 }
 
 #[test]
@@ -385,7 +493,9 @@ fn a_synced_edit_updates_the_file_in_place_and_keeps_local_front_matter() {
     std::fs::write(&path, text).unwrap();
     library.scan().unwrap();
 
-    let mut edit = remote("s2", "# Goodbye\n\nchanged\n");
+    // The device's `tags: [trip]` is the page's key now, in the body every device syncs: the edit comes back with it.
+    assert_eq!(library.get_note("s2").unwrap().unwrap().body, "---\ntags: [trip]\n---\n# Hello\n");
+    let mut edit = remote("s2", "---\ntags: [trip]\n---\n# Goodbye\n\nchanged\n");
     edit.starred = false;
     edit.archived_at = Some(parse_iso("2026-03-05T00:00:00.000Z").unwrap());
     edit.recording_ms = None;
@@ -398,6 +508,7 @@ fn a_synced_edit_updates_the_file_in_place_and_keeps_local_front_matter() {
     assert!(!path.exists());
     let text = read(&root, "Work/Trips/Goodbye.md");
     assert!(text.contains("tags: [trip]") && !text.contains("pinned") && text.contains("archived: 2026-03-05"), "{text}");
+    assert_eq!(text.matches("---\n").count(), 2, "still the one block: {text}");
     assert_eq!(applied.recording_ms, None);
     assert!(!root.join(".glyph/notes/s2.json").exists(), "nothing left beside it");
     assert_eq!(library.list_notes().unwrap().len(), 1);
@@ -671,6 +782,7 @@ fn a_save_writes_when_the_words_changed_and_the_note_shows_the_later_of_the_key_
     assert!(read(&root, "Work/Trips/Hello.md").contains("updated: 2026-03-04T05:06:07.000Z\n"), "{}", read(&root, "Work/Trips/Hello.md"));
     assert_eq!(applied.updated_at, parse_iso("2026-03-04T05:06:07.000Z").unwrap());
     assert_eq!(MANAGED_KEYS, ["id", "created", "updated", "source", "pinned", "archived"]);
+    assert!(MANAGED_KEYS.iter().all(|key| frontmatter::LIBRARY_KEYS.contains(key)), "every managed key is one the one-block reader takes as the library's");
 }
 
 /// The critic's case/normalization finding: a tree written on Android, whose own storage tells `Plan.md` from

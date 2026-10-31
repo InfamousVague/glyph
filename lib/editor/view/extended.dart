@@ -93,7 +93,10 @@ class EmojiWidget extends EditorWidget {
 }
 
 /// Keys the folded line never names, since the note's own drawing says them: its look.
-const Set<String> _unsaid = <String>{'look'};
+/// Keys the folded line leaves unnamed: how the note looks, and the library's own (lib/core/front_matter.dart
+/// `libraryKeys`), which a one-block body carries beside the page's and which are nobody's to edit here. A ticket's
+/// `id: GHO-12` is named: [_keyNames] asks `isLibraryProperty`, not this set alone.
+const Set<String> _unsaid = <String>{'look', ...libraryKeys};
 
 final RegExp _key = RegExp(r'^\s*([\w.-]+)\s*:');
 
@@ -102,9 +105,16 @@ List<String> _keyNames(EditorState state, ({int from, int to}) front) {
   final names = <String>[];
   for (var n = front.from + 1; n < front.to; n += 1) {
     final found = _key.firstMatch(state.doc.line(n).text);
-    if (found != null && !_unsaid.contains(found.group(1)!.toLowerCase())) names.add(found.group(1)!);
+    if (found != null && !_unsaidLine(found.group(1)!, state.doc.line(n).text)) names.add(found.group(1)!);
   }
   return names;
+}
+
+/// Whether a key's line is one the folded line leaves unnamed ([_unsaid]): a ticket's `id: GHO-12` is said.
+bool _unsaidLine(String key, String line) {
+  final low = key.toLowerCase();
+  if (!_unsaid.contains(low)) return false;
+  return low != 'id' || isLibraryProperty(key, line.substring(line.indexOf(':') + 1).trim());
 }
 
 /// Whether the block holds keys and every one of them is unsaid: it folds to nothing, not to a line.
@@ -113,7 +123,7 @@ bool _onlyUnsaid(EditorState state, ({int from, int to}) front) {
   for (var n = front.from + 1; n < front.to; n += 1) {
     final found = _key.firstMatch(state.doc.line(n).text);
     if (found == null) continue;
-    if (!_unsaid.contains(found.group(1)!.toLowerCase())) return false;
+    if (!_unsaidLine(found.group(1)!, state.doc.line(n).text)) return false;
     any = true;
   }
   return any;

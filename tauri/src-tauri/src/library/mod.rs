@@ -70,7 +70,7 @@ use rusqlite::Connection;
 
 use crate::note::{now_ms, Note, Recording};
 use dates::iso;
-use frontmatter::{join, split, FrontMatter, Value};
+use frontmatter::{read, write, FrontMatter, Value};
 use index::Row;
 use names::{file_stem, title_of, unique_name};
 use sidecar::Sidecar;
@@ -216,7 +216,7 @@ fn born_from(source: &str) -> FrontMatter {
 /// its archive. For a note that arrives whole - by sync, or from the old
 /// database - rather than one being edited here.
 fn stamp(front: &mut FrontMatter, note: &Note) {
-    front.set("id", Some(Value::Text(note.id.clone())));
+    front.claim_id(&note.id);
     front.set("created", Some(Value::Text(iso(note.created_at))));
     front.set("updated", Some(Value::Text(iso(note.updated_at))));
     front.set("source", (note.source != "editor").then(|| Value::Text(note.source.clone())));
@@ -232,6 +232,8 @@ fn stamp(front: &mut FrontMatter, note: &Note) {
 /// (index.rs), so an edit made in another app, which moves the time and not
 /// the key, still moves the note up.
 pub const MANAGED_KEYS: [&str; 6] = ["id", "created", "updated", "source", "pinned", "archived"];
+// frontmatter.rs `LIBRARY_KEYS` is these and `trashed`, which the trash slice is adding: the keys a one-block
+// file's reader takes as the library's. tests.rs holds the two lists together.
 
 impl Library {
     /// The library in the app's own folder, which this process reaches with `std::fs`.
@@ -332,7 +334,7 @@ impl Library {
             Err(e) if vault::not_downloaded(&e) => return Ok(Some(self.note_of(row, true))),
             Err(e) => return Err(e.into()),
         };
-        let (_, body) = split(&text);
+        let (_, body) = read(&text);
         if body != row.body {
             self.scan()?;
             return Ok(self.row(id)?.map(|row| self.note_of(row, true)));
@@ -362,8 +364,8 @@ impl Library {
         let (path, front, created_at, previous_text) = match row {
             Some(row) => {
                 let text = self.text_for_rewrite(&row.path)?;
-                let (front, _) = split(&text);
-                (row.path, front.unwrap_or_default(), row.created_at, Some(text))
+                let (front, _) = read(&text);
+                (row.path, front, row.created_at, Some(text))
             }
             None => {
                 let source = draft.as_ref().map_or(source, |d| d.source.as_str());
@@ -371,24 +373,24 @@ impl Library {
             }
         };
         let mut front = front;
-        front.set("id", Some(Value::Text(id.to_string())));
+        front.claim_id(id);
         if front.get("created").is_none() {
             front.set("created", Some(Value::Text(iso(created_at))));
         }
         // Its last edit, written only when the words changed: a save of the same words is not an edit, and must
         // not rewrite the file (the comparison below would see a new time and write).
-        if previous_text.as_deref().is_none_or(|text| split(text).1 != body) {
+        if previous_text.as_deref().is_none_or(|text| read(text).1 != body) {
             front.set("updated", Some(Value::Text(iso(now_ms()))));
         }
         let mut path = path;
-        let follows = previous_text.as_deref().is_some_and(|text| self.follows_title(&path, split(text).1));
+        let follows = previous_text.as_deref().is_some_and(|text| self.follows_title(&path, &read(text).1));
         if follows && !named_for(&path, &stem) {
             let to = self.free_path(folder_of(&path), &stem);
             self.rename_note_file(&path, &to)?;
             self.index.execute("UPDATE notes SET path = ?2 WHERE id = ?1", rusqlite::params![id, to])?;
             path = to;
         }
-        let text = join(Some(&front), body);
+        let text = write(&front, body);
         let entry = if previous_text.as_deref() == Some(text.as_str()) { None } else { Some(self.vault.write(&path, &text)?) };
         match entry {
             Some(entry) => self.index_file(&entry)?,
@@ -451,8 +453,8 @@ impl Library {
             return Ok(false);
         }
         let text = self.vault.read(&row.path)?;
-        let (front, _) = split(&text);
-        Ok(front.is_none_or(|front| front.only(&["id", "created", "updated", "source"])))
+        let (front, _) = read(&text);
+        Ok(front.only(&["id", "created", "updated", "source"]))
     }
 
     /// A draft pinned, archived or given a recording becomes a file, even without words.
@@ -467,7 +469,7 @@ impl Library {
         front.set("id", Some(Value::Text(id.to_string())));
         front.set("created", Some(Value::Text(iso(draft.created_at))));
         let path = self.free_path(INBOX, &file_stem(&title_of(&draft.body)));
-        let entry = self.vault.write(&path, &join(Some(&front), &draft.body))?;
+        let entry = self.vault.write(&path, &write(&front, &draft.body))?;
         self.index_file(&entry)?;
         Ok(true)
     }
@@ -505,13 +507,12 @@ impl Library {
         self.written(id)?;
         let Some(row) = self.row(id)? else { return Ok(None) };
         let text = self.vault.read(&row.path)?;
-        let (front, body) = split(&text);
-        let mut front = front.unwrap_or_default();
+        let (mut front, body) = read(&text);
         change(&mut front);
-        if front.text("id").is_none_or(|had| had.trim().is_empty()) && front != split(&text).0.unwrap_or_default() {
-            front.set("id", Some(Value::Text(id.to_string())));
+        if front.text("id").is_none_or(|had| had.trim().is_empty()) && front != read(&text).0 {
+            front.claim_id(id);
         }
-        let written = join(Some(&front), body);
+        let written = write(&front, &body);
         if written != text {
             let entry = self.vault.write(&row.path, &written)?;
             let kept = self.vault.keep_modified(&row.path, row.modified_at).unwrap_or(entry);
@@ -608,7 +609,7 @@ impl Library {
             Some(row) => {
                 let text = self.text_for_rewrite(&row.path)?;
                 let follows = self.follows_title(&row.path, &row.body);
-                (row.path, split(&text).0.unwrap_or_default(), follows)
+                (row.path, read(&text).0, follows)
             }
             None => (self.free_path(wanted.map_or(INBOX, folder_of), &stem), FrontMatter::new(), true),
         };
@@ -630,7 +631,7 @@ impl Library {
         }
         let mut front = front;
         stamp(&mut front, note);
-        self.vault.write(&path, &join(Some(&front), &note.body))?;
+        self.vault.write(&path, &write(&front, &note.body))?;
         self.write_sidecar(&note.id, &Sidecar::from(note))?;
         let entry = self.vault.keep_modified(&path, note.updated_at)?;
         self.index_file(&entry)?;
