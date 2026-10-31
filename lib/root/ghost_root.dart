@@ -1739,6 +1739,15 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _launchOver() {
     if (mounted) _told(() {});
+    _launchGone();
+  }
+
+  /// The launch screen has gone, the root's own or the one over it: what waited for it to go begins. The morning's
+  /// digest looks now (root_tickets.dart `_digestLook`), as the walkthrough and What's new wait for the screen in
+  /// their own way ([_launchUp]).
+  void _launchGone() {
+    if (!mounted || _launchUp) return;
+    _digestLook();
   }
 
   /// What the launch screen reads of the root, where it is drawn over it from outside (`GhostRoot.launchSeat`).

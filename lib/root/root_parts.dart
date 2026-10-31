@@ -1111,7 +1111,10 @@ extension _RootParts on _GhostRootState {
       updates: launchUpdatesOf(widget.updates),
       sync: _launchSync,
       recording: _meetingRecording,
-      onDone: () => _told(() => _launching = false),
+      onDone: () {
+        _told(() => _launching = false);
+        _launchGone();
+      },
     );
   }
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the
