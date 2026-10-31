@@ -439,6 +439,7 @@ extension _RootParts on _GhostRootState {
                   _showMarket();
                 },
           simple: simple,
+          spaces: _sidebarSpaces(shell, close),
         ),
       ),
       // Advanced mode's sidebar on a wide window: simple mode's list (Matt, 2026-10-24: "make the sidebar on advanced
@@ -514,7 +515,49 @@ extension _RootParts on _GhostRootState {
 
   /// What the narrow window's sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there
   /// is a folder to browse and a recorder to speak to, and the update it carries.
-  Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, _bannerShown, preferences.value.simple);
+  Object _sidebarReads(AppShellState shell) =>
+      (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, _bannerShown, preferences.value.simple, favoritesIn(preferences.value).join(' '));
+
+  /// The sidebar as spaces and pages (docs/TEAMSPACES.md; Matt, 2026-10-31: "Space switcher + sections";
+  /// lib/notes/note_tree_spaces.dart): a drag and a new page written through the page tree's mover, the account's
+  /// favorites, each space's home (Personal's home page, an organization's own page), Triage once there are tickets,
+  /// the Updates (the bell's card), a page renamed from its row, and a refused drag said in the app's toast.
+  SidebarSpaces _sidebarSpaces(AppShellState shell, VoidCallback close) => SidebarSpaces(
+        mover: PageMover(library: _library, workspaces: _workspaces, orgFolders: {for (final entry in (_libraryConfig?.fileConfig ?? LibraryConfig.empty).orgs.entries) entry.key: entry.value.org}),
+        favorites: favoritesIn(preferences.value),
+        onFavorite: _setFavorite,
+        onHome: (space) {
+          close();
+          if (space.orgId == null || _services == null) {
+            shell.backToList();
+          } else {
+            shell.openOrganization(space.orgId!);
+          }
+        },
+        onTriage: _reads.entries.isEmpty
+            ? null
+            : () {
+                close();
+                shell.showTickets(triage: true);
+              },
+        onUpdates: shell.showNotifications,
+        onRename: (id, title) => unawaited(_writeNote(id, (body) => withPageTitle(body, title))),
+        onSay: (words) {
+          final at = _shell.currentContext;
+          if (at != null) _say(at, words);
+        },
+      );
+
+  /// A page in the sidebar's Favorites, or out of them (lib/core/favorites.dart): the account's, on every device.
+  void _setFavorite(String noteId, bool on) => preferences.update((now) => withFavorite(now, noteId, on));
+
+  /// The note's menu's Add to or Remove from Favorites, beside a ticket's Watch.
+  List<Widget> _favoriteMenuRows(BuildContext context, Note note) {
+    final on = favoritesIn(preferences.value).contains(note.id);
+    return [
+      GlacierMenuItem(icon: AppIcon(on ? Lucide.bookmarkCheck : Lucide.bookmark, size: context.tokens.fontSize('sm')), onSelect: () => _setFavorite(note.id, !on), child: Text(on ? 'Remove from Favorites' : 'Add to Favorites')),
+    ];
+  }
 
   /// What the wide window's sidebar reads ([_listColumn]): the notes, whether they are read yet, the microphone
   /// and whose it is, which list it is on, the update it carries, and whether there is a folder to browse.
@@ -945,7 +988,7 @@ extension _RootParts on _GhostRootState {
         // Move to: the folders it may go to, as a drag onto one would move it (lib/notes/folder_drag.dart).
         workspaces: _workspaces,
         // A ticket's Watch or Unwatch (root_tickets.dart).
-        more: _ticketMenuRows,
+        more: (context, note) => [..._favoriteMenuRows(context, note), ..._ticketMenuRows(context, note)],
       );
 
   /// The sheet of the oldest share waiting: kept or not, the person goes back to the app they shared from, and the

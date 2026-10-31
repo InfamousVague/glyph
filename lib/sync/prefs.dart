@@ -147,6 +147,9 @@ const List<String> syncedPrefs = [
   // (lib/notes/daily_notes.dart): the person's, on every device.
   'smartNotebooks',
   'dailyNotes',
+  // The sidebar's Favorites (lib/core/favorites.dart; docs/TEAMSPACES.md, Matt, 2026-10-31): the pages a person keeps
+  // at hand, theirs on every device. Which space the sidebar shows, and its folds, stay with the device.
+  'favorites',
   // The person's text expansions (Settings › Snippets; Matt, 2026-10-27: "build ... snippets"): `;sig` written on the
   // phone is `;sig` on the Mac. Merged a snippet at a time, by its id, where two devices changed the list.
   'snippets',

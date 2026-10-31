@@ -40,6 +40,34 @@ fn a_changed_title_renames_the_file_and_a_clash_gets_a_number() {
 }
 
 #[test]
+fn a_folders_page_and_an_organizations_home_keep_their_names_whatever_they_are_titled() {
+    // docs/TEAMSPACES.md: a folder's page is its `index.md`, an organization's home its `orgs/<Org>/Home.md`.
+    let root = TempDir::new("library-folder-page");
+    let mut library = Library::open_fs(&root).unwrap();
+    let plan = library.save_note("plan", "# Plan\n", "editor").unwrap();
+    assert_eq!(plan.path.as_deref(), Some("Inbox/Plan.md"));
+    let paged = library.apply_note(&Note { path: Some("Inbox/Plan/index.md".into()), ..plan }).unwrap();
+    assert_eq!(paged.path.as_deref(), Some("Inbox/Plan/index.md"));
+    let saved = library.save_note("plan", "# Plan\n\nThe steps.\n", "editor").unwrap();
+    assert_eq!(saved.path.as_deref(), Some("Inbox/Plan/index.md"), "a save of the page keeps index.md");
+    let retitled = library.save_note("plan", "# Roadmap\n\nThe steps.\n", "editor").unwrap();
+    assert_eq!(retitled.path.as_deref(), Some("Inbox/Plan/index.md"), "and so does a new title");
+    assert!(root.join("Inbox/Plan/index.md").exists() && !root.join("Inbox/Plan/Plan.md").exists() && !root.join("Inbox/Plan/Roadmap.md").exists());
+
+    let home = library.save_note("home", "# Acme\n", "editor").unwrap();
+    let home = library.apply_note(&Note { path: Some("orgs/Acme/Home.md".into()), ..home }).unwrap();
+    assert_eq!(home.path.as_deref(), Some("orgs/Acme/Home.md"));
+    assert_eq!(library.save_note("home", "# Acme\n\nWelcome.\n", "editor").unwrap().path.as_deref(), Some("orgs/Acme/Home.md"), "an organization's home keeps Home.md");
+
+    // Only those: a Home.md deeper in, and any other file, follow their titles as before.
+    let deep = library.save_note("deep", "# Notes\n", "editor").unwrap();
+    library.apply_note(&Note { path: Some("orgs/Acme/Team/Home.md".into()), ..deep }).unwrap();
+    assert_eq!(library.save_note("deep", "# Notes\n\nmore\n", "editor").unwrap().path.as_deref(), Some("orgs/Acme/Team/Notes.md"));
+    assert_eq!(library.save_note("home2", "# index\n", "editor").unwrap().path.as_deref(), Some("Inbox/index.md"));
+    assert_eq!(library.save_note("home2", "# Other\n", "editor").unwrap().path.as_deref(), Some("Inbox/index.md"), "a file called index.md in the inbox is the inbox's page and stays");
+}
+
+#[test]
 fn pinning_and_archiving_write_front_matter_and_keep_the_modified_time() {
     let root = TempDir::new("library-pin");
     let mut library = Library::open_fs(&root).unwrap();

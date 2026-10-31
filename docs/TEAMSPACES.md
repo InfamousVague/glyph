@@ -41,7 +41,9 @@ page", the publisher's sidebar if it adopts it later):
   (`Plan/Roadmap.md`) is a plain folder's child until the writer side changes: `follows_title` should leave
   `index.md` and an organization's `Home.md` alone (a library change, so after every device reads both). A chosen
   folder (an Obsidian vault) keeps `index.md` already. The new organization's home template says `title: Home` so its
-  file stays `Home.md`.
+  file stays `Home.md`. **Writer side done 2026-10-31**: `follows_title` (library/mod.rs `is_folder_page`) leaves a
+  file named `index.md` in any folder, and `orgs/<Org>/Home.md`, alone whatever they are titled; builds before it
+  still rename, and the tree still reads `Plan/Plan.md` for them.
 - **Pinned pages are `pins:`.** `pinned` is one of the library's own keys (a note's pin, `pinned: true`;
   front_matter.dart `libraryKeys`): with one front matter block (docs/MARKDOWN_FIRST.md §9 slice 7) the library would
   read a `pinned:` list as the pin and drop it at the next unpinned write. The settings read `pins:`, and `pinned:`
@@ -58,6 +60,32 @@ page", the publisher's sidebar if it adopts it later):
   note; the recording's sidecar is keyed by id), then files the note in its new folder's workspace so a later folder
   rename cannot pull it back out (folder_adopter.dart `fileByFolder`). A folder is moved by the workspaces' own move,
   and nothing moves across spaces by a drag (that is filing into an organization, which shares).
+
+## The sidebar
+
+Built (2026-10-31): the same sidebar (lib/notes/note_tree.dart, the card the tab row's icon opens on every width)
+drawn as spaces when the root hands it a `SidebarSpaces` (lib/notes/space_pages.dart; drawing in
+lib/notes/note_tree_spaces.dart). The wide window's docked column is still simple mode's list (Matt, 2026-10-24) and
+was left as it is.
+
+- **Switcher** over the tools: Personal, then each organization with its hue and mark; pressed, the spaces list under
+  it in place. The choice is the device's (`glyph-sidebar-space`).
+- **Fixed rows**: Home (Personal's home page; an organization's own page), Search (the palette), My tickets, Triage
+  (once there are tickets) and Updates (the bell's card).
+- **Favorites**: note ids in the synced preferences (`favorites`, carried in `Preferences.more` as the smart notebooks
+  are; lib/core/favorites.dart), those of the space shown; added from a page's … menu or the note's right-click menu.
+- **Private / Teamspace**: the space's page tree, shut until unfolded (folds per device, `glyph-tree-pages-open`), each
+  row its `icon:` (emoji, shortcode or a Lucide name) or the folder, notebook, canvas or page mark, the presence dot
+  and the sync mark after its name. The + makes a page inside (a plain note made its folder's page first,
+  `newPageIn`); the … has Open, Add to/Remove from Favorites, Rename… (in place on the row), Add a page inside, the
+  folder's settings, Move to and Delete. A drag let go over a row's top or foot writes `order:`
+  (`PageMover.setOrder`); over its middle it moves into it (`planMoveInto`, `PageMover.run`), a refusal said in a toast.
+  Notes with no file yet are listed after Personal's pages.
+- **Shared with me is not drawn**: nothing marks a note as shared to this person (a share link saves a plain copy,
+  lib/share/share.dart `forkShared`); it waits for such a mark.
+- **The rest**: Tags, the Market, the smart notebooks, the archive and the trash after the pages; in simple mode
+  behind a More row that opens in place, with Triage. Rows are 44 tall where there is no mouse; + and … wait for the
+  pointer on a desktop.
 
 ## Teamspace home
 
