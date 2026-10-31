@@ -87,7 +87,9 @@ import '../core/front_matter.dart';
 import '../core/geotag.dart';
 import '../core/library.dart';
 import '../core/live_titles.dart';
-import '../core/banner.dart' show bannerOf;
+import '../core/banner.dart' show bannerOf, withBanner, withoutBanner;
+import '../core/page_tree.dart' show PageIcon, PageTree, withPageIcon;
+import '../sheet/kit.dart' show SheetNote;
 import '../core/look.dart';
 import '../editor/looks/look.dart' show LookEnv;
 import '../core/note.dart';
@@ -110,6 +112,8 @@ import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
 import '../editor/ai/blanks.dart' show fillPlanOf;
 import '../editor/editor.dart';
+import '../editor/items/after_title.dart';
+import '../editor/view/extended.dart' show frontMatterHidden;
 import '../editor/items/blank_offers.dart';
 import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
@@ -125,9 +129,12 @@ import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
 import '../shell/screen.dart' show Caret;
 import '../shell/top_bar_tools.dart';
+import '../shell/wide_screen.dart' show mousePointer;
+import '../links/outline.dart' show LiveOutline;
 import '../team/presence_avatars.dart' show PresenceAvatars;
 import '../sheet/css.dart';
 import 'byline.dart';
+import 'doc_page.dart';
 import 'format_bar.dart';
 import 'land_at.dart';
 import 'note_editor.dart';
@@ -200,7 +207,17 @@ class NoteSeams {
     this.foot,
     this.focusMode = false,
     this.verify,
+    this.openNote,
+    this.pickCover,
   });
+
+  /// Another note opened by its id, in this one's place as a link opens one: a doc page's crumbs, its previous and
+  /// next and the cards of the pages under it (lib/note/doc_page.dart). Absent, they are drawn and do nothing.
+  final void Function(String noteId)? openNote;
+
+  /// A picture chosen and kept for the page's cover, its name answered (lib/core/images.dart `PicturePicker`), or null
+  /// where none was; absent, a doc page has no Add cover.
+  final Future<String?> Function()? pickCover;
 
   /// Verify… on the More sheet (lib/verified/verified_badge.dart): its row and page, for the note on screen; null for
   /// none.
@@ -387,7 +404,13 @@ class NoteScreen extends StatefulWidget {
     this.dock,
     this.backLabel = 'Notes',
     this.back = false,
+    this.pageTree,
   });
+
+  /// The page tree a doc page is drawn from (lib/core/page_tree.dart; lib/note/doc_page.dart): its crumbs, read or
+  /// edit, its icon, its outline, the pages under it and either side. The app's one over [library] and [workspaces]
+  /// unless given ([pageTreeOver]).
+  final ValueListenable<PageTree>? pageTree;
 
   final Note note;
   final NoteLibrary library;
@@ -560,7 +583,24 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   /// The editor's extensions that are this screen's own: the blank page's block after line 1, whose inside is
   /// drawn here ([_offersBlock]). One list for the screen's life: another would make the editor's view again.
-  late final List<Extension> _ownExtensions = <Extension>[blankOffers(_offersBlock)];
+  late final List<Extension> _ownExtensions = <Extension>[
+    blankOffers(_offersBlock),
+    afterTitle(_editedBlock),
+    // A doc page being read folds its front matter away whole: the page draws its icon, cover and owner itself.
+    frontMatterHidden.of((_) => _reading),
+  ];
+
+  /// The page tree this note's place as a doc page is read from (lib/note/doc_page.dart).
+  late final ValueListenable<PageTree> _tree = widget.pageTree ?? pageTreeOver(widget.library, widget.workspaces);
+
+  /// Read, not written, on this visit: a page of a teamspace whose Home.md says `docs: read`, until its Edit. The
+  /// visit's alone (Matt, 2026-10-31: "A per-space setting"), never kept.
+  bool _reading = false;
+
+  /// Told after a build while the edited line under the title is drawn, so it is drawn again from what the screen
+  /// has now; and where that line starts, the column's own edge.
+  final _Told _editedChanged = _Told();
+  double? _editedStart;
 
   /// Told after a build of the screen while the block is offered, so its inside is drawn again from what the
   /// screen now has (the names at a new minute, the cards put away).
@@ -588,6 +628,12 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   /// The editor's view, once it has one.
   EditorView? get view => _view;
+
+  /// The note's place as a doc page (lib/note/doc_page.dart), or null where it is none.
+  DocPlace? get docPlace => DocPlace.of(_tree.value, _id);
+
+  /// Whether the page is being read on this visit, its editor read-only, until Edit.
+  bool get reading => _reading;
 
   /// The live words.
   String get body => _saving.body;
@@ -649,6 +695,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _look = lookOf(note.body);
     _banner = bannerOf(note.body);
     _wasBlank = _saving.blank;
+    _tree.addListener(_redraw);
+    // A teamspace that reads first opens its pages to be read; a page just made, or still blank, is for writing.
+    _reading = !widget.readOnly && !_saving.blank && widget.caret == null && !_typed && (docPlace?.readFirst ?? false);
     final tags = _tags;
     if (tags != null) {
       _hold = tags.heldFor(note.id);
@@ -749,6 +798,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ..dispose();
     _liveGone?.call();
     _prefs.removeListener(_redraw);
+    _tree.removeListener(_redraw);
+    _editedChanged.dispose();
     widget.seams.headRoom?.removeListener(_redraw);
     widget.seams.links?.count.removeListener(_redraw);
     widget.seams.links?.asked?.removeListener(_linksAsked);
@@ -804,6 +855,40 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       if (offered) _offersChanged.tell();
     });
   }
+
+  /// The editor is told whether the edited line under the title is drawn (lib/editor/items/after_title.dart), after
+  /// the frame and only when what it was last told is otherwise; where it is drawn, it is drawn again from what the
+  /// screen has now.
+  void _tellEdited(bool on) {
+    final view = _view;
+    if (view == null || (!on && !afterTitleOn(view.state))) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(view, _view)) return;
+      if (afterTitleOn(view.state) != on) view.dispatch(TransactionSpec(effects: setAfterTitle.of(on)));
+      if (on) _editedChanged.tell();
+    });
+  }
+
+  /// When the page was last edited and by whom, and its owner (lib/note/doc_page.dart `DocEditedLine`): the block
+  /// under its title, in the column the words are in.
+  Widget _editedBlock(BuildContext context) => ListenableBuilder(
+        listenable: _editedChanged,
+        builder: (context, _) {
+          final gutter = context.tokens.len('app-gutter');
+          final clock = widget.clock;
+          return Padding(
+            padding: EdgeInsets.only(left: _editedStart ?? gutter, right: gutter),
+            child: DocEditedLine(
+              noteId: _id,
+              updatedAt: widget.library.noteOf(_id)?.updatedAt ?? widget.note.updatedAt,
+              owner: ownerOf(_saving.body),
+              versions: widget.versions,
+              self: widget.versions?.keeper,
+              now: clock == null ? null : () => clock().millisecondsSinceEpoch,
+            ),
+          );
+        },
+      );
 
   /// The inside of the blank page's block (`OffersWidget`): the names, the template cards while they are shown,
   /// and the ghost, from what the screen has now.
@@ -1270,6 +1355,36 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final selection = EditorSelection.create([for (final range in editor.state.selection.ranges) EditorSelection.range(place(range.anchor), place(range.head))], editor.state.selection.mainIndex);
     editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: was, insert: after.substring(0, now)), selection: selection, scrollIntoView: scroll, userEvent: userEvent));
     return true;
+  }
+
+  /// The page's icon written into its front matter (`icon:`), or taken off for null, as one undo step
+  /// (lib/core/page_tree.dart `withPageIcon`); through the words where a notebook's index is up.
+  void setPageIcon(String? icon) {
+    if (_typed && !_source) return _writeKeys((was) => withPageIcon(was, icon));
+    if (_writeFrontMatter((doc) => withPageIcon(doc, icon), 'input.icon')) HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  /// The page's cover, its `banner:` (lib/core/banner.dart): a picture's name, or null for none, which says so
+  /// (`banner: none`), so a cover taken off on purpose stays off.
+  void setCover(String? name) {
+    String change(String was) => name == null ? withoutBanner(was) : withBanner(was, name);
+    if (_typed && !_source) return _writeKeys(change);
+    _writeFrontMatter(change, 'input.banner');
+  }
+
+  /// Add cover: a picture chosen and kept by the app's picker, then written as the cover.
+  Future<void> _addCover() async {
+    final pick = widget.seams.pickCover;
+    if (pick == null) return;
+    final name = await pick();
+    if (name != null && mounted) setCover(name);
+  }
+
+  /// Edit, or Read again: the visit's choice in a space that reads first.
+  void _setReading(bool on) {
+    if (on == _reading) return;
+    setState(() => _reading = on);
+    HapticsProvider.of(context)(HapticKind.selection);
   }
 
   /// The More sheet's Look: the key written into the front matter through the editor, as one undo step; Plain takes
@@ -1743,13 +1858,23 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final padTop = inBar ? under + t.space(1) + t.space(2) : under;
     final gutter = t.len('app-gutter');
     final look = _typed ? null : _look;
+    final view = _view;
+    // The doc page (lib/note/doc_page.dart): this note's place in the page tree, where it is a page of one. Simple
+    // mode keeps the crumbs, the steps, the cards, the icon and Edit; the outline rail, the hover's Add icon and Add
+    // cover and the edited line are its More sheet's.
+    final doc = _words && _raw ? docPlace : null;
+    final simple = prefs.simple;
+    final writable = !widget.readOnly && !_reading;
+    final pageIcon = _words && _raw ? PageIcon.of(frontMatterValue(_saving.body, 'icon')) : null;
+    // The outline beside the words, where the window has room for both: the page that scrolls is narrowed by it.
+    final railWidth = doc != null && !simple && pageWidth >= docRailFrom && view != null ? docRailWidth : 0.0;
+    final textWidth = pageWidth - railWidth;
     // `.page[data-look='reading'] > .byline`: the column's own left edge, from 600px: half of what the page has past
     // 36rem, or the gutter where it has less.
-    final past = (pageWidth - t.lenOf('36rem')) / 2;
+    final past = (textWidth - t.lenOf('36rem')) / 2;
     final columnStart = look == Look.reading && MediaQuery.sizeOf(context).width >= 600 ? (gutter > past ? gutter : past) : null;
     final blurs = footBlurs(prefs.wispEdge);
     final authors = authorsOf(widget.note.body);
-    final view = _view;
     final tag = _tag;
     final book = widget.book;
 
@@ -1760,7 +1885,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     // Simple mode's Format bar (format_bar.dart), on a note of words that can be written: above the soft keyboard
     // while it is up (the iPhone's own bar takes it, beside Done; elsewhere a strip the page ends above), and on a
     // wide window with the keyboard down a pill at the foot beside the dock. Advanced mode has none.
-    final formatting = prefs.simple && view != null && _words && _raw && !widget.readOnly;
+    final formatting = prefs.simple && view != null && _words && _raw && !widget.readOnly && !_reading;
     final keyboardBar = KeyboardBarScope.maybeOf(context);
     // Wide is the page's own room, not the window's: beside simple mode's list column (GHST-105) a Fold opened out
     // leaves the note 404 wide, where the pill stood past the dock's room and over the edge.
@@ -1774,11 +1899,12 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       value: _typed && _source ? _saving.body : widget.note.body,
       onChange: _onChange,
       onView: _onView,
-      display: _typed ? NoteView.mixed : (noteViewNamed(prefs.noteView) ?? NoteView.mixed),
-      readOnly: widget.readOnly,
+      // A page being read (a teamspace's `docs: read`) is drawn formatted, its marks away, and takes no typing.
+      display: _typed ? NoteView.mixed : (_reading ? NoteView.formatted : (noteViewNamed(prefs.noteView) ?? NoteView.mixed)),
+      readOnly: widget.readOnly || _reading,
       look: look?.name,
       zoom: _zoom.value,
-      pageWidth: pageWidth,
+      pageWidth: textWidth,
       headClear: headerHeight,
       pageHead: padTop + (seams.headRoom?.value ?? 0),
       // The line being typed stays above the page's foot blur, where there is a blur to keep clear of.
@@ -1792,6 +1918,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       extensions: _ownExtensions,
     );
     _tellOffers(offered != null);
+    _editedStart = columnStart;
+    _tellEdited(doc != null && !simple);
+    final openNote = seams.openNote;
 
     final dockRings = _dockCount;
     final words = CustomScrollView(
@@ -1805,10 +1934,35 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         SliverToBoxAdapter(child: SizedBox(height: padTop + (seams.headRoom?.value ?? 0))),
         // A chapter's book, its place in it and the chapters either side (docs/BOOKS.md).
         if (book != null && seams.bookBar != null) SliverToBoxAdapter(child: seams.bookBar!(context, book)),
+        // A doc page's crumbs, Space › the pages above › this page, and Edit where its space reads first.
+        if (doc != null && (doc.crumbs.length > 1 || doc.readFirst))
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB((columnStart ?? gutter) - 4, 0, gutter, t.space(1)),
+              child: DocCrumbs(
+                key: const ValueKey('doc-crumbs'),
+                crumbs: doc.crumbs,
+                compact: pageWidth < 600,
+                open: openNote,
+                trailing: doc.readFirst && !widget.readOnly ? DocModeButton(reading: _reading, onPressed: () => _setReading(!_reading)) : null,
+              ),
+            ),
+          ),
         // Its banner, across the top: a picture made for it, under the header's wisp.
         // A notebook's index has one too, over its chapters, as its cover; a canvas and a journal do not.
         if (seams.banner != null && (_words || (_isBook && !_isJournal && !_drawing))) SliverToBoxAdapter(child: seams.banner!(context, _id, _banner)),
         // Who wrote it, when it names anyone: a book says so for all its pages, in its index.
+        // A page's icon over its title, and on a desktop Add icon and Add cover while the pointer is over its head.
+        if (pageIcon != null || (doc != null && mousePointer && !simple && writable))
+          SliverToBoxAdapter(
+            child: DocIcon(
+              icon: pageIcon,
+              onIcon: writable && doc != null ? () => _openSettings(null, docIconItem) : null,
+              onCover: writable && doc != null && _banner == null && seams.pickCover != null ? () => unawaited(_addCover()) : null,
+              hovering: doc != null && mousePointer && !simple && writable,
+              start: columnStart,
+            ),
+          ),
         if (!_paging && authors.isNotEmpty) SliverToBoxAdapter(child: NoteByline(authors: authors, start: columnStart)),
         // Where it was written: the map at the top of the note, where the page scrolls with the words.
         if (_words && seams.head != null)
@@ -1856,6 +2010,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         // every extension of the note's resolved (tool/perf.sh mac, canvas-open and notebook-open: 3 to 4 ms of the
         // opening frame's 12).
         _EditorBehind(hidden: !_words || _listening, later: !_words, builder: (context) => widget.editorBuilder(context, spec)),
+        // "Pages in this page": a folder page's sub-pages, as cards under its words.
+        if (doc != null && doc.pages.isNotEmpty) SliverToBoxAdapter(child: DocPages(pages: doc.pages, open: openNote, start: columnStart)),
         // "Linked from" under the last line (lib/links/backlinks_foot.dart): the note's words only, never the
         // transcript, a canvas's or a book's source.
         if (_words && _raw && !_listening && !_typed && seams.foot != null)
@@ -1879,6 +2035,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           // `.body { padding-block-end: var(--app-safe-bottom) }`, and the room the dock stands in where it is.
           SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom') + pageDockRoom(t, dockRings))),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
+          // A doc page's previous and next in reading order; a notebook's chapter has its book's foot above instead.
+          if (doc != null && book == null && (doc.previous != null || doc.next != null))
+            SliverToBoxAdapter(child: DocSteps(key: const ValueKey('doc-steps'), previous: doc.previous, next: doc.next, open: openNote, start: columnStart)),
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(
             hasScrollBody: false,
@@ -1902,16 +2061,18 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         return PullLowered(pull: pull, child: around);
       },
     );
+    // The rail's room off the page that scrolls, always wrapped so the scroller keeps its place in the tree.
+    final railed = Padding(padding: EdgeInsets.only(right: railWidth), child: scroller);
     final unfold = _unfold ??= UnfoldDriver(vsync: this, still: t.reducedMotion, angles: widget.hinge);
 
     // `noteRise`: 320ms ease-out, rising 8px as it fades in.
     final curve = CurvedAnimation(parent: _rise, curve: Curves.easeOut);
     final page = t.reducedMotion
-        ? scroller
+        ? railed
         : AnimatedBuilder(
             animation: curve,
             builder: (context, child) => Opacity(opacity: curve.value, child: Transform.translate(offset: Offset(0, 8 * (1 - curve.value)), child: child)),
-            child: scroller,
+            child: railed,
           );
 
     final dock = _dock;
@@ -1961,6 +2122,15 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         valueListenable: unfold.progress,
         builder: (context, at, _) => at == null ? const SizedBox.shrink() : IgnorePointer(child: UnfoldCrease(at: at, ink: t.color('app-ink'))),
       ),
+      // A doc page's outline beside its words, on a wide window (advanced mode).
+      if (railWidth > 0 && view != null && _scroll.hasClients)
+        Positioned(
+          top: padTop + (seams.headRoom?.value ?? 0) + t.space(2),
+          right: t.len('app-gutter-end'),
+          width: railWidth - t.space(4),
+          bottom: t.len('app-safe-bottom') + t.space(4),
+          child: SingleChildScrollView(child: DocOutlineRail(view: view, page: _scroll.position)),
+        ),
       // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
       if (_saving.blank && !_typed && offered == null) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
       // The Format pill at the page's foot, to the dock's start where there is a dock, on the dock's own step up
@@ -2040,6 +2210,62 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           ],
         ),
       ),
+    );
+  }
+
+  /// The doc page's rows of the More sheet ("This page"): its icon, its cover, its outline where the links give none,
+  /// and when it was edited and by whom; null for a note that is no page of the tree. What the page draws on a
+  /// desktop's hover and in its column (Add icon, Add cover, the edited line, the rail) is here for a phone and for
+  /// simple mode, which keeps these behind More….
+  NoteSheetSection? _docSection() {
+    final doc = _words && _raw ? docPlace : null;
+    if (doc == null) return null;
+    final writable = !widget.readOnly && !_reading;
+    final icon = PageIcon.of(frontMatterValue(_saving.body, 'icon'));
+    final view = _view;
+    final page = _scroll.hasClients ? _scroll.position : null;
+    final updated = widget.library.noteOf(_id)?.updatedAt ?? widget.note.updatedAt;
+    final owner = ownerOf(_saving.body);
+    final where = [for (final crumb in doc.crumbs) if (!crumb.here) crumb.title].join(' › ');
+    final clock = widget.clock;
+    return (
+      heading: 'This page',
+      items: [
+        if (writable)
+          NoteSheetItem(
+            id: docIconItem,
+            icon: Lucide.sticker,
+            label: icon == null ? 'Add icon' : 'Change icon',
+            hint: 'An emoji or an icon over its title, and beside it in the sidebar.',
+            page: (context, close) => [DocIconChooser(current: icon, choose: setPageIcon, close: close)],
+          ),
+        if (writable && _banner == null && widget.seams.pickCover != null)
+          NoteSheetItem(id: 'doc-cover', icon: Lucide.image, label: 'Add cover', hint: 'A picture across the top of the page.', onPress: () => unawaited(_addCover())),
+        if (writable && _banner != null) NoteSheetItem(id: 'doc-cover-off', icon: Lucide.image, label: 'Remove cover', hint: 'It stays off until another is added.', onPress: () => setCover(null)),
+        if (widget.seams.links == null && view != null && page != null)
+          NoteSheetItem(
+            id: 'doc-outline',
+            icon: Lucide.listTree,
+            label: 'Outline',
+            hint: 'Its headings; a tap goes to one.',
+            page: (context, close) => [
+              Padding(padding: EdgeInsets.symmetric(horizontal: context.tokens.space(3)), child: LiveOutline(view: view, page: page, onPicked: close)),
+            ],
+          ),
+        NoteSheetItem(
+          id: 'doc-info',
+          icon: Lucide.info,
+          label: 'Page info',
+          hint: editedWords(at: updated, owner: owner, now: clock?.call().millisecondsSinceEpoch),
+          page: (context, close) => [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: context.tokens.space(4)),
+              child: DocEditedLine(noteId: _id, updatedAt: updated, owner: owner, versions: widget.versions, self: widget.versions?.keeper, now: clock == null ? null : () => clock().millisecondsSinceEpoch),
+            ),
+            if (where.isNotEmpty) SheetNote('In $where.'),
+          ],
+        ),
+      ],
     );
   }
 
@@ -2129,6 +2355,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       around: _typed ? null : seams.links?.section(context, view, _scroll.hasClients ? _scroll.position : null),
       startAtItem: _settingsItem,
       verify: _typed || widget.readOnly || !_raw ? null : seams.verify?.call(context),
+      page: _docSection(),
     );
   }
 }

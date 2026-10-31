@@ -126,3 +126,18 @@ another drops its socket and the relay says it left). `lib/team/presence.dart` (
 page, this account's own devices and the AIs left out; `lib/team/presence_avatars.dart` draws it: `PresenceAvatars`
 in the bar (`AppShell.barChip`, every header version) and in simple mode's note header, `PresenceDot` and
 `PresenceMarked` for sidebar rows, all reading the `PagePresenceScope` the root puts over the shell.
+
+## The doc page
+
+Built (2026-10-31): `lib/note/doc_page.dart`, drawn by the note's screen for a note that is a page of the tree (one in
+an organization's space, or a personal note with a page above it or pages under it; a note in Inbox stays the plain
+note it was). Crumbs (Space › the pages above › this page, each a way there; a phone folds the middle into …), the
+`icon:` large over the title, "Edited 2 hr ago by ana · Owner: bo" under the title (a block after the title's line in
+the editor, `lib/editor/items/after_title.dart`, from the last version and `owner:`), the outline beside the words from
+960 wide (`LiveOutline`, quiet where there is no heading), "Pages in this page" as cards (one a row on a phone), and the
+pages either side at the foot. A teamspace whose Home.md says `docs: read` opens its pages read-only and formatted, the
+front matter folded away, with Edit (and Read again); the visit's choice, never stored; Personal always edits. On a
+desktop Add icon and Add cover wait for the pointer over the head; on a phone and in simple mode they, the outline and
+Page info are the More sheet's "This page" rows (behind More… in simple mode). The setting is written by
+`withDocsMode(body, DocsMode)` in lib/core/page_tree.dart (and a page's icon by `withPageIcon`); the teamspace's
+settings UI calls it over Home.md. A cover is the existing `banner:`; Remove cover writes `banner: none`.
