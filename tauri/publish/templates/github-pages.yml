@@ -1,0 +1,55 @@
+# Ghost.md: this library as a website on GitHub Pages (publish/README.md in the Ghost.md repository).
+#
+# The Back up to git plugin commits this file as .github/workflows/ghost-pages.yml. Every push to the default branch
+# builds the site with ghost-publish and deploys it to Pages; turn Pages on once in the repository's Settings › Pages
+# with "GitHub Actions" as the source. The site is as public as the repository's Pages are: a private repository's
+# Pages are public unless the plan says otherwise, so publish.json's folders and `private: true` are what keep a note
+# off the web, not the repository's visibility.
+#
+# The build runs the copy of ghost-publish the plugin vendored at .glyph/publish/ (bin/ and dist/, no install): it is
+# not on npm (the README's "Installing" says why). The day it is, the run line becomes `npx ghost-publish ./ --out site`.
+name: Publish the library
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build the site
+        run: node .glyph/publish/bin/ghost-publish.mjs ./ --out site --base "${{ steps.pages.outputs.base_url }}"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

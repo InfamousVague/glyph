@@ -850,67 +850,18 @@ static publish.
 
 Decisions the plugin needs from Matt are in section 11 (numbers 9 to 17).
 
-## 11. Open decisions for Matt
+## 11. The decisions
 
-Recommended answer first.
+Matt answered on 2026-10-31. Four he chose himself; the rest take the recommended answer.
 
-1. **Attachments under the library?** Yes (pictures BUILT 2026-10-31, the other three read there and written
-   beside until their players follow, §9.1): move `images/`, `images/files/`, `video/`, `recordings/` to
-   `Library/image/`, `file/`, `video/`, `recordings/` (the names the links already use), id-keyed, one move at open,
-   read-both for a release. Alternative: leave them and let the git plugin's mapper copy them into the repo, which
-   keeps a drive backup and an Obsidian-opened folder broken.
-2. **Name of the committed config folder.** `Library/.glyph/config.json`, beside library.json, because `.glyph/` is
-   already moved, exported and held for SAF trees. Alternative: a new `Library/.ghost/` as the task drafted, which needs
-   the same plumbing twice.
-3. **One front matter block, and the ticket key becomes `issue:`.** Yes, phased reader-then-writer across two releases
-   with an every-device-first gate. Alternative: keep two blocks and accept that other apps show ticket properties as
-   text.
-4. **Trash as `trashed:` front matter, not a `Trash/` folder.** Yes. Alternative: Obsidian's `.trash/` folder, which
-   hides the files from the index at once and reads as a deletion to sync and the CRDT unless the protocol learns
-   "trashed".
-5. **Updated time.** The git plugin restores mtimes from commit times on checkout; no key in the file. Alternative:
-   `updated:` written on body saves, with the index taking the later of key and mtime. BUILT 2026-10-31 as the
-   alternative (§9.1), since the critic showed a SAF tree and the import pass cannot set a file's time; the plugin
-   may still restore times on a Mac, where the file's time then wins when it is later.
-6. **Versions switch.** `versions: true|false` as a library-managed key, with an existing `.versions` beside a personal
-   note reading as on. Alternative: sidecar presence alone, which cannot express "off" for an org note.
-7. **Canvases.** Derived `<Title>.canvas` beside each canvas note now; the stored form switches to `.canvas` only after
-   readers ship. Alternative: leave as `.md` and accept Obsidian cannot open them.
-8. **Shares.** Account state restored by sign-in, on the sites model (meta sealed under the account key on the server)
-   with a non-secret `share: <id>` marker; fix the export's settings.json now. Alternative: a committed
-   `shares.json` with keys, which makes a public repo a set of live read links.
-9. **gix or git2.** gix, pure Rust, after a two-day spike proves push on Android; fall back to git2 with vendored
-   OpenSSL on Android only if the spike fails. The policy question is whether a C+OpenSSL build step in
-   tool/build-native.sh is acceptable.
-10. **Mirror working tree or `.git` inside the Library folder.** Mirror at `<app data>/git/<repo-id>/`: a second copy
-    of pictures on disk, but never corrupted by iCloud, Dropbox or SAF. Inside-Library as a Mac Advanced mode later.
-11. **Recordings in the repo.** Off by default with a 50 MB per-file cap when on; LFS later. Alternative: on from day
-    one with LFS, which gix does not have and would be hand-written first.
-12. **Team notes in a personal repo.** Exclude every organization by default with a per-org switch. Alternative:
-    include orgs the person owns.
-13. **Multi-device.** Phase 1 one-pusher claim only; Phase 2 every-device merge later for signed-out people and shared
-    repos. Alternative: merge from the start.
-14. **Cadence.** Two minutes of quiet plus an hourly floor. Alternative: hourly only (fewer commits, less battery).
-15. **Encrypted-repo mode.** None in v1: the plaintext-on-GitHub promise is the point. Alternative: a switch, off by
-    default, incompatible with static hosting.
-16. **Films in the repo.** Never (consistent with sync), the README says so. Alternative: `video/` under LFS behind
-    an off-by-default switch.
-17. **Static hosting.** v1 ships the repo layout only (GitHub's own viewer renders it); a `publish` step with
-    Rendered.tsx as the one web renderer comes later; decide whether a Dart toolchain in CI is acceptable for
-    build-time queries.
-18. **Bare `@day` in a team note.** Insert `@<me> @2026-11-06` so authorship is in the words. Alternative: a bare team
-    `@day` reminds every member who holds the note.
-19. **Snippets as a note.** A `Snippets` note with a ```snippets fence (syncs and is in git). Alternative: a `snippets`
-    key in the config, which is in git but not synced between devices.
-20. **Note ids for foreign files.** Write `id:` whenever `set_front` writes any other key (one rewrite that already
-    happens); key preference maps by path for never-touched files. Alternative: stamp every foreign file at first
-    scan, which rewrites an Obsidian vault on first open. The first half BUILT 2026-10-31 (§9.1); the path-keyed
-    preference maps are Dart's, still to do.
-21. **Merge undo.** Keep a version unconditionally for the two notes a merge rewrites substantively; `git revert` is
-    the undo for the files. Alternative: a committed `merges/` directory.
-22. **Calendars and webhook secrets.** Move Google's refresh token, iCal URLs and webhook secrets into `sealedKeys` so
-    they are not plaintext on the device; keep all of them out of the library. Alternative: commit `{id, url, events,
-    scope}` of outgoing hooks to the config, exposing the endpoint in a public repo.
+**Matt's own:**
+
+1. **Front matter: one block, phased.** Readers accept one merged block first (the library's keys and the page's in one `---`, the ticket key also read as `issue:`); writers switch a release later, once every device has the reader.
+2. **Trash: a `.trash/` folder**, as Obsidian does. Trashing moves the file to `Library/.trash/<its path>`; restoring moves it back; other apps hide it too. The synced trash map is written in parallel for a release so old builds agree.
+3. **The repository is the Library folder itself: `.git` inside it**, not a mirror in app data. So the Mac can run git on it directly. Mitigations the plugin must carry: a warning (and a refusal to init) when the Library is on iCloud Drive or another syncing folder; on an Android SAF tree, where `.git` cannot live, the plugin falls back to a mirror under app data and says so; `.git/` is never indexed as notes (dot folders already are not).
+4. **Hosting: build the publisher now.** A build step renders every note of a repo with the reader's renderer into a static site (wiki links resolved, a sidebar from the folders, search), for GitHub Pages or any host, with a workflow file the plugin can commit so a push publishes.
+
+**Taken as recommended:** attachments move under the Library at the linked paths (1); `Library/.glyph/config.json` (2); `updated:` as a managed key, since mtime-from-git cannot work on SAF (5, per the critic); `versions:` key plus sidecar presence (6); a derived `.canvas` now, the stored form later (7); shares on the sites model with a `share: <id>` marker, secrets stripped from the export now (8); gitoxide (9); recordings off by default with a 50 MB cap (11); team organizations excluded by default with a per-org switch (12); one-pusher claim first (13); two minutes of quiet plus an hourly floor and Back up now (14); no encrypted mode (15); films never (16); `@me @day` (18); a Snippets note (19); `id:` written on any key write (20); unconditional versions for a merge's two notes (21); calendar and webhook secrets sealed and kept out (22).
 
 ## 12. What the critic found
 

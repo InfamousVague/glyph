@@ -1,0 +1,21 @@
+{
+  "name": "ghost-publish",
+  "version": "0.1.0",
+  "description": "Ghost.md library folder (a git clone) to a static website: the reader's renderer, wiki links resolved, a sidebar from the folders, search.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": true,
+  "bin": {
+    "ghost-publish": "./bin/ghost-publish.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "cd .. && vite build --config publish/vite.config.ts",
+    "test": "cd .. && vitest run --config publish/vitest.config.ts"
+  }
+}
