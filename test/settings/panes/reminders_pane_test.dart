@@ -43,14 +43,14 @@ void main() {
 
   testWidgets('is not drawn where the phone does not remind', (tester) async {
     await pumpSettings(tester, const SingleChildScrollView(child: Padding(padding: EdgeInsets.all(16), child: NotificationsPane(signedIn: true))));
-    expect(titles(tester), ['What reaches you']);
+    expect(titles(tester), ['What reaches you', 'Ticket digest']);
     expect(find.text('Remind me'), findsNothing);
     await endSettings(tester);
   });
 
   testWidgets('is drawn first, signed in or not, in its own words', (tester) async {
     await open(tester);
-    expect(titles(tester), ['Reminders', 'What reaches you']);
+    expect(titles(tester), ['Reminders', 'What reaches you', 'Ticket digest']);
     expect(hintOf(tester, 'Remind me'), 'To-dos and tickets with a due date, and any line with a time set.');
     expect(find.text('9:00'), findsOneWidget);
     expect(find.text('A to-do with a due date reminds you at 9:00 on the day. Hold a to-do and choose Remind me for a time of its own.'), findsOneWidget);
