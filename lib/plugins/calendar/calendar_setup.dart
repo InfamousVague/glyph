@@ -48,7 +48,8 @@ PluginSetup calendarSetup({CalendarService? service}) {
     name: 'Google Calendar',
     hues: const ['cyan', 'blue', 'indigo'],
     tiles: const [Lucide.calendarDays, Lucide.listChecks, Lucide.refreshCw, Lucide.link],
-    ready: () => !on().setup.isEmpty,
+    // Not `setup.isEmpty`: that leaves out an address whose secret is not on this device yet, which the account has.
+    ready: () => on().hasCalendars,
     watch: (listener) {
       final watched = on()..addListener(listener);
       return () => watched.removeListener(listener);

@@ -49,11 +49,9 @@ const PluginManifest calendarManifest = PluginManifest(
 /// Whether the calendars are read and shown: the plugin's switch, asked as the service works.
 bool calendarOn() => pluginOn(calendarManifest);
 
-/// Whether this device was using the calendars before they were a plugin: an address added, or Google connected.
-bool calendarInUse([CalendarService? service]) {
-  final setup = (service ?? calendar).setup;
-  return setup.addresses.isNotEmpty || setup.google != null;
-}
+/// Whether this device was using the calendars before they were a plugin: an address added, or Google connected
+/// ([CalendarService.hasCalendars], an address whose secret is still on its way counted).
+bool calendarInUse([CalendarService? service]) => (service ?? calendar).hasCalendars;
 
 /// The page, and what the search finds on it as it stands now: Google's card is drawn only where its sign-in is
 /// offered or connected, so the list is read afresh each time it is asked for.

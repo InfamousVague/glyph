@@ -120,6 +120,11 @@ extension _RootCommands on _GhostRootState {
   /// Three seconds and no longer, which is what the app's start gives a phone to attach its half of voice
   /// (lib/root/voice_wiring.dart `inTime`): a phone slower than that opens the note as it is, and the write-up is
   /// put into it, open, when the queue is there (lib/ai/summaries.dart).
+  ///
+  /// Opened after the frame ([_afterFrame]): the shell opens the note as the list it was last handed has it, and the
+  /// write-up just landed is in the library's copy, not that list's, until the root is built again. Opened at once
+  /// the screen started from the words before the summary, and showed it only if `NoteSaving` took the newer revision
+  /// as it mounted (lib/core/library.dart), which a save still running from the last screen on the note holds off.
   Future<void> _openNoteFromLink(String id) async {
     // The morning's ticket digest, from its reminder (root_tickets.dart).
     if (id == digestNoteId) return _openDigest();
@@ -127,10 +132,12 @@ extension _RootCommands on _GhostRootState {
     if (!mounted) return;
     await _voice?.summaries?.landNativeResult(id).then<void>((_) {}, onError: (Object _) {});
     await _library.refresh();
-    final shell = _shell.currentState;
-    final note = _library.noteOf(id);
-    if (!mounted || shell == null || note == null || _trash.isTrashed(id)) return;
-    shell.openNote(whereLeft(note, _shown, shell.shown, on: _stored).id);
+    if (!mounted) return;
+    _afterFrame((shell) {
+      final note = _library.noteOf(id);
+      if (note == null || _trash.isTrashed(id)) return;
+      shell.openNote(whereLeft(note, _shown, shell.shown, on: _stored).id);
+    });
   }
 
   static final Canvas _emptyCanvas = Canvas(nodes: const [], edges: const []);

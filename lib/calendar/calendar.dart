@@ -119,6 +119,12 @@ class CalendarService extends ChangeNotifier {
   /// name with an empty url, waiting for their secret to arrive with the settings (setup.dart `listedIn`).
   List<CalendarAddress> get listedAddresses => CalendarSetup.listedIn(prefs.value.more[calendarsKey], secret: _secrets.peek);
 
+  /// Whether the account has a calendar at all: an address listed, its secret here or not, or Google connected. What
+  /// the plugin's setup counts as done and the page reads by, not [setup], which leaves out an address whose secret
+  /// has not reached this device (one added on another device, or sealed into the secure store by 516faaa2 before the
+  /// store was read): the account has it, and the read says what it cannot reach.
+  bool get hasCalendars => listedAddresses.isNotEmpty || setup.google != null;
+
   void _setSetup(CalendarSetup next) => prefs.update((now) => withCalendarSetup(now, next));
 
   Future<void>? _readying;
