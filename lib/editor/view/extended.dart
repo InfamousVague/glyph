@@ -231,6 +231,11 @@ final StateEffectType<bool> _focusEffect = StateEffect.define<bool>();
 /// aside for the lines itself.
 final Facet<bool Function(EditorState state), List<bool Function(EditorState state)>> frontMatterDrawn = Facet.define();
 
+/// Whether the front matter is folded away whole, as a block that holds only unsaid keys is, whatever the editor
+/// allows: a doc page being read (lib/note/doc_page.dart), whose icon, cover and owner the page draws round its words,
+/// so the keys' lines would only say again what is drawn. Edit brings them back.
+final Facet<bool Function(EditorState state), List<bool Function(EditorState state)>> frontMatterHidden = Facet.define();
+
 class _Fold {
   const _Fold(this.focused, this.decorations);
   final bool focused;
@@ -239,10 +244,12 @@ class _Fold {
 
 DecorationSet _foldOf(EditorState state, bool focused) {
   final front = frontMatter(state.doc);
-  if (front == null || !state.facet(EditorViewLike.editable) || (focused && _caretIn(state, front))) return Decoration.none;
-  if (state.facet(frontMatterDrawn).any((drawn) => drawn(state))) return Decoration.none;
+  if (front == null) return Decoration.none;
   final from = state.doc.line(front.from).from;
   final to = state.doc.line(front.to).to;
+  if (state.facet(frontMatterHidden).any((hidden) => hidden(state))) return Decoration.set(<Range<Decoration>>[Decoration.replace(widget: const NoFrontWidget(), block: true).range(from, to)]);
+  if (!state.facet(EditorViewLike.editable) || (focused && _caretIn(state, front))) return Decoration.none;
+  if (state.facet(frontMatterDrawn).any((drawn) => drawn(state))) return Decoration.none;
   final at = state.doc.line(front.from + 1 < front.to ? front.from + 1 : front.to).from;
   if (_onlyUnsaid(state, front)) return Decoration.set(<Range<Decoration>>[Decoration.replace(widget: const NoFrontWidget(), block: true).range(from, to)]);
   return Decoration.set(<Range<Decoration>>[Decoration.replace(widget: FrontWidget(_keyNames(state, front), at), block: true).range(from, to)]);

@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/place_tags.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/core_library.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/page_tree.dart' show PageTree;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/untouched.dart';
@@ -108,6 +110,8 @@ Future<NoteScreenState> pumpNote(
   // The bar's version, where a test is about one (today's draws the note's own NoteTools as they are); null is the
   // device's choice, the default unless a test chose.
   HeaderToolbarVersion? headerToolbar,
+  // The page tree a doc page is drawn from (lib/note/doc_page.dart); null is the one over the world's library.
+  ValueListenable<PageTree>? pageTree,
 }) async {
   final sheet = await appSheet(tester);
   Widget screen(Note open, {String? at, Caret? caret}) => NoteScreen(
@@ -135,6 +139,7 @@ Future<NoteScreenState> pumpNote(
         dock: dock,
         backLabel: backLabel,
         back: back ?? world.prefs.value.simple,
+        pageTree: pageTree,
       );
   await pumpApp(
     tester,

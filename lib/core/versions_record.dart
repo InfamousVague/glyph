@@ -62,6 +62,10 @@ class VersionsRecord {
   final PreferencesStore preferences;
   final WorkspaceStore workspaces;
   final String? Function()? _keeper;
+
+  /// Who keeps a version from this device now, as a version names them (their handle), or null without an account:
+  /// a doc page's edited line says "you" for its own (lib/note/doc_page.dart).
+  String? get keeper => _keeper?.call();
   final String? Function(String id)? _bodyOf;
   final Future<void> Function(String id, String Function(String body) change)? _change;
   final void Function(String message) _log;

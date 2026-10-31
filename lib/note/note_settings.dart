@@ -329,6 +329,7 @@ class NoteSettings extends StatefulWidget {
     this.viewSwitch,
     this.focus,
     this.verify,
+    this.page,
   });
 
   final String noteId;
@@ -428,6 +429,16 @@ class NoteSettings extends StatefulWidget {
   /// its period, a row with its page; none where the note cannot be written. Simple mode keeps it behind More….
   final NoteSheetItem? verify;
 
+  /// The doc page's own rows (lib/note/doc_page.dart; docs/TEAMSPACES.md), for a note that is a page of the page tree:
+  /// its icon, its cover, its outline where the links give none, and when it was edited and by whom. In advanced mode
+  /// under their heading after the name; simple mode keeps them behind More… (the outline, the icon and the cover's
+  /// affordances and the edited line are its "fancy").
+  final NoteSheetSection? page;
+
+  /// Every row whose page opens inside the sheet, by its id: Verify…, the doc page's rows, the links'.
+  NoteSheetItem? _itemById(String id) =>
+      (verify?.id == id ? verify : null) ?? page?.items.where((each) => each.id == id).firstOrNull ?? around?.items.where((each) => each.id == id).firstOrNull;
+
   @override
   State<NoteSettings> createState() => _NoteSettingsState();
 }
@@ -478,7 +489,7 @@ class _NoteSettingsState extends State<NoteSettings> {
     if (widget.simple == null) preferences.addListener(_changed);
     if (widget.startAt == NoteSettingsPage.history && widget.history != null) _page = NoteSettingsPage.history;
     final item = widget.startAtItem;
-    if (item != null) _item = (widget.verify?.id == item ? widget.verify : null) ?? widget.around?.items.where((each) => each.id == item && each.page != null).firstOrNull;
+    if (item != null) _item = switch (widget._itemById(item)) { final found? when found.page != null => found, _ => null };
     for (final link in widget.plugins?.links ?? const <NoteLink>[]) {
       final asked = link.unavailable?.call();
       if (asked == null) continue;
@@ -527,7 +538,7 @@ class _NoteSettingsState extends State<NoteSettings> {
     final page = _page;
     final choosing = _choosing, link = _link, plugins = widget.plugins;
     // Another piece's page: the row it was opened from, read again, so its words follow the note.
-    final item = _item == null ? null : (widget.verify?.id == _item!.id ? widget.verify : null) ?? widget.around?.items.where((each) => each.id == _item!.id).firstOrNull ?? _item;
+    final item = _item == null ? null : widget._itemById(_item!.id) ?? _item;
     final itemPage = item?.page;
     if (item != null && itemPage != null) {
       return Sheet(
@@ -838,6 +849,32 @@ class _NoteSettingsState extends State<NoteSettings> {
       ],
     ];
 
+    // The doc page's rows: its icon, its cover, its outline, when it was edited.
+    final pageRows = <Widget>[
+      if (widget.page case final section? when section.items.isNotEmpty) ...[
+        SheetHeading(section.heading),
+        SheetGroup(
+          children: [
+            for (final each in section.items)
+              SheetRow(
+                key: ValueKey('page:${each.id}'),
+                icon: _lucide(each.icon, 2.1),
+                label: each.label,
+                hint: each.hint,
+                onPress: each.page != null
+                    ? () => setState(() => _item = each)
+                    : each.onPress == null
+                        ? null
+                        : () {
+                            widget.onClose();
+                            each.onPress!();
+                          },
+              ),
+          ],
+        ),
+      ],
+    ];
+
     // Verify…: a row of its own, its page inside the sheet.
     final verifying = <Widget>[
       if (widget.verify case final verify?) ...[
@@ -1015,11 +1052,11 @@ class _NoteSettingsState extends State<NoteSettings> {
 
     final List<Widget> body;
     if (!simple) {
-      body = [...speak, ...names, ...reading, ...around, ...comments, ...ai, ...sharing, ...sits, ...verifying, ...linkedTo, ...help, trash];
+      body = [...speak, ...names, ...pageRows, ...reading, ...around, ...comments, ...ai, ...sharing, ...sits, ...verifying, ...linkedTo, ...help, trash];
     } else {
       // Simple (GHST-103): the short sheet, and the rest behind one row, opened in place and closed the same way,
       // so the sheet never leaves the note to show what it hid. Nothing hidden, no row.
-      final rest = <Widget>[...names, ...readingRest, ...around, ...comments, ...ai, ...sharing, ...filingRest, ...verifying, ...linkedTo];
+      final rest = <Widget>[...names, ...pageRows, ...readingRest, ...around, ...comments, ...ai, ...sharing, ...filingRest, ...verifying, ...linkedTo];
       final more = <Widget>[
         if (rest.isNotEmpty)
           SheetGroup(
