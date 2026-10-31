@@ -649,7 +649,7 @@ the reader build before any device writes the new shape.
 | 2 | Small front-matter keys | `versions:` (library-managed, `.versions` presence as on during transition), `tape:`, `recording-ms:`, `summary-*`, `status-since:`/`done:` via `withStatus`, `meeting-booking:`, `app-filed:`/`sorted:`, `banner: none`, `notion-board:`, `github:` on notes, `share:`/`site:` markers; all added to `undraftable` and `_unsaid` | Unknown keys kept byte for byte by every build; preferences and device maps written in parallel for one release, read as fallback | Rust frontmatter round-trips; Dart reads key-then-fallback; a two-device sync fixture shows no conflict copy from a key write | M |
 | 3 | Folders and the config | The path adopter at open; `.glyph/config.json` through the Vault with `workspaces`, `orgs`, `dailyNotes`, `smartNotebooks`, `slack`/`discord` channels and meetings, `plugins.suggested`, `defaults`, `me`; a `Snippets` note replaces `preferences.snippets` | Old builds ignore the file and keep the preference; the preference stays the live channel, the file wins on a fresh device; SAF libraries write through `trees/<key>/` | An open-from-clone test: a tree with no preferences yields the same folders, ids (`folderIdFor`) and filings; a hue round-trip; a SAF-tree test | M–L |
 | 4 | Trash and meetings | `trashed:` and `meeting:` as index columns (`set_trashed` beside `set_archived`; `meeting` written from the five writers); `KeptTrash` and `Preferences.meetings` become views with the preference dual-written | An old build pushing a `NotePayload` without the field clears it on a new one, hence the dual write; the purge keeps exempting org notes; `recordingStaysHere` reads the column | Index tests for the columns; purge test; a mixed-build sync fixture | M |
-| 5 | Attachments under the library | `images/` → `Library/image/` DONE 2026-10-31 (§9.1: the move at every open, read-both, the export names every kind `Library/<kind>/`); `images/files/` → `Library/file/`, `video/` → `Library/video/`, `recordings/` → `Library/recordings/` are READ from under the library already and still written beside it, each to turn once its readers outside the core (Dart's `AttachmentStore`, FilmPlayer.kt, TapePlayer.kt, TapeChannel.swift, MeetingService.kt, write_up.rs) look there: one `Kind::settled` flip per kind; `.gitattributes` with the plugin | Sync carries files by kind+name, unchanged; an older build on the same device looks in the old folders only (§9.1 says what it sees); a SAF tree keeps its attachments in the app's storage (no `TreeTarget` writes); `clear` removes the app's own `image/`, never a chosen folder's | `attachments.rs` tests (idempotent, resumable, read-both, copy with a move of the library); files.rs both ways; backup and export layout tests; the clone test for pictures waits for the git plugin | L |
+| 5 | Attachments under the library | DONE 2026-10-31 in two slices (§9.1): `images/` → `Library/image/` first (the move at every open, read-both, the export names every kind `Library/<kind>/`), then `images/files/` → `Library/file/`, `video/` → `Library/video/`, `recordings/` → `Library/recordings/` once every reader outside the core (Dart's `AttachmentStore`, FilmPlayer.kt, TapePlayer.kt, TapeChannel.swift, write_up.rs, capture.rs, recording.rs) read both places; MeetingService.kt still spools into `recordings/` and `write_up::finish` brings the tape under the library; `.gitattributes` at tauri/publish/templates/gitattributes and `GIT_ATTRIBUTES` | Sync carries files by kind+name, unchanged; an older build on the same device looks in the old folders only (§9.1 says what it sees); a SAF tree keeps its attachments in the app's storage (no `TreeTarget` writes); `clear` removes the app's own `image/`, never a chosen folder's | `attachments.rs` tests (idempotent, resumable, read-both, copy with a move of the library); files.rs both ways; backup and export layout tests; the clone test for pictures waits for the git plugin | L |
 | 6 | Shares on the sites model | `share:<id>` meta sealed under the account key on the server (sites.rs copied); `list_shares` answers audio meta; `sent`/`lacked` to device storage; `preferences.shares` written in parallel for a release then dropped | Old builds read the preference; the prefs merge loses a field it no longer carries, fine | Server tests for the new blob; a sign-in-on-fresh-device test recovers every share | M |
 | 7 | One front matter block | Phase A: readers accept the merged shape and `issue:` (index.rs, Dart, web frontMatter.ts, MCP `keepKeys`). Phase B, a release later: the writer merges the five keys into the page's block, writes `issue:`; migration on next save | Phase B must not ship until every device has A (GHST-107-class hazard: an old build reading a merged body takes `id: <uuid>` as the ticket key and loses `type:`); sync carries whole bodies; team CRDT docs churn once | `a_tickets_front_matter_is_the_pages_and_is_kept_whole` replaced by a one-block test; Obsidian-vault fixture whose only block holds `tags:` reads its properties; mixed-build fixture | L |
 | 8 | Canvases and Mermaid | Derived `<Title>.canvas` written by the plugin and publisher; fence → Mermaid gantt writer; `<details>` in Rendered.tsx | None (derived files) | Round-trip JSON Canvas; Mermaid output snapshot | M |
@@ -688,24 +688,53 @@ the core's doors in native/src. What landed, and where it differs from the plan 
   the words read in a picture (lib/files/read_text.dart) and whether a picture is here (lib/files/files_kit.dart
   `pathOf`), so a new `attachment_places` command answers the folders per kind and both read them all, writing to
   the first (lib/files/attachment_places.dart; the old folders stand until the core has answered).
-- **Files, films and recordings have NOT moved.** Their readers outside the core still look in the old folders:
-  Dart's `AttachmentStore` (`images/files/`), FilmPlayer.kt (`video/`), TapePlayer.kt, TapeChannel.swift and
-  MeetingService.kt (`recordings/`), and the write-up's `recording_file` under the `voice` feature. So for those
-  kinds the FIRST place is still the old folder and `Library/<kind>/` is only read (`Kind::settled` is true for
-  pictures alone): this build is their reader build. Each turns with one flip of `settled` once its players read
-  both places, in the order of the rule from 2026-10-20. The backup and the export already carry all four from
-  wherever each is: the export names them `Library/image/`, `Library/file/`, `Library/video/`,
-  `Library/recordings/` (the target layout, so a zip is a library) and never twice; the backup keeps its
-  `Attachments/Pictures|Files|Films|Recordings/` names, the files now their own kind rather than a folder of the
-  pictures (`Attachments/Pictures/files/` is gone from the next backup, by the manifest's own removal rule).
-- **What an older build sees.** On a device that goes back to an older build after this one has run: its pictures
-  are in `Library/image/` and the old build looks only in `images/`, so every picture is a blank card there until
-  the device is on this build again (the next open finds them where they are; the old build's new pictures land in
-  `images/` and are gathered at that open). Nothing is lost and nothing is deleted. On another device sharing a
-  chosen folder and still on an older build: `image/` holds no `.md`, so the vault walk never takes it for notes;
-  that build keeps its own `images/` and sync carries pictures between the two by kind and name as before. A SAF
-  tree keeps every attachment in the app's storage (no paths SQLite, a player or the sidecars could use), and its
-  backup and export still name them `Library/<kind>/`.
+- **Files, films and recordings moved the same day** (the second slice of 2026-10-31), once every reader outside
+  the core looked in both places, in the order of the rule from 2026-10-20; `Kind::settled` is true for all four
+  kinds in the Flutter app's core, and `library.json` records `attachments: 2`. How each reader came to look in
+  both places, so nothing hard-codes a folder twice:
+  - Dart's `AttachmentStore` (the files notes link, `file/<name>`) follows the core's `attachment_places` answer
+    as `ReadTexts` already did (lib/files/files_kit.dart `store.follow`): read from every folder it names, written
+    to the first, a sync arrival taking an older copy out of the other folders; the old folder alone until the core
+    has answered.
+  - The phone's players and the Mac's (TapePlayer.kt, FilmPlayer.kt, TapeChannel.swift) take the folders to look in
+    from Dart with each `load`/`open`/`onDevice` as a `dirs` list (lib/tapes/phone_player.dart `loadArguments`,
+    lib/core/phone_films.dart), and open the first that has the file; their name checks stand, so nothing a call
+    says names a file outside the folders given. Dart asks the core again at each load
+    (`AttachmentPlaces.now`), so a library moved to a chosen folder since the launch is followed without a restart;
+    with no `dirs` (nothing has asked the core yet) each looks where it did before. Chosen over a Kotlin-to-Dart
+    callback (a second channel each way) and over hard-coding both folders in Kotlin and Swift (a chosen folder has
+    its own).
+  - The write-up (write_up.rs `finish`/`run`), the Mac's capture (capture.rs) and the Tapes row's digest and
+    removal (recording.rs) ask `Library::attachments` for the tapes' `Places` instead of `paths::RECORDINGS`.
+  - The one writer that does not ask is the phone's meeting service (MeetingService.kt), which spools a meeting's
+    WAV straight into `<data>/recordings/` with a `RandomAccessFile` and deletes it there on Discard: the CORE MOVES
+    IT WHEN THE RECORDING ENDS. `RecordingJob.finish` → `write_up::finish` brings the tape under the library
+    (`Places::bring`, `gather`'s rule for one file) before it patches the header, so the player, sync, the backup
+    and the export find it at `Library/recordings/<id>.wav`; a meeting a kill cut short is brought in at the next
+    open with the rest. So the service never needs to know where the library is, and no intent extra or channel
+    carries a path.
+  The backup and the export carry all four from wherever each is: the export names them `Library/image/`,
+  `Library/file/`, `Library/video/`, `Library/recordings/` (the target layout, so a zip is a library) and never
+  twice; the backup keeps its `Attachments/Pictures|Files|Films|Recordings/` names, the files now their own kind
+  rather than a folder of the pictures (`Attachments/Pictures/files/` is gone from the next backup, by the
+  manifest's own removal rule). Sync names a file by kind and name alone (`sync_put_file*`, `file_path`,
+  lib/sync/notes.dart `fileId`), so a device on this build and one on the old layout trade recordings and pictures
+  without either knowing the other's folders (native/src/files.rs
+  `two_devices_sync_a_recording_and_a_picture_whichever_layout_each_has`; test/sync/attachment_layouts_test.dart
+  on the fake service).
+- **`.gitattributes`** for a library under git is at tauri/publish/templates/gitattributes, beside the Pages
+  workflow the plugin also writes, and in the core as `library::attachments::GIT_ATTRIBUTES` (`include_str!` of
+  that file) for the plugin's first commit and for a backup to carry: `*.md`, `*.versions` and `*.canvas` as LF
+  text, `*.json` as text, `*.wav` `*.jpg` `*.png` `*.mp4` `*.pdf` binary.
+- **What an older build sees.** On a device that goes back to an older build after this one has run: its pictures,
+  files, films and tapes are under `Library/<kind>/` and the old build looks only in the old folders, so every
+  picture is a blank card, every file card says the file is not here and every tape says it is not on this device,
+  until the device is on this build again (the next open finds them where they are; the old build's new files land
+  in the old folders and are gathered at that open). Nothing is lost and nothing is deleted. On another device
+  sharing a chosen folder and still on an older build: `image/`, `file/`, `video/` and `recordings/` hold no `.md`,
+  so the vault walk never takes them for notes; that build keeps its own old folders and sync carries files between
+  the two by kind and name as before. A SAF tree keeps every attachment in the app's storage (no paths SQLite, a
+  player or the sidecars could use), and its backup and export still name them `Library/<kind>/`.
 - **`id:` is written whenever `set_front` writes any other key** (decision 20): a pin or an archive on a file from
   another app carries the note's id into the file in the same write, after the person's own keys; a change that
   changes nothing writes nothing, so an untouched Obsidian file stays untouched.
@@ -739,10 +768,15 @@ the core's doors in native/src. What landed, and where it differs from the plan 
 - **README**: the export's and the backup's README stay `README.txt` (export_commands.rs, backup.rs `README`);
   nothing in the Rust core or the Dart app writes a `README.md` into a library, and the git plugin's generated
   README (§6) is to be `README.txt` too, or live under `.glyph/`, for the critic's reason.
-- Left for the next slices: the Dart parts of slice 1; `AttachmentStore` and the three native players reading both
-  places (then `Kind::settled` for `File`, `Video`, `Recording`); `.gitattributes`; Dart's `LibraryStatus` showing
-  the attachment layout; the Tauri app's `commands.rs` delete path still names `paths::images_dir` (it compiles
-  against the same library and reads the old folder: it is the Tauri build's own reader change to make).
+- Left for the next slices: the Dart parts of slice 1; Dart's `LibraryStatus` showing the attachment layout;
+  Settings › Library folder's "What stays in Ghost.md" row (lib/settings/panes/library_folder_pane.dart) still says
+  pictures, films and recordings never go into the chosen folder, which stopped being true for pictures with the
+  first slice and for the rest with the second; the dev walkthroughs lib/main_files.dart and lib/main_voice.dart
+  write a WAV into `<data>/recordings/` by hand (gathered at the next open, so harmless); the Tauri app's
+  `commands.rs` delete path still names `paths::images_dir` and its `rec`/`vid`/`img` schemes read the old folders
+  (it compiles against the same library, where `settled` is false, so nothing has moved there: it is the Tauri
+  build's own reader change to make). The Tauri crate does not compile on main today for reasons in
+  ai_commands.rs unrelated to this slice.
 
 ## 10. The 'Back up to git' plugin
 

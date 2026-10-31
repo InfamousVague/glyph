@@ -113,8 +113,9 @@ impl ApplyCommandRequest {
 /// Where a note's files are kept, each `None` where the platform gave no
 /// directory, which leaves those files alone. The pictures, films and
 /// recordings are each the folders the library reads them from
-/// (library/attachments.rs `Places`: under the library and beside it, while
-/// both are read), and a file goes from whichever has it.
+/// (library/attachments.rs `Places`: under the library, and beside it where
+/// an older build or the phone's meeting service left one), and a file goes
+/// from whichever has it.
 struct Kept {
     images: Option<Places>,
     videos: Option<Places>,

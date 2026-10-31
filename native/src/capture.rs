@@ -25,7 +25,8 @@
 //! - `capture_push {pcm}` -> `null`: base64 of little-endian f32, 16 kHz mono. Returns at once; inference never
 //!   runs here. Await each before the next: the isolate applies them in the order sent.
 //! - `capture_stop {recordAs?, append?}` (job) -> `{transcript, recordedMs}`. With `recordAs` the audio is kept
-//!   as `<dataDir>/recordings/<id>.wav` (added to its end with `append`) and `recordedMs` is the file's length.
+//!   as `<id>.wav` in the library's recordings folder (library/attachments.rs: `Library/recordings/`, or wherever
+//!   an older build left that note's tape; added to its end with `append`) and `recordedMs` is the file's length.
 //! - `capture_rewind {toMs}` (job) -> `null`, once `capture://rewound` has gone out.
 //! - `capture_cancel` (job) -> `null`. Nothing running is success.
 //! - `capture_reassign_recording {fromId, toId, append?}` (job) -> `recordedMs | null`;
@@ -305,7 +306,11 @@ fn said<T: Serialize>(value: T) -> Result<Value, String> {
 
 pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, String> {
     let models = crate::models::dir(core);
-    let recordings = core.data_dir().join(crate::paths::RECORDINGS);
+    // Where a note's tape is, or goes: the library's to say (library/attachments.rs), under it and beside it from
+    // an older build. `tape` is the file for a note's id, where it is or where it will be written; an id that is not
+    // a plain name never becomes a path (fsx.rs `plain_id`, as kept/recordings.rs `recording_file` has it).
+    let recordings = core.attachments().of(crate::library::AttachmentKind::Recording).clone();
+    let tape = |places: &crate::library::Places, id: &str| crate::fsx::plain_id(id).then(|| places.place(&format!("{id}.wav")));
     match command {
         "capture_model_status" => said(crate::model_files::status(&models, &model::ACTIVE)),
         "capture_refine_model_status" => said(crate::model_files::status(&models, &model::REFINE)),
@@ -366,8 +371,8 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
                 let mut recorded_ms = None;
                 if let Some(id) = record_as {
                     if !stopped.recording.is_empty() {
-                        let path = crate::recordings::recording_file(&recordings, &id).ok_or("not a note id")?;
-                        std::fs::create_dir_all(&recordings).map_err(|e| format!("could not make the recordings folder: {e}"))?;
+                        let path = tape(&recordings, &id).ok_or("not a note id")?;
+                        std::fs::create_dir_all(path.parent().unwrap_or(recordings.first())).map_err(|e| format!("could not make the recordings folder: {e}"))?;
                         let samples = crate::whisper::wav::write_pcm16(&path, &stopped.recording, append.unwrap_or(false))?;
                         recorded_ms = Some(crate::whisper::samples_to_ms(samples));
                     }
@@ -377,8 +382,8 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
         }
         "capture_reassign_recording" => {
             let Reassign { from_id, to_id, append } = read(command, args)?;
-            let from = crate::recordings::recording_file(&recordings, &from_id).ok_or("not a note id")?;
-            let to = crate::recordings::recording_file(&recordings, &to_id).ok_or("not a note id")?;
+            let from = tape(&recordings, &from_id).ok_or("not a note id")?;
+            let to = tape(&recordings, &to_id).ok_or("not a note id")?;
             started("capture-reassign", move |_| {
                 let count = crate::whisper::wav::move_or_append(&from, &to, append.unwrap_or(false))?;
                 said((count > 0).then_some(crate::whisper::samples_to_ms(count)))
@@ -386,8 +391,10 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
         }
         "capture_discard_recording" => {
             let ById { id } = read(command, args)?;
-            let path = crate::recordings::recording_file(&recordings, &id).ok_or("not a note id")?;
-            crate::fsx::remove_file_if_present(&path).map_err(|e| format!("could not remove the temporary recording: {e}"))?;
+            if !crate::fsx::plain_id(&id) {
+                return Err("not a note id".into());
+            }
+            recordings.remove(&format!("{id}.wav")).map_err(|e| format!("could not remove the temporary recording: {e}"))?;
             Ok(Value::Null)
         }
         "capture_rewind" => {
@@ -418,7 +425,7 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
             if !status.present {
                 return Err("model missing".into());
             }
-            let recording = crate::recordings::recording_file(&recordings, &id).ok_or_else(|| "no such recording".to_string())?;
+            let recording = tape(&recordings, &id).ok_or_else(|| "no such recording".to_string())?;
             if state().refining.swap(true, Ordering::SeqCst) {
                 return Err("busy".into());
             }
@@ -624,7 +631,7 @@ pub(crate) mod tests {
         assert!(!segments.is_empty() && segments.iter().all(|s| s["text"].is_string() && s["endMs"].as_u64() >= s["startMs"].as_u64()));
         let audio_ms = crate::whisper::samples_to_ms(crate::whisper::wav::read(&wav).unwrap().len());
         assert_eq!(stopped["recordedMs"].as_u64(), Some(audio_ms), "the tape is everything pushed, by either door");
-        assert_eq!(crate::whisper::wav::duration_ms(&data.join("recordings/take-1.wav")).unwrap(), audio_ms);
+        assert_eq!(crate::whisper::wav::duration_ms(&data.join("Library/recordings/take-1.wav")).unwrap(), audio_ms);
         assert!(!crate::guards::capturing());
         assert_eq!(unsafe { ghost_capture_push([0f32; 4].as_ptr(), 4) }, 1, "nothing is running now");
         assert_eq!(unsafe { ghost_capture_push(std::ptr::null(), 4) }, 2);
@@ -632,8 +639,8 @@ pub(crate) mod tests {
 
         // The take belongs to a note after all; then a second take is added to that note's tape.
         assert_eq!(job("capture_reassign_recording", json!({ "fromId": "take-1", "toId": "note-1" }), Duration::from_secs(20)), Ok(json!(audio_ms)));
-        assert!(!data.join("recordings/take-1.wav").exists());
-        std::fs::copy(data.join("recordings/note-1.wav"), data.join("recordings/take-2.wav")).unwrap();
+        assert!(!data.join("Library/recordings/take-1.wav").exists());
+        std::fs::copy(data.join("Library/recordings/note-1.wav"), data.join("Library/recordings/take-2.wav")).unwrap();
         assert_eq!(job("capture_reassign_recording", json!({ "fromId": "take-2", "toId": "note-1", "append": true }), Duration::from_secs(20)), Ok(json!(crate::whisper::samples_to_ms(2 * crate::whisper::wav::read(&wav).unwrap().len()))));
         assert_eq!(job("capture_reassign_recording", json!({ "fromId": "nothing", "toId": "note-1" }), Duration::from_secs(20)), Ok(Value::Null), "no audio is null");
         assert_eq!(asked("capture_reassign_recording", json!({ "fromId": "../x", "toId": "note-1" }))["err"], "not a note id");
@@ -654,7 +661,7 @@ pub(crate) mod tests {
         assert_eq!(asked("capture_refine", json!({ "id": "../x", "fromMs": 0, "promptTail": "" }))["err"], "no such recording");
 
         assert_eq!(asked("capture_discard_recording", json!({ "id": "note-1" })), json!({ "ok": null }));
-        assert!(!data.join("recordings/note-1.wav").exists());
+        assert!(!data.join("Library/recordings/note-1.wav").exists());
         assert_eq!(asked("capture_discard_recording", json!({ "id": "note-1" })), json!({ "ok": null }), "gone already is no error");
     }
 

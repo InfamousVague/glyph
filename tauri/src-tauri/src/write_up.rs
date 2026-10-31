@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::guards;
 use crate::jobs::{self, JobConfig, JobResult, Phase, Progress, Prompts};
-use crate::library::Library;
+use crate::library::{AttachmentKind, Library, Places};
 use crate::llm::engine::{Failure, Request};
 use crate::llm::model::LlmSpec;
 use crate::lock::lock;
@@ -251,9 +251,9 @@ impl Answer {
     }
 }
 
-/// The directories under the app's data directory, the names `paths.rs` gives them.
+/// The directories under the app's data directory, the names `paths.rs` gives them. The tapes have none here: where
+/// a note's recording is, the library says (library/attachments.rs; `tape`).
 struct Dirs {
-    recordings: PathBuf,
     models: PathBuf,
     /// The data directory itself, for the library: wherever `library-root.json` says it is (library_root.rs), a
     /// folder chosen through Android's picker included.
@@ -264,7 +264,6 @@ struct Dirs {
 impl Dirs {
     fn of(data_dir: &Path) -> Dirs {
         Dirs {
-            recordings: data_dir.join(crate::paths::RECORDINGS),
             models: data_dir.join(crate::paths::MODELS),
             data: data_dir.to_path_buf(),
             jobs: jobs::dir(data_dir),
@@ -274,6 +273,19 @@ impl Dirs {
     /// The notes, opened afresh for each step, so a library moved while the write-up waited is the one written to.
     fn library(&self) -> Result<Library, String> {
         crate::library_root::open(&self.data, false)
+    }
+
+    /// Where the tapes are, as the library has them (library/attachments.rs `Places`): under the library, and beside
+    /// it where an older build or the phone's meeting service left one. `id` is checked before it is a name
+    /// (`fsx::plain_id`, the rule of kept/recordings.rs `recording_file`).
+    fn tapes(&self, library: &Library) -> Places {
+        library.attachments(&self.data).of(AttachmentKind::Recording).clone()
+    }
+
+    /// Note `id`'s tape, where it is; `None` where no folder has it.
+    fn tape(&self, id: &str) -> Result<Option<PathBuf>, String> {
+        let library = self.library()?;
+        Ok(self.tapes(&library).find(&format!("{id}.wav")))
     }
 }
 
@@ -332,14 +344,21 @@ fn note_title(dirs: &Dirs, id: &str) -> String {
 /// `queued`, and the worker's `run` repeats these steps.
 pub fn finish(data_dir: &Path, id: &str, title: &str) -> Result<u64, String> {
     let dirs = Dirs::of(data_dir);
-    let wav_path = crate::recordings::recording_file(&dirs.recordings, id).ok_or_else(|| "not a note id".to_string())?;
+    if !crate::fsx::plain_id(id) {
+        return Err("not a note id".to_string());
+    }
     let path = jobs::progress_path(&dirs.jobs, id);
     let mut progress = Progress::queued(id, title);
     progress.save(&path, true)?;
     let measured = (|| -> Result<u64, String> {
+        let mut library = dirs.library()?;
+        // The tape where the recorder left it, brought under the library where tapes are kept now: the phone's
+        // meeting service spools a meeting into `<data>/recordings/` (MeetingService.kt), and this is the first time
+        // the core touches the file (library/attachments.rs `Places::bring`; one a kill cut short comes in at the
+        // next open with the rest).
+        let wav_path = dirs.tapes(&library).bring(&format!("{id}.wav")).map_err(|e| format!("the recording could not be brought into the library: {e}"))?.ok_or_else(|| "the recording is not there".to_string())?;
         let samples = wav::patch_header(&wav_path)?;
         let ms = samples_to_ms(samples);
-        let mut library = dirs.library()?;
         let recording = Recording::new(ms as i64, Vec::new())?;
         library.set_recording(id, Some(&recording)).map_err(|e| e.to_string())?.ok_or_else(|| "no such note".to_string())?;
         Ok(ms)
@@ -430,15 +449,20 @@ struct Run<'a> {
 /// header for what it refuses and why.
 pub fn run(data_dir: &Path, id: &str, options: &Options) -> Answer {
     let dirs = Dirs::of(data_dir);
-    let Some(wav_path) = crate::recordings::recording_file(&dirs.recordings, id) else {
+    if !crate::fsx::plain_id(id) {
         return Answer::Error { message: "not a note id".into(), again: false };
-    };
-    let path = jobs::progress_path(&dirs.jobs, id);
-    if !wav_path.is_file() {
-        let _one = lock(&guards::PROGRESS_FILE);
-        let _ = crate::fsx::remove_file_if_present(&path);
-        return Answer::Gone;
     }
+    let path = jobs::progress_path(&dirs.jobs, id);
+    let wav_path = match dirs.tape(id) {
+        Ok(Some(wav_path)) => wav_path,
+        Ok(None) => {
+            let _one = lock(&guards::PROGRESS_FILE);
+            let _ = crate::fsx::remove_file_if_present(&path);
+            return Answer::Gone;
+        }
+        // The library would not open (a chosen folder away for the moment): the tape may well be there, so not gone.
+        Err(e) => return Answer::Retry(e),
+    };
     let mut progress = match Progress::load(&path) {
         Some(progress) => progress,
         None => Progress::queued(id, &options.title.clone().unwrap_or_else(|| note_title(&dirs, id))),
@@ -950,8 +974,10 @@ mod tests {
         let root = TempDir::new("write-up");
         let mut library = Library::open_fs(&root.join("Library")).unwrap();
         library.save_note("n1", "# Meeting, 26 Sep 14:05\n", "capture").unwrap();
-        std::fs::create_dir_all(root.join("recordings")).unwrap();
-        let wav_path = root.join("recordings/n1.wav");
+        // Where this crate keeps a tape (library/attachments.rs: under the library in the Flutter app's core, beside
+        // it in the Tauri app), so the same tests hold in both.
+        let wav_path = library.attachments(&root).of(AttachmentKind::Recording).first().join("n1.wav");
+        std::fs::create_dir_all(wav_path.parent().unwrap()).unwrap();
         wav::write_pcm16(&wav_path, &vec![0i16; 16_000 * seconds], false).unwrap();
         let jobs = root.join("jobs");
         std::fs::create_dir_all(&jobs).unwrap();
@@ -1008,7 +1034,7 @@ mod tests {
     #[test]
     fn each_terminal_phase_answers_with_and_without_fresh() {
         let _one = lock(&TEST_SERIAL);
-        let (root, _) = phone(1);
+        let (root, wav_path) = phone(1);
         let path = jobs::progress_path(&root.join("jobs"), "n1");
         let mut progress = Progress::queued("n1", "Meeting");
         progress.phase = Phase::Cancelled;
@@ -1042,7 +1068,7 @@ mod tests {
         assert_eq!(run(&root, "n1", &now()).to_json(), r#"{"again":true,"needsModel":"qwen3.5-4b"}"#);
         assert_eq!(run(&root, "n1", &Options { fresh: true, ..now() }), Answer::NeedsModel { id: "qwen3.5-4b".into(), again: false }, "looked at afresh");
         // No WAV: gone, and the file with it.
-        std::fs::remove_file(root.join("recordings/n1.wav")).unwrap();
+        std::fs::remove_file(&wav_path).unwrap();
         assert_eq!(run(&root, "n1", &now()), Answer::Gone);
         assert!(!path.exists());
         assert_eq!(run(&root, "../n1", &now()).to_json(), r#"{"again":false,"error":"not a note id"}"#);

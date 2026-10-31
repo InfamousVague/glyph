@@ -19,14 +19,19 @@ import FlutterMacOS
 /// iPhone's audio session, which is told this is playback so a recording is heard with the ring switch off, as the
 /// page's element was. Each app's `GhostChannels.dirs()` says where its recordings are.
 ///
-/// Only ever a file under the app's own `recordings` folder, named by a note's id: an id is letters, digits, `-`
-/// and `_`, and anything else is refused before a path is made of it.
+/// WHERE THE FILES ARE is the Rust core's to say: `dirs` is the list of folders it reads a recording (or a note's file)
+/// from, the first the one it writes to (library/attachments.rs `Places`, asked by Dart through `attachment_places`:
+/// `<data>/Library/recordings/` and, from an older build, `<data>/recordings/`; a library in a folder of the person's
+/// has its own), and the file is the first of them that has it. With no `dirs` the old folder beside the library is
+/// looked in alone, as before 2026-10-31. Only ever a file named by a note's id or as the app names a kept file: an
+/// id is letters, digits, `-` and `_`, and anything else is refused before a path is made of it, so nothing a caller
+/// says can name a file outside the folders given.
 ///
-/// - `load {noteId}` -> the recording's length in ms; an error where it is not on this device or will not open. `load
-///   {file}` the same for a sound file a note links (`<data>/images/files/<name>`, a voice-over among them) and `load
-///   {cached}` for a sound kept in the cache (`<cache>/sounds/<name>`, an ElevenLabs voice's preview), each by a kept
-///   file's name and never a path (lib/tapes/phone_player.dart `loadArguments`).
-/// - `play`, `pause`, `seek {ms}`, `release` -> null. `onDevice {noteId}` -> whether the file is here.
+/// - `load {noteId, dirs?}` -> the recording's length in ms; an error where it is not on this device or will not
+///   open. `load {file, dirs?}` the same for a sound file a note links (a voice-over among them) and `load {cached}`
+///   for a sound kept in the cache (`<cache>/sounds/<name>`, an ElevenLabs voice's preview), each by a kept file's
+///   name and never a path (lib/tapes/phone_player.dart `loadArguments`).
+/// - `play`, `pause`, `seek {ms}`, `release` -> null. `onDevice {noteId, dirs?}` -> whether the file is here.
 /// - Events on the channel's name with `/events` after it: `{event: "position", ms}` a few times a second while it plays,
 ///   `{event: "playing", on}`, `{event: "ended"}`, `{event: "failed"}`.
 final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
@@ -62,17 +67,28 @@ final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
     return nil
   }
 
-  private static func file(of noteId: String?) -> URL? {
-    guard let id = noteId, !id.isEmpty, id.count <= 128, id.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) && $0.isASCII || $0 == "-" || $0 == "_" }), let dirs = GhostChannels.dirs() else { return nil }
-    return dirs.data.appendingPathComponent("recordings", isDirectory: true).appendingPathComponent("\(id).wav")
+  /// The folders a call says to look in (`dirs`), as the core listed them; nil where it says none.
+  private static func folders(_ args: [String: Any]?) -> [URL]? {
+    let dirs = (args?["dirs"] as? [Any])?.compactMap { $0 as? String }.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? []
+    return dirs.isEmpty ? nil : dirs
+  }
+
+  /// `name` in the first of `folders` that has it, or in the first of them where none has (so a later `fileExists` says no).
+  private static func first(of folders: [URL], _ name: String) -> URL {
+    folders.map { $0.appendingPathComponent(name) }.first { FileManager.default.fileExists(atPath: $0.path) } ?? folders[0].appendingPathComponent(name)
+  }
+
+  private static func file(of noteId: String?, in dirs: [URL]?) -> URL? {
+    guard let id = noteId, !id.isEmpty, id.count <= 128, id.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) && $0.isASCII || $0 == "-" || $0 == "_" }), let own = GhostChannels.dirs() else { return nil }
+    return first(of: dirs ?? [own.data.appendingPathComponent("recordings", isDirectory: true)], "\(id).wav")
   }
 
   /// A sound file a note links, or one in the cache's sounds, by its kept name: letters, digits, `-` and `_`, a dot, and
   /// a lower-case extension. Nil for a name that is not one, or a device that will not say where its folders are.
-  private static func sound(file: String?, cached: String?) -> URL? {
-    guard let name = file ?? cached, name.range(of: "^[A-Za-z0-9_-]{1,64}\\.[a-z0-9]{1,10}$", options: .regularExpression) != nil, let dirs = GhostChannels.dirs() else { return nil }
-    if file != nil { return dirs.data.appendingPathComponent("images", isDirectory: true).appendingPathComponent("files", isDirectory: true).appendingPathComponent(name) }
-    return dirs.cache.appendingPathComponent("sounds", isDirectory: true).appendingPathComponent(name)
+  private static func sound(file: String?, cached: String?, in dirs: [URL]?) -> URL? {
+    guard let name = file ?? cached, name.range(of: "^[A-Za-z0-9_-]{1,64}\\.[a-z0-9]{1,10}$", options: .regularExpression) != nil, let own = GhostChannels.dirs() else { return nil }
+    if file != nil { return first(of: dirs ?? [own.data.appendingPathComponent("images", isDirectory: true).appendingPathComponent("files", isDirectory: true)], name) }
+    return own.cache.appendingPathComponent("sounds", isDirectory: true).appendingPathComponent(name)
   }
 
   private func asked(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -81,7 +97,7 @@ final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
     case "load":
       release()
       let named = args?["file"] as? String, cached = args?["cached"] as? String
-      let found = named != nil || cached != nil ? TapeChannel.sound(file: named, cached: cached) : TapeChannel.file(of: args?["noteId"] as? String)
+      let found = named != nil || cached != nil ? TapeChannel.sound(file: named, cached: cached, in: TapeChannel.folders(args)) : TapeChannel.file(of: args?["noteId"] as? String, in: TapeChannel.folders(args))
       guard let file = found, FileManager.default.fileExists(atPath: file.path) else {
         return result(FlutterError(code: "tape", message: "The recording is not on this \(TapeChannel.device).", details: nil))
       }
@@ -119,7 +135,7 @@ final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
       }
       result(nil)
     case "onDevice":
-      result(TapeChannel.file(of: args?["noteId"] as? String).map { FileManager.default.fileExists(atPath: $0.path) } ?? false)
+      result(TapeChannel.file(of: args?["noteId"] as? String, in: TapeChannel.folders(args)).map { FileManager.default.fileExists(atPath: $0.path) } ?? false)
     case "release":
       release()
       result(nil)

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/films.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/phone_films.dart';
+import 'package:ghost_md/files/attachment_places.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -149,6 +150,22 @@ void main() {
       film.play();
       await Future<void>.delayed(Duration.zero);
       expect(told, ['open a.mp4', 'play 1', 'close 1']);
+    });
+
+    test('an open hands the phone the folders the core says the films are in, once it has said', () async {
+      final opened = <Map<Object?, Object?>>[];
+      messenger.setMockMethodCallHandler(filmChannel, (call) async {
+        if (call.method == 'open') opened.add(call.arguments as Map<Object?, Object?>);
+        return <String, Object?>{'id': opened.length, 'width': 1, 'height': 1, 'ms': 1, 'turn': 0};
+      });
+      AttachmentPlaces.forget();
+      addTearDown(AttachmentPlaces.forget);
+      final device = PhoneFilmDevice(core, plays: true);
+      await device.open('a.mp4');
+      expect(opened.single, {'name': 'a.mp4'}, reason: 'nothing has asked the core: the phone looks where it did before');
+      AttachmentPlaces.current = const AttachmentPlaces(image: ['/data/Library/image'], file: ['/data/Library/file'], video: ['/data/Library/video', '/data/video'], recording: ['/data/Library/recordings']);
+      await device.open('b.mp4');
+      expect(opened.last, {'name': 'b.mp4', 'dirs': ['/data/Library/video', '/data/video']});
     });
 
     test('starting one film pauses the one playing', () async {

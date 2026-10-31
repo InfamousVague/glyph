@@ -14,13 +14,16 @@
 //! so a second device joining the same folder later still has its own to bring in, which a mark in the shared
 //! `library.json` would have told it not to.
 //!
-//! WHICH KINDS HAVE MOVED (`Kind::settled`): only what every reader reaches through this library. Pictures are
-//! read and written through the core alone (files.rs, images.rs), so they live under the library now. Files are
-//! read by Dart from a path of its own (lib/files/attachment_store.dart), films by the phone's player
-//! (FilmPlayer.kt), and tapes by the phone's and the Mac's players and the meeting service (TapePlayer.kt,
-//! TapeChannel.swift, MeetingService.kt) and the write-up (write_up.rs): each of those still looks in the old
-//! folder, so those three kinds are still written there, and their folder under the library is only READ, ready
-//! for the build that turns each one (readers before writers, the rule from the 2026-10-20 org-folders incident).
+//! WHICH KINDS HAVE MOVED (`Kind::settled`): all four, in the Flutter app's core. Pictures first (2026-10-31, read
+//! and written through the core alone: files.rs, images.rs), then files, films and tapes the same day, once every
+//! reader outside the core looked in both places (readers before writers, the rule from the 2026-10-20 org-folders
+//! incident): Dart's store of the files notes link follows the core's `attachment_places` answer
+//! (lib/files/attachment_store.dart), the phone's players and the Mac's take the folders to look in from Dart with
+//! each load (TapePlayer.kt, FilmPlayer.kt, TapeChannel.swift; lib/tapes/phone_player.dart,
+//! lib/core/phone_films.dart), and the write-up and the Mac's capture ask this file (write_up.rs, capture.rs,
+//! recording.rs). The one writer that does not ask is the phone's meeting service, which spools a meeting's WAV
+//! straight into `<data>/recordings/` (MeetingService.kt): `write_up::finish` brings it under the library when the
+//! recording ends (`Places::bring`), and a meeting a kill cut short is brought in at the next open with the rest.
 //!
 //! A FOLDER CHOSEN THROUGH ANDROID'S PICKER has no paths SQLite, a player or the sidecars could use, so for a tree
 //! the attachments stay in the app's own storage, as `.glyph/` does (root.rs); the backup and the export still
@@ -36,6 +39,14 @@ use std::path::{Path, PathBuf};
 /// The app's own library folder under its data directory, `paths::LIBRARY`: named here because the attachments'
 /// places are worked out from a data directory alone, as root.rs's are.
 const OWN_LIBRARY: &str = "Library";
+
+/// The `.gitattributes` for a library folder under git (docs/MARKDOWN_FIRST.md §10, the 'Back up to git' plugin):
+/// the notes, their versions and the canvases as LF text, so a Windows checkout and a Mac's commit the same bytes
+/// and never a whole-file diff of line endings; the sidecars as text with the platform's endings; and every kind of
+/// attachment under the library as binary, so git never tries a text merge or a CRLF conversion on a WAV. The
+/// file itself is tauri/publish/templates/gitattributes, beside the Pages workflow the plugin also writes, so the
+/// publisher and the plugin read one copy; a backup may carry it too.
+pub const GIT_ATTRIBUTES: &str = include_str!("../../../publish/templates/gitattributes");
 
 /// What a note can link or play besides its words.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -75,12 +86,14 @@ impl Kind {
     }
 
     /// Whether this build keeps the kind under the library (written there, and the old folder's files brought in
-    /// at open), or still beside it because something reads it by the old path (the module's header says what).
-    /// Only in the Flutter app's core: the Tauri app this file is shared with reads its pictures through its own
-    /// `img` scheme (images.rs), which looks beside the library alone, so there nothing has moved and a move of
-    /// the library's folder gathers nothing. `CARGO_PKG_NAME` is the crate this file is compiled into.
+    /// at open), or still beside it because something reads it by the old path alone. Every kind, in the Flutter
+    /// app's core, since 2026-10-31 (the module's header says how each reader came to look in both places). Only
+    /// there: the Tauri app this file is shared with reads its pictures through its own `img` scheme (images.rs)
+    /// and its tapes and films through `rec` and `vid`, which look beside the library alone, so there nothing has
+    /// moved and a move of the library's folder gathers nothing. `CARGO_PKG_NAME` is the crate this file is
+    /// compiled into.
     pub fn settled(self) -> bool {
-        env!("CARGO_PKG_NAME") == "ghost_core" && matches!(self, Kind::Image)
+        env!("CARGO_PKG_NAME") == "ghost_core"
     }
 
     /// The kind as a sentence names it.
@@ -136,6 +149,27 @@ impl Places {
     /// `name` where it is, or where it will be written: for what writes a file whole, or adds to one.
     pub fn place(&self, name: &str) -> PathBuf {
         self.find(name).unwrap_or_else(|| self.first().join(name))
+    }
+
+    /// `name` brought into the first folder from whichever other folder has it, and where it is now; `None` where
+    /// no folder has it. For a file something outside the core wrote into an old folder after the open's gather (the
+    /// phone's meeting service spooling a WAV into `<data>/recordings/`, MeetingService.kt), brought in when the core
+    /// first touches it (`write_up::finish`). The rule is `gather`'s for one file: one already in the first folder
+    /// at the same size is the same file, and the other copy goes; one there at another size is left where it is
+    /// and the first folder's is answered, so nothing is written over.
+    pub fn bring(&self, name: &str) -> io::Result<Option<PathBuf>> {
+        let to = self.first().join(name);
+        let from = self.dirs[1..].iter().map(|dir| dir.join(name)).find(|path| path.is_file());
+        let Some(from) = from else { return Ok(to.is_file().then_some(to)) };
+        if let Ok(there) = std::fs::metadata(&to) {
+            if there.len() == std::fs::metadata(&from)?.len() {
+                std::fs::remove_file(&from)?;
+            }
+            return Ok(Some(to));
+        }
+        std::fs::create_dir_all(self.first())?;
+        move_file(&from, &to)?;
+        Ok(Some(to))
     }
 
     /// Every file of the kind by its name, each from the first folder that has it: the folders' own files only
@@ -367,21 +401,42 @@ mod tests {
         names
     }
 
+    /// Whether this crate is the Flutter app's core, where every kind lives under the library; in the Tauri app
+    /// nothing has moved, and the same tests read the other way round.
+    fn core() -> bool {
+        Kind::Image.settled()
+    }
+
     #[test]
-    fn the_folders_are_named_as_the_links_are_and_only_pictures_have_moved() {
+    fn the_folders_are_named_as_the_links_are_and_every_kind_has_moved_in_the_core() {
         assert_eq!(Kind::ALL.map(Kind::folder), ["image", "file", "video", "recordings"]);
         assert_eq!(Kind::ALL.map(Kind::legacy), ["images", "images/files", "video", "recordings"]);
-        assert_eq!(Kind::ALL.map(Kind::settled), [true, false, false, false], "files, films and tapes wait for their players");
+        assert_eq!(Kind::ALL.map(Kind::settled), [core(); 4], "all four together since 2026-10-31, in the core alone");
         let data = Path::new("/data");
         let own = Attachments::new(Some(&data.join("Library")), true, data);
-        assert_eq!(own.of(Kind::Image).dirs(), [data.join("Library/image"), data.join("images")]);
-        assert_eq!(own.of(Kind::Recording).dirs(), [data.join("recordings"), data.join("Library/recordings")], "written beside, read under");
         let chosen = Attachments::new(Some(Path::new("/Users/matt/Notes")), false, data);
-        assert_eq!(chosen.of(Kind::Image).dirs(), [PathBuf::from("/Users/matt/Notes/image"), data.join("images"), data.join("Library/image")]);
-        assert_eq!(chosen.of(Kind::File).dirs(), [data.join("images/files"), PathBuf::from("/Users/matt/Notes/file"), data.join("Library/file")]);
+        if core() {
+            assert_eq!(own.of(Kind::Image).dirs(), [data.join("Library/image"), data.join("images")]);
+            assert_eq!(own.of(Kind::Recording).dirs(), [data.join("Library/recordings"), data.join("recordings")], "written under, read beside");
+            assert_eq!(own.of(Kind::File).dirs(), [data.join("Library/file"), data.join("images/files")]);
+            assert_eq!(chosen.of(Kind::Image).dirs(), [PathBuf::from("/Users/matt/Notes/image"), data.join("images"), data.join("Library/image")]);
+            assert_eq!(chosen.of(Kind::File).dirs(), [PathBuf::from("/Users/matt/Notes/file"), data.join("images/files"), data.join("Library/file")]);
+            assert_eq!(chosen.of(Kind::Video).first(), Path::new("/Users/matt/Notes/video"));
+        } else {
+            assert_eq!(own.of(Kind::Image).dirs(), [data.join("images"), data.join("Library/image")], "the Tauri app writes beside the library still");
+            assert_eq!(own.of(Kind::Recording).dirs(), [data.join("recordings"), data.join("Library/recordings")]);
+            assert_eq!(chosen.of(Kind::File).dirs(), [data.join("images/files"), PathBuf::from("/Users/matt/Notes/file"), data.join("Library/file")]);
+        }
         let tree = Attachments::new(None, false, data);
         assert_eq!(tree.of(Kind::Image).dirs(), [data.join("images"), data.join("Library/image")], "a tree keeps them in the app's storage");
         assert_eq!(tree.of(Kind::Video).first(), data.join("video"));
+        assert_eq!(tree.of(Kind::Recording).first(), data.join("recordings"));
+    }
+
+    #[test]
+    fn the_git_attributes_name_the_notes_as_lf_text_and_every_attachment_as_binary() {
+        let rules: Vec<&str> = GIT_ATTRIBUTES.lines().filter(|line| !line.starts_with('#') && !line.trim().is_empty()).collect();
+        assert_eq!(rules, ["*.md text eol=lf", "*.versions text eol=lf", "*.canvas text eol=lf", "*.json text", "*.wav binary", "*.jpg binary", "*.png binary", "*.mp4 binary", "*.pdf binary"]);
     }
 
     #[test]
@@ -396,23 +451,85 @@ mod tests {
         put(&data.join("Library/image/b.png"), b"bb");
         put(&data.join("images/d.webp"), b"old d");
         put(&data.join("Library/image/d.webp"), b"new d, longer");
+        if !core() {
+            // The Tauri app keeps everything beside the library: the move is the core's alone.
+            let places = Attachments::new(Some(&data.join("Library")), true, &data);
+            assert_eq!(places.gather(|_| {}), 0);
+            assert_eq!(places.of(Kind::Image).find("a.jpg"), Some(data.join("images/a.jpg")));
+            return;
+        }
         let places = Attachments::new(Some(&data.join("Library")), true, &data);
         let mut said = Vec::new();
-        assert_eq!(places.gather(|line| said.push(line)), 2, "a and its words came; b was there already; d stayed");
+        assert_eq!(places.gather(|line| said.push(line)), 3, "a and its words came; b was there already; d stayed; the file came too");
         assert_eq!(names(&data.join("Library/image")), ["a.jpg", "a.jpg.ocr.txt", "b.png", "d.webp"]);
-        assert_eq!(names(&data.join("images")), [".c.part", "d.webp", "files"], "b went, d is left, a write under way and the files are not touched");
+        assert_eq!(names(&data.join("images")), [".c.part", "d.webp", "files"], "b went, d is left, a write under way is not touched");
+        assert_eq!(names(&data.join("Library/file")), ["doc.pdf"], "the files are their own kind, under the library now");
+        assert_eq!(names(&data.join("images/files")), Vec::<String>::new());
         assert_eq!(std::fs::read(data.join("Library/image/d.webp")).unwrap(), b"new d, longer", "nothing is written over");
         assert!(said.iter().any(|line| line.contains("d.webp") && line.contains("different sizes")), "{said:?}");
         assert!(said.iter().any(|line| line.contains("moved 2 pictures")), "{said:?}");
+        assert!(said.iter().any(|line| line.contains("moved 1 files")), "{said:?}");
         // Again: nothing to do, and nothing said.
         let mut again = Vec::new();
         assert_eq!(places.gather(|line| again.push(line)), 0);
         assert_eq!(again, vec![format!("d.webp is in both pictures folders at different sizes: {} is left where it is", data.join("images/d.webp").display())]);
-        // The kinds that have not moved are read in both places and written beside the library still.
-        assert_eq!(places.of(Kind::File).find("doc.pdf"), Some(data.join("images/files/doc.pdf")));
-        assert_eq!(places.of(Kind::File).place("new.pdf"), data.join("images/files/new.pdf"));
+        // Every kind is read in both places and written under the library.
+        assert_eq!(places.of(Kind::File).find("doc.pdf"), Some(data.join("Library/file/doc.pdf")));
+        assert_eq!(places.of(Kind::File).place("new.pdf"), data.join("Library/file/new.pdf"));
         assert_eq!(places.of(Kind::Image).place("new.jpg"), data.join("Library/image/new.jpg"));
         assert_eq!(places.of(Kind::Image).find("d.webp"), Some(data.join("Library/image/d.webp")), "the library's copy is the one read");
+        assert_eq!(places.of(Kind::Recording).place("n1.wav"), data.join("Library/recordings/n1.wav"));
+    }
+
+    #[test]
+    fn films_and_recordings_move_at_open_too_and_are_read_from_either_folder_meanwhile() {
+        if !core() {
+            return;
+        }
+        let data = TempDir::new("attachments-kinds");
+        put(&data.join("video/f.mp4"), b"a film");
+        put(&data.join("video/.orphans.json"), b"{}");
+        put(&data.join("recordings/n1.wav"), b"RIFF n1");
+        put(&data.join("recordings/.n2.wav.part"), b"half a sync");
+        put(&data.join("Library/recordings/n3.wav"), b"RIFF n3, already under");
+        let places = Attachments::new(Some(&data.join("Library")), true, &data);
+        // Read-both before the move: what the players and the write-up see between a Kotlin write and the open.
+        assert_eq!(places.of(Kind::Video).find("f.mp4"), Some(data.join("video/f.mp4")));
+        assert_eq!(places.of(Kind::Recording).find("n1.wav"), Some(data.join("recordings/n1.wav")));
+        assert_eq!(places.of(Kind::Recording).find("n3.wav"), Some(data.join("Library/recordings/n3.wav")));
+        assert_eq!(places.of(Kind::Recording).files().unwrap().iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>(), ["n1.wav", "n3.wav"], "each once, no half a sync");
+        let mut said = Vec::new();
+        assert_eq!(places.gather(|line| said.push(line)), 2);
+        assert_eq!(names(&data.join("Library/video")), ["f.mp4"]);
+        assert_eq!(names(&data.join("video")), [".orphans.json"], "the sweep's memory is the app's own and stays");
+        assert_eq!(names(&data.join("Library/recordings")), ["n1.wav", "n3.wav"]);
+        assert_eq!(names(&data.join("recordings")), [".n2.wav.part"]);
+        assert_eq!(places.gather(|_| panic!("nothing to say twice")), 0, "idempotent");
+        assert_eq!(places.of(Kind::Video).find("f.mp4"), Some(data.join("Library/video/f.mp4")));
+    }
+
+    #[test]
+    fn a_file_written_into_an_old_folder_after_the_open_is_brought_in_when_the_core_touches_it() {
+        if !core() {
+            return;
+        }
+        let data = TempDir::new("attachments-bring");
+        let places = Attachments::new(Some(&data.join("Library")), true, &data);
+        let tapes = places.of(Kind::Recording);
+        assert_eq!(tapes.bring("none.wav").unwrap(), None, "nowhere is nowhere");
+        // The meeting service spooled a WAV beside the library while the app ran.
+        put(&data.join("recordings/m1.wav"), b"RIFF a meeting");
+        assert_eq!(tapes.bring("m1.wav").unwrap(), Some(data.join("Library/recordings/m1.wav")));
+        assert_eq!(std::fs::read(data.join("Library/recordings/m1.wav")).unwrap(), b"RIFF a meeting");
+        assert!(!data.join("recordings/m1.wav").exists());
+        assert_eq!(tapes.bring("m1.wav").unwrap(), Some(data.join("Library/recordings/m1.wav")), "brought already: where it is");
+        // The same file in both at the same size: the old copy goes. At another size: both stay, the library's is read.
+        put(&data.join("recordings/m1.wav"), b"RIFF a meeting");
+        assert_eq!(tapes.bring("m1.wav").unwrap(), Some(data.join("Library/recordings/m1.wav")));
+        assert!(!data.join("recordings/m1.wav").exists());
+        put(&data.join("recordings/m1.wav"), b"RIFF a meeting, longer");
+        assert_eq!(tapes.bring("m1.wav").unwrap(), Some(data.join("Library/recordings/m1.wav")));
+        assert!(data.join("recordings/m1.wav").exists(), "nothing is written over");
     }
 
     #[test]
@@ -438,6 +555,9 @@ mod tests {
 
     #[test]
     fn a_library_going_to_another_folder_takes_copies_of_its_attachments_and_leaves_the_persons() {
+        if !core() {
+            return;
+        }
         let data = TempDir::new("attachments-copy");
         let home = TempDir::new("attachments-copy-home");
         let vault = home.join("Vault");

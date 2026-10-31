@@ -1,11 +1,12 @@
-/// The files notes link to (lib/core/attachment_refs.dart): kept on this device, beside the pictures, by Dart.
+/// The files notes link to (lib/core/attachment_refs.dart): kept on this device, under the library, by Dart.
 ///
-/// **Where.** `<data>/images/files/<name>`: a folder of their own inside the pictures' folder, `<data>/images/`
-/// (native/src/paths.rs `IMAGES`). Inside it, rather than beside it, because the core already carries that folder
-/// whole wherever the pictures go: the export's zip walks it (`images/files/…`, native/src/kept/export_commands.rs),
-/// the backup copies it (`Attachments/Pictures/files/…`, backup_commands.rs), and Erase everything removes it
-/// (kept/reset.rs). So a file is in all three with no change to the core, and nothing of the core reads the folder
-/// otherwise: its picture commands only ever name a file directly under `images/` by a picture's own name.
+/// **Where.** The core says ([AttachmentPlaces], lib/files/attachment_places.dart; the rule is
+/// tauri/src-tauri/src/library/attachments.rs): `Library/file/<name>` since 2026-10-31, the path the notes link
+/// (`[Name](file/<name>)`), so a copy of the library folder has every file a note names; and still read from
+/// `<data>/images/files/<name>`, where every build before kept them, until the core's gather at open has brought
+/// them in. Until the core has answered ([follow]), the old folder alone. The core carries the folder with the rest
+/// of the library's attachments: the export names it `Library/file/`, the backup `Attachments/Files/`, and Erase
+/// everything removes it with the app's own library (kept/reset.rs).
 ///
 /// **Names** are the pictures' rule: a version 4 UUID and the extension the file came with, in lower case, given
 /// when it arrives and never reused ([attachmentName]). A name that is not one is never made into a path.
@@ -30,8 +31,9 @@ import 'package:flutter/foundation.dart';
 
 import '../core/attachment_refs.dart';
 import '../core/ids.dart';
+import 'attachment_places.dart';
 
-/// The folder under the pictures' folder the files are kept in.
+/// The folder under the pictures' folder every build before 2.3.94 kept the files in (`<data>/images/files`).
 const String attachmentsFolder = 'files';
 
 /// Where a file to keep comes from.
@@ -82,13 +84,28 @@ const String tooLargeToKeep = 'That file is too large to add.';
 
 /// The files of one data folder.
 class AttachmentStore extends ChangeNotifier {
-  AttachmentStore({required String dataDir, String Function()? newName})
-      : dir = Directory('$dataDir/images/$attachmentsFolder'),
+  /// Over the folders [places] names for the files, or the old folder alone until the core has answered ([follow]).
+  AttachmentStore({required String dataDir, String Function()? newName, AttachmentPlaces? places})
+      : _dirs = (places ?? AttachmentPlaces.legacy(dataDir)).file,
         _newName = newName;
 
-  /// `<data>/images/files`.
-  final Directory dir;
+  /// The folders the files are read from, the first the one written to (`AttachmentPlaces.file`).
+  List<String> _dirs;
   final String Function()? _newName;
+
+  /// The folder new files are written to: `Library/file`, or `<data>/images/files` until the core has answered.
+  Directory get dir => Directory(_dirs.first);
+
+  /// Every folder a file may be in, the one written to first.
+  List<String> get dirs => List<String>.unmodifiable(_dirs);
+
+  /// Where the core says the files are, once it has answered (lib/files/files_kit.dart): read from every folder it
+  /// names, written to the first. An answer with no folder for the files is no answer.
+  void follow(AttachmentPlaces places) {
+    if (places.file.isEmpty || listEquals(places.file, _dirs)) return;
+    _dirs = places.file;
+    notifyListeners();
+  }
 
   /// How many times each file has landed this run, by name: a card drawing one draws it again (a sync that arrived
   /// after it asked).
@@ -97,15 +114,19 @@ class AttachmentStore extends ChangeNotifier {
   /// Bumped each time a file lands, for whatever draws one to look again.
   int landedTimes(String name) => _landed[name] ?? 0;
 
-  /// The file's path, whether or not it is there; null for a name that may not name a file.
-  String? pathOf(String name) => attachmentName.hasMatch(name) ? '${dir.path}/$name' : null;
+  /// The file's path where a new one is written, whether or not it is there; null for a name that may not name a
+  /// file. For what writes: what reads asks [fileOf], which looks in every folder.
+  String? pathOf(String name) => attachmentName.hasMatch(name) ? '${_dirs.first}/$name' : null;
 
-  /// The file, where this device has it.
+  /// The file, where this device has it: the first of the folders that has it (under the library, or beside it
+  /// from an older build).
   Future<File?> fileOf(String name) async {
-    final path = pathOf(name);
-    if (path == null) return null;
-    final file = File(path);
-    return await file.exists() ? file : null;
+    if (!attachmentName.hasMatch(name)) return null;
+    for (final folder in _dirs) {
+      final file = File('$folder/$name');
+      if (await file.exists()) return file;
+    }
+    return null;
   }
 
   /// Its size in bytes, where this device has it.
@@ -136,6 +157,8 @@ class AttachmentStore extends ChangeNotifier {
   File _part() => File('${dir.path}/.${randomId('part')}.part');
 
   /// Keeps a file that came from elsewhere under its own name, whole or not at all (by sync, lib/sync/notes.dart).
+  /// Written where files are written now; a copy an older build left in another folder goes, so the one read is the
+  /// one that arrived (as the core's `sync_put_file` has it).
   Future<void> write(String name, Uint8List bytes) async {
     final path = pathOf(name);
     if (path == null) throw StateError('That is not a file name.');
@@ -148,6 +171,9 @@ class AttachmentStore extends ChangeNotifier {
     } catch (failure) {
       await _quietlyDelete(part);
       rethrow;
+    }
+    for (final folder in _dirs.skip(1)) {
+      await _quietlyDelete(File('$folder/$name'));
     }
     _arrived(name);
   }
@@ -201,12 +227,14 @@ class AttachmentStore extends ChangeNotifier {
     }
   }
 
-  /// Removes a file and the words read in it ([readTextSuffix] beside it). One already gone is nothing.
+  /// Removes a file and the words read in it ([readTextSuffix] beside it), from every folder it may be in. One
+  /// already gone is nothing.
   Future<void> remove(String name) async {
-    final path = pathOf(name);
-    if (path == null) return;
-    await _quietlyDelete(File(path));
-    await _quietlyDelete(File('$path$readTextSuffix'));
+    if (!attachmentName.hasMatch(name)) return;
+    for (final folder in _dirs) {
+      await _quietlyDelete(File('$folder/$name'));
+      await _quietlyDelete(File('$folder/$name$readTextSuffix'));
+    }
   }
 
   /// The files a deleted note linked, removed where no other note links them: the pictures' rule. [stillLinked]
@@ -231,23 +259,27 @@ class AttachmentStore extends ChangeNotifier {
     return gone;
   }
 
-  /// Every file kept here, by name, with its size: for Settings' count, and for the low-priority reading pass.
+  /// Every file kept here, by name, with its size, each from the first folder that has it: for Settings' count, and
+  /// for the low-priority reading pass.
   Future<Map<String, int>> all() async {
     final found = <String, int>{};
-    if (!await dir.exists()) return found;
-    try {
-      await for (final entry in dir.list(followLinks: false)) {
-        if (entry is! File) continue;
-        final name = entry.uri.pathSegments.last;
-        if (!attachmentName.hasMatch(name)) continue;
-        try {
-          found[name] = await entry.length();
-        } on FileSystemException {
-          // Gone between the listing and the asking.
+    for (final folder in _dirs) {
+      final dir = Directory(folder);
+      if (!await dir.exists()) continue;
+      try {
+        await for (final entry in dir.list(followLinks: false)) {
+          if (entry is! File) continue;
+          final name = entry.uri.pathSegments.last;
+          if (!attachmentName.hasMatch(name) || found.containsKey(name)) continue;
+          try {
+            found[name] = await entry.length();
+          } on FileSystemException {
+            // Gone between the listing and the asking.
+          }
         }
+      } on FileSystemException {
+        // A folder that will not be listed is nothing kept.
       }
-    } on FileSystemException {
-      // A folder that will not be listed is nothing kept.
     }
     return found;
   }

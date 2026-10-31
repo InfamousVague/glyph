@@ -13,6 +13,13 @@
 /// sound kept in the app's cache, `cached:<name>` (an ElevenLabs voice's preview). The phone's half takes only a
 /// name that is a file's name there, never a path.
 ///
+/// WHERE THE FILES ARE is the core's to say (lib/files/attachment_places.dart; the recordings under the library since
+/// 2026-10-31, and still beside it from an older build or the phone's meeting service): each `load` and `onDevice`
+/// hands the half the folders to look in (`dirs`, the first the one written to), asked of the core at that moment so
+/// a library moved since the launch is followed. The half looks in the first that has the file. Without an answer
+/// (nothing has asked the core: a test, a run with no data folder) no `dirs` go, and the half looks where it did
+/// before.
+///
 /// What differs: the element's five events are the channel's four (`position`, `playing`, `ended`, `failed`); a
 /// file that is not on this device is the channel's `onDevice`, where the scheme answered a HEAD with 404. Off
 /// Android there is no phone half: loading throws, and whether a recording is here is not known.
@@ -24,18 +31,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../core/attachment_refs.dart' show attachmentName;
+import '../files/attachment_places.dart';
 import 'player.dart';
 
 /// What `load` asks the phone's half for [src]: a note's recording by its id, a note's sound file (`file:<name>`), or
 /// a sound in the app's cache (`cached:<name>`). A name that is not a kept file's name is asked as nothing the half
-/// will open.
-Map<String, String> loadArguments(String src) {
+/// will open. With [places], the folders the half is to look in for a recording or a file (`dirs`); a cached sound
+/// has one folder of its own, and is asked with none.
+Map<String, Object> loadArguments(String src, {AttachmentPlaces? places}) {
   for (final (lead, argument) in const [('file:', 'file'), ('cached:', 'cached')]) {
     if (!src.startsWith(lead)) continue;
     final name = src.substring(lead.length);
-    return {argument: attachmentName.hasMatch(name) ? name : ''};
+    return {argument: attachmentName.hasMatch(name) ? name : '', if (argument == 'file' && places != null) 'dirs': places.file};
   }
-  return {'noteId': src};
+  return {'noteId': src, if (places != null) 'dirs': places.recording};
 }
 
 class PhoneTapePlayer implements TapePlayer {
@@ -92,7 +101,7 @@ class PhoneTapePlayer implements TapePlayer {
     _playing.value = false;
     _position.value = 0;
     _duration.value = null;
-    _duration.value = await _channel.invokeMethod<int>('load', loadArguments(noteId));
+    _duration.value = await _channel.invokeMethod<int>('load', loadArguments(noteId, places: await AttachmentPlaces.now()));
   }
 
   @override
@@ -110,7 +119,8 @@ class PhoneTapePlayer implements TapePlayer {
   @override
   Future<bool?> onDevice(String noteId) async {
     try {
-      return await _channel.invokeMethod<bool>('onDevice', {'noteId': noteId});
+      final places = await AttachmentPlaces.now();
+      return await _channel.invokeMethod<bool>('onDevice', {'noteId': noteId, if (places != null) 'dirs': places.recording});
     } on MissingPluginException {
       return null;
     } on PlatformException {

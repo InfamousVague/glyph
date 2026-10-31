@@ -1,0 +1,15 @@
+# Ghost.md: how git treats a library's files (the Back up to git plugin writes this as .gitattributes).
+#
+# The notes, their version histories and the canvases are text with LF endings on every platform, so a checkout on
+# Windows and a commit from a Mac hold the same bytes and a line ending is never a change. The sidecars under .glyph/
+# are text with the platform's endings. The attachments under image/, file/, video/ and recordings/ are binary: never
+# a text merge, never a line-ending conversion of a WAV.
+*.md text eol=lf
+*.versions text eol=lf
+*.canvas text eol=lf
+*.json text
+*.wav binary
+*.jpg binary
+*.png binary
+*.mp4 binary
+*.pdf binary

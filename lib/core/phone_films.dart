@@ -9,7 +9,9 @@
 ///
 /// A film plays in a texture of Flutter's that the phone's `MediaPlayer` draws into: [PhoneFilm] is one film open,
 /// told where it has got to on the channel's events. A texture that does not turn a film filmed on its side (the
-/// engine's on Vulkan) says how far the app must turn it, and [PhoneFilm.surface] does.
+/// engine's on Vulkan) says how far the app must turn it, and [PhoneFilm.surface] does. Where the films are is the
+/// core's to say (lib/files/attachment_places.dart: under the library since 2026-10-31, and still beside it from an
+/// older build), so `open` hands the phone's half the folders to look in (`dirs`), asked of the core at that moment.
 library;
 
 import 'dart:async';
@@ -18,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../files/attachment_places.dart';
 import 'films.dart';
 import 'native/core.dart';
 
@@ -126,7 +129,8 @@ class PhoneFilmDevice implements FilmDevice {
     _heard ??= _events.receiveBroadcastStream().listen(_said, onError: (Object _) {});
     final Map<String, Object?>? said;
     try {
-      said = await _channel.invokeMapMethod<String, Object?>('open', <String, Object?>{'name': video});
+      final places = await AttachmentPlaces.now();
+      said = await _channel.invokeMapMethod<String, Object?>('open', <String, Object?>{'name': video, if (places != null) 'dirs': places.video});
     } on MissingPluginException {
       throw StateError('This video can’t be played on this phone.');
     } on PlatformException catch (failure) {
