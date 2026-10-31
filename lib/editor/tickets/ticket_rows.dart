@@ -22,11 +22,11 @@ export '../items/field_chips.dart' show dayLabel;
 const List<String> alwaysShown = <String>['status', 'assignee', 'priority', 'due'];
 
 /// The rows the panel shows past those once set, or when More is pressed (`SHOWN_WHEN_SET`).
-const List<String> shownWhenSet = <String>['start', 'estimate', 'blocked-by', 'parent', 'labels'];
+const List<String> shownWhenSet = <String>['start', 'estimate', 'blocked-by', 'parent', 'labels', 'component'];
 
-/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), and how the note
-/// looks.
-const Set<String> _unsaid = <String>{'type', 'id', 'look'};
+/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), how the note looks,
+/// and its component, which is a row of the panel's (the port's own, 2026-10-31).
+const Set<String> _unsaid = <String>{'type', 'id', 'look', 'component'};
 
 /// The panel's rows for a ticket's front matter: the four always, then any of the rest that is set, or all of them
 /// with [more].

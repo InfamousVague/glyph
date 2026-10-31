@@ -190,10 +190,11 @@ class _QueryBoardState extends State<QueryBoard> {
         ),
       ),
       if (QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts, fills: true),
+      if (QueryLabelLine.has(row, result)) QueryLabelLine(look: look, row: row, result: result, acts: acts),
       // A ticket's lock and its sub-tickets' progress (ticket_marks.dart).
       if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks),
     ];
-    return Part(
+    final card = Part(
       'card',
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: look.space(3), vertical: look.space(2)),
@@ -207,6 +208,8 @@ class _QueryBoardState extends State<QueryBoard> {
         ),
       ),
     );
+    // Picked for a bulk edit, or picked by a press (lib/tickets/ui/bulk_bar.dart).
+    return acts.selectable(row, card, radius: look.t.radius('md'));
   }
 
   QueryActs get _still => QueryActs(today: widget.acts.today, locale: widget.acts.locale, editable: false, onOpen: (_) {}, onTick: (_) {}, onMove: (_, _) {}, pickable: (_, _) => false, pick: (_, _, _) {});

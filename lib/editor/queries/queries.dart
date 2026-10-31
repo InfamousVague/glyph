@@ -60,6 +60,7 @@ import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/item_syntax.dart' show taskBox;
 import '../../core/properties.dart' show StatusCategory, statusCategory, withProperty;
 import '../../sheet/ask_first.dart';
+import '../../tickets/ui/bulk_bar.dart' show BulkActions;
 import '../../core/query/query.dart';
 import '../commands/task_toggle.dart' show toggleBox;
 import '../editor.dart';
@@ -88,7 +89,7 @@ typedef NoteChange = String? Function(String body);
 
 /// What the screen hands the editor for its queries: the library, and how to reach and write what a query lists.
 class QueryOptions {
-  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks});
+  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks, this.bulk, this.labelColours});
 
   /// Every note a query reads: the library a screen shows, without the Trash, the archive, the Guide or templates'
   /// pages.
@@ -128,6 +129,13 @@ class QueryOptions {
   /// A ticket's lock (what blocks it that is not done) and its sub-tickets' progress, by note id, drawn on its card and
   /// its row (lib/book/ticket_links.dart; Matt, 2026-10-30). Absent, neither is drawn, and a move to done asks nothing.
   final TicketMarks Function(String noteId)? ticketMarks;
+
+  /// Many tickets picked and changed at once (lib/tickets/ui/bulk_bar.dart; Matt, 2026-10-31): absent, none are
+  /// picked.
+  final BulkActions? bulk;
+
+  /// The colours a ticket's notebook gives its labels, by the ticket's note id (lib/tickets/labels.dart).
+  final Map<String, String> Function(String noteId)? labelColours;
 }
 
 /// A ticket's lock and its sub-tickets' progress, as a board draws them: what blocks it, by key, and how many of its
@@ -487,6 +495,8 @@ class DrawnQuery extends StatelessWidget {
       onMove: moved,
       onSet: setAsked,
       ticketMarks: options?.ticketMarks,
+      bulk: writable ? options?.bulk : null,
+      labelColours: switch (options?.labelColours) { final colours? => (row) => colours(row.noteId), null => null },
       onAdd: editable && query != null && add != null && ticketDraft(query, null, null) != null
           ? (lane, title) {
               final draft = ticketDraft(query, result?.group, lane);

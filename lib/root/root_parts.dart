@@ -316,6 +316,8 @@ extension _RootParts on _GhostRootState {
           dock: _notesDock(),
         ),
       ),
+      // My tickets and Triage (lib/tickets/ui/tickets_screen.dart; root_tickets.dart).
+      ticketsBuilder: _ticketsPart,
       // The Market: plugins, themes and fonts (lib/market/market_screen.dart). A plugin's Settings opens Settings over
       // it at the plugin's own page, and Local only's word Account at Privacy.
       marketBuilder: (context, shell, screen) => _part(
@@ -396,6 +398,14 @@ extension _RootParts on _GhostRootState {
                   close();
                   _organize.showTags();
                 },
+          // My tickets, in simple mode too, once the library has any ticket (lib/tickets/ui/tickets_screen.dart).
+          onTickets: _reads.entries.isEmpty
+              ? null
+              : () {
+                  close();
+                  shell.showTickets();
+                },
+          ticketCount: _reads.entries.isEmpty ? null : _myTicketCount(),
           // The Market's row under Tags: advanced mode's, as Settings › Plugins was.
           onMarket: simple
               ? null
@@ -869,6 +879,9 @@ extension _RootParts on _GhostRootState {
         tags: _organize.showTags,
         market: _showMarket,
         trash: _openTrash,
+        // My tickets and Triage, once the library has any ticket (root_tickets.dart).
+        myTickets: _reads.entries.isEmpty ? null : () => _shell.currentState?.showTickets(),
+        triage: _reads.entries.isEmpty ? null : () => _shell.currentState?.showTickets(triage: true),
         openSmart: _organize.showSmart,
         settingsAt: _openSettingsAt,
         marketPlugin: (id) => _showMarket(plugin: id),

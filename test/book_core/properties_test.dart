@@ -288,6 +288,7 @@ void main() {
         'blocked-by:links',
         'parent:link',
         'labels:list',
+        'component:text',
       ]);
       expect(ticketProperties.firstWhere((each) => each.key == 'blocked-by').label, 'Blocked by');
       expect(propertyKind('Due'), PropertyKind.date);

@@ -236,6 +236,9 @@ const List<TicketProperty> ticketProperties = [
   TicketProperty(key: 'blocked-by', kind: PropertyKind.links, label: 'Blocked by'),
   TicketProperty(key: 'parent', kind: PropertyKind.link, label: 'Parent'),
   TicketProperty(key: 'labels', kind: PropertyKind.list, label: 'Labels'),
+  // The port's own (Matt, 2026-10-31: "`labels: [bug, ui]` and `component: Waitlist` in front matter"): words, as any
+  // other key's, with a row of their own in the panel and a name a query's column says.
+  TicketProperty(key: 'component', kind: PropertyKind.text, label: 'Component'),
 ];
 
 /// What a property holds by its key, any case: a ticket's own kind, and `text` for any other.

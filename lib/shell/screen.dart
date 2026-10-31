@@ -83,8 +83,11 @@ sealed class Screen {
   /// when one is named, or where a `ghostmd://market` [link] lands.
   const factory Screen.market({String? plugin, MarketPlace? link}) = ScreenMarket;
 
+  /// My tickets, or with [triage] the triage list (lib/tickets/ui/tickets_screen.dart).
+  const factory Screen.tickets({bool triage}) = ScreenTickets;
+
   /// The union's tag: `list`, `notes`, `note`, `capture`, `meeting`, `academy`, `organization`, `collection`,
-  /// `market`.
+  /// `market`, `tickets`.
   String get name;
 
   /// Whether the screen is the whole window with a microphone behind it: a capture or a meeting, over which nothing
@@ -102,7 +105,7 @@ sealed class Screen {
 
   /// Whether the screen is one of the places, which carry the app's tab row and take a pane beside the sidebar on a
   /// wide window: the three on the trail, and an organization's dashboard, drawn where All notes is.
-  bool get isPlace => place != null || this is ScreenOrganization || this is ScreenCollection || this is ScreenMarket;
+  bool get isPlace => place != null || this is ScreenOrganization || this is ScreenCollection || this is ScreenMarket || this is ScreenTickets;
 
   /// The id of the note on screen, or null when the screen is not a note.
   String? get noteOnScreen => switch (this) { ScreenNote(:final note) => note.id, _ => null };
@@ -333,4 +336,23 @@ class ScreenMarket extends Screen {
 
   @override
   int get hashCode => Object.hash(name, plugin, link);
+}
+
+/// My tickets and Triage (Matt, 2026-10-31: "One page of everything assigned to you", and the new tickets nobody has
+/// looked at yet, in one list): a place as the Tags page is, drawn where All notes is with the tab row over it and
+/// the sidebar beside it on a wide window; not on the trail the arrows walk, and its way out goes home.
+class ScreenTickets extends Screen {
+  const ScreenTickets({this.triage = false});
+
+  /// The triage list, rather than the tickets assigned to you.
+  final bool triage;
+
+  @override
+  String get name => 'tickets';
+
+  @override
+  bool operator ==(Object other) => other is ScreenTickets && other.triage == triage;
+
+  @override
+  int get hashCode => Object.hash(name, triage);
 }

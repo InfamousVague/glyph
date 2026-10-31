@@ -124,6 +124,7 @@ class AppShell extends StatefulWidget {
     this.organizationBuilder,
     this.collectionBuilder,
     this.marketBuilder,
+    this.ticketsBuilder,
     this.captureBuilder,
     this.meetingBuilder,
     this.academyBuilder,
@@ -215,6 +216,9 @@ class AppShell extends StatefulWidget {
 
   /// The Market: plugins, themes and fonts (lib/market/market_screen.dart, shell/screen.dart [ScreenMarket]).
   final ShellScreenBuilder<ScreenMarket>? marketBuilder;
+
+  /// My tickets and Triage (lib/tickets/ui/tickets_screen.dart, shell/screen.dart [ScreenTickets]).
+  final ShellScreenBuilder<ScreenTickets>? ticketsBuilder;
   final ShellOrganizationBuilder? organizationBuilder;
   final ShellScreenBuilder<ScreenCapture>? captureBuilder;
   final ShellScreenBuilder<ScreenMeeting>? meetingBuilder;
@@ -492,6 +496,13 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenCollection(kind, key: key, fromTags: fromTags);
       });
 
+  /// My tickets, or with [triage] the triage list, from the sidebar, the palette or a ticket's own: the notes' card
+  /// closes first, as for the Tags page.
+  void showTickets({bool triage = false}) => _change(() {
+        _drawer = false;
+        _screen = ScreenTickets(triage: triage);
+      });
+
   /// The Market, from the sidebar, the palette or Settings' row, at [plugin]'s page when one is named, or where a
   /// `ghostmd://market` [link] lands: the notes' card closes first, as for the Tags page.
   void showMarket({String? plugin, MarketPlace? link}) => _change(() {
@@ -668,6 +679,15 @@ class AppShellState extends State<AppShell> {
           child: KeyedSubtree(
             key: ValueKey('market:${screen.plugin ?? ''}:${screen.link ?? ''}'),
             child: widget.marketBuilder?.call(context, this, screen) ?? WholeScreenPlaceholder(what: 'the Market', onDone: backToList),
+          ),
+        );
+      case ScreenTickets():
+        return OnBack(
+          key: const ValueKey('back:tickets'),
+          onBack: backToList,
+          child: KeyedSubtree(
+            key: ValueKey('tickets:${screen.triage}'),
+            child: widget.ticketsBuilder?.call(context, this, screen) ?? WholeScreenPlaceholder(what: 'your tickets', onDone: backToList),
           ),
         );
       case ScreenOrganization():

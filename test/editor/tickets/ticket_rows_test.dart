@@ -14,8 +14,8 @@ void main() {
     test('are Status, Assignee, Priority and Due always, then each of the rest a ticket has, in the panel’s order', () {
       expect(panelRows(front), <String>['status', 'assignee', 'priority', 'due', 'estimate']);
       // An empty list is not a value: Labels waits behind More.
-      expect(hiddenRows(front), <String>['start', 'blocked-by', 'parent', 'labels']);
-      expect(panelRows(front, true), <String>['status', 'assignee', 'priority', 'due', 'start', 'estimate', 'blocked-by', 'parent', 'labels']);
+      expect(hiddenRows(front), <String>['start', 'blocked-by', 'parent', 'labels', 'component']);
+      expect(panelRows(front, true), <String>['status', 'assignee', 'priority', 'due', 'start', 'estimate', 'blocked-by', 'parent', 'labels', 'component']);
     });
 
     test('leave the keys a ticket does not have to the quiet line, not its type, its id or its look', () {

@@ -387,7 +387,7 @@ class _ActionState extends State<_Action> with TickerProviderStateMixin {
               dy = -3 * p;
               turn = -12 + 32 * p;
               opacity = 1 - 0.2 * p;
-            case SwipeIcon.archive:
+            case SwipeIcon.archive || SwipeIcon.check || SwipeIcon.more:
               // `box-drop`: from `translateY(-4px)`.
               dy = -4 * (1 - _at(320, springy));
             case SwipeIcon.delete:
@@ -419,7 +419,7 @@ class _ActionState extends State<_Action> with TickerProviderStateMixin {
                     child: Transform.rotate(
                       angle: turn * math.pi / 180,
                       child: HomeIcon(
-                        switch (action.icon) { SwipeIcon.pin || SwipeIcon.unpin => HomeGlyph.pin, SwipeIcon.archive => HomeGlyph.archive, SwipeIcon.delete => HomeGlyph.bin },
+                        switch (action.icon) { SwipeIcon.pin || SwipeIcon.unpin => HomeGlyph.pin, SwipeIcon.archive => HomeGlyph.archive, SwipeIcon.delete => HomeGlyph.bin, SwipeIcon.check => HomeGlyph.check, SwipeIcon.more => HomeGlyph.filters },
                         size: glyph,
                         color: widget.ink,
                       ),

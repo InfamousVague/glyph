@@ -41,6 +41,9 @@ import '../../sheet/ask_first.dart';
 import '../../sheet/css.dart' show snapBorder;
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
+import '../../tickets/labels.dart' show sameLabel;
+import '../../tickets/ui/label_chips.dart' show LabelChips;
+import '../../tickets/ui/label_picker.dart' show LabelPicker;
 import '../boards/composer.dart' show ownTextKeys;
 import '../fields/field_picker.dart';
 import '../fields/field_picks.dart';
@@ -54,7 +57,7 @@ import 'ticket_rows.dart';
 /// What the screen hands the editor for a ticket's panel and its keys: the library's tickets, read when they are
 /// drawn (`TicketOptions`).
 class TicketOptions {
-  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem});
+  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.labels, this.labelColours, this.setLabelColour});
 
   /// The workflow this note's status moves through: its notebook's (lib/book/tickets.dart), or the default.
   final List<String> Function() statuses;
@@ -85,6 +88,12 @@ class TicketOptions {
   /// Why a value cannot be written for Blocked by or Parent, in a sentence, or null where it can: a ring, a ticket
   /// waiting on itself however far round (lib/book/ticket_links.dart `blockedByProblem`, `parentProblem`).
   final String? Function(String key, Object? value)? problem;
+
+  /// The labels the library uses, the most used first, for the label picker; its notebook's colours for them; and a
+  /// colour kept there (lib/tickets/labels.dart; Matt, 2026-10-31). Absent, labels are typed as words.
+  final List<String> Function()? labels;
+  final Map<String, String> Function()? labelColours;
+  final void Function(String label, String? hue)? setLabelColour;
 }
 
 /// A property's name, as the panel says it (lib/core/properties.dart `ticketProperties`).
@@ -364,6 +373,30 @@ class _TicketPanelState extends State<TicketPanel> {
           // `<X size={12} />`
           if (!empty) _round('clear', Lucide.x, 12, label: 'Take ${label.toLowerCase()} off', onTap: () => widget.write(key, null)),
         ]);
+      case 'labels' when options?.labels != null:
+        // Chips in their colours, and the label picker (lib/tickets/ui/label_picker.dart).
+        final colours = options?.labelColours?.call() ?? const <String, String>{};
+        return LayoutBuilder(
+          builder: (context, constraints) => Part(
+            'labels',
+            child: CssWrap(
+              gap: look.space(1),
+              rowGap: look.space(1),
+              align: CssAlign.center,
+              children: <Widget>[
+                if (ticket.labels.isNotEmpty) LabelChips(labels: ticket.labels, colours: colours),
+                if (editable)
+                  _round('editLabels', ticket.labels.isEmpty ? Lucide.plus : Lucide.pencil, 13, label: 'Change labels', words: ticket.labels.isEmpty ? 'Add' : null, wide: true, onTap: () => _pick('labels'))
+                else if (ticket.labels.isEmpty)
+                  Part('empty', child: PageWords('Empty', look.sans(look.em, color: look.ink4), line: look.line, softWrap: false)),
+              ],
+            ),
+          ),
+        );
+      case 'component':
+        final value = _raw('component');
+        if (!editable) return _stepped(<Widget>[_chip(value.isEmpty ? 'Empty' : value, empty: value.isEmpty)]);
+        return TypedField(key: const ValueKey<String>('typed:component'), look: look, label: labelOf(key), value: value, number: false, onCommit: (typed) => widget.write('component', typed.trim().isEmpty ? null : typed.trim()));
       case 'estimate' || 'labels':
         final value = key == 'estimate' ? _raw('estimate') : propertyList(_raw('labels')).join(', ');
         final label = labelOf(key);
@@ -430,6 +463,22 @@ class _TicketPanelState extends State<TicketPanel> {
       case 'due' || 'start':
         final day = key == 'due' ? ticket.due : ticket.start;
         return FieldPicker(pick: DayPick(value: day, today: widget.today), label: labelOf(key), record: record, dayPicker: widget.dayPicker, onClose: close, onPick: (value) => widget.write(key, value));
+      case 'labels':
+        final setColour = options.setLabelColour;
+        return LabelPicker(
+          chosen: ticket.labels,
+          known: options.labels?.call() ?? const <String>[],
+          colours: options.labelColours?.call() ?? const <String, String>{},
+          record: record,
+          onClose: close,
+          // Each press written, on the labels as the panel has them now.
+          onToggle: (label, on) {
+            final now = ticketOf(widget.front, statuses)?.labels ?? ticket.labels;
+            final next = on ? <String>[...now, if (!now.any((each) => sameLabel(each, label))) label] : <String>[for (final each in now) if (!sameLabel(each, label)) each];
+            widget.write('labels', next);
+          },
+          onColour: setColour,
+        );
       default:
         return TicketsSheet(what: key, ticket: ticket, options: options, write: widget.write, onClose: close);
     }

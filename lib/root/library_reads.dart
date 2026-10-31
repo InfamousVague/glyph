@@ -26,6 +26,7 @@ import '../editor/tickets/tickets.dart' show TicketOptions;
 import '../notes/note_templates.dart';
 import '../notes/own_templates.dart';
 import '../perf/frame_log.dart';
+import '../tickets/labels.dart' show labelColoursOf, labelsIn;
 
 class LibraryReads {
   LibraryReads({required this.shown, required this.all});
@@ -41,6 +42,7 @@ class LibraryReads {
   TicketEntry? Function(String target)? _find;
   Note? Function(Note note)? _notebookOf;
   List<String>? _people;
+  List<String>? _labels;
   Map<String, Note>? _byTitle;
   List<QueryNote>? _queryNotes;
   ({List<NoteTemplate>? own})? _templates;
@@ -63,6 +65,7 @@ class LibraryReads {
     _find = null;
     _notebookOf = null;
     _people = null;
+    _labels = null;
     _byTitle = null;
     _queryNotes = null;
     _templates = null;
@@ -183,7 +186,7 @@ class LibraryReads {
   ///
   /// And its sub-tickets, Add sub-ticket ([addSub], the root's), and the rings a Blocked by or a Parent would make,
   /// refused (lib/book/ticket_links.dart).
-  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub}) {
+  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub, void Function(String label, String? hue)? labelColour}) {
     TicketEntry? self() => entries.where((entry) => entry.note.id == noteId).firstOrNull;
     Note? notebook() {
       for (final note in notes) {
@@ -213,6 +216,10 @@ class LibraryReads {
         return entry == null ? const <TicketChoice>[] : [for (final child in subTicketsOf(entry, entries)) ticketChoice(child)];
       },
       addSubTicket: addSub == null ? null : (title) => addSub(noteId, title),
+      // The labels the library uses and the notebook's colours for them (lib/tickets/labels.dart).
+      labels: () => _labels ??= labelsIn([for (final note in notes) note.body]),
+      labelColours: () => labelColoursOf(notebook()?.body),
+      setLabelColour: labelColour,
       problem: (key, value) {
         final entry = self();
         if (entry == null) return null;

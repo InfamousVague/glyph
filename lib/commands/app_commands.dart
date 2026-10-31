@@ -157,6 +157,8 @@ PaletteDoing paletteDoingFor({
   VoidCallback? market,
   void Function(String id)? openSmart,
   VoidCallback? trash,
+  VoidCallback? myTickets,
+  VoidCallback? triage,
   void Function(String page, {String? setting})? settingsAt,
   void Function(String id)? marketPlugin,
 }) {
@@ -203,6 +205,8 @@ PaletteDoing paletteDoingFor({
     market: market,
     openSmart: openSmart,
     trash: trash,
+    myTickets: myTickets,
+    triage: triage,
     setFocusMode: (on) => store.update((now) => now.copyWith(focusMode: on)),
     settingsAt: settingsAt == null ? null : (page, setting) => settingsAt(page, setting: setting),
     marketPlugin: marketPlugin,

@@ -39,8 +39,10 @@ import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
+import '../../core/preferences.dart' show preferences;
 import '../../core/properties.dart' show StatusCategory;
 import '../../core/query/query.dart';
+import '../../tickets/ui/bulk_bar.dart' show BulkActions, BulkBar, QuerySelectable, QuerySelection, SelectionBox;
 import '../fields/field_picker.dart';
 import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show daySaid;
@@ -121,7 +123,16 @@ class QueryView extends StatefulWidget {
     this.dayPicker,
     this.ticketMarks,
     this.onOpenTitle,
+    this.bulk,
+    this.labelColours,
   }) : linesEditable = linesEditable ?? editable;
+
+  /// What the tickets picked for a bulk edit are changed through (lib/tickets/ui/bulk_bar.dart; Matt, 2026-10-31).
+  /// Absent, or where nothing can be written, nothing is picked.
+  final BulkActions? bulk;
+
+  /// The colours a ticket's notebook gives its labels (lib/tickets/labels.dart).
+  final Map<String, String> Function(QueryRow row)? labelColours;
 
   /// A ticket's lock and its sub-tickets' progress, by note id (ticket_marks.dart).
   final TicketMarks Function(String noteId)? ticketMarks;
@@ -190,6 +201,26 @@ class QueryViewState extends State<QueryView> {
   bool _building = false;
   _Picking? _picking;
 
+  /// The tickets picked for a bulk edit.
+  late final QuerySelection _selection = QuerySelection()..addListener(_picked);
+
+  /// Every ticket the query draws now, in order, for Shift's run and the bar.
+  List<QueryRow> _drawn = const [];
+
+  void _picked() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _selection
+      ..removeListener(_picked)
+      ..dispose();
+    super.dispose();
+  }
+
+  bool get _bulks => widget.bulk != null && widget.editable;
+
   /// The pointer that went down on a control of a thing that can be carried.
   int controlPointer = -1;
 
@@ -201,10 +232,23 @@ class QueryViewState extends State<QueryView> {
       today: widget.today ?? result.today,
       locale: widget.locale,
       editable: widget.editable,
-      onOpen: widget.onOpen,
+      // While any are picked, a press on a ticket picks it or lets it go rather than opening it.
+      onOpen: (row) {
+        if (_bulks && QuerySelectable.can(row)) {
+          if (_selection.swallowTap) {
+            _selection.swallowTap = false;
+            return;
+          }
+          if (_selection.any) return _selection.toggle(row.key);
+        }
+        widget.onOpen(row);
+      },
       onTick: widget.onTick,
       onMove: widget.onMove,
       onAdd: widget.editable ? widget.onAdd : null,
+      selection: _bulks ? _selection : null,
+      order: () => [for (final row in _drawn) row.key],
+      labelColours: widget.labelColours,
       onControl: (pointer) => controlPointer = pointer,
       marks: switch (widget.ticketMarks) { final marks? => (row) => row.id == null || row.kind == RecordKind.task ? null : marks(row.noteId), null => null },
       onSet: widget.editable ? widget.onSet : null,
@@ -247,6 +291,13 @@ class QueryViewState extends State<QueryView> {
         ),
       ),
     );
+  }
+
+  /// [view] inside the box a mouse drags from its empty ground to pick tickets, where tickets can be picked; a table,
+  /// a board and a list are, the other views draw no ticket to pick.
+  Widget _boxed(Widget view) {
+    if (!_bulks || !(view is QueryTable || view is QueryBoard || view is QueryList)) return view;
+    return SelectionBox(selection: _selection, child: view);
   }
 
   /// `.warning, .empty { margin: var(--glacier-space-1) 0; color: var(--app-ink-3) }`, the margins of two that meet
@@ -294,6 +345,7 @@ class QueryViewState extends State<QueryView> {
       ]);
     }
     final acts = _acts(result);
+    _drawn = [for (final group in result.groups) for (final row in group.rows) if (QuerySelectable.can(row)) row];
     final words = kindWords[result.kind]!;
     final count = result.shown < result.matched ? '${result.shown} of ${result.matched}' : '${result.matched}';
     final rows = <QueryRow>[for (final group in result.groups) ...group.rows];
@@ -319,7 +371,7 @@ class QueryViewState extends State<QueryView> {
       if (nothing)
         _quiet('empty', 'Nothing matches this query yet.', first: result.warnings.isEmpty)
       else
-        switch (result.show) {
+        _boxed(switch (result.show) {
           ShowAs.table => QueryTable(look: look, result: result, acts: acts, state: this),
           ShowAs.board => QueryBoard(look: look, result: result, acts: acts, state: this, height: widget.height, onHeight: widget.onHeight),
           ShowAs.calendar => QueryCalendar(
@@ -339,7 +391,17 @@ class QueryViewState extends State<QueryView> {
           ShowAs.list => QueryList(look: look, result: result, acts: acts, state: this),
           ShowAs.timeline => QueryTimelineView(look: look, result: result, acts: acts),
           ShowAs.chart => QueryChart(look: look, result: result, acts: acts),
-        },
+        }),
+      // The bar over the window's foot while tickets are picked (lib/tickets/ui/bulk_bar.dart).
+      if (_bulks && widget.bulk != null)
+        BulkBar(
+          selection: _selection,
+          rows: () => [for (final row in _drawn) if (_selection.has(row.key)) row],
+          actions: widget.bulk!,
+          today: widget.today ?? result.today,
+          dayPicker: widget.dayPicker,
+          simple: preferences.value.simple,
+        ),
       if (totals) QueryTotals(look: look, totals: result.totals),
       if (_building && onBody != null)
         QueryBuilder(
@@ -572,6 +634,7 @@ class QueryRowLine extends StatelessWidget {
             QueryName(look: look, row: row, acts: acts, hideKey: keyLine),
             if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks, bar: false),
             if (result != null && QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts),
+            if (result != null && QueryLabelLine.has(row, result)) QueryLabelLine(look: look, row: row, result: result, acts: acts),
           ],
         ),
       ),
@@ -579,7 +642,7 @@ class QueryRowLine extends StatelessWidget {
     // .row { display: flex; align-items: flex-start; gap: var(--glacier-space-2);
     //   min-block-size: var(--glacier-space-10); padding-block: var(--glacier-space-1);
     //   border-block-start: 1px solid var(--app-rule) }  .rows > .row:first-child { border-block-start: 0 }
-    return Part(
+    return acts.selectable(row, Part(
       'row',
       child: Container(
         constraints: BoxConstraints(minHeight: look.space(10)),
@@ -598,7 +661,7 @@ class QueryRowLine extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ), radius: look.t.radius('sm'));
   }
 }
 
@@ -834,21 +897,25 @@ class _QueryTableState extends State<QueryTable> {
                 column: column,
                 cell: row.cells[index],
                 acts: acts,
-                child: cellView(look, row.cells[index], field: column.field, acts: acts, quiet: quiet, brief: false, workflow: row.workflow, parent: look.em) ?? const SizedBox.shrink(),
+                child: cellView(look, row.cells[index], field: column.field, acts: acts, quiet: quiet, brief: false, workflow: row.workflow, parent: look.em, row: row) ?? const SizedBox.shrink(),
               ),
               ends: look.space(2),
               above: look.hair / 2,
               below: last ? 0 : look.hair / 2,
             ),
       ];
+      final picked = acts.selection?.has(row.key) ?? false;
       rows.add(
         TableRow(
           key: ValueKey<String>('tr ${row.key}'),
           // .table tbody tr:last-child th, .table tbody tr:last-child td { border-block-end: 0 }
-          decoration: last ? null : BoxDecoration(border: Border(bottom: rule)),
+          // A row picked for a bulk edit is grounded whole (lib/tickets/ui/bulk_bar.dart).
+          decoration: picked
+              ? BoxDecoration(color: look.t.color('glacier-accent-9').withValues(alpha: 0.12), border: last ? null : Border(bottom: rule))
+              : (last ? null : BoxDecoration(border: Border(bottom: rule))),
           children: <Widget>[
             for (final (index, cell) in cells(acts).indexed)
-              _lanes.cell(row, group, index: index, columns: result.columns.length, copy: () => _lifted(cells(_still(acts))), child: cell),
+              acts.selectable(row, _lanes.cell(row, group, index: index, columns: result.columns.length, copy: () => _lifted(cells(_still(acts))), child: cell), boxed: index == result.opens, drawn: false),
           ],
         ),
       );

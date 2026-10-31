@@ -10,8 +10,9 @@ import 'note.dart';
 /// How an armed action fills the gap behind its row (`SwipeTone`).
 enum SwipeTone { accent, neutral, danger }
 
-/// The picture behind the row (`SwipeAction['icon']`).
-enum SwipeIcon { pin, unpin, archive, delete }
+/// The picture behind the row (`SwipeAction['icon']`); a tick and the sliders are the port's own, Triage's done and
+/// its actions (lib/tickets/ui/tickets_screen.dart).
+enum SwipeIcon { pin, unpin, archive, delete, check, more }
 
 /// One thing a swipe can do (`SwipeAction`).
 @immutable

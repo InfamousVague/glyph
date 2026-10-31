@@ -215,6 +215,7 @@ import '../tapes/clip_player.dart';
 import '../tapes/note_tape.dart';
 import '../tapes/player.dart' as tape_player show Tape, TapePlayer;
 import '../tapes/transcript_words.dart';
+import '../tickets/ui/bulk_bar.dart' show BulkActions;
 
 /// How long a place's name is waited for before its line is written with the coordinates (`NAME_WAIT_MS`).
 const Duration placeNameWait = Duration(milliseconds: 3000);
@@ -311,6 +312,8 @@ class NoteDeskWorld {
     this.addTicket,
     this.tickets,
     this.ticketMarks,
+    this.bulk,
+    this.labelColours,
     this.buttons,
     this.openWithin,
     this.openCanvas,
@@ -407,6 +410,11 @@ class NoteDeskWorld {
 
   /// A ticket's lock and its sub-tickets' progress, for a board or a query that lists it (lib/book/ticket_links.dart).
   final TicketMarks Function(String noteId)? ticketMarks;
+
+  /// Many tickets picked in a query and changed at once, and a ticket's notebook's label colours (lib/tickets;
+  /// Matt, 2026-10-31).
+  final BulkActions? bulk;
+  final Map<String, String> Function(String noteId)? labelColours;
 
   /// What a button in a note does past the note (lib/editor/buttons; Matt, 2026-10-30): a post, Claude, a note opened or
   /// made. Absent, a button sets its fields and opens its links, and does nothing else.
@@ -1018,6 +1026,8 @@ class NoteDeskState extends State<NoteDesk> {
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
           ticketMarks: _world.ticketMarks,
+          bulk: _world.bulk,
+          labelColours: _world.labelColours,
         );
 
   /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
@@ -1043,6 +1053,8 @@ class NoteDeskState extends State<NoteDesk> {
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
           ticketMarks: _world.ticketMarks,
+          bulk: _world.bulk,
+          labelColours: _world.labelColours,
           listedWritable: () => !widget.readOnly && _world.write != null,
         );
 

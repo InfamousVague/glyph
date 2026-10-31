@@ -27,6 +27,8 @@ import '../../core/query/query.dart';
 import '../../core/tags.dart' show tagsIn;
 import '../../core/task_fields.dart' show FieldKind, FieldSpan;
 import '../../sheet/css.dart' show snapBorder;
+import '../../tickets/ui/bulk_bar.dart' show QuerySelectable, QuerySelection;
+import '../../tickets/ui/label_chips.dart' show LabelChips;
 import '../fields/field_picker.dart' show StatusIcon;
 import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show ChipLook, FieldMenu, chipLook, dayLabel, daySaid;
@@ -40,7 +42,7 @@ final RegExp _priorityWord = RegExp(r' priority$');
 
 /// What a row and a cell need from the query's drawing to act and to name days (`Acts`).
 class QueryActs {
-  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks});
+  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks, this.selection, this.order, this.labelColours});
 
   final String today;
   final String? locale;
@@ -69,6 +71,21 @@ class QueryActs {
 
   /// Opens the note a relation's chip names, by its title (the port's own). Absent, a chip is words.
   final void Function(String title)? onOpenTitle;
+
+  /// The tickets picked for a bulk edit, and every pickable row's key in the order drawn (lib/tickets/ui/bulk_bar.dart;
+  /// Matt, 2026-10-31). Absent, nothing is picked.
+  final QuerySelection? selection;
+  final List<String> Function()? order;
+
+  /// The colours a ticket's notebook gives its labels (lib/tickets/labels.dart); absent, each its own.
+  final Map<String, String> Function(QueryRow row)? labelColours;
+
+  /// [child], a ticket's card or row, as one that can be picked where anything is.
+  Widget selectable(QueryRow row, Widget child, {double radius = 0, bool boxed = true, bool drawn = true}) {
+    final picked = selection;
+    if (picked == null || !QuerySelectable.can(row)) return child;
+    return QuerySelectable(selection: picked, row: row, order: order ?? () => const <String>[], radius: radius, boxed: boxed, drawn: drawn, child: child);
+  }
 }
 
 /// A press that is a control's own, said to whoever might lift the thing it is on.
@@ -537,7 +554,7 @@ class QueryPicked extends StatelessWidget {
 /// A cell, drawn as what it holds (`CellView`). [quiet] is a row that is finished with, whose days are not late;
 /// [brief] is a list's or a card's line of them, where a priority is its mark alone and an empty cell is nothing at
 /// all. [parent] is the type it stands in.
-Widget? cellView(QueryLook look, Cell cell, {required String field, required QueryActs acts, required bool quiet, required bool brief, List<String>? workflow, required double parent}) {
+Widget? cellView(QueryLook look, Cell cell, {required String field, required QueryActs acts, required bool quiet, required bool brief, List<String>? workflow, required double parent, QueryRow? row}) {
   final line = pageLine(parent, QueryLook.leading);
   switch (cell) {
     case EmptyCell():
@@ -611,6 +628,9 @@ Widget? cellView(QueryLook look, Cell cell, {required String field, required Que
         );
       }
       return Part('relation', child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: chips));
+    case ListCell(:final items) when field == 'labels':
+      // A ticket's labels in their colours (lib/tickets/ui/label_chips.dart; Matt, 2026-10-31).
+      return Part('labels', child: _onLine(look, parent, LabelChips(labels: items, colours: row == null ? const {} : acts.labelColours?.call(row) ?? const {}, size: 0.92 * parent)));
     case ListCell(:final items, :final tags):
       // .list { display: inline-flex; align-items: baseline; gap: var(--glacier-space-1) }
       // .item + .item::before { content: ', '; margin-inline-start: -0.25em }
@@ -677,7 +697,7 @@ class QueryMeta extends StatelessWidget {
     final quiet = row.category == StatusCategory.done || row.done == true;
     final cells = <Widget>[];
     for (final (column, cell) in shown(row, result)) {
-      final drawn = cellView(look, cell, field: column.field, acts: acts, quiet: quiet, brief: true, workflow: row.workflow, parent: look.xs);
+      final drawn = cellView(look, cell, field: column.field, acts: acts, quiet: quiet, brief: true, workflow: row.workflow, parent: look.xs, row: row);
       if (drawn == null) continue;
       cells.add(Part('metaCell', child: QueryPicked(look: look, row: row, column: column, cell: cell, acts: acts, child: drawn)));
     }
@@ -688,6 +708,31 @@ class QueryMeta extends StatelessWidget {
     //   font-size: var(--glacier-font-size-xs); color: var(--app-ink-2) }
     return Part('meta', child: CssWrap(gap: look.space(2), rowGap: look.space(2), align: CssAlign.baseline, shrinkWrap: !fills, children: cells));
   }
+}
+
+/// A ticket's labels and its component in their colours, on its card or its list's row, where the query has no
+/// column of its own for them (lib/tickets/ui/label_chips.dart; Matt, 2026-10-31: "shown on cards and rows").
+class QueryLabelLine extends StatelessWidget {
+  const QueryLabelLine({super.key, required this.look, required this.row, required this.result, required this.acts});
+
+  final QueryLook look;
+  final QueryRow row;
+  final QueryResult result;
+  final QueryActs acts;
+
+  static bool _column(QueryResult result, String field) => result.columns.any((column) => column.field == field);
+
+  static List<String> _labels(QueryRow row, QueryResult result) => _column(result, 'labels') ? const [] : row.labels;
+  static String? _component(QueryRow row, QueryResult result) => _column(result, 'component') || result.group == 'component' ? null : row.component;
+
+  /// Whether [row] has any to draw.
+  static bool has(QueryRow row, QueryResult result) => LabelChips.has(_labels(row, result), _component(row, result));
+
+  @override
+  Widget build(BuildContext context) => Part(
+    'labelLine',
+    child: LabelChips(labels: _labels(row, result), component: _component(row, result), colours: acts.labelColours?.call(row) ?? const {}, size: 0.92 * look.xs),
+  );
 }
 
 /// A group's heading, for a list or a table grouped by a field: its value, how many, and its totals (`GroupHead`).

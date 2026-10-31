@@ -87,6 +87,7 @@ import '../core/native/device_paths.dart' show DevicePaths;
 import '../core/shared_files.dart' show storeSharedFile;
 import '../files/plus_files.dart' show scanToNewNote;
 import '../core/note.dart';
+import '../core/days.dart' show isoDay;
 import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
 import '../core/note_text.dart';
@@ -94,7 +95,7 @@ import '../core/search.dart' show searchNotes, searchWords;
 import '../core/phone_connection.dart' show Connection;
 import '../core/preferences.dart';
 import '../core/properties.dart';
-import '../core/query/query.dart' show TicketDraft;
+import '../core/query/query.dart' show TicketDraft, queryMe;
 import '../core/reset.dart' show resetLocalData;
 import '../core/sample_library.dart';
 import '../core/stored.dart';
@@ -225,6 +226,11 @@ import '../simple/simple_pane.dart';
 import '../tapes/clip_player.dart' show TapeClipPlayer;
 import '../tapes/player.dart' show TapePlayer;
 import '../tapes/previews.dart' show TapePreviews;
+import '../tickets/bulk.dart';
+import '../tickets/labels.dart' show labelColoursOf, labelsIn, withLabelColour;
+import '../tickets/tickets_reads.dart';
+import '../tickets/ui/bulk_bar.dart' show BulkActions;
+import '../tickets/ui/tickets_screen.dart';
 import '../watch/watch_link.dart' show WatchTake;
 import '../watch/watch_claude.dart' show RunnerWatchClaude, watchRunOutcome;
 import '../watch/watch_notes.dart' show WatchAskFailed, WatchAsked, WatchClaude;
@@ -252,6 +258,7 @@ part 'root_commands.dart';
 part 'root_parts.dart';
 part 'root_buttons.dart';
 part 'root_templates.dart';
+part 'root_tickets.dart';
 part 'root_voice.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
@@ -684,6 +691,9 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// What the note on screen reads of the library, read once per change to the notes (lib/root/library_reads.dart).
   late final LibraryReads _reads = LibraryReads(shown: () => _shown, all: () => _library.value);
+
+  /// The library as My tickets, Triage and the sidebar's count read it (lib/tickets/tickets_reads.dart).
+  late final TicketsReads _ticketReads = TicketsReads(notes: () => _reads.queryNotes);
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -1226,9 +1236,12 @@ class _GhostRootState extends State<GhostRoot> {
     write: (id, change) => unawaited(_writeNote(id, change)),
     addTicket: _addFromQuery,
     // `[[GHO-12]]` finds the ticket by its key too.
-    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket),
+    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket, labelColour: (label, hue) => _setLabelColour(id, label, hue)),
     // A ticket's lock and its sub-tickets' progress on a board or a query that lists it (lib/book/ticket_links.dart).
     ticketMarks: _reads.ticketMarks,
+    // Tickets picked in a query and changed at once, and a ticket's notebook's label colours (root_tickets.dart).
+    bulk: _bulkActions,
+    labelColours: _labelColoursOf,
     // What a button in a note reaches past it with (root_buttons.dart).
     buttons: _buttonWorld,
     openWithin: _openTitleWithin,
@@ -1484,6 +1497,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _accountChanged() {
     _accountAt += 1;
+    // `me` in a query is the account's handle (lib/tickets/inbox.dart).
+    _tellMe();
     _tick.tell();
   }
 

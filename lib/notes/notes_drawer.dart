@@ -53,6 +53,8 @@ class NotesDrawer extends StatelessWidget {
     this.onManageSmart,
     this.onTags,
     this.onMarket,
+    this.onTickets,
+    this.ticketCount,
     this.simple = false,
   });
 
@@ -104,6 +106,10 @@ class NotesDrawer extends StatelessWidget {
   /// The Market; its row under Tags is there only with this.
   final VoidCallback? onMarket;
 
+  /// My tickets, and how many are yours: its row over Tags is there only with this.
+  final VoidCallback? onTickets;
+  final ({int all, int overdue})? ticketCount;
+
   /// Simple mode (GHST-103), passed through to the tree.
   final bool simple;
 
@@ -151,6 +157,8 @@ class NotesDrawer extends StatelessWidget {
         onManageSmart: onManageSmart,
         onTags: onTags,
         onMarket: onMarket,
+        onTickets: onTickets,
+        ticketCount: ticketCount,
         simple: simple,
       ),
     );

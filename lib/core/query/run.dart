@@ -150,6 +150,8 @@ class QueryRow extends QueryData {
     required this.overdue,
     this.end,
     this.dayField,
+    this.labels = const [],
+    this.component,
   });
 
   /// Its note's id, and its line for a to-do: one row's key, whatever else changes.
@@ -192,6 +194,11 @@ class QueryRow extends QueryData {
   /// The field [day] is from, which a day carried to another on a calendar sets; null where it has no day, and for
   /// an event (the port's own).
   final String? dayField;
+
+  /// A ticket's labels and its component, drawn on its card and its row in their colours whatever the columns
+  /// (lib/tickets/ui/label_chips.dart; Matt, 2026-10-31); not in the JSON, as the web's row has neither.
+  final List<String> labels;
+  final String? component;
 
   @override
   Object? toJson() => {
@@ -509,6 +516,8 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [Fi
     overdue: due != null && due.compareTo(today) < 0 && !done,
     end: endField == 'due' ? due : _dayOf(record, endField, look),
     dayField: dayField,
+    labels: record.ticket?.labels ?? const [],
+    component: record.ticket == null ? null : record.props['component'],
   );
 }
 

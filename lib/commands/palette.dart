@@ -178,6 +178,8 @@ class PaletteDoing {
     this.tags,
     this.market,
     this.trash,
+    this.myTickets,
+    this.triage,
     this.openSmart,
     this.setFocusMode,
     this.settingsAt,
@@ -262,6 +264,10 @@ class PaletteDoing {
 
   /// The Trash, as a section of its own (lib/notes/trash_sheet.dart, 2026-10-23); offered in simple mode too.
   final VoidCallback? trash;
+
+  /// My tickets, offered in simple mode too, and Triage (lib/tickets/ui/tickets_screen.dart; Matt, 2026-10-31).
+  final VoidCallback? myTickets;
+  final VoidCallback? triage;
 
   /// Focus mode on or off (Matt, 2026-10-27: "build ... focus mode"); offered in simple mode too, being one switch.
   final void Function(bool on)? setFocusMode;
@@ -414,6 +420,10 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   add('notes', 'All notes', 'Notes', 'browse every grid cards library search archive', doing.browseNotes);
   final trash = doing.trash;
   if (trash != null) add('trash', 'Trash', 'Notes', 'deleted bin restore empty delete for good', trash);
+  final myTickets = doing.myTickets;
+  if (myTickets != null) add('my-tickets', 'My tickets', 'Tickets', 'assigned to me inbox mine tasks issues due overdue', myTickets);
+  final triage = doing.triage;
+  if (triage != null) add('triage', 'Triage', 'Tickets', 'new tickets inbox untriaged look at assign queue', triage);
   final graph = simple ? null : doing.graph;
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
   final today = doing.today;

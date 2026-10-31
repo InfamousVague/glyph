@@ -216,10 +216,11 @@ Future<BulkOutcome> undoBulk(BulkOutcome outcome, BulkStore store) async {
   return BulkOutcome(wrote: wrote, failed: failed);
 }
 
-/// What the toast says after a batch: "Status set to Done on 3 tickets.", or which failed.
-String bulkReport(BulkOutcome outcome, String said, {required String Function(String id) nameOf}) {
-  final count = outcome.wrote.length + outcome.unchanged.length;
-  if (outcome.whole) return '$said on $count ${count == 1 ? 'ticket' : 'tickets'}.';
+/// What the toast says after a batch: "Status set to Done on 3 tickets.", or which failed. [count] is how many
+/// tickets it was for, where the notes it wrote are others (a move writes the notebooks).
+String bulkReport(BulkOutcome outcome, String said, {required String Function(String id) nameOf, int? count}) {
+  final tickets = count ?? outcome.wrote.length + outcome.unchanged.length;
+  if (outcome.whole) return '$said on $tickets ${tickets == 1 ? 'ticket' : 'tickets'}.';
   final names = [for (final MapEntry(:key, :value) in outcome.failed.entries) '${nameOf(key)}: $value'];
   return 'Nothing was changed. ${names.join(' ')}';
 }

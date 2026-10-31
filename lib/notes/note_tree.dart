@@ -96,6 +96,8 @@ class NoteTree extends StatefulWidget {
     this.onManageSmart,
     this.onTags,
     this.onMarket,
+    this.onTickets,
+    this.ticketCount,
     this.simple = false,
   });
 
@@ -157,6 +159,11 @@ class NoteTree extends StatefulWidget {
   /// The Market (Matt, 2026-10-26: "Make the plugins a dedicated "Market" section in the app"): a row under Tags,
   /// there only with this.
   final VoidCallback? onMarket;
+
+  /// My tickets (lib/tickets/ui/tickets_screen.dart; Matt, 2026-10-31): a row over Tags, with how many are yours and
+  /// how many of those are overdue, there only with this.
+  final VoidCallback? onTickets;
+  final ({int all, int overdue})? ticketCount;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the tools over the notes are
   /// New note, Search and commands, Open or Fold every folder where there are folders, and Close; no New workspace
@@ -280,6 +287,7 @@ class _NoteTreeState extends State<NoteTree> {
       // The smart notebooks and the Tags row.
       smart: widget.smart?.value,
       organize: (widget.onTags != null ? 1 : 0) | (widget.onSmart != null ? 2 : 0) | (widget.onManageSmart != null ? 4 : 0) | (widget.onMarket != null ? 8 : 0),
+      tickets: widget.onTickets == null ? null : widget.ticketCount ?? (all: 0, overdue: 0),
     );
     if (had != null && had.drawn == drawn && sameNotes(had.notes, widget.notes) && sameNotes(had.trashed, trashed)) {
       return _framed(context, t, look, had.tree, had.list, popup: popup, compact: compact);
@@ -656,6 +664,18 @@ class _NoteTreeState extends State<NoteTree> {
     /// Over the folders: the Tags page's row, and the smart notebooks under a heading of their own, each with how
     /// many notes its search finds now.
     void shelf() {
+      final onTickets = widget.onTickets;
+      if (onTickets != null) {
+        final gap = over(1);
+        final count = widget.ticketCount;
+        slivers.add(
+          SliverToBoxAdapter(
+            key: const ValueKey('tree-tickets'),
+            child: Padding(padding: EdgeInsets.only(top: gap), child: _ShelfRow(look: look, icon: Lucide.ticket, name: 'My tickets', count: count == null || count.all == 0 ? null : count.all, late: count != null && count.overdue > 0, onPressed: onTickets)),
+          ),
+        );
+        pending = 1;
+      }
       final onTags = widget.onTags;
       if (onTags != null) {
         final gap = over(1);
@@ -1320,7 +1340,7 @@ const String smartFolder = 'smart';
 
 /// A row over the folders that opens a page rather than folding: the Tags page, and the Market.
 class _ShelfRow extends StatelessWidget {
-  const _ShelfRow({required this.look, required this.icon, required this.name, this.count, required this.onPressed});
+  const _ShelfRow({required this.look, required this.icon, required this.name, this.count, this.late = false, required this.onPressed});
 
   final _Look look;
   final LucideIcon icon;
@@ -1328,6 +1348,9 @@ class _ShelfRow extends StatelessWidget {
 
   /// How many it holds; none for a row that counts nothing (the Market).
   final int? count;
+
+  /// Whether some of what it counts are overdue: the count in the overdue red (My tickets).
+  final bool late;
   final VoidCallback onPressed;
 
   @override
@@ -1357,7 +1380,7 @@ class _ShelfRow extends StatelessWidget {
                   if (count != null)
                     Padding(
                     padding: EdgeInsets.only(left: 0.5 * size),
-                    child: Text('$count', style: pageText(t, size, weight: 'medium', color: t.color('app-ink-4')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()])),
+                    child: Text('$count', style: pageText(t, size, weight: 'medium', color: t.color(late ? 'glacier-red-11' : 'app-ink-4')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()])),
                   ),
                 ],
               ),
