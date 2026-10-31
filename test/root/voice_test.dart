@@ -15,6 +15,7 @@ import 'package:ghost_md/capture/system_sound.dart' show SoundSupport;
 import 'package:ghost_md/capture/ui/capture_screen.dart';
 import 'package:ghost_md/capture/ui/meeting_screen.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/meet/meeting_mark.dart';
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -429,9 +430,10 @@ void main() {
       expect(library.value.length, before + 1);
       final (id, title, otherApps) = service.starts.single;
       final made = library.noteOf(id)!;
-      // Its tape named in its own front matter from the start (lib/editor/media/clip_refs.dart), the title its words.
+      // Its tape and its meeting named in its own front matter from the start (clip_refs.dart, meeting_mark.dart), the title its words.
       expect(tapeIdOf(made.body), isNotNull);
-      expect(withTapeId(made.body, null), '# $title\n');
+      expect(meetingMarkOf(made.body)?.kind, 'phone');
+      expect(withMeetingMark(withTapeId(made.body, null), null), '# $title\n');
       expect(title, startsWith('Meeting, '));
       expect(made.source, NoteSource.capture);
       expect(otherApps, isFalse);

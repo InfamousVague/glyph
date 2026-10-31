@@ -683,7 +683,8 @@ extension _RootParts on _GhostRootState {
       // None while the Calendar plugin is off (lib/plugins/calendar): the service holds none then.
       simple: simple,
       // The meetings' tapes under the notices (GHST-112), and See all: All notes with its Tapes word on.
-      meetings: preferences.value.meetings,
+      // Read both ways for a release (lib/meet/meeting_mark.dart): the preferences, and the notes that say so.
+      meetings: meetingsOf(preferences.value, _library.value),
       onAllTapes: () => shell.showAllNotes(tapes: true),
       // A cassette: the note at its tape, playing, its transcript on the page (Matt, 2026-10-24).
       onOpenTape: (id) => _openTape(shell, id),
@@ -1111,7 +1112,10 @@ extension _RootParts on _GhostRootState {
       updates: launchUpdatesOf(widget.updates),
       sync: _launchSync,
       recording: _meetingRecording,
-      onDone: () => _told(() => _launching = false),
+      onDone: () {
+        _told(() => _launching = false);
+        _launchGone();
+      },
     );
   }
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the

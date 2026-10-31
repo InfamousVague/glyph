@@ -28,11 +28,14 @@
 /// - A step is a [ReadStep] class of three kinds, where the page had a union of object shapes.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../../account/api.dart' show FetchRequest;
+import '../../core/front_matter.dart' show frontMatterValue;
+import '../host.dart' show pluginNotes;
 import '../types.dart';
 import 'manifest.dart';
 
@@ -166,17 +169,33 @@ void removeProject(String id) {
   host.storage.set(_linksKey, _links()..removeWhere((note, project) => project == id));
 }
 
-/// The project a note is linked to, or null (`projectFor`).
+/// The front matter key a note's repo is written under, `github: owner/repo` (docs/MARKDOWN_FIRST.md §3.8): the
+/// key a notebook already carries for its tickets' repos (lib/book/rules.dart `githubReposOf`), read the same way.
+const String githubRepoKey = 'github';
+
+/// The project a note is linked to, or null (`projectFor`): this device's link first, else the repo the note's own
+/// `github:` names (the link was per device, so a note linked on the Mac said nothing on the phone; 2026-10-31). A
+/// project known only from the note has no pack read yet: the picker, opened on it, reads one.
 Project? projectFor(String noteId) {
   final id = _links()[noteId];
-  if (id == null || id.isEmpty) return null;
-  for (final project in projects()) {
-    if (project.id == id) return project;
+  if (id != null && id.isNotEmpty) {
+    for (final project in projects()) {
+      if (project.id == id) return project;
+    }
   }
-  return null;
+  final body = pluginNotes.bodyOf?.call(noteId);
+  final said = body == null ? null : frontMatterValue(body, githubRepoKey);
+  final parsed = said == null || said.trim().isEmpty ? null : parseRepo(said.trim().split(',').first.trim());
+  if (parsed == null) return null;
+  final wanted = '${parsed.owner}/${parsed.repo}'.toLowerCase();
+  for (final project in projects()) {
+    if ('${project.owner}/${project.repo}'.toLowerCase() == wanted) return project;
+  }
+  return Project(id: wanted, owner: parsed.owner, repo: parsed.repo, url: 'https://github.com/${parsed.owner}/${parsed.repo}', pack: '');
 }
 
-/// Links a note to a project, or to none with null (`linkProject`).
+/// Links a note to a project, or to none with null (`linkProject`). Kept here, and written into the note as
+/// `github: owner/repo` for every other device and a folder opened elsewhere.
 void linkProject(String noteId, String? projectId) {
   final links = _links();
   if (projectId != null && projectId.isNotEmpty) {
@@ -185,6 +204,11 @@ void linkProject(String noteId, String? projectId) {
     links.remove(noteId);
   }
   host.storage.set(_linksKey, links);
+  final write = pluginNotes.setProperty;
+  if (write == null) return;
+  final project = projectId == null ? null : projects().where((p) => p.id == projectId).firstOrNull;
+  if (projectId != null && project == null) return;
+  unawaited(write(noteId, githubRepoKey, project == null ? null : '${project.owner}/${project.repo}').catchError((Object _) {}));
 }
 
 /// What the model is given with a note linked to a project, or null (`projectContextFor`).

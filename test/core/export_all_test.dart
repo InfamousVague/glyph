@@ -74,6 +74,34 @@ void main() {
       final file = settingsFile((key) => kept[key]);
       expect(jsonDecode(file), {'glyph-preferences': {'theme': 'dark'}, 'glyph-plugins': {'marks': true}, 'glyph-workspace-current': 'work'});
       expect(file, isNot(contains('secret')));
+    });
+
+    test('strips the share keys, the calendars, the webhooks and every sealed value out of the preferences, and keeps the rest', () {
+      final prefs = {
+        'theme': 'dark',
+        'workspaces': {'list': [{'id': 'w-1', 'name': 'Work'}], 'notes': {'n1': 'w-1'}},
+        'trash': {'n2': 1},
+        'meetings': {'n3': 2},
+        'shares': {'n1': {'id': 'abcdefghijklmnop', 'key': 'KEYKEYKEYKEYKEYK', 'sent': 'x'}},
+        // An older build's blob, the secrets still in the clear (lib/calendar/setup.dart `storedInTheClear`), beside a
+        // newer one's id and name.
+        'calendars': {'addresses': [{'id': 'e776f1db', 'url': 'https://cal.test/secretfeed.ics', 'name': 'Work'}, {'id': 'a1b2c3', 'name': 'Home'}], 'google': {'refreshToken': 'REFRESH', 'ticked': ['me@example.com']}, 'sources': ['https://calendar.google.com/ical/secretfeed']},
+        'webhooks': [{'id': 'h1', 'url': 'https://example.com/hook', 'secret': 'HOOKSECRET'}],
+        'sealedKeys': {'anthropic': 'SEALED'},
+        'more': {'github': {'token': 'ghp_nested'}, 'kept': true},
+      };
+      final file = settingsFile((key) => key == 'glyph-preferences' ? jsonEncode(prefs) : null);
+      final out = (jsonDecode(file) as Map)['glyph-preferences'] as Map;
+      expect(out.keys, ['theme', 'workspaces', 'trash', 'meetings', 'calendars', 'more']);
+      expect(out['more'], {'github': {}, 'kept': true}, reason: 'the token goes, the key that held it stays');
+      // The calendars' ids, names and choices stay (decision 22 keeps the secrets out of the blob); the addresses go.
+      expect(out['calendars'], {'addresses': [{'id': 'e776f1db', 'name': 'Work'}, {'id': 'a1b2c3', 'name': 'Home'}], 'google': {'ticked': ['me@example.com']}, 'sources': <Object?>[]});
+      for (final leak in ['KEYKEYKEY', 'REFRESH', 'secretfeed', 'HOOKSECRET', 'SEALED', 'ghp_nested', 'abcdefghijklmnop']) {
+        expect(file, isNot(contains(leak)));
+      }
+      expect(secretPreferenceKeys, {'shares', 'webhooks', 'sealedKeys'});
+      expect(readme(exportName(at), at), isNot(contains('No account, password or key')));
+      expect(readme(exportName(at), at), contains('share links, calendars and webhooks are left out'));
       expect(file, endsWith('}\n'));
       expect(settingsFile((key) => null), '{}\n');
       expect(settingsFile((key) => throw StateError('refused')), '{}\n', reason: 'storage that will not answer is no settings');

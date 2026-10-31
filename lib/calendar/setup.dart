@@ -175,6 +175,20 @@ class CalendarSetup {
     );
   }
 
+  /// Every address the blob [raw] lists, secret here or not, for a page that shows what the account has: one whose
+  /// secret is here (or in the blob, an older build's) whole, as [fromJson] reads it; one whose secret has not
+  /// arrived yet by its id and name with an empty [CalendarAddress.url], so the page can say so instead of showing
+  /// nothing (2026-10-31: the pane listed only [fromJson]'s and said "None yet" of two addresses).
+  static List<CalendarAddress> listedIn(Object? raw, {SecretPeek? secret}) {
+    final list = raw is Map ? raw['addresses'] : null;
+    return List.unmodifiable([
+      if (list is List)
+        for (final each in list)
+          if (each is Map && each['id'] is String && (each['id'] as String).isNotEmpty)
+            CalendarAddress.fromJson(each, secret: secret) ?? CalendarAddress(id: each['id'] as String, url: '', name: each['name'] is String && (each['name'] as String).isNotEmpty ? each['name'] as String : null),
+    ]);
+  }
+
   /// The ids of the addresses the blob [raw] lists, secret here or not: what to load, and what to sync.
   static List<String> addressIdsIn(Object? raw) {
     final list = raw is Map ? raw['addresses'] : null;
