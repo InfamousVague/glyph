@@ -14,9 +14,10 @@
     <!--
       ghostmarkdown.com (tauri/docs/LANDING.md, docs/DESIGN.md §153, §154). Since 2026-10-18 (Matt: "highlight more important
       features that set us apart like the claude integrations and calendar integrations as well as notion etc") it leads
-      with what sets Ghost.md apart: Claude (in the app and through the connector), the calendar, and the plugins with
-      Notion first; then the core (plain Markdown, voice, planning marks, files, teams, versions), privacy and the ways
-      to get it. Everything that shows the app is the app: its screens (shots/,
+      with what sets Ghost.md apart: the Market, what a team gets (Matt, 2026-10-31: tickets, query boards, the Gantt
+      and the rest, "towards the top"), Claude (in the app and through the connector), the calendar, and the plugins
+      with Notion first; then the core (plain Markdown, voice, planning marks, files, organizations, versions),
+      privacy and the ways to get it. Everything that shows the app is the app: its screens (shots/,
       scripts/landing-shots.mjs) and its cassette (parts/, src/landing/parts.tsx). What it says is
       what the app does: the Guide and the code are the sources.
 
@@ -48,12 +49,12 @@
         <a class="brand" href="#top"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
         <ul class="bar-links">
           <li><a href="market.html">Market</a></li>
+          <li><a href="#for-teams">Teams</a></li>
           <li><a href="#claude">Claude</a></li>
           <li><a href="#calendar">Calendar</a></li>
           <li><a href="#meetings">Meetings</a></li>
           <li><a href="#plugins">Plugins</a></li>
           <li><a href="#organize">Markdown</a></li>
-          <li><a href="#teams">Teams</a></li>
           <li><a href="#private">Privacy</a></li>
           <li><a href="/docs/">Docs</a></li>
         </ul>
@@ -110,6 +111,69 @@
           </header>
           <ul class="market-picks" id="market-picks" aria-label="From the Market"></ul>
           <p class="fine center" id="market-count"></p>
+        </div>
+      </section>
+
+      <!-- For teams (Matt, 2026-10-31: "a section towards the top that outlines all the team features, such as the
+           gantt, query boards, tickets and more"): what a notebook with a key gives a team, a line each, with the app
+           showing it (docs/GANTT.md, docs/FORMS.md, lib/book/rules.dart, lib/core/query/planning.dart, lib/tickets/).
+           The pictures are the feature-shot tests' (test/gantt, test/editor/queries, test/tickets, test/forms,
+           test/root/mentions_verified_shots_test.dart), on their fixture notes. Organizations themselves, writing
+           together live and comments are #teams, further down. -->
+      <section class="band" id="for-teams" aria-labelledby="for-teams-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-users"/></svg>For teams</p>
+            <h2 id="for-teams-title">Tickets, cycles and a Gantt, in files the team owns.</h2>
+            <p>Give a notebook a key and its notes become tickets. Boards, a Gantt, burndowns and a roadmap are drawn from a query, and all of it stays Markdown: front matter and fences, readable in Obsidian or on GitHub, backed up with git.</p>
+          </header>
+          <figure class="wrap laptop-wrap laptop-plan">
+            <div class="laptop">
+              <img src="shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart in a note: a launch plan's tasks as bars across November in three sections, an arrow from each to the one that waits on it, two milestones as diamonds, a red line on today, and Week, Month and Quarter to zoom." />
+            </div>
+            <figcaption class="fine center">The Gantt, in plain Markdown: drag a bar to move or stretch it, link what waits on what, mark a milestone. <code>show: gantt</code> draws one from any query.</figcaption>
+          </figure>
+          <ul class="crew">
+            <li>
+              <figure class="crew-pic"><img src="shots/teams-epic.webp" width="1600" height="1000" loading="lazy" alt="An epic's panel at the top of its note: KLN-1, In progress, High, its milestone, and the four tickets in it as chips over a progress bar, 2 of 4 done." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-ticket"/></svg><span>Tickets in notebooks</span></h3>
+              <p>Keys like HT-12, statuses, assignees, due days, priorities, labels and components. Sub-tickets with a progress bar, a check before a blocked ticket is done, and templates for new ones.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="shots/teams-board.webp" width="1600" height="1000" loading="lazy" alt="A query drawn as a board grouped by label, two cards picked, and the bar over them: Status, Assignee, Labels, Due, Priority, Move, Delete." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-layout-grid"/></svg><span>Boards, tables, calendars, charts</span></h3>
+              <p>One <code>```query</code> fence, shown as a board, a table, a list, a calendar, a chart or a rollup. Pick a few cards and change them all at once.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="shots/teams-cycle.webp" width="1600" height="1000" loading="lazy" alt="A cycle's burndown: the points remaining against the ideal line across two weeks, and above it a bar saying the last cycle ended with one unfinished, with a button to move it to the next." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-refresh-cw"/></svg><span>Cycles, epics and a roadmap</span></h3>
+              <p>Cycles with a burndown and velocity, and unfinished work carried to the next. Epics that add up their tickets, milestones, and a roadmap drawn from them.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="shots/teams-mine.webp" width="1600" height="1000" loading="lazy" alt="My tickets on a wide window: six tickets in groups, Overdue, Today, This week, Later and No date, each with its key, its notebook, its due day, its priority and its labels." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-list-checks"/></svg><span>My tickets and Triage</span></h3>
+              <p>Everything assigned to you across every notebook, by when it is due. Triage works a queue by keys: J and K to move, A to assign, P for priority, T for done.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="shots/teams-form.webp" width="1600" height="1000" loading="lazy" alt="A ticket filed from a form, in the Mac app: BUG-1 in the Bug reports notebook, its fields still empty but for Time with its Start button, Merge into under them, and the form's answers in its front matter." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-share-2"/></svg><span>Forms that land as tickets</span></h3>
+              <p>Share a link and anyone can fill the form in, with no account. Each answer arrives sealed and becomes a ticket in the notebook, ready to triage.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="shots/teams-verified.webp" width="1600" height="1000" loading="lazy" alt="A team's note in the Mac app: Verified by Matt until Dec 10 at its top, people and days as @ chips in its lines, a passed day in red, and the picker an @ opens, offering Today and Tomorrow." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg><span>Organizations</span></h3>
+              <p>Shared notebooks and folders, sealed end to end. @mention a teammate or a day, verify a page as the team's current truth, and leave comments in the margin. <a href="#teams">Writing together</a> is below.</p>
+            </li>
+          </ul>
+          <ul class="tiles">
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-workflow"/></svg><h3>Rules</h3><p>“When status becomes Done, post to Slack.” Sentences in a <code>```rules</code> fence in the notebook, run as its tickets change.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-git-branch"/></svg><h3>Pull requests and time</h3><p>A GitHub pull request sits on its ticket, and Start and Stop keep the time spent on it.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-eye"/></svg><h3>Watchers and history</h3><p>Watch a ticket to hear of its changes, read its history, and get a morning digest of what is due.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-copy"/></svg><h3>Duplicates and merge</h3><p>Possible duplicates are shown as a ticket is made, and Merge into… moves comments and links, with one Undo.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-audio-lines"/></svg><h3>Meetings</h3><p>Ghost joins Meet and Zoom, writes the transcript as the call runs, and posts the summary to Slack.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-file-text"/></svg><h3>All of it Markdown</h3><p>Front matter and fences, nothing else. Open the notebook in Obsidian or on GitHub, and keep it in git.</p></li>
+          </ul>
+          <p class="fine center">A notebook's key, statuses and rules live in its index note; each ticket is its own <code>.md</code> file. Every mark is on <a href="reference.html">the formatting reference</a>.</p>
         </div>
       </section>
 
@@ -582,7 +646,7 @@ v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
       <section class="band band-tint" id="teams" aria-labelledby="teams-title">
         <div class="wrap">
           <header class="band-head">
-            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-users"/></svg>Teams</p>
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-users"/></svg>Organizations</p>
             <h2 id="teams-title">Write together, in the same note, at the same time.</h2>
             <p>Make an organization and invite people by their handle or with a link. Each member gets the organization's workspace, and a note filed there is the team's: on everyone's devices, and open to everyone at once.</p>
           </header>

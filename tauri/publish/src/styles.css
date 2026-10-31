@@ -1,0 +1,12 @@
+/*
+ * What every page of a published site is set in: the app's own tokens, token for token, as the reader page has them
+ * (src/read/main.tsx): the kit's tokens and Glyph's inks over them, the base type scale and gutter from app.css, and the
+ * two faces the site needs, Inter for the words and JetBrains Mono for code, from their packages so the output carries
+ * them. Not the whole kit's font set (fonts.css: five families, every weight), which is right for the app a person
+ * chose a face in and too heavy for a page they only read.
+ */
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/jetbrains-mono/index.css';
+@import '@glacier/tokens/css/tokens.css';
+@import '../../src/app/app.css';
+@import '../../src/app/ink.css';
