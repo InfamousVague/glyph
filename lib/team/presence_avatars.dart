@@ -19,6 +19,20 @@ import 'presence.dart';
 
 export 'presence.dart' show PagePresence, PresentMember;
 
+/// The way to a member's page (lib/orgs/ui/member_page.dart; docs/TEAMSPACES.md, "Members": "reached from the
+/// members strip, `@mentions` and the presence avatars"), by their organization and handle, for everything under it:
+/// the list of who is here opens one by a press. With none, the list only says who.
+class MemberLinkScope extends InheritedWidget {
+  const MemberLinkScope({super.key, required this.open, required super.child});
+
+  final void Function(String orgId, String handle)? open;
+
+  static void Function(String orgId, String handle)? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<MemberLinkScope>()?.open;
+
+  @override
+  bool updateShouldNotify(MemberLinkScope old) => !identical(old.open, open);
+}
+
 /// The [PagePresence] for everything under it; null where there is none.
 class PagePresenceScope extends InheritedWidget {
   const PagePresenceScope({super.key, required this.presence, required super.child});
@@ -156,19 +170,31 @@ class _PresenceAvatarsState extends State<PresenceAvatars> {
             // A sentence, not a heading: the kit sets a Text label in capitals, and this one is said as it is.
             GlacierMenuLabel(child: Builder(builder: (context) => Text(members.length == 1 ? 'Here now' : '${members.length} here now'))),
             for (final member in members)
-              GlacierMenuLabel(
-                child: Builder(
-                  builder: (context) => Row(
-                    key: PresenceAvatars.lineKey(member.id),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _Round(hue: member.hue, side: context.tokens.fontSize('md') * 1.3, words: member.initial, ring: false),
-                      SizedBox(width: context.tokens.space(2)),
-                      Text(member.name),
-                    ],
+              if (MemberLinkScope.maybeOf(context) case final open?)
+                // Their page, from their line (docs/TEAMSPACES.md, "Members").
+                GlacierMenuItem(
+                  key: PresenceAvatars.lineKey(member.id),
+                  onSelect: () {
+                    close();
+                    open(member.org, member.name);
+                  },
+                  icon: _Round(hue: member.hue, side: context.tokens.fontSize('md') * 1.3, words: member.initial, ring: false),
+                  child: Text(member.name),
+                )
+              else
+                GlacierMenuLabel(
+                  child: Builder(
+                    builder: (context) => Row(
+                      key: PresenceAvatars.lineKey(member.id),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _Round(hue: member.hue, side: context.tokens.fontSize('md') * 1.3, words: member.initial, ring: false),
+                        SizedBox(width: context.tokens.space(2)),
+                        Text(member.name),
+                      ],
+                    ),
                   ),
                 ),
-              ),
           ],
         ),
       ],

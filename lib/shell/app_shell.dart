@@ -524,6 +524,15 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenOrganization(orgId, page: OrganizationPage.log);
       });
 
+  /// A member's page, under the dashboard (docs/TEAMSPACES.md, "Members"): from the members strip, a mention and the
+  /// presence avatars.
+  void openOrganizationMember(String orgId, String handle) => _change(() {
+        _settings = null;
+        _drawer = false;
+        _notificationsOpen = false;
+        _screen = ScreenOrganization(orgId, page: OrganizationPage.member, member: handle);
+      });
+
   /// Where one of the arrows said to go: the home page, the grid, or a note. From an entry nobody has written in to
   /// its own journal, the journal takes the entry's tab, as its bar's way back does: New entry gave the entry the
   /// journal's tab, and Back otherwise opened the journal in a second one and kept the entry open in its own, so it
@@ -694,9 +703,9 @@ class AppShellState extends State<AppShell> {
         final log = screen.page == OrganizationPage.log;
         return OnBack(
           key: const ValueKey('back:organization'),
-          onBack: log ? () => openOrganization(screen.orgId) : backToList,
+          onBack: screen.page != null ? () => openOrganization(screen.orgId) : backToList,
           child: KeyedSubtree(
-            key: ValueKey('organization:${screen.orgId}/${screen.page?.name ?? ''}'),
+            key: ValueKey('organization:${screen.orgId}/${screen.page?.name ?? ''}${screen.member == null ? '' : '/${screen.member}'}'),
             child: widget.organizationBuilder?.call(context, this, screen) ??
                 OrganizationPlaceholder(name: _orgName(screen.orgId), log: log, onLog: () => openOrganizationLog(screen.orgId)),
           ),

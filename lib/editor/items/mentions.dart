@@ -17,6 +17,11 @@
 ///   the list's while it is up. It goes when the caret leaves the words, a space is typed after a name, or Escape.
 ///
 /// Nothing in code, an address, maths, HTML or the front matter, as the syntax says, and the picker not there either.
+///
+/// **A tap on a person's chip opens their page** where whoever made the editor says how ([MentionHooks.open];
+/// docs/TEAMSPACES.md, "Members": a member's page is "reached from the members strip, `@mentions` and the presence
+/// avatars"), as a tag's chip opens its page (tags.dart): the press is the chip's, and the caret stays where it was.
+/// A name that is nobody in the note's organization is answered no, and the tap is the editor's as before.
 library;
 
 import 'dart:ui' show Color;
@@ -39,7 +44,11 @@ import 'inline_box.dart';
 
 /// What the editor asks of whoever made it, each asked as it is used.
 class MentionHooks {
-  const MentionHooks({this.hue, this.today, this.picking, this.owner});
+  const MentionHooks({this.hue, this.today, this.picking, this.owner, this.open});
+
+  /// A tap on a person's chip: true where it opened their page (a member of the note's organization), false and the
+  /// tap is the editor's. Absent, every tap is the editor's.
+  final bool Function(String handle)? open;
 
   /// The hue a person wears here: a workspace hue for a member of the note's organization, null for anyone else.
   final String? Function(String handle)? hue;
@@ -313,7 +322,34 @@ class _Chips extends PluginValue {
   }
 }
 
-final ViewPlugin<_Chips> _chips = ViewPlugin.define<_Chips>(_Chips.new, decorations: (value) => value.decorations);
+final ViewPlugin<_Chips> _chips = ViewPlugin.define<_Chips>(
+  _Chips.new,
+  decorations: (value) => value.decorations,
+  eventHandlers: EditorEventHandlers(
+    mouseDown: (event, view) {
+      final open = view.state.facet(_hooks)?.open;
+      if (open == null) return false;
+      final pos = view.posAtCoords(event.position);
+      if (pos == null) return false;
+      // Only a person drawn as a chip: one the decorations put a person's chip on.
+      final chips = view.plugin(_chips)?.decorations;
+      if (chips == null) return false;
+      String? hit;
+      chips.between(pos, pos, (from, to, value) {
+        if (_people.values.any((mark) => identical(mark, value)) && pos >= from && pos <= to) {
+          final line = view.state.doc.lineAt(from);
+          for (final mention in mentionsIn(line.text)) {
+            if (mention.person && line.from + mention.from == from) hit = mention.value;
+          }
+          return false;
+        }
+        return null;
+      });
+      final handle = hit;
+      return handle != null && open(handle);
+    },
+  ),
+);
 
 /// Whether the list may take a key now: a question is asked, somewhere a mention can be.
 bool _listKey(StateCommandTarget target, String key) {

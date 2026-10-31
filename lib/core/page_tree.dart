@@ -324,6 +324,28 @@ String teamspaceHomeBody(String orgName, {DocsMode docs = DocsMode.edit, String 
   ].join('\n');
 }
 
+/// An organization's space by its id among [workspaces]; null where this device has no workspace for it, or its
+/// name cleans away to no folder ([spacesFor]).
+Space? spaceOfOrg(List<Workspace> workspaces, String orgId) {
+  for (final space in spacesFor(workspaces)) {
+    if (space.orgId == orgId) return space;
+  }
+  return null;
+}
+
+/// An organization's home page among [notes] without building the whole tree, read as [PageTree.homeOf] reads it
+/// (`index.md`, else `Home.md`, else a note saying `type: teamspace`, among the notes directly in its folder, out of
+/// the trash and the archive): the dashboard asks it at every build, where the tree is built once per change.
+Note? teamspaceHomeIn(Iterable<Note> notes, Space space) {
+  final folder = space.folder;
+  if (folder == null) return null;
+  final inIt = [
+    for (final note in notes)
+      if (note.path case final path? when !note.inTrash && (note.archivedAt ?? 0) == 0 && _dirOf(path) == folder && path.toLowerCase().endsWith('.md')) note,
+  ];
+  return _Builder._pageOf(folder, inIt, true);
+}
+
 // ---- the nodes -----------------------------------------------------------------------------------------------------
 
 /// One row of the tree: a page (a note), a folder's page (a note that is a folder's), or a plain folder (a folder
@@ -911,6 +933,21 @@ class PageMover {
       fileByFolder(workspaces, move.noteId, _dirOf(move.to), orgFolders: orgFolders);
     }
     return true;
+  }
+
+  /// Makes an organization's home page, `orgs/<Org>/Home.md` ([teamspaceHomeBody] with [docs]), filed in the
+  /// organization's workspace so it is the team's and syncs to every member (Matt, 2026-10-31, the teamspace home:
+  /// "Create the home page"). The note made, or null where the library did not put it where it was asked; null too
+  /// for Personal, which has no home page.
+  Future<Note?> createHome(Space space, {DocsMode docs = DocsMode.edit}) async {
+    final folder = space.folder, to = space.homePath;
+    if (folder == null || to == null) return null;
+    final made = await library.createNote(teamspaceHomeBody(space.name, docs: docs));
+    final whole = await library.get(made.id) ?? made;
+    final placed = await library.apply(whole.copyWith(path: () => to));
+    if (placed.path != to) return null;
+    fileByFolder(workspaces, made.id, folder, orgFolders: orgFolders);
+    return placed;
   }
 
   /// Writes [order] as the `order:` of [container]'s page ([orderAfterDrop] gives it): over the page where it has

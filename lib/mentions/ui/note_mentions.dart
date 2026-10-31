@@ -15,7 +15,11 @@ import '../mention_syntax.dart' show handleKey;
 import 'mention_picker.dart';
 
 class NoteMentions {
-  NoteMentions({required this.services, required this.noteId, required this.colours, required this.view, DateTime Function()? today}) : _today = today ?? DateTime.now;
+  NoteMentions({required this.services, required this.noteId, required this.colours, required this.view, DateTime Function()? today, this.openMember}) : _today = today ?? DateTime.now;
+
+  /// A member's page (lib/orgs/ui/member_page.dart), by their organization and handle: what a tap on a chip naming a
+  /// member of the note's organization opens (docs/TEAMSPACES.md, "Members"). Absent, a chip is not opened.
+  final void Function(String orgId, String handle)? openMember;
 
   final AccountServices? services;
   final String noteId;
@@ -63,7 +67,18 @@ class NoteMentions {
   late final MentionPicker picker = MentionPicker(people: people, me: () => me, today: _today, owner: owner);
 
   /// The editor's extension: the chips always, the picker where the note can be written.
-  Extension extension({required bool readOnly}) => mentions(MentionHooks(hue: hue, today: _today, picking: readOnly ? null : picker, owner: owner));
+  Extension extension({required bool readOnly}) => mentions(MentionHooks(hue: hue, today: _today, picking: readOnly ? null : picker, owner: owner, open: openMember == null ? null : _open));
+
+  /// A chip tapped: the member's page, where the name is a member of the note's organization.
+  bool _open(String handle) {
+    final org = orgId, open = openMember;
+    if (org == null || open == null) return false;
+    final key = handleKey(handle);
+    final member = _members.keys.where((each) => handleKey(each) == key).firstOrNull ?? (me != null && handleKey(me!) == key ? me : null);
+    if (member == null) return false;
+    open(org, member);
+    return true;
+  }
 
   /// The chips drawn again in the colours as they are now.
   void recolour() {

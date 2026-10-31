@@ -121,7 +121,9 @@ import '../core/versions_share.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../core/bytes.dart' show toBase64Url;
-import '../core/notifications.dart' show ticketRuleKind;
+import '../core/notifications.dart' show isMention, ticketRuleKind;
+import '../core/page_tree.dart' show DocsMode, PageMover, Space, spaceOfOrg, teamspaceHomeIn, withDocsMode;
+import '../core/versions_log.dart' show ChangesAcross;
 import '../meet/meeting_mark.dart' show meetingsOf, withMeetingMark;
 import '../mentions/mention_notices.dart' show mentionContext, mentionPayload;
 import '../mentions/mention_syntax.dart' show handleKey;
@@ -197,6 +199,7 @@ import '../live/presence.dart' show AiOnline, Seen, aiKey;
 import '../orgs/types.dart' show OrgRow;
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
+import '../orgs/ui/member_page.dart';
 import '../perf/frame_log.dart';
 import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarOn;
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
@@ -255,7 +258,9 @@ import '../simple/simple_pane.dart';
 import '../tapes/clip_player.dart' show TapeClipPlayer;
 import '../tapes/player.dart' show TapePlayer;
 import '../tapes/previews.dart' show TapePreviews;
-import '../team/presence_avatars.dart' show PagePresence, PagePresenceScope, PresenceAvatars;
+import '../team/follow.dart';
+import '../team/presence_avatars.dart' show MemberLinkScope, PagePresence, PagePresenceScope, PresenceAvatars;
+import '../team/updates.dart' show DocUpdatesFeed;
 import '../tickets/bulk.dart';
 import '../tickets/labels.dart' show labelColoursOf, labelsIn, withLabelColour;
 import '../tickets/tickets_reads.dart';
@@ -269,6 +274,7 @@ import 'capture_route.dart';
 import 'desktop_wiring.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
+import 'page_drawing.dart' show pageDrawingOf;
 import 'note_keeping.dart';
 import 'opening.dart';
 import 'organize.dart';
@@ -293,6 +299,7 @@ part 'root_tickets.dart';
 part 'root_voice.dart';
 part 'root_ticket_rules.dart';
 part 'root_git_backup.dart';
+part 'root_teamspaces.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -629,6 +636,14 @@ class _GhostRootState extends State<GhostRoot> {
     final WiredAccount wired => PagePresence.of(wired.live.presence, handle: () => wired.live.account.session?.handle),
     _ => null,
   };
+
+  /// Which pages this device has made each account a follower of, and why (lib/team/follow.dart).
+  late final FollowLedger _followLedger = FollowLedger(_stored);
+
+  /// The versions of the pages this account follows, read for its Updates (lib/team/updates.dart); made with them.
+  ChangesAcross? _followedChangesMade;
+  ChangesAcross get _followedChanges => _followedChangesMade ??= ChangesAcross(_versions);
+  DocUpdatesFeed? _docUpdatesMade;
 
   /// Whether the way into an account is up (shell/account_gate.dart): made once what this device kept is read.
   AccountGateState? _gate;
@@ -1352,6 +1367,8 @@ class _GhostRootState extends State<GhostRoot> {
     tags: _places,
     placeSearch: widget.placeSearch,
     openTag: (tag) => _organize.showTag(tag),
+    // A team's pages: Follow, a first edit's following, a mention's chip to the member's page (root_teamspaces.dart).
+    teamPages: _services == null ? null : _teamPageSeams,
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
@@ -1561,7 +1578,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// signed in, the organizations, the feed, the shares), where the sync stands, who is in an organization's notes,
   /// voice (a meeting's state, whether the phone may notify, whether the AI can run), the models and their
   /// fetches, the app's updates, the AI of the note on screen, and what is known of the tapes on this device.
-  int _accountAt = 0, _syncAt = 0, _presenceAt = 0, _voiceAt = 0, _modelsAt = 0, _updatesAt = 0, _aiAt = 0, _tapesAt = 0;
+  int _accountAt = 0, _syncAt = 0, _docsAt = 0, _presenceAt = 0, _voiceAt = 0, _modelsAt = 0, _updatesAt = 0, _aiAt = 0, _tapesAt = 0;
 
   /// Any preference at all, for the two parts that hand the whole of them on (a note's desk, the palette): the
   /// others select the fields they read. Counted, not compared: two sets of preferences are told apart by writing
@@ -1577,6 +1594,9 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _accountChanged() {
     _accountAt += 1;
+    // A mention of this account follows its page; another account's followed pages are its own.
+    _followMentions();
+    _docUpdatesMade?.refresh();
     // `me` in a query is the account's handle (lib/tickets/inbox.dart).
     _tellMe();
     _tick.tell();
@@ -1853,6 +1873,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   @override
   void dispose() {
+    _docUpdatesMade?.dispose();
+    _followedChangesMade?.dispose();
     _stopDesktop?.call();
     _stopConfigTouch?.call();
     _configLife?.dispose();
@@ -2338,7 +2360,7 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   /// Whether something unread and wanted waits, as last counted (`_unread`, lib/root/root_parts.dart).
-  int _unreadAt = -1;
+  Object? _unreadAt;
   NotificationPrefs? _unreadFor;
   bool _unreadNow = false;
 

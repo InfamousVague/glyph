@@ -170,6 +170,9 @@ import '../meet/ui/live_transcript_view.dart';
 import '../mentions/ui/mention_picker.dart' show MentionLayer;
 import '../mentions/ui/note_mentions.dart';
 import '../verified/note_verify.dart';
+import '../team/follow.dart';
+import '../team/follow_edit.dart';
+import '../team/follow_row.dart';
 import '../capture/meeting_live_words.dart' show meetingRecordingHere;
 import '../editor/plus/plus.dart';
 import '../editor/input/snippets.dart' show snippetExpansion;
@@ -358,7 +361,12 @@ class NoteDeskWorld {
     this.syncWithin,
     this.links,
     this.openTag,
+    this.teamPages,
   });
+
+  /// A team's pages (lib/team/follow.dart): Follow on the More sheet, a page's first edit following it, and a
+  /// mention's chip opening the member's page. Absent, as in a build with no account, none of them.
+  final TeamPageSeams? teamPages;
 
   /// A tag's page, from a tap on its chip in a note (lib/editor/items/tags.dart `tagOpener`); absent, a tap on a tag
   /// is the editor's.
@@ -795,7 +803,7 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// The note's @mentions (lib/mentions; Matt, 2026-10-30): the chips in the colours its comments wear, and the at
   /// sign's picker of who can be named here.
-  late final NoteMentions _mentions = NoteMentions(services: _world.services, noteId: widget.noteId, colours: () => _wears.now, view: () => _view);
+  late final NoteMentions _mentions = NoteMentions(services: _world.services, noteId: widget.noteId, colours: () => _wears.now, view: () => _view, openMember: _world.teamPages?.openMember);
 
   /// The note as the team's current truth (lib/verified): its badge and Verify….
   late final NoteVerify _verify = NoteVerify(services: _world.services, noteId: widget.noteId, view: () => _view);
@@ -847,6 +855,8 @@ class NoteDeskState extends State<NoteDesk> {
     if (!widget.readOnly) snippetExpansion(_snippetsNow),
     // @people and @days as chips, a day typed as words written as the day, and the at sign's picker.
     _mentions.extension(readOnly: widget.readOnly),
+    // A team page's first edit here follows it (lib/team/follow_edit.dart; docs/TEAMSPACES.md).
+    if (_world.teamPages case final pages? when !widget.readOnly) followEdits(FollowHooks(noteId: widget.noteId, me: pages.me, teamPage: () => pages.teamPage(widget.noteId), ledger: pages.ledger)),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
     markExtensions(_formats),
@@ -2026,6 +2036,38 @@ class NoteDeskState extends State<NoteDesk> {
     return false;
   }
 
+  /// The More sheet's sharing, with Follow over it on a team's page while signed in (lib/team/follow_row.dart).
+  Widget _withFollow(Widget sharing) {
+    final pages = _world.teamPages;
+    final me = pages?.me();
+    if (pages == null || me == null || me.isEmpty || !pages.teamPage(widget.noteId)) return sharing;
+    final now = _view?.state.doc.toString() ?? _world.noteById?.call(widget.noteId)?.body ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FollowSection(following: follows(now, me), onToggle: (on) => _setFollowing(me, on)),
+        sharing,
+      ],
+    );
+  }
+
+  /// The account following the page or not, written through the editor as one step (`follow`, which the first
+  /// edit's own following leaves alone), or through the library where the words are not open here.
+  void _setFollowing(String me, bool on) {
+    // Chosen by hand: the page's first edit after it leaves the choice as it is.
+    _world.teamPages?.ledger.mark(me, editReason(widget.noteId));
+    final view = _view;
+    if (view != null) {
+      final now = view.state.doc.toString();
+      final spec = followChange(now, withFollowing(now, me, on));
+      if (spec != null) view.dispatch(spec);
+      return;
+    }
+    final note = _world.noteById?.call(widget.noteId);
+    if (note != null) _world.write?.call(widget.noteId, (body) => withFollowing(body, me, on));
+  }
+
   List<Widget> _over(BuildContext context, EditorView view) {
     _adopt(view);
     final finding = _finding;
@@ -2367,7 +2409,7 @@ class NoteDeskState extends State<NoteDesk> {
       // The bar's Share and the More sheet's Sharing are there signed in or out, as on the page (NoteScreen.tsx
       // `actions`, NoteSettings): without an account, or in a build with no service, the row says to sign in first.
       onShare: () => setState(() => _sharing = true),
-      sharingSection: (context) => ShareRows(services: services, noteId: widget.noteId, kind: _shareKind),
+      sharingSection: (context) => _withFollow(ShareRows(services: services, noteId: widget.noteId, kind: _shareKind)),
       // A page's notebook, its place in it and the pages either side, over and under its words.
       bookBar: (context, place) => BookBar(place: place, open: _openWithin),
       bookFoot: (context, place) => BookFoot(place: place, open: _openWithin),

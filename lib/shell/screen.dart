@@ -74,7 +74,7 @@ sealed class Screen {
   const factory Screen.academy() = ScreenAcademy;
 
   /// An organization's dashboard, or with [page] its audit log.
-  const factory Screen.organization(String orgId, {OrganizationPage? page}) = ScreenOrganization;
+  const factory Screen.organization(String orgId, {OrganizationPage? page, String? member}) = ScreenOrganization;
 
   /// The Tags page, one tag's notes, or a smart notebook's (lib/notes/collection_screen.dart).
   const factory Screen.collection(CollectionKind kind, {String key, bool fromTags}) = ScreenCollection;
@@ -269,25 +269,30 @@ class ScreenAcademy extends Screen {
   int get hashCode => name.hashCode;
 }
 
-/// A page under an organization's dashboard (`page?: 'log'`).
-enum OrganizationPage { log }
+/// A page under an organization's dashboard (`page?: 'log'`), and a member's page (docs/TEAMSPACES.md, "Members"),
+/// the port's own.
+enum OrganizationPage { log, member }
 
 /// An organization's dashboard (`{ name: 'organization'; orgId; page? }`); with [page] it is the organization's audit
-/// log instead, a page under the dashboard whose arrow goes back to it.
+/// log or one of its members' pages ([member], their handle) instead, a page under the dashboard whose arrow goes
+/// back to it.
 class ScreenOrganization extends Screen {
-  const ScreenOrganization(this.orgId, {this.page});
+  const ScreenOrganization(this.orgId, {this.page, this.member});
 
   final String orgId;
   final OrganizationPage? page;
+
+  /// Whose page, for [OrganizationPage.member].
+  final String? member;
 
   @override
   String get name => 'organization';
 
   @override
-  bool operator ==(Object other) => other is ScreenOrganization && other.orgId == orgId && other.page == page;
+  bool operator ==(Object other) => other is ScreenOrganization && other.orgId == orgId && other.page == page && other.member == member;
 
   @override
-  int get hashCode => Object.hash(name, orgId, page);
+  int get hashCode => Object.hash(name, orgId, page, member);
 }
 
 /// Which collection of notes a [ScreenCollection] is: every tag, the notes of one, or a smart notebook's.

@@ -155,14 +155,17 @@ extension _RootParts on _GhostRootState {
     );
   }
 
-  /// Whether something unread and wanted waits (`unreadNotifications`). The feed is counted again when the account
-  /// said something or Settings › Notifications' switches are others, and at no other time.
+  /// Whether something unread and wanted waits (`unreadNotifications`), or a change to a page this account follows
+  /// (lib/team/updates.dart). Counted again when the account said something, a followed page changed or Settings ›
+  /// Notifications' switches are others, and at no other time.
   bool get _unread {
     final prefs = preferences.value.notifications;
-    if (_unreadAt != _accountAt || !identical(prefs, _unreadFor)) {
-      _unreadAt = _accountAt;
+    final at = (_accountAt, _docsAt);
+    if (_unreadAt != at || !identical(prefs, _unreadFor)) {
+      _unreadAt = at;
       _unreadFor = prefs;
-      _unreadNow = unreadNotifications(_services, prefs) > 0;
+      final signedIn = _services?.signedIn ?? false;
+      _unreadNow = unreadNotifications(_services, prefs) > 0 || (signedIn && _docUpdates.unread > 0);
     }
     return _unreadNow;
   }
@@ -179,6 +182,9 @@ extension _RootParts on _GhostRootState {
     // Who is on each team page, for the header's avatars and the sidebar's dots, which read it for themselves.
     return PagePresenceScope(
       presence: _onPages,
+      // A member's page from the list of who is on a page (docs/TEAMSPACES.md, "Members").
+      child: MemberLinkScope(
+      open: services == null ? null : (orgId, handle) => _shell.currentState?.openOrganizationMember(orgId, handle),
       child: AppShell(
       key: _shell,
       sheet: widget.sheet ?? context.tokens.sheet,
@@ -473,7 +479,7 @@ extension _RootParts on _GhostRootState {
         onOpenTitle: _openTitleWithin,
         onClose: close,
       ),
-      notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt), (context) {
+      notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt, _docsAt), (context) {
         void openNote(String id, String? at) {
           close();
           // The morning's ticket digest's row: its page (root_tickets.dart).
@@ -498,6 +504,8 @@ extension _RootParts on _GhostRootState {
             onOpenNote: openNote,
             // A change to a ticket this account watches: Unwatch on its row (lib/book/ticket_events.dart).
             onUnwatch: (noteId) => unawaited(_setWatching(noteId, false)),
+            // The changes to the pages this account follows, under Docs (lib/team/updates.dart).
+            docs: services.signedIn ? _docUpdates : null,
             onOpenOrganization: (id) {
               close();
               shell.openOrganization(id);
@@ -508,6 +516,7 @@ extension _RootParts on _GhostRootState {
         }
         return NotificationsDrawer(notifications: const [], prefs: preferences.value.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account, emptyArt: allRead);
       }),
+      ),
       ),
     );
   }
@@ -1208,13 +1217,14 @@ extension _RootParts on _GhostRootState {
   Widget _organizationPage(BuildContext context, AppShellState shell, ScreenOrganization screen) => Selected(
         listenable: _tick,
         name: 'organization',
-        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeShown, _canTalk),
+        select: () => (screen.orgId, screen.page, screen.member, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeShown, _canTalk),
         builder: (context, _) => _organizationPageOf(context, shell, screen),
       );
 
   Widget _organizationPageOf(BuildContext context, AppShellState shell, ScreenOrganization screen) {
     final id = screen.orgId;
     final wisp = preferences.value.wispEdge;
+    if (screen.page == OrganizationPage.member && screen.member != null) return _memberPage(shell, id, screen.member!);
     if (screen.page == OrganizationPage.log) {
       return OrganizationLog(services: _services, orgId: id, notes: shell.notes, onBack: () => shell.openOrganization(id), onOpenNote: (note) => _openWhereLeft(shell, note), record: _versions, wisp: wisp);
     }
@@ -1245,6 +1255,12 @@ extension _RootParts on _GhostRootState {
       wisp: wisp,
       // Claude, then the page's own New, Invite and cog (docs/DOCK.md).
       dock: _pageDock(),
+      // The teamspace home (docs/TEAMSPACES.md): its page drawn as a note's, the way to make it and to set how the
+      // space's pages open, and a member's page from the strip (root_teamspaces.dart).
+      homeDrawing: pageDrawingOf(_desk, open: _openTitle),
+      onMember: (handle) => shell.openOrganizationMember(id, handle),
+      onCreateHome: () => _createHome(id),
+      onSetDocs: (mode) => _setDocs(id, mode),
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/notifications.dart';
+import '../team/updates.dart';
 import '../core/preferences.dart' show NotificationPrefs;
 import '../sheet/css.dart';
 import 'floating_card.dart';
@@ -43,6 +44,14 @@ import '../core/iphone_app.dart' show recordsVoice;
 /// - The icon that opens it is wrapped in a [FloatingCardToggle] named [notificationsToggle].
 /// - The cross that clears a row waits to be pointed at on a desktop and never on a phone, which is how `@media
 ///   (hover: hover)` is answered on each (shell/wide_screen.dart `hoverPointer`).
+///
+/// **It is the Updates inbox** (docs/TEAMSPACES.md, "Follow a doc and Updates"; Matt, 2026-10-31: "the bell, as an
+/// inbox with filters: Mentions, Tickets, Docs, Team"): beside the feed's rows, the changes to the pages the person
+/// follows ([docs], lib/team/updates.dart), each who changed which page and when, opening it; and chips over the rows
+/// for All and each filter that has a row now ([inboxFilters]). The chips stand once there is something of the
+/// person's own to filter to (a mention, a ticket, a followed page's change); before that the drawer is the page's
+/// as it was. A doc row's read and cleared are this device's ([onDocRead], [onDocsAllRead], [onDocsHide]), and
+/// count in the head and in Mark all read and Clear all with the feed's.
 class NotificationsDrawer extends StatefulWidget {
   const NotificationsDrawer({
     super.key,
@@ -65,7 +74,21 @@ class NotificationsDrawer extends StatefulWidget {
     this.emptyArt,
     this.now,
     this.onUnwatch,
+    this.docs = const [],
+    this.docRead,
+    this.onDocRead,
+    this.onDocsAllRead,
+    this.onDocsHide,
   });
+
+  /// The changes to the pages the person follows, newest first (lib/team/updates.dart [DocUpdatesFeed]).
+  final List<DocUpdate> docs;
+
+  /// Whether a doc row has been read; all unread where absent.
+  final bool Function(DocUpdate update)? docRead;
+  final void Function(DocUpdate update)? onDocRead;
+  final VoidCallback? onDocsAllRead;
+  final void Function(List<String> keys)? onDocsHide;
 
   /// The rows as the feed lists them: of a kind this build knows, not hidden, newest first.
   final List<FeedNotification> notifications;
@@ -113,8 +136,9 @@ class NotificationsDrawer extends StatefulWidget {
 class _NotificationsDrawerState extends State<NotificationsDrawer> {
   bool get _held => !widget.signedIn || widget.localOnly;
 
-  /// The Mentions filter (Matt, 2026-10-30: "add all 12"): only the rows where someone named you.
-  bool _mentionsOnly = false;
+  /// The filter chosen (Matt, 2026-10-30: "add all 12", the Mentions filter; 2026-10-31: "Mentions, Tickets, Docs,
+  /// Team"): All, or only its rows.
+  UpdatesFilter _filter = UpdatesFilter.all;
 
   @override
   void initState() {
@@ -147,6 +171,13 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
     }
   }
 
+  /// A followed page's change opened: read, and the page opened where it was left.
+  void _openDoc(DocUpdate update) {
+    widget.onDocRead?.call(update);
+    widget.onClose();
+    widget.onOpenNote(update.noteId, null);
+  }
+
   void _toAccount() {
     widget.onClose();
     widget.onAccount();
@@ -159,14 +190,52 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
     // device holds still count in the head, under the words that say nothing more is coming.
     final all = widget.signedIn ? widget.notifications : const <FeedNotification>[];
     final wanted = [for (final n in all) if (isWanted(n, widget.prefs)) n];
-    // The filter is there once someone has mentioned you; with it on, only those rows.
-    final mentioned = wanted.any(isMention);
-    final filtering = _mentionsOnly && mentioned;
-    final shown = filtering ? [for (final n in wanted) if (isMention(n)) n] : wanted;
-    final unread = unreadCount(widget.prefs, all);
+    // The chips: All and each filter with a row, once there is something of the person's own to filter to; a
+    // filter chosen that has no rows any more is All again.
+    final docs = widget.signedIn ? widget.docs : const <DocUpdate>[];
+    final filters = inboxFilters(wanted, docs);
+    final filter = filters.contains(_filter) ? _filter : UpdatesFilter.all;
+    final shown = [for (final n in wanted) if (shownUnder(filter, n)) n];
+    final docsShown = filter == UpdatesFilter.all || filter == UpdatesFilter.docs ? docs : const <DocUpdate>[];
+    bool docRead(DocUpdate update) => widget.docRead?.call(update) ?? false;
+    final unread = unreadCount(widget.prefs, all) + docs.where((update) => !docRead(update)).length;
     // What Clear all takes: every row shown but an invitation still waiting for its answer, which would go with no
     // way back to it.
     final clearable = [for (final n in shown) if (!isPendingInvite(n)) n];
+    // The feed's rows and the followed pages' changes in one list, newest first.
+    final rows = <(int, Widget Function(int i, bool last))>[
+      for (final n in shown)
+        (
+          n.at,
+          (i, last) => _Row(
+                key: ValueKey('notification-${n.id}'),
+                n: n,
+                index: i,
+                last: last,
+                opened: widget.detailsOf?.call(n),
+                now: widget.now,
+                onOpen: () => _open(n),
+                onClear: isPendingInvite(n) ? null : () => widget.onHide?.call(n.id),
+                onAnswer: widget.onAnswerInvite,
+                onUnwatch: widget.onUnwatch,
+              ),
+        ),
+      for (final update in docsShown)
+        (
+          update.at,
+          (i, last) => _DocRow(
+                key: ValueKey('doc-update-${update.key}'),
+                update: update,
+                index: i,
+                last: last,
+                unread: !docRead(update),
+                now: widget.now,
+                onOpen: () => _openDoc(update),
+                onClear: widget.onDocsHide == null ? null : () => widget.onDocsHide!([update.key]),
+              ),
+        ),
+    ];
+    final placed = [for (final (i, row) in rows.indexed) (i, row)]..sort((a, b) => a.$2.$1 != b.$2.$1 ? b.$2.$1.compareTo(a.$2.$1) : a.$1.compareTo(b.$1));
     final hairline = snapBorder(context, t.len('glacier-hairline'));
     final sm = t.fontSize('sm');
     final md = t.fontSize('md');
@@ -194,7 +263,7 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
           ),
         ),
       );
-    } else if (shown.isEmpty) {
+    } else if (placed.isEmpty) {
       // `.empty { display: flex; flex-direction: column; align-items: center; gap: var(--glacier-space-1);
       // padding: var(--glacier-space-6) var(--glacier-space-4); text-align: center }`
       inside = Padding(
@@ -224,19 +293,7 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final (i, n) in shown.indexed)
-              _Row(
-                key: ValueKey('notification-${n.id}'),
-                n: n,
-                index: i,
-                last: i == shown.length - 1,
-                opened: widget.detailsOf?.call(n),
-                now: widget.now,
-                onOpen: () => _open(n),
-                onClear: isPendingInvite(n) ? null : () => widget.onHide?.call(n.id),
-                onAnswer: widget.onAnswerInvite,
-                onUnwatch: widget.onUnwatch,
-              ),
+            for (final (i, (_, (_, row))) in placed.indexed) row(i, i == placed.length - 1),
           ],
         ),
       );
@@ -289,14 +346,32 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
                     ),
                   ),
                   // Mark all read: the app's quiet word with the kit's double tick, there only while something is unread.
-                  if (unread > 0) _Word(key: const ValueKey('mark-all-read'), icon: Lucide.checkCheck, word: 'Mark all read', onPressed: () => widget.onMarkAllRead?.call()),
-                  if (clearable.isNotEmpty) _Word(key: const ValueKey('clear-all'), icon: Lucide.brushCleaning, word: 'Clear all', onPressed: () => widget.onHideAll?.call([for (final n in clearable) n.id])),
+                  if (unread > 0)
+                    _Word(
+                      key: const ValueKey('mark-all-read'),
+                      icon: Lucide.checkCheck,
+                      word: 'Mark all read',
+                      onPressed: () {
+                        widget.onMarkAllRead?.call();
+                        if (docs.isNotEmpty) widget.onDocsAllRead?.call();
+                      },
+                    ),
+                  if (clearable.isNotEmpty || docsShown.isNotEmpty)
+                    _Word(
+                      key: const ValueKey('clear-all'),
+                      icon: Lucide.brushCleaning,
+                      word: 'Clear all',
+                      onPressed: () {
+                        if (clearable.isNotEmpty) widget.onHideAll?.call([for (final n in clearable) n.id]);
+                        if (docsShown.isNotEmpty) widget.onDocsHide?.call([for (final update in docsShown) update.key]);
+                      },
+                    ),
                   _Round(label: 'Close notifications', icon: Lucide.x, iconSize: 16, stroke: 2.2, side: t.lenOf('2rem'), ink: 'app-ink-2', wash: 6, onPressed: widget.onClose),
                 ],
               ),
             ),
           ),
-          if (mentioned && !_held) _Filter(mentions: filtering, onChanged: (mentions) => setState(() => _mentionsOnly = mentions)),
+          if (filters.length > 1 && !_held) _Filter(filters: filters, chosen: filter, onChanged: (chosen) => setState(() => _filter = chosen)),
           Flexible(
             child: SingleChildScrollView(
               // `.scroll { overflow-y: auto; overscroll-behavior: contain; padding: var(--glacier-space-1) var(--glacier-space-2) var(--glacier-space-3) }`
@@ -310,18 +385,19 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
   }
 }
 
-/// The bell's filter: every row, or the mentions alone.
+/// The inbox's filters: every row, or one filter's alone, a chip each, scrolled sideways where a phone has no room.
 class _Filter extends StatelessWidget {
-  const _Filter({required this.mentions, required this.onChanged});
-  final bool mentions;
-  final ValueChanged<bool> onChanged;
+  const _Filter({required this.filters, required this.chosen, required this.onChanged});
+  final List<UpdatesFilter> filters;
+  final UpdatesFilter chosen;
+  final ValueChanged<UpdatesFilter> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final sm = t.fontSize('sm');
-    Widget pill(String word, bool on, bool value) => GlacierPressable(
-          key: ValueKey('filter-${value ? 'mentions' : 'all'}'),
+    Widget pill(String word, bool on, UpdatesFilter value) => GlacierPressable(
+          key: ValueKey('filter-${value.name}'),
           onPressed: () => onChanged(value),
           semanticLabel: on ? '$word, shown' : word,
           builder: (context, state) => Container(
@@ -335,7 +411,10 @@ class _Filter extends StatelessWidget {
         );
     return Padding(
       padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
-      child: Row(spacing: t.space(1), children: [pill('All', !mentions, false), pill('Mentions', mentions, true)]),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(spacing: t.space(1), children: [for (final each in filters) pill(updatesFilterLabels[each]!, each == chosen, each)]),
+      ),
     );
   }
 }
@@ -732,6 +811,129 @@ class _RowState extends State<_Row> with SingleTickerProviderStateMixin {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A change to a page the person follows (lib/team/updates.dart): who changed which page, the first line it changed,
+/// and when, on a row like the feed's, its mark the page's own in the sea of a note written; opening the page, and
+/// cleared by its cross. Unread, the words in ink with the dot on the mark, as a feed row's.
+class _DocRow extends StatelessWidget {
+  const _DocRow({super.key, required this.update, required this.index, required this.last, required this.unread, required this.now, required this.onOpen, required this.onClear});
+
+  final DocUpdate update;
+  final int index;
+  final bool last;
+  final bool unread;
+  final int? now;
+  final VoidCallback onOpen;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sm = t.fontSize('sm');
+    final xs = t.fontSize('xs');
+    final leading = t.len('glacier-leading-sm');
+    final hairline = snapBorder(context, t.len('glacier-hairline'));
+    final rem = t.lenOf('1rem');
+    final clear = onClear;
+    final sentence = update.sentence;
+    final peek = update.peek;
+    final mark = GlacierScope(
+      attrs: const {'hue': 'sea'},
+      child: Builder(
+        builder: (context) {
+          final here = context.tokens;
+          final side = here.lenOf('2rem');
+          return ExcludeSemantics(
+            child: SizedBox.square(
+              dimension: side,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: here.colorOf('color-mix(in oklch, var(--app-space) 16%, transparent)')),
+                      child: lucide(Lucide.fileText, size: 18, color: unread ? here.color('app-ink') : here.color('app-space')),
+                    ),
+                  ),
+                  if (unread)
+                    Positioned(
+                      top: -1,
+                      right: -1,
+                      child: Container(
+                        key: const ValueKey('doc-update-unread'),
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: here.color('glacier-accent-9'), boxShadow: [BoxShadow(color: here.color('glacier-bg'), spreadRadius: 2)]),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    final body = GlacierPressable(
+      onPressed: onOpen,
+      semanticLabel: '$sentence, ${when(update.at, now)}${unread ? ', unread' : ''}',
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        offset: -2,
+        radius: t.radius('md'),
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 5%, transparent)') : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(t.space(2), t.space(3), clear != null ? 1.75 * rem + t.space(3) : t.space(2), t.space(3)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: t.space(3),
+              children: [
+                mark,
+                Expanded(
+                  child: ExcludeSemantics(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 0.15 * rem,
+                      children: [
+                        cssLines(sentence, pageText(t, sm, weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: leading)),
+                        if (peek != null && peek.trim().isNotEmpty) cssLines(peek.trim(), pageText(t, xs, color: t.color('app-ink-3'), height: leading), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.only(top: 0.1 * xs),
+                  child: ExcludeSemantics(
+                    child: Text(when(update.at, now), maxLines: 1, softWrap: false, style: pageText(t, xs, color: t.color('app-ink-3')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()])),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: t.color('app-rule'), width: hairline))),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: last ? 0 : hairline),
+        child: Stack(
+          children: [
+            body,
+            if (clear != null)
+              Positioned(
+                top: t.space(2),
+                right: t.space(2),
+                child: _Round(label: 'Clear: $sentence', icon: Lucide.x, iconSize: 14, stroke: 2.4, side: 1.75 * rem, ink: 'app-ink-3', wash: 8, onPressed: clear),
+              ),
+          ],
         ),
       ),
     );

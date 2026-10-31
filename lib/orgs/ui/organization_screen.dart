@@ -39,6 +39,11 @@
 ///   browsed, until one of them chooses its own; the strip and the icon view offer New folder and New note
 ///   ([OrganizationScreen.onNewNote]) in the organization's workspace. Nothing of the folders is drawn until
 ///   the organization's workspace holds one.
+/// - **The teamspace home** (docs/TEAMSPACES.md; Matt, 2026-10-31: "Build first: all four: the sidebar and page tree,
+///   the doc page UI, the teamspace home and members, presence"): under the hero, the members strip, the pinned
+///   pages and the organization's own `Home.md` drawn as its page, or the way to make one, with Pages open in: Read
+///   or Edit (teamspace_home.dart); the hero wears the home page's `icon:`. The notes, the members and the activity
+///   are where they were, under it, so nothing of the dashboard is lost.
 library;
 
 import 'dart:async';
@@ -49,6 +54,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../core/page_scroll.dart';
+import '../../book/book_view.dart' show BookDrawing;
+import '../../core/page_tree.dart' show DocsMode, PageIcon, TeamspaceSettings, spaceOfOrg, teamspaceHomeIn;
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
 import '../../core/note.dart';
@@ -76,6 +83,7 @@ import '../../shell/page_dock.dart';
 import '../orgs.dart';
 import 'org_news.dart';
 import 'parts.dart';
+import 'teamspace_home.dart';
 
 /// How many of the workspace's notes the page shows before "All of them" (`NOTES_SHOWN`).
 const int organizationNotesShown = 6;
@@ -108,7 +116,24 @@ class OrganizationScreen extends StatefulWidget {
     this.dock,
     this.onNewFolder,
     this.onNewNote,
+    this.homeDrawing,
+    this.onMember,
+    this.onCreateHome,
+    this.onSetDocs,
   });
+
+  /// The marks and blocks the teamspace's home page draws (its queries, its links), the root's; null draws its words
+  /// alone.
+  final BookDrawing? homeDrawing;
+
+  /// A member's page (member_page.dart), by their handle, from the members strip.
+  final ValueChanged<String>? onMember;
+
+  /// Makes the organization's home page from the template; absent, nothing offers to.
+  final Future<void> Function()? onCreateHome;
+
+  /// Writes the home page's `docs:`, making the home page first where there is none; absent, no setting.
+  final Future<void> Function(DocsMode mode)? onSetDocs;
 
   final AccountServices? services;
   final String orgId;
@@ -553,6 +578,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
       ]);
 
       final problem = _problem;
+      final space = spaceOfOrg(spaces, widget.orgId);
+      final home = space == null ? null : teamspaceHomeIn(widget.notes, space);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -560,6 +587,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
           _Hero(
             row: row,
             wide: wide,
+            icon: TeamspaceSettings.of(home?.body).icon,
             meta: '${memberWords(count)} · You are ${roleWords(row.role).toLowerCase()}',
             note: teamsNotes,
             actions: [
@@ -573,6 +601,22 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
               padding: EdgeInsets.only(top: t.space(3)),
               child: Semantics(liveRegion: true, child: Text(problem, style: pageText(t, sm, color: t.color('app-ink-2')))),
             ),
+          SizedBox(height: t.space(6)),
+          TeamspaceHome(
+            key: const ValueKey('teamspace-home'),
+            space: space,
+            home: home,
+            notes: filedHere,
+            members: org?.members,
+            seen: widget.seen,
+            me: me,
+            onOpenNote: widget.onOpenNote,
+            drawing: widget.homeDrawing,
+            onMember: widget.onMember,
+            onCreateHome: widget.onCreateHome,
+            onSetDocs: widget.onSetDocs,
+            simple: _prefs.value.simple,
+          ),
           SizedBox(height: t.space(8)),
           if (wide)
             Row(
@@ -837,8 +881,11 @@ class _PillOutline extends CustomPainter {
 /// colour, its name, a line of what it is to you, a sentence, and what there is to do - under the words on a phone,
 /// at the card's end on a wide page.
 class _Hero extends StatelessWidget {
-  const _Hero({required this.row, required this.wide, required this.meta, required this.note, required this.actions});
+  const _Hero({required this.row, required this.wide, required this.meta, required this.note, required this.actions, this.icon});
   final OrgRow row;
+
+  /// The home page's `icon:`, worn on the round; none for the colour alone.
+  final PageIcon? icon;
   final bool wide;
   final String meta;
   final String note;
@@ -861,7 +908,17 @@ class _Hero extends StatelessWidget {
         Text(note, style: pageText(t, sm, height: t.len('glacier-leading-sm'), color: t.color('app-ink-3'))),
       ],
     );
-    final round = HueRound(key: const ValueKey('org-hero-hue'), hue: row.hue, size: t.lenOf('3.25rem'));
+    final side = t.lenOf('3.25rem');
+    final mark = icon?.emoji;
+    final round = mark == null
+        ? HueRound(key: const ValueKey('org-hero-hue'), hue: row.hue, size: side)
+        : Stack(
+            alignment: Alignment.center,
+            children: [
+              HueRound(key: const ValueKey('org-hero-hue'), hue: row.hue, size: side),
+              ExcludeSemantics(child: Text(mark, key: const ValueKey('org-hero-icon'), style: pageText(t, side * 0.5, height: 1))),
+            ],
+          );
     final things = Wrap(spacing: t.space(2), runSpacing: t.space(2), alignment: wide ? WrapAlignment.end : WrapAlignment.start, children: actions);
     return Semantics(
       container: true,
