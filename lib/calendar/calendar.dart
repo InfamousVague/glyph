@@ -115,6 +115,10 @@ class CalendarService extends ChangeNotifier {
   /// read those, an address whose secret is only there is not listed yet, and Google's token reads empty.
   CalendarSetup get setup => calendarSetupOf(prefs.value, secret: _secrets.peek);
 
+  /// Every address the account has, for Settings' list: the ones whose secret is here whole, the others by id and
+  /// name with an empty url, waiting for their secret to arrive with the settings (setup.dart `listedIn`).
+  List<CalendarAddress> get listedAddresses => CalendarSetup.listedIn(prefs.value.more[calendarsKey], secret: _secrets.peek);
+
   void _setSetup(CalendarSetup next) => prefs.update((now) => withCalendarSetup(now, next));
 
   Future<void>? _readying;

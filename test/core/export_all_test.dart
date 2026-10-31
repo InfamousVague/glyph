@@ -83,19 +83,23 @@ void main() {
         'trash': {'n2': 1},
         'meetings': {'n3': 2},
         'shares': {'n1': {'id': 'abcdefghijklmnop', 'key': 'KEYKEYKEYKEYKEYK', 'sent': 'x'}},
-        'calendars': {'google': {'refreshToken': 'REFRESH'}, 'sources': ['https://calendar.google.com/ical/secretfeed']},
+        // An older build's blob, the secrets still in the clear (lib/calendar/setup.dart `storedInTheClear`), beside a
+        // newer one's id and name.
+        'calendars': {'addresses': [{'id': 'e776f1db', 'url': 'https://cal.test/secretfeed.ics', 'name': 'Work'}, {'id': 'a1b2c3', 'name': 'Home'}], 'google': {'refreshToken': 'REFRESH', 'ticked': ['me@example.com']}, 'sources': ['https://calendar.google.com/ical/secretfeed']},
         'webhooks': [{'id': 'h1', 'url': 'https://example.com/hook', 'secret': 'HOOKSECRET'}],
         'sealedKeys': {'anthropic': 'SEALED'},
         'more': {'github': {'token': 'ghp_nested'}, 'kept': true},
       };
       final file = settingsFile((key) => key == 'glyph-preferences' ? jsonEncode(prefs) : null);
       final out = (jsonDecode(file) as Map)['glyph-preferences'] as Map;
-      expect(out.keys, ['theme', 'workspaces', 'trash', 'meetings', 'more']);
+      expect(out.keys, ['theme', 'workspaces', 'trash', 'meetings', 'calendars', 'more']);
       expect(out['more'], {'github': {}, 'kept': true}, reason: 'the token goes, the key that held it stays');
+      // The calendars' ids, names and choices stay (decision 22 keeps the secrets out of the blob); the addresses go.
+      expect(out['calendars'], {'addresses': [{'id': 'e776f1db', 'name': 'Work'}, {'id': 'a1b2c3', 'name': 'Home'}], 'google': {'ticked': ['me@example.com']}, 'sources': <Object?>[]});
       for (final leak in ['KEYKEYKEY', 'REFRESH', 'secretfeed', 'HOOKSECRET', 'SEALED', 'ghp_nested', 'abcdefghijklmnop']) {
         expect(file, isNot(contains(leak)));
       }
-      expect(secretPreferenceKeys, {'shares', 'calendars', 'webhooks', 'sealedKeys'});
+      expect(secretPreferenceKeys, {'shares', 'webhooks', 'sealedKeys'});
       expect(readme(exportName(at), at), isNot(contains('No account, password or key')));
       expect(readme(exportName(at), at), contains('share links, calendars and webhooks are left out'));
       expect(file, endsWith('}\n'));

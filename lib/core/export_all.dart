@@ -65,27 +65,36 @@ String exportName(DateTime at) => 'ghostmarkdown_${at.year}-${_two(at.month)}-${
 const List<String> settingsKeys = ['glyph-preferences', 'glyph-plugins', 'glyph-workspace-current', 'glyph-note-bookmarks', 'glyph-book-spots'];
 
 /// The preference keys that are secrets or hold them, left out of `settings.json` (docs/MARKDOWN_FIRST.md §5, gap 3;
-/// the critic, 2026-10-31): `shares` is every read-only link's id AND key, `calendars` holds Google's refresh token
-/// and the iCal URLs, `webhooks` the outgoing hooks' secrets, and `sealedKeys` every API key and connection, sealed
-/// but still a key. Until this they went out in the clear under a README that said "No account, password or key".
-/// The web's preferences carry unknown keys at the top level (`Preferences.more`), so these are top-level keys of the
-/// `glyph-preferences` value.
-const Set<String> secretPreferenceKeys = {'shares', 'calendars', 'webhooks', 'sealedKeys'};
+/// the critic, 2026-10-31): `shares` is every read-only link's id AND key, `webhooks` the outgoing hooks' secrets, and
+/// `sealedKeys` every API key and connection, sealed but still a key. Until this they went out in the clear under a
+/// README that said "No account, password or key". `calendars` is kept: since decision 22 the blob holds only each
+/// address's id and name and Google's choices, the addresses and the token being in the secure store, and an older
+/// build's blob that still carries them in the clear loses them here ([secretFree]). The web's preferences carry
+/// unknown keys at the top level (`Preferences.more`), so these are top-level keys of the `glyph-preferences` value.
+const Set<String> secretPreferenceKeys = {'shares', 'webhooks', 'sealedKeys'};
 
 final RegExp _secretName = RegExp(r'token|secret|password|webhook|sealed|refresh', caseSensitive: false);
+final RegExp _url = RegExp(r'^[a-z][a-z0-9+.-]*://', caseSensitive: false);
 
 /// [value] with every secret taken out, all the way down: the keys of [secretPreferenceKeys] at the top of the
-/// preferences, and anywhere a key naming a token, a secret, a password, a webhook or a sealed value. What is left
-/// is the look and the behaviour, the plugins, the workspaces, the trash, the meetings: nothing that opens a link
-/// or a service (`secretFree`).
-Object? secretFree(Object? value, {bool top = false}) {
+/// preferences; anywhere a key naming a token, a secret, a password, a webhook or a sealed value; and under
+/// `calendars`, every `url` and every URL written as a value (an iCal address is a secret). What is left is the look
+/// and the behaviour, the plugins, the workspaces, the trash, the meetings, the calendars' names: nothing that opens
+/// a link or a service (`secretFree`).
+Object? secretFree(Object? value, {bool top = false, bool calendars = false}) {
   if (value is Map) {
     return {
       for (final entry in value.entries)
-        if (!(top && secretPreferenceKeys.contains(entry.key)) && !_secretName.hasMatch('${entry.key}')) entry.key: secretFree(entry.value),
+        if (!(top && secretPreferenceKeys.contains(entry.key)) && !_secretName.hasMatch('${entry.key}') && !(calendars && entry.key == 'url'))
+          entry.key: secretFree(entry.value, calendars: calendars || (top && entry.key == 'calendars')),
     };
   }
-  if (value is List) return [for (final each in value) secretFree(each)];
+  if (value is List) {
+    return [
+      for (final each in value)
+        if (!(calendars && each is String && _url.hasMatch(each))) secretFree(each, calendars: calendars),
+    ];
+  }
   return value;
 }
 
