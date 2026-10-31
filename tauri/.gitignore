@@ -73,3 +73,6 @@ src-tauri/gen/android/**
 # Per-channel resources (build.gradle.kts GLYPH_STAGING): the launcher shortcut's target package.
 !src-tauri/gen/android/app/src/channel/
 !src-tauri/gen/android/app/src/channel/**
+
+# ghost-publish's bundle (publish/vite.config.ts): built when wanted, vendored by the git plugin, never committed here.
+publish/dist

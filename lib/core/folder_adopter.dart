@@ -19,9 +19,10 @@
 /// is asks the library for no move (note_folders.dart `_fileNoteAt` sees the folder is the same).
 ///
 /// The trash: a note found in the files with no trash entry is live, which is what it is today (the trash is a
-/// preference, lib/core/kept_trash.dart). When a `trashed:` key is written into the file (decision 4, Matt's), this
-/// is where it is read back: a note whose body says `trashed: <ISO>` would be put in the trash here instead of
-/// filed, and the seam for it is [trashedKey].
+/// preference, lib/core/kept_trash.dart). Matt chose a `.trash/` folder for it (docs/MARKDOWN_FIRST.md §11, 2026-10-31:
+/// trashing moves the file to `Library/.trash/<its path>`, as Obsidian does). A dot folder is never indexed, so once
+/// that is built a trashed note is not among the notes this is handed at all; were one ever listed, its path's first
+/// part would be [trashFolder], and that is where it would be put in the trash instead of filed.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -31,9 +32,9 @@ import 'note.dart';
 import 'note_folders.dart';
 import 'workspaces.dart';
 
-/// The front matter key a trashed note will carry once the library writes one (`trashed: <ISO>`, like `archived:`).
-/// Read by nothing yet: the seam for decision 4.
-const String trashedKey = 'trashed';
+/// The folder a trashed note's file will sit under once the library moves it there (`Library/.trash/<its path>`,
+/// §11). Read by nothing yet: the seam for the trash on disk.
+const String trashFolder = '.trash';
 
 /// What one pass of the adopter did.
 @immutable

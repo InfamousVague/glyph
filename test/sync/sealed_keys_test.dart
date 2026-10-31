@@ -52,6 +52,7 @@ import 'package:ghost_md/plugins/types.dart' show PluginHost;
 import 'package:ghost_md/sync/connections.dart';
 import 'package:ghost_md/sync/engine.dart';
 import 'package:ghost_md/sync/feed.dart';
+import 'package:ghost_md/sync/kept_secrets.dart';
 import 'package:ghost_md/sync/notes.dart';
 import 'package:ghost_md/sync/prefs.dart';
 import 'package:ghost_md/sync/sealed_keys.dart';
@@ -111,10 +112,10 @@ class KeysDevice {
     ]);
     sealed = keys
         ? SealedKeys(
-            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, elevenHost: elevenHost, registry: () => registry, platform: platform, providers: [openAi, custom], assistant: assistant),
+            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, elevenHost: elevenHost, registry: () => registry, platform: platform, providers: [openAi, custom], assistant: assistant, prefs: () => prefs.value, secrets: secrets),
             prefs: prefs,
             device: () => id,
-            heard: connectionChanges(claude: claude, registry: () => registry, assistant: assistant),
+            heard: connectionChanges(claude: claude, registry: () => registry, assistant: assistant, secrets: secrets),
             on: on,
             kept: kept,
             now: () => clock,
@@ -153,6 +154,10 @@ class KeysDevice {
   final PreferencesStore prefs = PreferencesStore();
   final MemorySecureStore claudeStore = MemorySecureStore();
   final MemorySecureStore aiStore = MemorySecureStore();
+
+  /// The calendars' and the webhooks' secrets, over a secure store of this device's own (lib/sync/kept_secrets.dart).
+  final MemorySecureStore secretStore = MemorySecureStore();
+  late final KeptSecrets secrets = KeptSecrets(secretStore);
   late final AiProviderSettings openAi;
   late final AiProviderSettings custom;
   late final AssistantChoice assistant;
@@ -263,6 +268,53 @@ void main() {
     await mac.sync();
     await fold.sync();
     expect([...mac.sent, ...fold.sent], isEmpty);
+  });
+
+  test('an iCal address, Google’s refresh token and a webhook’s secret travel sealed, by the ids the settings list, and one taken away goes', () async {
+    // Decision 22 (Matt, 2026-10-31): each in the secure store, named by the settings' `calendars` and `webhooks`.
+    final fold = KeysDevice(service, 'fold-1');
+    final mac = KeysDevice(service, 'mac-1');
+    const ical = 'https://p01-calendars.icloud.com/published/2/SECRET-ADDRESS';
+    fold.prefs.update((p) => p.copyWith(more: {
+          ...p.more,
+          'calendars': {
+            'addresses': [
+              {'id': 'cal1', 'name': 'Home'},
+            ],
+            'google': {'ticked': ['me@example.com'], 'todos': false},
+          },
+          'webhooks': {
+            'outgoing': [
+              {'id': 'h1', 'url': 'https://hooks.test/in', 'events': ['note.edited'], 'scope': {'kind': 'all'}},
+            ],
+          },
+        }));
+    await fold.secrets.write('glyph-ical-url:cal1', ical);
+    await fold.secrets.write('glyph-google-refresh', 'refresh-FOLD');
+    await fold.secrets.write('glyph-webhook-secret:h1', 'shh-h1');
+    await fold.sync();
+    expect(fold.sent.join(), isNot(contains('SECRET-ADDRESS')));
+    expect(fold.sent.join(), isNot(contains('refresh-FOLD')));
+    expect(fold.sent.join(), isNot(contains('shh-h1')));
+    expect(fold.inTheClear(), isNot(contains('SECRET-ADDRESS')), reason: 'the settings name the address by its id; the address is the secure store\'s');
+    expect(fold.inTheClear(), isNot(contains('refresh-FOLD')));
+    expect(fold.inTheClear(), isNot(contains('shh-h1')));
+
+    await mac.sync();
+    expect(mac.secretStore.held['glyph-ical-url:cal1'], ical, reason: 'named by the settings that arrived with it');
+    expect(mac.secretStore.held['glyph-google-refresh'], 'refresh-FOLD');
+    expect(mac.secretStore.held['glyph-webhook-secret:h1'], 'shh-h1');
+    expect(mac.inTheClear(), isNot(contains('SECRET-ADDRESS')));
+
+    // The address taken off on the Fold: its secret goes on the Mac at the next sync, by the entry's name alone.
+    await fold.secrets.write('glyph-ical-url:cal1', null);
+    fold.prefs.update((p) => p.copyWith(more: {...p.more, 'calendars': {'addresses': <Object?>[], 'google': {'ticked': ['me@example.com'], 'todos': false}}}));
+    fold.clock += 10;
+    await fold.sync();
+    mac.clock += 10;
+    await mac.sync();
+    expect(mac.secretStore.held.containsKey('glyph-ical-url:cal1'), isFalse);
+    expect(mac.secretStore.held['glyph-google-refresh'], 'refresh-FOLD', reason: 'the rest stand');
   });
 
   test('another AI provider’s key, model, address, switches, prices and limit travel, with the assistant’s choices, and its count stays', () async {

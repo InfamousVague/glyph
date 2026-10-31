@@ -2027,6 +2027,9 @@ class _GhostRootState extends State<GhostRoot> {
     if (_library case final CoreLibrary core) {
       webhooks.start(saves: core.savedHere, notes: () => _shown);
       _webhooksLife = AppLifecycleListener(onHide: () => unawaited(webhooks.flush()));
+      // A shared note says so in its page front matter, `share: <id>` (lib/share/share.dart; 2026-10-31): written as a
+      // save of the person's own, so it keeps versions and syncs as any edit does.
+      _services?.shares?.save = (note, body) => core.save(note.id, body);
     }
     // And the library config, written whole as the app goes behind another (lib/core/library_config.dart).
     _configLife = AppLifecycleListener(onHide: () => unawaited(_libraryConfig?.flush()), onResume: () => unawaited(_libraryConfig?.reread()));

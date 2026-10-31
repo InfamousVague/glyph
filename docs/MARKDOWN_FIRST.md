@@ -645,11 +645,13 @@ the reader build before any device writes the new shape.
 
 | # | Slice | What moves | Old builds and sync | Tests | Effort |
 |---|---|---|---|---|---|
-| 1 | Commit what is already plain | Nothing moves. `Library::texts` gains `.glyph/library.json` and `.glyph/notes/*.json`; export strips `shares`, `calendars`, `webhooks` and sealed fields from settings.json; `subTicketsOf` sorts by issue number; `setKeepsVersions(on)` keeps v1 at once. **Done 2026-10-31 (Dart):** the export strip (`secretFree`, with a name rule for nested tokens on top of the four keys) and the first version kept on switching on; `Library::texts` and the sort are open | None | relocate/backup tests list the sidecars; an export test asserts no key appears (done); a sort test | S |
+| 1 | Commit what is already plain | Nothing moves. `Library::texts` gains `.glyph/library.json` and `.glyph/notes/*.json` (DONE 2026-10-31, §9.1); export strips `shares`, `calendars`, `webhooks` and sealed fields from settings.json (DONE 2026-10-31, Dart: `secretFree`, with a name rule for nested tokens on top of the four keys); `subTicketsOf` sorts by issue number (open); `setKeepsVersions(on)` keeps v1 at once (DONE 2026-10-31, Dart) | None | relocate/backup tests list the sidecars (done); an export test asserts no key appears (done); a sort test | S |
 | 2 | Small front-matter keys | `versions:` (library-managed, `.versions` presence as on during transition), `tape:`, `recording-ms:`, `summary-*`, `status-since:`/`done:` via `withStatus`, `meeting-booking:`, `app-filed:`/`sorted:`, `banner: none`, `notion-board:`, `github:` on notes, `share:`/`site:` markers; all added to `undraftable` and `_unsaid`. **Done 2026-10-31 (Dart):** `versions:` (as a page key written through the editor, not library-managed: no Rust in this slice; `.versions` presence as on; the device map written through), `notion-board:` and `github:` (read-both through `PluginNotes`), and the meeting's keys folded into one `meeting:` flow map (slice 4). What differed: there is no `undraftable` list of keys on the Dart side and `_unsaid` is per screen, so nothing was added to either; the rest of the row is open | Unknown keys kept byte for byte by every build; preferences and device maps written in parallel for one release, read as fallback | Rust frontmatter round-trips; Dart reads key-then-fallback (done for the three); a two-device sync fixture shows no conflict copy from a key write | M |
 | 3 | Folders and the config | The path adopter at open; `.glyph/config.json` through the Vault with `workspaces`, `orgs`, `dailyNotes`, `smartNotebooks`, `slack`/`discord` channels and meetings, `plugins.suggested`, `defaults`, `me`; a `Snippets` note replaces `preferences.snippets`. **Done 2026-10-31 (Dart):** the adopter (lib/core/folder_adopter.dart, personal and, once the organization is known, team paths; additive only), the config (lib/core/library_config.dart) with `workspaces` (hue, legacy id, order), `orgs`, `dailyNotes`, `smartNotebooks`, `defaults` (`geotag`, `mapTiles`, `placeNames`), `slack`/`discord`, `written` stamps, the secret guard, and the Snippets note (lib/core/snippets_note.dart). What differed: the file is read and written with dart:io at `<library>/.glyph/`, not through the Vault, so a SAF tree holds its config in memory until the core offers a command (the `ConfigFile` seam); `plugins.suggested` and `me` are not written; the preferences stay the truth while the app runs and the file is taken only where newer or on a restore, last writer per section with the synced preferences as the tie-break (§6); no `.keep` in empty directories (an empty folder lives in the config's `workspaces`) | Old builds ignore the file and keep the preference; the preference stays the live channel, the file wins on a fresh device; SAF libraries write through `trees/<key>/` | An open-from-clone test: a tree with no preferences yields the same folders, ids (`folderIdFor`) and filings (done: test/core/folder_adopter_test.dart); a hue round-trip and two devices sharing a folder (done: test/core/library_config_test.dart); a SAF-tree test (open) | M–L |
-| 4 | Trash and meetings | `trashed:` and `meeting:` as index columns (`set_trashed` beside `set_archived`; `meeting` written from the five writers); `KeptTrash` and `Preferences.meetings` become views with the preference dual-written. **Done 2026-10-31 (Dart), the meetings half:** `meeting: {start, kind, booking, app}` written by the five writers as they make the body (lib/meet/meeting_mark.dart), the preference dual-written, the shelf and the sync engine reading both (`meetingsOf`); not an index column (no Rust in this slice: the engine scans the notes it holds). The trash is held for decision 4; the adopter treats a note with no trash entry as live and leaves the `trashed:` seam (`trashedKey`) | An old build pushing a `NotePayload` without the field clears it on a new one, hence the dual write; the purge keeps exempting org notes; `recordingStaysHere` reads the column | Index tests for the columns; purge test; a mixed-build sync fixture; the mark round-trip and the live note's hand-over (done: test/meet/meeting_mark_test.dart) | M |
+| 4 | Trash and meetings | `trashed:` and `meeting:` as index columns (`set_trashed` beside `set_archived`; `meeting` written from the five writers); `KeptTrash` and `Preferences.meetings` become views with the preference dual-written. **Done 2026-10-31 (Dart), the meetings half:** `meeting: {start, kind, booking, app}` written by the five writers as they make the body (lib/meet/meeting_mark.dart), the preference dual-written, the shelf and the sync engine reading both (`meetingsOf`); not an index column (no Rust in this slice: the engine scans the notes it holds). The trash: Matt chose a `.trash/` folder (§11), not built in this slice; a dot folder is never indexed, so the adopter never meets a trashed note and treats every note it is handed as live (lib/core/folder_adopter.dart `trashFolder` names the seam) | An old build pushing a `NotePayload` without the field clears it on a new one, hence the dual write; the purge keeps exempting org notes; `recordingStaysHere` reads the column | Index tests for the columns; purge test; a mixed-build sync fixture; the mark round-trip and the live note's hand-over (done: test/meet/meeting_mark_test.dart) | M |
 | 5 | Attachments under the library | `images/` → `Library/image/`, `images/files/` → `Library/file/`, `video/` → `Library/video/`, `recordings/` → `Library/recordings/`; one move at open; read-both for a release; Kotlin twins; backup and export write the same names; `.gitattributes` | Sync carries files by kind+name, unchanged; old builds look in the old folders (fallback read); SAF libraries need `TreeTarget` writes; reset.rs must not wipe a chosen folder's `image/` | Core tests for `kept_path` both ways; `images::referenced` unchanged; backup and export layout tests; a restore from a clone renders every picture | L |
+| 6 | Shares on the sites model, and the calendar and webhook secrets sealed. **Built 2026-10-31** (branch `worktree-agent-a0b4f7f01041dfe41`; not yet deployed) | **Shares:** a `meta` column on `shares` (`ADDED_COLUMNS`), written by `PUT /api/v1/shares/{id}/meta { meta }` (owner-only, after the share, ≤ 4096 base64url, 120 writes/min/address) and answered by `GET /api/v1/shares` as `{ id, created, updated, meta }`; the app seals `{v, noteId, key, place, places, recording, audio}` under the ACCOUNT key in context `share:<id>` (`shareMetaOf`, lib/share/share.dart) on every share, switch and recording change, and writes it through once for shares from older builds at the next refresh; `preferences.shares` stays, read first and written through, for a release; `sent`/`lacked` stay in it for now. `Shares.restoreShares()` on sign-in (and once at launch) lists the metas, opens each, and puts back every share the settings lack at the same id and key; the note is found by its id, else by its `share: <id>` page front matter marker (written by `shareNote` through `CoreLibrary.save`, taken off by `stopSharing`, stripped from what a share carries). **Secrets (decision 22):** Google's refresh token (`glyph-google-refresh`), each iCal address (`glyph-ical-url:<id>`) and each outgoing webhook's secret (`glyph-webhook-secret:<id>`) live in the device's secure store (lib/sync/kept_secrets.dart) and travel as sealed keys (lib/sync/connections.dart); the blob keeps an address's id and name, Google's choices, a hook's id/URL/events/scope (`toStored()`); Google's access token moved to the secure store too (device-only). Read-both: a blob with a secret in the clear is read as it was, the secret moved to the store, and the blob rewritten without it (`CalendarService.ready`, `WebhookSender.ready`) | **Deploy order: server first** (the route and column are additive; the column is added at open), **then the app.** Old app, new server: unaffected (never calls the meta route, passes over `meta`/`created` in the list). New app, old server: the meta `PUT` answers 404 and is retried no sooner than ten minutes later; the settings' entry carries the share as before. Secrets: an older build on another device, reading a blob the new build rewrote, sees no iCal address and no Google sign-in until updated (`CalendarAddress.fromJson` needs a url, `GoogleSetup.fromJson` a token), and posts to a webhook unsigned - so update every device soon after the first; a blob an older build writes with a secret in the clear is read and moved again. `share:` still to be added to `undraftable`/`_unsaid` with slice 2's keys | server: `shares_tests.rs` (meta written after the share, listed to the owner alone, never shown to a reader, gone with the share; shape and size; address limit) and `store/shares.rs` (+ the old-database column test); Dart: test/share/restore_test.dart (share → meta sealed on the fake service, the marker, prefs wiped → sign in → same link, found by marker when the id changed, stop removes meta and marker, old service, unreadable meta), test/calendar/calendar_test.dart and test/integrations/webhooks/outgoing_test.dart (nothing secret in the blob or the export's settings.json, the migration both ways, a secret arriving later), test/sync/sealed_keys_test.dart (the three travel sealed, by the ids the settings list; a removal goes) | M |
+| 5 | Attachments under the library | `images/` → `Library/image/` DONE 2026-10-31 (§9.1: the move at every open, read-both, the export names every kind `Library/<kind>/`); `images/files/` → `Library/file/`, `video/` → `Library/video/`, `recordings/` → `Library/recordings/` are READ from under the library already and still written beside it, each to turn once its readers outside the core (Dart's `AttachmentStore`, FilmPlayer.kt, TapePlayer.kt, TapeChannel.swift, MeetingService.kt, write_up.rs) look there: one `Kind::settled` flip per kind; `.gitattributes` with the plugin | Sync carries files by kind+name, unchanged; an older build on the same device looks in the old folders only (§9.1 says what it sees); a SAF tree keeps its attachments in the app's storage (no `TreeTarget` writes); `clear` removes the app's own `image/`, never a chosen folder's | `attachments.rs` tests (idempotent, resumable, read-both, copy with a move of the library); files.rs both ways; backup and export layout tests; the clone test for pictures waits for the git plugin | L |
 | 6 | Shares on the sites model | `share:<id>` meta sealed under the account key on the server (sites.rs copied); `list_shares` answers audio meta; `sent`/`lacked` to device storage; `preferences.shares` written in parallel for a release then dropped | Old builds read the preference; the prefs merge loses a field it no longer carries, fine | Server tests for the new blob; a sign-in-on-fresh-device test recovers every share | M |
 | 7 | One front matter block | Phase A: readers accept the merged shape and `issue:` (index.rs, Dart, web frontMatter.ts, MCP `keepKeys`). Phase B, a release later: the writer merges the five keys into the page's block, writes `issue:`; migration on next save | Phase B must not ship until every device has A (GHST-107-class hazard: an old build reading a merged body takes `id: <uuid>` as the ticket key and loses `type:`); sync carries whole bodies; team CRDT docs churn once | `a_tickets_front_matter_is_the_pages_and_is_kept_whole` replaced by a one-block test; Obsidian-vault fixture whose only block holds `tags:` reads its properties; mixed-build fixture | L |
 | 8 | Canvases and Mermaid | Derived `<Title>.canvas` written by the plugin and publisher; fence → Mermaid gantt writer; `<details>` in Rendered.tsx | None (derived files) | Round-trip JSON Canvas; Mermaid output snapshot | M |
@@ -657,6 +659,92 @@ the reader build before any device writes the new shape.
 
 The git plugin (section 10) can ship after slice 1 and ride every later slice unchanged: it commits whatever `texts()`
 and `glyph_dir()` give it, and its mapper is what makes slices 3 and 5 optional for the repo's shape.
+
+### 9.1 Built 2026-10-31: the Rust/library slice
+
+The library side of slices 1 and 5, decisions 5 and 20, and the critic's three library findings (conflict copies,
+iCloud evictions, case and normalization), in tauri/src-tauri/src/library (shared by `#[path]` into native/) and
+the core's doors in native/src. What landed, and where it differs from the plan above:
+
+- **Pictures live under the library** (`Library/image/<name>`, with each `.ocr.txt` beside its picture), the path
+  the notes already link. The move runs AT EVERY OPEN (`library/attachments.rs` `Places::gather`, from
+  `library_root::settle_attachments`), not once behind a version: a rename per file, so a thousand pictures move
+  in a moment; idempotent (a file already in place at the same size is only removed where it was; one at another
+  size is left and said in the log, never written over); resumable (a move stopped half way leaves every file in
+  one folder or the other); cheap when there is nothing to move (one `read_dir` per folder). The plan's gate on a
+  version in `.glyph/library.json` was dropped on purpose: the old folders (`images/`, `images/files/`, `video/`,
+  `recordings/`) are under the APP'S DATA, a device's own and never in a chosen folder, so a second device joining
+  the same chosen folder later still has its own old folder to bring in, which a mark in the shared `library.json`
+  would have told it not to; and the lazy per-attachment alternative would have left `images/` half full for
+  months and made "without duplicating" in the backup and the export a dedupe forever. `library.json` does gain
+  `attachments: 1`, written once for a library with a folder: a RECORD of the layout for whoever reads the folder,
+  not a gate. The move also runs after `library_move`/`library_use_app_folder` (`relocate`): the new library's
+  places take copies of the old one's attachments, then gather, so pictures follow the notes into a chosen folder
+  and back; a folder of the person's keeps every file, as the notes' rule has it.
+- **Read-both** (`Places`): each kind is read from, in order, the folder it is written to, the old folder beside
+  the app's data, and (for a chosen folder) the app's own library's folder, since a launch while the chosen folder
+  was away opened the app's own and may have gathered into it. The core's `file_path`/`read_file`/`file_exists`/
+  `file_digest`/`sync_put_file`/`sync_put_file_path`/`save_video` (native/src/files.rs), `delete_note`'s picture,
+  film and recording removal, and the film sweep all go through the places; a picture that arrives by sync lands
+  in the first folder and an old copy of it in the others is removed. Dart reads two things by a path of its own,
+  the words read in a picture (lib/files/read_text.dart) and whether a picture is here (lib/files/files_kit.dart
+  `pathOf`), so a new `attachment_places` command answers the folders per kind and both read them all, writing to
+  the first (lib/files/attachment_places.dart; the old folders stand until the core has answered).
+- **Files, films and recordings have NOT moved.** Their readers outside the core still look in the old folders:
+  Dart's `AttachmentStore` (`images/files/`), FilmPlayer.kt (`video/`), TapePlayer.kt, TapeChannel.swift and
+  MeetingService.kt (`recordings/`), and the write-up's `recording_file` under the `voice` feature. So for those
+  kinds the FIRST place is still the old folder and `Library/<kind>/` is only read (`Kind::settled` is true for
+  pictures alone): this build is their reader build. Each turns with one flip of `settled` once its players read
+  both places, in the order of the rule from 2026-10-20. The backup and the export already carry all four from
+  wherever each is: the export names them `Library/image/`, `Library/file/`, `Library/video/`,
+  `Library/recordings/` (the target layout, so a zip is a library) and never twice; the backup keeps its
+  `Attachments/Pictures|Files|Films|Recordings/` names, the files now their own kind rather than a folder of the
+  pictures (`Attachments/Pictures/files/` is gone from the next backup, by the manifest's own removal rule).
+- **What an older build sees.** On a device that goes back to an older build after this one has run: its pictures
+  are in `Library/image/` and the old build looks only in `images/`, so every picture is a blank card there until
+  the device is on this build again (the next open finds them where they are; the old build's new pictures land in
+  `images/` and are gathered at that open). Nothing is lost and nothing is deleted. On another device sharing a
+  chosen folder and still on an older build: `image/` holds no `.md`, so the vault walk never takes it for notes;
+  that build keeps its own `images/` and sync carries pictures between the two by kind and name as before. A SAF
+  tree keeps every attachment in the app's storage (no paths SQLite, a player or the sidecars could use), and its
+  backup and export still name them `Library/<kind>/`.
+- **`id:` is written whenever `set_front` writes any other key** (decision 20): a pin or an archive on a file from
+  another app carries the note's id into the file in the same write, after the person's own keys; a change that
+  changes nothing writes nothing, so an untouched Obsidian file stays untouched.
+- **A second file carrying a live id gets a fresh `id:` WRITTEN INTO IT** (the critic's first finding): whichever of
+  the two is not named for its title (`Plan (conflict from Mac).md` beside `Plan.md`, `Copy.md` beside
+  `Original.md`), or where both or neither are, the one indexed second. `index_file` rewrites that file with the
+  new id, keeping its modified time, and gives it no sidecar. A fresh clone of the folder as it now is gives the
+  same ids on every device, whatever order the walk reaches them in. A copy that cannot be rewritten now (in iCloud
+  and not on this Mac) keeps a fresh id in the index only, as before, until it comes down.
+- **`updated:`** is the sixth managed key (decision 5, the alternative; the critic showed the mtime-from-git option
+  cannot work on SAF, where no time can be set): written on a save that changed the words (not on a pin, not on a
+  save of the same words, which writes nothing), from `stamp` on a note that arrives by sync (the note's own
+  time), and the index takes the LATER of the key and the file's time (index v3 keeps the file's own time beside
+  it, so the scan's changed-file check is unmoved). An edit in another app moves the file's time and not the key,
+  so the file's time wins and the note is at the top. A clone whose files git has stamped with the checkout's time
+  therefore still lists as 'just now' until the plugin restores the times on a Mac; where it cannot (SAF, the
+  import pass), the key is at least in the file for the plugin to read back. Every build keeps unknown keys byte
+  for byte, and the sync payload carries bodies, so neither wire changes.
+- **A note iCloud has not brought down is never gone** (the critic's third finding): `Library::texts()` answers
+  `(path, None)` for it, and the backup keeps the drive's copy and the manifest's mark (`Body::Kept`: not owed,
+  not removed, counted as a note); the export leaves it out of the zip, which has no deletions. The index already
+  kept the row (vault.rs), and `copy_into` refuses the whole move rather than copy half a library.
+- **Case and composition** (the critic's finding): `file_stem` composes a title NFC before it is a name, `named_for`
+  compares composed, and `free_path` takes a name as taken when a file is there OR the index knows a file in that
+  folder by the same name read case-insensitively and composed (`names::same_name`), so a tree written on Android
+  cannot hold `Plan.md` and `plan.md`, or two spellings of `Café.md`, and a file another app wrote decomposed is
+  still named for its title (not renamed to `Stem 2.md` beside itself on the next save).
+- **`.glyph/library.json` and `.glyph/notes/<id>.json` ride `texts()`**, so the drive backup carries them (gap 8);
+  the export already walked them for a library with a folder and now skips them in the texts for a tree, whose
+  `.glyph/` it walks from the app's storage.
+- **README**: the export's and the backup's README stay `README.txt` (export_commands.rs, backup.rs `README`);
+  nothing in the Rust core or the Dart app writes a `README.md` into a library, and the git plugin's generated
+  README (§6) is to be `README.txt` too, or live under `.glyph/`, for the critic's reason.
+- Left for the next slices: the Dart parts of slice 1; `AttachmentStore` and the three native players reading both
+  places (then `Kind::settled` for `File`, `Video`, `Recording`); `.gitattributes`; Dart's `LibraryStatus` showing
+  the attachment layout; the Tauri app's `commands.rs` delete path still names `paths::images_dir` (it compiles
+  against the same library and reads the old folder: it is the Tauri build's own reader change to make).
 
 ## 10. The 'Back up to git' plugin
 
@@ -764,69 +852,24 @@ static publish.
 
 Decisions the plugin needs from Matt are in section 11 (numbers 9 to 17).
 
-## 11. Open decisions for Matt
+## 11. The decisions
 
-Recommended answer first.
+Matt answered on 2026-10-31. Four he chose himself; the rest take the recommended answer.
 
-1. **Attachments under the library?** Yes: move `images/`, `images/files/`, `video/`, `recordings/` to
-   `Library/image/`, `file/`, `video/`, `recordings/` (the names the links already use), id-keyed, one move at open,
-   read-both for a release. Alternative: leave them and let the git plugin's mapper copy them into the repo, which
-   keeps a drive backup and an Obsidian-opened folder broken.
-2. **Name of the committed config folder.** `Library/.glyph/config.json`, beside library.json, because `.glyph/` is
-   already moved, exported and held for SAF trees. Alternative: a new `Library/.ghost/` as the task drafted, which needs
-   the same plumbing twice.
-3. **One front matter block, and the ticket key becomes `issue:`.** Yes, phased reader-then-writer across two releases
-   with an every-device-first gate. Alternative: keep two blocks and accept that other apps show ticket properties as
-   text.
-4. **Trash as `trashed:` front matter, not a `Trash/` folder.** Yes. Alternative: Obsidian's `.trash/` folder, which
-   hides the files from the index at once and reads as a deletion to sync and the CRDT unless the protocol learns
-   "trashed".
-5. **Updated time.** The git plugin restores mtimes from commit times on checkout; no key in the file. Alternative:
-   `updated:` written on body saves, with the index taking the later of key and mtime.
-6. **Versions switch.** `versions: true|false` as a library-managed key, with an existing `.versions` beside a personal
-   note reading as on. Alternative: sidecar presence alone, which cannot express "off" for an org note.
-7. **Canvases.** Derived `<Title>.canvas` beside each canvas note now; the stored form switches to `.canvas` only after
-   readers ship. Alternative: leave as `.md` and accept Obsidian cannot open them.
-8. **Shares.** Account state restored by sign-in, on the sites model (meta sealed under the account key on the server)
-   with a non-secret `share: <id>` marker; fix the export's settings.json now. Alternative: a committed
-   `shares.json` with keys, which makes a public repo a set of live read links.
-9. **gix or git2.** gix, pure Rust, after a two-day spike proves push on Android; fall back to git2 with vendored
-   OpenSSL on Android only if the spike fails. The policy question is whether a C+OpenSSL build step in
-   tool/build-native.sh is acceptable.
-10. **Mirror working tree or `.git` inside the Library folder.** Mirror at `<app data>/git/<repo-id>/`: a second copy
-    of pictures on disk, but never corrupted by iCloud, Dropbox or SAF. Inside-Library as a Mac Advanced mode later.
-11. **Recordings in the repo.** Off by default with a 50 MB per-file cap when on; LFS later. Alternative: on from day
-    one with LFS, which gix does not have and would be hand-written first.
-12. **Team notes in a personal repo.** Exclude every organization by default with a per-org switch. Alternative:
-    include orgs the person owns.
-13. **Multi-device.** Phase 1 one-pusher claim only; Phase 2 every-device merge later for signed-out people and shared
-    repos. Alternative: merge from the start.
-14. **Cadence.** Two minutes of quiet plus an hourly floor. Alternative: hourly only (fewer commits, less battery).
-15. **Encrypted-repo mode.** None in v1: the plaintext-on-GitHub promise is the point. Alternative: a switch, off by
-    default, incompatible with static hosting.
-16. **Films in the repo.** Never (consistent with sync), the README says so. Alternative: `video/` under LFS behind
-    an off-by-default switch.
-17. **Static hosting.** v1 ships the repo layout only (GitHub's own viewer renders it); a `publish` step with
-    Rendered.tsx as the one web renderer comes later; decide whether a Dart toolchain in CI is acceptable for
-    build-time queries.
-18. **Bare `@day` in a team note.** Insert `@<me> @2026-11-06` so authorship is in the words. Alternative: a bare team
-    `@day` reminds every member who holds the note.
-19. **Snippets as a note.** A `Snippets` note with a ```snippets fence (syncs and is in git). Alternative: a `snippets`
-    key in the config, which is in git but not synced between devices.
-20. **Note ids for foreign files.** Write `id:` whenever `set_front` writes any other key (one rewrite that already
-    happens); key preference maps by path for never-touched files. Alternative: stamp every foreign file at first
-    scan, which rewrites an Obsidian vault on first open.
-21. **Merge undo.** Keep a version unconditionally for the two notes a merge rewrites substantively; `git revert` is
-    the undo for the files. Alternative: a committed `merges/` directory.
-22. **Calendars and webhook secrets.** Move Google's refresh token, iCal URLs and webhook secrets into `sealedKeys` so
-    they are not plaintext on the device; keep all of them out of the library. Alternative: commit `{id, url, events,
-    scope}` of outgoing hooks to the config, exposing the endpoint in a public repo.
+**Matt's own:**
+
+1. **Front matter: one block, phased.** Readers accept one merged block first (the library's keys and the page's in one `---`, the ticket key also read as `issue:`); writers switch a release later, once every device has the reader.
+2. **Trash: a `.trash/` folder**, as Obsidian does. Trashing moves the file to `Library/.trash/<its path>`; restoring moves it back; other apps hide it too. The synced trash map is written in parallel for a release so old builds agree.
+3. **The repository is the Library folder itself: `.git` inside it**, not a mirror in app data. So the Mac can run git on it directly. Mitigations the plugin must carry: a warning (and a refusal to init) when the Library is on iCloud Drive or another syncing folder; on an Android SAF tree, where `.git` cannot live, the plugin falls back to a mirror under app data and says so; `.git/` is never indexed as notes (dot folders already are not).
+4. **Hosting: build the publisher now.** A build step renders every note of a repo with the reader's renderer into a static site (wiki links resolved, a sidebar from the folders, search), for GitHub Pages or any host, with a workflow file the plugin can commit so a push publishes.
+
+**Taken as recommended:** attachments move under the Library at the linked paths (1); `Library/.glyph/config.json` (2); `updated:` as a managed key, since mtime-from-git cannot work on SAF (5, per the critic); `versions:` key plus sidecar presence (6); a derived `.canvas` now, the stored form later (7); shares on the sites model with a `share: <id>` marker, secrets stripped from the export now (8); gitoxide (9); recordings off by default with a 50 MB cap (11); team organizations excluded by default with a per-org switch (12); one-pusher claim first (13); two minutes of quiet plus an hourly floor and Back up now (14); no encrypted mode (15); films never (16); `@me @day` (18); a Snippets note (19); `id:` written on any key write (20); unconditional versions for a merge's two notes (21); calendar and webhook secrets sealed and kept out (22).
 
 ## 12. What the critic found
 
 A last reader looked for what the audit missed. These stand beside the inventory until each is folded into its slice; the high ones change the migration plan and the plugin design.
 
-- **High.** Conflict copies and duplicated files break id-keyed state on a fresh clone. index_file gives a second file carrying an id that already exists at another live path a NEW random id but never rewrites the file's `id:`; the vault scan is sorted by path, so on a fresh device `Inbox/Plan (conflict from Mac).md` sorts before `Inbox/Plan.md`, KEEPS the original id, and the real note gets a random one. Every id-keyed ledger (filings, trash, meetings, shares, tape ids, `.glyph/notes/<id>.json`) then points at the conflict copy. The draft's Phase-2 merge design writes exactly such copies and its 'two devices both restoring' case is never considered.
+- **High** (the library's half BUILT 2026-10-31, §9.1: the copy's fresh id is written into its file). Conflict copies and duplicated files break id-keyed state on a fresh clone. index_file gives a second file carrying an id that already exists at another live path a NEW random id but never rewrites the file's `id:`; the vault scan is sorted by path, so on a fresh device `Inbox/Plan (conflict from Mac).md` sorts before `Inbox/Plan.md`, KEEPS the original id, and the real note gets a random one. Every id-keyed ledger (filings, trash, meetings, shares, tape ids, `.glyph/notes/<id>.json`) then points at the conflict copy. The draft's Phase-2 merge design writes exactly such copies and its 'two devices both restoring' case is never considered.
   Fix: In §10 Multi-device and §3.10 'Three-way merge base': the conflict copy must be written with a fresh `id:` in its front matter (and no `.glyph/notes` sidecar), and the restore scenario must state that two devices restoring the same tree get identical ids only when no two files share an `id:`.
   Code: `tauri/src-tauri/src/library/index.rs:171-184 (index_file: `Some(other) if other.path != entry.path ... => (new_id(), false)`)`, `tauri/src-tauri/src/library/vault.rs:187 (markdown() sorted walk)`, `tauri/src-tauri/src/library/mod.rs:201-207 (stamp writes id only on save)`
 
@@ -834,7 +877,7 @@ A last reader looked for what the audit missed. These stand beside the inventory
   Fix: Add a 'team member restores from a repo' scenario to §9/§10: team notes are restored from the server after sign-in, not from the repo; a restore pass must pull the org channel before any push and must never put a note whose id the server holds as `deleted`.
   Code: `lib/team/sync.dart:1-25 (push: 'a note new to the team ... is put as a row')`, `lib/team/sync.dart:853-860 (deletion guard, one direction only)`, `lib/team/sync.dart:513-536 (adopt of pulled rows)`
 
-- **High.** iCloud-evicted notes would be committed as deletions. `Library::texts()` silently skips a file whose read fails with NotDownloaded, and backup.rs removes from the target 'a note gone from the app since the last backup' by diffing the manifest. A chosen Library on iCloud Drive (the Mac default for many people) with evicted files produces 'Deleted: <title>' commits, and the same bug already affects the drive backup the plugin is modelled on.
+- **High** (BUILT 2026-10-31 for `texts()` and the backup, §9.1; the plugin inherits it). iCloud-evicted notes would be committed as deletions. `Library::texts()` silently skips a file whose read fails with NotDownloaded, and backup.rs removes from the target 'a note gone from the app since the last backup' by diffing the manifest. A chosen Library on iCloud Drive (the Mac default for many people) with evicted files produces 'Deleted: <title>' commits, and the same bug already affects the drive backup the plugin is modelled on.
   Fix: In §10 Repository layout: a not-downloaded note is 'unchanged, keep the last committed blob' (or `vault.fetch` + wait), never a deletion; note the same fix for backup.rs.
   Code: `tauri/src-tauri/src/library/relocate.rs:175-189 (texts: `Err(e) if not_downloaded(&e) => continue`)`, `tauri/src-tauri/src/backup.rs:17-20 (manifest-based removal)`, `tauri/src-tauri/src/library/vault.rs:56-59 (evicted_name)`
 
@@ -846,11 +889,11 @@ A last reader looked for what the audit missed. These stand beside the inventory
   Fix: §6 and §3.10: name it `README.txt` (or put the README under `.glyph/`), and say the restore pass skips it.
   Code: `tauri/src-tauri/src/library/mod.rs:176-178 (library_path)`, `tauri/src-tauri/src/library/vault.rs:187 (any .md indexed)`, `native/src/kept/export_commands.rs:241,281 (README.txt)`
 
-- **Medium.** Decision 5 (restore mtimes from commit times) contradicts the restore design. The Restore section writes every .md through `store_apply`/library commands 'never the filesystem', and the only `keep_modified` implementation is FsVault's `set_modified`; a SAF tree has no way to set a document's last-modified (DocumentsContract exposes it read-only, LibraryDocuments.kt only reports it). So on Android SAF and in the import pass the mtime is the restore time regardless, and list order collapses exactly as the draft fears.
+- **Medium** (settled 2026-10-31: `updated:` written, later-of in the index, §9.1). Decision 5 (restore mtimes from commit times) contradicts the restore design. The Restore section writes every .md through `store_apply`/library commands 'never the filesystem', and the only `keep_modified` implementation is FsVault's `set_modified`; a SAF tree has no way to set a document's last-modified (DocumentsContract exposes it read-only, LibraryDocuments.kt only reports it). So on Android SAF and in the import pass the mtime is the restore time regardless, and list order collapses exactly as the draft fears.
   Fix: §11 decision 5: either `store_apply` takes an `updatedAt` the import pass passes (and SAF accepts that it cannot), or choose the `updated:` key; the mtime-from-commit option only works for a Mac chosen folder.
   Code: `tauri/src-tauri/src/library/vault.rs:252-257 (FsVault::keep_modified)`, `android/app/src/main/kotlin/com/mattssoftware/glyph/files/LibraryDocuments.kt:89`, `tauri/src-tauri/src/library/index.rs (entry.modified_ms as updated)`
 
-- **Medium.** Case-insensitive and normalization-insensitive filesystems are not considered. `free_path` tests uniqueness with `vault.exists`, which is case-folded on macOS/iOS but exact on Android app data and on a git host, and names.rs does no NFC/NFD normalization. A repo written from an Android device can hold `Plan.md` and `plan.md` (or two byte-forms of `Café.md`); a Mac or iPhone checkout silently merges them, one body overwriting the other.
+- **Medium** (the library's half BUILT 2026-10-31, §9.1; the plugin's refusal of a case-clashing commit remains). Case-insensitive and normalization-insensitive filesystems are not considered. `free_path` tests uniqueness with `vault.exists`, which is case-folded on macOS/iOS but exact on Android app data and on a git host, and names.rs does no NFC/NFD normalization. A repo written from an Android device can hold `Plan.md` and `plan.md` (or two byte-forms of `Café.md`); a Mac or iPhone checkout silently merges them, one body overwriting the other.
   Fix: §7/§10: unique_name compares case-insensitively and NFC-normalizes titles; the plugin refuses a commit that would add a path differing only by case from one already tracked.
   Code: `tauri/src-tauri/src/library/mod.rs:271-275 (free_path)`, `tauri/src-tauri/src/library/names.rs:393-401 (unique_name)`, `tauri/src-tauri/src/library/names.rs:1-3 ('made safe for every file system' claims no case/normalization rule)`
 

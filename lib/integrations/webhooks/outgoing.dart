@@ -25,6 +25,7 @@ import '../../core/preferences.dart';
 import '../../core/stored.dart';
 import '../../core/tags.dart' show tagsIn;
 import '../../plugins/registry.dart' show plugins;
+import '../../sync/kept_secrets.dart';
 import 'payload.dart';
 import 'setup.dart';
 
@@ -78,17 +79,21 @@ class _Run {
 /// The outgoing hooks' sender, for the life of the app (see the header).
 class WebhookSender extends ChangeNotifier {
   /// [on] says whether the plugin is on (plugin.dart): the registry's switch unless a test says.
-  WebhookSender({Fetcher? fetch, PreferencesStore? prefs, Stored Function()? kept, int Function()? clock, Future<void> Function(Duration wait)? wait, bool Function()? on})
+  /// [secrets] holds the hooks' secrets (lib/sync/kept_secrets.dart; setup.dart says why): the app's own unless a test
+  /// gives its own.
+  WebhookSender({Fetcher? fetch, PreferencesStore? prefs, Stored Function()? kept, KeptSecrets? secrets, int Function()? clock, Future<void> Function(Duration wait)? wait, bool Function()? on})
       : _fetch = fetch,
         _on = on ?? (() => plugins.isEnabled(webhooksId)),
         _prefs = prefs,
         _kept = kept ?? (() => stored),
+        _secrets = secrets ?? integrationSecrets,
         _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
         _wait = wait ?? ((time) => Future<void>.delayed(time));
 
   Fetcher? _fetch;
   final PreferencesStore? _prefs;
   final Stored Function() _kept;
+  final KeptSecrets _secrets;
   final int Function() _clock;
   final Future<void> Function(Duration wait) _wait;
   final bool Function() _on;
@@ -96,10 +101,34 @@ class WebhookSender extends ChangeNotifier {
   Fetcher get _fetcher => _fetch ??= ioFetcher();
   PreferencesStore get prefs => _prefs ?? preferences;
 
-  /// The hooks the account has.
-  WebhookSetup get setup => webhookSetupOf(prefs.value);
+  /// The hooks the account has, their secrets from the secure store: before [ready] has read those, a hook reads as
+  /// unsigned, which is why a send waits on it.
+  WebhookSetup get setup => webhookSetupOf(prefs.value, secret: _secrets.peek);
 
   void _setSetup(WebhookSetup next) => prefs.update((now) => withWebhookSetup(now, next));
+
+  Future<void>? _readying;
+
+  /// The secrets read from the secure store, and any an older build left in the settings blob moved there and taken
+  /// out of the blob (setup.dart, "the secret is not in it"). Every send waits on it; asked again after the settings
+  /// change, for a hook added on another device, or a blob an older device wrote.
+  Future<void> ready() => _readying ??= _ready().whenComplete(() => _readying = null);
+
+  Future<void> _ready() async {
+    final raw = prefs.value.more[webhooksKey];
+    await _secrets.load([for (final id in WebhookSetup.hookIdsIn(raw)) webhookSecretName(id)]);
+    if (!WebhookSetup.storedInTheClear(raw)) return;
+    for (final hook in WebhookSetup.fromJson(raw).outgoing) {
+      final secret = hook.secret;
+      if (secret != null && _secrets.peek(webhookSecretName(hook.id)) == null) await _secrets.write(webhookSecretName(hook.id), secret);
+    }
+    if (identical(prefs.value.more[webhooksKey], raw)) _setSetup(setup);
+  }
+
+  void _onPrefs() {
+    final raw = prefs.value.more[webhooksKey];
+    if (WebhookSetup.storedInTheClear(raw) || WebhookSetup.hookIdsIn(raw).any((id) => !_secrets.loaded(webhookSecretName(id)))) unawaited(ready());
+  }
 
   /// Nothing is sent with Local only on, nor while the plugin is off.
   bool get _localOnly => prefs.value.localOnly || !_on();
@@ -116,15 +145,20 @@ class WebhookSender extends ChangeNotifier {
     final now = setup;
     final made = id ?? 'out-${_clock().toRadixString(36)}-${now.outgoing.length}';
     final kept = secret?.trim();
-    _setSetup(now.copyWith(outgoing: [...now.outgoing, OutgoingHook(id: made, url: url, events: events, scope: scope, secret: kept == null || kept.isEmpty ? null : kept)]));
+    final signed = kept == null || kept.isEmpty ? null : kept;
+    // The secret into the secure store, never the blob (setup.dart says why): held in memory at once, so the hook
+    // reads signed from the next line on.
+    if (signed != null) unawaited(_secrets.write(webhookSecretName(made), signed));
+    _setSetup(now.copyWith(outgoing: [...now.outgoing, OutgoingHook(id: made, url: url, events: events, scope: scope, secret: signed)]));
     notifyListeners();
     return null;
   }
 
-  /// Takes a hook off, and what this device kept of how it went.
+  /// Takes a hook off, its secret and what this device kept of how it went with it.
   void remove(String id) {
     final now = setup;
     _setSetup(now.copyWith(outgoing: [for (final hook in now.outgoing) if (hook.id != id) hook]));
+    unawaited(_secrets.write(webhookSecretName(id), null));
     final all = statuses()..remove(id);
     _writeStatuses(all);
     notifyListeners();
@@ -166,9 +200,12 @@ class WebhookSender extends ChangeNotifier {
     if (notes != null) _notes = notes;
     if (_heard != null) return;
     _heard = saves.listen((saved) => heard(saved.before, saved.after));
+    prefs.addListener(_onPrefs);
+    unawaited(ready());
   }
 
   void stop() {
+    if (_heard != null) prefs.removeListener(_onPrefs);
     unawaited(_heard?.cancel());
     _heard = null;
     for (final run in _runs.values) {
@@ -254,9 +291,11 @@ class WebhookSender extends ChangeNotifier {
 
   /// One POST of [body] to [hook]; answers what went wrong, or null.
   Future<String?> post(OutgoingHook hook, WebhookEvent event, String body) async {
+    // The secret as the store holds it now: [hook] may have been read before the store was.
+    await ready();
     final bytes = utf8.encode(body);
     final headers = {'Content-Type': 'application/json', 'User-Agent': _userAgent, 'X-Ghost-Event': event.wire};
-    final secret = hook.secret;
+    final secret = _secrets.peek(webhookSecretName(hook.id)) ?? hook.secret;
     if (secret != null) headers[signatureHeader] = signatureOf(secret, bytes);
     try {
       final response = await _fetcher(FetchRequest(method: 'POST', url: Uri.parse(hook.url), headers: headers, body: bytes, timeout: const Duration(seconds: 15)));

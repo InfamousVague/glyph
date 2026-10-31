@@ -106,7 +106,7 @@ void main() {
 
     test('says what every folder is in a README', () {
       final text = readme(exportName(at), at);
-      for (final folder in ['Library/', 'images/', 'video/', 'recordings/', 'settings.json', 'manifest.json']) {
+      for (final folder in ['Library/', 'Library/image/', 'Library/file/', 'Library/video/', 'Library/recordings/', 'settings.json', 'manifest.json']) {
         expect(text, contains(folder));
       }
       expect(text, contains('ghostmarkdown_2026-10-01_21-42-05/'));

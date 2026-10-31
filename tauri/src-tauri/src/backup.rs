@@ -17,7 +17,9 @@
 //! A second backup to the same drive writes only what changed since the first: the manifest says what each file was
 //! when it was written (a note by a hash of its words, a picture by its size and time), and a file the drive still
 //! holds at that size is left alone. A note gone from the app since is taken off the drive, but only a file this
-//! backup wrote: nothing else in `Ghost.md/`, and nothing outside it, is ever touched.
+//! backup wrote: nothing else in `Ghost.md/`, and nothing outside it, is ever touched. A note that is there but
+//! cannot be read now (in iCloud Drive and not on this Mac, `Library::texts` answers `None`) is neither: the drive
+//! keeps what it has of it, and the manifest keeps saying so.
 //!
 //! The drive is a `Target`: a folder on the Mac's `/Volumes` (`FolderTarget`), or on Android the drive's own tree,
 //! reached through the Storage Access Framework (saf.rs `TreeTarget`). No Tauri type here, so the tests run on any
@@ -59,6 +61,8 @@ pub enum Body {
     Text(String),
     /// A picture, film or recording, copied from where the app keeps it.
     File { source: PathBuf, size: u64, modified_ms: i64 },
+    /// A note that is there and cannot be read now (in iCloud Drive, off this Mac): the drive keeps what it has.
+    Kept,
 }
 
 /// One file of the backup, by its path under `FOLDER`.
@@ -73,13 +77,16 @@ impl Item {
         match &self.body {
             Body::Text(text) => text.len() as u64,
             Body::File { size, .. } => *size,
+            Body::Kept => 0,
         }
     }
 
-    fn mark(&self) -> Mark {
+    /// What the file is now, for the manifest; `None` for one kept as it was, whose last mark stands.
+    fn mark(&self) -> Option<Mark> {
         match &self.body {
-            Body::Text(text) => Mark { size: text.len() as u64, hash: Some(format!("{:016x}", fnv1a(text.as_bytes()))), modified: None },
-            Body::File { size, modified_ms, .. } => Mark { size: *size, hash: None, modified: Some(*modified_ms) },
+            Body::Text(text) => Some(Mark { size: text.len() as u64, hash: Some(format!("{:016x}", fnv1a(text.as_bytes()))), modified: None }),
+            Body::File { size, modified_ms, .. } => Some(Mark { size: *size, hash: None, modified: Some(*modified_ms) }),
+            Body::Kept => None,
         }
     }
 }
@@ -180,64 +187,42 @@ fn is_note(path: &str) -> bool {
     path.to_ascii_lowercase().ends_with(".md")
 }
 
-/// The media folders the backup copies, each under `Attachments/` by the name it has there.
+/// One kind of media the backup copies, under `Attachments/<name>/`: its files by name, each where the app has it
+/// (library/attachments.rs `Places::files`, which lists each once from the first folder that has it, and leaves
+/// out dot files and half-written ones).
 pub struct Media {
-    pub dir: PathBuf,
+    pub files: Vec<(String, PathBuf)>,
     pub name: &'static str,
 }
 
-/// Every file of a backup: the library's notes and versions files (`texts`, as `Library::texts` answers them), then
-/// each media folder's files, its own dot files and a write's temporary file left out. A media folder that is not
-/// there yet is nothing to copy.
-pub fn plan(texts: Vec<(String, String)>, media: &[Media]) -> io::Result<Vec<Item>> {
+/// Every file of a backup: the library's notes, versions files and `.glyph/` sidecars (`texts`, as
+/// `Library::texts` answers them, a note it could not read now kept as it is on the drive), then each kind of
+/// media. A media file gone between the listing and here is nothing to copy.
+pub fn plan(texts: Vec<(String, Option<String>)>, media: &[Media]) -> io::Result<Vec<Item>> {
     let mut items = Vec::with_capacity(texts.len());
     for (path, text) in texts {
         let path = library_path(&path);
         if checked(&path).is_err() {
             continue;
         }
-        items.push(Item { path, body: Body::Text(text) });
+        items.push(Item { path, body: text.map_or(Body::Kept, Body::Text) });
     }
-    for folder in media {
-        let mut found = Vec::new();
-        walk(&folder.dir, &folder.dir, &mut found)?;
-        found.sort();
-        for (relative, source) in found {
-            let meta = std::fs::metadata(&source)?;
+    for kind in media {
+        for (name, source) in &kind.files {
+            let meta = match std::fs::metadata(source) {
+                Ok(meta) => meta,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(e),
+            };
             let modified_ms = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_millis() as i64).unwrap_or(0);
-            let path = format!("Attachments/{}/{relative}", folder.name);
+            let path = format!("Attachments/{}/{name}", kind.name);
             if checked(&path).is_err() {
                 continue;
             }
-            items.push(Item { path, body: Body::File { source, size: meta.len(), modified_ms } });
+            items.push(Item { path, body: Body::File { source: source.clone(), size: meta.len(), modified_ms } });
         }
     }
     Ok(items)
-}
-
-/// Every file under `dir`, by its path from `root`, with no dot file or dot folder, nor a `.tmp` a write left.
-fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) -> io::Result<()> {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(e) => return Err(e),
-    };
-    for entry in entries {
-        let entry = entry?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') || name.ends_with(".tmp") {
-            continue;
-        }
-        let path = entry.path();
-        let kind = entry.file_type()?;
-        if kind.is_dir() {
-            walk(root, &path, out)?;
-        } else if kind.is_file() {
-            let relative = path.strip_prefix(root).map_err(io::Error::other)?.to_string_lossy().replace('\\', "/");
-            out.push((relative, path));
-        }
-    }
-    Ok(())
 }
 
 fn in_folder(path: &str) -> String {
@@ -288,12 +273,12 @@ pub fn held(target: &dyn Target) -> io::Result<Vec<Held>> {
     Ok(files)
 }
 
-/// Bytes still to write: what the drive does not already hold as the manifest says.
+/// Bytes still to write: what the drive does not already hold as the manifest says. A file kept as it is is never owed.
 fn owed(target: &dyn Target, items: &[Item], before: &Manifest) -> io::Result<Vec<bool>> {
     items
         .iter()
         .map(|item| {
-            let mark = item.mark();
+            let Some(mark) = item.mark() else { return Ok(false) };
             if before.files.get(&item.path) != Some(&mark) {
                 return Ok(true);
             }
@@ -343,6 +328,7 @@ pub fn run(
         match &item.body {
             Body::Text(text) => target.write_text(&path, text)?,
             Body::File { source, .. } => target.copy_file(&path, source)?,
+            Body::Kept => {}
         }
         done += item.size();
         written += 1;
@@ -351,7 +337,9 @@ pub fn run(
             last_said = Instant::now();
         }
     }
-    let now: BTreeMap<String, Mark> = items.iter().map(|item| (item.path.clone(), item.mark())).collect();
+    // A file kept as it is keeps the mark the last backup gave it, when it gave one: so the drive's copy is still
+    // the backup's, and the next backup that can read the note compares against it.
+    let now: BTreeMap<String, Mark> = items.iter().filter_map(|item| item.mark().or_else(|| before.files.get(&item.path).cloned()).map(|mark| (item.path.clone(), mark))).collect();
     let mut removed = 0usize;
     for path in before.files.keys() {
         if now.contains_key(path) || checked(path).is_err() {
@@ -360,7 +348,7 @@ pub fn run(
         target.remove(&in_folder(path))?;
         removed += 1;
     }
-    let notes = items.iter().filter(|item| matches!(item.body, Body::Text(_)) && is_note(&item.path)).count();
+    let notes = items.iter().filter(|item| matches!(item.body, Body::Text(_) | Body::Kept) && is_note(&item.path)).count();
     target.write_text(&in_folder(README), readme)?;
     let manifest = Manifest { app: "Ghost.md".into(), backed_up_at: backed_up_at.to_string(), notes, files: now };
     let text = serde_json::to_string_pretty(&manifest).map_err(io::Error::other)?;
@@ -480,8 +468,8 @@ mod tests {
         }
     }
 
-    fn texts(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
-        pairs.iter().map(|(p, t)| (p.to_string(), t.to_string())).collect()
+    fn texts(pairs: &[(&str, &str)]) -> Vec<(String, Option<String>)> {
+        pairs.iter().map(|(p, t)| (p.to_string(), Some(t.to_string()))).collect()
     }
 
     fn back_up(drive: &Drive, items: &[Item]) -> Backed {
@@ -573,22 +561,55 @@ mod tests {
     }
 
     #[test]
-    fn copies_the_media_under_attachments_and_skips_dot_files() {
+    fn copies_the_media_under_attachments_from_wherever_the_app_has_each() {
         let dir = std::env::temp_dir().join(format!("glyph-backup-media-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(dir.join("images/sub")).unwrap();
-        std::fs::write(dir.join("images/a.png"), b"png").unwrap();
-        std::fs::write(dir.join("images/sub/b.jpg"), b"jpeg").unwrap();
+        // Pictures in both places (library/attachments.rs): each listed once, from the first folder that has it.
+        std::fs::create_dir_all(dir.join("Library/image")).unwrap();
+        std::fs::create_dir_all(dir.join("images/files")).unwrap();
+        std::fs::write(dir.join("Library/image/a.png"), b"png").unwrap();
+        std::fs::write(dir.join("images/b.jpg"), b"jpeg").unwrap();
         std::fs::write(dir.join("images/.hidden"), b"x").unwrap();
         std::fs::write(dir.join("images/c.png.tmp"), b"x").unwrap();
-        let items = plan(Vec::new(), &[Media { dir: dir.join("images"), name: "Pictures" }, Media { dir: dir.join("nowhere"), name: "Films" }]).unwrap();
+        std::fs::write(dir.join("images/files/d.pdf"), b"pdf").unwrap();
+        let places = crate::library::Attachments::new(Some(&dir.join("Library")), true, &dir);
+        let media = [
+            Media { files: places.of(crate::library::AttachmentKind::Image).files().unwrap(), name: "Pictures" },
+            Media { files: places.of(crate::library::AttachmentKind::File).files().unwrap(), name: "Files" },
+            Media { files: places.of(crate::library::AttachmentKind::Video).files().unwrap(), name: "Films" },
+        ];
+        let items = plan(Vec::new(), &media).unwrap();
         let paths: Vec<&str> = items.iter().map(|item| item.path.as_str()).collect();
-        assert_eq!(paths, ["Attachments/Pictures/a.png", "Attachments/Pictures/sub/b.jpg"]);
+        assert_eq!(paths, ["Attachments/Pictures/a.png", "Attachments/Pictures/b.jpg", "Attachments/Files/d.pdf"], "no dot file, no half a write, the files their own kind");
         let drive = Drive::default();
         let backed = back_up(&drive, &items);
-        assert_eq!((backed.notes, backed.files), (0, 2));
-        assert_eq!(drive.files.borrow().get("Ghost.md/Attachments/Pictures/sub/b.jpg").map(Vec::as_slice), Some(&b"jpeg"[..]));
+        assert_eq!((backed.notes, backed.files), (0, 3));
+        assert_eq!(drive.files.borrow().get("Ghost.md/Attachments/Pictures/b.jpg").map(Vec::as_slice), Some(&b"jpeg"[..]));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A note in iCloud Drive and off this Mac is there and cannot be read: the drive keeps what it has of it, the
+    /// manifest keeps its mark, and the next backup that can read it compares against that. Never 'gone'.
+    #[test]
+    fn a_note_that_cannot_be_read_now_is_kept_on_the_drive_and_never_taken_off() {
+        let drive = Drive::default();
+        back_up(&drive, &plan(texts(&[("Inbox/A.md", "# A"), ("Inbox/B.md", "# B")]), &[]).unwrap());
+        drive.writes.borrow_mut().clear();
+        let evicted = vec![("Inbox/A.md".to_string(), None), ("Inbox/B.md".to_string(), Some("# B".to_string()))];
+        let backed = back_up(&drive, &plan(evicted, &[]).unwrap());
+        assert_eq!((backed.notes, backed.files, backed.written, backed.unchanged, backed.removed), (2, 2, 0, 2, 0));
+        assert_eq!(drive.files.borrow().get("Ghost.md/Inbox/A.md").map(Vec::as_slice), Some(&b"# A"[..]), "kept as it was");
+        assert!(drive.writes.borrow().iter().all(|path| !path.ends_with("A.md")));
+        let manifest: Manifest = serde_json::from_str(&drive.read_text("Ghost.md/.ghostmd-backup.json").unwrap().unwrap()).unwrap();
+        assert!(manifest.files.contains_key("Inbox/A.md"), "the manifest still names it: {:?}", manifest.files.keys().collect::<Vec<_>>());
+        // Back on the Mac and edited: written as any changed note is.
+        let again = back_up(&drive, &plan(texts(&[("Inbox/A.md", "# A, edited"), ("Inbox/B.md", "# B")]), &[]).unwrap());
+        assert_eq!((again.written, again.removed), (1, 0));
+        // A first backup while it is away records nothing for it, and takes nothing off.
+        let fresh = Drive::default();
+        let first = back_up(&fresh, &plan(vec![("Inbox/A.md".to_string(), None)], &[]).unwrap());
+        assert_eq!((first.notes, first.written, first.removed), (1, 0, 0));
+        assert!(!fresh.files.borrow().contains_key("Ghost.md/Inbox/A.md"));
     }
 
     #[test]

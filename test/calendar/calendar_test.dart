@@ -7,12 +7,15 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
+import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/calendar/calendar.dart';
 import 'package:ghost_md/calendar/setup.dart';
 import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/export_all.dart' show settingsFile;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/sync/kept_secrets.dart';
 import 'package:ghost_md/plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarPlugin;
 import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry;
 
@@ -27,8 +30,16 @@ late Map<String, String> calendars;
 late List<String> fetched;
 late PreferencesStore prefs;
 late MemoryStored kept;
+late MemorySecureStore secure;
+late KeptSecrets secrets;
 late List<String> opened;
 int now = DateTime(2026, 10, 17, 12).millisecondsSinceEpoch;
+
+/// The calendars as the settings and the secure store together hold them (lib/calendar/setup.dart).
+CalendarSetup setupNow() => calendarSetupOf(prefs.value, secret: secrets.peek);
+
+/// The settings as the export's settings.json would dump them (lib/core/export_all.dart `settingsFile`).
+String exported() => settingsFile((key) => key == 'glyph-preferences' ? jsonEncode(prefs.value.toJson()) : null);
 
 Future<FetchResponse> fetch(FetchRequest request) async {
   if (request.url.host == 'cal.test') {
@@ -39,7 +50,7 @@ Future<FetchResponse> fetch(FetchRequest request) async {
   return google.fetch(request);
 }
 
-CalendarService service({String? base = fakeBase}) => CalendarService(fetch: fetch, prefs: prefs, kept: () => kept, googleBase: () => base, clock: () => now, open: (url) async => opened.add(url));
+CalendarService service({String? base = fakeBase}) => CalendarService(fetch: fetch, prefs: prefs, kept: () => kept, secrets: secrets, googleBase: () => base, clock: () => now, open: (url) async => opened.add(url));
 
 void main() {
   setUp(() {
@@ -48,6 +59,8 @@ void main() {
     fetched = [];
     prefs = PreferencesStore()..startWithoutStorage();
     kept = MemoryStored();
+    secure = MemorySecureStore();
+    secrets = KeptSecrets(secure);
     opened = [];
   });
 
@@ -66,13 +79,18 @@ void main() {
       expect(await calendar.addAddress(work), isNull);
       expect(fetched, [work]);
       expect([for (final e in calendar.events.value) '${e.title} ${e.calendar} ${e.start.day}'], ['Standup Work 19', 'Standup Work 20']);
-      final setup = calendarSetupOf(prefs.value);
+      final setup = setupNow();
       expect(setup.addresses.single.url, work);
       expect(setup.addresses.single.name, 'Work');
       expect(calendar.queryEvents().first.calendar, 'Work');
       expect(calendar.on('2026-10-20').single.title, 'Standup');
-      // Kept with the account's settings, which travel.
+      // Kept with the account's settings, which travel: the address's id and name, never the address itself, which is
+      // a secret and lives in the secure store (decision 22). So the export's settings.json carries no address.
       expect(prefs.value.toJson()['calendars'], isA<Map<String, Object?>>());
+      expect(jsonEncode(prefs.value.toJson()), isNot(contains('cal.test')));
+      expect(secure.held[icalAddressName(setup.addresses.single.id)], work);
+      expect(exported(), isNot(contains('cal.test')));
+      expect(exported(), contains(setup.addresses.single.id));
     });
 
     test('added twice is said, and a refusal is the line under it', () async {
@@ -80,7 +98,7 @@ void main() {
       await calendar.addAddress(work);
       expect(await calendar.addAddress(work), 'That calendar is here already.');
       await calendar.addAddress('https://cal.test/missing.ics');
-      final missing = calendarSetupOf(prefs.value).addresses.last;
+      final missing = setupNow().addresses.last;
       expect(calendar.statusOf('ical:${missing.id}')!.problem, 'The calendar isn’t at that address any more.');
       expect(calendar.lastRead.problem, 'The calendar isn’t at that address any more.');
     });
@@ -128,10 +146,74 @@ void main() {
     test('taken off, is forgotten with what it gave', () async {
       final calendar = service();
       await calendar.addAddress(work);
-      calendar.removeAddress(calendarSetupOf(prefs.value).addresses.single.id);
+      final id = setupNow().addresses.single.id;
+      calendar.removeAddress(id);
       expect(calendar.events.value, isEmpty);
-      expect(calendarSetupOf(prefs.value).isEmpty, isTrue);
+      expect(setupNow().isEmpty, isTrue);
       expect(prefs.value.toJson().containsKey('calendars'), isFalse);
+      await Future<void>.delayed(Duration.zero);
+      expect(secure.held.containsKey(icalAddressName(id)), isFalse, reason: 'its secret goes with it');
+    });
+
+    test('written in the clear by an older build, is moved to the secure store and taken out of the settings', () async {
+      // The blob as a build before 2026-10-31 wrote it: the address itself, and Google's refresh token.
+      prefs.update((p) => p.copyWith(more: {
+            ...p.more,
+            'calendars': {
+              'addresses': [
+                {'id': addressId(work), 'url': work, 'name': 'Work'},
+              ],
+              'google': {'refreshToken': 'refresh-old', 'ticked': ['me@example.com'], 'todos': false},
+            },
+          }));
+      kept.write('glyph-google-token', {'accessToken': 'access-old', 'expiresAt': now + 3600000});
+      final calendar = service();
+      // Read-both: before anything has moved, the setup reads whole from the blob.
+      expect((setupNow().addresses.single.url, setupNow().google!.refreshToken), (work, 'refresh-old'));
+      await calendar.ready();
+      expect(secure.held[icalAddressName(addressId(work))], work);
+      expect(secure.held[googleRefreshName], 'refresh-old');
+      expect(jsonDecode(secure.held[googleAccessName]!), {'accessToken': 'access-old', 'expiresAt': now + 3600000});
+      expect(kept.read<Object?>('glyph-google-token', null), isNull, reason: 'the access token moved too');
+      final blob = jsonEncode(prefs.value.toJson()['calendars']);
+      expect(blob, isNot(contains('cal.test')));
+      expect(blob, isNot(contains('refresh-old')));
+      expect(exported(), isNot(contains('refresh-old')));
+      // And the setup still reads whole, from the store now.
+      expect((setupNow().addresses.single.url, setupNow().addresses.single.name, setupNow().google!.refreshToken), (work, 'Work', 'refresh-old'));
+      expect(setupNow().google!.ticked, ['me@example.com']);
+      await calendar.syncIcal(force: true);
+      expect(fetched, [work], reason: 'read from the store\'s address');
+      calendar.dispose();
+    });
+
+    test('named by the settings from another device, is listed once its secret arrives, and Google waits for its token', () async {
+      // What a newer device's settings carry: the id and the choices. The secrets come by the sealed keys, later.
+      prefs.update((p) => p.copyWith(more: {
+            ...p.more,
+            'calendars': {
+              'addresses': [
+                {'id': addressId(work), 'name': 'Work'},
+              ],
+              'google': {'ticked': ['me@example.com'], 'todos': false},
+            },
+          }));
+      final calendar = service();
+      await calendar.ready();
+      expect(setupNow().addresses, isEmpty, reason: 'an address with no secret here cannot be read');
+      expect(setupNow().google, isNotNull);
+      expect(setupNow().google!.refreshToken, '');
+      await calendar.syncGoogle();
+      expect(google.calls, isEmpty);
+      expect(calendar.statusOf(googleSource)!.problem, contains('hasn’t reached this device yet'));
+      // The sealed key arrives (lib/sync/connections.dart writes it here).
+      await secrets.write(icalAddressName(addressId(work)), work);
+      await secrets.write(googleRefreshName, 'refresh-1');
+      expect(setupNow().addresses.single.url, work);
+      expect(setupNow().google!.refreshToken, 'refresh-1');
+      await calendar.syncIcal(force: true);
+      expect(fetched, [work]);
+      calendar.dispose();
     });
   });
 
@@ -161,13 +243,19 @@ void main() {
       expect(opened.single, contains('&challenge='));
       expect(calendar.connecting, isTrue);
       await calendar.collectGoogle();
-      expect(calendarSetupOf(prefs.value).google, isNull);
+      expect(setupNow().google, isNull);
       await calendar.collectGoogle();
-      final setup = calendarSetupOf(prefs.value).google!;
+      final setup = setupNow().google!;
       expect(setup.refreshToken, 'refresh-1');
       expect(setup.ticked, ['me@example.com']);
       expect(setup.todos, isFalse);
       expect(calendar.connecting, isFalse);
+      // The token is the secure store's, never the settings' (decision 22): nothing of it in the export.
+      expect(secure.held[googleRefreshName], 'refresh-1');
+      expect(jsonEncode(prefs.value.toJson()), isNot(contains('refresh-1')));
+      expect(exported(), isNot(contains('refresh-1')));
+      expect(kept.read<Object?>('glyph-google-token', null), isNull, reason: 'the access token is in the secure store too');
+      expect(secure.held[googleAccessName], contains('accessToken'));
       await calendar.syncGoogle();
       expect([for (final e in calendar.events.value) '${e.title} ${e.calendar}'], ['Dentist Me']);
       expect([for (final c in calendar.googleCalendars) c.name], ['Me', 'Team']);
@@ -183,10 +271,10 @@ void main() {
       await calendar.collectGoogle();
       await calendar.collectGoogle();
       expect(calendar.connecting, isTrue, reason: 'still waiting on the sign-in');
-      expect(calendarSetupOf(prefs.value).google, isNull);
+      expect(setupNow().google, isNull);
       await calendar.collectGoogle();
       await calendar.collectGoogle();
-      expect(calendarSetupOf(prefs.value).google?.refreshToken, 'refresh-1');
+      expect(setupNow().google?.refreshToken, 'refresh-1');
       expect(calendar.connecting, isFalse);
       await calendar.syncGoogle();
       calendar.dispose();

@@ -169,10 +169,19 @@ pub fn backup_run(app: AppHandle, state: State<'_, BackupState>, request: Backup
         library.texts().map_err(|e| format!("The notes could not be read: {e}"))?
     };
     let data = crate::paths::data_dir(&app)?;
+    // Each kind from wherever the app keeps it (library/attachments.rs): under the library, or beside it still.
+    let places = {
+        let store = app.state::<crate::commands::NotesStore>();
+        let library = store.lock();
+        library.attachments(&data)
+    };
+    use crate::library::AttachmentKind;
+    let listed = |kind: AttachmentKind| places.of(kind).files().map_err(|e| format!("The {} could not be listed: {e}", kind.said()));
     let media = [
-        Media { dir: data.join(crate::paths::IMAGES), name: "Pictures" },
-        Media { dir: data.join(crate::paths::VIDEO), name: "Films" },
-        Media { dir: data.join(crate::paths::RECORDINGS), name: "Recordings" },
+        Media { files: listed(AttachmentKind::Image)?, name: "Pictures" },
+        Media { files: listed(AttachmentKind::File)?, name: "Files" },
+        Media { files: listed(AttachmentKind::Video)?, name: "Films" },
+        Media { files: listed(AttachmentKind::Recording)?, name: "Recordings" },
     ];
     let items = backup::plan(texts, &media).map_err(|e| format!("The notes could not be listed: {e}"))?;
     let emitter = app.clone();
