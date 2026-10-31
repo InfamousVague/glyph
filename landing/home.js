@@ -109,6 +109,36 @@
     });
   });
 
+  // ---- the slide in view -----------------------------------------------------------------------------------------
+
+  /*
+   * The section crossing the middle of the screen is the current one: its dot down the right (home.css .dots) and its
+   * link in the bar are marked aria-current. A thin band across the screen's middle is watched rather than how much of
+   * a section shows, since the long sections are taller than any screen and would never count as mostly in view.
+   */
+  if ('IntersectionObserver' in window) {
+    var marks = $$('.dots a, .bar-links a').filter(function (a) {
+      return a.getAttribute('href').charAt(0) === '#';
+    });
+    var current = function (id) {
+      marks.forEach(function (a) {
+        if (a.getAttribute('href') === '#' + id) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+    };
+    var watcher = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) current(entry.target.id);
+        });
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 },
+    );
+    $$('main > section[id]').forEach(function (section) {
+      watcher.observe(section);
+    });
+  }
+
   // ---- the site's page -------------------------------------------------------------------------------------------
 
   var THEMES = { light: ['light'], dark: ['dark'], dawn: ['light', 'dawn'], boreal: ['dark', 'boreal'], ember: ['dark', 'ember'] };

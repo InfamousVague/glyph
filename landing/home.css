@@ -2,6 +2,13 @@
  * ghostmarkdown.com's home page (index.html; docs/DESIGN.md §153, §154). Its sizes, spacing, radii, motion and shadows
  * are Glacier's tokens; its colours are the app's ink (site.css). Everything that shows the app is the app - its
  * screens in a phone's or a laptop's frame, and its cassette (parts/) - so this sheet draws only the page around them.
+ *
+ * Since 2026-10-31 the page is a blend of two of the ten explorations (landing/explore; Matt: "mix the default version
+ * 1 and version 8"). From Air (/1/): the feel - one centred column, the eyebrow in its section's hue, a big tight
+ * heading over one lead paragraph, no rules between sections, a thin glass bar. From Slides (/8/): the presentation -
+ * every section is a slide at least a screen tall that the page snaps to as you scroll, with a dot for each down the
+ * right. The snap is `proximity`, not Slides' `mandatory`: the long sections (For teams, Claude, Plan, Your files) run
+ * past a screen and must scroll through freely, and a finger on a phone must never be caught.
  */
 
 :root {
@@ -9,8 +16,11 @@
   --measure: 70rem;
   --ease: var(--glacier-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
   --shadow: 0 1px 0 var(--rule), 0 30px 60px -30px color-mix(in oklch, black 55%, transparent);
+  /* The bar's height: what a slide snaps under, and what a slide's screen is short by. */
+  --bar: calc(3.75rem + 1px);
   scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
+  scroll-padding-top: var(--bar);
+  scroll-snap-type: y proximity;
 }
 
 body {
@@ -68,10 +78,10 @@ code {
   inset-block-start: 0;
   z-index: 20;
   padding-block-start: env(safe-area-inset-top);
-  background: color-mix(in oklch, var(--paper) 72%, transparent);
-  backdrop-filter: saturate(1.4) blur(18px);
-  -webkit-backdrop-filter: saturate(1.4) blur(18px);
-  border-block-end: 1px solid color-mix(in oklch, var(--rule) 70%, transparent);
+  background: color-mix(in oklch, var(--paper) 85%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-block-end: 1px solid color-mix(in oklch, var(--rule) 50%, transparent);
 }
 
 .bar-in {
@@ -79,8 +89,9 @@ code {
   align-items: center;
   gap: var(--glacier-space-6, 1.5rem);
   inline-size: min(100%, calc(var(--measure) + var(--gutter) * 2));
+  block-size: 3.75rem;
   margin-inline: auto;
-  padding: 0.7rem var(--gutter);
+  padding: 0 var(--gutter);
 }
 
 .brand {
@@ -113,7 +124,8 @@ code {
   font-weight: 500;
 }
 
-.bar-links a:hover {
+.bar-links a:hover,
+.bar-links a[aria-current] {
   color: var(--ink);
 }
 
@@ -126,6 +138,68 @@ code {
 @media (min-width: 1000px) {
   .bar-links {
     display: flex;
+  }
+}
+
+/* ---- the slides: every section a screen the page settles on, and a dot for each down the right ------------------ */
+
+/* A section is at least the screen under the bar, its words and pictures centred in it when they are shorter; the
+   long ones simply run on, and `proximity` on the root lets them. */
+main > section {
+  display: grid;
+  /* One track no wider than the page: a grid item is as wide as its content by default, and the rows that scroll
+     sideways on a phone (the shelf, the marks) would push their wrap, and the page, past the screen's edge. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  min-block-size: calc(100vh - var(--bar));
+  min-block-size: calc(100svh - var(--bar));
+  scroll-snap-align: start;
+}
+
+/* One dot a section, as Slides draws them: the current one filled and larger (home.js sets aria-current as a section
+   crosses the middle of the screen). On a phone or a narrow window there is no room beside the words, and no dots. */
+.dots {
+  position: fixed;
+  inset-inline-end: 1.1rem;
+  inset-block-start: 50%;
+  z-index: 15;
+  display: none;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transform: translateY(-50%);
+}
+
+.dots a {
+  display: block;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--ink-4);
+  transition:
+    transform 200ms var(--ease),
+    background-color 200ms var(--ease);
+}
+
+.dots a:hover {
+  transform: scale(1.4);
+  background: var(--ink-3);
+}
+
+.dots a[aria-current] {
+  background: var(--ink);
+  transform: scale(1.5);
+}
+
+.dots a:focus-visible {
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+
+@media (min-width: 1000px) {
+  .dots {
+    display: grid;
   }
 }
 
@@ -194,7 +268,7 @@ code {
 /* ---- the opening ------------------------------------------------------------------------------------------------- */
 
 .hero {
-  padding-block: clamp(3rem, 9vw, 6.5rem) clamp(3rem, 7vw, 5rem);
+  padding-block: clamp(3rem, 7vw, 5rem) clamp(3rem, 6vw, 4rem);
 }
 
 .hero-words {
@@ -205,10 +279,10 @@ code {
 
 .hero h1 {
   margin: 0;
-  font-size: clamp(2.5rem, 7.6vw, 5rem);
-  line-height: 1;
-  letter-spacing: -0.045em;
-  font-weight: 750;
+  font-size: clamp(2.6rem, 7vw, 4.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 700;
   text-wrap: balance;
 }
 
@@ -216,7 +290,7 @@ code {
   max-inline-size: 40rem;
   margin: var(--glacier-space-6, 1.5rem) 0 0;
   font-size: var(--glacier-font-size-lg, 1.2rem);
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--ink-2);
   text-wrap: pretty;
 }
@@ -239,8 +313,10 @@ code {
   color: var(--ink-2);
 }
 
+/* The opening runs past one screen on purpose: the laptop's top edge at the fold says there is more, as Slides' hero
+   has it too. */
 .laptop-wrap {
-  margin-block: clamp(2.5rem, 6vw, 4rem) 0;
+  margin-block: clamp(2.5rem, 5vw, 3.5rem) 0;
 }
 
 .laptop {
@@ -272,20 +348,21 @@ code {
 
 /* ---- a band: one idea, its words, and the app showing it --------------------------------------------------------- */
 
+/* No rule between bands: the screen's edge is the break, as Air has it. A tinted band carries a wash of its own hue,
+   as Slides' coloured slides do, faint enough to stay paper. */
 .band {
-  padding-block: clamp(3.5rem, 8vw, 6rem);
-  border-block-start: 1px solid var(--rule);
+  padding-block: clamp(4rem, 8vw, 6rem);
 }
 
 .band-tint {
-  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
+  background: color-mix(in srgb, var(--hue) 6%, var(--paper));
 }
 
 .band-head {
   display: grid;
   justify-items: center;
-  max-inline-size: 40rem;
-  margin: 0 auto clamp(2rem, 5vw, 3rem);
+  max-inline-size: 44rem;
+  margin: 0 auto clamp(2.5rem, 5vw, 3.5rem);
   text-align: center;
 }
 
@@ -295,20 +372,21 @@ code {
   text-align: start;
 }
 
+/* The eyebrow in its section's hue, as Air sets it. */
 .eyebrow {
-  margin: 0 0 var(--glacier-space-3, 0.75rem);
+  margin: 0 0 var(--glacier-space-4, 1rem);
   font-size: var(--glacier-font-size-sm, 0.9rem);
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--ink-3);
+  letter-spacing: 0.01em;
+  color: var(--hue, var(--ink-3));
 }
 
 .band h2 {
   margin: 0;
-  font-size: clamp(1.9rem, 4.4vw, 2.9rem);
+  font-size: clamp(2rem, 4.6vw, 3.1rem);
   line-height: 1.05;
   letter-spacing: -0.035em;
-  font-weight: 750;
+  font-weight: 700;
   text-wrap: balance;
 }
 
@@ -317,6 +395,13 @@ code {
   margin: var(--glacier-space-4, 1rem) 0 0;
   color: var(--ink-2);
   text-wrap: pretty;
+}
+
+/* The one paragraph under a heading reads at the lead's size, in a column a little narrower than the heading's. */
+.band-head p:not(.eyebrow):not(.ctas) {
+  max-inline-size: 36rem;
+  font-size: var(--glacier-font-size-lg, 1.2rem);
+  line-height: 1.45;
 }
 
 .split {
@@ -1095,23 +1180,26 @@ code {
   list-style: none;
 }
 
+/* Quiet, as Air's row is: no border, the words a step back, the colour in the icon alone. */
 .with-row a {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   min-block-size: 2.25rem;
-  padding: 0.3rem 0.85rem 0.3rem 0.4rem;
-  border: 1px solid var(--rule);
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  border: 1px solid transparent;
   border-radius: var(--glacier-radius-full, 999px);
-  color: var(--ink-2);
+  color: var(--ink-3);
   font-size: var(--glacier-font-size-sm, 0.9rem);
   font-weight: 600;
   text-decoration: none;
-  transition: border-color 160ms var(--ease);
+  transition:
+    border-color 160ms var(--ease),
+    color 160ms var(--ease);
 }
 
 .with-row a:hover {
-  border-color: var(--ink-3);
+  border-color: var(--rule);
   color: var(--ink);
 }
 
@@ -1474,7 +1562,8 @@ a.store:hover {
 
   .pill,
   .way,
-  .with-row a {
+  .with-row a,
+  .dots a {
     transition: none;
   }
 

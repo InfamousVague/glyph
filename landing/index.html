@@ -23,6 +23,11 @@
 
       The downloads are the release's own files, their versions and sizes read from the manifests the apps update from
       (/apk.json, /desktop.json, /windows.json). The stores are one line each in home.js (`STORES`): Coming soon until a listing is live.
+
+      Its look since 2026-10-31 is a blend of two of the ten explorations at /1/ to /10/ (landing/explore; Matt: "mix the
+      default version 1 and version 8"): Air's column, type and spacing, and Slides' presentation, each section a screen
+      the page settles on as you scroll, with a dot for each down the right (home.css "the slides", home.js "the slide
+      in view"). The ten versions themselves are untouched.
     -->
     <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="glacier/tokens.css" />
@@ -61,6 +66,28 @@
         <a class="pill pill-ink bar-cta" href="#download"><svg class="i" aria-hidden="true"><use href="icons.svg#i-download"/></svg><span>Download</span></a>
       </nav>
     </header>
+
+    <!-- One dot a section, down the right of a wide window (home.css .dots): the one in view is filled, by home.js. -->
+    <nav class="dots-nav" aria-label="The page's sections">
+      <ol class="dots">
+        <li><a href="#top" aria-label="Start" title="Start"></a></li>
+        <li><a href="#market" aria-label="The Market" title="The Market"></a></li>
+        <li><a href="#for-teams" aria-label="For teams" title="For teams"></a></li>
+        <li><a href="#claude" aria-label="Claude" title="Claude"></a></li>
+        <li><a href="#calendar" aria-label="Calendar" title="Calendar"></a></li>
+        <li><a href="#meetings" aria-label="Meetings" title="Meetings"></a></li>
+        <li><a href="#plugins" aria-label="Plugins" title="Plugins"></a></li>
+        <li><a href="#lovart" aria-label="Lovart" title="Lovart"></a></li>
+        <li><a href="#organize" aria-label="Plain Markdown" title="Plain Markdown"></a></li>
+        <li><a href="#document" aria-label="Voice" title="Voice"></a></li>
+        <li><a href="#plan" aria-label="Plan" title="Plan"></a></li>
+        <li><a href="#files" aria-label="Your files" title="Your files"></a></li>
+        <li><a href="#teams" aria-label="Organizations" title="Organizations"></a></li>
+        <li><a href="#history" aria-label="Version history" title="Version history"></a></li>
+        <li><a href="#private" aria-label="Private" title="Private"></a></li>
+        <li><a href="#download" aria-label="Get Ghost.md" title="Get Ghost.md"></a></li>
+      </ol>
+    </nav>
 
     <main id="main">
       <!-- The opening: what it is, the way in, and the app itself. -->
