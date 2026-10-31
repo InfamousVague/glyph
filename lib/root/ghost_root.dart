@@ -152,6 +152,16 @@ import '../notes/own_templates.dart' hide templateOf;
 import '../notes/place_templates.dart';
 import '../notes/template_choice.dart';
 import '../book/ticket_links.dart' show subTicketBody;
+import '../book/ticket_digest.dart';
+import '../book/ticket_duplicates.dart' show likelyDuplicates;
+import '../book/ticket_history.dart' show TicketTimeline, registerTicketHistory;
+import '../book/ticket_merge.dart';
+import '../book/ticket_watchers.dart' show watches, withWatcher;
+import '../core/days.dart' show isoDay;
+import '../editor/tickets/ticket_follow.dart' show LikelyDuplicate, TicketFollow;
+import '../notes/ticket_digest_sheet.dart' show showTicketDigest;
+import '../reminders/reminder_scheduler.dart' show extraReminders;
+import '../sheet/ask_first.dart' show FirstAsk, askFirst;
 import '../notes/notes_drawer.dart';
 import '../notes/notices.dart' as notices;
 import '../notes/notifications_drawer.dart';
@@ -221,7 +231,7 @@ import '../home_screen/phone_entries.dart';
 import '../home_screen/raise_keyboard.dart' show raiseKeyboardSoon;
 import '../plugins/places/places.dart' show placeRemindersId;
 import '../reminders/place_host.dart' show PhonePlaceHost;
-import '../reminders/reminder_host.dart' show PhoneReminderHost;
+import '../reminders/reminder_host.dart' show PhoneReminderHost, phoneReminders;
 import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
 import '../shell/ai_chip.dart';
@@ -267,6 +277,7 @@ part 'root_buttons.dart';
 part 'root_templates.dart';
 part 'root_voice.dart';
 part 'root_tickets.dart';
+part 'root_ticket_rules.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -537,6 +548,13 @@ class _GhostRootState extends State<GhostRoot> {
 
   late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces, keeper: () => _services?.session?.handle);
 
+  /// Each ticket's history from its versions, read a pair of versions at a time and kept (lib/book/ticket_history.dart),
+  /// and its likely duplicates as last read; the morning's digest and its next look (root_tickets.dart).
+  late final TicketTimeline _ticketTimeline = TicketTimeline((id) async => (await _versions.versionsOf(id)).versions);
+  final Map<String, ({String body, int version, List<LikelyDuplicate> likely})> _duplicatesRead = {};
+  TicketDigestRunner? _digest;
+  Timer? _digestPoke;
+
   /// The kept pictures, where there is a core to keep them.
   late final CorePictureStore? _pictures = widget.core == null ? null : CorePictureStore(CoreFiles(widget.core!), adopter: corePictureAdopter(CoreFiles(widget.core!)));
 
@@ -708,8 +726,8 @@ class _GhostRootState extends State<GhostRoot> {
   /// The queries and panels drawn again once versions are read.
   late final Listenable _planningChanges = Listenable.merge([_libraryChanges, _ticketHistory]);
 
-  /// The ticket features' wiring (root_tickets.dart): the rules, the timers, the pull requests.
-  late final _RootTickets _ticketsWired = _RootTickets(this);
+  /// The ticket features' wiring (root_ticket_rules.dart): the rules, the timers, the pull requests.
+  late final _RootTicketRules _ticketsWired = _RootTicketRules(this);
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -1254,7 +1272,7 @@ class _GhostRootState extends State<GhostRoot> {
     write: (id, change) => unawaited(_writeNote(id, change)),
     addTicket: _addFromQuery,
     // `[[GHO-12]]` finds the ticket by its key too.
-    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket, work: _ticketsWired.work(id)),
+    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket, follow: _ticketFollow(id), work: _ticketsWired.work(id)),
     // A ticket's lock and its sub-tickets' progress on a board or a query that lists it (lib/book/ticket_links.dart).
     ticketMarks: _reads.ticketMarks,
     // What a button in a note reaches past it with (root_buttons.dart).
@@ -1778,6 +1796,10 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     _stopDesktop?.call();
+    _libraryChanges.removeListener(_digestHeard);
+    _digestPoke?.cancel();
+    _digest?.dispose();
+    registerTicketHistory(null);
     _claude.stop();
     _talk?.dispose();
     _claudeInbox.dispose();
@@ -1945,6 +1967,9 @@ class _GhostRootState extends State<GhostRoot> {
     // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).
     _startClaude();
     _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
+    // A ticket's history, for its panel and for whatever reads it by its id (lib/book/ticket_history.dart).
+    registerTicketHistory(_ticketTimeline);
+    _libraryChanges.addListener(_digestHeard);
     // The calendars, read for the life of the app (lib/calendar/calendar.dart, docs/CALENDAR.md): now, on their
     // beats, and when the app comes back to the front; the to-dos a pass puts on Google's are the library's.
     // Only while the Calendar plugin is on (lib/plugins/calendar), which a device that had a calendar before it was a
@@ -1963,7 +1988,7 @@ class _GhostRootState extends State<GhostRoot> {
       webhooks.start(saves: core.savedHere, notes: () => _shown);
       _webhooksLife = AppLifecycleListener(onHide: () => unawaited(webhooks.flush()));
     }
-    // A notebook's rules, the timers and the pull requests on its tickets (root_tickets.dart; Matt, 2026-10-31).
+    // A notebook's rules, the timers and the pull requests on its tickets (root_ticket_rules.dart; Matt, 2026-10-31).
     _ticketsWired.start();
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
@@ -2085,6 +2110,8 @@ class _GhostRootState extends State<GhostRoot> {
     }
     // Reminders and the home screen, kept in step with the notes from here on.
     if (mounted) _extras?.start();
+    // The morning's ticket digest, from one of the account's devices (root_tickets.dart).
+    if (mounted) _startDigest();
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
     final examples = _stored.flag(starterExamplesKey, unreadable: true);

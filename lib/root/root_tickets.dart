@@ -1,202 +1,177 @@
 part of 'ghost_root.dart';
 
-/// The ticket features as the app wires them (Matt, 2026-10-31: rules, GitHub pull request links, time tracking):
-/// the notebooks' rules heard on this device's saves and run with the buttons' world (root_buttons.dart) and the bell,
-/// the timers in the synced settings, and the pull requests read on GitHub with the plugin's token, each merge moved
-/// once. What each does is its own file's (lib/book/rule_runs.dart, lib/book/timers.dart,
-/// lib/plugins/github/pull_links.dart); this is only the doing.
+/// A ticket for a team, as the root wires it (Matt, 2026-10-31, of the ticket features): what a ticket's panel is
+/// handed for its watchers, its history, its possible duplicates and Merge into… (lib/editor/tickets/ticket_follow.dart),
+/// the merge itself with its one Undo (lib/book/ticket_merge.dart), Unwatch from the bell, Watch on a card's menu, and
+/// the morning's digest (lib/book/ticket_digest.dart) with its page.
 ///
-/// One of the files `_GhostRootState` is written in (lib/root/ghost_root.dart says which).
-class _RootTickets {
-  _RootTickets(this._root);
-
-  final _GhostRootState _root;
-
-  TicketRules? rules;
-  TicketTimers? timers;
-  VoidCallback? _stopRules;
-  Timer? _githubSoon;
-  Timer? _githubEvery;
-
-  NoteLibrary get _library => _root._library;
-
-  /// Started once the library is the core's: what the rules hear is its own saves.
-  void start() {
-    final library = _library;
-    rules = TicketRules(
-      device: thisDevice,
-      preferences: () => preferences.value,
-      setPreferences: preferences.update,
-      notes: () => _library.value,
-      world: () => _world,
-      syncNow: () async => await _root._services?.engine?.syncNow(),
-      accountHeld: () => _root._services?.engine?.accountPrefs,
-      isTrashed: _root._trash.isTrashed,
-    );
-    if (library is CoreLibrary) _stopRules = rules!.start(library.savedHere, changes: _library);
-    final made = timers = TicketTimers(
-      device: thisDevice,
-      preferences: () => preferences.value,
-      setPreferences: preferences.update,
-      prefsChanged: preferences,
-      write: (noteId, change) => _root._changeNote(noteId, change, userEvent: 'input.timer'),
-      who: () => _root._services?.session?.handle ?? '',
-    );
-    ticketTimers.value = made;
-    ticketCardTimer = (look, noteId, {required title, ticketKey}) => TicketCardTimer(look: look, timers: made, noteId: noteId, title: title, ticketKey: ticketKey);
-    // The pull requests, a while after the notes change (a sync brought them) and every ten minutes.
-    _library.addListener(_notesChanged);
-    _githubEvery = Timer.periodic(const Duration(minutes: 10), (_) => unawaited(_github()));
-    _notesChanged();
+/// One of the files `_GhostRootState` is written in (lib/root/ghost_root.dart says which), as root_commands.dart is.
+extension _RootTickets on _GhostRootState {
+  /// Who is reading: the account's handle, or null signed out.
+  String? get _me {
+    final handle = _services?.session?.handle;
+    return handle == null || handle.isEmpty ? null : handle;
   }
 
-  void dispose() {
-    _stopRules?.call();
-    _library.removeListener(_notesChanged);
-    _githubSoon?.cancel();
-    _githubEvery?.cancel();
-    if (identical(ticketTimers.value, timers)) ticketTimers.value = null;
-    ticketCardTimer = null;
-    timers?.dispose();
+  /// Whether a note is a team's: filed in an organization's workspace.
+  bool _teamNote(String id) {
+    final space = _workspaces.workspaceOf(id);
+    return space != null && orgOfWorkspace(_workspaces.value.list, space.id) != null;
   }
 
-  // ---- what a rule reaches with ---------------------------------------------------------------------------------
-
-  RuleWorld get _world {
-    final buttons = _root._buttonWorld;
-    return RuleWorld(
-      setFields: (noteId, fields) => _root._changeNote(noteId, (body) => fields.entries.fold<String>(body, (was, field) => withProperty(was, field.key, field.value.trim().isEmpty ? null : field.value.trim())), userEvent: 'input.rule'),
-      post: buttons.post,
-      claude: buttons.claude,
-      make: buttons.make,
-      notify: _notify,
-    );
-  }
-
-  /// A person told by a rule: the person themself through the bell, a row of their own feed (lib/sync/record.dart);
-  /// a member of the ticket's organization through the mentions route, as an @mention is told
-  /// (lib/mentions/mention_notices.dart). The row's id comes from the run's, so a retry tells nobody twice.
-  Future<void> _notify(RuleNotice notice) async {
-    final services = _root._services;
-    final session = services?.session;
-    if (services == null || session == null) throw 'Sign in to Ghost.md to be told by your rules.';
-    final id = toBase64Url(hashes.sha256.convert(utf8.encode('rule\u0000${notice.id}')).bytes.sublist(0, 24));
-    final person = notice.person.replaceFirst(RegExp('^@'), '');
-    if (person == 'me' || handleKey(person) == handleKey(session.handle)) {
-      final record = services.engine?.record;
-      if (record == null) throw 'The bell is not ready on this device yet.';
-      await record.recordAs(id, ticketRuleKind, {'noteId': notice.noteId, 'title': notice.title, 'by': 'A rule', 'first': notice.words});
-      return;
-    }
-    final space = _root._workspaces.workspaceOf(notice.noteId);
-    final org = space == null ? null : orgOfWorkspace(_root._workspaces.value.list, space.id);
-    if (org == null) throw 'Only you can be told about a ticket in your own notebook. File it in an organization to tell $person.';
-    final key = services.orgKeys?.orgKeyOf(org);
-    if (key == null) throw 'This device does not hold the organization’s key yet. Try again after it syncs.';
-    final payload = mentionPayload(noteId: notice.noteId, title: notice.title, by: session.handle, line: notice.words, lineNo: 1);
-    final blob = await services.account.crypto.seal(key, payload, mentionContext(org, id));
-    await services.account.api.call('POST', 'orgs/${Uri.encodeComponent(org)}/mentions', token: session.token, body: {'id': id, 'to': [person], 'blob': blob, 'generation': services.orgKeys!.orgKeyGeneration(org)});
-  }
-
-  // ---- the panel, and the palette -------------------------------------------------------------------------------
-
-  /// The open ticket's work for its panel: its timer, and its pull requests where its notebook names repos.
-  TicketWorkOptions? work(String noteId) {
-    final entry = _root._reads.entries.where((each) => each.note.id == noteId).firstOrNull;
-    if (entry == null) return null;
-    final key = entry.ticket.id;
-    final repos = entry.notebook == null ? const <String>[] : githubReposOf(entry.notebook!.body);
-    final linked = key != null && repos.isNotEmpty;
-    return TicketWorkOptions(
-      noteId: noteId,
-      title: entry.title,
-      ticketKey: key,
-      timers: timers,
-      pulls: linked ? () => pullLinks.pullsFor(key, repos) : null,
-      pullsChanged: linked ? pullLinks : null,
-      openUrl: _root.widget.openLink,
-      lookForPulls: linked ? () => unawaited(pullLinks.lookFor(key, repos).then<void>((_) {}, onError: (Object failure) => debugPrint('[github] $key’s pull requests were not read: $failure'))) : null,
-      today: todayIs,
-    );
-  }
-
-  /// The tickets a timer can be started on, newest first, for the palette.
-  List<PaletteTicket> get paletteTickets => [
-        for (final entry in _root._reads.entries)
-          if (entry.ticket.id case final key? when key.isNotEmpty) (noteId: entry.note.id, key: key, title: entry.title),
+  /// A ticket's likely duplicates in the library, by its title and words (lib/book/ticket_duplicates.dart).
+  List<LikelyDuplicate> _likely(String title, {String words = '', String? selfId}) => [
+        for (final hit in likelyDuplicates(title: title, words: words, entries: _reads.entries, index: _linkIndex.index, selfId: selfId))
+          (ticket: ticketChoice(hit.entry), shared: hit.shared),
       ];
 
-  PaletteTicket? get timing {
-    final mine = timers?.mine;
-    return mine == null ? null : (noteId: mine.noteId, key: mine.named, title: mine.title);
-  }
+  /// What a ticket's panel is handed for its team's parts.
+  TicketFollow _ticketFollow(String noteId) => TicketFollow(
+        me: () => _me,
+        history: () => _ticketTimeline.of(noteId),
+        duplicates: () {
+          final note = _library.noteOf(noteId);
+          if (note == null) return const <LikelyDuplicate>[];
+          final kept = _duplicatesRead[noteId];
+          if (kept != null && kept.body == note.body && kept.version == _linkIndex.index.version) return kept.likely;
+          final likely = _likely(NoteFacts.of(note).title, words: note.body, selfId: noteId);
+          _duplicatesRead[noteId] = (body: note.body, version: _linkIndex.index.version, likely: likely);
+          return likely;
+        },
+        similar: (title) => _likely(title),
+        merge: (target) => unawaited(_mergeTicket(noteId, target)),
+        undoMerge: () {
+          final record = mergeOf(_stored, noteId);
+          return record == null ? null : () => unawaited(_undoMerge(record));
+        },
+        simple: () => preferences.value.simple,
+      );
 
-  void startTimer(String noteId) {
-    final entry = _root._reads.entries.where((each) => each.note.id == noteId).firstOrNull;
-    unawaited(timers?.start(noteId, title: entry?.title ?? '', key: entry?.ticket.id));
-  }
+  /// Where a merge reads and writes: an open editor's words where the note is open, so nothing typed is lost, else
+  /// the library's; a version kept of each note's words before, where the note keeps versions.
+  MergeWorld get _mergeWorld => MergeWorld(
+        body: (id) async {
+          final view = openNoteScreen(_shell.currentContext, id)?.view;
+          if (view != null) return view.state.doc.toString();
+          return (await _library.get(id))?.body;
+        },
+        write: (id, body) => _changeNote(id, (_) => body, userEvent: 'ticket.merge'),
+        keepVersion: (id, text, label) async {
+          if (_versions.keepsVersions(id)) await _versions.keepVersion(id, text, label: label);
+        },
+        kept: _stored,
+      );
 
-  void stopTimer() {
-    final made = timers, context = _root._shell.currentContext;
-    final mine = made?.mine;
-    if (made == null || mine == null) return;
-    unawaited(context != null ? stopTimerAsking(context, made, mine) : made.stop());
-  }
+  /// [duplicateId] merged into [target] (lib/book/ticket_merge.dart): the plan made, said and asked first with its
+  /// warnings, written, and a toast with its Undo.
+  Future<void> _mergeTicket(String duplicateId, TicketChoice target) async {
+    final entries = _reads.entries;
+    final duplicate = entries.where((each) => each.note.id == duplicateId).firstOrNull;
+    final into = entries.where((each) => (target.key != null && each.ticket.id == target.key) || (target.key == null && each.title == target.title)).firstOrNull;
+    if (duplicate == null || into == null || into.note.id == duplicateId) return;
+    final world = _mergeWorld;
+    // The words as they are now, an open editor's among them.
+    final notes = <String, ({String title, String body})>{
+      for (final note in _library.value) note.id: (title: NoteFacts.of(note).title, body: note.body),
+    };
+    for (final id in [duplicateId, into.note.id]) {
+      final now = await world.body(id);
+      if (now != null) notes[id] = (title: notes[id]?.title ?? '', body: now);
+    }
+    TicketEntry fresh(TicketEntry entry) {
+      final body = notes[entry.note.id]?.body ?? entry.note.body;
+      return body == entry.note.body ? entry : TicketEntry(note: entry.note.copyWith(body: body), title: entry.title, ticket: ticketOf(body, entry.statuses) ?? entry.ticket, statuses: entry.statuses, notebook: entry.notebook);
+    }
 
-  // ---- the pull requests ----------------------------------------------------------------------------------------
-
-  void _notesChanged() {
-    _githubSoon?.cancel();
-    _githubSoon = Timer(const Duration(seconds: 20), () => unawaited(_github()));
-  }
-
-  bool _reading = false;
-
-  /// Every notebook's repos read, then each ticket a merge moves, moved once (pull_links.dart's header): on the device
-  /// that holds the rules' sweep.
-  Future<void> _github() async {
-    if (_reading || !pullLinks.ready || !plugins.isEnabled('github')) return;
-    _reading = true;
+    final plan = planMerge(duplicate: fresh(duplicate), target: fresh(into), notes: notes, index: _linkIndex.index, editable: _readableHere);
+    if (!mounted) return;
+    final yes = await askFirst(
+      context,
+      FirstAsk(title: 'Merge ${plan.duplicateName} into ${plan.targetName}?', note: [plan.summary, ...plan.warnings, 'One Undo takes it all back.'].join(' '), yes: 'Merge'),
+    );
+    if (!yes || !mounted) return;
     try {
-      final entries = _root._reads.entries;
-      final repos = <String>{
-        for (final entry in entries)
-          if (entry.notebook case final book?) ...githubReposOf(book.body),
-      };
-      if (repos.isEmpty) return;
-      await pullLinks.poll(repos);
-      final rules = this.rules;
-      if (rules == null) return;
-      var held = false;
-      for (final entry in entries) {
-        final book = entry.notebook;
-        final key = entry.ticket.id;
-        if (book == null || key == null || _root._trash.isTrashed(entry.note.id)) continue;
-        final mine = githubReposOf(book.body);
-        if (mine.isEmpty) continue;
-        final pulls = pullLinks.pullsFor(key, mine);
-        final target = mergeMove(status: entry.ticket.status, statuses: entry.statuses, onMerge: onMergeOf(book.body), pulls: pulls);
-        if (target == null) continue;
-        if (!held && !(held = await rules.holdsSweep())) return;
-        final merged = pulls.firstWhere((linked) => linked.pull.state == PullState.merged).pull;
-        final id = mergeRunId(merged, entry.note.id);
-        if (!rules.claimRun(id)) continue;
-        await _move(entry.note.id, key, merged, target, id);
-      }
+      final record = await applyMerge(plan, world);
+      await _library.refresh().catchError((Object _) {});
+      if (!mounted) return;
+      GlacierToast.of(context).toast(
+        message: Text('Merged ${plan.duplicateName} into ${plan.targetName}.'),
+        duration: const Duration(seconds: 10),
+        action: GlacierToastAction(label: 'Undo', onPress: () => unawaited(_undoMerge(record))),
+      );
     } catch (failure) {
-      debugPrint('[github] the pull requests were not read: $failure');
-    } finally {
-      _reading = false;
+      if (mounted) _say(context, failure is StateError ? failure.message : 'The merge could not be made: $failure');
     }
   }
 
-  Future<void> _move(String noteId, String key, PullRecord merged, String target, String id) async {
-    final job = activity.begin(TicketRules.jobId(id), kind: JobKind.sync, title: '$key: ${merged.name} merged', line: 'Moving it to $target', plugin: 'github', onOpen: activityRoutes.noteOpener(noteId));
-    try {
-      await _root._changeNote(noteId, (body) => withProperty(body, 'status', target), userEvent: 'input.rule');
-      job.done(quiet: true, tally: const JobTally('ticket moved by a merge', 'tickets moved by merges'));
-    } catch (failure) {
-      job.failed('$key was not moved to $target: $failure', fix: JobFix(JobFixKind.retry, () => unawaited(_move(noteId, key, merged, target, id))));
+  /// A merge taken back as one step; any note changed since it is left and said.
+  Future<void> _undoMerge(MergeRecord record) async {
+    final left = await undoMerge(record, _mergeWorld);
+    await _library.refresh().catchError((Object _) {});
+    if (!mounted) return;
+    _say(context, left.isEmpty ? 'The merge of ${record.duplicateName} was taken back.' : 'The merge was taken back, but ${left.join(', ')} changed since and ${left.length == 1 ? 'was' : 'were'} left as ${left.length == 1 ? 'it is' : 'they are'}.');
+  }
+
+  /// This account off a ticket's watchers: from its bell row's Unwatch, or a card's menu.
+  Future<void> _setWatching(String noteId, bool on) async {
+    final me = _me;
+    if (me == null) return;
+    await _changeNote(noteId, (body) => withWatcher(body, me, on), userEvent: 'ticket.watch').catchError((Object _) {});
+    if (mounted) _say(context, on ? 'You’re watching it now.' : 'You won’t be told of changes to it.');
+  }
+
+  /// A ticket's rows on a card's menu: Watch or Unwatch, and Merge into… (not in simple mode).
+  List<Widget> _ticketMenuRows(BuildContext context, Note note) {
+    if (!NoteFacts.of(note).isTicket) return const [];
+    final me = _me;
+    final rows = <Widget>[];
+    if (me != null) {
+      final watching = watches(note.body, me);
+      rows.add(GlacierMenuItem(icon: AppIcon(watching ? Lucide.eyeOff : Lucide.eye, size: context.tokens.fontSize('sm')), onSelect: () => unawaited(_setWatching(note.id, !watching)), child: Text(watching ? 'Unwatch' : 'Watch')));
     }
+    return rows;
+  }
+
+  /// The morning's digest as the notes are now (lib/book/ticket_digest.dart).
+  TicketDigest _digestOf(String day) => digestFor(_reads.entries, me: _me, today: day, team: _teamNote, skip: (entry) => _trash.isTrashed(entry.note.id) || (entry.note.archivedAt ?? 0) != 0);
+
+  /// The digest's runner, started once the notes are read: claimed, sent, and on a phone rung as a reminder.
+  void _startDigest() {
+    late final TicketDigestRunner runner;
+    runner = TicketDigestRunner(
+      claims: DigestClaims(
+        device: thisDevice,
+        preferences: () => preferences.value,
+        setPreferences: preferences.update,
+        syncNow: () async => await _services?.engine?.syncNow(),
+        accountHeld: () => _services?.engine?.accountPrefs,
+      ),
+      choices: () => digestSettingsOf(preferences.value),
+      digest: _digestOf,
+      phone: () => phoneReminders.value != null,
+      send: (digest) async {
+        final session = _services?.session;
+        if (session == null) return;
+        await _services?.engine?.record?.recordAs(digestRowId(session.accountId, digest.day), 'ticket-digest', {'noteId': digestNoteId, 'title': digest.title, 'first': digest.text});
+      },
+      writeNote: (digest) async => (await _library.createNote(digest.markdown)).id,
+      // A phone's morning rung as one of its reminders: the plan handed over again whenever its alarm changes.
+      planChanged: () => extraReminders.value = () => [?digestReminderOf(runner)],
+    );
+    _digest = runner;
+    unawaited(runner.look());
+  }
+
+  /// The notes changed: the digest looked at again, a moment later, for a phone's alarm to carry today's words.
+  void _digestHeard() {
+    _digestPoke?.cancel();
+    _digestPoke = Timer(const Duration(seconds: 5), () => unawaited(_digest?.look()));
+  }
+
+  /// The digest's page, where a tap on its notification lands (or the My tickets inbox, once there is one).
+  void _openDigest() {
+    final shell = _shell.currentState;
+    if (shell == null || !mounted) return;
+    unawaited(showTicketDigest(context, _digestOf(isoDay(DateTime.now())), onOpen: (id) => _openWhereLeft(shell, id)));
   }
 }

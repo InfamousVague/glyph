@@ -29,9 +29,10 @@ const List<String> shownWhenSet = <String>['start', 'estimate', 'cycle', 'blocke
 /// which a person keeping their own tickets need not see.
 const Set<String> advancedRows = <String>{'cycle', 'milestone'};
 
-/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), how the note looks,
-/// and its time spent, which has a row of its own (ticket_work.dart).
-const Set<String> _unsaid = <String>{'type', 'id', 'look', 'spent'};
+/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), and how the note
+/// looks; its watchers and what it duplicates, which its team's part shows (ticket_follow.dart); and its time spent,
+/// which has a row of its own (ticket_work.dart).
+const Set<String> _unsaid = <String>{'type', 'id', 'look', 'watchers', 'duplicate-of', 'spent'};
 
 /// The panel's rows for a ticket's front matter: the four always, then any of the rest that is set, or all of them
 /// with [more]. In [simple] mode the advanced ones wait for More, set or not; where the host draws no planning

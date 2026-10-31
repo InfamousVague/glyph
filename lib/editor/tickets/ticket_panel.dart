@@ -55,6 +55,7 @@ import '../looks/look.dart' show layoutUnitFloor;
 import '../queries/query_layout.dart';
 import '../queries/plan_marks.dart' show PriorityChip, StaleMark, TicketPrioritySheet;
 import '../queries/query_look.dart';
+import 'ticket_follow.dart';
 import 'ticket_planning.dart';
 import 'ticket_rows.dart';
 import 'ticket_work.dart';
@@ -62,7 +63,7 @@ import 'ticket_work.dart';
 /// What the screen hands the editor for a ticket's panel and its keys: the library's tickets, read when they are
 /// drawn (`TicketOptions`).
 class TicketOptions {
-  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.planning, this.work});
+  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.planning, this.follow, this.work});
 
   /// The workflow this note's status moves through: its notebook's (lib/book/tickets.dart), or the default.
   final List<String> Function() statuses;
@@ -99,6 +100,10 @@ class TicketOptions {
   /// Its planning (lib/core/query/planning.dart; Matt, 2026-10-31): its cycle and the cycles it could move to, how
   /// long it has sat, an epic's progress, the milestones. Absent, its Cycle and Milestone rows are the words written.
   final TicketPlanning? Function()? planning;
+
+  /// Its watchers, its history, its possible duplicates and Merge into… (ticket_follow.dart; Matt, 2026-10-31). Absent,
+  /// none of them are shown.
+  final TicketFollow? follow;
 }
 
 /// A property's name, as the panel says it (lib/core/properties.dart `ticketProperties`).
@@ -471,7 +476,7 @@ class _TicketPanelState extends State<TicketPanel> {
       case 'status':
         return StatusSheet(look: look, value: ticket.status, statuses: statuses, onClose: close, onPick: (value) => unawaited(_writeStatus(ticket, value, statuses)));
       case 'sub-ticket':
-        return SubTicketSheet(onClose: close, onAdd: (title) => options.addSubTicket?.call(title));
+        return SubTicketSheet(onClose: close, onAdd: (title) => options.addSubTicket?.call(title), similar: options.follow?.similar, onOpen: (choice) => options.open(choice.key ?? choice.title));
       case 'priority' when options.planning == null:
         return FieldPicker(pick: PriorityPick(value: ticket.priority), label: 'Priority', record: record, onClose: close, onPick: (value) => widget.write('priority', value));
       case 'priority':
@@ -811,6 +816,9 @@ class _TicketPanelState extends State<TicketPanel> {
                 ),
                 if (options?.work case final work?) TicketWork(look: look, front: widget.front, editable: editable, options: work, names: names),
                 if (children.isNotEmpty) _subTickets(children, adds: adds, epic: ticket.epic ? planning?.progress : null),
+                // Who watches it, its history, its possible duplicates and Merge into… (ticket_follow.dart).
+                if (options?.follow case final follow?)
+                  TicketFollowPart(look: look, front: widget.front, follow: follow, editable: editable, write: widget.write, choices: options!.choices, open: options.open, self: id),
                 if (hidden.isNotEmpty || (others.isNotEmpty && editable) || (adds && children.isEmpty))
                   // .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
                   //   gap: var(--glacier-space-1) var(--glacier-space-3); margin-block-start: var(--glacier-space-1);
@@ -1260,10 +1268,14 @@ class TicketProgressBar extends StatelessWidget {
 
 /// Add sub-ticket's sheet: its title typed, and Add, which makes it with this ticket as its parent.
 class SubTicketSheet extends StatefulWidget {
-  const SubTicketSheet({super.key, required this.onAdd, required this.onClose});
+  const SubTicketSheet({super.key, required this.onAdd, required this.onClose, this.similar, this.onOpen});
 
   final void Function(String title) onAdd;
   final VoidCallback onClose;
+
+  /// The tickets the title typed may duplicate, shown under it (ticket_follow.dart [DuplicateHints]).
+  final List<LikelyDuplicate> Function(String title)? similar;
+  final void Function(TicketChoice ticket)? onOpen;
 
   @override
   State<SubTicketSheet> createState() => _SubTicketSheetState();
@@ -1294,6 +1306,18 @@ class _SubTicketSheetState extends State<SubTicketSheet> {
             SheetRow(key: const ValueKey('sub-ticket-add'), label: 'Add', hint: 'A ticket of its own, under this one.', disabled: _title.trim().isEmpty, onPress: _add),
           ],
         ),
+        // Likely duplicates of what is typed, a tap away (Matt, 2026-10-31).
+        if (widget.similar != null && _title.trim().length > 2)
+          DuplicateHints(
+            likely: widget.similar!(_title),
+            onOpen: widget.onOpen == null
+                ? null
+                : (ticket) {
+                    final open = widget.onOpen!;
+                    widget.onClose();
+                    open(ticket);
+                  },
+          ),
       ],
     );
   }

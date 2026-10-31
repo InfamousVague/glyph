@@ -194,6 +194,8 @@ class PhoneExtras {
     claudeChanged?.addListener(_changed);
     // A note widget set to another note: its lines handed over at the next pass, which this asks for.
     home.listen(_changed);
+    // The morning's ticket digest this phone sends, ringing as a reminder (lib/book/ticket_digest.dart).
+    extraReminders.addListener(_changed);
     reminders.onTick = done;
     phoneReminders.value = reminders;
     if (places != null) {
@@ -260,6 +262,7 @@ class PhoneExtras {
     _life = null;
     library.removeListener(_changed);
     trash.removeListener(_changed);
+    extraReminders.removeListener(_changed);
     settings.removeListener(_placesChanged);
     events?.removeListener(_changed);
     lookChanged?.removeListener(_changed);
