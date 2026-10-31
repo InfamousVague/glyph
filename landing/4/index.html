@@ -8,9 +8,9 @@
     <link rel="icon" type="image/png" href="../favicon.png" />
     <link rel="stylesheet" href="../glacier/tokens.css" />
     <link rel="stylesheet" href="../site.css" />
-    <link rel="stylesheet" href="explore.css" />
+    <link rel="stylesheet" href="../explore/explore.css" />
     <script src="../theme.js"></script>
-    <script src="strip.js" defer></script>
+    <script src="../explore/strip.js" defer></script>
     <!-- Version 4, Bento: after Vercel's and Stripe's. A short hero and then one grid, every feature a card sized to what it has to show. -->
     <style>
       .bar-in { display: flex; align-items: center; gap: 1.25rem; inline-size: min(100% - 2rem, 76rem); margin-inline: auto; block-size: 3.75rem; }
@@ -71,7 +71,7 @@
 
       <ul class="bento hue-cycle">
         <li class="card span-8" id="claude" style="--hue: var(--hue-coral)">
-          <h3><svg class="brand-mark brand-claude"><use href="marks.svg#claude-mark"/></svg>Claude, built in and connected.</h3>
+          <h3><svg class="brand-mark brand-claude"><use href="../explore/marks.svg#claude-mark"/></svg>Claude, built in and connected.</h3>
           <p>Ask in the app with your own key and watch Claude write into your notes, word by word at its own caret. Or add Ghost.md as a connector and claude.ai, Claude Desktop and Claude Code read, search and write your notes, tickets and comments, shown as online while they work.</p>
           <div class="connect"><code id="mcp">https://ghostmarkdown.com/api/mcp</code><button class="pill" type="button" data-copy="#mcp">Copy</button></div>
         </li>
@@ -116,7 +116,7 @@ show: calendar
   +- [x] Pick a date</pre></li>
         <li class="card span-3"><h3><svg class="i i-lead"><use href="../icons.svg#i-lock"/></svg>Sealed.</h3><p>No account needed. With one, everything is encrypted on the device, end to end. No ads, no analytics.</p><p class="stat" style="margin-top:auto">E2E<small>on notes, tapes, pictures and a team's key</small></p></li>
 
-        <li class="card span-4" id="market" style="--hue: var(--hue-purple)"><h3><svg class="i i-lead"><use href="../icons.svg#i-shopping-bag"/></svg>The Market.</h3><p>Plugins, themes, fonts and icons, all built in. Adding one is a switch, nothing to download.</p><div class="chips"><span><svg class="brand-mark"><use href="marks.svg#notion-mark"/></svg>Notion</span><span>Slack</span><span>GitHub</span><span>Discord</span><span>Todoist</span><span>Things</span><span>Lovart</span><span>ElevenLabs</span><span>Webhooks</span><span>Zoom</span><span>Contacts</span><span>+ 11</span></div></li>
+        <li class="card span-4" id="market" style="--hue: var(--hue-purple)"><h3><svg class="i i-lead"><use href="../icons.svg#i-shopping-bag"/></svg>The Market.</h3><p>Plugins, themes, fonts and icons, all built in. Adding one is a switch, nothing to download.</p><div class="chips"><span><svg class="brand-mark"><use href="../explore/marks.svg#notion-mark"/></svg>Notion</span><span>Slack</span><span>GitHub</span><span>Discord</span><span>Todoist</span><span>Things</span><span>Lovart</span><span>ElevenLabs</span><span>Webhooks</span><span>Zoom</span><span>Contacts</span><span>+ 11</span></div></li>
         <li class="card span-4 tint" style="--hue: var(--hue-red)"><h3><svg class="i i-lead"><use href="../icons.svg#i-users"/></svg>Write together.</h3><p>Organizations with live cursors in each member's colour, @mentions, verified pages, comments in the margin, an audit log. Sealed with a key only members hold.</p><div class="img"><img src="../shots/teams-verified.webp" width="1600" height="1000" loading="lazy" alt="A verified team note with @mentions." /></div></li>
         <li class="card span-4" style="--hue: var(--hue-mint)"><h3><svg class="i i-lead"><use href="../icons.svg#i-sparkles"/></svg>Themes and fonts.</h3><p>Dawn, Boreal, Ember, Sakura, Meadow, Tide, Dusk. Inter, Maple Mono, Fira Code, JetBrains Mono, Plex, Atkinson, Lora.</p><p class="stat" style="margin-top:auto">10 <small>themes · 8 fonts · 22 plugins</small></p></li>
 

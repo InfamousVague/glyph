@@ -29,13 +29,14 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   page to the index (`try_files`), which says so.
 
 - **Ten explorations** (2026-10-31; Matt: "Create ten versions of the website with different content densities and
-  layouts look at apps like notion discord and other developer tools like git for inspiration"): `landing/explore/`,
-  an index and ten standalone pages, `01-air` to `10-specs`, each after a site worth borrowing from (Notion, Discord,
+  layouts look at apps like notion discord and other developer tools like git for inspiration"): ten standalone pages at
+  `landing/1/` to `landing/10/` (ghostmarkdown.com/1/ to /10/, Matt: "List them all on the website under /1/ /2/ /3/
+  etc"), and `landing/explore/` with their index and shared files; Air to Specs, each after a site worth borrowing from (Notion, Discord,
   GitHub, Vercel, a README, Raycast, a product tour, Apple, Linear's changelog, a spec sheet), from a sentence a screen
   to a spec sheet. They share the site's tokens and colours and `explore.css` (pills, the icon on its hue square, the
   frames, the strip that flips between them); the words and screens are the home page's own, every download and
-  address real. `09-feed` reads `explore/changelog.json`, a copy of `assets/changelog.json` taken that day. Every page
-  is `noindex`; the deploy ships the folder with the rest. When one is chosen, it becomes `index.html` and the rest go.
+  address real. `/9/` reads `explore/changelog.json`, a copy of `assets/changelog.json` taken that day. Every page
+  is `noindex`; the deploy ships the folder with the rest. When one is chosen, it becomes `index.html` and the folders go.
 - **The files.** `index.html` (the page), `home.css` and `home.js` (its layout, the downloads, the address to copy and
   the theme picker), `site.css` (the fonts, the colours and the reading column every page shares), `theme.js` (the
   theme a visitor picked, on every page before it draws), and the icons, resized from `src-tauri/icons/icon.png`.
