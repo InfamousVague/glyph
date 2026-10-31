@@ -62,7 +62,7 @@ changed since the merge base:
 - `.versions`: both sides' versions once, in order (lib/core/versions_file.dart `mergeFiles`);
 - a binary both changed: theirs wins, ours kept as `<name>.conflict.<ext>`;
 - `.glyph/config.json`: key by key, last writer where both changed;
-- a note the remote deleted and this device did not touch: moved to `.trash/<path>` (out of the app, never lost);
+- a note the remote deleted and this device did not touch: moved to `.trash/<path>` (the app's Trash, never lost);
   any other file the remote removed: removed.
 
 Then a commit with two parents and the push. Never a force push; a push still refused is a red row.

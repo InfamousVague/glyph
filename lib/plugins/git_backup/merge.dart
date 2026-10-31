@@ -15,7 +15,7 @@
 /// - **`.glyph/config.json`**: key by key, the newer side's value for a key both changed (last writer), both sides'
 ///   keys kept.
 /// - Everything else the remote alone changed: theirs; removed on the remote and unchanged here: a note or its
-///   versions moved to `.trash/<path>` (out of the app, never lost), any other file removed.
+///   versions moved to `.trash/<path>` (the app's Trash, never lost), any other file removed.
 ///
 /// Then the merge is committed with two parents (`git_commit` with `alsoParent` = theirs) and pushed. Never a force
 /// push: a push that is still refused is a red row that says so.
@@ -150,8 +150,8 @@ Future<MergeOutcome> mergeRemoteInto(GitRepo repo, {required String theirs, Stri
       if (weChanged) {
         steps.add(MergeStep(path, MergeTaken.ours));
       } else if (isNotePath(path) || isVersionsPath(path)) {
-        // A note the remote deleted goes to `.trash/` at its path (decision 2's folder): out of the app, since a dot
-        // folder is never indexed, and never lost; the next commit records the move.
+        // A note the remote deleted goes to `.trash/` at its path (decision 2's folder, tauri/src-tauri/src/library/trash.rs):
+        // the app's Trash, never lost; the next commit records the move.
         if (file.existsSync()) {
           final into = File('${repo.path}/.trash/$path')..parent.createSync(recursive: true);
           file.renameSync(into.path);

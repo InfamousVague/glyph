@@ -70,8 +70,8 @@ void main() {
       expect(text, contains('Open library from git'));
       expect(text, contains('anyone who can read the repository can read the notes'));
       expect(text, contains('Made by matt'));
-      // The dot folders are never indexed as notes: the vault's walk skips them (vault.rs `markdown()` lists `.md`
-      // files outside dot folders, test "Work/.trash/d.md" excluded there), so `.git/` and `.trash/` hold no notes.
+      // The dot folders are never indexed as notes: the vault's walk skips them, `.trash/` alone read as the Trash
+      // (vault.rs `markdown()`, trash.rs), so `.git/` holds no notes and `.trash/` holds trashed ones.
       // The mirror writer here keeps the same rule.
       final dir = tempFolder('readme');
       addTearDown(() => dir.deleteSync(recursive: true));

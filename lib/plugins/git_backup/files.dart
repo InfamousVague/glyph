@@ -4,7 +4,7 @@
 ///
 /// **The README is `README.txt`, never `README.md`**: a `.md` at the Library's root would be indexed as a note and
 /// synced to the account (the critic's finding, docs/MARKDOWN_FIRST.md §12); export_commands.rs writes `README.txt`
-/// for the same reason. `.git/` and `.trash/` are never notes: the vault's walk skips every dot folder
+/// for the same reason. `.git/` is never notes: the vault's walk skips every dot folder but `.trash/`, which it reads as the Trash
 /// (tauri/src-tauri/src/library/vault.rs `markdown()`), which test/plugins/git_backup/files_test.dart confirms.
 ///
 /// **Attachments.** The attachments slice (2026-10-31, tauri/src-tauri/src/library/attachments.rs) moves them under
