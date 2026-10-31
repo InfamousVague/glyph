@@ -3,6 +3,22 @@ import 'package:flutter/foundation.dart';
 /// How a note came to exist: typed in the app, or spoken into a capture (`NoteSource`, src/app/core/store.ts).
 enum NoteSource { editor, capture }
 
+/// The folder at the library's root that holds trashed notes' files (library/trash.rs `TRASH`; Matt, 2026-10-31:
+/// "Trash: a `.trash/` folder, as Obsidian does"). A trashed note's file is at `.trash/<its path>`.
+const String trashFolder = '.trash';
+
+/// Whether a note's path is in the trash: under `.trash/` at the root (library/trash.rs `is_trashed_path`). A
+/// `.trash` deeper down is another app's and no trash of ours; null is a draft with no file, which is not trashed.
+bool isTrashedPath(String? path) => path != null && path.startsWith('$trashFolder/');
+
+/// `.trash/<path>`: where a live note's file goes when it is trashed (`trashed_path_of`); a path already in the trash
+/// is answered as it is.
+String trashedPathOf(String path) => isTrashedPath(path) ? path : '$trashFolder/$path';
+
+/// `<path>` for `.trash/<path>`, where a trashed note's file came from (`live_path_of`); a path not in the trash is
+/// answered as it is, and null stays null.
+String? livePathOf(String? path) => isTrashedPath(path) ? path!.substring(trashFolder.length + 1) : path;
+
 /// One phrase of a recording, with its times (`Segment`, core/store.ts).
 @immutable
 class Segment {
@@ -72,8 +88,13 @@ class Note {
   final int? formattedFor;
   final String? formattedModel;
 
-  /// Where the note's file is in the library, relative to it (`Inbox/AttackFM.md`).
+  /// Where the note's file is in the library, relative to it (`Inbox/AttackFM.md`); under `.trash/` for a note in
+  /// the trash ([inTrash]).
   final String? path;
+
+  /// Whether the note's file is in the trash folder (library/trash.rs): the files' word on the trash, which the
+  /// synced trash map (lib/core/kept_trash.dart) is kept in step with.
+  bool get inTrash => isTrashedPath(path);
 
   /// The body's version, counted up at each write.
   final int revision;

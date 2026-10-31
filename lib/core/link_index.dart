@@ -163,7 +163,8 @@ String pathKey(String path) {
 
 String? _ticketOf(String body, FrontMatterSpan front) {
   if (front.isEmpty || frontMatterValueIn(body, front, 'type')?.trim().toLowerCase() != 'ticket') return null;
-  final id = frontMatterValueIn(body, front, 'id')?.trim();
+  // Its `issue:`, or an `id:` that is a ticket's key: a one-block note's `id:` is the library's (front_matter.dart).
+  final id = ticketKeyIn(body, front)?.trim();
   return id == null || id.isEmpty ? null : id;
 }
 

@@ -278,9 +278,10 @@ mod tests {
         let before = app.list_notes().unwrap();
 
         let mut there = chosen(&data, &vault);
-        assert_eq!(there.note_count().unwrap(), 3, "every Markdown file in the vault is a note, the trash's and .obsidian's not");
+        assert_eq!(there.note_count().unwrap(), 4, "every Markdown file in the vault is a note, Obsidian's trash's as a trashed one (trash.rs), .obsidian's not");
+        assert!(there.list_notes().unwrap().iter().any(|n| n.path.as_deref() == Some(".trash/Old.md")));
         let copied = app.copy_into(&mut there).unwrap();
-        assert_eq!((copied.notes, copied.adopted, copied.renamed, copied.same), (2, 3, 1, 0));
+        assert_eq!((copied.notes, copied.adopted, copied.renamed, copied.same), (2, 4, 1, 0));
 
         // The vault's own files, exactly as they were.
         assert_eq!(read(&vault, "Inbox/Plan.md"), "---\ntags: [trip]\naliases: [The plan]\n---\n# Their plan\n");
@@ -296,7 +297,7 @@ mod tests {
         assert_eq!(read(&vault, "Inbox/Plan 2.versions"), "# Ghost.md versions 1\n");
         assert!(vault.join(".glyph/notes/plan.json").exists(), "what isn't text travels with the folder");
         assert_eq!(there.get_note("road").unwrap().unwrap().path.as_deref(), Some("workspaces/Work/Roadmap.md"));
-        assert_eq!(there.list_notes().unwrap().len(), 5);
+        assert_eq!(there.list_notes().unwrap().len(), 6);
 
         // The index is the app's, not the folder's: nothing there for a sync service to tear.
         assert!(!vault.join(".glyph/index.sqlite").exists());
@@ -309,13 +310,16 @@ mod tests {
         app.carry_drafts_into(&mut there);
         assert_eq!(there.get_note("draft").unwrap().map(|n| n.body), Some(String::new()));
 
-        // One of the vault's own notes, edited in Ghost.md: Obsidian's front matter kept, and its name, so its
-        // daily note and every [[link]] to it still find it.
+        // One of the vault's own notes, edited in Ghost.md: Obsidian's front matter is the page's own (its one
+        // block holds the page's keys, frontmatter.rs `read`), kept in the one block with the library's keys after
+        // it, and its name kept, so its daily note and every [[link]] to it still find it.
         let daily = there.list_notes().unwrap().into_iter().find(|n| n.path.as_deref() == Some("Daily/2026-10-01.md")).unwrap();
-        let saved = there.save_note(&daily.id, "Went for a walk.\n\nAnd a swim.\n", "editor").unwrap();
+        assert_eq!(daily.body, "---\ntags: daily\n---\nWent for a walk.\n", "the page sees Obsidian's keys as its own");
+        let saved = there.save_note(&daily.id, "---\ntags: daily\n---\nWent for a walk.\n\nAnd a swim.\n", "editor").unwrap();
         assert_eq!(saved.path.as_deref(), Some("Daily/2026-10-01.md"));
         let text = read(&vault, "Daily/2026-10-01.md");
         assert!(text.starts_with(&format!("---\ntags: daily\nid: {}\n", daily.id)), "{text}");
+        assert_eq!(text.matches("---\n").count(), 2, "one block, not two: {text}");
         // A note Ghost.md named still follows its title.
         assert_eq!(there.save_note("road", "# Roadmap for 2027\n", "editor").unwrap().path.as_deref(), Some("workspaces/Work/Roadmap for 2027.md"));
     }
@@ -329,12 +333,14 @@ mod tests {
         there.save_note("n1", "# Written here\n", "editor").unwrap();
         let mut home = Library::open_fs(&data.join("Library")).unwrap();
         let copied = there.copy_into(&mut home).unwrap();
-        assert_eq!(copied.notes, 4);
+        assert_eq!(copied.notes, 5, "the vault's trashed note among them");
         assert_eq!(there.forget_copied(&copied), 0, "a folder of the person's is never emptied");
-        assert_eq!(there.list_notes().unwrap().len(), 4);
+        assert_eq!(there.list_notes().unwrap().len(), 5);
         assert!(vault.join("Inbox/Written here.md").exists() && vault.join("Projects/Deep/Idea.md").exists());
-        assert_eq!(home.list_notes().unwrap().len(), 4);
+        assert_eq!(home.list_notes().unwrap().len(), 5);
         assert_eq!(read(&data, "Library/Projects/Deep/Idea.md"), "An idea with no front matter.\n");
+        // A trashed note copies into the trash, still trashed.
+        assert!(read(&data, "Library/.trash/Old.md").ends_with("thrown away in Obsidian"));
     }
 
     #[test]

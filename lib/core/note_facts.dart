@@ -161,6 +161,10 @@ class NoteFacts {
   /// Whether it is a ticket (`isTicket`).
   late final bool isTicket = _worked(isTicketType(value('type')));
 
+  /// The ticket's key as written, its `issue:` or an `id:` that reads as one (`ticketKeyIn`); null for neither, and
+  /// never the library's note id. Asked of any note, ticket or not, by the notebook finder.
+  late final String? ticketKey = _worked(ticketKeyIn(_body, front));
+
   // ---- a notebook's --------------------------------------------------------------------------------------------------
 
   /// The index's chapters, in its order (`chaptersOf`). Not to be changed: every asker is handed this list.

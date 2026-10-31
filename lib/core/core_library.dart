@@ -443,6 +443,14 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   @override
   Future<void> archive(String id, {required bool archived}) => _flag('set_note_archived', {'id': id, 'archived': archived});
 
+  // A move into or out of `.trash/` (library/trash.rs): like a pin, not an edit, and the note answered takes its
+  // place in the list with its new path.
+  @override
+  Future<void> putInTrash(String id) => _flag('trash_note', {'id': id});
+
+  @override
+  Future<void> takeFromTrash(String id) => _flag('restore_note', {'id': id});
+
   @override
   Future<void> destroy(String id) async {
     var body = _listed.where((note) => note.id == id).firstOrNull?.body;

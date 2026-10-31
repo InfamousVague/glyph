@@ -35,6 +35,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../book/tickets.dart' show TicketChoice, Wait, waitingOn;
 import '../../core/days.dart' show isIsoDay;
+import '../../core/front_matter.dart' show ticketKeyName;
 import '../../core/properties.dart';
 import '../../activity/job_mark.dart' show activityCalm;
 import '../../core/planning/cycles.dart' show cycleDaysWords;
@@ -768,7 +769,8 @@ class _TicketPanelState extends State<TicketPanel> {
                             shrink: 0,
                             child: _tap(
                               label: 'Give it $offered',
-                              onTap: () => widget.write('id', offered),
+                              // Under `id:` as today, or `issue:` where the block's `id:` is the library's (front_matter.dart).
+                              onTap: () => widget.write(ticketKeyName(widget.front), offered),
                               child: Part(
                                 'give',
                                 child: Container(
