@@ -88,7 +88,6 @@ import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
 import '../core/folder_adopter.dart' show adoptFolders;
 import '../core/library_config.dart' show LibraryConfig, LibraryConfigKeeper, configFileFor;
 import '../core/favorites.dart' show favoritesIn, withFavorite;
-import '../core/page_tree.dart' show PageMover;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
