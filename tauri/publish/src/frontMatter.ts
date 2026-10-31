@@ -1,4 +1,4 @@
-import { frontMatterEnd, unquoted } from '../../src/app/core/frontMatter.ts';
+import { LIBRARY_KEYS, frontMatterEnd, unquoted } from '../../src/app/core/frontMatter.ts';
 
 /**
  * A note's front matter as it is on disk (docs/MARKDOWN_FIRST.md §2 and §11 decision 1): today TWO blocks, the
@@ -21,8 +21,11 @@ export interface FrontMatter {
   blocks: 0 | 1 | 2;
 }
 
-/** The keys the library writes into a note's first block, and what a page never shows. */
-export const MANAGED_KEYS = new Set(['id', 'created', 'updated', 'pinned', 'archived', 'source']);
+/**
+ * The keys the library writes into a note's first block, and what a page never shows: the app's own list
+ * (core/frontMatter.ts `LIBRARY_KEYS`, the one the Dart side and the Rust library read by), not a second one.
+ */
+export const MANAGED_KEYS: ReadonlySet<string> = LIBRARY_KEYS;
 
 const KEY = /^([\w.-]+)[ \t]*:(.*)$/;
 /** A library id: the Rust side writes a UUID, the web app a 20-odd character random id. Never a ticket key like GHO-12. */

@@ -37,12 +37,15 @@ void main() {
       expect(aliasesOf('---\naliases: [Lisbon, lisbon!, "--"]\n---\n'), ['Lisbon']);
     });
 
-    test('a list of lines is not front matter to the rest of the app: the title is what that rule makes of it', () {
-      // lib/core/front_matter.dart takes only `key:` lines and blank ones, as the web app and the core do.
+    test('a list of lines under its key is front matter to the rest of the app too, as Obsidian writes one', () {
+      // lib/core/front_matter.dart took only `key:` lines and blank ones until 2026-10-31; a list's items under a key
+      // (`  - Lisbon`) are held now, as the web app and the core hold them, so the block is front matter to the title.
       const body = '---\naliases:\n  - Lisbon\n---\n# Trip';
       expect(aliasesOf(body), ['Lisbon']);
-      expect(noteTitle(body), '---');
+      expect(noteTitle(body), 'Trip');
       expect(noteTitle('---\naliases: [Lisbon]\n---\n# Trip'), 'Trip');
+      // An item with no key above it is words, and the rule above it a rule.
+      expect(noteTitle('---\n- Lisbon\n---\n# Trip'), '---');
     });
 
     test('kept by the note for the body it has, and read again when the words change', () {

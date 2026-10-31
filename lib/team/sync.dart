@@ -379,7 +379,7 @@ class _Row {
 
 /// A note's particulars, for telling whether its row needs putting again (`particulars`): everything but the words,
 /// which the document carries, and `updatedAt`, which every keystroke moves.
-String particulars(Note note) => jsonEncode([note.createdAt, note.sourceWord, note.starred, note.archivedAt, note.path, note.recordingMs]);
+String particulars(Note note) => jsonEncode([note.createdAt, note.sourceWord, note.starred, note.archivedAt, livePathOf(note.path), note.recordingMs]);
 
 /// The recording's length a mark of [particulars] was taken at; null for a mark that does not say.
 int? _recordingMsIn(String mark) {
@@ -566,6 +566,9 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   // organization's top (Matt, 2026-10-29, a note dragged out of an organization).
   final movedOut = local != null && (ctx.leftTeam?.call(item.id) ?? false);
   if (movedOut) theirs = theirs.copyWith(path: () => local.path);
+  // In this member's trash: the row's path is where it was, and the file stays in the trash here until the person
+  // restores or empties it (library/trash.rs); a member's deletion still removes it outright, above.
+  if (local != null && local.inTrash && !movedOut) theirs = theirs.copyWith(path: () => trashedPathOf(theirs.path ?? livePathOf(local.path)!));
   // The phrases too, where only those moved: a write-up made on another member's device after the row last went.
   final whole = local == null ? null : await ctx.notes.get(item.id);
   final phrased = withPhrases(theirs, whole, known?.phrases);
@@ -722,9 +725,12 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
   final whole = await ctx.notes.get(note.id) ?? note;
   // Which of this account's revisions the note left the account at: this device's own word, else the row's.
   final from = ctx.leftAt?.call(note.id) ?? known?.from;
+  // The trash is the person's, not the team's (an organization's deletes skip it): a member's trashed copy is put
+  // at the path it had, so no other member's file moves into `.trash/` and no old build meets a path under a dot
+  // folder (library/trash.rs).
   final payload = {
     'v': 1,
-    'note': noteToJson(_withWords(whole, doc.words)),
+    'note': noteToJson(_withWords(whole, doc.words).copyWith(path: () => livePathOf(whole.path))),
     'state': toBase64Url(await doc.snapshot()),
     'seq': doc.seq,
     if (images.isNotEmpty) 'images': images,

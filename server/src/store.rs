@@ -58,7 +58,7 @@ pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use mail::{MailClaim, MailStanding, MailWrite, SealedMail};
 pub use meet::{MeetBooking, SERIES as MEET_SERIES};
 pub use share_audio::AudioWrite;
-pub use shares::ShareWrite;
+pub use shares::{ShareMetaWrite, ShareWrite};
 pub use sites::SiteWrite;
 
 use rusqlite::{params, Connection, OptionalExtension, Params, Row};
@@ -116,11 +116,14 @@ CREATE TABLE IF NOT EXISTS prefs (
     updated_at INTEGER NOT NULL
 );
 -- A note or a book shared by its link (server/src/shares.rs): the owner, and ciphertext sealed under a key only the
--- link carries. Taken down with its owner's account.
+-- link carries; and `meta`, what the owner's devices sealed about the share under the ACCOUNT key (its note, its
+-- link's key, its switches), so a device signing in afresh finds every share of the account's with its link unchanged
+-- (docs/MARKDOWN_FIRST.md §11 decision 8). NULL for a share written by an older app. Taken down with its owner's account.
 CREATE TABLE IF NOT EXISTS shares (
     id         TEXT PRIMARY KEY,
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     blob       TEXT NOT NULL,
+    meta       TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -459,10 +462,14 @@ pub struct Store {
 ///   the sweep blanks the link, so a meeting over still says which plugin's page it is listed on (Matt, 2026-10-26: "I
 ///   want settings / meetings to be broken up into three plugins"). NULL on a row blanked before the column was
 ///   there, which the device reads as Google Meet, the only kind there was until that same day (2026-10-26).
+/// - `shares.meta`: what a share's owner's devices sealed about it under the account key, as a site's `meta` is
+///   (`PUT /api/v1/shares/{id}/meta`), so a device signing in afresh gets its shares back with their links; NULL on
+///   a share no new app has written yet (2026-10-31, docs/MARKDOWN_FIRST.md §11 decision 8).
 const ADDED_COLUMNS: &[(&str, &str, &str)] = &[
     ("meet_bookings", "series", "ALTER TABLE meet_bookings ADD COLUMN series TEXT"),
     ("meet_bookings", "stopped", "ALTER TABLE meet_bookings ADD COLUMN stopped INTEGER NOT NULL DEFAULT 0"),
     ("meet_bookings", "kind", "ALTER TABLE meet_bookings ADD COLUMN kind TEXT"),
+    ("shares", "meta", "ALTER TABLE shares ADD COLUMN meta TEXT"),
 ];
 
 /// Each booking with a link and no `kind` yet given the one its link says: those booked before the column was added.
@@ -599,7 +606,8 @@ mod tests {
 
     #[test]
     fn a_database_made_before_a_column_was_added_gets_it_at_the_next_open() {
-        // meet_bookings as it first reached the box, with a booking in it.
+        // meet_bookings as it first reached the box, with a booking in it; and shares as they were before `meta`
+        // (2026-10-31), with an account and its share in them.
         let dir = TempDir::new("store-columns");
         let data = dir.path().join("glyph-api");
         std::fs::create_dir_all(&data).unwrap();
@@ -609,7 +617,13 @@ mod tests {
                 "CREATE TABLE meet_bookings (id TEXT PRIMARY KEY, account_id INTEGER NOT NULL, uid TEXT NOT NULL, url TEXT NOT NULL, title TEXT,
                  starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL, state TEXT NOT NULL, detail TEXT, sequence INTEGER NOT NULL DEFAULT 0,
                  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (account_id, uid));
-                 INSERT INTO meet_bookings VALUES ('m', 1, 'u', 'https://meet.google.com/abc-defg-hij', 'Old', 1, 2, 'booked', NULL, 0, 1, 1);",
+                 INSERT INTO meet_bookings VALUES ('m', 1, 'u', 'https://meet.google.com/abc-defg-hij', 'Old', 1, 2, 'booked', NULL, 0, 1, 1);
+                 CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, handle TEXT NOT NULL UNIQUE COLLATE NOCASE, login_hash TEXT NOT NULL DEFAULT '',
+                 wrapped TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, seen_at INTEGER NOT NULL DEFAULT 0, rev INTEGER NOT NULL DEFAULT 0);
+                 INSERT INTO accounts (id, handle, created_at) VALUES (1, 'matt', 1);
+                 CREATE TABLE shares (id TEXT PRIMARY KEY, account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, blob TEXT NOT NULL,
+                 created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+                 INSERT INTO shares VALUES ('s', 1, 'sealed', 5, 6);",
             )
             .unwrap();
         }
@@ -618,10 +632,14 @@ mod tests {
         assert_eq!((old.title.as_deref(), old.series), (Some("Old"), None), "what was there is kept, the new column empty");
         assert_eq!(old.kind.as_deref(), Some("meet"), "the kind read from the link it was booked with");
         store.update_meet_booking(&MeetBooking { series: Some("{}".into()), ..old }, 3).unwrap();
+        let share = &store.shares_of(1)[0];
+        assert_eq!((share.id.as_str(), share.created, share.updated, share.meta.as_deref()), ("s", 5, 6, None), "an old share lists with no meta");
+        assert_eq!(store.put_share_meta(1, "s", "m"), Ok(()), "and may be given one");
         drop(store);
         // And opened again, nothing is added twice.
         let again = Store::open(&data).unwrap();
         assert_eq!(again.meet_booking("m").unwrap().series.as_deref(), Some("{}"));
+        assert_eq!(again.shares_of(1)[0].meta.as_deref(), Some("m"));
     }
 
     #[test]

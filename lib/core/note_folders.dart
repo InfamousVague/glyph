@@ -21,6 +21,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import 'library.dart';
+import 'note.dart' show livePathOf, trashedPathOf;
 import 'workspaces.dart';
 
 /// Where notes with no workspace live: the library's own landing folder (library/mod.rs `INBOX`).
@@ -70,7 +71,9 @@ String? folderFor(Workspace? workspace, [List<Workspace> all = const []]) {
 /// organization's own folder, for one whose path is not under `orgs/` at all, and for no path.
 List<String> orgFolderNames(String? path) {
   if (path == null) return const [];
-  final parts = path.split('/');
+  // A member's trashed copy is still filed where it was: its row never carries the `.trash/` (lib/team/sync.dart),
+  // and one that did is read as the path under it.
+  final parts = livePathOf(path)!.split('/');
   if (parts.length < 4 || parts.first != orgsFolder) return const [];
   return [for (final part in parts.sublist(2, parts.length - 1)) if (part.isNotEmpty) part];
 }
@@ -110,14 +113,18 @@ class NoteFolders {
       final note = await library.get(noteId);
       final from = note?.path;
       if (note == null || from == null || from.isEmpty) return;
-      final dir = from.contains('/') ? from.substring(0, from.lastIndexOf('/')) : '';
+      // Judged by where it is, or was before the trash: `.trash/workspaces/Work/Plan.md` is in `workspaces/Work`.
+      final at = livePathOf(from)!;
+      final dir = at.contains('/') ? at.substring(0, at.lastIndexOf('/')) : '';
       if (dir == folder) return;
       // Under that folder in a folder of the vault's own stays where it is: an import keeps a vault's folders inside
       // its workspace's (lib/importer/import_paths.dart), and filing its notes must not flatten them. Under it in
       // another workspace's folder, it moves: a note filed up out of a folder inside its workspace's (2026-10-19,
       // GHST-107: left there, the other members would still see it in the folder, since its path is its folder).
       if (dir.startsWith('$folder/') && !_inAnotherWorkspaceFolder(dir, folder, all)) return;
-      final path = '$folder/${_fileName(from)}';
+      // A note in the trash keeps its filing (its folder is where Restore puts it back), so its file is filed inside
+      // the trash, `.trash/<folder>/`, never pulled out of it by a folder renamed or moved (library/trash.rs).
+      final path = note.inTrash ? trashedPathOf('$folder/${_fileName(from)}') : '$folder/${_fileName(from)}';
       if (path == from) return;
       await library.apply(note.copyWith(path: () => path));
     } catch (failure) {

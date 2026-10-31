@@ -35,7 +35,8 @@ use super::vault::{Entry, Vault};
 
 /// The calls a folder reached through SAF answers, by relative path. Kotlin's, in the app; a folder's, in a test.
 pub trait Documents: Send {
-    /// Every `.md` file under the folder, at any depth, but none in a dot folder or with a dot name.
+    /// Every `.md` file under the folder, at any depth, but none in a dot folder or with a dot name - except under
+    /// `.trash/` at the root, the trash (trash.rs), whose files are notes in the trash.
     fn list(&self) -> io::Result<Vec<Entry>>;
     /// A file's words; `NotFound` when it is not there.
     fn read(&self, path: &str) -> io::Result<String>;
@@ -193,7 +194,8 @@ impl FolderDocuments {
         for item in std::fs::read_dir(dir)? {
             let item = item?;
             let name = item.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') {
+            // As LibraryTree.kt's `entries` skips, with the root's trash the one dot folder read (trash.rs).
+            if name.starts_with('.') && !(prefix.is_empty() && name == super::trash::TRASH && item.file_type()?.is_dir()) {
                 continue;
             }
             let rel = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };

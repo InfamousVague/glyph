@@ -492,7 +492,8 @@ export function keepKeys(before: string, next: string): string {
   const keys = lines.slice(1, Math.max(1, frontMatterEnd(lines) - 1));
   const named = isBookBody(before) || isEntryTitle(frontMatterValue(before, 'title') ?? '');
   const dropped = frontMatterEnd(next.split('\n')) === 0;
-  const ticket = isTicket(before) ? (dropped ? TICKET_KEYS : ['type', 'id']) : [];
+  // A ticket keeps its type and its key under either name the key is written as (core/frontMatter.ts `ticketKeyValue`).
+  const ticket = isTicket(before) ? (dropped ? [...TICKET_KEYS, 'issue'] : ['type', 'id', 'issue']) : [];
   for (const key of [...KEPT_KEYS, ...(isBookBody(before) ? NOTEBOOK_KEYS : []), ...ticket]) {
     if (!named && (key === 'title' || key === 'date')) continue;
     const line = keys.find((each) => new RegExp(`^\\s*${key}\\s*:`, 'i').test(each));

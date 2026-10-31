@@ -81,6 +81,7 @@ import '../core/ids.dart' show randomId;
 import '../core/images.dart';
 import '../core/iphone_app.dart';
 import '../core/kept_trash.dart';
+import '../core/trash_files.dart';
 import '../core/mac_app.dart' show runsAsMacApp;
 import '../core/library_files.dart' show LibraryFiles;
 import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
@@ -488,6 +489,8 @@ class _GhostRootState extends State<GhostRoot> {
   late final bool _real = widget.core != null && widget.library == null;
   late final NoteLibrary _library = widget.library ?? (_real ? CoreLibrary(widget.core!) : SampleLibrary.seeded(now: DateTime.now().millisecondsSinceEpoch));
   late final Trash _trash = _real ? KeptTrash() : MemoryTrash();
+  /// The library's `.trash/` folder kept in step with the trash (lib/core/trash_files.dart), from the first frame on.
+  TrashFiles? _trashFiles;
   /// Where the real workspaces are kept, when the root makes them: it listens to the preferences, and is let go
   /// with the root.
   late final KeptWorkspaceStorage? _keptSpaces = widget.workspaces == null && _real ? KeptWorkspaceStorage() : null;
@@ -1914,6 +1917,7 @@ class _GhostRootState extends State<GhostRoot> {
     // finishing.
     _versionsStore.dispose();
     _keptSpaces?.dispose();
+    _trashFiles?.dispose();
     final trash = _trash;
     if (trash is KeptTrash) trash.dispose();
     final library = _library;
@@ -2000,6 +2004,9 @@ class _GhostRootState extends State<GhostRoot> {
     if (_library case final CoreLibrary core) {
       webhooks.start(saves: core.savedHere, notes: () => _shown);
       _webhooksLife = AppLifecycleListener(onHide: () => unawaited(webhooks.flush()));
+      // A shared note says so in its page front matter, `share: <id>` (lib/share/share.dart; 2026-10-31): written as a
+      // save of the person's own, so it keeps versions and syncs as any edit does.
+      _services?.shares?.save = (note, body) => core.save(note.id, body);
     }
     // A notebook's rules, the timers and the pull requests on its tickets (root_ticket_rules.dart; Matt, 2026-10-31).
     _ticketsWired.start();
@@ -2010,6 +2017,8 @@ class _GhostRootState extends State<GhostRoot> {
     _menu.addListener(_tick.tell);
     _workspaces.addListener(_tick.tell);
     _trash.addListener(_tick.tell);
+    // The files follow the trash (and once, at the first read, the trash follows the files).
+    _trashFiles = TrashFiles(library: _library, trash: _trash);
     preferences.addListener(_prefsChanged);
     final services = _services;
     if (services != null) {

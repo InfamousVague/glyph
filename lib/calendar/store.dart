@@ -2,15 +2,23 @@
 /// when that was and what went wrong, Google's access token and calendar list, and a Google sign-in in flight. All of
 /// it under `glyph-` keys (lib/core/stored.dart), so a reset forgets it; none of it travels. Which calendars there are
 /// is the account's (setup.dart).
+///
+/// Google's access token is the one thing here that opens something, so it is in the device's secure store
+/// (lib/sync/kept_secrets.dart, [googleAccessName]) rather than the ordinary storage since 2026-10-31 (decision 22);
+/// one kept in the storage by an older build is read once more and moved ([CalendarKept.adopt]).
 library;
 
+import 'dart:convert';
+
 import '../core/stored.dart';
+import '../sync/kept_secrets.dart';
 import 'event.dart';
 import 'google.dart';
+import 'setup.dart' show googleAccessName;
 
 const String _eventsKey = 'glyph-calendar-events';
 const String _statusKey = 'glyph-calendar-status';
-const String _tokenKey = 'glyph-google-token';
+const String _tokenKey = googleAccessName;
 const String _calendarsKey = 'glyph-google-calendars';
 const String _signInKey = 'glyph-google-signin';
 
@@ -37,9 +45,21 @@ typedef GoogleFlight = ({String state, String verifier, int at});
 /// This device's calendar memory, over [kept] (the app's [stored] when left out, asked each time, since the root
 /// puts the device's in place after launch).
 class CalendarKept {
-  CalendarKept([Stored Function()? kept]) : _kept = kept ?? (() => stored);
+  CalendarKept([Stored Function()? kept, KeptSecrets? secrets])
+      : _kept = kept ?? (() => stored),
+        _secrets = secrets ?? integrationSecrets;
 
   final Stored Function() _kept;
+  final KeptSecrets _secrets;
+
+  /// Reads the access token from the secure store, and moves one an older build kept in the storage there.
+  Future<void> adopt() async {
+    await _secrets.load([_tokenKey]);
+    final old = _kept().read<Object?>(_tokenKey, null);
+    if (old == null) return;
+    if (GoogleTokens.fromJson(old) != null && _secrets.peek(_tokenKey) == null) await _secrets.write(_tokenKey, jsonEncode(old));
+    _kept().write(_tokenKey, null);
+  }
 
   /// Every source's events, by source (`ical:<id>`, `google:<id>`).
   Map<String, List<CalendarEvent>> events() {
@@ -87,8 +107,23 @@ class CalendarKept {
     _kept().write(_statusKey, {for (final MapEntry(:key, :value) in all.entries) key: value.toJson()});
   }
 
-  GoogleTokens? get tokens => GoogleTokens.fromJson(_kept().read<Object?>(_tokenKey, null));
-  set tokens(GoogleTokens? next) => _kept().write(_tokenKey, next?.toJson());
+  /// The access token: from the secure store, or still from the storage before [adopt] has run.
+  GoogleTokens? get tokens {
+    final held = _secrets.peek(_tokenKey);
+    if (held != null) {
+      try {
+        return GoogleTokens.fromJson(jsonDecode(held));
+      } catch (_) {
+        return null;
+      }
+    }
+    return GoogleTokens.fromJson(_kept().read<Object?>(_tokenKey, null));
+  }
+
+  set tokens(GoogleTokens? next) {
+    _secrets.write(_tokenKey, next == null ? null : jsonEncode(next.toJson()));
+    if (_kept().read<Object?>(_tokenKey, null) != null) _kept().write(_tokenKey, null);
+  }
 
   List<GoogleCalendarInfo> get calendars {
     final raw = _kept().read<Object?>(_calendarsKey, null);

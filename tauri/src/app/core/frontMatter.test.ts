@@ -1,9 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { FENCE, FRONT_MATTER_LINES, frontMatterEnd, frontMatterOffset, frontMatterValue, quotedTitle, unquoted, withFrontMatterTitle, withFrontMatterValue } from './frontMatter.ts';
+import {
+  FENCE,
+  FRONT_MATTER_LINES,
+  LIBRARY_KEYS,
+  frontMatterEnd,
+  frontMatterOffset,
+  frontMatterValue,
+  isLibraryProperty,
+  quotedTitle,
+  ticketKeyValue,
+  unquoted,
+  withFrontMatterTitle,
+  withFrontMatterValue,
+} from './frontMatter.ts';
 import { noteTitle } from './store.ts';
 
 /** A block of `count` keys between two fences, then a line of words. */
 const keys = (count: number) => ['---', ...Array.from({ length: count }, (_, n) => `key${n}: value`), '---', 'Words'];
+
+describe('the one-block shape (docs/MARKDOWN_FIRST.md §11, 2026-10-31)', () => {
+  it('holds a list written as lines under its key, as Obsidian writes one, and nothing else that is not a key', () => {
+    expect(frontMatterEnd(['---', 'tags:', '  - a', '  - b', 'type: ticket', '---', 'Words'])).toBe(6);
+    expect(frontMatterEnd(['---', 'tags:', '-', '- c', '---'])).toBe(5);
+    expect(frontMatterEnd(['---', '- a', '---'])).toBe(0);
+    expect(frontMatterEnd(['---', 'tags:', '', '  - a', '---'])).toBe(0);
+    expect(frontMatterEnd(['---', 'tags:', '  -a', '---'])).toBe(0);
+    expect(noteTitle('---\naliases:\n  - Lisbon\n---\n# Trip')).toBe('Trip');
+  });
+
+  it('knows the library’s keys, which are never the page’s, except a ticket’s own id', () => {
+    expect([...LIBRARY_KEYS]).toEqual(['id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed']);
+    for (const key of LIBRARY_KEYS) expect(isLibraryProperty(key.toUpperCase(), 'x'), key).toBe(true);
+    expect(isLibraryProperty('id', 'GHO-12')).toBe(false);
+    expect(isLibraryProperty('id', '7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6')).toBe(true);
+    expect(isLibraryProperty('status', 'Done')).toBe(false);
+  });
+
+  it('reads the ticket’s key from issue:, or an id: that is one, never the library’s id', () => {
+    expect(ticketKeyValue('---\ntype: ticket\nid: GHO-12\n---\n')).toBe('GHO-12');
+    expect(ticketKeyValue('---\nid: 7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6\nissue: GHO-12\ntype: ticket\n---\n')).toBe('GHO-12');
+    expect(ticketKeyValue('---\nissue: gho-3\nid: GHO-12\n---\n')).toBe('gho-3');
+    expect(ticketKeyValue('---\nid: 7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6\ntype: ticket\n---\n')).toBeNull();
+    expect(ticketKeyValue('# Words\n')).toBeNull();
+  });
+});
 
 describe('what counts as front matter', () => {
   it('is a fence on the first line, keys or blank lines, and a fence to close it', () => {

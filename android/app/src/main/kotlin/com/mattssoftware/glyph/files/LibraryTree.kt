@@ -257,7 +257,10 @@ object LibraryTree {
     JSONObject().put("name", nameOf(context!!, treeUri(tree)) ?: "").put("markdown", count).put("obsidian", obsidian)
   }
 
-  /** Every `.md` under the folder, at any depth, but none with a dot name or in a dot folder: `[path, modified, size]`. */
+  /**
+   * Every `.md` under the folder, at any depth, but none with a dot name or in a dot folder - except under `.trash/`
+   * at the root, the trash (library/trash.rs), whose files are notes in the trash: `[path, modified, size]`.
+   */
   @JvmStatic
   fun list(tree: String): String = answer { JSONObject().put("entries", entries(tree)) }
 
@@ -269,7 +272,7 @@ object LibraryTree {
     while (pending.isNotEmpty()) {
       val (path, id) = pending.removeFirst()
       for (child in children(tree, path, id)) {
-        if (child.name.startsWith(".")) continue
+        if (child.name.startsWith(".") && !(path.isEmpty() && child.name == ".trash" && child.isDir)) continue
         val at = joined(path, child.name)
         if (child.isDir) {
           pending.add(at to child.id)

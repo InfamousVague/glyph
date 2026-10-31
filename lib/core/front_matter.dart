@@ -21,6 +21,70 @@ library;
 /// ([_fenceAt]); this is the same rule as a pattern, for whoever has a line in hand.
 final RegExp frontMatterFence = RegExp(r'^(---|\+\+\+)\s*$');
 
+// ---- the two shapes ------------------------------------------------------------------------------------------------
+//
+// Matt, 2026-10-31 (docs/MARKDOWN_FIRST.md §11): "one block, phased". A note with page properties has been on disk as
+// TWO blocks, the library's (`id`, `created`, `pinned`, `archived`, `source`: tauri/src-tauri/src/library) and then
+// the page's, which is the block at the top of the body these readers read. Other apps write ONE block with every
+// key in it, and that is where the files are going. So every reader here takes both: a body whose block holds the
+// library's keys beside the page's reads the same as one whose block is the page's alone. The library's keys are
+// never the page's properties ([isLibraryProperty]), and the one key the two shapes fight over, `id` (the library's
+// note id against a ticket's `id: GHO-12`), is read by [ticketKeyIn]: a ticket's key is `issue:`, the key other
+// tools use, or an `id:` that reads as one.
+
+/// The keys the library manages, which are never the page's properties: the five the Rust library writes today, and
+/// `updated` and `trashed`, which it is gaining (tauri/src-tauri/src/library/frontmatter.rs `LIBRARY_KEYS` is this list).
+const Set<String> libraryKeys = <String>{'id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed'};
+
+/// A ticket's key, `GHO-12`: its notebook's key, a dash, and a number from 1, up to six figures, in capitals
+/// (lib/core/properties.dart `issueKey` is this pattern).
+final RegExp ticketKeyPattern = RegExp(r'^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,5}$');
+
+/// Whether [text] is a ticket's key ([ticketKeyPattern]), in any case.
+bool isTicketKey(String? text) => text != null && ticketKeyPattern.hasMatch(text.trim().toUpperCase());
+
+/// Whether a property line is the library's and not the page's: its key is one of [libraryKeys], in any case, except
+/// an `id` whose value is a ticket's key, which is the page's however the file is shaped.
+bool isLibraryProperty(String key, String value) {
+  final low = key.trim().toLowerCase();
+  if (!libraryKeys.contains(low)) return false;
+  return low != 'id' || !isTicketKey(value);
+}
+
+/// A ticket's key as the front matter says it, as written: its `issue:`, else an `id:` that reads as a ticket's key.
+/// Null for neither, and for an `id:` that is the library's note id, whatever shape the block is in. The one reader
+/// of the ticket key: `ticketOf`, `ticketIdOf`, the link index and the notebook finder all ask here.
+String? ticketKeyIn(String body, FrontMatterSpan span) {
+  if (span.isEmpty) return null;
+  final issue = frontMatterValueIn(body, span, 'issue');
+  if (issue != null && issue.trim().isNotEmpty) return issue;
+  final id = frontMatterValueIn(body, span, 'id');
+  return id != null && isTicketKey(id) ? id : null;
+}
+
+/// [ticketKeyIn] for a body whose front matter has not been found yet.
+String? ticketKeyValue(String body) => ticketKeyIn(body, frontMatterSpan(body));
+
+/// The key a ticket's key is written under in [body]: `issue` where the block says `issue:` already, or where its
+/// `id:` is the library's and so not to be written over; `id`, as every build reads today, otherwise. Writing stays
+/// as it was for a two-block body; a one-block body never loses its note id to a ticket's key.
+String ticketKeyName(String body) {
+  final span = frontMatterSpan(body);
+  if (span.isEmpty) return 'id';
+  if (frontMatterValueIn(body, span, 'issue') != null) return 'issue';
+  final id = frontMatterValueIn(body, span, 'id');
+  return id != null && id.trim().isNotEmpty && !isTicketKey(id) ? 'issue' : 'id';
+}
+
+/// The writers' switch (docs/MARKDOWN_FIRST.md §9 slice 7).
+abstract final class FrontMatter {
+  /// Whether the writers put the library's keys and the page's in ONE block, merging a body's two blocks into one
+  /// where it has two (`withFrontMatterValue`, lib/core/properties.dart; the Rust library's `ONE_BLOCK` is the same
+  /// switch for the file). OFF, and nothing ships with it on in this slice: it goes on a release after every device
+  /// reads both shapes. A test sets it either way.
+  static bool oneBlock = false;
+}
+
 /// The most lines front matter may take, both fences included (`FRONT_MATTER_LINES`).
 const int frontMatterLines = 40;
 
@@ -77,15 +141,34 @@ bool _heldAt(String text, int from, int to) {
   return blankIn(text, from, to);
 }
 
+/// Whether `text[from..to)` is a list's item under a key, `  - bugbash` (`^\s*-(?:\s|$)`): the lines Obsidian writes a
+/// `tags:` list as, one under the other, which a block holds only under a `key:` line or another item of its.
+bool _itemAt(String text, int from, int to) {
+  var i = from;
+  while (i < to && _space(text.codeUnitAt(i))) {
+    i += 1;
+  }
+  if (i >= to || text.codeUnitAt(i) != 0x2D) return false;
+  return i + 1 >= to || _space(text.codeUnitAt(i + 1));
+}
+
+/// Whether `text[from..to)` is a `key:` line (`^\s*[\w.-]+\s*:`), and not blank.
+bool _keyAt(String text, int from, int to) => !blankIn(text, from, to) && _heldAt(text, from, to);
+
 /// Where a note's front matter ends: the index of the first line after its closing fence, or 0 where it has none.
 /// So `lines.sublist(frontMatterEnd(lines))` is always the note's words.
 int frontMatterEnd(List<String> lines) {
   if (lines.isEmpty || !_fenceAt(lines[0], 0, lines[0].length)) return 0;
   final most = lines.length < frontMatterLines ? lines.length : frontMatterLines;
+  var underKey = false;
   for (var n = 1; n < most; n += 1) {
     final line = lines[n];
     if (_fenceAt(line, 0, line.length)) return n + 1;
-    if (!_heldAt(line, 0, line.length)) return 0;
+    if (_heldAt(line, 0, line.length)) {
+      underKey = _keyAt(line, 0, line.length);
+    } else if (!underKey || !_itemAt(line, 0, line.length)) {
+      return 0;
+    }
   }
   return 0;
 }
@@ -121,12 +204,18 @@ FrontMatterSpan frontMatterSpan(String body) {
   var end = body.indexOf('\n');
   // One line alone has no fence to close it.
   if (end < 0 || !_fenceAt(body, 0, end)) return FrontMatterSpan.none;
+  var underKey = false;
   for (var n = 1; n < frontMatterLines; n += 1) {
     final from = end + 1;
     final next = body.indexOf('\n', from);
     final to = next < 0 ? length : next;
     if (_fenceAt(body, from, to)) return FrontMatterSpan._(n + 1, from, next < 0 ? length : next + 1);
-    if (next < 0 || !_heldAt(body, from, to)) return FrontMatterSpan.none;
+    if (next < 0) return FrontMatterSpan.none;
+    if (_heldAt(body, from, to)) {
+      underKey = _keyAt(body, from, to);
+    } else if (!underKey || !_itemAt(body, from, to)) {
+      return FrontMatterSpan.none;
+    }
     end = next;
   }
   return FrontMatterSpan.none;

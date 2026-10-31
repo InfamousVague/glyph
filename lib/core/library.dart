@@ -107,6 +107,17 @@ abstract class NoteLibrary implements ValueListenable<List<Note>> {
   /// Puts the note in the archive, or brings it out again (`setNoteArchived`). Not an edit either.
   Future<void> archive(String id, {required bool archived});
 
+  /// Moves the note's file into the trash folder, `.trash/<its path>`, versions and all (library/trash.rs
+  /// `trash_note`; Matt, 2026-10-31: "a `.trash/` folder, as Obsidian does"). Not an edit: the note keeps its time
+  /// and revision, and it stays in the list, with [Note.inTrash] saying where it is. One already there, or gone, is
+  /// left as it is. The trash itself (which note went in when) is still the preference (lib/core/kept_trash.dart);
+  /// lib/core/trash_files.dart keeps the two in step.
+  Future<void> putInTrash(String id);
+
+  /// Moves the note's file back out of the trash folder to the path it had, or into `Inbox/` when that folder is
+  /// gone (`restore_note`). One not in the trash, or gone, is left as it is.
+  Future<void> takeFromTrash(String id);
+
   /// Deletes the note for good (`deleteNote`): what emptying the trash does. One already gone is not an error.
   Future<void> destroy(String id);
 

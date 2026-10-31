@@ -90,7 +90,7 @@ String newTicketBody(String title, {required String? id, required List<String> s
   var body = words ?? '# ${jsTrim(title)}\n\n';
   final type = frontMatterValue(body, 'type');
   if (!isTicketType(type)) body = withProperty(body, 'type', 'ticket');
-  if (id != null && id.isNotEmpty && ticketIdOf(body) == null) body = withProperty(body, 'id', id);
+  if (id != null && id.isNotEmpty && ticketIdOf(body) == null) body = withTicketKey(body, id);
   final status = jsTrim(frontMatterValue(body, 'status') ?? '');
   if (status.isEmpty || !_inWorkflow(status, statuses)) body = withProperty(body, 'status', firstOpenStatus(statuses));
   // Its maker watches it (lib/book/ticket_watchers.dart; Matt, 2026-10-31), where the template named nobody.
@@ -129,7 +129,7 @@ Note? Function(Note note) notebookFinder(Iterable<Note> notes) {
   return (note) {
     final place = placeOf(index, note);
     if (place != null) return place.book;
-    final id = issueKeyOf(NoteFacts.of(note).value('id'));
+    final id = issueKeyOf(NoteFacts.of(note).ticketKey);
     return id != null ? keyed[id.substring(0, id.lastIndexOf('-'))] : null;
   };
 }
