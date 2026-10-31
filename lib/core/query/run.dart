@@ -537,9 +537,10 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [Fi
   );
 }
 
-/// Some values added up: time spent as time (`3h 20m` and `45m` are `4h 5m`; lib/core/durations.dart), anything else
-/// as a sum would add it.
-String _totalOf(List<String> texts) => spentTotal(texts) ?? totalOf(texts) ?? '0';
+/// Some values of [field] added up: a ticket's `spent:` as time (`3h 20m` and `45m` are `4h 5m`;
+/// lib/core/durations.dart), anything else as a sum would add it, an estimate's `4h` among them (its points or hours,
+/// lib/core/planning).
+String _totalOf(String field, List<String> texts) => (field.toLowerCase() == 'spent' ? spentTotal(texts) : null) ?? totalOf(texts) ?? '0';
 
 /// The totals of [fields] over [records], each added as a sum would be.
 List<Total> _totalsOf(List<String> fields, List<QueryRecord> records, [FieldLook look = valueOf]) => [
@@ -547,7 +548,7 @@ List<Total> _totalsOf(List<String> fields, List<QueryRecord> records, [FieldLook
         Total(
           field: field,
           label: fieldLabel(field),
-          text: _totalOf([
+          text: _totalOf(field, [
             for (final record in records)
               if (look(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
           ]),

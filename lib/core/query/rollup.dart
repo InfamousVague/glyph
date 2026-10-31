@@ -74,8 +74,10 @@ Value aggregate(Measure measure, List<QueryRecord> records, FieldLook look) {
         sum += number;
         texts.add(value is NumberValue ? value.text : (value as TextValue).text);
       }
-      // Time spent is added up as time (`3h 20m` and `45m` are `4h 5m`; lib/core/durations.dart).
-      if (spentTotal(texts) case final spent?) return NumberValue(sum, spent);
+      // A ticket's time spent is added up as time (`3h 20m` and `45m` are `4h 5m`; lib/core/durations.dart).
+      if (field.toLowerCase() == 'spent') {
+        if (spentTotal(texts) case final spent?) return NumberValue(sum, spent);
+      }
       // Written as a total writes it, its currency and its commas kept (`$1,200` and `$300` are `$1,500`).
       final written = texts.isEmpty ? null : totalOf(texts);
       return NumberValue(sum, written != null && writtenNumber(written) == sum ? written : plainNumber(sum));
