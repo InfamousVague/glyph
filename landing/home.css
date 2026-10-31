@@ -7,8 +7,11 @@
  * 1 and version 8"). From Air (/1/): the feel - one centred column, the eyebrow in its section's hue, a big tight
  * heading over one lead paragraph, no rules between sections, a thin glass bar. From Slides (/8/): the presentation -
  * every section is a slide at least a screen tall that the page snaps to as you scroll, with a dot for each down the
- * right. The snap is `proximity`, not Slides' `mandatory`: the long sections (For teams, Claude, Plan, Your files) run
- * past a screen and must scroll through freely, and a finger on a phone must never be caught.
+ * right. The snap is `mandatory`, as Slides had it: `proximity` was tried first (2026-10-31) and on the live page it
+ * hardly ever snapped, since a scroll rarely ends within the browser's reach of a section's start when most sections
+ * are taller than a screen (Matt: "the slides are not snapping on the website"). Mandatory still lets the long
+ * sections (For teams, Claude, Plan, Your files) scroll through: a snap area that covers the whole screen makes every
+ * position in it a resting one, so nothing is caught, on a phone or anywhere.
  */
 
 :root {
@@ -20,7 +23,7 @@
   --bar: calc(3.75rem + 1px);
   scroll-behavior: smooth;
   scroll-padding-top: var(--bar);
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
 }
 
 body {
@@ -144,7 +147,7 @@ code {
 /* ---- the slides: every section a screen the page settles on, and a dot for each down the right ------------------ */
 
 /* A section is at least the screen under the bar, its words and pictures centred in it when they are shorter; the
-   long ones simply run on, and `proximity` on the root lets them. */
+   long ones simply run on, since a snap area taller than the screen can rest at any point of itself. */
 main > section {
   display: grid;
   /* One track no wider than the page: a grid item is as wide as its content by default, and the rows that scroll
@@ -554,6 +557,12 @@ main > section {
     padding: 0;
     overflow: visible;
   }
+
+  /* No longer a row that scrolls, so its cards must not be snap areas: left aligned they would belong to the page,
+     the nearest scroller, and the page would settle on a card's top inside the section rather than on the section. */
+  .shelf li {
+    scroll-snap-align: none;
+  }
 }
 
 .points {
@@ -777,6 +786,10 @@ main > section {
     margin: 0;
     padding: 0;
     overflow: visible;
+  }
+
+  .marks li {
+    scroll-snap-align: none;
   }
 }
 
@@ -1193,6 +1206,10 @@ main > section {
     margin: 0;
     padding: 0;
     overflow: visible;
+  }
+
+  .shots li {
+    scroll-snap-align: none;
   }
 }
 

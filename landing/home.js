@@ -144,6 +144,51 @@
     });
   }
 
+  // ---- paging by keyboard ----------------------------------------------------------------------------------------
+
+  /*
+   * Space, Shift+Space, Page Down and Page Up move a section at a time, as the dots do (Matt, 2026-10-31: "the slides
+   * are not snapping"): a section shorter than the screen is left for the next one's start; a taller one is paged
+   * through by most of a screen, its tail shown whole before the next section comes. Only when nothing that takes the
+   * key has focus, so a link, a button or the file tree keep theirs. Smooth or not follows the page's own
+   * scroll-behavior, which reduced motion turns off (home.css).
+   */
+  var sections = $$('main > section[id]');
+  document.addEventListener('keydown', function (event) {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    var down = event.key === 'PageDown' || (event.key === ' ' && !event.shiftKey);
+    var up = event.key === 'PageUp' || (event.key === ' ' && event.shiftKey);
+    if (!down && !up) return;
+    var target = event.target;
+    if (target && target !== document.body && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY)$/.test(target.tagName))) return;
+    var navBar = $('.bar');
+    var bar = navBar ? navBar.getBoundingClientRect().height : 0;
+    var y = window.scrollY;
+    var height = window.innerHeight - bar;
+    // Each section's start as a scroll position: its top under the bar.
+    var tops = sections.map(function (section) {
+      return Math.round(section.getBoundingClientRect().top + y - bar);
+    });
+    var at = 0;
+    for (var i = 0; i < tops.length; i++) if (tops[i] <= y + 1) at = i;
+    var end = at + 1 < tops.length ? tops[at + 1] : Math.round(document.documentElement.scrollHeight - window.innerHeight + bar);
+    var next = null;
+    if (down) {
+      // Most of a screen within a long section, then its tail whole, then the next section's start.
+      if (end - y > height * 1.5) next = y + Math.round(height * 0.85);
+      else if (end - y > height + 1) next = end - height;
+      else if (at + 1 < tops.length) next = tops[at + 1];
+    } else if (y > tops[at] + 1) {
+      next = y - tops[at] > height * 1.5 ? y - Math.round(height * 0.85) : tops[at];
+    } else if (at > 0) {
+      // Into the section before: its tail where it is taller than the screen, else its start.
+      next = tops[at] - tops[at - 1] > height + 1 ? tops[at] - height : tops[at - 1];
+    }
+    if (next == null) return;
+    event.preventDefault();
+    window.scrollTo({ top: Math.max(0, next) });
+  });
+
   // ---- the site's page -------------------------------------------------------------------------------------------
 
   var THEMES = { light: ['light'], dark: ['dark'], dawn: ['light', 'dawn'], boreal: ['dark', 'boreal'], ember: ['dark', 'ember'] };
