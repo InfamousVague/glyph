@@ -32,6 +32,7 @@
 /// page's `Array.sort` leaves them; Dart's own sort promises no such thing.
 library;
 
+import '../durations.dart' show spentTotal;
 import '../planning/cycles.dart' show Cycle;
 import '../planning/history.dart' show StatusPast;
 import '../planning/planning.dart' show isMilestoneType;
@@ -543,17 +544,21 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [Fi
   );
 }
 
+/// Some values of [field] added up: a ticket's `spent:` as time (`3h 20m` and `45m` are `4h 5m`;
+/// lib/core/durations.dart), anything else as a sum would add it, an estimate's `4h` among them (its points or hours,
+/// lib/core/planning).
+String _totalOf(String field, List<String> texts) => (field.toLowerCase() == 'spent' ? spentTotal(texts) : null) ?? totalOf(texts) ?? '0';
+
 /// The totals of [fields] over [records], each added as a sum would be.
 List<Total> _totalsOf(List<String> fields, List<QueryRecord> records, [FieldLook look = valueOf]) => [
       for (final field in fields)
         Total(
           field: field,
           label: fieldLabel(field),
-          text: totalOf([
-                for (final record in records)
-                  if (look(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
-              ]) ??
-              '0',
+          text: _totalOf(field, [
+            for (final record in records)
+              if (look(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
+          ]),
         ),
     ];
 

@@ -61,11 +61,12 @@ import '../queries/query_look.dart';
 import 'ticket_follow.dart';
 import 'ticket_planning.dart';
 import 'ticket_rows.dart';
+import 'ticket_work.dart';
 
 /// What the screen hands the editor for a ticket's panel and its keys: the library's tickets, read when they are
 /// drawn (`TicketOptions`).
 class TicketOptions {
-  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.planning, this.follow, this.labels, this.labelColours, this.setLabelColour});
+  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.planning, this.follow, this.labels, this.labelColours, this.setLabelColour, this.work});
 
   /// The workflow this note's status moves through: its notebook's (lib/book/tickets.dart), or the default.
   final List<String> Function() statuses;
@@ -102,6 +103,9 @@ class TicketOptions {
   final List<String> Function()? labels;
   final Map<String, String> Function()? labelColours;
   final void Function(String label, String? hue)? setLabelColour;
+
+  /// Its time and its pull requests, under its rows (ticket_work.dart; Matt, 2026-10-31). Absent, neither is shown.
+  final TicketWorkOptions? work;
   /// Its planning (lib/core/query/planning.dart; Matt, 2026-10-31): its cycle and the cycles it could move to, how
   /// long it has sat, an epic's progress, the milestones. Absent, its Cycle and Milestone rows are the words written.
   final TicketPlanning? Function()? planning;
@@ -859,6 +863,7 @@ class _TicketPanelState extends State<TicketPanel> {
                     ],
                   ),
                 ),
+                if (options?.work case final work?) TicketWork(look: look, front: widget.front, editable: editable, options: work, names: names),
                 if (children.isNotEmpty) _subTickets(children, adds: adds, epic: ticket.epic ? planning?.progress : null),
                 // Who watches it, its history, its possible duplicates and Merge into… (ticket_follow.dart).
                 if (options?.follow case final follow?)

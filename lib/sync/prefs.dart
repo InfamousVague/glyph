@@ -30,7 +30,9 @@ import 'package:flutter/foundation.dart';
 import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../ai/summary_handoff.dart' show mergedHandoffs, summaryHandoffsKey;
+import '../book/rule_runs.dart' show chosenSweepClaim, ruleBlockedKey, ruleRunsKey, ruleSweepKey;
 import '../book/ticket_digest.dart' show chosenDigestClaim, ticketDigestKey, ticketDigestSettingsKey;
+import '../book/timers.dart' show ticketTimersKey;
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../plugins/lovart/banner_run.dart' show bannerClaimKey, chosenBannerClaim;
@@ -125,6 +127,14 @@ const List<String> syncedPrefs = [
   // devices never spend Lovart credits on the same notes. Where both changed it, a live claim of another device's
   // that the account held stands (`chosenBannerClaim`).
   bannerClaimKey,
+  // A notebook's rules for its tickets (lib/book/rule_runs.dart; Matt, 2026-10-31): the runs started, by id, so no
+  // device runs one twice; when each ticket the clock's rules watch was first found blocked; and which device runs the
+  // clock's rules, claimed as the header images' run is (`chosenSweepClaim`). And the timers running on tickets, one a
+  // device (lib/book/timers.dart), merged a device at a time.
+  ruleRunsKey,
+  ruleBlockedKey,
+  ruleSweepKey,
+  ticketTimersKey,
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.
@@ -283,6 +293,14 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
     } else if (key == bannerClaimKey) {
       // A run claimed on another device first is that device's to make.
       final chosen = chosenBannerClaim(mine[key], theirs[key], now: now);
+      if (chosen == null) {
+        out.remove(key);
+      } else {
+        out[key] = chosen;
+      }
+    } else if (key == ruleSweepKey) {
+      // The clock's rules claimed on another device first are that device's to run.
+      final chosen = chosenSweepClaim(mine[key], theirs[key], now: now);
       if (chosen == null) {
         out.remove(key);
       } else {

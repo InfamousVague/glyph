@@ -23,6 +23,7 @@
 /// `columns: title, open`, `total: open` and a chart's `y: sum(open)` all read it.
 library;
 
+import '../durations.dart' show spentTotal;
 import '../properties.dart' show StatusCategory, linkTargets;
 import '../sums.dart' show leadingNumber, totalOf, writtenNumber;
 import 'read.dart';
@@ -72,6 +73,10 @@ Value aggregate(Measure measure, List<QueryRecord> records, FieldLook look) {
         if (number == null) continue;
         sum += number;
         texts.add(value is NumberValue ? value.text : (value as TextValue).text);
+      }
+      // A ticket's time spent is added up as time (`3h 20m` and `45m` are `4h 5m`; lib/core/durations.dart).
+      if (field.toLowerCase() == 'spent') {
+        if (spentTotal(texts) case final spent?) return NumberValue(sum, spent);
       }
       // Written as a total writes it, its currency and its commas kept (`$1,200` and `$300` are `$1,500`).
       final written = texts.isEmpty ? null : totalOf(texts);

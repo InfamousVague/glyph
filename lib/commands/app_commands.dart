@@ -77,7 +77,7 @@ List<PaletteNote> paletteJournals(List<Note> notes) {
 /// workspaces, and the two preferences a command's words turn on. [blanks] is how many blanks the open note's
 /// editor counted, once there is one to count them. [settings] is what there is to find in Settings and among the
 /// plugins (settings_places.dart `settingsIndex`), made only once something is typed.
-PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0, List<PaletteNamed> smartNotebooks = const [], ValueGetter<SettingsIndex>? settings}) {
+PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0, List<PaletteNamed> smartNotebooks = const [], ValueGetter<SettingsIndex>? settings, List<PaletteTicket> tickets = const [], PaletteTicket? timing}) {
   final screen = shell.screen;
   Note? open;
   if (screen is ScreenNote) {
@@ -108,6 +108,8 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     // Simple or advanced (GHST-103): the palette's own rule says which rows simple mode keeps.
     simple: prefs.simple,
     focusMode: prefs.focusMode,
+    tickets: tickets,
+    timing: timing,
     settings: settings,
   );
 }
@@ -161,6 +163,8 @@ PaletteDoing paletteDoingFor({
   VoidCallback? triage,
   void Function(String page, {String? setting})? settingsAt,
   void Function(String id)? marketPlugin,
+  void Function(String noteId)? startTimer,
+  VoidCallback? stopTimer,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -174,6 +178,8 @@ PaletteDoing paletteDoingFor({
     speak: speak,
     speakInto: speakInto,
     closeTab: shell.closeTab,
+    startTimer: startTimer,
+    stopTimer: stopTimer,
     showList: shell.backToList,
     browseNotes: shell.showAllNotes,
     back: shell.goBack,

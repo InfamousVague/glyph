@@ -30,7 +30,10 @@ const List<String> serverKinds = ['invite', 'invite-accepted', 'invite-declined'
 /// (lib/verified/verified.dart; Matt, 2026-10-30: "add all 12"), is the app's own and has no web counterpart yet.
 /// `ticket-digest` is the morning's word on a person's tickets, due, overdue and blocked (lib/book/ticket_digest.dart;
 /// Matt, 2026-10-31), written by the one device that sends it.
-const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'form-answer', 'page-expired', 'ticket-digest'];
+const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'form-answer', 'page-expired', 'ticket-digest', ticketRuleKind];
+
+/// A ticket's rule told the person something (lib/book/rule_runs.dart `notify`; Matt, 2026-10-31).
+const String ticketRuleKind = 'ticket-rule';
 
 /// Written by the service on a member's word, to another member of the organization, sealed under the organization
 /// key (lib/mentions/mention_notices.dart; server/src/notifications.rs): who sent it and the organization ride in the
@@ -69,6 +72,7 @@ const Map<String, String> kindHues = {
   'mention': 'violet',
   'ticket': 'violet',
   'ticket-digest': 'amber',
+  ticketRuleKind: 'violet',
 };
 
 bool isKind(Object? value) => value is String && kinds.contains(value);
@@ -107,6 +111,8 @@ const Map<String, String> _categoryOf = {
   // A ticket the person watches, and their morning's tickets: their own business, as a mention is.
   'ticket': 'mentions',
   'ticket-digest': 'mentions',
+  // A rule the person wrote told them: their own business, as a mention is, under Mentions.
+  ticketRuleKind: 'mentions',
 };
 
 /// The category of a kind this build knows: one of [categories], or `invites`.
@@ -340,6 +346,8 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
       };
     case 'ticket-digest':
       return open('ticket-digest') ? 'Your tickets today: ${opened!.title}' : 'Your tickets for today';
+    case ticketRuleKind:
+      return open(ticketRuleKind) ? 'A rule on ${opened!.title}' : 'A rule on a ticket';
   }
   // A kind this build does not know is not drawn (`listed`); asked for anyway, it has no words.
   return '';
@@ -349,7 +357,7 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
 /// (`detailOf`).
 String? detailOf(NotificationDetails? opened) {
   if (opened == null) return null;
-  if (opened.kind == 'note-edited' || opened.kind == 'note-appended' || opened.kind == 'journal-entry' || opened.kind == 'rule-added' || opened.kind == 'mention' || opened.kind == 'ticket' || opened.kind == 'ticket-digest') {
+  if (opened.kind == 'note-edited' || opened.kind == 'note-appended' || opened.kind == 'journal-entry' || opened.kind == 'rule-added' || opened.kind == 'mention' || opened.kind == 'ticket' || opened.kind == 'ticket-digest' || opened.kind == ticketRuleKind) {
     final first = opened.first;
     return first == null || first.isEmpty ? null : first;
   }

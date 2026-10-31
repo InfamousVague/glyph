@@ -25,6 +25,7 @@ import '../core/days.dart' show isoDay;
 import '../core/planning/history.dart' show StatusPast;
 import '../core/query/planning.dart' show PlanningIndex, ticketPlanningOf;
 import '../core/query/records.dart' show QueryNote, RecordCache, libraryOf, recordCache;
+import '../editor/tickets/ticket_work.dart' show TicketWorkOptions;
 import '../editor/tickets/tickets.dart' show TicketFollow, TicketOptions;
 import '../notes/note_templates.dart';
 import '../notes/own_templates.dart';
@@ -209,7 +210,7 @@ class LibraryReads {
   ///
   /// And its sub-tickets, Add sub-ticket ([addSub], the root's), and the rings a Blocked by or a Parent would make,
   /// refused (lib/book/ticket_links.dart).
-  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub, TicketFollow? follow, void Function(String label, String? hue)? labelColour}) {
+  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub, TicketFollow? follow, void Function(String label, String? hue)? labelColour, TicketWorkOptions? work}) {
     TicketEntry? self() => entries.where((entry) => entry.note.id == noteId).firstOrNull;
     Note? notebook() {
       for (final note in notes) {
@@ -245,6 +246,8 @@ class LibraryReads {
       setLabelColour: labelColour,
       // Its watchers, history, possible duplicates and merge (lib/editor/tickets/ticket_follow.dart).
       follow: follow,
+      // Its time and its pull requests (lib/editor/tickets/ticket_work.dart).
+      work: work,
       // Its cycle, its age, its epic's progress, the milestones (lib/core/query/planning.dart).
       planning: () => ticketPlanningOf(plan, noteId),
       problem: (key, value) {
