@@ -32,14 +32,24 @@ struct Manifest {
     moved_from: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     moved_notes: Option<usize>,
+    /// Which attachments the folder holds under it (`ATTACHMENTS_LAYOUT`): a record of the layout for whoever reads
+    /// the folder, not a gate on the move, which runs at every open (library/attachments.rs says why). Absent for a
+    /// library before 2.3.94, and for one reached through Android's picker, whose attachments stay in the app's storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    attachments: Option<u32>,
 }
+
+/// The attachment layout this build writes under a library's folder: 1 is the pictures (`image/`), with the files,
+/// films and recordings still beside the app's data (attachments.rs `Kind::settled`). Every build reading
+/// `library.json` ignores a key it does not know.
+pub const ATTACHMENTS_LAYOUT: u32 = 1;
 
 /// Writes a fresh `library.json` into `glyph` unless one is there: the
 /// library's birth, stamped now.
 pub(super) fn ensure_manifest(glyph: &Path) -> Result<()> {
     let manifest = glyph.join("library.json");
     if !manifest.exists() {
-        let fresh = Manifest { version: 1, created: iso(now_ms()), moved_from: None, moved_notes: None };
+        let fresh = Manifest { version: 1, created: iso(now_ms()), moved_from: None, moved_notes: None, attachments: None };
         crate::fsx::write_atomically(&manifest, serde_json::to_string_pretty(&fresh).unwrap_or_default().as_bytes())?;
     }
     Ok(())
@@ -128,6 +138,31 @@ impl Library {
         crate::fsx::write_atomically(&self.vault.glyph_dir().join("library.json"), serde_json::to_string_pretty(&manifest).unwrap_or_default().as_bytes())?;
         Ok(())
     }
+
+    /// Records the attachment layout the folder holds (`ATTACHMENTS_LAYOUT`), once: a library with a folder of its
+    /// own only, and only when the record is not there yet, so a folder in iCloud or Dropbox is not rewritten at
+    /// every open.
+    pub fn mark_attachments(&self) -> Result<()> {
+        if self.vault.folder().is_none() {
+            return Ok(());
+        }
+        let mut manifest = self.manifest();
+        if manifest.attachments == Some(ATTACHMENTS_LAYOUT) {
+            return Ok(());
+        }
+        if manifest.version == 0 {
+            manifest.version = 1;
+            manifest.created = iso(now_ms());
+        }
+        manifest.attachments = Some(ATTACHMENTS_LAYOUT);
+        crate::fsx::write_atomically(&self.vault.glyph_dir().join("library.json"), serde_json::to_string_pretty(&manifest).unwrap_or_default().as_bytes())?;
+        Ok(())
+    }
+
+    /// The attachment layout `library.json` records, if any.
+    pub fn attachments_layout(&self) -> Option<u32> {
+        self.manifest().attachments
+    }
 }
 
 #[cfg(test)]
@@ -184,5 +219,25 @@ mod tests {
         assert!(first.contains("\"version\": 1") && first.contains("\"created\": \"20"), "{first}");
         ensure_manifest(&glyph).unwrap();
         assert_eq!(std::fs::read_to_string(glyph.join("library.json")).unwrap(), first);
+    }
+
+    #[test]
+    fn the_attachment_layout_is_recorded_once_for_a_library_with_a_folder_and_never_for_a_tree() {
+        let data = TempDir::new("move-in-attachments");
+        let library = Library::open_fs(&data.join("Library")).unwrap();
+        assert_eq!(library.attachments_layout(), None, "a library before 2.3.94 has no record");
+        library.mark_attachments().unwrap();
+        assert_eq!(library.attachments_layout(), Some(ATTACHMENTS_LAYOUT));
+        let text = std::fs::read_to_string(data.join("Library/.glyph/library.json")).unwrap();
+        assert!(text.contains("\"attachments\": 1") && text.contains("\"version\": 1"), "{text}");
+        library.mark_attachments().unwrap();
+        assert_eq!(std::fs::read_to_string(data.join("Library/.glyph/library.json")).unwrap(), text, "recorded once, so a folder in iCloud is not rewritten at every open");
+        // A folder reached through Android's picker keeps its attachments in the app's storage, and says nothing.
+        let docs = crate::library::tree::FolderDocuments(data.join("tree"));
+        std::fs::create_dir_all(data.join("tree")).unwrap();
+        let vault = crate::library::tree::TreeVault::new(docs, &data.join("trees/k")).unwrap();
+        let tree = Library::open_chosen(Box::new(vault), &data.join("index/k.sqlite")).unwrap();
+        tree.mark_attachments().unwrap();
+        assert_eq!(tree.attachments_layout(), None);
     }
 }

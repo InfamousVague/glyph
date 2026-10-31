@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/attachment_refs.dart';
 import 'package:ghost_md/core/shared_files.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/files/attachment_places.dart';
 import 'package:ghost_md/files/attachment_store.dart';
 import 'package:ghost_md/files/files_kit.dart';
 import 'package:ghost_md/files/phone_documents.dart';
@@ -128,6 +129,29 @@ void main() {
     // Asked again, nothing is read twice.
     await it.pass.readExisting();
     expect(it.pass.progress, const ReadProgress(done: 0, total: 0));
+  });
+
+  test('a picture under the library is found and read there, and one from an older build beside it', () async {
+    final it = kit();
+    it.texts.follow(AttachmentPlaces(image: ['${data.path}/Library/image', '${data.path}/images'], file: ['${data.path}/images/files'], video: ['${data.path}/video'], recording: ['${data.path}/recordings']));
+    const older = 'c1b2c3d4-0000-4000-8000-000000000003.jpg';
+    File('${data.path}/Library/image/$picture')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync([0xff, 0xd8]);
+    File('${data.path}/images/$older')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync([0xff, 0xd8]);
+    expect(await it.pathOf(const ReadThing.picture(picture)), '${data.path}/Library/image/$picture');
+    expect(await it.pathOf(const ReadThing.picture(older)), '${data.path}/images/$older');
+    expect(await it.pathOf(const ReadThing.picture('e1b2c3d4-0000-4000-8000-000000000005.jpg')), isNull);
+    notes.add((id: 'dinner', body: '# Dinner\n\n![](image/$picture)\n![](image/$older)\n'));
+    device.words[picture] = ['TOTAL 42.10'];
+    device.words[older] = ['OLDER'];
+    await it.pass.readExisting();
+    await idle(it);
+    expect(it.pass.progress, const ReadProgress(done: 2, total: 2));
+    expect(File('${data.path}/Library/image/$picture.ocr.txt').readAsStringSync(), 'TOTAL 42.10', reason: 'the words go beside the picture, under the library');
+    expect(File('${data.path}/Library/image/$older.ocr.txt').readAsStringSync(), 'OLDER', reason: 'and where the pictures are written now, for the core to gather the picture to');
   });
 
   test('a device that reads nothing has the switch off and reads nothing', () async {
