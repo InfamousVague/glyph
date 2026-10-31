@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/days.dart' show isIsoDay;
 import 'package:ghost_md/core/front_matter.dart';
 import 'package:ghost_md/core/properties.dart';
 
@@ -211,6 +212,49 @@ void main() {
       body = withProperty(body, 'assignee', '@sam');
       expect(frontMatterEnd(body.split('\n')), 6);
       expect(body, '---\ntitle: "Fix it"\nblocked-by: ["[[GHO-9]]", "[[GHO-10]]"]\nlabels: [bug]\nassignee: "@sam"\n---\n# Fix it');
+    });
+  });
+
+  group('a ticket’s status written with its days (docs/MARKDOWN_FIRST.md §5 gap 10)', () {
+    const day = '2026-11-06';
+
+    test('writes status-since: the day the status is not the one it had, and leaves it where it is', () {
+      final moved = withStatus(ticket, 'In review', today: day);
+      expect(frontMatterValue(moved, 'status'), 'In review');
+      expect(frontMatterValue(moved, 'status-since'), day);
+      expect(moved, ticket.replaceFirst('status: In progress', 'status: In review').replaceFirst('\n---\n# Fix', '\nstatus-since: $day\n---\n# Fix'));
+      // The same status again, in another case: the day it took it stands.
+      expect(withStatus(moved, 'in review', today: '2026-11-09'), moved.replaceFirst('status: In review', 'status: in review'));
+      expect(withStatus(ticket, 'In progress', today: day), ticket, reason: 'a status it has already writes no day');
+    });
+
+    test('writes done: the day it is finished, keeps it across done statuses, and takes it off when it is reopened', () {
+      final done = withStatus(ticket, 'Done', today: day);
+      expect(frontMatterValue(done, 'done'), day);
+      expect(frontMatterValue(done, 'status-since'), day);
+      final closed = withStatus(done, 'Closed', today: '2026-11-07');
+      expect(frontMatterValue(closed, 'done'), day, reason: 'the first day it was finished');
+      expect(frontMatterValue(closed, 'status-since'), '2026-11-07');
+      final reopened = withStatus(closed, 'To do', today: '2026-11-08');
+      expect(frontMatterValue(reopened, 'done'), isNull);
+      expect(frontMatterValue(reopened, 'status-since'), '2026-11-08');
+      // A workflow of its own places a status the words do not know.
+      expect(frontMatterValue(withStatus(ticket, 'Live', today: day, workflow: ['Ideas', 'Building', 'Live']), 'done'), day);
+      expect(frontMatterValue(withStatus(ticket, 'Live', today: day), 'done'), isNull);
+    });
+
+    test('takes the status off with its days, and writes today where no day is given', () {
+      final gone = withStatus(withStatus(ticket, 'Done', today: day), null);
+      expect(frontMatterValue(gone, 'status'), isNull);
+      expect(frontMatterValue(gone, 'status-since'), isNull);
+      expect(frontMatterValue(gone, 'done'), isNull);
+      expect(isIsoDay(frontMatterValue(withStatus(ticket, 'Done'), 'done') ?? ''), isTrue);
+    });
+
+    test('is the way a named field writes a ticket’s status, and only a ticket’s', () {
+      expect(withTicketProperty(ticket, 'Status', 'Done', today: day), withStatus(ticket, 'Done', today: day));
+      expect(withTicketProperty(ticket, 'assignee', 'Ana'), withProperty(ticket, 'assignee', 'Ana'));
+      expect(withTicketProperty('---\nstatus: Draft\n---\n# A note', 'status', 'Final', today: day), '---\nstatus: Final\n---\n# A note');
     });
   });
 

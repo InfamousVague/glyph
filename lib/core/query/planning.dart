@@ -143,7 +143,7 @@ class PlanningIndex {
   });
 
   /// The day a ticket took its status.
-  HistoryDay sinceOf(QueryRecord record) => statusSince(past, record.noteId, record.ticket?.status, updated: record.updated);
+  HistoryDay sinceOf(QueryRecord record) => statusSince(past, record.noteId, record.ticket?.status, updated: record.updated, body: _bodyFront(record));
 
   /// How many days a ticket has been stale; null where it is not.
   int? staleDaysOf(QueryRecord record) {
@@ -159,9 +159,9 @@ class PlanningIndex {
     return finishedOn(past, record.noteId, _bodyFront(record), ticket.status, record.workflow, updated: record.updated);
   }
 
-  /// Enough of a record's front matter for history.dart's `done:`: its props written back as lines.
+  /// Enough of a record's front matter for history.dart's `status-since:` and `done:`: its props written back as lines.
   static String _bodyFront(QueryRecord record) {
-    final lines = [for (final key in doneKeys) if (record.props[key] case final said?) '$key: $said'];
+    final lines = [for (final key in historyKeys) if (record.props[key] case final said?) '$key: $said'];
     return lines.isEmpty ? '' : '---\n${lines.join('\n')}\n---\n';
   }
 

@@ -312,7 +312,7 @@ extension _RootCommands on _GhostRootState {
     final id = notebook != null && notebookKey(notebook.body) != null ? nextTicketId(notebook.body, [for (final note in _library.value) note.body]) : null;
     var body = newTicketBody(title, id: id, statuses: statusesOf(notebook?.body));
     for (final (field, value) in draft.fields) {
-      body = withProperty(body, field, value);
+      body = withTicketProperty(body, field, value);
     }
     if (draft.labels.isNotEmpty) body = withProperty(body, 'labels', draft.labels);
     // `from: [[A note]]` that is no notebook lists the notes linking to it: so this one does.

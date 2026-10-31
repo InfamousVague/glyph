@@ -77,7 +77,7 @@ void writeProperty(EditorViewLike view, String key, Object? value) {
       break;
     }
   }
-  final next = withProperty(doc, written, value);
+  final next = withTicketProperty(doc, written, value);
   if (next == doc) return;
   var start = 0;
   while (start < doc.length && start < next.length && doc.codeUnitAt(start) == next.codeUnitAt(start)) {

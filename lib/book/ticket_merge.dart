@@ -174,8 +174,9 @@ String _renamed(String body, Map<String, String> rename) {
 }
 
 /// What merging [duplicate] into [target] writes (see the header). [notes] is every note, by id, with its words now;
-/// [index] the link index; [editable] whether a note may be changed here (a team's that this device can write).
-MergePlan planMerge({required TicketEntry duplicate, required TicketEntry target, required Map<String, ({String title, String body})> notes, required LinkIndex index, bool Function(String id)? editable}) {
+/// [index] the link index; [editable] whether a note may be changed here (a team's that this device can write);
+/// [today] the day the duplicate is closed on (`withStatus`), the clock's where unsaid.
+MergePlan planMerge({required TicketEntry duplicate, required TicketEntry target, required Map<String, ({String title, String body})> notes, required LinkIndex index, bool Function(String id)? editable, String? today}) {
   final dupName = _nameOf(duplicate), targetName = _nameOf(target);
   final dupKeys = <String>{
     titleKey(duplicate.title),
@@ -242,7 +243,7 @@ MergePlan planMerge({required TicketEntry duplicate, required TicketEntry target
 
   // The duplicate: closed, and pointing at the target; its comments gone with the move.
   var closed = taken.body;
-  closed = withProperty(closed, 'status', duplicateStatus(duplicate.statuses));
+  closed = withStatus(closed, duplicateStatus(duplicate.statuses), today: today, workflow: duplicate.statuses);
   closed = withProperty(closed, duplicateOfKey, '[[$targetName]]');
 
   final writes = <MergeWrite>[

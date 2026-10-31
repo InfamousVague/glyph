@@ -65,7 +65,7 @@ class _RootTicketRules {
   RuleWorld get _world {
     final buttons = _root._buttonWorld;
     return RuleWorld(
-      setFields: (noteId, fields) => _root._changeNote(noteId, (body) => fields.entries.fold<String>(body, (was, field) => withProperty(was, field.key, field.value.trim().isEmpty ? null : field.value.trim())), userEvent: 'input.rule'),
+      setFields: (noteId, fields) => _root._changeNote(noteId, (body) => fields.entries.fold<String>(body, (was, field) => withTicketProperty(was, field.key, field.value.trim().isEmpty ? null : field.value.trim())), userEvent: 'input.rule'),
       post: buttons.post,
       claude: buttons.claude,
       make: buttons.make,
@@ -193,7 +193,7 @@ class _RootTicketRules {
   Future<void> _move(String noteId, String key, PullRecord merged, String target, String id) async {
     final job = activity.begin(TicketRules.jobId(id), kind: JobKind.sync, title: '$key: ${merged.name} merged', line: 'Moving it to $target', plugin: 'github', onOpen: activityRoutes.noteOpener(noteId));
     try {
-      await _root._changeNote(noteId, (body) => withProperty(body, 'status', target), userEvent: 'input.rule');
+      await _root._changeNote(noteId, (body) => withStatus(body, target), userEvent: 'input.rule');
       job.done(quiet: true, tally: const JobTally('ticket moved by a merge', 'tickets moved by merges'));
     } catch (failure) {
       job.failed('$key was not moved to $target: $failure', fix: JobFix(JobFixKind.retry, () => unawaited(_move(noteId, key, merged, target, id))));

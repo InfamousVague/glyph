@@ -28,7 +28,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
 import '../../book/tickets.dart' show TicketChoice;
-import '../../core/properties.dart' show StatusCategory, withProperty;
+import '../../core/properties.dart' show StatusCategory, withProperty, withStatus;
 import '../../core/query/query.dart' show QueryLibrary;
 import '../../editor/fields/field_picker.dart';
 import '../../editor/fields/field_picks.dart';
@@ -425,7 +425,7 @@ class TicketsScreenState extends State<TicketsScreen> {
           label: 'Status',
           record: record,
           onClose: _closeSheet,
-          onPick: (value) => unawaited(_change(line, (body) => withProperty(body, 'status', value))),
+          onPick: (value) => unawaited(_change(line, (body) => withStatus(body, value, today: widget.today, workflow: line.workflow))),
         );
       case _Sheet.assignee:
         return FieldPicker(

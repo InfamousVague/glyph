@@ -10,7 +10,7 @@ library;
 import '../core/boards.dart' show settleTicks;
 import '../core/item_syntax.dart' show lineWords, taskBox;
 import '../core/note_facts.dart';
-import '../core/properties.dart' show StatusCategory, defaultStatuses, statusCategory, withProperty;
+import '../core/properties.dart' show StatusCategory, defaultStatuses, statusCategory, withStatus;
 import '../core/task_fields.dart' show withoutFields;
 
 /// The words a line says, as an item is matched by them.
@@ -81,7 +81,7 @@ String? ticketDone(String body, List<String>? statuses) {
   final facts = NoteFacts.read(body);
   final ticket = facts.isTicket ? facts.ticket : null;
   if (ticket == null || statusCategory(ticket.status, statuses ?? defaultStatuses) == StatusCategory.done) return null;
-  return withProperty(body, 'status', doneStatus(statuses));
+  return withStatus(body, doneStatus(statuses), workflow: statuses ?? defaultStatuses);
 }
 
 /// Done for the item on [line] said as [words] (0 for a ticket, whose [statuses] are its notebook's workflow): the

@@ -28,7 +28,7 @@ library;
 import '../book/tickets.dart' show firstOpenStatus;
 import '../core/front_matter.dart' show frontMatterValue;
 import '../core/item_syntax.dart' show jsTrim;
-import '../core/properties.dart' show StatusCategory, statusCategory, withProperty;
+import '../core/properties.dart' show StatusCategory, statusCategory, withProperty, withStatus;
 import '../core/query/query.dart';
 import 'inbox.dart';
 
@@ -126,7 +126,7 @@ String triagedBody(String body, String today, List<String> workflow) {
   final status = jsTrim(frontMatterValue(out, 'status') ?? '');
   if (triageStatuses.contains(status.toLowerCase())) {
     final next = firstOpenStatus([for (final each in workflow) if (!triageStatuses.contains(each.toLowerCase())) each]);
-    out = withProperty(out, 'status', next);
+    out = withStatus(out, next, today: today, workflow: workflow);
   }
   return out;
 }
@@ -152,7 +152,7 @@ String duplicateBody(String body, String target, String today, List<String> work
   final name = jsTrim(target);
   if (name.isEmpty) return body;
   var out = withProperty(body, 'duplicate-of', '[[$name]]');
-  out = withProperty(out, 'status', duplicateStatus(workflow));
+  out = withStatus(out, duplicateStatus(workflow), today: today, workflow: workflow);
   return triagedBody(out, today, workflow);
 }
 
