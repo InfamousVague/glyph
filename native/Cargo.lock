@@ -951,6 +951,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tauri",
+ "unicode-normalization",
  "uuid",
  "webpki-roots",
  "whisper-rs",

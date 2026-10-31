@@ -17,7 +17,9 @@
 //!   settings.json       the page's settings, without an account or a key
 //!   Library/            the notes, as docs/LIBRARY.md has them, with .glyph's
 //!                       phrases and library.json; not its index, a cache
-//!   images/  video/  recordings/
+//!   Library/image/  Library/file/  Library/video/  Library/recordings/
+//!                       the attachments, at the paths the notes link, wherever
+//!                       the app still keeps each (library/attachments.rs)
 //! ```
 //!
 //! What is left out is what the app can make again or must not carry: the
@@ -35,6 +37,7 @@
 //!
 //! No Tauri type here, so tools/host-tests runs these tests on any machine.
 
+use std::collections::HashSet;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -131,6 +134,27 @@ pub fn entries(sources: &[Source]) -> io::Result<Vec<Entry>> {
             continue;
         }
         walk(&source.dir, &source.dir, source.name, &mut found)?;
+    }
+    Ok(found)
+}
+
+/// The notes' attachments as entries under `Library/<kind>/`, the layout docs/MARKDOWN_FIRST.md §6 gives the
+/// folder, from wherever the app still keeps each (library/attachments.rs: the pictures under the library already,
+/// the files, films and recordings beside it until their players read them there). One the walk of the library's
+/// folder already listed (`have`, by archive name) is not listed twice.
+pub fn attachments(places: &crate::library::Attachments, have: &HashSet<String>) -> io::Result<Vec<Entry>> {
+    let mut found = Vec::new();
+    for (kind, name, path) in places.files()? {
+        let archive = format!("Library/{}/{name}", kind.folder());
+        if have.contains(&archive) {
+            continue;
+        }
+        let meta = match std::fs::metadata(&path) {
+            Ok(meta) => meta,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e),
+        };
+        found.push(Entry { path, name: archive, size: meta.len(), modified: meta.modified().ok() });
     }
     Ok(found)
 }
@@ -415,7 +439,9 @@ mod tests {
         put(&data, "Library/.glyph/index.sqlite", b"cache");
         put(&data, "Library/.glyph/index.sqlite-wal", b"cache");
         put(&data, "Library/Inbox/.0123456789abcdef0123456789abcdef.tmp", b"half a save");
-        put(&data, "images/2b0c.jpg", &[0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+        put(&data, "Library/image/2b0c.jpg", &[0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+        put(&data, "images/older.png", b"\x89PNG\r\n\x1a\n");
+        put(&data, "images/files/lease.pdf", b"%PDF");
         put(&data, "video/clip.mp4", &[0u8; 3000]);
         put(&data, "recordings/abc.wav", b"RIFF....WAVE");
         put(&data, "models/qwen.gguf", b"not exported");
@@ -423,25 +449,32 @@ mod tests {
         data
     }
 
-    fn sources(data: &Path) -> Vec<Source> {
-        ["Library", "images", "video", "recordings"].into_iter().map(|name| Source { dir: data.join(name), name }).collect()
+    /// The library's folder walked, and the attachments from wherever each is (export_commands.rs does the same).
+    fn sources(data: &Path) -> Vec<Entry> {
+        let mut found = entries(&[Source { dir: data.join("Library"), name: "Library" }]).unwrap();
+        let have: HashSet<String> = found.iter().map(|e| e.name.clone()).collect();
+        found.extend(attachments(&crate::library::Attachments::new(Some(&data.join("Library")), true, data), &have).unwrap());
+        found
     }
 
     #[test]
     fn lists_every_kept_file_and_leaves_out_the_index_the_models_and_a_save_under_way() {
         let data = data();
-        let names: Vec<_> = entries(&sources(&data)).unwrap().into_iter().map(|e| e.name).collect();
+        let names: Vec<_> = sources(&data).into_iter().map(|e| e.name).collect();
         assert_eq!(
             names,
             [
                 "Library/.glyph/library.json",
                 "Library/.glyph/notes/abc.json",
                 "Library/Inbox/Milk.md",
+                "Library/image/2b0c.jpg",
                 "Library/workspaces/Work/AttackFM.md",
-                "images/2b0c.jpg",
-                "video/clip.mp4",
-                "recordings/abc.wav",
-            ]
+                "Library/image/older.png",
+                "Library/file/lease.pdf",
+                "Library/video/clip.mp4",
+                "Library/recordings/abc.wav",
+            ],
+            "the picture under the library once, the rest at the library's paths from beside it"
         );
         std::fs::remove_dir_all(data).unwrap();
     }
@@ -449,20 +482,20 @@ mod tests {
     #[test]
     fn writes_one_folder_of_the_archives_name_that_any_zip_reader_opens() {
         let data = data();
-        let list = entries(&sources(&data)).unwrap();
+        let list = sources(&data);
         let extras = [Extra { name: "README.txt".into(), bytes: b"Ghost.md export".to_vec() }, Extra { name: "settings.json".into(), bytes: b"{}".to_vec() }];
         let mut heard = Vec::new();
         let mut out = Vec::new();
         let done = write(&mut out, "ghostmarkdown_2026-10-01_21-42-05.zip", &list, &extras, &serde_json::json!({ "app": "Ghost.md" }), 60, &AtomicBool::new(false), |p| heard.push(p)).unwrap();
-        assert_eq!((done.notes, done.files, done.written), (2, 7, out.len() as u64));
-        assert_eq!(heard.last().map(|p| (p.done, p.total, p.files, p.of)), Some((done.bytes, done.bytes, 7, 7)));
+        assert_eq!((done.notes, done.files, done.written), (2, 9, out.len() as u64));
+        assert_eq!(heard.last().map(|p| (p.done, p.total, p.files, p.of)), Some((done.bytes, done.bytes, 9, 9)));
 
         let mut zip = ZipArchive::new(Cursor::new(out)).unwrap();
         let root = "ghostmarkdown_2026-10-01_21-42-05";
         let mut names: Vec<_> = zip.file_names().map(str::to_string).collect();
         names.sort();
         assert!(names.iter().all(|n| n.starts_with(&format!("{root}/"))), "{names:?}");
-        for name in ["README.txt", "settings.json", "manifest.json", "Library/Inbox/Milk.md", "video/clip.mp4"] {
+        for name in ["README.txt", "settings.json", "manifest.json", "Library/Inbox/Milk.md", "Library/video/clip.mp4"] {
             assert!(names.contains(&format!("{root}/{name}")), "{name} missing from {names:?}");
         }
         let mut read = |name: &str| {
@@ -472,16 +505,16 @@ mod tests {
             (bytes, file.compression())
         };
         assert_eq!(read("Library/workspaces/Work/AttackFM.md"), ("# AttackFM 日本\n".as_bytes().to_vec(), CompressionMethod::Deflated));
-        assert_eq!(read("images/2b0c.jpg"), (vec![0xff, 0xd8, 0xff, 0xe0, 1, 2, 3], CompressionMethod::Stored));
+        assert_eq!(read("Library/image/2b0c.jpg"), (vec![0xff, 0xd8, 0xff, 0xe0, 1, 2, 3], CompressionMethod::Stored));
         let manifest: serde_json::Value = serde_json::from_slice(&read("manifest.json").0).unwrap();
-        assert_eq!(manifest, serde_json::json!({ "app": "Ghost.md", "notes": 2, "files": 7, "bytes": done.bytes }));
+        assert_eq!(manifest, serde_json::json!({ "app": "Ghost.md", "notes": 2, "files": 9, "bytes": done.bytes }));
         std::fs::remove_dir_all(data).unwrap();
     }
 
     #[test]
     fn stops_when_asked_and_says_so() {
         let data = data();
-        let list = entries(&sources(&data)).unwrap();
+        let list = sources(&data);
         let stopped = write(Vec::new(), "ghostmarkdown_x.zip", &list, &[], &serde_json::json!({}), 0, &AtomicBool::new(true), |_| {});
         assert_eq!(stopped, Err(CANCELLED.to_string()));
         std::fs::remove_dir_all(data).unwrap();

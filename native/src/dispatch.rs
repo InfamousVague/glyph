@@ -48,7 +48,7 @@ use serde_json::{json, Value};
 
 use crate::kept::recordings::recording_file;
 use crate::library::root::Root;
-use crate::library::Library;
+use crate::library::{AttachmentKind, Attachments, Library, Places};
 use crate::note::{CommandMutation, Note, RecordedSegment, Recording};
 
 /// The notes' library, opened by `init` and held for the life of the process: commands.rs's `NotesStore`, with
@@ -111,18 +111,21 @@ impl ApplyCommandRequest {
 }
 
 /// Where a note's files are kept, each `None` where the platform gave no
-/// directory, which leaves those files alone.
+/// directory, which leaves those files alone. The pictures, films and
+/// recordings are each the folders the library reads them from
+/// (library/attachments.rs `Places`: under the library and beside it, while
+/// both are read), and a file goes from whichever has it.
 struct Kept {
-    images: Option<PathBuf>,
-    videos: Option<PathBuf>,
-    recordings: Option<PathBuf>,
+    images: Option<Places>,
+    videos: Option<Places>,
+    recordings: Option<Places>,
     jobs: Option<PathBuf>,
 }
 
 /// `delete_note`'s work, given where pictures, films, recordings and write-ups
 /// are kept.
 fn delete_with_files(notes: &NotesStore, kept: &Kept, id: &str) -> std::result::Result<bool, String> {
-    let (images, videos, recordings, jobs) = (kept.images.as_deref(), kept.videos.as_deref(), kept.recordings.as_deref(), kept.jobs.as_deref());
+    let (images, videos, recordings, jobs) = (kept.images.as_ref(), kept.videos.as_ref(), kept.recordings.as_ref(), kept.jobs.as_deref());
     let mut library = notes.lock();
     // The body is read before the row goes: it is the only list of the
     // pictures the note had. They go after it, so a failed delete never
@@ -132,13 +135,17 @@ fn delete_with_files(notes: &NotesStore, kept: &Kept, id: &str) -> std::result::
     let body = library.get_note(id).ok().flatten().map(|note| note.body);
     let removed = library.delete_note(id).map_err(|e| e.to_string())?;
     if let (Some(body), Some(images)) = (&body, images) {
-        crate::kept::images::remove_unreferenced(images, &library, body);
+        for dir in images.dirs() {
+            crate::kept::images::remove_unreferenced(dir, &library, body);
+        }
     }
     if let (Some(body), Some(videos)) = (&body, videos) {
-        crate::kept::videos::remove_unreferenced(videos, &library, body);
+        for dir in videos.dirs() {
+            crate::kept::videos::remove_unreferenced(dir, &library, body);
+        }
     }
     drop(library);
-    if let Some(file) = recordings.and_then(|dir| recording_file(dir, id)) {
+    for file in recordings.into_iter().flat_map(|places| places.dirs()).filter_map(|dir| recording_file(dir, id)) {
         let _ = std::fs::remove_file(file);
     }
     // A write-up for a note that is gone has nothing to write into; its
@@ -286,7 +293,14 @@ impl Core {
     pub fn open(data: &Path, cache: &Path) -> Result<Core, String> {
         crate::fsx::make_dir(data)?;
         let library = crate::library_root::open(data, true)?;
+        crate::library_root::settle_attachments(&library, data);
         Ok(Core { data: data.to_path_buf(), cache: cache.to_path_buf(), notes: NotesStore(Mutex::new(library)), pick: Default::default() })
+    }
+
+    /// Where the notes' pictures, files, films and recordings are, for the library open now (library/attachments.rs).
+    /// Takes the notes' lock for a moment: never call it with the lock held.
+    pub fn attachments(&self) -> Attachments {
+        self.notes.lock().attachments(&self.data)
     }
 
     /// The directory `init` named for the cache: `picked/` is under it (a picture or a film the phone chose).
@@ -332,10 +346,11 @@ impl Core {
             // Removes a note for good, with its pictures, films, recording and write-up files.
             "delete_note" => {
                 let ById { id } = read(command, args)?;
+                let places = self.attachments();
                 let kept = Kept {
-                    images: Some(self.data.join(crate::paths::IMAGES)),
-                    videos: Some(self.data.join(crate::paths::VIDEO)),
-                    recordings: Some(self.data.join(crate::paths::RECORDINGS)),
+                    images: Some(places.of(AttachmentKind::Image).clone()),
+                    videos: Some(places.of(AttachmentKind::Video).clone()),
+                    recordings: Some(places.of(AttachmentKind::Recording).clone()),
                     jobs: Some(self.data.join(crate::paths::JOBS)),
                 };
                 answer(delete_with_files(store, &kept, &id)?)
@@ -387,6 +402,8 @@ impl Core {
             }
             // Where the library is now.
             "library_root" => answer(status_of(&self.data, store)),
+            // Where each kind of attachment is read from and written to (library/attachments.rs), as paths.
+            "attachment_places" => Ok(places_of(&self.attachments())),
             // Starting over: every note, recording, picture, film and write-up, and the models when asked. A
             // folder of the person's is forgotten, never emptied (kept/reset.rs).
             "reset_local_data" => {
@@ -406,6 +423,14 @@ impl Core {
             _ => Err(format!("Ghost.md's core has no command named {command}.")),
         }
     }
+}
+
+/// `attachment_places`'s answer: for each kind of attachment, the folders it is read from, the first the one
+/// written to, as the Dart side needs them for what it reads by a path of its own (lib/files/read_text.dart, the
+/// words read in a picture beside it).
+fn places_of(places: &Attachments) -> Value {
+    let dirs = |kind: AttachmentKind| places.of(kind).dirs().iter().map(|dir| dir.display().to_string()).collect::<Vec<_>>();
+    json!({ "image": dirs(AttachmentKind::Image), "file": dirs(AttachmentKind::File), "video": dirs(AttachmentKind::Video), "recording": dirs(AttachmentKind::Recording) })
 }
 
 /// The one core of this process, once `init` has opened it.
@@ -434,7 +459,9 @@ fn sweep_films(core: &Arc<Core>) {
     let _ = std::thread::Builder::new().name("ghost-video-sweep".into()).spawn(move || {
         let now = std::time::SystemTime::now();
         crate::kept::videos::sweep_picked(&core.cache.join(crate::paths::PICKED), now);
-        crate::kept::videos::sweep(&core.data.join(crate::paths::VIDEO), now, |name| core.notes.lock().video_in_use(name).unwrap_or(true));
+        for dir in core.attachments().of(AttachmentKind::Video).dirs() {
+            crate::kept::videos::sweep(dir, now, |name| core.notes.lock().video_in_use(name).unwrap_or(true));
+        }
     });
 }
 
@@ -532,10 +559,11 @@ mod tests {
         }
 
         fn delete(&self, id: &str) -> Result<bool, String> {
+            let places = self.notes.lock().attachments(&self.root);
             let kept = Kept {
-                images: Some(self.file("images")),
-                videos: Some(self.file("video")),
-                recordings: Some(self.file("recordings")),
+                images: Some(places.of(AttachmentKind::Image).clone()),
+                videos: Some(places.of(AttachmentKind::Video).clone()),
+                recordings: Some(places.of(AttachmentKind::Recording).clone()),
                 jobs: Some(self.file("jobs")),
             };
             delete_with_files(&self.notes, &kept, id)

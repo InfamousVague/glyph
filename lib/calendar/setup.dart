@@ -6,6 +6,16 @@
 /// Kept under the preferences' `calendars` key as JSON, which the typed [Preferences] keeps among the keys it does
 /// not model ([Preferences.more]) and writes back as it was read: [calendarSetupOf] reads it, [withCalendarSetup]
 /// writes it.
+///
+/// THE SECRETS ARE NOT IN IT (2026-10-31; docs/MARKDOWN_FIRST.md §11 decision 22). An iCal address is a secret (it
+/// reads the calendar), and so is Google's refresh token; both sat in the clear in the blob on the device, which the
+/// export's settings.json dumped whole. Now the blob keeps an address's id and name and Google's choices, and each
+/// secret is in the device's secure store (lib/sync/kept_secrets.dart) under [icalAddressName] or
+/// [googleRefreshName], travelling to the account's other devices as a sealed key (lib/sync/connections.dart).
+/// Read-both: a blob written by an older build still carries them, and [CalendarSetup.fromJson] takes the blob's
+/// over the store's; [CalendarService] then writes them to the store and writes the blob again without them
+/// ([CalendarSetup.toStored]). An older build reading a blob so written sees no address and no Google until it is
+/// updated: the one-release cost, taken.
 library;
 
 import 'dart:convert';
@@ -14,9 +24,23 @@ import 'package:flutter/foundation.dart';
 
 import '../core/preferences.dart';
 import '../plugins/notion/sha256.dart';
+import '../sync/kept_secrets.dart' show SecretPeek;
+
+export '../sync/kept_secrets.dart' show SecretPeek;
 
 /// The preferences' key.
 const String calendarsKey = 'calendars';
+
+/// The secure store's name for Google's refresh token: the account's, so it travels (lib/sync/connections.dart).
+const String googleRefreshName = 'glyph-google-refresh';
+
+/// The secure store's name for Google's access token, with when it runs out: this device's own, never synced (Google
+/// does not turn the refresh token over, so every device makes its own access tokens from the same one).
+const String googleAccessName = 'glyph-google-token';
+
+/// The secure store's names for the iCal addresses, each by the id the blob lists it under.
+const String icalAddressPrefix = 'glyph-ical-url:';
+String icalAddressName(String id) => '$icalAddressPrefix$id';
 
 /// An iCal address pasted in: a secret, so it is shown by its calendar's name and never in full.
 @immutable
@@ -35,15 +59,26 @@ class CalendarAddress {
 
   CalendarAddress named(String? next) => CalendarAddress(id: id, url: url, name: next);
 
+  /// Whole, the address included: for comparing two, never for the blob.
   Map<String, Object?> toJson() => {'id': id, 'url': url, if (name != null) 'name': name};
 
-  static CalendarAddress? fromJson(Object? raw) {
-    if (raw is! Map || raw['url'] is! String) return null;
-    final url = raw['url'] as String;
+  /// As the blob keeps it: its id and name, never the address (see the header).
+  Map<String, Object?> toStored() => {'id': id, if (name != null) 'name': name};
+
+  /// From the blob: the address from the blob where an older build wrote it there, else from [secret] by its id; null
+  /// where neither has it (an address added on a newer device whose secret has not arrived yet, or not loaded yet).
+  static CalendarAddress? fromJson(Object? raw, {SecretPeek? secret}) {
+    if (raw is! Map) return null;
     final id = raw['id'];
+    final given = raw['url'];
+    final url = given is String && given.isNotEmpty ? given : (id is String && id.isNotEmpty ? secret?.call(icalAddressName(id)) : null);
+    if (url == null || url.isEmpty) return null;
     final name = raw['name'];
     return CalendarAddress(id: id is String && id.isNotEmpty ? id : addressId(url), url: url, name: name is String && name.isNotEmpty ? name : null);
   }
+
+  /// Whether the blob [raw] carries the address itself, as an older build wrote it.
+  static bool storedInTheClear(Object? raw) => raw is Map && raw['url'] is String && (raw['url'] as String).isNotEmpty;
 
   @override
   bool operator ==(Object other) => other is CalendarAddress && other.id == id && other.url == url && other.name == name;
@@ -57,6 +92,8 @@ class CalendarAddress {
 class GoogleSetup {
   const GoogleSetup({required this.refreshToken, this.ticked = const [], this.todos = false, this.todoCalendar});
 
+  /// Empty where Google is connected to the account but this device has no refresh token for it yet (the secret has
+  /// not arrived, or not loaded): the pass says so rather than call Google with nothing.
   final String refreshToken;
 
   /// The ids of the calendars whose events are read.
@@ -71,19 +108,29 @@ class GoogleSetup {
   GoogleSetup copyWith({List<String>? ticked, bool? todos, String? Function()? todoCalendar}) =>
       GoogleSetup(refreshToken: refreshToken, ticked: ticked ?? this.ticked, todos: todos ?? this.todos, todoCalendar: todoCalendar != null ? todoCalendar() : this.todoCalendar);
 
+  /// Whole, the token included: for comparing two, never for the blob.
   Map<String, Object?> toJson() => {'refreshToken': refreshToken, 'ticked': ticked, 'todos': todos, if (todoCalendar != null) 'todoCalendar': todoCalendar};
 
-  static GoogleSetup? fromJson(Object? raw) {
-    if (raw is! Map || raw['refreshToken'] is! String || (raw['refreshToken'] as String).isEmpty) return null;
+  /// As the blob keeps it: the choices, never the token (see the header).
+  Map<String, Object?> toStored() => {'ticked': ticked, 'todos': todos, if (todoCalendar != null) 'todoCalendar': todoCalendar};
+
+  /// From the blob: the token from the blob where an older build wrote it there, else from [secret]; empty where
+  /// neither has it. Null only where Google is not connected at all.
+  static GoogleSetup? fromJson(Object? raw, {SecretPeek? secret}) {
+    if (raw is! Map) return null;
+    final given = raw['refreshToken'];
     final ticked = raw['ticked'];
     final calendar = raw['todoCalendar'];
     return GoogleSetup(
-      refreshToken: raw['refreshToken'] as String,
+      refreshToken: given is String && given.isNotEmpty ? given : (secret?.call(googleRefreshName) ?? ''),
       ticked: ticked is List ? List.unmodifiable(ticked.whereType<String>()) : const [],
       todos: raw['todos'] == true,
       todoCalendar: calendar is String && calendar.isNotEmpty ? calendar : null,
     );
   }
+
+  /// Whether the blob [raw] carries the token itself, as an older build wrote it.
+  static bool storedInTheClear(Object? raw) => raw is Map && raw['refreshToken'] is String && (raw['refreshToken'] as String).isNotEmpty;
 }
 
 /// Every calendar the app reads.
@@ -102,21 +149,47 @@ class CalendarSetup {
 
   CalendarSetup copyWith({List<CalendarAddress>? addresses, GoogleSetup? Function()? google}) => CalendarSetup(addresses: addresses ?? this.addresses, google: google != null ? google() : this.google);
 
+  /// Whole, the secrets included: for comparing two, never for the blob.
   Map<String, Object?> toJson() => {
         'addresses': [for (final address in addresses) address.toJson()],
         if (google != null) 'google': google!.toJson(),
       };
 
-  static CalendarSetup fromJson(Object? raw) {
+  /// As the blob keeps it: nothing that reads a calendar (see the header).
+  Map<String, Object?> toStored() => {
+        'addresses': [for (final address in addresses) address.toStored()],
+        if (google != null) 'google': google!.toStored(),
+      };
+
+  /// From the blob, the secrets from the blob where an older build wrote them there, else from [secret]. An address
+  /// whose secret is in neither is left out until it arrives.
+  static CalendarSetup fromJson(Object? raw, {SecretPeek? secret}) {
     if (raw is! Map) return none;
     final list = raw['addresses'];
     return CalendarSetup(
       addresses: List.unmodifiable([
         if (list is List)
-          for (final each in list) ?CalendarAddress.fromJson(each),
+          for (final each in list) ?CalendarAddress.fromJson(each, secret: secret),
       ]),
-      google: GoogleSetup.fromJson(raw['google']),
+      google: GoogleSetup.fromJson(raw['google'], secret: secret),
     );
+  }
+
+  /// The ids of the addresses the blob [raw] lists, secret here or not: what to load, and what to sync.
+  static List<String> addressIdsIn(Object? raw) {
+    final list = raw is Map ? raw['addresses'] : null;
+    return [
+      if (list is List)
+        for (final each in list)
+          if (each is Map && each['id'] is String && (each['id'] as String).isNotEmpty) each['id'] as String,
+    ];
+  }
+
+  /// Whether the blob [raw] carries any secret in the clear, as an older build wrote it: then it is taken out.
+  static bool storedInTheClear(Object? raw) {
+    if (raw is! Map) return false;
+    final list = raw['addresses'];
+    return GoogleSetup.storedInTheClear(raw['google']) || (list is List && list.any(CalendarAddress.storedInTheClear));
   }
 
   @override
@@ -126,16 +199,16 @@ class CalendarSetup {
   int get hashCode => jsonEncode(toJson()).hashCode;
 }
 
-/// The calendars [prefs] keeps.
-CalendarSetup calendarSetupOf(Preferences prefs) => CalendarSetup.fromJson(prefs.more[calendarsKey]);
+/// The calendars [prefs] keeps, their secrets from [secret] where the blob no longer carries them.
+CalendarSetup calendarSetupOf(Preferences prefs, {SecretPeek? secret}) => CalendarSetup.fromJson(prefs.more[calendarsKey], secret: secret);
 
-/// [prefs] with [setup] kept; with none at all, the key is taken off.
+/// [prefs] with [setup] kept, without its secrets; with none at all, the key is taken off.
 Preferences withCalendarSetup(Preferences prefs, CalendarSetup setup) {
   final more = {...prefs.more};
   if (setup.isEmpty) {
     more.remove(calendarsKey);
   } else {
-    more[calendarsKey] = setup.toJson();
+    more[calendarsKey] = setup.toStored();
   }
   return prefs.copyWith(more: Map.unmodifiable(more));
 }

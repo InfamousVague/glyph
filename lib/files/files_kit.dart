@@ -23,6 +23,7 @@ import '../core/note_text.dart' as note_text;
 import '../core/stored.dart';
 import '../sync/local.dart' as sync_local;
 import '../sync/notes.dart' show FileKind;
+import 'attachment_places.dart';
 import 'attachment_store.dart';
 import 'phone_documents.dart';
 import 'read_pass.dart';
@@ -68,7 +69,12 @@ class FilesKit implements sync_local.MediaFiles {
     kit.install();
     unawaited(kit.device.canScan().then((can) => kit.scans = can));
     unawaited(kit.takeInSharedFiles());
-    unawaited(kit.texts.load().then<void>((_) {
+    // Where the pictures and files are is the core's to say (lib/files/attachment_places.dart), before the sidecars
+    // are read in from there.
+    unawaited(AttachmentPlaces.ask(invoke, dataDir: dataDir).then((places) {
+      kit.texts.follow(places);
+      return kit.texts.load();
+    }).then<void>((_) {
       if (kit.pass.on) Timer(after, () => unawaited(kit.pass.readExisting().catchError((Object _) {})));
     }, onError: (Object failure) => debugPrint('[files] the words read before were not read in: $failure')));
     return kit;
@@ -150,12 +156,16 @@ class FilesKit implements sync_local.MediaFiles {
   final Stored? _kept;
   Stored get _store => _kept ?? stored;
 
-  /// Where a thing lies on this device, or null where it is not here.
+  /// Where a thing lies on this device, or null where it is not here. A picture is in whichever of the pictures'
+  /// folders has it (`texts.places`, the core's answer: under the library, or beside it from an older build).
   Future<String?> pathOf(ReadThing thing) async {
     if (thing.picture) {
       if (!_pictureName.hasMatch(thing.name)) return null;
-      final path = '$dataDir/images/${thing.name}';
-      return await File(path).exists() ? path : null;
+      for (final dir in texts.places.image) {
+        final path = '$dir/${thing.name}';
+        if (await File(path).exists()) return path;
+      }
+      return null;
     }
     return (await store.fileOf(thing.name))?.path;
   }

@@ -231,10 +231,16 @@ fn relocate(data: &Path, store: &NotesStore, to: &Root, copy: bool) -> Result<(C
     } else {
         Copied::default()
     };
+    // The pictures go with the notes (library/attachments.rs): copies into the new folder, so a folder of the
+    // person's keeps its own, and the app's own copies are gathered out of it below, once the switch is made.
+    if copy {
+        library.attachments(data).copy_from(&current.attachments(data)).map_err(|e| format!("The notes are copied, but their pictures could not be, so nothing was moved: {e}"))?;
+    }
     to.write(data).map_err(|e| format!("The notes are copied, but the choice could not be kept, so nothing was moved: {e}"))?;
     let removed = current.forget_copied(&copied);
     current.carry_drafts_into(&mut library);
     *current = library;
+    library_root::settle_attachments(&current, data);
     Ok((copied, removed))
 }
 

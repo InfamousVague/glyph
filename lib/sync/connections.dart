@@ -42,10 +42,14 @@
 ///   Assistant's two choices ([assistantChatName], [assistantMeetingsName]). What each has spent this month stays each
 ///   device's, as Claude's count does.
 ///
-/// ALREADY TRAVELLING, in the settings sealed as a whole (lib/sync/prefs.dart): the calendars' iCal addresses and
-/// Google's sign-in (`calendars`), and the webhooks with their secrets (`webhooks`). **Google's refresh token** may be
-/// shared by several devices: Google does not turn it over when it is used, so each device makes its own access
-/// tokens from the same one (lib/calendar/google.dart), and each keeps those (`glyph-google-token`) to itself.
+/// - **The calendars' and the webhooks' secrets** (2026-10-31; docs/MARKDOWN_FIRST.md §11 decision 22): Google's
+///   refresh token (`glyph-google-refresh`), each iCal address (`glyph-ical-url:<id>`) and each outgoing webhook's
+///   secret (`glyph-webhook-secret:<id>`), each in the device's secure store (lib/sync/kept_secrets.dart) and each an
+///   item here, by the ids the settings' `calendars` and `webhooks` list and the names the entries already hold. Until
+///   then they travelled in the clear inside the settings blob, which the export dumped whole; the blob now keeps only
+///   what names them (lib/calendar/setup.dart, lib/integrations/webhooks/setup.dart). **Google's refresh token** may be
+///   shared by several devices: Google does not turn it over when it is used, so each device makes its own access
+///   tokens from the same one (lib/calendar/google.dart), and each keeps those (`glyph-google-token`) to itself.
 ///
 /// THAT STAYS ON EACH DEVICE:
 /// - **Notion's sign-in** (lib/plugins/notion/client.dart, `glyph-notion-account`), and with it which board a note
@@ -75,9 +79,12 @@ import 'package:flutter/foundation.dart';
 import '../assistant/app_assistant.dart' show aiProviders, appAssistant;
 import '../assistant/assistant.dart';
 import '../assistant/provider_settings.dart';
+import '../calendar/setup.dart' show CalendarSetup, calendarsKey, googleRefreshName, icalAddressName, icalAddressPrefix;
 import '../claude/claude_settings.dart';
 import '../claude/claude_spend.dart' show claudeLimitName;
 import '../core/iphone_app.dart' show notOnIPhone;
+import '../core/preferences.dart' show Preferences, preferences;
+import '../integrations/webhooks/setup.dart' show WebhookSetup, webhookSecretName, webhookSecretPrefix, webhooksKey;
 import '../plugins/discord/manifest.dart' as discord show discordChannelsKey, discordMeetingsKey, discordWebhookPrefix, host;
 import '../plugins/elevenlabs/manifest.dart' as eleven show apiKeySecret, host, modelKey, voiceKey;
 import '../plugins/git_backup/manifest.dart' as git show host, tokenSecret;
@@ -87,6 +94,7 @@ import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, host, s
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/manifest.dart' as slack show host, webhookPrefix;
 import '../plugins/types.dart' show PluginHost;
+import 'kept_secrets.dart';
 import 'sealed_keys.dart';
 
 /// Claude's names in the secure store that travel.
@@ -105,7 +113,8 @@ String switchItemName(String pluginId) => 'plugin:$pluginId';
 final RegExp _channelId = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 
 /// The items this device offers (see the header), given the names the settings already hold. Claude's settings, the
-/// plugins' hosts and the registry are the app's own unless a test gives its own; [platform] is the device's.
+/// plugins' hosts and the registry are the app's own unless a test gives its own; [platform] is the device's. [prefs]
+/// answers the settings as they stand, for the calendars' and the webhooks' ids, and [secrets] holds their secrets.
 List<SyncedItem> connectionItems(
   Set<String> named, {
   ClaudeSettings? claude,
@@ -119,6 +128,8 @@ List<SyncedItem> connectionItems(
   TargetPlatform? platform,
   List<AiProviderSettings>? providers,
   AssistantChoice? assistant,
+  Preferences Function()? prefs,
+  KeptSecrets? secrets,
 }) {
   final settings = claude ?? claudeSettings;
   final others = providers ?? [for (final plugged in aiProviders) plugged.settings];
@@ -127,6 +138,7 @@ List<SyncedItem> connectionItems(
   final slackHere = notOnIPhone('slack', platform: platform) == null;
   final discordHere = notOnIPhone('discord', platform: platform) == null;
   return [
+    ..._integrationItems(named, (prefs ?? () => preferences.value)(), secrets ?? integrationSecrets),
     for (final name in claudeSyncedNames)
       SyncedItem(
         name: name,
@@ -250,6 +262,30 @@ List<SyncedItem> _discordItems(Set<String> named, PluginHost host) {
   ];
 }
 
+/// One of the calendars' or the webhooks' secrets (lib/sync/kept_secrets.dart), by its secure-store name.
+SyncedItem _keptSecretItem(KeptSecrets secrets, String name) => SyncedItem(
+      name: name,
+      read: () => secrets.read(name),
+      write: (value) => secrets.write(name, value),
+      peek: () => secrets.peek(name),
+    );
+
+/// Google's refresh token, each iCal address and each outgoing webhook's secret (see the header): by the ids the
+/// settings list, and the ones the entries name (one added or forgotten on another device).
+List<SyncedItem> _integrationItems(Set<String> named, Preferences prefs, KeptSecrets secrets) {
+  final names = <String>{googleRefreshName};
+  for (final id in CalendarSetup.addressIdsIn(prefs.more[calendarsKey])) {
+    names.add(icalAddressName(id));
+  }
+  for (final id in WebhookSetup.hookIdsIn(prefs.more[webhooksKey])) {
+    names.add(webhookSecretName(id));
+  }
+  for (final name in named) {
+    if (name.startsWith(icalAddressPrefix) || name.startsWith(webhookSecretPrefix)) names.add(name);
+  }
+  return [for (final name in names) _keptSecretItem(secrets, name)];
+}
+
 String? _switchOf(Registry reg, String id) => reg.hasSwitch(id) ? (reg.switchedOn(id) ? 'on' : 'off') : null;
 
 SyncedItem _switchItem(Registry reg, String id) => SyncedItem(
@@ -264,17 +300,20 @@ SyncedItem _switchItem(Registry reg, String id) => SyncedItem(
     );
 
 /// What the items' owners tell of a change ([SealedKeys.heard]): Claude's settings, any plugin's storage or secrets,
-/// and the plugins' switches, the registry as it is when something first listens.
-Listenable connectionChanges({ClaudeSettings? claude, Registry Function()? registry, AssistantChoice? assistant}) => _Owners(claude ?? claudeSettings, registry ?? () => plugins, assistant ?? appAssistant);
+/// the calendars' and the webhooks' secrets, and the plugins' switches, the registry as it is when something first
+/// listens.
+Listenable connectionChanges({ClaudeSettings? claude, Registry Function()? registry, AssistantChoice? assistant, KeptSecrets? secrets}) =>
+    _Owners(claude ?? claudeSettings, registry ?? () => plugins, assistant ?? appAssistant, secrets ?? integrationSecrets);
 
 class _Owners extends ChangeNotifier {
-  _Owners(this._claude, this._registry, this._assistant);
+  _Owners(this._claude, this._registry, this._assistant, this._secrets);
 
   final ClaudeSettings _claude;
 
   /// The other providers' settings and the assistant's choices, heard through the choice, which hears them all.
   final AssistantChoice _assistant;
   final Registry Function() _registry;
+  final KeptSecrets _secrets;
   VoidCallback? _stopStorage;
   Registry? _switches;
 
@@ -283,6 +322,7 @@ class _Owners extends ChangeNotifier {
     if (!hasListeners) {
       _claude.addListener(_told);
       _assistant.addListener(_told);
+      _secrets.addListener(_told);
       _stopStorage = onPluginStorage(_told);
       _switches = _registry()..addListener(_told);
     }
@@ -295,6 +335,7 @@ class _Owners extends ChangeNotifier {
     if (!hasListeners) {
       _claude.removeListener(_told);
       _assistant.removeListener(_told);
+      _secrets.removeListener(_told);
       _stopStorage?.call();
       _stopStorage = null;
       _switches?.removeListener(_told);

@@ -6,13 +6,24 @@
 //! service keeps only ciphertext it cannot open, the same promise sync makes. The owner writes it again as they edit
 //! (the reader sees the edits), and takes it down to make the link go dead.
 //!
-//!   PUT    /api/v1/shares/{id}   { blob }  the owner's share, made or written again
-//!   DELETE /api/v1/shares/{id}             the owner's share, taken down
-//!   GET    /api/v1/shares                  the owner's shares: ids and when each was last written
-//!   GET    /api/v1/shares/{id}             anyone: the ciphertext, and when it was written
+//!   PUT    /api/v1/shares/{id}        { blob }  the owner's share, made or written again
+//!   DELETE /api/v1/shares/{id}                  the owner's share, taken down
+//!   GET    /api/v1/shares                       the owner's shares: ids, when each was first and last written, and
+//!                                               what the owner's devices sealed about each ({ id, created, updated, meta })
+//!   GET    /api/v1/shares/{id}                  anyone: the ciphertext, and when it was written
+//!   PUT    /api/v1/shares/{id}/meta   { meta }  the owner: what their devices seal about the share (below)
 //!
 //! An id is the device's own - 128 random bits, base64url - so the link can be made before anything is sent, and one
 //! share's id says nothing about another's. Reading is open, so it is rate-limited by address; writing is the owner's.
+//!
+//! THE META (2026-10-31; docs/MARKDOWN_FIRST.md §11 decision 8, "the sites model"): a share's link holds its key, and
+//! until now the only copy of that key the owner had was in the synced settings, so a person who restored their notes
+//! from a repository, or lost the settings, lost every link. Now a device also seals what it knows of the share - the
+//! note it is of, the link's key, its switches - under the ACCOUNT key, in the context `share:<id>`, and keeps it here
+//! beside the blob, as a published site keeps its `meta` (sites.rs). The service can open neither; a reader is never
+//! shown it. The list answers it, so a device signing in afresh opens each and has its shares back with their links.
+//! It is written after the share (404 before it), held to [`META_LIMIT`], and goes with the share. An older app never
+//! sends one and passes over it in the list; a newer app against an older service keeps working from the settings.
 //!
 //! A shared meeting can carry its recording (Matt, 2026-10-29: "Update the web version of the meeting transcripts to
 //! include the casette tape and the per user transcript so we can listen along"): tens of megabytes, past what a
@@ -33,7 +44,7 @@
 use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
-use crate::store::{AudioWrite, ShareWrite};
+use crate::store::{AudioWrite, ShareMetaWrite, ShareWrite};
 use crate::wire::{base64url, error, now_secs};
 use axum::body::{Body, Bytes};
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, State};
@@ -50,6 +61,11 @@ use std::time::Instant;
 
 /// A share's ciphertext, as base64url: a book of its index and every chapter, generously.
 const SHARE_LIMIT: usize = 6_000_000;
+/// What the owner's devices seal about a share: a note id, a key, a few switches and a recording's descriptor,
+/// generously (sites.rs holds its meta to the same).
+const META_LIMIT: usize = 4_096;
+/// Writes of metas, per address, per minute: a device writing its shares' metas through after a sign-in, with room.
+const META_WRITES_PER_MINUTE: u32 = 120;
 /// The most shares one account keeps up at once.
 const SHARES_PER_ACCOUNT: i64 = 500;
 /// Reads of shares, per address, per minute: a reader opening a book and its chapters, several times over.
@@ -77,12 +93,18 @@ pub struct Shares {
     accounts: Arc<Accounts>,
     readers: guard::RateLimiter,
     listeners: guard::RateLimiter,
+    meta_writers: guard::RateLimiter,
 }
 
 impl Shares {
     pub fn new(accounts: Arc<Accounts>) -> Arc<Self> {
         let now = Instant::now();
-        Arc::new(Self { accounts, readers: guard::RateLimiter::new(READS_PER_MINUTE, now), listeners: guard::RateLimiter::new(AUDIO_READS_PER_MINUTE, now) })
+        Arc::new(Self {
+            accounts,
+            readers: guard::RateLimiter::new(READS_PER_MINUTE, now),
+            listeners: guard::RateLimiter::new(AUDIO_READS_PER_MINUTE, now),
+            meta_writers: guard::RateLimiter::new(META_WRITES_PER_MINUTE, now),
+        })
     }
 }
 
@@ -129,8 +151,39 @@ async fn delete_share(State(shares): State<Arc<Shares>>, Path(id): Path<String>,
 }
 
 async fn list_shares(State(shares): State<Arc<Shares>>, who: Claims) -> Response {
-    let list: Vec<_> = shares.accounts.store.shares_of(who.sub).into_iter().map(|(id, updated)| json!({ "id": id, "updated": updated })).collect();
+    // `created` and `meta` are new (2026-10-31); an older app reads `id` and `updated` and passes over the rest.
+    let list: Vec<_> = shares
+        .accounts
+        .store
+        .shares_of(who.sub)
+        .into_iter()
+        .map(|row| json!({ "id": row.id, "created": row.created, "updated": row.updated, "meta": row.meta }))
+        .collect();
     Json(json!({ "shares": list })).into_response()
+}
+
+#[derive(Deserialize)]
+struct MetaBody {
+    meta: String,
+}
+
+/// What the owner's devices seal about a share, kept beside it (see the header). After the share: a meta for a share
+/// that is not here, or not the owner's, is refused the same way, so there is nothing to learn by asking.
+async fn put_meta(State(shares): State<Arc<Shares>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Path(id): Path<String>, who: Claims, Json(body): Json<MetaBody>) -> Response {
+    if !shares.meta_writers.take(guard::client_ip_of(peer.ip(), &headers), Instant::now()) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "Too many writes in a minute. Try again shortly.");
+    }
+    if !valid_id(&id) {
+        return error(StatusCode::BAD_REQUEST, "That share's id could not be read.");
+    }
+    if !base64url(&body.meta, 1..=META_LIMIT) {
+        return error(StatusCode::BAD_REQUEST, "What that share says about itself could not be read.");
+    }
+    match shares.accounts.store.put_share_meta(who.sub, &id, &body.meta) {
+        Ok(()) => Json(json!({ "id": id })).into_response(),
+        Err(ShareMetaWrite::NoShare) => error(StatusCode::NOT_FOUND, "There is no share of yours at that link. Share the note first."),
+        Err(ShareMetaWrite::Failed) => error(StatusCode::INTERNAL_SERVER_ERROR, "That share's meta could not be kept."),
+    }
 }
 
 async fn read_share(State(shares): State<Arc<Shares>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Path(id): Path<String>) -> Response {
@@ -264,6 +317,7 @@ pub fn router(accounts: Arc<Accounts>) -> Router {
             "/api/v1/shares/{id}",
             get(read_share).put(put_share).delete(delete_share).layer(DefaultBodyLimit::max(SHARE_LIMIT + 1024)),
         )
+        .route("/api/v1/shares/{id}/meta", put(put_meta).layer(DefaultBodyLimit::max(META_LIMIT + 1024)))
         .route("/api/v1/shares/{id}/audio", get(read_audio).post(commit_audio).delete(delete_audio))
         .route("/api/v1/shares/{id}/audio/{upload}/{n}", put(put_audio_part).layer(DefaultBodyLimit::max(AUDIO_PART_LIMIT)))
         .with_state(Shares::new(accounts))
