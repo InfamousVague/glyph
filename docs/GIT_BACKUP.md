@@ -101,6 +101,14 @@ folder, Remove (asks twice, keeps the files, deletes `.git`). The setup: intro w
 (Advanced) reuse the GitHub token → paste → make the repository or paste its address → check (the repository made where
 the Library is or refused, the remote reached, the size said, the cost ask over 200 MB) → first backup.
 
+## Size
+
+Measured 2026-10-31 with `GHOST_VOICE=0 tool/build-native.sh android` (the phone's arm64 `.so`, stripped, without the
+engines): 15,845,720 bytes as the spike left it; 15,175,800 bytes with every gix crate built at `opt-level = "s"` in
+release (native/Cargo.toml), which is what ships, the rest of the core as it was. Dropping gix's `parallel` feature
+does not build: without it gix's object store is an `Rc`, and the pack writer the push stands on wants a `Send`
+handle. One reqwest already: gix's HTTP transport is the reqwest 0.12 with rustls the voice feature uses.
+
 ## Limits
 
 - No SSH; HTTPS with a token only.

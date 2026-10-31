@@ -51,6 +51,15 @@ void main() {
       ..writeAsBytesSync(bytes!);
   }
 
+  /// The page's status comes from the core, which a widget test's clock does not run: real time passes in runAsync
+  /// until [seen] finds its widget, or a few seconds are up.
+  Future<void> settled(WidgetTester tester, Finder seen) async {
+    for (var i = 0; i < 25 && seen.evaluate().isEmpty; i += 1) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pump();
+    }
+  }
+
   tearDown(() {
     GitBackupService.current = null;
     usePluginGround(PluginGround());
@@ -63,7 +72,7 @@ void main() {
     expect(find.textContaining('isn’t available in this build'), findsOneWidget);
     expect(find.byType(PluginSetupCard), findsOneWidget);
     expect(find.text('No repository yet'), findsOneWidget);
-    expect(find.byKey(const ValueKey('git-backup-remove')), findsNothing, reason: 'nothing set up, nothing to remove');
+    expect(tester.widget<RowAction>(find.descendant(of: find.byKey(const ValueKey('git-backup-remove')), matching: find.byType(RowAction))).disabled, isTrue, reason: 'nothing set up, nothing to remove');
     await away(tester);
   });
 
@@ -106,10 +115,10 @@ void main() {
     tearDown(() => root.deleteSync(recursive: true));
 
     testWidgets('the rows: the remote, the last commit and push, this device pushes, the sizes; Back up now backs up and the page says so', skip: skip, (tester) async {
-      await service.backup.backUpNow();
+      // Real IO (the core, git on disk) runs inside runAsync: a widget test’s clock is a fake one otherwise.
+      await tester.runAsync(() => service.backup.backUpNow());
       await pumpPane(tester, GitBackupPane(now: () => DateTime.now()));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pump();
+      await settled(tester, find.byKey(const ValueKey('git-backup-size')));
       expect(find.text(remoteShort(remote)), findsOneWidget);
       expect(find.textContaining('branch main'), findsOneWidget);
       expect(find.textContaining('Last commit just now'), findsOneWidget);
@@ -121,31 +130,38 @@ void main() {
       await snap(tester, 'page-light');
       // Back up now, with a change waiting.
       write(library, 'Inbox/Plan.md', '# Plan\n\nchanged\n');
-      await tester.tap(find.descendant(of: find.byKey(const ValueKey('git-backup-now')), matching: find.byType(RowAction)));
-      await tester.runAsync(() => until(() => !service.backup.running && service.backup.last?.pushed == true));
-      await tester.pump();
+      await tester.ensureVisible(find.byKey(const ValueKey('git-backup-now')));
+      // The tap starts real IO (the core, git on disk), so it runs inside runAsync too, where that IO can finish.
+      await tester.runAsync(() async {
+        await tester.tap(find.descendant(of: find.byKey(const ValueKey('git-backup-now')), matching: find.byType(RowAction)));
+        await until(() => !service.backup.running && service.backup.last?.pushed == true);
+      });
+      await settled(tester, find.text('Backed up.'));
       expect(find.text('Backed up.'), findsOneWidget);
       await away(tester);
     });
 
     testWidgets('in Simple the switches wait behind More; a conflict copy has Open; Remove asks twice and leaves the files', skip: skip, (tester) async {
-      preferences.update((p) => p.copyWith(experience: 'simple'));
-      await service.backup.backUpNow();
+      await tester.runAsync(() => service.backup.backUpNow());
       updateGitBackupSettings((s) => s.copyWith(conflicts: ['Inbox/Plan (conflict from git).md']));
       await pumpPane(tester, const GitBackupPane());
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await settled(tester, find.byKey(const ValueKey('git-backup-size')));
+      // Simple, set once the page stands (pumpPane puts its own preferences in place first).
+      preferences.update((p) => p.copyWith(experience: 'simple'));
       await tester.pump();
       expect(find.byKey(const ValueKey('git-backup-recordings')), findsNothing);
       expect(find.byKey(const ValueKey('git-backup-more')), findsOneWidget);
       expect(find.text('1 conflict copy'), findsOneWidget);
       expect(find.text('Plan (conflict from git)'), findsOneWidget);
       await snap(tester, 'conflict-simple');
+      await tester.ensureVisible(find.byKey(const ValueKey('git-backup-more')));
       await tester.tap(find.descendant(of: find.byKey(const ValueKey('git-backup-more')), matching: find.byType(RowAction)));
       await tester.pump();
       expect(find.byKey(const ValueKey('git-backup-recordings')), findsOneWidget);
       expect(find.byKey(const ValueKey('git-backup-org-Acme')), findsOneWidget);
       expect(tester.widget<GlacierSwitch>(find.descendant(of: find.byKey(const ValueKey('git-backup-org-Acme')), matching: find.byType(GlacierSwitch))).checked, isFalse, reason: 'a team’s notes are the team’s');
       // Open clears the row.
+      await tester.ensureVisible(find.byKey(const ValueKey('git-backup-conflicts')));
       await tester.tap(find.descendant(of: find.byKey(const ValueKey('git-backup-conflicts')), matching: find.byType(RowAction)));
       await tester.pump();
       expect(find.byKey(const ValueKey('git-backup-conflicts')), findsNothing);
@@ -182,12 +198,11 @@ void main() {
 
     testWidgets('a failed backup is a red row with Retry, pictured on the page as the last failure', skip: skip, (tester) async {
       setGitBackupSettings(const GitBackupSettings(remote: 'https://127.0.0.1:9/nobody/nothing.git'));
-      await service.backup.backUpNow(personStarted: true);
+      await tester.runAsync(() => service.backup.backUpNow(personStarted: true));
       final job = activity[backupJobId]!;
       expect((job.state, job.fix?.kind), (JobState.failed, JobFixKind.retry));
       await pumpPane(tester, const GitBackupPane());
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pump();
+      await settled(tester, find.text('Retry'));
       expect(find.textContaining('The last backup failed: The git host couldn’t be reached.'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
       await snap(tester, 'failed-row');

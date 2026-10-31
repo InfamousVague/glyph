@@ -54,7 +54,7 @@ void main() {
       core.answers['library_move'] = {'notes': 2, 'adopted': 3, 'renamed': 1, 'same': 0, 'removed': 2, 'status': vault};
       await show(tester, folder(answer: jsonEncode({'uri': tree, 'name': 'Vault'})));
       await letRun(tester);
-      expect(rowLabels(tester, 'Where your notes are'), ['Ghost.md’s own folder', 'Choose a folder…']);
+      expect(rowLabels(tester, 'Where your notes are'), ['Ghost.md’s own folder', 'Choose a folder…', 'Open library from git…']);
       expect(hintOfRow(tester, 'Ghost.md’s own folder'), '2 notes. /data/user/0/com.mattssoftware.glyph.flutter/Library');
       expect(hintOfRow(tester, 'Choose a folder…'), 'In the phone’s folder picker.');
       expect(rowCalled('Use Ghost.md’s own folder'), findsNothing);

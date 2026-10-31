@@ -68,6 +68,8 @@ class _GitBackupPaneState extends State<GitBackupPane> {
   void initState() {
     super.initState();
     _stop = onPluginStorage(_redraw);
+    // Simple or Advanced may change while the page is open.
+    preferences.addListener(_redraw);
     _service?.backup.addListener(_moved);
     _url.addListener(_redraw);
     _folder.addListener(_redraw);
@@ -77,6 +79,7 @@ class _GitBackupPaneState extends State<GitBackupPane> {
   @override
   void dispose() {
     _stop();
+    preferences.removeListener(_redraw);
     _service?.backup.removeListener(_moved);
     _url.dispose();
     _token.dispose();
@@ -398,7 +401,7 @@ class _GitBackupPaneState extends State<GitBackupPane> {
             ],
           ],
         ),
-        if (settings.repoPath != null || settings.configured)
+        // Always on the page (the search finds it); its row waits until there is a repository to remove.
           PaneSection(
             title: 'Remove',
             children: [
@@ -407,7 +410,7 @@ class _GitBackupPaneState extends State<GitBackupPane> {
                 icon: const AppIcon(Lucide.trash2, size: 16),
                 label: 'Remove the repository from this device',
                 hint: const Text('Your notes stay as they are; only the .git folder goes. What was pushed stays on the remote.'),
-                value: RowAction(onPress: _remove, disabled: busy, child: Text(_armed ? 'Tap again' : 'Remove')),
+                value: RowAction(onPress: _remove, disabled: busy || (settings.repoPath == null && !settings.configured), child: Text(_armed ? 'Tap again' : 'Remove')),
               ),
             ],
           ),
