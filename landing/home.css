@@ -192,6 +192,16 @@ main > section {
   transform: scale(1.5);
 }
 
+/* Over an ink band (home.js puts `on-ink` on the list, never on the body) the dots take the band's own greys: the
+   current one paper, the rest a grey that shows on ink. */
+.dots.on-ink a {
+  background: var(--ink-3);
+}
+
+.dots.on-ink a[aria-current] {
+  background: var(--paper);
+}
+
 .dots a:focus-visible {
   outline-offset: 4px;
   border-radius: 50%;
@@ -348,14 +358,80 @@ main > section {
 
 /* ---- a band: one idea, its words, and the app showing it --------------------------------------------------------- */
 
-/* No rule between bands: the screen's edge is the break, as Air has it. A tinted band carries a wash of its own hue,
-   as Slides' coloured slides do, faint enough to stay paper. */
+/* No rule between bands: the screen's edge is the break, as Air has it. A band is paper or ink and nothing between
+   (Matt, 2026-10-31: "don't tint any of the sections just make them black or white"): every section paints its own
+   paper, so no page colour ever shows through, and an ink band paints itself ink and wears the other theme's whole
+   palette, the dark greys and hues on the light page and the light ones on the dark page (site.css's two sets), so
+   its words, pills, cards and icons read as they do on the page of that colour. Nothing is painted on the body. */
 .band {
   padding-block: clamp(4rem, 8vw, 6rem);
 }
 
-.band-tint {
-  background: color-mix(in srgb, var(--hue) 6%, var(--paper));
+main > section {
+  background: var(--paper);
+}
+
+.band-ink {
+  --paper: oklch(0.11 0 0);
+  --paper-2: oklch(0.17 0 0);
+  --paper-3: oklch(0.24 0 0);
+  --rule: oklch(0.205 0 0);
+  --ink: oklch(0.965 0 0);
+  --ink-2: oklch(0.8 0 0);
+  --ink-3: oklch(0.69 0 0);
+  --ink-4: oklch(0.34 0 0);
+  --wash: color-mix(in oklch, oklch(0.965 0 0) 7%, transparent);
+  --hue-blue: #4ea1ff;
+  --hue-purple: #c77dff;
+  --hue-red: #ff6b61;
+  --hue-graphite: #aeb2b8;
+  --hue-coral: #f0906b;
+  --hue-green: #4cd571;
+  --hue-yellow: #ffd43b;
+  --hue-mint: #5fe0cf;
+  color: var(--ink);
+}
+
+:root[data-theme='dark'] .band-ink {
+  --paper: oklch(0.995 0 0);
+  --paper-2: oklch(0.955 0 0);
+  --paper-3: oklch(0.895 0 0);
+  --rule: oklch(0.925 0 0);
+  --ink: oklch(0.16 0 0);
+  --ink-2: oklch(0.36 0 0);
+  --ink-3: oklch(0.47 0 0);
+  --ink-4: oklch(0.8 0 0);
+  --wash: color-mix(in oklch, oklch(0.16 0 0) 7%, transparent);
+  --hue-blue: #0a6fe0;
+  --hue-purple: #9a45c9;
+  --hue-red: #dd3a30;
+  --hue-graphite: #5f6368;
+  --hue-coral: #c8643f;
+  --hue-green: #2a9d4b;
+  --hue-yellow: #b58400;
+  --hue-mint: #1f9e8f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .band-ink {
+    --paper: oklch(0.995 0 0);
+    --paper-2: oklch(0.955 0 0);
+    --paper-3: oklch(0.895 0 0);
+    --rule: oklch(0.925 0 0);
+    --ink: oklch(0.16 0 0);
+    --ink-2: oklch(0.36 0 0);
+    --ink-3: oklch(0.47 0 0);
+    --ink-4: oklch(0.8 0 0);
+    --wash: color-mix(in oklch, oklch(0.16 0 0) 7%, transparent);
+    --hue-blue: #0a6fe0;
+    --hue-purple: #9a45c9;
+    --hue-red: #dd3a30;
+    --hue-graphite: #5f6368;
+    --hue-coral: #c8643f;
+    --hue-green: #2a9d4b;
+    --hue-yellow: #b58400;
+    --hue-mint: #1f9e8f;
+  }
 }
 
 .band-head {

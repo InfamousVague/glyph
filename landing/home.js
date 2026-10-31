@@ -120,11 +120,16 @@
     var marks = $$('.dots a, .bar-links a').filter(function (a) {
       return a.getAttribute('href').charAt(0) === '#';
     });
+    var dots = $('.dots');
     var current = function (id) {
       marks.forEach(function (a) {
         if (a.getAttribute('href') === '#' + id) a.setAttribute('aria-current', 'true');
         else a.removeAttribute('aria-current');
       });
+      // Over an ink band the dots take its greys (home.css .dots.on-ink). The class is the list's own: nothing on the
+      // body, whose colour never changes.
+      var section = document.getElementById(id);
+      if (dots) dots.classList.toggle('on-ink', !!section && section.classList.contains('band-ink'));
     };
     var watcher = new IntersectionObserver(
       function (entries) {
