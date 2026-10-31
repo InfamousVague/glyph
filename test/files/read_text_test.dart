@@ -8,6 +8,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart' as note_text show matches;
 import 'package:ghost_md/core/note_text.dart' show searchExtra;
 import 'package:ghost_md/core/search_hits.dart';
+import 'package:ghost_md/files/attachment_places.dart';
 import 'package:ghost_md/files/read_text.dart';
 
 const String picture = 'a1b2c3d4-0000-4000-8000-000000000001.jpg';
@@ -43,6 +44,62 @@ void main() {
     expect(again.wordsOf(const ReadThing.picture(picture)), 'TOTAL 42.10\nThank you');
     expect(again.count, 2);
     expect(again.pathOf(const ReadThing.picture('../escape.jpg')), isNull);
+  });
+
+  test('a picture’s words are written beside it under the library, and read from there and from the old folder', () async {
+    // The core's answer (native/src/dispatch.rs `attachment_places`): pictures under the library first, the old folder
+    // still read; files still beside the library, their folder under it only read.
+    final places = AttachmentPlaces(
+      image: ['${data.path}/Library/image', '${data.path}/images'],
+      file: ['${data.path}/images/files', '${data.path}/Library/file'],
+      video: ['${data.path}/video'],
+      recording: ['${data.path}/recordings'],
+    );
+    const older = 'c1b2c3d4-0000-4000-8000-000000000003.png';
+    const twice = 'd1b2c3d4-0000-4000-8000-000000000004.jpg';
+    File('${data.path}/images/$older.ocr.txt')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('an older build wrote this beside the old folder');
+    File('${data.path}/images/$twice.ocr.txt')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('the old copy');
+    File('${data.path}/Library/image/$twice.ocr.txt')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('the copy under the library');
+    texts.follow(places);
+    await texts.keep(const ReadThing.picture(picture), 'TOTAL 42.10');
+    expect(File('${data.path}/Library/image/$picture.ocr.txt').readAsStringSync(), 'TOTAL 42.10', reason: 'written where the pictures are written now');
+    expect(File('${data.path}/images/$picture.ocr.txt').existsSync(), isFalse);
+    await texts.keep(const ReadThing.file(lease), 'Lease');
+    expect(File('${data.path}/images/files/$lease.ocr.txt').existsSync(), isTrue, reason: 'the files are still beside the library');
+    expect(await texts.readKept(const ReadThing.picture(older)), 'an older build wrote this beside the old folder');
+    expect(await texts.readKept(const ReadThing.picture(twice)), 'the copy under the library', reason: 'the first folder that has it');
+
+    final again = ReadTexts(dataDir: data.path, places: places);
+    await again.load();
+    expect(again.wordsOf(const ReadThing.picture(picture)), 'TOTAL 42.10');
+    expect(again.wordsOf(const ReadThing.picture(older)), 'an older build wrote this beside the old folder');
+    expect(again.wordsOf(const ReadThing.picture(twice)), 'the copy under the library');
+    expect(again.wordsOf(const ReadThing.file(lease)), 'Lease');
+    expect(again.count, 4);
+    // Forgotten from every folder.
+    await again.forget(const ReadThing.picture(twice));
+    expect(File('${data.path}/images/$twice.ocr.txt').existsSync() || File('${data.path}/Library/image/$twice.ocr.txt').existsSync(), isFalse);
+
+    // Until the core has answered, the old folders are what is read: what every build before 2.3.94 had.
+    expect(ReadTexts(dataDir: data.path).places, AttachmentPlaces.legacy(data.path));
+    expect(AttachmentPlaces.legacy(data.path).image, ['${data.path}/images']);
+    expect(AttachmentPlaces.legacy(data.path).file, ['${data.path}/images/files']);
+  });
+
+  test('the core’s answer for where the attachments are is taken whole, or the old folders stand', () async {
+    final said = {'image': ['/l/image', '/d/images'], 'file': ['/d/images/files'], 'video': ['/d/video'], 'recording': ['/d/recordings']};
+    expect(await AttachmentPlaces.ask((command, [args = const {}]) async => said, dataDir: '/d'), AttachmentPlaces.fromJson(said));
+    expect((await AttachmentPlaces.ask((command, [args = const {}]) async => said, dataDir: '/d')).image, ['/l/image', '/d/images']);
+    // A core before the command, one that answers with a kind missing, or no core at all.
+    expect(await AttachmentPlaces.ask((command, [args = const {}]) async => throw StateError('no such command'), dataDir: '/d'), AttachmentPlaces.legacy('/d'));
+    expect(await AttachmentPlaces.ask((command, [args = const {}]) async => {'image': ['/l/image']}, dataDir: '/d'), AttachmentPlaces.legacy('/d'));
+    expect(await AttachmentPlaces.ask((command, [args = const {}]) async => null, dataDir: '/d'), AttachmentPlaces.legacy('/d'));
   });
 
   test('an empty sidecar is a thing read with nothing in it, and none is a thing not read', () async {

@@ -382,9 +382,11 @@ const MAX_STEM: usize = 80;
 /// A title as a file name without its extension. Characters Windows, Android
 /// or a sync service refuse are dropped, markdown emphasis goes, runs of space
 /// shrink to one, and a trailing dot or space is trimmed (Windows can't hold
-/// one). An empty result is "Untitled".
+/// one). Its letters are composed the one way (`composed`), so the name
+/// written and the name a title is checked against (mod.rs `named_for`) are
+/// the same bytes whatever spelt the title. An empty result is "Untitled".
 pub fn file_stem(title: &str) -> String {
-    let cleaned: String = title
+    let cleaned: String = composed(title)
         .chars()
         .filter(|c| !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#' | '^' | '[' | ']') && !c.is_control())
         .collect::<String>()
@@ -400,6 +402,23 @@ pub fn file_stem(title: &str) -> String {
     }
     let stem = stem.trim_end_matches(['.', ' ']).trim_start_matches('.').trim().to_string();
     if stem.is_empty() { "Untitled".to_string() } else { stem }
+}
+
+/// `text` with its letters composed the one way (Unicode NFC): `é` as one character, never `e` and a combining
+/// accent, however the keyboard or the file system that typed it spelt it. A Mac's file system writes names
+/// decomposed and reads either; Android's and a git host keep the bytes they were given; so a name is composed
+/// before it is written, and compared composed (`same_name`), or two spellings of `Café.md` could sit side by side
+/// on Android and be one file on a Mac.
+pub fn composed(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization as _;
+    text.nfc().collect()
+}
+
+/// Whether two file names are one name to a file system that reads neither case nor composition: `Plan.md` and
+/// `plan.md`, `Café.md` composed and decomposed. Lower-cased by Unicode's rules, which fold `É` as `é`.
+pub fn same_name(a: &str, b: &str) -> bool {
+    use unicode_normalization::UnicodeNormalization as _;
+    a.nfc().flat_map(char::to_lowercase).eq(b.nfc().flat_map(char::to_lowercase))
 }
 
 /// The first of `Stem.md`, `Stem 2.md`, `Stem 3.md` … that `taken` says is free.
@@ -493,5 +512,15 @@ mod tests {
         let taken = ["Weekend trip.md", "Weekend trip 2.md"];
         assert_eq!(unique_name("Weekend trip", |n| taken.contains(&n)), "Weekend trip 3.md");
         assert_eq!(unique_name("New", |_| false), "New.md");
+    }
+
+    #[test]
+    fn a_name_is_the_same_name_whatever_its_case_or_composition() {
+        assert!(same_name("Plan.md", "plan.md") && same_name("PLAN.MD", "plan.md"));
+        // `Café` composed (U+00E9) and decomposed (e, U+0301), as a Mac's file system would write it.
+        assert!(same_name("Caf\u{e9}.md", "Cafe\u{301}.md") && same_name("CAF\u{c9}.md", "cafe\u{301}.md"));
+        assert!(!same_name("Plan.md", "Plan 2.md") && !same_name("Café.md", "Cafe.md"));
+        assert_eq!(composed("Cafe\u{301}"), "Caf\u{e9}");
+        assert_eq!(composed("Plan"), "Plan", "ASCII is left as it is");
     }
 }

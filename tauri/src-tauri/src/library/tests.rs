@@ -142,10 +142,12 @@ fn a_one_block_file_reads_as_the_pages_and_stays_one_block() {
     library.save_note("t2", &note.body, "editor").unwrap();
     assert_eq!(read(&root, "Inbox/Fix the fold.md"), before, "an unchanged round trip rewrites nothing");
 
-    // A page key changed: still one block, the library's lines first, the page's after.
+    // A page key changed: still one block, the library's lines first (`updated:` among them, the save's), the page's after.
     library.save_note("t2", &note.body.replace("status: In progress", "status: Done"), "editor").unwrap();
     let text = read(&root, "Inbox/Fix the fold.md");
-    assert_eq!(text, "---\nid: t2\ncreated: 2026-10-01T08:00:00.000Z\nstatus: Done\ndue: 2026-11-01\ntype: ticket\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds.\n");
+    assert!(text.contains("\nupdated: 20"), "{text}");
+    let without_updated: String = text.lines().filter(|line| !line.starts_with("updated: ")).map(|line| format!("{line}\n")).collect();
+    assert_eq!(without_updated, "---\nid: t2\ncreated: 2026-10-01T08:00:00.000Z\nstatus: Done\ndue: 2026-11-01\ntype: ticket\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds.\n");
 
     // A synced edit lands in the one block too, with the library's keys stamped from the note.
     let synced = Note { path: Some("Inbox/Fix the fold.md".into()), ..remote("t2", "---\nstatus: Done\ntype: ticket\nissue: GHO-14\n---\n# Fix the fold\n\nIt folds, fixed.\n") };
@@ -208,7 +210,8 @@ fn with_one_block_on_a_two_block_file_is_merged_at_the_next_write() {
     assert_eq!(note.body, "---\ntype: ticket\nissue: GHO-3\nstatus: To do\n---\n# Two\n", "the page reads the ticket's key under issue:");
     library.save_note("t3", &note.body.replace("To do", "Done"), "editor").unwrap();
     let text = read(&root, "Inbox/Two.md");
-    assert_eq!(text, "---\nid: t3\ncreated: 2026-10-01T08:00:00.000Z\npinned: true\ntype: ticket\nissue: GHO-3\nstatus: Done\n---\n# Two\n", "{text}");
+    let without_updated: String = text.lines().filter(|line| !line.starts_with("updated: ")).map(|line| format!("{line}\n")).collect();
+    assert_eq!(without_updated, "---\nid: t3\ncreated: 2026-10-01T08:00:00.000Z\npinned: true\ntype: ticket\nissue: GHO-3\nstatus: Done\n---\n# Two\n", "{text}");
     let fresh = library.save_note("t4", "---\ntype: ticket\nstatus: To do\n---\n# Fresh\n", "editor").unwrap();
     let text = read(&root, "Inbox/Fresh.md");
     assert_eq!(text.matches("---\n").count(), 2, "on: a new note is one block: {text}");
@@ -327,7 +330,7 @@ fn two_handles_opened_at_once_on_an_older_index_both_open() {
         }
         let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
         let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
         let rows: i64 = index.query_row("SELECT count(*) FROM notes", [], |row| row.get(0)).unwrap();
         assert_eq!(rows, 1, "round {round}: the rows the first rebuild filled are still there");
     }
@@ -673,4 +676,145 @@ fn clearing_empties_the_library_and_it_carries_on() {
     assert!(root.join(".glyph/notes").is_dir(), "the folder a sidecar is written into is still there");
     let again = library.save_note("c", "# Three\n", "editor").unwrap();
     assert_eq!(library.list_notes().unwrap(), vec![again]);
+}
+
+/// Decision 20 of docs/MARKDOWN_FIRST.md: a file from another app has its id in the index only, so a pin on it
+/// used to leave a note that would be another note on a fresh device. The pin's rewrite now carries the id in.
+#[test]
+fn a_pin_writes_the_id_into_a_file_from_another_app_and_nothing_into_one_it_leaves_alone() {
+    let root = TempDir::new("library-pin-id");
+    let mut library = Library::open_fs(&root).unwrap();
+    std::fs::write(root.join("Theirs.md"), "---\ntags: [trip]\n---\n# Theirs\n").unwrap();
+    std::fs::write(root.join("Bare.md"), "# Bare\n").unwrap();
+    let notes = library.list_notes().unwrap();
+    let theirs = notes.iter().find(|n| n.path.as_deref() == Some("Theirs.md")).unwrap().clone();
+    let bare = notes.iter().find(|n| n.path.as_deref() == Some("Bare.md")).unwrap().clone();
+    // Pinned: the person's keys first, then the pin and the id, and the file's time as it was.
+    let pinned = library.set_starred(&theirs.id, true).unwrap().unwrap();
+    assert_eq!(read(&root, "Theirs.md"), format!("---\ntags: [trip]\npinned: true\nid: {}\n---\n# Theirs\n", theirs.id));
+    assert_eq!(pinned.updated_at, theirs.updated_at);
+    // Unpinned, nothing changes, nothing is written: a file without an id stays as it was.
+    library.set_starred(&bare.id, false).unwrap();
+    assert_eq!(read(&root, "Bare.md"), "# Bare\n");
+    // Archived: the id goes in with the archive, and the note is the same note on a fresh index.
+    library.set_archived(&bare.id, true).unwrap();
+    let archived = read(&root, "Bare.md");
+    assert!(archived.starts_with("---\narchived: 20") && archived.contains(&format!("\nid: {}\n", bare.id)), "{archived}");
+    drop(library);
+    std::fs::remove_file(root.join(".glyph/index.sqlite")).unwrap();
+    let mut fresh = Library::open_fs(&root).unwrap();
+    assert!(fresh.get_note(&theirs.id).unwrap().unwrap().starred && fresh.get_note(&bare.id).unwrap().unwrap().archived_at.is_some());
+}
+
+/// The critic's first finding (docs/MARKDOWN_FIRST.md §12): a second file carrying a live id was given a fresh id
+/// in the index only, and on a fresh clone the walk reached `Plan (conflict from Mac).md` before `Plan.md` and gave
+/// the copy the real id. Now the copy's fresh id is written into it, and the file named for its title keeps the id.
+#[test]
+fn a_conflict_copy_is_given_a_fresh_id_in_its_file_and_the_note_named_for_its_title_keeps_its_own() {
+    let root = TempDir::new("library-conflict");
+    let plan = "---\nid: plan\ncreated: 2026-10-01T10:00:00.000Z\n---\n# Plan\n\nours\n";
+    std::fs::create_dir_all(root.join("Inbox")).unwrap();
+    std::fs::write(root.join("Inbox/Plan.md"), plan).unwrap();
+    std::fs::write(root.join("Inbox/Plan (conflict from Mac).md"), plan.replace("ours", "theirs")).unwrap();
+    // A fresh clone: no index. The copy sorts first in the walk.
+    let mut library = Library::open_fs(&root).unwrap();
+    let notes = library.list_notes().unwrap();
+    assert_eq!(notes.len(), 2);
+    let real = library.get_note("plan").unwrap().unwrap();
+    assert_eq!(real.path.as_deref(), Some("Inbox/Plan.md"), "the file named for its title is the note");
+    let copy = notes.iter().find(|n| n.id != "plan").unwrap().clone();
+    assert_eq!(copy.path.as_deref(), Some("Inbox/Plan (conflict from Mac).md"));
+    let text = read(&root, "Inbox/Plan (conflict from Mac).md");
+    assert!(text.starts_with(&format!("---\nid: {}\ncreated: 2026-10-01T10:00:00.000Z\n---\n", copy.id)), "the fresh id is in the file: {text}");
+    assert_eq!(read(&root, "Inbox/Plan.md"), plan, "the note's file is untouched");
+    assert!(!root.join(".glyph/notes").join(format!("{}.json", copy.id)).exists(), "no sidecar comes with a fresh id");
+    // A second fresh clone of the folder as it now is gives the same ids: nothing is left to the walk's order.
+    drop(library);
+    std::fs::remove_file(root.join(".glyph/index.sqlite")).unwrap();
+    let mut again = Library::open_fs(&root).unwrap();
+    assert_eq!(again.get_note("plan").unwrap().unwrap().path.as_deref(), Some("Inbox/Plan.md"));
+    assert_eq!(again.get_note(&copy.id).unwrap().unwrap().body, "# Plan\n\ntheirs\n");
+
+    // The other way round: a copy of a note already indexed is the copy whatever it is called, and its file says so.
+    again.save_note("same", "# Original\n", "editor").unwrap();
+    std::fs::copy(root.join("Inbox/Original.md"), root.join("Inbox/Copy.md")).unwrap();
+    let notes = again.list_notes().unwrap();
+    let copied = notes.iter().find(|n| n.path.as_deref() == Some("Inbox/Copy.md")).unwrap();
+    assert_ne!(copied.id, "same");
+    let copy_text = read(&root, "Inbox/Copy.md");
+    assert!(copy_text.contains(&format!("\nid: {}\n", copied.id)), "{copy_text}");
+    assert_eq!(again.get_note("same").unwrap().unwrap().path.as_deref(), Some("Inbox/Original.md"));
+}
+
+/// Decision 5 of docs/MARKDOWN_FIRST.md, the alternative the critic showed is the only one SAF allows: `updated:` is
+/// written on a save that changed the words, and the note's time is the later of the key and the file's own.
+#[test]
+fn a_save_writes_when_the_words_changed_and_the_note_shows_the_later_of_the_key_and_the_file() {
+    let root = TempDir::new("library-updated");
+    let mut library = Library::open_fs(&root).unwrap();
+    let saved = library.save_note("u", "# Plan\n", "editor").unwrap();
+    let text = read(&root, "Inbox/Plan.md");
+    let key = text.lines().find_map(|line| line.strip_prefix("updated: ")).expect("an updated key").to_string();
+    let key_ms = parse_iso(&key).unwrap();
+    assert!((saved.updated_at - key_ms).abs() < 2_000, "{saved:?} {key}");
+    // The same words again: not an edit, the file is not written, the key stands.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    library.save_note("u", "# Plan\n", "editor").unwrap();
+    assert_eq!(read(&root, "Inbox/Plan.md"), text);
+    // A pin keeps it too.
+    library.set_starred("u", true).unwrap();
+    assert!(read(&root, "Inbox/Plan.md").contains(&format!("updated: {key}\n")));
+    // A clone whose files git has stamped with an older time (or any folder copied with its times lost): the key wins.
+    library.vault.keep_modified("Inbox/Plan.md", key_ms - 86_400_000).unwrap();
+    drop(library);
+    std::fs::remove_file(root.join(".glyph/index.sqlite")).unwrap();
+    let mut fresh = Library::open_fs(&root).unwrap();
+    assert_eq!(fresh.get_note("u").unwrap().unwrap().updated_at, key_ms, "the key is later than the file");
+    // An edit in another app moves the file's time and not the key: the file wins, and the note is at the top.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let edited = read(&root, "Inbox/Plan.md").replace("# Plan\n", "# Plan\n\nedited in Obsidian\n");
+    std::fs::write(root.join("Inbox/Plan.md"), edited).unwrap();
+    let note = fresh.get_note("u").unwrap().unwrap();
+    assert!(note.updated_at > key_ms, "{} > {key_ms}", note.updated_at);
+    assert!(note.body.contains("edited in Obsidian"));
+    // A note that arrives by sync carries its own time as the key.
+    let applied = fresh.apply_note(&remote("s", "# Synced\n")).unwrap();
+    assert!(read(&root, "Work/Trips/Hello.md").contains("updated: 2026-03-04T05:06:07.000Z\n"), "{}", read(&root, "Work/Trips/Hello.md"));
+    assert_eq!(applied.updated_at, parse_iso("2026-03-04T05:06:07.000Z").unwrap());
+    assert_eq!(MANAGED_KEYS, ["id", "created", "updated", "source", "pinned", "archived"]);
+    assert!(MANAGED_KEYS.iter().all(|key| frontmatter::LIBRARY_KEYS.contains(key)), "every managed key is one the one-block reader takes as the library's");
+}
+
+/// The critic's case/normalization finding: a tree written on Android, whose own storage tells `Plan.md` from
+/// `plan.md`, must not hold both, since a Mac or an iPhone checking it out would merge them, one over the other.
+#[test]
+fn two_names_that_differ_only_in_case_or_composition_are_one_name() {
+    let root = TempDir::new("library-case");
+    let mut library = Library::open_fs(&root).unwrap();
+    assert_eq!(library.save_note("a", "# Plan\n", "editor").unwrap().path.as_deref(), Some("Inbox/Plan.md"));
+    assert_eq!(library.save_note("b", "# plan\n", "editor").unwrap().path.as_deref(), Some("Inbox/plan 2.md"));
+    assert_eq!(library.save_note("c", "# PLAN\n", "editor").unwrap().path.as_deref(), Some("Inbox/PLAN 3.md"));
+    // `Café` typed composed, then decomposed as a Mac's file system or a pasted name may spell it.
+    assert_eq!(library.save_note("d", "# Caf\u{e9}\n", "editor").unwrap().path.as_deref(), Some("Inbox/Caf\u{e9}.md"));
+    assert_eq!(library.save_note("e", "# Cafe\u{301}\n", "editor").unwrap().path.as_deref(), Some("Inbox/Caf\u{e9} 2.md"), "composed before it is written, and one name with the first");
+    // A file another app wrote decomposed is named for its title: a save keeps its name rather than numbering it.
+    std::fs::write(root.join("Inbox/Cre\u{300}me.md"), "# Cr\u{e8}me\n").unwrap();
+    let theirs = library.list_notes().unwrap().into_iter().find(|n| n.path.as_deref() == Some("Inbox/Cre\u{300}me.md")).unwrap();
+    assert_eq!(library.save_note(&theirs.id, "# Cr\u{e8}me\n\nbr\u{fb}l\u{e9}e\n", "editor").unwrap().path.as_deref(), Some("Inbox/Cre\u{300}me.md"));
+    assert_eq!(library.list_notes().unwrap().len(), 6);
+}
+
+/// A reset of the app's own folder takes the pictures under it with the notes that showed them; a person's folder
+/// (library/relocate.rs tests) keeps every file.
+#[test]
+fn clearing_the_apps_own_folder_takes_its_pictures_too() {
+    let root = TempDir::new("library-clear-pictures");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("a", "# One\n\n![](image/a.jpg)\n", "editor").unwrap();
+    std::fs::create_dir_all(root.join("image")).unwrap();
+    std::fs::write(root.join("image/a.jpg"), b"jpeg").unwrap();
+    std::fs::write(root.join("image/a.jpg.ocr.txt"), b"words").unwrap();
+    library.clear().unwrap();
+    assert!(!root.join("image").exists() && !root.join("Inbox/One.md").exists());
+    assert!(root.join(".glyph/library.json").exists());
 }

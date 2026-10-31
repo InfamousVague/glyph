@@ -1,6 +1,7 @@
 //! Shares, through the routes a device and a reader call (docs/SHARING.md): the owner writes one, anyone reads it with
 //! no account, the owner's edits reach the reader, nobody else can write or take it down, and a share taken down is
-//! gone.
+//! gone. And what the owner's devices seal about a share (its meta, 2026-10-31): written after the share, listed to the
+//! owner alone, never shown to a reader, and gone with the share.
 
 use crate::test_support::{device, request, Harness};
 use axum::http::{header, Method, StatusCode};
@@ -128,6 +129,101 @@ async fn reading_shares_is_limited_by_the_reader_s_address() {
     assert_eq!(refused, Some(json!({ "error": "Too many reads in a minute. Try again shortly." })));
     let (status, _, _) = service.send(from("198.51.100.1")).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "another reader is not held to the first one's minute");
+}
+
+// ---- what the owner's devices seal about a share --------------------------------------------------------------------
+
+#[tokio::test]
+async fn the_owner_writes_a_share_s_meta_after_the_share_and_the_list_answers_it_to_the_owner_alone() {
+    let service = service();
+    let owner = service.signup("sam", &device()).await;
+    let other = service.signup("ali", &device()).await;
+    let path = format!("/api/v1/shares/{ID}");
+    let meta = format!("{path}/meta");
+    // The share goes first: a meta for one not here is refused, and told to share first.
+    let (status, body) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "bWV0YQ" }))).await;
+    assert_eq!((status, body), (StatusCode::NOT_FOUND, json!({ "error": "There is no share of yours at that link. Share the note first." })));
+    service.call(Method::PUT, &path, Some(&owner), Some(json!({ "blob": "c2VhbGVk" }))).await;
+    let (_, body) = service.call(Method::GET, "/api/v1/shares", Some(&owner), None).await;
+    assert_eq!(body["shares"][0]["meta"], serde_json::Value::Null, "an older app's share says nothing about itself");
+    assert!(body["shares"][0]["created"].as_i64().unwrap() > 1_700_000_000, "first written, in seconds as `updated` is");
+    let (status, body) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "bWV0YQ" }))).await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "id": ID })));
+    // Written again: the devices' latest word.
+    let (status, _) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "bWV0YTI" }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = service.call(Method::GET, "/api/v1/shares", Some(&owner), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!((body["shares"].as_array().unwrap().len(), body["shares"][0]["id"].as_str(), body["shares"][0]["meta"].as_str()), (1, Some(ID), Some("bWV0YTI")));
+    // A reader sees the blob and nothing of the meta; another account cannot write it, and lists nothing.
+    let (_, body) = service.call(Method::GET, &path, None, None).await;
+    assert_eq!(body, json!({ "blob": "c2VhbGVk", "updated": body["updated"] }));
+    let (status, body) = service.call(Method::PUT, &meta, Some(&other), Some(json!({ "meta": "dGhlaXJz" }))).await;
+    assert_eq!((status, body["error"].as_str()), (StatusCode::NOT_FOUND, Some("There is no share of yours at that link. Share the note first.")), "answered as for no share: nothing to learn");
+    let (_, body) = service.call(Method::GET, "/api/v1/shares", Some(&owner), None).await;
+    assert_eq!(body["shares"][0]["meta"], "bWV0YTI", "and it did nothing");
+    let (_, body) = service.call(Method::GET, "/api/v1/shares", Some(&other), None).await;
+    assert_eq!(body["shares"], json!([]));
+    // Taken down, the meta goes with the share.
+    let (status, _) = service.call(Method::DELETE, &path, Some(&owner), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, body) = service.call(Method::GET, "/api/v1/shares", Some(&owner), None).await;
+    assert_eq!(body["shares"], json!([]));
+    let (status, _) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "bWV0YQ" }))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_share_s_meta_needs_an_account_a_proper_id_and_base64url_under_four_thousand_characters() {
+    let service = service();
+    let owner = service.signup("sam", &device()).await;
+    let path = format!("/api/v1/shares/{ID}");
+    service.call(Method::PUT, &path, Some(&owner), Some(json!({ "blob": "c2VhbGVk" }))).await;
+    let meta = format!("{path}/meta");
+    let (status, _) = service.call(Method::PUT, &meta, None, Some(json!({ "meta": "bWV0YQ" }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = service.call(Method::PUT, "/api/v1/shares/short/meta", Some(&owner), Some(json!({ "meta": "bWV0YQ" }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, body) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "" }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "What that share says about itself could not be read." })));
+    let (status, _) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "not base64!" }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "A".repeat(4_096) }))).await;
+    assert_eq!(status, StatusCode::OK, "a note id, a key, the switches and a recording's descriptor, sealed, fit");
+    let (status, _) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "meta": "A".repeat(4_097) }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = service.call(Method::PUT, &meta, Some(&owner), Some(json!({ "blob": "bWV0YQ" }))).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "a body with no meta in it");
+}
+
+/// Writing metas is the owner's, and limited by address besides: 120 a minute, with another address counted apart.
+#[tokio::test]
+async fn writing_metas_is_limited_by_the_writer_s_address() {
+    let service = service();
+    let owner = service.signup("sam", &device()).await;
+    let path = format!("/api/v1/shares/{ID}");
+    service.call(Method::PUT, &path, Some(&owner), Some(json!({ "blob": "c2VhbGVk" }))).await;
+    let from = |address: &str| {
+        let mut write = request(Method::PUT, &format!("{path}/meta"), Some(&owner), Some(json!({ "meta": "bWV0YQ" })));
+        write.headers_mut().insert("x-forwarded-for", address.parse().unwrap());
+        write
+    };
+    for i in 0..120 {
+        let (status, _, _) = service.send(from("203.0.113.9")).await;
+        assert_eq!(status, StatusCode::OK, "write {i} of the minute's 120 is taken");
+    }
+    // The bucket refills at two a second, so a slow machine may earn a few more; the refusal still comes.
+    let mut refused = None;
+    for _ in 0..60 {
+        let (status, _, bytes) = service.send(from("203.0.113.9")).await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            refused = Some(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap());
+            break;
+        }
+    }
+    assert_eq!(refused, Some(json!({ "error": "Too many writes in a minute. Try again shortly." })));
+    let (status, _, _) = service.send(from("198.51.100.1")).await;
+    assert_eq!(status, StatusCode::OK, "another device is not held to the first one's minute");
 }
 
 // ---- a meeting's recording ------------------------------------------------------------------------------------------

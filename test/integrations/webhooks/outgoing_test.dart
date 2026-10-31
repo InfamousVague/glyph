@@ -7,13 +7,16 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
+import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/core/core_library.dart' show SavedHere;
+import 'package:ghost_md/core/export_all.dart' show settingsFile;
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/integrations/webhooks/outgoing.dart';
 import 'package:ghost_md/integrations/webhooks/payload.dart';
 import 'package:ghost_md/integrations/webhooks/setup.dart';
+import 'package:ghost_md/sync/kept_secrets.dart';
 
 import '../../library/support.dart';
 
@@ -25,12 +28,18 @@ void main() {
   late List<int> answers;
   late List<Duration> waited;
   late WebhookSender sender;
+  late MemorySecureStore secure;
+  late KeptSecrets secrets;
+
+  /// The settings as the export's settings.json would dump them (lib/core/export_all.dart `settingsFile`).
+  String exported() => settingsFile((key) => key == 'glyph-preferences' ? jsonEncode(prefs.value.toJson()) : null);
 
   WebhookSender make({List<Note> Function()? notes}) {
     final kept = MemoryStored();
     sender = WebhookSender(
       prefs: prefs,
       kept: () => kept,
+      secrets: secrets,
       on: () => true,
       clock: () => DateTime.utc(2026, 10, 17, 18).millisecondsSinceEpoch,
       wait: (time) async => waited.add(time),
@@ -52,6 +61,8 @@ void main() {
 
   setUp(() {
     prefs = PreferencesStore()..startWithoutStorage();
+    secure = MemorySecureStore();
+    secrets = KeptSecrets(secure);
     sent = [];
     answers = [];
     waited = [];
@@ -131,10 +142,64 @@ void main() {
   });
 
   testWidgets('a secret signs the very bytes sent', (tester) async {
-    make().add('https://hooks.test/in', events: {WebhookEvent.edited}, secret: 'shh');
+    make().add('https://hooks.test/in', events: {WebhookEvent.edited}, secret: 'shh', id: 'h');
     sender.heard(note('n', 'a'), note('n', 'b'));
     await tester.pump(quietFor);
     expect(sent.single.headers[signatureHeader], signatureOf('shh', sent.single.body!));
+    // The secret is the secure store's, never the settings' (decision 22): the blob names the hook, the export has no
+    // secret in it.
+    expect(secure.held[webhookSecretName('h')], 'shh');
+    expect(jsonEncode(prefs.value.toJson()), isNot(contains('shh')));
+    expect(exported(), isNot(contains('shh')));
+    expect(exported(), contains('hooks.test'));
+    sender.remove('h');
+    await tester.pump();
+    expect(secure.held.containsKey(webhookSecretName('h')), isFalse, reason: 'taken off with the hook');
+  });
+
+  testWidgets('a secret written in the clear by an older build is moved to the secure store and taken out of the settings', (tester) async {
+    // The blob as a build before 2026-10-31 wrote it.
+    prefs.update((p) => p.copyWith(more: {
+          ...p.more,
+          webhooksKey: {
+            'outgoing': [
+              {'id': 'old', 'url': 'https://hooks.test/in', 'events': ['note.edited'], 'scope': {'kind': 'all'}, 'secret': 'shh-old'},
+            ],
+          },
+        }));
+    make();
+    // Read-both: whole from the blob before anything has moved.
+    expect(sender.setup.outgoing.single.secret, 'shh-old');
+    await sender.ready();
+    expect(secure.held[webhookSecretName('old')], 'shh-old');
+    expect(jsonEncode(prefs.value.toJson()), isNot(contains('shh-old')));
+    expect(exported(), isNot(contains('shh-old')));
+    expect(sender.setup.outgoing.single.secret, 'shh-old', reason: 'from the store now');
+    sender.heard(note('n', 'a'), note('n', 'b'));
+    await tester.pump(quietFor);
+    expect(sent.single.headers[signatureHeader], signatureOf('shh-old', sent.single.body!));
+  });
+
+  testWidgets('a hook from another device signs once its secret arrives by the sealed keys', (tester) async {
+    prefs.update((p) => p.copyWith(more: {
+          ...p.more,
+          webhooksKey: {
+            'outgoing': [
+              {'id': 'far', 'url': 'https://hooks.test/in', 'events': ['note.edited'], 'scope': {'kind': 'all'}},
+            ],
+          },
+        }));
+    make();
+    await sender.ready();
+    expect(sender.setup.outgoing.single.secret, isNull, reason: 'not here yet: posts unsigned');
+    sender.heard(note('n', 'a'), note('n', 'b'));
+    await tester.pump(quietFor);
+    expect(sent.single.headers.containsKey(signatureHeader), isFalse);
+    await secrets.write(webhookSecretName('far'), 'shh-far');
+    expect(sender.setup.outgoing.single.secret, 'shh-far');
+    sender.heard(note('n', 'b'), note('n', 'c'));
+    await tester.pump(quietFor);
+    expect(sent.last.headers[signatureHeader], signatureOf('shh-far', sent.last.body!));
   });
 
   testWidgets('a failure is tried three times more, waiting longer each time, and then said in the pane', (tester) async {

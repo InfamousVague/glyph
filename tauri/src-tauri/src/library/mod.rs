@@ -26,6 +26,10 @@
 //!   Obsidian vault, a folder in iCloud Drive or Dropbox, one Syncthing keeps,
 //!   a backup drive (root.rs). Ghost.md removes files only from its own folder:
 //!   a reset or a move away from a chosen one forgets it and leaves every file.
+//! - **The pictures** a note shows live under it too, `image/<name>`, at the
+//!   path the note links (attachments.rs), so a copy of the folder is the
+//!   notes with their pictures. The files, films and tapes follow once what
+//!   plays them reads them there.
 //!
 //! The rest of the library, each in its own file: the dates front matter
 //! writes (dates.rs), voice commands' guarded writes and their undo
@@ -35,6 +39,7 @@
 //! trait (vault.rs), reached through Android's Storage Access Framework for a
 //! folder chosen there (tree.rs).
 
+pub mod attachments;
 mod dates;
 pub mod frontmatter;
 mod index;
@@ -48,6 +53,7 @@ pub mod tree;
 pub mod vault;
 mod versions;
 
+pub use attachments::{Attachments, Kind as AttachmentKind, Places};
 pub use relocate::Copied;
 
 pub use move_in::open_and_move_in;
@@ -177,10 +183,13 @@ fn library_path(path: &str) -> bool {
     path.to_ascii_lowercase().ends_with(".md") && path.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
 }
 
-/// Whether a file's name is already its title's: `Stem.md`, or `Stem 2.md` for a clash.
+/// Whether a file's name is already its title's: `Stem.md`, or `Stem 2.md` for a clash. Read with its letters
+/// composed (names.rs `composed`), as `stem` is: a file another app wrote decomposed is still named for its title,
+/// and is not renamed to `Stem 2.md` beside itself on the next save.
 fn named_for(path: &str, stem: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     let Some(bare) = name.strip_suffix(".md").or_else(|| name.strip_suffix(".MD")) else { return false };
+    let bare = names::composed(bare);
     bare == stem || bare.strip_prefix(stem).and_then(|rest| rest.strip_prefix(' ')).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
@@ -195,16 +204,28 @@ fn born_from(source: &str) -> FrontMatter {
 }
 
 /// Every key Glyph manages, written from `note`'s own facts: its id, when it
-/// was created, its source (none for the editor), its pin and its archive. For
-/// a note that arrives whole - by sync, or from the old database - rather than
-/// one being edited here.
+/// was created and last edited, its source (none for the editor), its pin and
+/// its archive. For a note that arrives whole - by sync, or from the old
+/// database - rather than one being edited here.
 fn stamp(front: &mut FrontMatter, note: &Note) {
     front.claim_id(&note.id);
     front.set("created", Some(Value::Text(iso(note.created_at))));
+    front.set("updated", Some(Value::Text(iso(note.updated_at))));
     front.set("source", (note.source != "editor").then(|| Value::Text(note.source.clone())));
     front.set("pinned", note.starred.then_some(Value::Bool(true)));
     front.set("archived", note.archived_at.map(|at| Value::Text(iso(at))));
 }
+
+/// The keys the library manages in a note's front matter, and no other
+/// (frontmatter.rs keeps the rest byte for byte). `updated` is the newest
+/// (2.3.94): a note's last edit, so a clone of the folder - whose files git
+/// stamps with the time of the checkout - still lists in the order the notes
+/// were written. The index takes the later of this key and the file's time
+/// (index.rs), so an edit made in another app, which moves the time and not
+/// the key, still moves the note up.
+pub const MANAGED_KEYS: [&str; 6] = ["id", "created", "updated", "source", "pinned", "archived"];
+// frontmatter.rs `LIBRARY_KEYS` is these and `trashed`, which the trash slice is adding: the keys a one-block
+// file's reader takes as the library's. tests.rs holds the two lists together.
 
 impl Library {
     /// The library in the app's own folder, which this process reaches with `std::fs`.
@@ -269,9 +290,17 @@ impl Library {
     }
 
     /// A free path for a file named for `stem` in `folder`: `Stem.md`, or
-    /// `Stem 2.md` and on while those are taken.
+    /// `Stem 2.md` and on while those are taken. Taken is a file there
+    /// (`exists`), or one the index knows in that folder by the same name read
+    /// without regard to case or to how its letters are composed (names.rs
+    /// `same_name`): Android's own storage and a git host tell `Plan.md` from
+    /// `plan.md` and one `Café.md` from another, a Mac and an iPhone do not,
+    /// and a tree holding both would be silently merged on checkout there, one
+    /// body written over the other.
     fn free_path(&self, folder: &str, stem: &str) -> String {
-        in_folder(folder, &unique_name(stem, |name| self.vault.exists(&in_folder(folder, name))))
+        let stem = names::composed(stem);
+        let indexed = self.names_in(folder).unwrap_or_default();
+        in_folder(folder, &unique_name(&stem, |name| self.vault.exists(&in_folder(folder, name)) || indexed.iter().any(|had| names::same_name(had, name))))
     }
 
     /// Every note, newest edit first, without what its sidecar keeps: what the
@@ -339,6 +368,11 @@ impl Library {
         front.claim_id(id);
         if front.get("created").is_none() {
             front.set("created", Some(Value::Text(iso(created_at))));
+        }
+        // Its last edit, written only when the words changed: a save of the same words is not an edit, and must
+        // not rewrite the file (the comparison below would see a new time and write).
+        if previous_text.as_deref().is_none_or(|text| read(text).1 != body) {
+            front.set("updated", Some(Value::Text(iso(now_ms()))));
         }
         let mut path = path;
         let follows = previous_text.as_deref().is_some_and(|text| self.follows_title(&path, &read(text).1));
@@ -412,7 +446,7 @@ impl Library {
         }
         let text = self.vault.read(&row.path)?;
         let (front, _) = read(&text);
-        Ok(front.only(&["id", "created", "source"]))
+        Ok(front.only(&["id", "created", "updated", "source"]))
     }
 
     /// A draft pinned, archived or given a recording becomes a file, even without words.
@@ -455,6 +489,11 @@ impl Library {
     }
 
     /// Changes front matter only, keeping the file's modified time: a pin is not an edit.
+    ///
+    /// A file that carries no `id:` yet (one from another app, never saved here) is given the note's in the same
+    /// write (decision 20 of docs/MARKDOWN_FIRST.md): the rewrite is happening anyway, and a pinned or archived
+    /// note whose id lived only in the index would be another note on a fresh device, with its pin pointing at
+    /// nothing.
     fn set_front(&mut self, id: &str, change: impl FnOnce(&mut FrontMatter)) -> Result<Option<Note>> {
         let _writing = writing();
         self.written(id)?;
@@ -462,6 +501,9 @@ impl Library {
         let text = self.vault.read(&row.path)?;
         let (mut front, body) = read(&text);
         change(&mut front);
+        if front.text("id").is_none_or(|had| had.trim().is_empty()) && front != read(&text).0 {
+            front.claim_id(id);
+        }
         let written = write(&front, &body);
         if written != text {
             let entry = self.vault.write(&row.path, &written)?;
@@ -533,6 +575,8 @@ impl Library {
             self.vault.remove(&entry.path)?;
             self.remove_versions(&entry.path);
         }
+        // The pictures under the app's own folder go with the notes that showed them (attachments.rs).
+        self.remove_own_attachments()?;
         let notes = self.vault.glyph_dir().join("notes");
         let _ = std::fs::remove_dir_all(&notes);
         std::fs::create_dir_all(&notes)?;

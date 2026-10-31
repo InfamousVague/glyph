@@ -6,6 +6,14 @@
 /// Kept under the preferences' `webhooks` key as JSON, which the typed [Preferences] keeps among the keys it does not
 /// model ([Preferences.more]) and writes back as it was read: [webhookSetupOf] reads it, [withWebhookSetup] writes it.
 /// How each hook last went is this device's own (outgoing.dart).
+///
+/// THE SECRET IS NOT IN IT (2026-10-31; docs/MARKDOWN_FIRST.md §11 decision 22): it sat in the clear in the blob on
+/// the device, which the export's settings.json dumped whole. Now the blob keeps the hook's id, URL, events and scope,
+/// and the secret is in the device's secure store (lib/sync/kept_secrets.dart) under [webhookSecretName], travelling
+/// to the account's other devices as a sealed key (lib/sync/connections.dart). Read-both: a blob written by an older
+/// build still carries it, and [OutgoingHook.fromJson] takes the blob's over the store's; [WebhookSender] then writes
+/// it to the store and the blob again without it ([WebhookSetup.toStored]). An older build reading a blob so written
+/// posts to that hook unsigned until it is updated: the one-release cost, taken.
 library;
 
 import 'dart:convert';
@@ -13,9 +21,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../core/preferences.dart';
+import '../../sync/kept_secrets.dart' show SecretPeek;
 
 /// The preferences' key.
 const String webhooksKey = 'webhooks';
+
+/// The secure store's names for the outgoing hooks' secrets, each by the id the blob lists the hook under.
+const String webhookSecretPrefix = 'glyph-webhook-secret:';
+String webhookSecretName(String id) => '$webhookSecretPrefix$id';
 
 /// The plugin's id (plugin.dart): its switch, and its page (`plugin:webhooks`).
 const String webhooksId = 'webhooks';
@@ -103,29 +116,41 @@ class OutgoingHook {
   OutgoingHook copyWith({Set<WebhookEvent>? events, WebhookScope? scope, String? Function()? secret}) =>
       OutgoingHook(id: id, url: url, events: events ?? this.events, scope: scope ?? this.scope, secret: secret != null ? secret() : this.secret);
 
+  /// Whole, the secret included: for comparing two, never for the blob.
   Map<String, Object?> toJson() => {
+        ...toStored(),
+        if (secret != null) 'secret': secret,
+      };
+
+  /// As the blob keeps it: everything but the secret (see the header).
+  Map<String, Object?> toStored() => {
         'id': id,
         'url': url,
         'events': [for (final event in WebhookEvent.values) if (events.contains(event)) event.wire],
         'scope': scope.toJson(),
-        if (secret != null) 'secret': secret,
       };
 
-  static OutgoingHook? fromJson(Object? raw) {
+  /// From the blob: the secret from the blob where an older build wrote it there, else from [secret] by the hook's id.
+  static OutgoingHook? fromJson(Object? raw, {SecretPeek? secret}) {
     if (raw is! Map || raw['id'] is! String || raw['url'] is! String) return null;
     final events = raw['events'];
-    final secret = raw['secret'];
+    final id = raw['id'] as String;
+    final given = raw['secret'];
+    final held = given is String && given.isNotEmpty ? given : secret?.call(webhookSecretName(id));
     return OutgoingHook(
-      id: raw['id'] as String,
+      id: id,
       url: raw['url'] as String,
       events: {
         if (events is List)
           for (final each in events) ?WebhookEvent.fromWire(each),
       },
       scope: WebhookScope.fromJson(raw['scope']),
-      secret: secret is String && secret.isNotEmpty ? secret : null,
+      secret: held != null && held.isNotEmpty ? held : null,
     );
   }
+
+  /// Whether the blob [raw] carries the secret itself, as an older build wrote it.
+  static bool storedInTheClear(Object? raw) => raw is Map && raw['secret'] is String && (raw['secret'] as String).isNotEmpty;
 }
 
 /// Every webhook the account has.
@@ -145,24 +170,48 @@ class WebhookSetup {
 
   WebhookSetup copyWith({List<OutgoingHook>? outgoing}) => WebhookSetup(outgoing: outgoing ?? this.outgoing, carried: carried);
 
+  /// Whole, the secrets included: for comparing two, never for the blob.
   Map<String, Object?> toJson() => {
         ...carried,
         'outgoing': [for (final hook in outgoing) hook.toJson()],
       };
 
-  static WebhookSetup fromJson(Object? raw) {
+  /// As the blob keeps it: no secret in it (see the header).
+  Map<String, Object?> toStored() => {
+        ...carried,
+        'outgoing': [for (final hook in outgoing) hook.toStored()],
+      };
+
+  /// From the blob, each hook's secret from the blob where an older build wrote it there, else from [secret].
+  static WebhookSetup fromJson(Object? raw, {SecretPeek? secret}) {
     if (raw is! Map) return none;
     final list = raw['outgoing'];
     return WebhookSetup(
       outgoing: List.unmodifiable([
         if (list is List)
-          for (final each in list) ?OutgoingHook.fromJson(each),
+          for (final each in list) ?OutgoingHook.fromJson(each, secret: secret),
       ]),
       carried: Map.unmodifiable({
         for (final MapEntry(:key, :value) in raw.entries)
           if (key is String && key != 'outgoing') key: value,
       }),
     );
+  }
+
+  /// The ids of the hooks the blob [raw] lists: what to load, and what to sync.
+  static List<String> hookIdsIn(Object? raw) {
+    final list = raw is Map ? raw['outgoing'] : null;
+    return [
+      if (list is List)
+        for (final each in list)
+          if (each is Map && each['id'] is String && (each['id'] as String).isNotEmpty) each['id'] as String,
+    ];
+  }
+
+  /// Whether the blob [raw] carries any secret in the clear, as an older build wrote it: then it is taken out.
+  static bool storedInTheClear(Object? raw) {
+    final list = raw is Map ? raw['outgoing'] : null;
+    return list is List && list.any(OutgoingHook.storedInTheClear);
   }
 
   @override
@@ -172,16 +221,16 @@ class WebhookSetup {
   int get hashCode => jsonEncode(toJson()).hashCode;
 }
 
-/// The webhooks [prefs] keeps.
-WebhookSetup webhookSetupOf(Preferences prefs) => WebhookSetup.fromJson(prefs.more[webhooksKey]);
+/// The webhooks [prefs] keeps, their secrets from [secret] where the blob no longer carries them.
+WebhookSetup webhookSetupOf(Preferences prefs, {SecretPeek? secret}) => WebhookSetup.fromJson(prefs.more[webhooksKey], secret: secret);
 
-/// [prefs] with [setup] kept; with none at all, the key is taken off.
+/// [prefs] with [setup] kept, without its secrets; with none at all, the key is taken off.
 Preferences withWebhookSetup(Preferences prefs, WebhookSetup setup) {
   final more = {...prefs.more};
   if (setup.isEmpty) {
     more.remove(webhooksKey);
   } else {
-    more[webhooksKey] = setup.toJson();
+    more[webhooksKey] = setup.toStored();
   }
   return prefs.copyWith(more: Map.unmodifiable(more));
 }
