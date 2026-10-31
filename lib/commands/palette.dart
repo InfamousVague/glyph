@@ -160,6 +160,7 @@ class PaletteDoing {
     required this.closeTab,
     this.startTimer,
     this.stopTimer,
+    this.backUpNow,
     required this.showList,
     required this.browseNotes,
     required this.back,
@@ -225,6 +226,9 @@ class PaletteDoing {
   /// has no timers. Offered in simple mode too.
   final void Function(String noteId)? startTimer;
   final VoidCallback? stopTimer;
+
+  /// Back up to git now (lib/plugins/git_backup; Matt, 2026-10-31), once the plugin is set up.
+  final VoidCallback? backUpNow;
   final VoidCallback showList;
 
   /// The All notes grid.
@@ -467,6 +471,9 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (today != null) add('today', 'Today’s note', 'Notes', 'daily day date journal today page', today, shortcut: '⇧⌘D');
   final askClaude = simple ? null : doing.askClaude;
   if (askClaude != null) add('ask-claude', 'Ask Claude', 'Ghost.md', 'claude ai anthropic assistant write chat ask', askClaude);
+  // Back up to git now (lib/plugins/git_backup; Matt, 2026-10-31), in Simple too: a backup is never advanced.
+  final backUpNow = doing.backUpNow;
+  if (backUpNow != null) add('git-backup-now', 'Back up to git now', 'Ghost.md', 'git backup push commit repository github save', backUpNow);
   final tags = simple ? null : doing.tags;
   if (tags != null) add('tags', 'Tags', 'Notes', 'tag hashtag labels rename', tags);
   final openSmart = simple ? null : doing.openSmart;

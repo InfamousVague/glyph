@@ -24,6 +24,9 @@
 ///   is posted to Discord once stays the synced `discordMeetingPosts`'s.
 /// - **GitHub's token** (lib/plugins/github/repos.dart): a personal access token, which works from any number of
 ///   devices at once.
+/// - **The git backup's token** (lib/plugins/git_backup/manifest.dart): the git host's token, the same kind, so a
+///   second device can push once it holds the pusher claim. The plugin's settings (`glyph-git-backup`) stay: the
+///   remote travels in the committed `.glyph/config.json`, and the rest is this device's.
 /// - **Lovart's keys** (lib/plugins/lovart/manifest.dart): the access key and the secret key, a pair that signs each
 ///   request and works from any number of devices (Matt, 2026-10-26: "Yes please sync lovart too"). Its project
 ///   (`glyph-lovart-project`) stays: each device makes or finds its own. So does "Inspiration for design meetings"
@@ -84,6 +87,7 @@ import '../core/preferences.dart' show Preferences, preferences;
 import '../integrations/webhooks/setup.dart' show WebhookSetup, webhookSecretName, webhookSecretPrefix, webhooksKey;
 import '../plugins/discord/manifest.dart' as discord show discordChannelsKey, discordMeetingsKey, discordWebhookPrefix, host;
 import '../plugins/elevenlabs/manifest.dart' as eleven show apiKeySecret, host, modelKey, voiceKey;
+import '../plugins/git_backup/manifest.dart' as git show host, tokenSecret;
 import '../plugins/github/manifest.dart' as github show host, tokenSecret;
 import '../plugins/host.dart' show onPluginStorage;
 import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, host, secretKeySecret;
@@ -117,6 +121,7 @@ List<SyncedItem> connectionItems(
   PluginHost? slackHost,
   PluginHost? discordHost,
   PluginHost? githubHost,
+  PluginHost? gitHost,
   PluginHost? lovartHost,
   PluginHost? elevenHost,
   Registry Function()? registry,
@@ -169,6 +174,9 @@ List<SyncedItem> connectionItems(
     if (slackHere) ..._slackItems(named, slackHost ?? slack.host),
     if (discordHere) ..._discordItems(named, discordHost ?? discord.host),
     _secretItem(githubHost ?? github.host, github.tokenSecret),
+    // The git backup's token (lib/plugins/git_backup/manifest.dart; Matt, 2026-10-31): a token for the git host,
+    // which works from any number of devices at once, as GitHub's does.
+    _secretItem(gitHost ?? git.host, git.tokenSecret),
     for (final name in const [lovart.accessKeySecret, lovart.secretKeySecret]) _secretItem(lovartHost ?? lovart.host, name),
     _secretItem(elevenHost ?? eleven.host, eleven.apiKeySecret),
     for (final key in const [eleven.voiceKey, eleven.modelKey]) _storageItem(elevenHost ?? eleven.host, key),

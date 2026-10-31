@@ -75,7 +75,18 @@ extension _RootParts on _GhostRootState {
           // (App.tsx: `accountGate.open && !isRecording(screen)`): it waits under one.
           _part('gate', () => (_gate, _gate?.open ?? false, _shell.currentState?.screen.isRecording ?? false, _accountAt, _syncAt), (context) {
             final gate = _gate;
-            return gate != null && gate.open && !(_shell.currentState?.screen.isRecording ?? false) ? AccountGate(services: services, onDone: gate.close) : _nothing;
+            return gate != null && gate.open && !(_shell.currentState?.screen.isRecording ?? false) ? AccountGate(
+                    services: services,
+                    onDone: gate.close,
+                    // "I have a backup" (root_git_backup.dart): the git plugin's page, where Open library from git is.
+                    onHaveBackup: _gitWired.service == null
+                        ? null
+                        : () {
+                            gate.close();
+                            _openSettingsAt('plugin:git-backup');
+                          },
+                  )
+                : _nothing;
           }),
         ],
         // An invite link that opened the app, and a code held on this device from before, asked about once
@@ -895,6 +906,7 @@ extension _RootParts on _GhostRootState {
         marketPlugin: (id) => _showMarket(plugin: id),
         startTimer: _ticketsWired.timers == null ? null : _ticketsWired.startTimer,
         stopTimer: _ticketsWired.timers == null ? null : _ticketsWired.stopTimer,
+        backUpNow: _gitWired.backUpNow,
       ),
     );
   }

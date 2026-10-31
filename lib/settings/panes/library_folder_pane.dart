@@ -12,7 +12,7 @@ import 'settings_host.dart';
 /// What Settings' search finds on Library folder (`findable`, src/app/settings/LibraryFolderPane.findable.ts), by its
 /// cards' titles.
 const List<SettingsFindable> libraryFolderFindable = [
-  SettingsFindable('Where your notes are', 'library folder choose move obsidian vault icloud dropbox syncthing backup drive'),
+  SettingsFindable('Where your notes are', 'library folder choose move obsidian vault icloud dropbox syncthing backup drive git clone restore repository'),
   SettingsFindable('Good to know', 'sync google drive index pictures recordings'),
   // Files and scans, a group of its own on this page (files_pane.dart).
   ...filesFindable,
@@ -203,6 +203,16 @@ class _LibraryFolderPaneState extends State<LibraryFolderPane> {
                 onPress: moving ? null : () => setState(() => _step = const _Home()),
                 disabled: moving,
               ),
+            // The git backup's restore (lib/plugins/git_backup; Matt, 2026-10-31): on the plugin's page, reached from here
+            // too, since this is where a person looks for where the notes come from.
+            SettingRow(
+              key: const ValueKey('library-open-from-git'),
+              icon: const AppIcon(Lucide.hardDriveDownload, size: 16),
+              label: 'Open library from git…',
+              hint: const Text('Clone a repository the Back up to git plugin made, and open it as the library; or import a clone made by hand.'),
+              onPress: moving ? null : () => SettingsHost.maybeOf(context)?.go('plugin:git-backup'),
+              disabled: moving,
+            ),
           ],
         ),
         if (step is _Confirm)

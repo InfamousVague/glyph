@@ -82,3 +82,7 @@ app.*.map.json
 # for `flutter build web` to take, built from the tree as the phone's libghost_core.so is and never kept (docs/WEB.md).
 /native/web/target/
 /web/core/ghost_core_web.wasm
+
+# The publisher vendored into the app (tool/publish-assets.sh): built at release, 2 MB, never committed; the README stays.
+/assets/publish/*
+!/assets/publish/README.txt

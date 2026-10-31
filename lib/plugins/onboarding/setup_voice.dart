@@ -160,6 +160,18 @@ const Map<String, String> setupVoice = {
   'todoist-key': 'Now the token. In Todoist, open Settings, then Integrations, then Developer, and copy your API token.',
   'todoist-done': 'Paste the token into Import from Todoist on this page, and press it. Each project comes in, in a workspace of the import’s own. A project’s CSV export works too, with no token at all.',
   'todoist-done-simple': 'Paste the token into Import from Todoist on this page, and press it.',
+  // ---- Back up to git (lib/plugins/git_backup/git_backup_setup.dart) -------------------------------------------------
+  'git-backup-intro': 'Back up to git commits your Library folder to a git repository you own, two minutes after your last change, and pushes it. Every note, its history and its pictures, as plain files, on GitHub, GitLab, Codeberg or any git host. A fresh device opens the library again by cloning it. One thing to know: the repository is plain text, so anyone who can read it can read your notes. Make it private.',
+  'git-backup-intro-simple': 'Back up to git copies your notes to a git repository you own, a little after each change. Make the repository private: anyone who can read it can read your notes.',
+  'git-backup-token': 'First, a token from your git host. On GitHub, make a fine-grained token with Contents set to read and write for the repository you’ll use. GitLab and Codeberg have their own token pages. Copy it straight away: most hosts show it only once.',
+  'git-backup-reuse': 'If the GitHub plugin already has a token, Ghost can ask GitHub whether it may push. If it may, it’s used here too; if not, paste a token on the next step.',
+  'git-backup-paste': 'Paste the token here. It’s kept in this device’s secure storage, and sealed to your other devices while keys and connections sync. It never goes into the repository.',
+  'git-backup-paste-simple': 'Paste the token here. It’s kept safely on this device.',
+  'git-backup-create': 'Now the repository. Ghost can make a private one on GitHub for you, called ghost-notes, with the token you pasted. Or skip this and paste the address of one you made yourself.',
+  'git-backup-repository': 'Paste the repository’s HTTPS address, the one that ends in dot git. If Ghost just made one for you, leave this empty and go on.',
+  'git-backup-check': 'Ghost makes the repository where your Library is, reaches the remote with your token, and says how big the first backup will be. Nothing is pushed yet.',
+  'git-backup-done': 'You’re set. Tap Back up to make the first backup now; after that, Ghost commits two minutes after your last change and pushes when you’re online. Recordings and your teams’ notes are left out until you switch each on, on the plugin’s page.',
+  'git-backup-done-simple': 'You’re set. Tap Back up for the first backup; after that, Ghost backs up by itself a little after each change.',
 };
 
 /// The words for [name] (`lovart-paste`): Simple's shorter ones where [simple] and there are some. Empty for a name

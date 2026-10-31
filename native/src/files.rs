@@ -159,7 +159,8 @@ fn put_path(places: &Attachments, kind: &str, name: &str, path: &Path) -> Result
         }
         "recording" => {
             use std::io::Read as _;
-            let recordings = places.of(AttachmentKind::Recording).first().to_path_buf();
+            let places = places.of(AttachmentKind::Recording);
+            let recordings = places.first().to_path_buf();
             let file = recording_file(&recordings, name).ok_or_else(|| "That is not a note id.".to_string())?;
             let mut start = [0u8; 4];
             let riff = std::fs::File::open(path).and_then(|mut source| source.read_exact(&mut start)).is_ok() && &start == b"RIFF";
@@ -167,7 +168,12 @@ fn put_path(places: &Attachments, kind: &str, name: &str, path: &Path) -> Result
                 return Err("That is not a recording Glyph can keep.".to_string());
             }
             std::fs::create_dir_all(&recordings).map_err(|e| e.to_string())?;
-            move_in(path, &file).map_err(|e| format!("The recording could not be saved: {e}"))
+            move_in(path, &file).map_err(|e| format!("The recording could not be saved: {e}"))?;
+            // As `put` has it: a copy an older build left beside the library goes, so the one read is the one that arrived.
+            for dir in &places.dirs()[1..] {
+                let _ = crate::fsx::remove_file_if_present(&dir.join(format!("{name}.wav")));
+            }
+            Ok(())
         }
         _ => Err(format!("Nothing is kept as {kind}.")),
     }
@@ -314,7 +320,7 @@ mod tests {
         let phone = Phone::new();
         let wav = b"RIFF\x24\0\0\0WAVEfmt and the sound".to_vec();
         assert_eq!(phone.ask("sync_put_file", json!({"kind": "recording", "name": "n1", "base64": b64(&wav)})), Ok(Value::Null));
-        assert_eq!(std::fs::read(phone.root.join("recordings/n1.wav")).unwrap(), wav);
+        assert_eq!(std::fs::read(phone.root.join("Library/recordings/n1.wav")).unwrap(), wav, "under the library (library/attachments.rs)");
         assert_eq!(phone.ask("read_file", json!({"kind": "recording", "name": "n1"})), Ok(json!(b64(&wav))));
         assert_eq!(phone.ask("file_digest", json!({"kind": "recording", "name": "n1"})), Ok(json!(crate::crypto::sha256_16(&wav))));
         assert_eq!(phone.ask("file_digest", json!({"kind": "recording", "name": "n2"})), Ok(Value::Null));
@@ -322,7 +328,48 @@ mod tests {
         assert_eq!(put("../n1", &wav), "That is not a note id.");
         assert_eq!(put("n3", b"ID3 not a wav"), "That is not a recording Glyph can keep.");
         assert_eq!(phone.ask("sync_put_file", json!({"kind": "recording", "name": "n3", "base64": "not base64!"})), Err("That recording could not be read.".into()));
-        assert!(!phone.root.join("recordings/n3.wav").exists());
+        assert!(!phone.root.join("Library/recordings/n3.wav").exists() && !phone.root.join("recordings/n3.wav").exists());
+    }
+
+    /// Two phones on one account, the first still laying its files out as an older build did (the folders beside
+    /// the library, never gathered: `recordings/`, `images/`), the second with everything under its library. Sync
+    /// names a file by kind and name alone, so each reads from wherever it has the file and keeps what arrives where
+    /// its own build writes, and nothing in between keys on a folder.
+    #[test]
+    fn two_devices_sync_a_recording_and_a_picture_whichever_layout_each_has() {
+        let older = Phone::new();
+        let settled = Phone::new();
+        let wav = b"RIFF\x24\0\0\0WAVEfmt a meeting".to_vec();
+        std::fs::create_dir_all(older.root.join("recordings")).unwrap();
+        std::fs::write(older.root.join("recordings/m1.wav"), &wav).unwrap();
+        // The older layout's phone sends its recording: read from beside its library, by kind and name.
+        let path = older.ask("file_path", json!({"kind": "recording", "name": "m1"})).unwrap();
+        assert_eq!(path["path"], json!(older.root.join("recordings/m1.wav").to_str().unwrap()));
+        let sent = older.ask("read_file", json!({"kind": "recording", "name": "m1"})).unwrap();
+        assert_eq!(older.ask("file_digest", json!({"kind": "recording", "name": "m1"})), Ok(json!(crate::crypto::sha256_16(&wav))));
+        // The settled phone keeps it under its library, and answers the same digest.
+        assert_eq!(settled.ask("sync_put_file", json!({"kind": "recording", "name": "m1", "base64": sent})), Ok(Value::Null));
+        assert_eq!(std::fs::read(settled.root.join("Library/recordings/m1.wav")).unwrap(), wav);
+        assert!(!settled.root.join("recordings").exists(), "nothing of the old layout is made on the settled phone");
+        assert_eq!(settled.ask("file_digest", json!({"kind": "recording", "name": "m1"})), older.ask("file_digest", json!({"kind": "recording", "name": "m1"})));
+        // And back the other way with a picture, over an older copy of the same name beside the first phone's library.
+        assert_eq!(settled.ask("sync_put_file", json!({"kind": "image", "name": "p.jpg", "base64": b64(&JPEG)})), Ok(Value::Null));
+        let picture = settled.ask("read_file", json!({"kind": "image", "name": "p.jpg"})).unwrap();
+        std::fs::create_dir_all(older.root.join("images")).unwrap();
+        std::fs::write(older.root.join("images/p.jpg"), [0xFF, 0xD8, 0xFF, 0xE0, 9]).unwrap();
+        assert_eq!(older.ask("sync_put_file", json!({"kind": "image", "name": "p.jpg", "base64": picture})), Ok(Value::Null));
+        // This core writes under the library on both phones (the layout is the build's, not the device's history);
+        // the older copy beside it is taken out so one file is read.
+        assert_eq!(std::fs::read(older.root.join("Library/image/p.jpg")).unwrap(), JPEG);
+        assert!(!older.root.join("images/p.jpg").exists());
+        assert_eq!(older.ask("file_exists", json!({"kind": "image", "name": "p.jpg"})), Ok(json!(true)));
+        // A recording that arrives by a path is kept under the library too, an older copy beside it gone.
+        let arrived = older.root.join("cache");
+        std::fs::create_dir_all(&arrived).unwrap();
+        std::fs::write(arrived.join("m1.opened"), b"RIFF the same meeting, re-sent").unwrap();
+        assert_eq!(older.ask("sync_put_file_path", json!({"kind": "recording", "name": "m1", "path": arrived.join("m1.opened")})), Ok(Value::Null));
+        assert_eq!(std::fs::read(older.root.join("Library/recordings/m1.wav")).unwrap(), b"RIFF the same meeting, re-sent");
+        assert!(!older.root.join("recordings/m1.wav").exists(), "the copy an older build left is taken out");
     }
 
     #[test]
@@ -333,13 +380,13 @@ mod tests {
         let wav = b"RIFF and an hour of sound".to_vec();
         std::fs::write(arrived.join("r.opened"), &wav).unwrap();
         assert_eq!(phone.ask("sync_put_file_path", json!({"kind": "recording", "name": "n1", "path": arrived.join("r.opened")})), Ok(Value::Null));
-        assert_eq!(std::fs::read(phone.root.join("recordings/n1.wav")).unwrap(), wav);
+        assert_eq!(std::fs::read(phone.root.join("Library/recordings/n1.wav")).unwrap(), wav);
         assert!(!arrived.join("r.opened").exists(), "moved, not copied");
 
         std::fs::write(arrived.join("bad"), b"ID3").unwrap();
         assert_eq!(phone.ask("sync_put_file_path", json!({"kind": "recording", "name": "n2", "path": arrived.join("bad")})), Err("That is not a recording Glyph can keep.".into()));
         assert_eq!(phone.ask("sync_put_file_path", json!({"kind": "recording", "name": "a/b", "path": arrived.join("bad")})), Err("That is not a note id.".into()));
-        assert!(arrived.join("bad").exists() && !phone.root.join("recordings/n2.wav").exists());
+        assert!(arrived.join("bad").exists() && !phone.root.join("Library/recordings/n2.wav").exists());
 
         std::fs::write(arrived.join("p.opened"), JPEG).unwrap();
         assert_eq!(phone.ask("sync_put_file_path", json!({"kind": "image", "name": "pic.jpeg", "path": arrived.join("p.opened")})), Ok(Value::Null));
@@ -379,14 +426,14 @@ mod tests {
         let (video, poster) = (saved["video"].as_str().unwrap(), saved["poster"].as_str().unwrap());
         assert!(crate::kept::videos::valid_name(video) && video.ends_with(".mp4"), "{saved}");
         assert!(crate::kept::images::valid_name(poster) && poster.ends_with(".jpg"), "{saved}");
-        assert_eq!(std::fs::read(phone.root.join("video").join(video)).unwrap(), MP4);
+        assert_eq!(std::fs::read(phone.root.join("Library/video").join(video)).unwrap(), MP4, "a film is kept under the library (library/attachments.rs)");
         assert_eq!(std::fs::read(phone.root.join("Library/image").join(poster)).unwrap(), JPEG, "a poster is a picture, kept where the pictures are");
         assert!(!picked.join("p.mp4").exists() && !picked.join("p.jpg").exists(), "moved, not copied");
 
         // Where it lies and whether it is here, and nothing sync would ask of it.
         assert_eq!(phone.ask("file_exists", json!({"kind": "video", "name": video})), Ok(json!(true)));
         let at = phone.ask("file_path", json!({"kind": "video", "name": video})).unwrap();
-        assert_eq!((at["path"].as_str(), at["bytes"].as_u64()), (Some(phone.root.join("video").join(video).to_str().unwrap()), Some(MP4.len() as u64)));
+        assert_eq!((at["path"].as_str(), at["bytes"].as_u64()), (Some(phone.root.join("Library/video").join(video).to_str().unwrap()), Some(MP4.len() as u64)));
         assert_eq!(phone.ask("file_exists", json!({"kind": "video", "name": "nobody.mp4"})), Ok(json!(false)));
         assert_eq!(phone.ask("file_exists", json!({"kind": "video", "name": "../video/x.mp4"})), Ok(json!(false)));
         for command in ["read_file", "file_digest"] {

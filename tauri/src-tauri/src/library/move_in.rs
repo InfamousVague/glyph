@@ -39,10 +39,11 @@ struct Manifest {
     attachments: Option<u32>,
 }
 
-/// The attachment layout this build writes under a library's folder: 1 is the pictures (`image/`), with the files,
-/// films and recordings still beside the app's data (attachments.rs `Kind::settled`). Every build reading
-/// `library.json` ignores a key it does not know.
-pub const ATTACHMENTS_LAYOUT: u32 = 1;
+/// The attachment layout this build writes under a library's folder: 1 was the pictures alone (`image/`), with the
+/// files, films and recordings still beside the app's data; 2 is all four under the library (`image/`, `file/`,
+/// `video/`, `recordings/`; attachments.rs `Kind::settled`, 2026-10-31). Every build reading `library.json` ignores
+/// a key it does not know, and one that wrote 1 is rewritten once with 2 at its next open.
+pub const ATTACHMENTS_LAYOUT: u32 = 2;
 
 /// Writes a fresh `library.json` into `glyph` unless one is there: the
 /// library's birth, stamped now.
@@ -229,7 +230,7 @@ mod tests {
         library.mark_attachments().unwrap();
         assert_eq!(library.attachments_layout(), Some(ATTACHMENTS_LAYOUT));
         let text = std::fs::read_to_string(data.join("Library/.glyph/library.json")).unwrap();
-        assert!(text.contains("\"attachments\": 1") && text.contains("\"version\": 1"), "{text}");
+        assert!(text.contains("\"attachments\": 2") && text.contains("\"version\": 1"), "{text}");
         library.mark_attachments().unwrap();
         assert_eq!(std::fs::read_to_string(data.join("Library/.glyph/library.json")).unwrap(), text, "recorded once, so a folder in iCloud is not rewritten at every open");
         // A folder reached through Android's picker keeps its attachments in the app's storage, and says nothing.

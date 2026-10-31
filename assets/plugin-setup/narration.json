@@ -432,6 +432,83 @@
       "bytes": 51661,
       "seconds": 6.4
     },
+    "git-backup-check": {
+      "words": "ba776a2253a250b3",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72350,
+      "seconds": 8.96
+    },
+    "git-backup-create": {
+      "words": "a46c75eb9d2fb35c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 84471,
+      "seconds": 10.48
+    },
+    "git-backup-done": {
+      "words": "93c808e68764ec35",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 113728,
+      "seconds": 14.14
+    },
+    "git-backup-done-simple": {
+      "words": "a4a216e4d96600ee",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 59394,
+      "seconds": 7.35
+    },
+    "git-backup-intro": {
+      "words": "6af241af3bf3d112",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 209232,
+      "seconds": 26.08
+    },
+    "git-backup-intro-simple": {
+      "words": "72684ba8057384de",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 88233,
+      "seconds": 10.96
+    },
+    "git-backup-paste": {
+      "words": "91c5fb533a774435",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 82381,
+      "seconds": 10.23
+    },
+    "git-backup-paste-simple": {
+      "words": "3f611acba8861b51",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 30555,
+      "seconds": 3.76
+    },
+    "git-backup-repository": {
+      "words": "2c1235dcbfa73d67",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 69007,
+      "seconds": 8.55
+    },
+    "git-backup-reuse": {
+      "words": "f4d482fd55463c85",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 83217,
+      "seconds": 10.32
+    },
+    "git-backup-token": {
+      "words": "3f373a8c865f7156",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 124177,
+      "seconds": 15.44
+    },
     "github-account": {
       "words": "6f8ecc26b045b4b1",
       "model": "eleven_v4",

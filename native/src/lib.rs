@@ -137,6 +137,7 @@ pub mod dispatch;
 pub mod events;
 pub mod ffi;
 pub mod files;
+pub mod git;
 pub mod kept;
 #[cfg(feature = "voice")]
 pub mod models;

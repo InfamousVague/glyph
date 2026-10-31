@@ -77,7 +77,7 @@ void main() {
   group('which plugins', () {
     test('every built-in plugin a person sets up has a setup, by its own id; Marks, Rich embeds, Things, Webhooks and Keyboard modes have nothing to set up', () {
       final withOne = {for (final plugin in builtIn) if (plugin.setup != null) plugin.manifest.id};
-      expect(withOne, {'notion', 'github', 'claude', 'slack', 'place-reminders', 'calendar', 'contacts', 'todoist', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster'});
+      expect(withOne, {'notion', 'github', 'claude', 'slack', 'place-reminders', 'calendar', 'contacts', 'todoist', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'git-backup'});
       expect({for (final plugin in builtIn) if (plugin.setup == null) plugin.manifest.id}, {'marks', 'rich-embeds', 'things', 'webhooks', 'keyboard-modes'});
       for (final plugin in builtIn) {
         if (plugin.setup case final make?) expect(make().id, plugin.manifest.id, reason: 'its words and its memory are by the plugin’s id');
