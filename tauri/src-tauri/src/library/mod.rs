@@ -208,6 +208,18 @@ fn named_for(path: &str, stem: &str) -> bool {
     bare == stem || bare.strip_prefix(stem).and_then(|rest| rest.strip_prefix(' ')).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
+/// Whether the file at `path` is a page that stands for its folder (lib/core/page_tree.dart, docs/TEAMSPACES.md):
+/// `index.md` in any folder (Obsidian's folder notes), or `Home.md` at the top of an organization's folder,
+/// `orgs/<Org>/Home.md`. Read without regard to case, as a Mac's file names are.
+fn is_folder_page(path: &str) -> bool {
+    let parts: Vec<&str> = path.split('/').collect();
+    let name = parts.last().copied().unwrap_or(path);
+    if parts.len() >= 2 && name.eq_ignore_ascii_case("index.md") {
+        return true;
+    }
+    parts.len() == 3 && parts[0] == "orgs" && name.eq_ignore_ascii_case("Home.md")
+}
+
 /// A new file's front matter: its source, unless it is the editor, which a
 /// missing `source` already means.
 fn born_from(source: &str) -> FrontMatter {
@@ -293,7 +305,16 @@ impl Library {
     /// (one Ghost.md named): `2026-10-01.md` in an Obsidian vault keeps its
     /// name when Ghost.md edits it, so the daily notes, and every `[[link]]` to
     /// it, still find it.
+    ///
+    /// Never a folder's page (docs/TEAMSPACES.md; Matt, 2026-10-31: "Folder + `index.md`"): a file named
+    /// `index.md` is its folder's page whatever it is titled, and `orgs/<Org>/Home.md` is an organization's home,
+    /// so neither is renamed after its title, in the own folder or a chosen one. Before this the own folder wrote
+    /// `Plan/index.md` titled Plan back as `Plan/Plan.md` at its next save (the page tree reads both, for the
+    /// devices that still do).
     fn follows_title(&self, path: &str, body: &str) -> bool {
+        if is_folder_page(path) {
+            return false;
+        }
         self.own || named_for(path, &file_stem(&title_of(body)))
     }
 

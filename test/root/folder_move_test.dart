@@ -212,18 +212,30 @@ void main() {
 
   // The tree is a narrow window's card since 2026-10-24 (a wide window's sidebar is simple mode's list, with no
   // folders: there a note is carried onto a folder on All notes, above).
+  // The sidebar is drawn as spaces and pages since 2026-10-31 (docs/TEAMSPACES.md; lib/notes/note_tree_spaces.dart):
+  // the organization is a space of the switcher, its folders and notes are page rows, and a row let go over the
+  // middle of a folder's row moves into it through the page tree's mover, which files it there too. The folders'
+  // own drag, onto a workspace's folder, is the old tree's (test/notes/folder_drag_test.dart).
   testWidgets('the sidebar: a note’s row carried onto its organization’s folder is listed under the folder', (tester) async {
     await open(tester, chosen: family, size: const Size(600, 1000));
     await tester.tap(find.bySemanticsLabel('All your notes'));
     await settle(tester);
-    Finder under(String folder, String id) => find.descendant(of: find.byKey(ValueKey('folder-$folder')), matching: find.byKey(ValueKey('note-row-$id')));
-    expect(under('baby', 'feeds'), findsNothing);
-    await drag(tester, find.byKey(const ValueKey('note-row-feeds')), find.byKey(const ValueKey('folder-row-baby')));
+    await tester.tap(find.byKey(const ValueKey('space-switcher-head')));
     await settle(tester);
-    expect(store.value.of['feeds'], 'baby');
-    expect(under('baby', 'feeds'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('space-choice-$family')));
+    await settle(tester);
+    final baby = find.byKey(const ValueKey('page-row-folder:orgs/Family/Baby'));
+    final feeds = find.byKey(const ValueKey('page-row-feeds'));
+    expect(baby, findsOneWidget);
+    expect(feeds, findsOneWidget);
+    await drag(tester, feeds, baby);
+    await settle(tester);
     await moved(tester);
-    expect(under('baby', 'feeds'), findsOneWidget);
+    expect(store.value.of['feeds'], 'baby');
+    expect(core.files, contains('orgs/Family/Baby/Feeds.md'));
+    // Unfolded to show it, in from the folder's row.
+    expect(feeds, findsOneWidget);
+    expect(tester.getTopLeft(find.descendant(of: feeds, matching: find.text('Feeds'))).dx, greaterThan(tester.getTopLeft(find.descendant(of: baby, matching: find.text('Baby'))).dx));
     await close(tester);
   });
 }

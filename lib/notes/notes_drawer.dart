@@ -7,6 +7,7 @@ import '../core/workspaces.dart' show WorkspaceStore;
 import 'floating_card.dart';
 import 'note_peek.dart';
 import 'note_tree.dart';
+import 'space_pages.dart' show SidebarSpaces;
 
 /// Every note, in a card that floats over the one being read (Matt: "add a sidebar that opens as a floating card,
 /// add a sidebar icon on the top left of the page"). The icon is at the left of the tab row; this is what it opens.
@@ -56,6 +57,7 @@ class NotesDrawer extends StatelessWidget {
     this.onTickets,
     this.ticketCount,
     this.simple = false,
+    this.spaces,
   });
 
   final bool open;
@@ -113,6 +115,9 @@ class NotesDrawer extends StatelessWidget {
   /// Simple mode (GHST-103), passed through to the tree.
   final bool simple;
 
+  /// The sidebar as spaces and pages (docs/TEAMSPACES.md), passed through to the tree.
+  final SidebarSpaces? spaces;
+
   @override
   Widget build(BuildContext context) {
     // Draws nothing while it is shut.
@@ -160,6 +165,7 @@ class NotesDrawer extends StatelessWidget {
         onTickets: onTickets,
         ticketCount: ticketCount,
         simple: simple,
+        spaces: spaces,
       ),
     );
   }
