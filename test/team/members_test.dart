@@ -2,7 +2,6 @@
 // 2026-10-31: "A member's page is drawn, not stored: their tickets, the docs they own (`owner:` or verified `by:`),
 // their recent edits (from versions), their colour"): what it says of someone from the organization's notes, their
 // versions and the room, and the page drawing each section, a row opening its note.
-import 'package:flutter/rendering.dart' show debugDisableShadows;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';

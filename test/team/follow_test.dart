@@ -3,7 +3,6 @@
 // are mentioned on a team page"): Follow and Following write `watchers:`; a page's first edit here follows it, once,
 // in the same change (one Undo takes both back), never on the keystrokes after, never again after an unfollow, never
 // on a ticket or a personal note; a mention follows once per mention; the ledger is the device's, per account.
-import 'package:flutter/rendering.dart' show debugDisableShadows;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/book/ticket_watchers.dart' show watchersOf;

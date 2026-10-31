@@ -178,7 +178,7 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
           children: [for (final note in pins) _PinCard(key: TeamspaceHome.pinKey(note.id), note: note, onOpen: () => widget.onOpenNote(note.id))],
         ),
       ],
-      if (widget.space != null) ...[
+      if (widget.space != null && (home != null || widget.onCreateHome != null || widget.onSetDocs != null)) ...[
         SizedBox(height: t.space(6)),
         if (home != null) ...[
           heading(
@@ -190,7 +190,7 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
         ] else if (widget.onCreateHome != null)
           _CreateHome(making: _making, onCreate: _create),
         if (widget.onSetDocs != null) ...[
-          SizedBox(height: t.space(3)),
+          if (home != null || widget.onCreateHome != null) SizedBox(height: t.space(3)),
           if (widget.simple && !_more)
             Align(
               alignment: AlignmentDirectional.centerStart,
@@ -265,7 +265,8 @@ class _Round extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GlacierScope(
-        attrs: {'hue': hue ?? 'ink'},
+        // No colour of their own: the page's, as their line under Members wears it.
+        attrs: {'hue': ?hue},
         child: Builder(
           builder: (context) {
             final here = context.tokens;

@@ -76,15 +76,49 @@ Its body is whatever the team writes, with query fences for recent changes and o
 made from a template. The dashboard screen (lib/orgs/ui/organization_screen.dart) becomes this page plus a members
 strip and the settings cog.
 
+Built (2026-10-31): `lib/orgs/ui/teamspace_home.dart`, under the dashboard's hero (which wears the home's `icon:`): the
+members strip (each member's round in the colour they wear there, a dot while the organization's room has a device of
+theirs, a press to their page), the `pins:` as cards (`pinned:` read where it is a list; a pin no note answers to left
+out), and `Home.md` drawn as a note is drawn to be read (`BookWords` over `lib/root/page_drawing.dart`, the desk's
+notebook drawing made from its world alone, so its queries are what they find), front matter and first heading left
+off, with Edit opening it in the note's screen. No home page: "Create the home page" (`PageMover.createHome`, the
+template moved to `orgs/<Org>/Home.md` and filed in the organization). "Pages open in: Read / Edit" writes `docs:` by
+`withDocsMode`, behind More in simple mode. The notes, members and activity stay under it. `spaceOfOrg` and
+`teamspaceHomeIn` (page_tree.dart) find the space and its home without building the tree at every build.
+
 ## Members
 
 A member's page is drawn, not stored: their tickets, the docs they own (`owner:` or verified `by:`), their recent edits
 (from versions), their colour. Reached from the members strip, `@mentions` and the presence avatars.
 
+Built (2026-10-31): `lib/team/members.dart` (`memberFacts`, pure) and `lib/orgs/ui/member_page.dart`, a page under the
+dashboard (`OrganizationPage.member`, `AppShellState.openOrganizationMember`) with their colour, role, whether they are
+here and the page they are editing, their open tickets in the organization, the pages they own, and their newest edit
+to each page (the audit log's `ChangesAcross`). A tap on a person's chip in a note (`MentionHooks.open`) opens the page
+where they are a member of the note's organization; the presence list's lines open it through `MemberLinkScope`.
+
 ## Follow a doc and Updates
 
 `watchers:` (the tickets' key) works on any page; watching sends that page's changes to your Updates (the bell, as an
 inbox with filters: Mentions, Tickets, Docs, Team). Auto-follow when you create, edit or are mentioned on a team page.
+
+Built (2026-10-31), nothing new on the wire and no new notification kind:
+
+- **Follow / Following** on a team page's More sheet, over Sharing (`lib/team/follow_row.dart`), written through the
+  open editor (userEvent `follow`).
+- **Auto-follow** (`lib/team/follow.dart`, `follow_edit.dart`): a team page's first typed edit on this device writes the
+  account into `watchers:` in that same transaction (one Undo takes both; making a page counts, its first words being its
+  first edit); a mention row follows its page once. Which have been done is the device's `FollowLedger` per account
+  (`glyph-auto-followed`), so an unfollow by hand survives later edits; only a new mention follows again. A ticket keeps
+  its own watchers' rules (lib/book/ticket_watchers.dart): editing one follows nobody.
+- **Updates** (`lib/team/updates.dart`, the bell's drawer, same `showNotifications` entry point): chips for All and each
+  of Mentions, Tickets, Docs, Team that has a row, standing once there is a mention, a ticket or a followed page's change
+  (a drawer of team news alone is as it was). Docs holds `page-expired` and the changes to followed pages, read from the
+  pages' versions, which a team page keeps by default and which reach every member's device with the team's sync (the
+  versions file merged on a row): someone else's, after this device first saw the account following, newest first.
+  So a change shows once its version is kept (after a two-minute pause or on leaving the page) and its versions file
+  has travelled with a row, not at the keystroke. Read and cleared are the device's per account
+  (`glyph-doc-updates:<handle>`) and count in the bell's dot.
 
 ## Presence
 

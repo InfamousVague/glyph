@@ -73,6 +73,9 @@ void main() {
       held.check('heroName', rectsOf(tester, key('org-hero-name')), dims: 'xyh');
       held.check('heroMeta', rectsOf(tester, key('org-hero-meta')), dims: 'xyh');
       held.check('heroActions', [tester.getRect(key('org-new')), tester.getRect(key('org-invite'))]);
+      // The teamspace home (lib/orgs/ui/teamspace_home.dart, the port's own: docs/TEAMSPACES.md) stands between the hero
+      // and what the web page has under it, which is held as it was, that much lower.
+      held.shift -= Offset(0, tester.getRect(key('teamspace-home')).bottom - tester.getRect(key('org-hero')).bottom);
       // On a wide page the web's cards stand 157.5 tall where lib/home/note_card.dart's stand 115.4 (not this
       // stage's file), so what is under them in their column is held for its place across and its size, not down.
       final under = width >= 600 ? 'xwh' : 'xywh';
