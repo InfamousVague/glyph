@@ -32,6 +32,7 @@
 /// page's `Array.sort` leaves them; Dart's own sort promises no such thing.
 library;
 
+import '../durations.dart' show spentTotal;
 import '../properties.dart' show StatusCategory, defaultStatuses, statusCategory;
 import '../sums.dart' show totalOf;
 import '../task_fields.dart' show samePerson;
@@ -513,17 +514,20 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [Fi
   );
 }
 
+/// Some values added up: time spent as time (`3h 20m` and `45m` are `4h 5m`; lib/core/durations.dart), anything else
+/// as a sum would add it.
+String _totalOf(List<String> texts) => spentTotal(texts) ?? totalOf(texts) ?? '0';
+
 /// The totals of [fields] over [records], each added as a sum would be.
 List<Total> _totalsOf(List<String> fields, List<QueryRecord> records, [FieldLook look = valueOf]) => [
       for (final field in fields)
         Total(
           field: field,
           label: fieldLabel(field),
-          text: totalOf([
-                for (final record in records)
-                  if (look(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
-              ]) ??
-              '0',
+          text: _totalOf([
+            for (final record in records)
+              if (look(record, field) case NumberValue(:final text) || TextValue(:final text)) text,
+          ]),
         ),
     ];
 

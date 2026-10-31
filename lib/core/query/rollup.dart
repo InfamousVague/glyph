@@ -23,6 +23,7 @@
 /// `columns: title, open`, `total: open` and a chart's `y: sum(open)` all read it.
 library;
 
+import '../durations.dart' show spentMinutes, spentTotal;
 import '../properties.dart' show StatusCategory, linkTargets;
 import '../sums.dart' show leadingNumber, totalOf, writtenNumber;
 import 'read.dart';
@@ -33,12 +34,15 @@ import 'values.dart';
 typedef FieldLook = Value Function(QueryRecord record, String field);
 
 /// A value as a number, where it is one: a number, or words that start with one, as a total reads them (`5h`,
-/// `$1,200 a month`).
+/// `$1,200 a month`). Time spent (`3h 20m`, lib/core/durations.dart) is its hours, 3.33, not the 3 it starts with.
 double? numberOf(Value value) => switch (value) {
       NumberValue(:final value) => value,
-      TextValue(:final text) => switch (leadingNumber(text)) {
-          final lead? => writtenNumber(lead),
-          null => null,
+      TextValue(:final text) => switch (spentMinutes(text)) {
+          final minutes? => minutes / 60,
+          null => switch (leadingNumber(text)) {
+              final lead? => writtenNumber(lead),
+              null => null,
+            },
         },
       _ => null,
     };
@@ -73,6 +77,8 @@ Value aggregate(Measure measure, List<QueryRecord> records, FieldLook look) {
         sum += number;
         texts.add(value is NumberValue ? value.text : (value as TextValue).text);
       }
+      // Time spent is added up as time (`3h 20m` and `45m` are `4h 5m`; lib/core/durations.dart).
+      if (spentTotal(texts) case final spent?) return NumberValue(sum, spent);
       // Written as a total writes it, its currency and its commas kept (`$1,200` and `$300` are `$1,500`).
       final written = texts.isEmpty ? null : totalOf(texts);
       return NumberValue(sum, written != null && writtenNumber(written) == sum ? written : plainNumber(sum));
