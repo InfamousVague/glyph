@@ -22,8 +22,9 @@
 /// name, `;` and `#` as its own, `%%` as a comment, and a line that starts `section` or `title` as one of those:
 /// each is taken out or set apart. Pure (test/query/gantt_test.dart).
 ///
-/// What differs: nothing in what is written. The page hands this text to Mermaid, and so does this app
-/// (lib/editor/queries/query_timeline.dart, through lib/editor/diagrams), so it is written the same to the letter.
+/// What differs: nothing in what is written. The page hands this text to Mermaid; this app draws `show: gantt` as
+/// its own chart (lib/editor/queries/query_gantt.dart, Matt, 2026-10-31) and keeps the text only in the result's
+/// JSON, the same to the letter as the web's.
 /// What `ganttOf` answers is a [Gantt].
 library;
 

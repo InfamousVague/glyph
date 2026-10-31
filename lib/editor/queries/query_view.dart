@@ -10,7 +10,7 @@
 /// ([QueryView.onSet]), as a card dragged to another lane is. A to-do's status is its box: To do or Done.
 ///
 /// Its parts: this frame, its head and the list, the table, the month and the count; a record's own pieces
-/// (query_parts.dart); the board (query_board.dart); the timeline (query_timeline.dart); the builder
+/// (query_parts.dart); the board (query_board.dart); the Gantt chart (query_gantt.dart); the builder
 /// (query_builder.dart); things carried between groups (lane_carry.dart); the look (query_look.dart) and the
 /// stylesheet's layouts (query_layout.dart).
 ///
@@ -23,13 +23,14 @@
 /// - **A row carried out of a grouped table** leaves a gap as tall as the row; the copy in the air is the row's
 ///   name and cells at the widths they have in the table.
 /// - **The month's name** is English (lib/core/query/calendar.dart says why).
-/// - **The timeline** is Mermaid's own drawing, as the page's is, photographed (query_timeline.dart).
+/// - **The Gantt chart** is the app's own drawing, where the page's is Mermaid's (query_gantt.dart; Matt, 2026-10-31:
+///   "work on making a better gannt chart implementation in markdown replacing the one we have now"): `show: gantt`
+///   and `show: timeline` are the one chart a ```gantt fence draws, its bars carried to write the records' days.
 ///
-/// The port's own (Matt, 2026-10-30, "add all 12"): a drawn timeline (query_timeline_view.dart, `show: timeline`), a
-/// chart (query_chart.dart, `show: chart`), a calendar on a wide window as a month of named days or a week
-/// (query_calendar.dart), a record carried from day to day on any calendar, and a relation's chips that open the
-/// notes they name. The switcher has the drawn timeline and the chart, and the Mermaid gantt only while it is the
-/// one shown (docs/PARITY.md says why its pieces part from the page's).
+/// The port's own (Matt, 2026-10-30, "add all 12"): a chart (query_chart.dart, `show: chart`), a calendar on a wide
+/// window as a month of named days or a week (query_calendar.dart), a record carried from day to day on any
+/// calendar, and a relation's chips that open the notes they name. The switcher has the Gantt chart and the chart
+/// (docs/PARITY.md says why its pieces part from the page's).
 library;
 
 import 'dart:math' as math;
@@ -50,8 +51,7 @@ import 'query_board.dart';
 import 'query_builder.dart';
 import 'query_calendar.dart';
 import 'query_chart.dart';
-import 'query_timeline.dart';
-import 'query_timeline_view.dart';
+import 'query_gantt.dart';
 import 'query_layout.dart';
 import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
@@ -65,23 +65,23 @@ const Map<ShowAs, ({LucideIcon icon, String label})> queryViews = <ShowAs, ({Luc
   ShowAs.list: (icon: Lucide.list, label: 'List'),
   ShowAs.board: (icon: Lucide.squareKanban, label: 'Board'),
   ShowAs.calendar: (icon: Lucide.calendarDays, label: 'Calendar'),
-  ShowAs.gantt: (icon: Lucide.workflow, label: 'Gantt'),
+  ShowAs.gantt: (icon: Lucide.chartGantt, label: 'Gantt'),
   ShowAs.count: (icon: Lucide.sigma, label: 'Count'),
-  ShowAs.timeline: (icon: Lucide.chartGantt, label: 'Timeline'),
+  ShowAs.timeline: (icon: Lucide.chartGantt, label: 'Gantt'),
   ShowAs.chart: (icon: Lucide.chartNoAxesCombined, label: 'Chart'),
 };
 
 /// The ways the switcher offers, in its order (the port's own). A head as narrow as a phone's has room for six, as
-/// the page's had: the table, the list, the board, the calendar, the drawn timeline and the chart, whose place is
-/// the count's or the Mermaid gantt's while either is the way shown; a wider one has every way, the gantt only while
-/// it is shown. The builder offers them all.
+/// the page's had: the table, the list, the board, the calendar, the Gantt chart and the chart, whose place is the
+/// count's while it is the way shown; a wider one has every way. The Gantt chart is `gantt`, or `timeline` while a
+/// fence says that, which is the same chart (query_gantt.dart). The builder offers them all.
 List<ShowAs> switcherViews(ShowAs? shown, {required bool wide}) => <ShowAs>[
   ShowAs.table,
   ShowAs.list,
   ShowAs.board,
   ShowAs.calendar,
-  ShowAs.timeline,
-  if (wide) ...<ShowAs>[ShowAs.chart, ShowAs.count, if (shown == ShowAs.gantt) ShowAs.gantt] else if (shown == ShowAs.count || shown == ShowAs.gantt) shown! else ShowAs.chart,
+  if (shown == ShowAs.timeline) ShowAs.timeline else ShowAs.gantt,
+  if (wide) ...<ShowAs>[ShowAs.chart, ShowAs.count] else if (shown == ShowAs.count) shown! else ShowAs.chart,
 ];
 
 /// How wide a query's head is for the switcher to have every way.
@@ -334,10 +334,9 @@ class QueryViewState extends State<QueryView> {
                     acts.onSet!(row, field, day);
                   },
           ),
-          ShowAs.gantt => QueryGantt(look: look, result: result, today: acts.today),
+          ShowAs.gantt || ShowAs.timeline => QueryGanttView(look: look, result: result, acts: acts),
           ShowAs.count => QueryCount(look: look, result: result),
           ShowAs.list => QueryList(look: look, result: result, acts: acts, state: this),
-          ShowAs.timeline => QueryTimelineView(look: look, result: result, acts: acts),
           ShowAs.chart => QueryChart(look: look, result: result, acts: acts),
         },
       if (totals) QueryTotals(look: look, totals: result.totals),

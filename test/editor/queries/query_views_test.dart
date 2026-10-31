@@ -1,8 +1,7 @@
 // The port's own query views drawn (Matt, 2026-10-30, "add all 12"): the calendar on a phone and a wide window, the
-// drawn timeline (lib/editor/queries/query_timeline_view.dart), the chart (query_chart.dart), a relation's chips and
+// timeline that is the Gantt chart now (lib/editor/queries/query_gantt.dart), the chart (query_chart.dart), a relation's chips and
 // the builder's new rows; that carrying a record to a day or a bar's ends writes its front matter; and that a
 // thousand records cost a frame no more than ten.
-import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
@@ -10,12 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/days.dart' show isoDayAfter;
 import 'package:ghost_md/core/hold_drag.dart' show holdTime;
 import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/core/gantt/gantt.dart' show ganttOfQuery;
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/editor/queries/queries.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/sheet/kit.dart';
 
 import '../../support/render.dart';
+import '../../gantt/support.dart' show barAt, ganttChart;
 import 'support.dart';
 
 const String today = '2026-10-08';
@@ -156,89 +157,73 @@ void main() {
     });
   });
 
-  group('the timeline', () {
-    TimelinePlan planOf(String lines) {
-      final reading = readQuery(lines);
-      final result = runQuery(reading.query!, libraryOf(<QueryNote>[...library, note('here', fence(lines))]), today);
-      return timelineOf(result.groups, today, zoom: result.zoom);
-    }
+  // `show: timeline` is the Gantt chart a ```gantt fence draws (lib/editor/queries/query_gantt.dart; Matt,
+  // 2026-10-31): the drawn timeline it was, carried over.
+  group('the timeline, the Gantt chart now', () {
+    Finder days() => find.descendant(of: find.byKey(const ValueKey<String>('gantt-scroll')), matching: find.byType(Scrollable));
 
-    /// Where on the screen day [day] of row [index] is.
-    Offset at(WidgetTester tester, int index, double day, {double dayWide = 44}) => tester.getTopLeft(find.byKey(const ValueKey<String>('query-timeline'))) + Offset(day * dayWide, timelineDaysHead + index * timelineRow + timelineRow / 2);
-
-    testWidgets('a row a record, its name held at the left, the undated counted; a tap opens it', (tester) async {
+    testWidgets('a row a record, its name held at the left, the undated dashed on today; its panel opens it', (tester) async {
       final (_, asked) = await open(tester, 'from: tickets\nshow: timeline\nzoom: week');
-      expect(parts('timelineName'), findsNWidgets(3));
-      expect(find.text('One has no days, and is not on the timeline.'), findsOneWidget);
-      final names = tester.getTopLeft(parts('timelineName').first);
-      tester.state<ScrollableState>(find.descendant(of: find.byKey(const ValueKey<String>('timeline-days')), matching: find.byType(Scrollable))).position.jumpTo(300);
+      expect(parts('ganttName'), findsNWidgets(4));
+      expect(ganttChart(tester).widget.model.byKey['gho4']!.undated, isTrue);
+      expect(ganttChart(tester).widget.model.byKey['gho4']!.start, today);
+      final names = tester.getTopLeft(parts('ganttName').first);
+      tester.state<ScrollableState>(days()).position.jumpTo(300);
       await tester.pump();
-      expect(tester.getTopLeft(parts('timelineName').first), names, reason: 'the names stay as the days scroll');
-      await tester.tap(said('GHO-2 Ship the pricing page'));
+      expect(tester.getTopLeft(parts('ganttName').first), names, reason: 'the names stay as the days scroll');
+      await tester.tap(find.byKey(const ValueKey<String>('gantt-name:gho2')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('gantt-name:gho2')));
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey<String>('gantt-open')));
       expect(asked.opened.single.$1, 'gho2');
     });
 
     testWidgets('zooms, and Today scrolls to today', (tester) async {
-      await open(tester, 'from: tickets\nshow: timeline');
-      final days = find.descendant(of: find.byKey(const ValueKey<String>('timeline-days')), matching: find.byType(Scrollable));
-      expect(tester.getSemantics(said('Zoom to a week')).flagsCollection.isSelected.toBoolOrNull(), isTrue);
+      await open(tester, 'from: tickets\nshow: timeline', screen: 1000);
       await tester.tap(said('Zoom to a quarter'));
       await tester.pump();
-      expect(tester.getSize(find.byKey(const ValueKey<String>('query-timeline'))).width, closeTo(planOf('from: tickets\nshow: timeline\nzoom: quarter').days * 6, 0.01));
+      expect(ganttChart(tester).dayWide, 6);
+      expect(tester.getSemantics(said('Zoom to a quarter')).flagsCollection.isSelected.toBoolOrNull(), isTrue);
       await tester.tap(said('Zoom to a week'));
       await tester.pump();
-      tester.state<ScrollableState>(days).position.jumpTo(0);
+      tester.state<ScrollableState>(days()).position.jumpTo(0);
       await tester.pump();
       await tester.tap(said('Scroll to today'));
       await settle(tester);
-      expect(tester.state<ScrollableState>(days).position.pixels, greaterThan(0));
+      expect(tester.state<ScrollableState>(days()).position.pixels, greaterThan(0));
     });
 
     testWidgets('a bar\'s end carried writes its due day, its middle both days, each into the ticket\'s front matter', (tester) async {
       final (_, asked) = await open(tester, 'from: tickets\nshow: timeline\nzoom: week', screen: 1000);
-      final plan = planOf('from: tickets\nshow: timeline\nzoom: week');
-      final rows = plan.lanes.single.bars;
-      final days = find.descendant(of: find.byKey(const ValueKey<String>('timeline-days')), matching: find.byType(Scrollable));
-      tester.state<ScrollableState>(days).position.jumpTo(0);
+      // GHO-2 is one day, the 12th: chosen, its end is taken by a finger at once. Two days on.
+      ganttChart(tester).select('gho2');
       await tester.pump();
-      // GHO-2 is one day, the 12th: its right half is its end. Two days on, with a finger.
-      final two = rows.indexWhere((bar) => bar.row.key == 'gho2');
-      final finger = await tester.startGesture(at(tester, two, rows[two].from + 0.8));
-      for (var i = 0; i < 8; i += 1) {
-        await finger.moveBy(const Offset(11, 0));
-        await tester.pump();
-      }
-      await finger.up();
-      await tester.pump();
+      await tester.dragFrom(barAt(tester, 'gho2', where: 'end'), const Offset(88, 0));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(writtenTo(asked, 'gho2'), contains('due: 2026-10-14'));
       expect(writtenTo(asked, 'gho2'), isNot(contains('start:')));
       // GHO-1 runs the 1st to the 6th: its middle, with a pointer, back three days.
-      final one = rows.indexWhere((bar) => bar.row.key == 'gho1');
-      // Held first, as everything carried in the app is.
-      final mouse = await tester.startGesture(at(tester, one, (rows[one].from + rows[one].to) / 2), kind: PointerDeviceKind.mouse);
-      await tester.pump(holdTime + const Duration(milliseconds: 50));
+      final mouse = await tester.startGesture(barAt(tester, 'gho1'), kind: PointerDeviceKind.mouse);
+      await tester.pump();
       for (var i = 0; i < 12; i += 1) {
         await mouse.moveBy(const Offset(-11, 0));
         await tester.pump();
       }
       await mouse.up();
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       expect(writtenTo(asked, 'gho1'), allOf(contains('start: 2026-09-28'), contains('due: 2026-10-03')));
     });
 
-    testWidgets('a finger swiping across the middle of a bar scrolls the days and moves nothing', (tester) async {
+    testWidgets('a finger swiping across a row scrolls the days and moves nothing', (tester) async {
       final (_, asked) = await open(tester, 'from: tickets\nshow: timeline\nzoom: week');
-      final plan = planOf('from: tickets\nshow: timeline\nzoom: week');
-      final rows = plan.lanes.single.bars;
-      final days = find.descendant(of: find.byKey(const ValueKey<String>('timeline-days')), matching: find.byType(Scrollable));
-      tester.state<ScrollableState>(days).position.jumpTo(rows.firstWhere((bar) => bar.row.key == 'gho1').from * 44.0);
-      await tester.pump();
-      final before = tester.state<ScrollableState>(days).position.pixels;
-      final one = rows.indexWhere((bar) => bar.row.key == 'gho1');
-      await tester.dragFrom(at(tester, one, rows[one].from + 2.5), const Offset(-120, 0));
-      await tester.pump();
+      final before = tester.state<ScrollableState>(days()).position.pixels;
+      // On GHO-1's row, where the days show on a phone.
+      final from = Offset(tester.getCenter(find.byKey(const ValueKey<String>('gantt-scroll'))).dx, barAt(tester, 'gho1').dy);
+      await tester.dragFrom(from, Offset(before > 0 ? 120 : -120, 0));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(asked.written, isEmpty);
-      expect(tester.state<ScrollableState>(days).position.pixels, greaterThan(before));
+      expect(tester.state<ScrollableState>(days()).position.pixels, isNot(before));
     });
   });
 
@@ -330,17 +315,18 @@ void main() {
       await settle(tester);
     }
 
-    testWidgets('offers the drawn timeline and the chart, a calendar\'s day field and a timeline\'s fields', (tester) async {
+    testWidgets('offers the Gantt chart and the chart, a calendar\'s day field and a Gantt chart\'s fields', (tester) async {
       final (view, _) = await open(tester, 'from: tickets\nshow: calendar');
       await build(tester);
       await press(tester, 'date:start');
       expect(view.state.doc.toString(), contains('show: calendar\ndate: start'));
-      await press(tester, 'show:timeline');
+      await press(tester, 'show:gantt');
       expect(row('date:start'), findsNothing);
       await press(tester, 'end:end');
       await press(tester, 'zoom:month');
-      expect(view.state.doc.toString(), contains('show: timeline\ndate: start\nend: end\nzoom: month'));
-      expect(tester.widget<SheetRow>(row('show:timeline')).chosen, isTrue);
+      expect(view.state.doc.toString(), contains('show: gantt\ndate: start\nend: end\nzoom: month'));
+      expect(tester.widget<SheetRow>(row('show:gantt')).chosen, isTrue);
+      expect(row('show:timeline'), findsNothing, reason: 'the timeline is the Gantt chart');
     });
 
     testWidgets('in simple mode, the chart\'s rows and the rollups wait behind More, which opens in place', (tester) async {
@@ -379,10 +365,10 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final (view, _) = await open(tester, 'from: tickets\nview: count', screen: 1000);
       expect(said(RegExp('^Show as a ')), findsNWidgets(7));
-      await tester.tap(said('Show as a timeline'));
+      await tester.tap(said('Show as a gantt'));
       await tester.pump();
-      expect(view.state.doc.toString(), contains('view: timeline'));
-      expect(parts('timeline'), findsOneWidget);
+      expect(view.state.doc.toString(), contains('view: gantt'));
+      expect(parts('gantt'), findsOneWidget);
     });
   });
 
@@ -436,7 +422,7 @@ void main() {
       // turn with the views, so a load that comes and goes on the machine falls on both.
       const table = 'from: tickets\nshow: table';
       final asked = <String, (String, void Function(QueryResult)?)>{
-        'timeline': ('from: tickets\nshow: timeline\ngroup: assignee', (result) => timelineOf(result.groups, today)),
+        'gantt': ('from: tickets\nshow: gantt\ngroup: assignee', (result) => ganttOfQuery(result, today)),
         'chart': ('from: tickets\nshow: chart\nx: status\ny: sum(hours)\nseries: assignee', null),
         'calendar': ('from: tickets\nshow: calendar', null),
         'rollups': ('from: tickets\nrollup: siblings = count(project)\nrollup: open = count(backlinks.project where status != done)\nrollup: hours = sum(hours of links)', null),
@@ -459,8 +445,8 @@ void main() {
         expect(mine, lessThan(3 * base + 20000), reason: '$name costs ${mine ~/ 1000}ms where a table beside it costs ${base ~/ 1000}ms');
       }
       expect(cold.records.length, 1020);
-      final plan = timelineOf(runQuery(readQuery('from: tickets\nshow: timeline').query!, warm, today).groups, today);
-      expect(plan.bars, 1000);
+      final plan = ganttOfQuery(runQuery(readQuery('from: tickets\nshow: gantt').query!, warm, today), today);
+      expect(plan.items.length, 1000);
       final rolled = runQuery(
         readQuery('from: notes\nwhere: title contains Project\nrollup: open = count(backlinks.project where status != done)\nrollup: hours = sum(hours of backlinks)\nrollup: done = percent(backlinks)').query!,
         warm,
@@ -473,17 +459,12 @@ void main() {
       ]);
     });
 
-    testWidgets('a bar carried across a timeline of a thousand builds nothing again, a frame of it a repaint', (tester) async {
+    testWidgets('a bar carried across a Gantt chart of a thousand builds nothing again, a frame of it a repaint', (tester) async {
       final notes = many(1000);
-      final (_, asked) = await open(tester, 'from: tickets\nshow: timeline\nzoom: month\nsort: start', screen: 1000, notes: notes);
-      expect(parts('timelineName'), findsNWidgets(1000));
-      final days = find.descendant(of: find.byKey(const ValueKey<String>('timeline-days')), matching: find.byType(Scrollable));
-      tester.state<ScrollableState>(days).position.jumpTo(0);
-      await tester.pump();
-      final result = runQuery(readQuery('from: tickets\nshow: timeline\nzoom: month\nsort: start').query!, libraryOf(<QueryNote>[...notes, note('here', '')]), today);
-      final bar = timelineOf(result.groups, today, zoom: TimelineZoom.month).lanes.single.bars.first;
-      final origin = tester.getTopLeft(find.byKey(const ValueKey<String>('query-timeline')));
-      final mouse = await tester.startGesture(origin + Offset((bar.to - 0.2) * 16, timelineDaysHead + timelineRow / 2), kind: PointerDeviceKind.mouse);
+      final (_, asked) = await open(tester, 'from: tickets\nshow: gantt\nzoom: month\nsort: start', screen: 1000, notes: notes);
+      expect(parts('ganttName'), findsNWidgets(1000));
+      final first = ganttChart(tester).widget.model.items.first;
+      final mouse = await tester.startGesture(barAt(tester, first.key, where: 'end'), kind: PointerDeviceKind.mouse);
       await mouse.moveBy(const Offset(20, 0));
       await tester.pump();
       var built = 0;
@@ -496,8 +477,8 @@ void main() {
       debugOnRebuildDirtyWidget = null;
       expect(built, 0, reason: 'a carry repaints the days; no row is built again');
       await mouse.up();
-      await tester.pump();
-      expect(asked.written.single.$1, bar.row.noteId);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(asked.written.single.$1, first.ticket!.noteId);
     });
   });
 }
