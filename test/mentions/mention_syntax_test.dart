@@ -68,6 +68,22 @@ void main() {
     });
   });
 
+  group('a day signed with its writer (MARKDOWN_FIRST §11, decision 18)', () {
+    test('a bare day in a team’s note takes the writer’s handle before it; a person named before it is left as theirs', () {
+      expect(signedDay('2026-11-06', owner: 'matt'), '@matt @2026-11-06');
+      expect(signedDay('2026-11-06', owner: 'matt', before: 'Ask @sam '), '@2026-11-06');
+      expect(signedDay('2026-11-06', owner: 'matt', before: 'Ask @sam, by '), '@matt @2026-11-06', reason: 'a comma: the day is not beside the person');
+      expect(signedDay('2026-11-06', owner: 'matt', before: 'By @2026-11-05 and '), '@matt @2026-11-06', reason: 'a day before it is no person');
+      expect(signedDay('2026-11-06'), '@2026-11-06', reason: 'a note of the person’s own keeps the bare day');
+      expect(signedDay('2026-11-06', owner: ''), '@2026-11-06');
+      expect(personEnds('Ask @sam '), isTrue);
+      expect(personEnds('Ask @sam'), isTrue);
+      expect(personEnds('Ask @sam. '), isFalse);
+      expect(personEnds('Ask `@sam` '), isFalse);
+      expect(personEnds(''), isFalse);
+    });
+  });
+
   group('days typed as words, on Friday 30 October 2026', () {
     final cases = <String, String?>{
       'today': '2026-10-30',

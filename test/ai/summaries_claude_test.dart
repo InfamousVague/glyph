@@ -17,7 +17,7 @@ import 'package:ghost_md/ai/backend.dart' show JobConfig, ModelInfo;
 import 'package:ghost_md/ai/job_config.dart' show jobConfigFor;
 import 'package:ghost_md/ai/summaries.dart';
 import 'package:ghost_md/ai/summary_claude.dart';
-import 'package:ghost_md/ai/summary_keep.dart' show readSummary;
+import 'package:ghost_md/ai/summary_keep.dart' show readSummary, summaryFactsOf, withoutSummaryFacts;
 import 'package:ghost_md/claude/claude_settings.dart' show ClaudeSettings;
 import 'package:ghost_md/claude/claude_spend.dart' show ClaudeUsage;
 import 'package:ghost_md/claude/messages_api.dart';
@@ -140,7 +140,7 @@ void main() {
       q.present = [];
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
     });
 
     claudeTest('a meeting goes to the phone’s model with the Claude plugin switched off', (tester) async {
@@ -183,7 +183,7 @@ void main() {
       expect(q.summaries.summariesNow().claudeHeld, isEmpty);
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
     });
 
     claudeTest('Local only turned on while Claude writes stops the request, and the job waits, uncounted', (tester) async {
@@ -231,7 +231,7 @@ void main() {
       expect(q.summaries.summariesNow().reasons, isEmpty);
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
     });
 
     claudeTest('the limit reached while Claude writes a meeting up lets that request finish, and the write-up lands', (tester) async {
@@ -249,7 +249,7 @@ void main() {
       expect(api.asked.single.cancelled, isFalse);
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
       // The next waits.
       q.notes['n2'] = q.note('n2', '# Second meeting\n\n$transcript', recordingMs: 4000, segments: q.phrases);
       q.summaries.enqueueSummary('n2', SummaryKind.meeting);
@@ -266,7 +266,7 @@ void main() {
       expect(api.asked, hasLength(1));
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
       expect(q.fakes, isEmpty);
     });
   });
@@ -464,7 +464,7 @@ void main() {
       await advance(tester, 0);
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
       final written = readSummary('n1');
       expect((written?.text, written?.model, written?.forMs), (q.section, 'claude-sonnet-5-5', 4000));
       expect(q.queued(), isEmpty);
@@ -562,8 +562,11 @@ void main() {
       expect(api.asked.single.prompt, transcript);
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
       expect(readSummary('n1')?.model, 'claude-sonnet-5-5');
+      // The facts in the note's own front matter say the same (summary_keep.dart `withSummaryFacts`).
+      expect(summaryFactsOf(q.notes['n1']!.body)?.model, 'claude-sonnet-5-5');
+      expect(summaryFactsOf(q.notes['n1']!.body)?.text, readSummary('n1')?.text);
       expect(q.queued(), isEmpty);
     });
 
@@ -585,7 +588,7 @@ void main() {
       expect(api.asked.single.prompt, transcript);
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
       expect(q.queued(), isEmpty);
       expect(q.summaries.summariesNow().needsModel, isEmpty);
     });
@@ -597,7 +600,7 @@ void main() {
       expect(api.asked, hasLength(1));
       api.asked.single.answer(q.answer);
       await advance(tester, 0);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
     });
 
     claudeTest('with Claude not chosen, lands the phone’s summary as before', (tester) async {
@@ -606,7 +609,7 @@ void main() {
       q.phoneResults['n1'] = const RecordingResult(summary: q.answer, model: 'qwen3.5-2b', transcriptChars: 60, finishedAt: 1);
       await advance(tester, 0);
       expect(api.asked, isEmpty);
-      expect(q.notes['n1']?.body, body);
+      expect(withoutSummaryFacts(q.notes['n1']?.body ?? ''), body);
       expect(readSummary('n1')?.model, 'qwen3.5-2b');
     });
 

@@ -255,7 +255,7 @@ fn without_front_matter<'a>(lines: &'a [&'a str]) -> (Option<String>, &'a [&'a s
 /// `tags:` list), then a fence within the first 40 lines. A note that opens
 /// with a rule and some words opens with a rule. The file's own front matter
 /// is read by another rule (frontmatter.rs `split`), which the page never sees.
-fn front_matter_end(lines: &[&str]) -> usize {
+pub(super) fn front_matter_end(lines: &[&str]) -> usize {
     if !lines.first().is_some_and(|line| is_fence(line)) {
         return 0;
     }

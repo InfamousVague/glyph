@@ -65,7 +65,7 @@ import '../../core/preferences.dart' show Preferences;
 import '../host.dart' show onPluginStorage;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
-import '../../core/banner.dart' show bannerOf;
+import '../../core/banner.dart' show bannerDeclined, bannerOf;
 import '../../core/book.dart' show chaptersOf, isBookBody, isJournalBody;
 import '../../core/note_text.dart' show noteTitle;
 import '../../core/title_key.dart' show titleKey;
@@ -135,8 +135,11 @@ Future<List<BannerAsk>> bannerAsks(List<Note> notes, {bool takenOff = false, Fut
     if (asks.length >= most) break;
     final banner = bannerOf(note.body);
     if (banner == null) {
-      if (!wantsBanner(note)) continue;
-      if (!done.contains(note.id)) {
+      if (!wantsBanner(note, takenOff: takenOff)) continue;
+      // Taken off on purpose, as the note itself says (`banner: none`), or given one before by this device's list.
+      if (bannerDeclined(note.body)) {
+        if (takenOff) asks.add((id: note.id, again: true, replacing: null));
+      } else if (!done.contains(note.id)) {
         asks.add((id: note.id, again: false, replacing: null));
       } else if (takenOff) {
         asks.add((id: note.id, again: true, replacing: null));

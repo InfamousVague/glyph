@@ -16,13 +16,20 @@
 ///
 /// What differs: the tape ids the page kept in localStorage through module functions (`tapeId`, `setTapeId`) are
 /// a [TapeIds] over a `Stored`, read plainly (the page read them through core/noteSheet.ts's `sheetOf`, which is
-/// the other workspaces' sheets and is the library's to give).
+/// the other workspaces' sheets and is the library's to give). And the tape's id is written into the note's own
+/// front matter too, `tape: k3f9x2` ([withTapeId]; docs/MARKDOWN_FIRST.md §5, gap 13; Matt, 2026-10-31): the
+/// device's record was never synced, so a second device, or a library restored from its files alone with the WAV
+/// put back, found every clip naming a tape silent (`playsOn` wants a match). The note's word is read first
+/// ([TapeIds.tapeIdIn]), the device's where the note says nothing, for a release; the device's is still written.
 library;
 
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/front_matter.dart' show frontMatterValue;
+import '../../core/item_syntax.dart' show jsTrim;
+import '../../core/properties.dart' show withFrontMatterValue;
 import '../../core/stored.dart';
 
 @immutable
@@ -104,6 +111,19 @@ bool playsOn(Clip clip, String? tape) => clip.tape == null || clip.tape!.isEmpty
 
 const String _tapesKey = 'glyph-tape-ids';
 
+/// The front matter key the tape's id is written under: `tape: k3f9x2`.
+const String tapeKey = 'tape';
+
+/// The id of the tape a note's words say it holds, or null where they say none (or an empty one).
+String? tapeIdOf(String body) {
+  final said = jsTrim(frontMatterValue(body, tapeKey) ?? '');
+  return said.isEmpty ? null : said;
+}
+
+/// The body with its tape named [id] in its front matter, or the name taken off for null (a recording removed):
+/// written where the recording is kept with the note, so the id goes wherever the note goes.
+String withTapeId(String body, String? id) => withFrontMatterValue(body, tapeKey, id == null || id.isEmpty ? null : id);
+
 /// The tape each note holds now, kept beside the notes on this device because the audio is on this device too.
 class TapeIds {
   const TapeIds(this._stored);
@@ -120,6 +140,10 @@ class TapeIds {
 
   /// The id of the tape `noteId` holds now, or null: the note has none, or its recording is from before ids.
   String? tapeId(String noteId) => _tapes()[noteId];
+
+  /// The tape `noteId` holds, as its own words say first ([tapeIdOf] of [body]) and this device remembers otherwise:
+  /// what the clips are played against, so a library restored from its files alone still plays them.
+  String? tapeIdIn(String noteId, String body) => tapeIdOf(body) ?? tapeId(noteId);
 
   /// Names the tape `noteId` holds now. A fresh recording takes a new id; a take appended to one keeps it.
   void setTapeId(String noteId, String? id) {

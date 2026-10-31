@@ -33,8 +33,8 @@ class _Refining extends Refining {
           getNote: (_) async => null,
           updateNote: (_, _, _) async => throw StateError('nothing is written here'),
           setNoteRecording: (_, _, _) async => null,
-          keptText: (_) => null,
-          summaryUnchanged: (_, _) => true,
+          keptText: (_, _) => null,
+          summaryUnchanged: (_, _, _) => true,
           writeUpRunning: () => false,
         );
 

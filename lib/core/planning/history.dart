@@ -6,8 +6,9 @@
 ///
 /// A note keeps versions where it is an organization's, unless that is switched off, or where its More sheet has
 /// switched them on (lib/core/versions_record.dart), so a team's tickets have them and a person's own may not. Where
-/// a ticket has none, what is said falls back on its own words: a `done:` day written in its front matter (as
-/// Obsidian Tasks writes a finished to-do's), else the day it was last changed. Each answer says where it came from,
+/// a ticket has none, what is said falls back on its own words: the `status-since:` and `done:` days written in its
+/// front matter as it moved (lib/core/properties.dart `withStatus`; `done:` is also what Obsidian Tasks writes a
+/// finished to-do's day under), else the day it was last changed, which a checkout or a restore resets. Each answer says where it came from,
 /// so the burndown can say when it is the last change it counted by.
 ///
 /// [TicketHistory] holds what has been read, by note id, and reads the rest when asked: a run of a query asks
@@ -23,7 +24,7 @@ import 'package:flutter/foundation.dart';
 import '../days.dart' show isIsoDay, isoDay;
 import '../front_matter.dart' show frontMatterValue;
 import '../item_syntax.dart' show jsTrim;
-import '../properties.dart' show StatusCategory, statusCategory;
+import '../properties.dart' show StatusCategory, statusCategory, statusSinceKey;
 
 /// One change: from [day] on, the ticket's status was [status] (null for none).
 @immutable
@@ -72,7 +73,7 @@ enum HistorySource {
   /// The ticket's versions.
   versions,
 
-  /// A day written in its front matter (`done:`).
+  /// A day written in its front matter (`status-since:`, `done:`).
   written,
 
   /// The day it was last changed, for want of either.
@@ -108,6 +109,16 @@ String? doneIn(List<StatusChange> changes, List<String> workflow) {
 /// The keys a finished day may be written under, the first that holds one counting.
 const List<String> doneKeys = ['done', 'completed', 'resolved', 'closed'];
 
+/// The keys a day of a ticket's past may be written under: [doneKeys] and the day its status was taken
+/// (`status-since:`, lib/core/properties.dart `withStatus`), which a query's record carries for history.dart to read.
+const List<String> historyKeys = [statusSinceKey, ...doneKeys];
+
+/// The day a ticket's status was taken, written in its front matter by `withStatus`: `status-since: 2026-11-04`.
+String? writtenSince(String body) {
+  final said = jsTrim(frontMatterValue(body, statusSinceKey) ?? '');
+  return isIsoDay(said) ? said : null;
+}
+
 /// A finished day written in a ticket's front matter: `done: 2026-11-04`.
 String? writtenDone(String body) {
   for (final key in doneKeys) {
@@ -130,12 +141,16 @@ class NoPast implements StatusPast {
   List<StatusChange>? changesOf(String id) => null;
 }
 
-/// The day a ticket of [body], with status [status] where it now stands in [workflow], took that status: its
-/// versions' last change, else the day it was last changed ([updated]).
-HistoryDay statusSince(StatusPast past, String id, String? status, {required String updated}) {
+/// The day a ticket of [body], with status [status] where it now stands, took that status: its versions' last change,
+/// else its `status-since:` (written when it moved, lib/core/properties.dart `withStatus`), else the day it was last
+/// changed ([updated]).
+HistoryDay statusSince(StatusPast past, String id, String? status, {required String updated, String body = ''}) {
   final changes = past.changesOf(id);
   final day = changes == null ? null : sinceIn(changes, status);
-  return day != null ? (day: day, source: HistorySource.versions) : (day: updated, source: HistorySource.changed);
+  if (day != null) return (day: day, source: HistorySource.versions);
+  final written = writtenSince(body);
+  if (written != null) return (day: written, source: HistorySource.written);
+  return (day: updated, source: HistorySource.changed);
 }
 
 /// The day a finished ticket was finished: its versions', else its `done:`, else the day it was last changed. Null

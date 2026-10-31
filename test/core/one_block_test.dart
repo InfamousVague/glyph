@@ -31,7 +31,7 @@ void main() {
 
   group('the library’s keys', () {
     test('are never the page’s properties, in any case, except a ticket’s own id', () {
-      expect(libraryKeys, <String>{'id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed'});
+      expect(libraryKeys, <String>{'id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed', 'recording-ms'});
       for (final key in libraryKeys) {
         expect(isLibraryProperty(key, 'anything'), isTrue, reason: key);
         expect(isLibraryProperty(key.toUpperCase(), 'anything'), isTrue, reason: key);

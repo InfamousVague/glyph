@@ -307,8 +307,8 @@ extension _RootVoice on _GhostRootState {
           ? null
           : (id, replace) => summaries.enqueueSummary(id, preferences.value.meetings.containsKey(id) ? SummaryKind.meeting : SummaryKind.recording, replace: replace),
       summaryEdited: (id, body) {
-        final section = summarySection(body, keptText(id));
-        return section != null && !summaryUnchanged(id, section.text);
+        final section = summarySection(body, keptTextIn(id, body));
+        return section != null && !summaryUnchangedIn(id, body, section.text);
       },
       // Claude writes the meetings here: their tapes offer Summarize with no model on the device.
       writesMeetings: () => summaries?.claude?.chosen ?? false,

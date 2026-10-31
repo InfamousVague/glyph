@@ -8,6 +8,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/book/tickets.dart' show TicketChoice;
+import 'package:ghost_md/core/days.dart' show isoDay;
 import 'package:ghost_md/core/properties.dart';
 import 'package:ghost_md/editor/state/selection.dart';
 import 'package:ghost_md/editor/state/state.dart';
@@ -107,13 +108,15 @@ void main() {
       view.dispatch(TransactionSpec(selection: EditorSelection.single(view.state.doc.length)));
       changes.clear();
       writeProperty(view, 'status', 'Done');
-      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\n---\n# Login\n\nWords.');
-      expect(changes, <String>['25-30:Done']);
+      // A status brings its days with it (lib/core/properties.dart `withStatus`), still as the one smallest change.
+      final today = isoDay(DateTime.now());
+      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\nstatus-since: $today\ndone: $today\n---\n# Login\n\nWords.');
+      expect(changes, <String>['25-30:Done\nstatus-since: $today\ndone: $today']);
       expect(view.state.selection.main.head, view.state.doc.length);
       writeProperty(view, 'priority', 'high');
-      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\npriority: high\n---\n# Login\n\nWords.');
+      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\nstatus-since: $today\ndone: $today\npriority: high\n---\n# Login\n\nWords.');
       writeProperty(view, 'priority', null);
-      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\n---\n# Login\n\nWords.');
+      expect(view.state.doc.toString(), '---\ntype: ticket\nStatus: Done\nstatus-since: $today\ndone: $today\n---\n# Login\n\nWords.');
       await tester.pump();
     });
   });

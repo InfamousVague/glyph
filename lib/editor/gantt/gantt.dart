@@ -20,7 +20,7 @@ import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/days.dart' show isIsoDay;
 import '../../core/gantt/gantt.dart';
 import '../../core/preferences.dart' show preferences;
-import '../../core/properties.dart' show StatusCategory, withProperty;
+import '../../core/properties.dart' show StatusCategory, withTicketProperty;
 import '../../core/query/query.dart';
 import '../editor.dart';
 import '../items/task_fields.dart' show fieldsToday;
@@ -224,7 +224,7 @@ class DrawnGantt extends StatelessWidget {
         view.dispatch(TransactionSpec(changes: specs, userEvent: ganttUserEvent, annotations: isolateHistory.of('full')));
       }
       for (final ticket in change.tickets) {
-        String put(String text) => ticket.fields.entries.fold<String>(text, (body, field) => withProperty(body, field.key, field.value));
+        String put(String text) => ticket.fields.entries.fold<String>(text, (body, field) => withTicketProperty(body, field.key, field.value));
         if (ticket.ticket.noteId == options?.noteId) {
           final text = view.state.doc.toString();
           final next = put(text);

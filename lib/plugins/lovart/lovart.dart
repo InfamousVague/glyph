@@ -218,6 +218,17 @@ final GlyphPlugin lovartPlugin = GlyphPlugin(
       enabled: (noteId, body) => lovartUnready() == null && imageCues(body).isNotEmpty,
       run: (editing, [choice]) => makeAllCues(editing),
     ),
+    // The header taken off on purpose: `banner: none` in the note's own words (lib/core/banner.dart), so neither a run
+    // nor a library restored from its files gives it one again (docs/MARKDOWN_FIRST.md §5, gap 13).
+    NoteAction(
+      id: 'lovart-no-banner',
+      label: 'Remove header image',
+      icon: lovartIcon,
+      visible: (noteId, body) => bannerOf(body) != null,
+      hint: (noteId, body) => 'The banner comes off, and this note is left without one until you ask for one.',
+      enabled: (noteId, body) => !lovartBannerMaking.value.contains(noteId),
+      run: (editing, [choice]) => removeBanner(editing),
+    ),
     NoteAction(
       id: 'lovart-banner',
       label: 'Header image',

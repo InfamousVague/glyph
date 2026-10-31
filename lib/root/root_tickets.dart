@@ -48,7 +48,9 @@ extension _RootTickets on _GhostRootState {
       );
 
   /// Where a merge reads and writes: an open editor's words where the note is open, so nothing typed is lost, else
-  /// the library's; a version kept of each note's words before, where the note keeps versions.
+  /// the library's; a version kept of each note's words before, where the note keeps versions - and of the target's
+  /// and the duplicate's whatever their switch says (docs/MARKDOWN_FIRST.md §11, decision 21), so the `.versions` file
+  /// beside each can take the merge back after a restore, when this device's undo record is gone.
   MergeWorld get _mergeWorld => MergeWorld(
         body: (id) async {
           final view = openNoteScreen(_shell.currentContext, id)?.view;
@@ -56,8 +58,8 @@ extension _RootTickets on _GhostRootState {
           return (await _library.get(id))?.body;
         },
         write: (id, body) => _changeNote(id, (_) => body, userEvent: 'ticket.merge'),
-        keepVersion: (id, text, label) async {
-          if (_versions.keepsVersions(id)) await _versions.keepVersion(id, text, label: label);
+        keepVersion: (id, text, label, {bool always = false}) async {
+          if (always || _versions.keepsVersions(id)) await _versions.keepVersion(id, text, label: label);
         },
         kept: _stored,
       );

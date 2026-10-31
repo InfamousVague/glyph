@@ -23,7 +23,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/untouched.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
-import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds;
+import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds, tapeIdOf, withTapeId;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/note/note_screen.dart';
@@ -430,9 +430,10 @@ void main() {
       expect(library.value.length, before + 1);
       final (id, title, otherApps) = service.starts.single;
       final made = library.noteOf(id)!;
-      // Marked a meeting in its own words (lib/meet/meeting_mark.dart), the title under the mark.
-      expect(withMeetingMark(made.body, null), '# $title\n');
+      // Its tape and its meeting named in its own front matter from the start (clip_refs.dart, meeting_mark.dart), the title its words.
+      expect(tapeIdOf(made.body), isNotNull);
       expect(meetingMarkOf(made.body)?.kind, 'phone');
+      expect(withMeetingMark(withTapeId(made.body, null), null), '# $title\n');
       expect(title, startsWith('Meeting, '));
       expect(made.source, NoteSource.capture);
       expect(otherApps, isFalse);
