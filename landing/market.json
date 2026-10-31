@@ -607,6 +607,54 @@
       "link": "ghostmd://market/plugin/todoist"
     },
     {
+      "id": "git-backup",
+      "name": "Back up to git",
+      "line": "Your notes, pushed to a repo you own",
+      "description": "Commits your Library folder to a git repository you own and pushes it after each quiet spell, so your notes are backed up as plain files with their history, on GitHub, GitLab, Codeberg or any git host. A fresh device opens the library again by cloning it.",
+      "category": "connections",
+      "icon": "git-branch",
+      "mark": null,
+      "hue": "green",
+      "colours": [
+        "#2a9d4b",
+        "#4cd571"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A commit two minutes after your last change, and a push when you are online",
+        "Back up now, on the page and in the command palette",
+        "Open library from git, on a fresh device",
+        "Switches for recordings and each organization, off until you say"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads every note and file of your Library to commit them, and writes the notes a merge brings back from the repository.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Pushes to and fetches from the git host you add, and nothing else; asks GitHub’s API what your token may do and, if you ask, to make the repository. It talks to api.github.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "api.github.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/git-backup"
+    },
+    {
       "id": "discord",
       "name": "Discord",
       "line": "Post a note to a Discord channel",
