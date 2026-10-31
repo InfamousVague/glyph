@@ -159,8 +159,9 @@ void main() {
   group('Notifications', () {
     testWidgets('has a switch for each category, each a synced preference the row in the list counts', (tester) async {
       await openPane(tester, 'notifications');
-      expect(cardTitles(tester), ['What reaches you']);
-      expect(rowLabels(tester), ['Team', 'Claude', 'Summaries', 'Conflicts']);
+      // The morning's ticket digest under them (lib/settings/panes/ticket_digest_section.dart; Matt, 2026-10-31).
+      expect(cardTitles(tester), ['What reaches you', 'Ticket digest']);
+      expect(rowLabels(tester), ['Team', 'Claude', 'Summaries', 'Conflicts', 'Morning digest', 'Time', 'Write a digest note']);
       for (final (row, read) in <(String, bool Function(NotificationPrefs))>[('Team', (n) => n.team), ('Claude', (n) => n.claude), ('Summaries', (n) => n.summaries), ('Conflicts', (n) => n.conflicts)]) {
         expect(read(preferences.value.notifications), isTrue);
         await tapOn(tester, inRow(row, find.byType(GlacierSwitch)));
@@ -187,7 +188,7 @@ void main() {
 
     testWidgets('lists the organizations to mute once the account is in one, and keeps the muted ones by id', (tester) async {
       await openPane(tester, 'notifications', features: const SettingsFeatures(signedIn: true, orgs: [SettingsOrg(id: 'o1', name: 'Attic', members: 1), SettingsOrg(id: 'o2', name: 'Cellar', members: 4)]));
-      expect(cardTitles(tester), ['What reaches you', 'Mute an organization']);
+      expect(cardTitles(tester), ['What reaches you', 'Mute an organization', 'Ticket digest']);
       expect((hintOf(tester, 'Attic'), hintOf(tester, 'Cellar')), ('1 member', '4 members'));
       await tapOn(tester, inRow('Cellar', find.byType(GlacierSwitch, skipOffstage: false)));
       await tapOn(tester, inRow('Attic', find.byType(GlacierSwitch, skipOffstage: false)));

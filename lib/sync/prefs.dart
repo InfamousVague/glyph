@@ -30,6 +30,7 @@ import 'package:flutter/foundation.dart';
 import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../ai/summary_handoff.dart' show mergedHandoffs, summaryHandoffsKey;
+import '../book/ticket_digest.dart' show chosenDigestClaim, ticketDigestKey, ticketDigestSettingsKey;
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../plugins/lovart/banner_run.dart' show bannerClaimKey, chosenBannerClaim;
@@ -148,6 +149,11 @@ const List<String> syncedPrefs = [
   // so the settings kept on a device in the clear hold none of them readable; merged an entry at a time, the later
   // change winning (`mergedSealedKeys`).
   sealedKeysKey,
+  // The morning's ticket digest (lib/book/ticket_digest.dart; Matt, 2026-10-31): its choices, the person's on every
+  // device, and which device sends today's, claimed once. Where both changed the claim, the account's stands
+  // (`chosenDigestClaim`).
+  ticketDigestSettingsKey,
+  ticketDigestKey,
 ];
 
 /// The settings this build syncs: [syncedPrefs], or the list a test gives to be an older build
@@ -266,6 +272,14 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
     } else if (key == sealedKeysKey && m != null && t != null) {
       // The later change of each key stands, a removal among them (lib/sync/sealed_keys.dart).
       out[key] = mergedSealedKeys(b ?? const {}, m, t);
+    } else if (key == ticketDigestKey) {
+      // A morning claimed on another device first is that device's to send.
+      final chosen = chosenDigestClaim(mine[key], theirs[key]);
+      if (chosen == null) {
+        out.remove(key);
+      } else {
+        out[key] = chosen;
+      }
     } else if (key == bannerClaimKey) {
       // A run claimed on another device first is that device's to make.
       final chosen = chosenBannerClaim(mine[key], theirs[key], now: now);

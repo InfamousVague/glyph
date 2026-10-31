@@ -366,3 +366,81 @@ async fn thirty_mentions_a_minute_then_a_refusal() {
     let (status, _) = mention(&h, &sam, &org, ID, &["matt"], "YQ").await;
     assert_eq!(status, StatusCode::OK);
 }
+
+// --- a ticket's watchers: a batch of its changes, told as a mention is ----------------------------------------------
+
+async fn ticket_event(h: &Harness, token: &str, org: &str, id: &str, to: &[&str], blob: &str) -> (StatusCode, Value) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/ticket-events"), Some(token), Some(json!({ "id": id, "to": to, "blob": blob, "generation": 1 }))).await
+}
+
+fn tickets_in(feed: &Value) -> Vec<Value> {
+    feed["items"].as_array().unwrap().iter().filter(|n| n["kind"] == "ticket").cloned().collect()
+}
+
+#[tokio::test]
+async fn a_ticket_s_watchers_are_told_once_each_in_a_ticket_row_and_never_the_sender_or_a_stranger() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let ana = h.signup("ana", &device()).await;
+    let stranger = h.signup("zed", &device()).await;
+    let org = make_org(&h, &matt, "Ghost").await;
+    join(&h, &matt, &org, &sam, "sam").await;
+    join(&h, &matt, &org, &ana, "ana").await;
+    let (status, body) = ticket_event(&h, &matt, &org, ID, &["sam", "matt", "zed", "Sam"], "c2VhbGVk").await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "told": ["sam"] })));
+    let feed = feed_since(&h, &sam, 0, 100).await;
+    let rows = tickets_in(&feed);
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(
+        row,
+        &json!({ "id": ID, "rev": row["rev"], "kind": "ticket", "at": row["at"], "readAt": null, "hidden": false, "from": "matt", "org": { "id": org, "name": "Ghost" }, "body": { "name": "Ghost", "generation": 1 }, "blob": "c2VhbGVk" }),
+    );
+    assert!(mentions_in(&feed).is_empty(), "a ticket's change is not a mention");
+    // The same batch again (the sender's other device, a retry): nothing more.
+    let (_, body) = ticket_event(&h, &matt, &org, ID, &["sam"], "YW5vdGhlcg").await;
+    assert_eq!(body, json!({ "told": [] }));
+    assert_eq!(tickets_in(&feed_since(&h, &sam, 0, 100).await)[0]["blob"], "c2VhbGVk");
+    for token in [&matt, &ana, &stranger] {
+        assert!(tickets_in(&feed_since(&h, token, 0, 100).await).is_empty());
+    }
+    // A stranger to the organization gets its one 404; a device cannot post a `ticket` row of its own.
+    assert_eq!(ticket_event(&h, &stranger, &org, "Other", &["sam"], "YQ").await, refusal(StatusCode::NOT_FOUND, "No such organization."));
+    assert_eq!(post(&h, &matt, "Other", "ticket", "YQ").await, refusal(StatusCode::BAD_REQUEST, "That kind of notification is the service's to make."));
+}
+
+#[tokio::test]
+async fn a_ticket_event_s_shape_is_checked_and_it_has_a_minute_of_its_own() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let org = make_org(&h, &matt, "Ghost").await;
+    join(&h, &matt, &org, &sam, "sam").await;
+    let refused = |words: &str| refusal(StatusCode::BAD_REQUEST, words);
+    let with = |body: Value| {
+        let h = &h;
+        let matt = matt.clone();
+        let org = org.clone();
+        async move { h.call(Method::POST, &format!("/api/v1/orgs/{org}/ticket-events"), Some(&matt), Some(body)).await }
+    };
+    assert_eq!(with(json!({ "id": "not an id", "to": ["sam"], "blob": "YQ", "generation": 1 })).await, refused("That change's id could not be read."));
+    assert_eq!(with(json!({ "id": ID, "to": [], "blob": "YQ", "generation": 1 })).await, refused("A ticket's change tells one to twenty members."));
+    assert_eq!(with(json!({ "id": ID, "to": ["sam"], "blob": "YQ", "generation": 0 })).await, refused("That change's key could not be read."));
+    assert_eq!(with(json!({ "id": ID, "to": ["sam"], "blob": "", "generation": 1 })).await, refused("That change is empty or too large."));
+    assert!(tickets_in(&feed_since(&h, &sam, 0, 100).await).is_empty());
+    // The mentions' minute spent does not hold a ticket's watchers back.
+    for i in 0..30 {
+        mention(&h, &matt, &org, &format!("m-{i}"), &["sam"], "YQ").await;
+    }
+    assert_eq!(mention(&h, &matt, &org, "m-31", &["sam"], "YQ").await.0, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(ticket_event(&h, &matt, &org, "t-1", &["sam"], "YQ").await.0, StatusCode::OK);
+    for i in 2..40 {
+        let answer = ticket_event(&h, &matt, &org, &format!("t-{i}"), &["sam"], "YQ").await;
+        if answer.0 == StatusCode::TOO_MANY_REQUESTS {
+            assert_eq!(answer, refusal(StatusCode::TOO_MANY_REQUESTS, "Too many ticket changes in a minute. Try again shortly."));
+            return;
+        }
+    }
+    panic!("the ticket events' thirty a minute were never reached");
+}

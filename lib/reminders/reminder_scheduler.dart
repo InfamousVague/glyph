@@ -17,6 +17,10 @@ import 'reminder_host.dart';
 import 'reminder_plan.dart';
 import 'reminder_settings.dart';
 
+/// Reminders made of something other than the notes' items, added to every plan: the morning's ticket digest on the
+/// phone that sends it (lib/book/ticket_digest.dart). Set by whoever makes them; a pass reads it each time.
+final ValueNotifier<List<Reminder> Function()?> extraReminders = ValueNotifier<List<Reminder> Function()?>(null);
+
 class ReminderScheduler {
   ReminderScheduler({required this.host, required this.settings, DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
 
@@ -36,7 +40,7 @@ class ReminderScheduler {
 
   /// One pass over [notes], [skip] leaving out what the Trash holds. True where the phone was handed a new plan.
   Future<bool> pass(List<Note> notes, {bool Function(Note note)? skip}) async {
-    final made = _planner.plan(notes, settings: settings.value, now: _clock(), skip: skip, who: mentionWho.value);
+    final made = [..._planner.plan(notes, settings: settings.value, now: _clock(), skip: skip, who: mentionWho.value), ...?extraReminders.value?.call()];
     plan = made;
     final json = planJson(made);
     if (json == _sent) return false;

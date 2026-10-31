@@ -451,6 +451,8 @@ extension _RootParts on _GhostRootState {
       notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt), (context) {
         void openNote(String id, String? at) {
           close();
+          // The morning's ticket digest's row: its page (root_tickets.dart).
+          if (id == digestNoteId) return _openDigest();
           // A note Claude edited opens at its first changed line; any other where it was left.
           if (at == null) return _openWhereLeft(shell, id);
           shell.openNote(id, at: at);
@@ -469,6 +471,8 @@ extension _RootParts on _GhostRootState {
             services: services,
             onClose: close,
             onOpenNote: openNote,
+            // A change to a ticket this account watches: Unwatch on its row (lib/book/ticket_events.dart).
+            onUnwatch: (noteId) => unawaited(_setWatching(noteId, false)),
             onOpenOrganization: (id) {
               close();
               shell.openOrganization(id);
@@ -907,6 +911,8 @@ extension _RootParts on _GhostRootState {
         onDelete: (note) => _delete(note.id),
         // Move to: the folders it may go to, as a drag onto one would move it (lib/notes/folder_drag.dart).
         workspaces: _workspaces,
+        // A ticket's Watch or Unwatch (root_tickets.dart).
+        more: _ticketMenuRows,
       );
 
   /// The sheet of the oldest share waiting: kept or not, the person goes back to the app they shared from, and the

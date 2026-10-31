@@ -1,204 +1,177 @@
 part of 'ghost_root.dart';
 
-/// What the root does for the tickets queue (Matt, 2026-10-31): My tickets and Triage as a page
-/// (lib/tickets/ui/tickets_screen.dart), the sidebar's count, `me` in a query as the account's handle, a label's
-/// colour kept in its notebook, and the bulk edit of tickets picked in a query (lib/tickets/ui/bulk_bar.dart), each
-/// batch all or nothing with one Undo (lib/tickets/bulk.dart).
+/// A ticket for a team, as the root wires it (Matt, 2026-10-31, of the ticket features): what a ticket's panel is
+/// handed for its watchers, its history, its possible duplicates and Merge into… (lib/editor/tickets/ticket_follow.dart),
+/// the merge itself with its one Undo (lib/book/ticket_merge.dart), Unwatch from the bell, Watch on a card's menu, and
+/// the morning's digest (lib/book/ticket_digest.dart) with its page.
 ///
-/// Every change is a write of another note's words, as a query's tick is: through the library, and through the
-/// note's own screen where it is open (the root's `_changeNote`), so a team's note goes through its sync as any edit
-/// does and an open editor never has its words written under it.
-///
-/// One of the files `_GhostRootState` is written in (lib/root/ghost_root.dart says which).
+/// One of the files `_GhostRootState` is written in (lib/root/ghost_root.dart says which), as root_commands.dart is.
 extension _RootTickets on _GhostRootState {
-  /// Who `me` is in a query: the account's handle, told again as the account changes.
-  void _tellMe() {
+  /// Who is reading: the account's handle, or null signed out.
+  String? get _me {
     final handle = _services?.session?.handle;
-    final next = [if (handle != null && handle.isNotEmpty) handle];
-    if (listEquals(next, queryMe)) return;
-    queryMe = next;
-    _ticketReads.forget();
+    return handle == null || handle.isEmpty ? null : handle;
   }
 
-  String get _ticketsToday => isoDay(DateTime.now());
-
-  /// The organization a team's note is among, by name; null for one's own.
-  String? _teamName(String noteId) {
-    final space = _workspaces.workspaceOf(noteId);
-    if (space == null) return null;
-    final org = _workspaces.orgOf(space.id);
-    if (org == null) return null;
-    final id = orgWorkspaceId(org);
-    return _workspaces.value.list.where((each) => each.id == id).firstOrNull?.name;
+  /// Whether a note is a team's: filed in an organization's workspace.
+  bool _teamNote(String id) {
+    final space = _workspaces.workspaceOf(id);
+    return space != null && orgOfWorkspace(_workspaces.value.list, space.id) != null;
   }
 
-  Note? _notebookOfNote(String noteId) {
-    final note = _library.noteOf(noteId);
-    return note == null ? null : _reads.notebookOf(note);
-  }
+  /// A ticket's likely duplicates in the library, by its title and words (lib/book/ticket_duplicates.dart).
+  List<LikelyDuplicate> _likely(String title, {String words = '', String? selfId}) => [
+        for (final hit in likelyDuplicates(title: title, words: words, entries: _reads.entries, index: _linkIndex.index, selfId: selfId))
+          (ticket: ticketChoice(hit.entry), shared: hit.shared),
+      ];
 
-  /// The colours a ticket's notebook gives its labels.
-  Map<String, String> _labelColoursOf(String noteId) => labelColoursOf(_notebookOfNote(noteId)?.body);
-
-  /// A label's colour kept in the ticket's notebook (`label-colours:`), or taken off for null.
-  void _setLabelColour(String noteId, String label, String? hue) {
-    final book = _notebookOfNote(noteId);
-    if (book == null) return;
-    unawaited(_changeNote(book.id, (body) => withLabelColour(body, label, hue), userEvent: 'tickets.label-colour').catchError((Object _) {}));
-  }
-
-  /// Every ticket as the duplicate picker offers it.
-  List<TicketChoice> _ticketChoices() => [for (final entry in _reads.entries) ticketChoice(entry)];
-
-  /// A ticket by its key, else its title, as a report names it.
-  String _ticketName(String noteId) {
-    for (final entry in _reads.entries) {
-      if (entry.note.id == noteId) return entry.ticket.id ?? entry.title;
-    }
-    final note = _library.noteOf(noteId);
-    return note == null ? 'A note' : NoteFacts.of(note).title;
-  }
-
-  /// My tickets and Triage, as the shell draws them.
-  Widget _ticketsPart(BuildContext context, AppShellState shell, ScreenTickets screen) => _part(
-        'tickets',
-        () => (screen, shell.notes, _workspaces.value, _accountAt, preferences.value.simple, _claudeShown, _canTalk),
-        (context) {
-          _tellMe();
-          return TicketsScreen(
-            page: screen.triage ? TicketsPage.triage : TicketsPage.mine,
-            library: _ticketReads.library,
-            today: _ticketsToday,
-            onPage: (page) => shell.showTickets(triage: page == TicketsPage.triage),
-            onBack: shell.backToList,
-            onOpen: (id) => _openWhereLeft(shell, id),
-            write: (id, change) => _changeNote(id, (body) => change(body) ?? body, userEvent: 'tickets.change').catchError((Object _) {}),
-            teamOf: _teamName,
-            coloursOf: _labelColoursOf,
-            onColour: _setLabelColour,
-            people: _reads.people,
-            labels: () => labelsIn([for (final note in _shown) note.body]),
-            choices: _ticketChoices,
-            simple: preferences.value.simple,
-            dock: _notesDock(),
-          );
+  /// What a ticket's panel is handed for its team's parts.
+  TicketFollow _ticketFollow(String noteId) => TicketFollow(
+        me: () => _me,
+        history: () => _ticketTimeline.of(noteId),
+        duplicates: () {
+          final note = _library.noteOf(noteId);
+          if (note == null) return const <LikelyDuplicate>[];
+          final kept = _duplicatesRead[noteId];
+          if (kept != null && kept.body == note.body && kept.version == _linkIndex.index.version) return kept.likely;
+          final likely = _likely(NoteFacts.of(note).title, words: note.body, selfId: noteId);
+          _duplicatesRead[noteId] = (body: note.body, version: _linkIndex.index.version, likely: likely);
+          return likely;
         },
+        similar: (title) => _likely(title),
+        merge: (target) => unawaited(_mergeTicket(noteId, target)),
+        undoMerge: () {
+          final record = mergeOf(_stored, noteId);
+          return record == null ? null : () => unawaited(_undoMerge(record));
+        },
+        simple: () => preferences.value.simple,
       );
 
-  /// How many tickets are yours, for the sidebar's row: null where there are none to count.
-  ({int all, int overdue})? _myTicketCount() {
-    _tellMe();
-    final count = _ticketReads.count(_ticketsToday);
-    return count.all == 0 ? null : count;
+  /// Where a merge reads and writes: an open editor's words where the note is open, so nothing typed is lost, else
+  /// the library's; a version kept of each note's words before, where the note keeps versions.
+  MergeWorld get _mergeWorld => MergeWorld(
+        body: (id) async {
+          final view = openNoteScreen(_shell.currentContext, id)?.view;
+          if (view != null) return view.state.doc.toString();
+          return (await _library.get(id))?.body;
+        },
+        write: (id, body) => _changeNote(id, (_) => body, userEvent: 'ticket.merge'),
+        keepVersion: (id, text, label) async {
+          if (_versions.keepsVersions(id)) await _versions.keepVersion(id, text, label: label);
+        },
+        kept: _stored,
+      );
+
+  /// [duplicateId] merged into [target] (lib/book/ticket_merge.dart): the plan made, said and asked first with its
+  /// warnings, written, and a toast with its Undo.
+  Future<void> _mergeTicket(String duplicateId, TicketChoice target) async {
+    final entries = _reads.entries;
+    final duplicate = entries.where((each) => each.note.id == duplicateId).firstOrNull;
+    final into = entries.where((each) => (target.key != null && each.ticket.id == target.key) || (target.key == null && each.title == target.title)).firstOrNull;
+    if (duplicate == null || into == null || into.note.id == duplicateId) return;
+    final world = _mergeWorld;
+    // The words as they are now, an open editor's among them.
+    final notes = <String, ({String title, String body})>{
+      for (final note in _library.value) note.id: (title: NoteFacts.of(note).title, body: note.body),
+    };
+    for (final id in [duplicateId, into.note.id]) {
+      final now = await world.body(id);
+      if (now != null) notes[id] = (title: notes[id]?.title ?? '', body: now);
+    }
+    TicketEntry fresh(TicketEntry entry) {
+      final body = notes[entry.note.id]?.body ?? entry.note.body;
+      return body == entry.note.body ? entry : TicketEntry(note: entry.note.copyWith(body: body), title: entry.title, ticket: ticketOf(body, entry.statuses) ?? entry.ticket, statuses: entry.statuses, notebook: entry.notebook);
+    }
+
+    final plan = planMerge(duplicate: fresh(duplicate), target: fresh(into), notes: notes, index: _linkIndex.index, editable: _readableHere);
+    if (!mounted) return;
+    final yes = await askFirst(
+      context,
+      FirstAsk(title: 'Merge ${plan.duplicateName} into ${plan.targetName}?', note: [plan.summary, ...plan.warnings, 'One Undo takes it all back.'].join(' '), yes: 'Merge'),
+    );
+    if (!yes || !mounted) return;
+    try {
+      final record = await applyMerge(plan, world);
+      await _library.refresh().catchError((Object _) {});
+      if (!mounted) return;
+      GlacierToast.of(context).toast(
+        message: Text('Merged ${plan.duplicateName} into ${plan.targetName}.'),
+        duration: const Duration(seconds: 10),
+        action: GlacierToastAction(label: 'Undo', onPress: () => unawaited(_undoMerge(record))),
+      );
+    } catch (failure) {
+      if (mounted) _say(context, failure is StateError ? failure.message : 'The merge could not be made: $failure');
+    }
   }
 
-  // ---- bulk edit ----------------------------------------------------------------------------------------------
-
-  /// What a query's picked tickets are changed through.
-  BulkActions get _bulkActions => BulkActions(
-        edit: _bulkEdit,
-        move: _bulkMove,
-        trash: _bulkTrash,
-        notebooks: () => [
-          for (final note in _shown)
-            if (NoteFacts.of(note).isBook && !NoteFacts.of(note).isJournal && !NoteFacts.of(note).isTemplatesBook && (note.archivedAt ?? 0) == 0) (id: note.id, title: NoteFacts.of(note).title.isEmpty ? 'Untitled notebook' : NoteFacts.of(note).title),
-        ],
-        labels: () => labelsIn([for (final note in _shown) note.body]),
-        people: _reads.people,
-        coloursOf: _labelColoursOf,
-      );
-
-  /// [plan] written as one batch, said in a toast: its Undo takes every note back, or what failed is said and
-  /// nothing is left changed.
-  Future<void> _runBulk(Map<String, BodyChange> plan, String said, {int? count}) async {
-    final store = _RootBulkStore(this);
-    final outcome = await runBulk(plan, store);
+  /// A merge taken back as one step; any note changed since it is left and said.
+  Future<void> _undoMerge(MergeRecord record) async {
+    final left = await undoMerge(record, _mergeWorld);
     await _library.refresh().catchError((Object _) {});
     if (!mounted) return;
-    final words = bulkReport(outcome, said, nameOf: _ticketName, count: count);
-    GlacierToast.of(context).toast(
-      message: Text(words),
-      action: !outcome.whole || outcome.wrote.isEmpty
-          ? null
-          : GlacierToastAction(
-              label: 'Undo',
-              onPress: () => unawaited(() async {
-                final undone = await undoBulk(outcome, store);
-                await _library.refresh().catchError((Object _) {});
-                if (!mounted || undone.whole) return;
-                _say(context, 'Undone but for ${[for (final MapEntry(:key, :value) in undone.failed.entries) '${_ticketName(key)}: $value'].join(' ')}');
-              }()),
-            ),
-    );
+    _say(context, left.isEmpty ? 'The merge of ${record.duplicateName} was taken back.' : 'The merge was taken back, but ${left.join(', ')} changed since and ${left.length == 1 ? 'was' : 'were'} left as ${left.length == 1 ? 'it is' : 'they are'}.');
   }
 
-  Future<void> _bulkEdit(List<String> ids, BulkEdit edit) => _runBulk({for (final id in ids) id: (body) => bulkBody(body, edit)}, edit.said);
+  /// This account off a ticket's watchers: from its bell row's Unwatch, or a card's menu.
+  Future<void> _setWatching(String noteId, bool on) async {
+    final me = _me;
+    if (me == null) return;
+    await _changeNote(noteId, (body) => withWatcher(body, me, on), userEvent: 'ticket.watch').catchError((Object _) {});
+    if (mounted) _say(context, on ? 'You’re watching it now.' : 'You won’t be told of changes to it.');
+  }
 
-  /// Every ticket's page out of its notebook's index and into [notebookId]'s. Its filing stays where it is: a note
-  /// is never carried into or out of an organization by a move between notebooks.
-  Future<void> _bulkMove(List<String> ids, String notebookId) async {
-    final to = _library.noteOf(notebookId);
-    if (to == null) return;
-    final from = <String, String?>{}, titles = <String, String>{};
-    for (final id in ids) {
-      final note = _library.noteOf(id);
-      if (note == null) continue;
-      from[id] = _reads.notebookOf(note)?.id;
-      titles[id] = NoteFacts.of(note).title;
+  /// A ticket's rows on a card's menu: Watch or Unwatch, and Merge into… (not in simple mode).
+  List<Widget> _ticketMenuRows(BuildContext context, Note note) {
+    if (!NoteFacts.of(note).isTicket) return const [];
+    final me = _me;
+    final rows = <Widget>[];
+    if (me != null) {
+      final watching = watches(note.body, me);
+      rows.add(GlacierMenuItem(icon: AppIcon(watching ? Lucide.eyeOff : Lucide.eye, size: context.tokens.fontSize('sm')), onSelect: () => unawaited(_setWatching(note.id, !watching)), child: Text(watching ? 'Unwatch' : 'Watch')));
     }
-    final title = NoteFacts.of(to).title;
-    await _runBulk(movePlan(to: notebookId, from: from, titles: titles), 'Moved to ${title.isEmpty ? 'the notebook' : title}', count: ids.length);
+    return rows;
   }
 
-  /// Every ticket into the Trash at once, with one Undo that brings them all back.
-  void _bulkTrash(List<String> ids) {
-    if (ids.isEmpty) return;
-    _trashNotes(ids);
-    if (!mounted) return;
-    GlacierToast.of(context).toast(
-      message: Text(ids.length == 1 ? 'Moved 1 ticket to the Trash.' : 'Moved ${ids.length} tickets to the Trash.'),
-      action: GlacierToastAction(
-        label: 'Undo',
-        onPress: () {
-          for (final id in ids) {
-            _trash.restoreNote(id);
-          }
-        },
+  /// The morning's digest as the notes are now (lib/book/ticket_digest.dart).
+  TicketDigest _digestOf(String day) => digestFor(_reads.entries, me: _me, today: day, team: _teamNote, skip: (entry) => _trash.isTrashed(entry.note.id) || (entry.note.archivedAt ?? 0) != 0);
+
+  /// The digest's runner, started once the notes are read: claimed, sent, and on a phone rung as a reminder.
+  void _startDigest() {
+    late final TicketDigestRunner runner;
+    runner = TicketDigestRunner(
+      claims: DigestClaims(
+        device: thisDevice,
+        preferences: () => preferences.value,
+        setPreferences: preferences.update,
+        syncNow: () async => await _services?.engine?.syncNow(),
+        accountHeld: () => _services?.engine?.accountPrefs,
       ),
+      choices: () => digestSettingsOf(preferences.value),
+      digest: _digestOf,
+      phone: () => phoneReminders.value != null,
+      send: (digest) async {
+        final session = _services?.session;
+        if (session == null) return;
+        await _services?.engine?.record?.recordAs(digestRowId(session.accountId, digest.day), 'ticket-digest', {'noteId': digestNoteId, 'title': digest.title, 'first': digest.text});
+      },
+      writeNote: (digest) async => (await _library.createNote(digest.markdown)).id,
+      // A phone's morning rung as one of its reminders: the plan handed over again whenever its alarm changes.
+      planChanged: () => extraReminders.value = () => [?digestReminderOf(runner)],
     );
-  }
-}
-
-/// What a batch reads and writes through in the app: the note's own screen where it is open (its editor's words,
-/// written as an edit there), else the library, from the revision read.
-class _RootBulkStore implements BulkStore {
-  _RootBulkStore(this.root);
-
-  final _GhostRootState root;
-
-  /// The revision a note open on screen is read at: its screen writes it, and nothing refuses it.
-  static const int _onScreen = -1;
-
-  @override
-  Future<BulkNote?> read(String id) async {
-    final screen = openNoteScreen(root._shell.currentContext, id);
-    if (screen != null) {
-      final view = screen.view;
-      if (view != null) return BulkNote(view.state.doc.toString(), _onScreen);
-      final note = await root._library.get(id);
-      return note == null ? null : BulkNote(note.body, _onScreen);
-    }
-    final note = await root._library.get(id);
-    return note == null ? null : BulkNote(note.body, note.revision);
+    _digest = runner;
+    unawaited(runner.look());
   }
 
-  @override
-  Future<int> write(String id, String body, int revision) async {
-    if (revision == _onScreen) {
-      await root._changeNote(id, (_) => body, userEvent: 'tickets.bulk');
-      return _onScreen;
-    }
-    final note = await root._library.update(id, body, revision);
-    return note.revision;
+  /// The notes changed: the digest looked at again, a moment later, for a phone's alarm to carry today's words.
+  void _digestHeard() {
+    _digestPoke?.cancel();
+    _digestPoke = Timer(const Duration(seconds: 5), () => unawaited(_digest?.look()));
+  }
+
+  /// The digest's page, where a tap on its notification lands (or the My tickets inbox, once there is one).
+  void _openDigest() {
+    final shell = _shell.currentState;
+    if (shell == null || !mounted) return;
+    unawaited(showTicketDigest(context, _digestOf(isoDay(DateTime.now())), onOpen: (id) => _openWhereLeft(shell, id)));
   }
 }

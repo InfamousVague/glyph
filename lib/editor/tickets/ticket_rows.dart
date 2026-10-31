@@ -33,9 +33,10 @@ const Set<String> advancedRows = <String>{'cycle', 'milestone'};
 /// Matt, 2026-10-31), so the panel of a ticket without one is the page's to the letter.
 const List<String> shownOnlyWhenSet = <String>['component'];
 
-/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), how the note looks,
-/// and its component, which is a row of the panel's (the port's own, 2026-10-31).
-const Set<String> _unsaid = <String>{'type', 'id', 'look', 'component'};
+/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), and how the note
+/// looks; its watchers and what it duplicates, which its team's part shows (ticket_follow.dart); and its component,
+/// which is a row of the panel's (the port's own, 2026-10-31).
+const Set<String> _unsaid = <String>{'type', 'id', 'look', 'watchers', 'duplicate-of', 'component'};
 
 /// The panel's rows for a ticket's front matter: the four always, then any of the rest that is set, or all of them
 /// with [more]. In [simple] mode the advanced ones wait for More, set or not; where the host draws no planning
