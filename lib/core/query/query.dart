@@ -13,6 +13,7 @@ export 'draft.dart';
 export 'fence.dart';
 export 'gantt.dart';
 export 'move.dart';
+export 'planning.dart';
 export 'read.dart';
 export 'records.dart';
 export 'rollup.dart';
