@@ -65,10 +65,16 @@ void main() {
     });
 
     test('are none where the note has no front matter, as frontMatterEnd decides it', () {
-      for (final body in ['', '# Note\n\ntype: ticket', '---\ntype: ticket\nwords here\n---\n', '---\ntype: ticket\n', 'Words\n---\ntype: ticket\n---', '---\ntags:\n  - a\n---\n']) {
+      for (final body in ['', '# Note\n\ntype: ticket', '---\ntype: ticket\nwords here\n---\n', '---\ntype: ticket\n', 'Words\n---\ntype: ticket\n---', '---\n- a\n---\n']) {
         expect(frontMatterEnd(body.split('\n')), 0, reason: body);
         expect(propertiesOf(body), isEmpty, reason: body);
       }
+    });
+
+    test('read a list written as lines under its key, as Obsidian writes one (2026-10-31), the key with an empty value', () {
+      const body = '---\ntags:\n  - a\n  - b\ntype: ticket\n---\n';
+      expect(frontMatterEnd(body.split('\n')), 6);
+      expect(propertiesOf(body), [p('tags', '', 1), p('type', 'ticket', 4)]);
     });
   });
 

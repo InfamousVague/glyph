@@ -68,14 +68,20 @@ class Property {
 /// one above it in YAML, and is not a property of the note's own.
 final RegExp _propertyLine = RegExp(r'^([\w.-]+)[ \t]*:(.*)$');
 
-/// Every property in the note's front matter, in order; none where it has no front matter.
+/// Every property in the note's front matter, in order; none where it has no front matter. The library's own keys
+/// (front_matter.dart `libraryKeys`), which a one-block body carries beside the page's, are not the page's properties
+/// and are left out; a ticket's `id: GHO-12` is the page's and stays.
 List<Property> propertiesOf(String body) {
   final lines = body.split('\n');
   final end = frontMatterEnd(lines);
   final found = <Property>[];
   for (var line = 1; line < end - 1; line += 1) {
     final said = _propertyLine.firstMatch(lines[line]);
-    if (said != null) found.add(Property(key: said.group(1) ?? '', value: unquoted(jsTrim(said.group(2) ?? '')), line: line));
+    if (said == null) continue;
+    final key = said.group(1) ?? '';
+    final value = unquoted(jsTrim(said.group(2) ?? ''));
+    if (isLibraryProperty(key, value)) continue;
+    found.add(Property(key: key, value: value, line: line));
   }
   return found;
 }
@@ -139,7 +145,12 @@ List<String> linkTargets(String? value) =>
 /// The body with front matter [key] set to [value] as it is written (no quoting added): replaced where the key is,
 /// added last where it isn't, and front matter made where there was none. A null value takes the key off, and front
 /// matter that held nothing else with it. The words are untouched (`core/frontMatter.ts` `withFrontMatterValue`).
+///
+/// With `FrontMatter.oneBlock` on (front_matter.dart; off until every device reads both shapes), a body that opens
+/// with two blocks, the library's and then the page's, is written as one block first, the second's keys after the
+/// first's, and the key is set in that.
 String withFrontMatterValue(String body, String key, String? value) {
+  if (FrontMatter.oneBlock) body = mergedBlocks(body);
   final lines = body.split('\n');
   final pattern = RegExp('^\\s*${RegExp.escape(key)}\\s*:', caseSensitive: false);
   final line = value == null ? null : '$key: ${jsTrim(value.replaceAll('\n', ' '))}';
@@ -159,6 +170,24 @@ String withFrontMatterValue(String body, String key, String? value) {
   final rest = lines.sublist(end);
   if (keys.isEmpty) return rest.join('\n');
   return [lines[0], ...keys, lines[end - 1], ...rest].join('\n');
+}
+
+/// [body] with two front matter blocks back to back made one: the first's keys, then the second's, in one pair of
+/// fences, the words after them untouched. A body with one block, or none, is as it was. The writer's half of the
+/// one-block shape (docs/MARKDOWN_FIRST.md §9 slice 7), which [withFrontMatterValue] takes when `FrontMatter.oneBlock`
+/// is on; the file's own merge is the Rust library's (frontmatter.rs `write`).
+String mergedBlocks(String body) {
+  final first = frontMatterSpan(body);
+  if (first.isEmpty || first.offset >= body.length) return body;
+  final rest = body.substring(first.offset);
+  final second = frontMatterSpan(rest);
+  if (second.isEmpty) return body;
+  final firstLines = body.substring(0, first.closing).split('\n');
+  final secondLines = rest.substring(0, second.closing).split('\n');
+  // Each block's lines are its opening fence and its keys, the closing fence's line left off; a fence's trailing break
+  // leaves one empty piece at the end of each list.
+  final keys = <String>[...firstLines.sublist(1, firstLines.length - 1), ...secondLines.sublist(1, secondLines.length - 1)];
+  return [firstLines[0], ...keys, '---', rest.substring(second.offset)].join('\n');
 }
 
 final RegExp _propertyKey = RegExp(r'^[\w.-]+$');
@@ -293,9 +322,11 @@ const List<TicketProperty> ticketProperties = [
   TicketProperty(key: 'milestone', kind: PropertyKind.link, label: 'Milestone'),
 ];
 
-/// What a property holds by its key, any case: a ticket's own kind, and `text` for any other.
+/// What a property holds by its key, any case: a ticket's own kind, and `text` for any other. `issue`, the ticket's
+/// key as other tools write it (front_matter.dart `ticketKeyIn`), holds what `id` does.
 PropertyKind propertyKind(String key) {
   final clean = jsTrim(key).toLowerCase();
+  if (clean == 'issue') return PropertyKind.id;
   for (final property in ticketProperties) {
     if (property.key == clean) return property.kind;
   }
@@ -364,8 +395,9 @@ StatusCategory statusCategory(String? status, [List<String>? workflow]) {
 /// (`PROJECT_KEY`).
 final RegExp projectKey = RegExp(r'^[A-Z][A-Z0-9]{1,9}$');
 
-/// A ticket's id: its notebook's key, a dash, and a number from 1, up to six figures. `GHO-12` (`ISSUE_KEY`).
-final RegExp issueKey = RegExp(r'^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,5}$');
+/// A ticket's id: its notebook's key, a dash, and a number from 1, up to six figures. `GHO-12` (`ISSUE_KEY`;
+/// front_matter.dart's `ticketKeyPattern`, which reads it out of either shape of block).
+final RegExp issueKey = ticketKeyPattern;
 
 /// [text] as an issue key, trimmed and upper-cased (`gho-12` is `GHO-12`, as a link matches in any case), or null.
 String? issueKeyOf(String? text) {
@@ -388,8 +420,14 @@ String? notebookKey(String notebook) {
   return projectKey.hasMatch(key) ? key : null;
 }
 
-/// A ticket's id, its `id:` as an issue key ([issueKeyOf]); null where it has none or it is not one.
-String? ticketIdOf(String body) => issueKeyOf(frontMatterValue(body, 'id'));
+/// A ticket's id as an issue key ([issueKeyOf]): its `issue:`, else an `id:` that is one (front_matter.dart
+/// `ticketKeyIn`); null where it has neither. A one-block note's `id:` is the library's and never read as a ticket's.
+String? ticketIdOf(String body) => issueKeyOf(ticketKeyValue(body));
+
+/// The body with the ticket's key set to [key]: under `id:`, as every build reads today, or under `issue:` where the
+/// block already says `issue:` or its `id:` is the library's (front_matter.dart `ticketKeyName`). Every writer of
+/// a ticket's key goes through here, so a one-block body never has its note id written over.
+String withTicketKey(String body, String key) => withProperty(body, ticketKeyName(body), key);
 
 /// The id the next ticket under [key] gets: one more than the highest number any of [bodies] gives that key, in an
 /// `id:` or anywhere in their words (`[[GHO-12]]`, "see GHO-12"), in any case. Never the lowest free number: a
@@ -542,7 +580,7 @@ Ticket? ticketOf(String body, [List<String>? statuses]) {
   // tickets are its sub-tickets): one link, written `parent:`, read either way.
   final parents = linkTargets(said('parent') ?? said('epic'));
   return Ticket(
-    id: issueKeyOf(frontMatterValueIn(body, front, 'id')),
+    id: issueKeyOf(ticketKeyIn(body, front)),
     status: status,
     category: statusCategory(status, statuses),
     assignee: person.isEmpty ? null : person,

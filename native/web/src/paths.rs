@@ -29,9 +29,11 @@ fn named_for(path: &str, stem: &str) -> bool {
     bare == stem || bare.strip_prefix(stem).and_then(|rest| rest.strip_prefix(' ')).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
-/// Whether a path from another device can be a note's here: relative, `.md`, no dot folders or `..`.
+/// Whether a path from another device can be a note's here: relative, `.md`, no dot folders or `..` - but for the
+/// trash, `.trash/` at the root, as the library's own `library_path` allows (library/trash.rs).
 fn library_path(path: &str) -> bool {
-    path.to_ascii_lowercase().ends_with(".md") && path.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
+    let rest = path.strip_prefix(".trash/").unwrap_or(path);
+    rest.to_ascii_lowercase().ends_with(".md") && rest.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
 }
 
 #[derive(Deserialize)]

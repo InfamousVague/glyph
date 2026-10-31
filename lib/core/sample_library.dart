@@ -30,6 +30,7 @@ import 'library.dart';
 import 'locale_dates.dart';
 import 'native/core.dart';
 import 'note.dart';
+import 'note_folders.dart' show inboxFolder;
 import 'workspaces.dart';
 
 export 'library.dart' show NoteLibrary;
@@ -89,6 +90,24 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
   Future<void> archive(String id, {required bool archived}) {
     final at = _clock();
     _replace(id, (note) => note.copyWith(archivedAt: () => archived ? at : null));
+    return Future<void>.value();
+  }
+
+  // The invented notes have no files, so a note here is given a path only when it is trashed, `.trash/Inbox/<id>.md`,
+  // and loses it again when it comes back: enough for [Note.inTrash] to say where it is.
+  @override
+  Future<void> putInTrash(String id) {
+    _replace(id, (note) => note.inTrash ? note : note.copyWith(path: () => trashedPathOf(note.path ?? '$inboxFolder/${note.id}.md')));
+    return Future<void>.value();
+  }
+
+  @override
+  Future<void> takeFromTrash(String id) {
+    _replace(id, (note) {
+      if (!note.inTrash) return note;
+      final back = livePathOf(note.path);
+      return note.copyWith(path: () => back == '$inboxFolder/${note.id}.md' ? null : back);
+    });
     return Future<void>.value();
   }
 

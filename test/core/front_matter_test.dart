@@ -21,14 +21,24 @@ import 'package:ghost_md/core/sample_library.dart';
 
 final RegExp _fence = RegExp(r'^(---|\+\+\+)\s*$');
 final RegExp _keyLine = RegExp(r'^\s*[\w.-]+\s*:');
+// A list's item under a key, `  - bugbash`, as Obsidian writes a `tags:` list: held only under a key line or another
+// item (2026-10-31, with the one-block shape; before, such a block was words).
+final RegExp _itemLine = RegExp(r'^\s*-(?:\s|$)');
 
 int patternEnd(List<String> lines) {
   if (lines.isEmpty || !_fence.hasMatch(lines[0])) return 0;
   final most = lines.length < 40 ? lines.length : 40;
+  var underKey = false;
   for (var n = 1; n < most; n += 1) {
     final line = lines[n];
     if (_fence.hasMatch(line)) return n + 1;
-    if (!_keyLine.hasMatch(line) && line.trim() != '') return 0;
+    if (_keyLine.hasMatch(line)) {
+      underKey = true;
+    } else if (line.trim() == '') {
+      underKey = false;
+    } else if (!underKey || !_itemLine.hasMatch(line)) {
+      return 0;
+    }
   }
   return 0;
 }

@@ -139,6 +139,25 @@ class FakeCore {
         return _front(text('id'), (row) => row.starred = args['starred'] == true);
       case 'set_note_archived':
         return _front(text('id'), (row) => row.archivedAt = args['archived'] == true ? _now : null);
+      // `trash_note` / `restore_note` (library/trash.rs): the file moves under `.trash/` at its own path and back,
+      // its own name kept and numbered where that is taken; the time and the revision stay.
+      case 'trash_note':
+        return _front(text('id'), (row) {
+          final path = row.path!;
+          if (path.startsWith('.trash/')) return;
+          final name = path.substring(path.lastIndexOf('/') + 1);
+          _rename(row, _free('.trash/${_folderOf(path)}', name.substring(0, name.length - 3)));
+        });
+      case 'restore_note':
+        return _front(text('id'), (row) {
+          final path = row.path!;
+          if (!path.startsWith('.trash/')) return;
+          final was = path.substring('.trash/'.length);
+          final name = was.substring(was.lastIndexOf('/') + 1);
+          final folder = _folderOf(was);
+          final home = folder.isEmpty || _folders.contains(folder) ? folder : 'Inbox';
+          _rename(row, _free(home, name.substring(0, name.length - 3)));
+        });
       case 'set_note_recording':
         final id = text('id');
         if (!_written(id)) return null;
@@ -354,12 +373,18 @@ class FakeCore {
     final kept = _versions.remove(was);
     if (kept != null) _versions[now] = kept;
     row.path = to;
+    _folders.add(_folderOf(to));
   }
 
   bool _exists(String path) => _rows.values.any((row) => row.path == path);
 
+  /// Every folder a file was ever put in: the folders on disk, which a move out of leaves standing (`restore_note`
+  /// puts a note back into one that is still there, and into the Inbox otherwise).
+  final Set<String> _folders = {};
+
   /// `free_path`: `Stem.md`, or `Stem 2.md` and on while those are taken.
   String _free(String folder, String stem) {
+    _folders.add(folder);
     String at(String name) => folder.isEmpty ? name : '$folder/$name';
     if (!_exists(at('$stem.md'))) return at('$stem.md');
     for (var n = 2;; n += 1) {
@@ -372,8 +397,11 @@ class FakeCore {
     return at < 0 ? '' : path.substring(0, at);
   }
 
-  /// `library_path`: relative, `.md`, no dot folders or `..`.
-  static bool _libraryPath(String path) => path.toLowerCase().endsWith('.md') && path.split('/').every((part) => part.isNotEmpty && !part.startsWith('.'));
+  /// `library_path`: relative, `.md`, no dot folders or `..` - but for the trash, `.trash/` at the root (library/trash.rs).
+  static bool _libraryPath(String path) {
+    final rest = path.startsWith('.trash/') ? path.substring('.trash/'.length) : path;
+    return rest.toLowerCase().endsWith('.md') && rest.split('/').every((part) => part.isNotEmpty && !part.startsWith('.'));
+  }
 
   /// `named_for`: `Stem.md`, or `Stem 2.md` for a clash.
   static bool _namedFor(String path, String stem) {

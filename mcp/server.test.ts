@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { noteTitle } from '../tauri/src/app/core/noteTitle.ts';
 import { GlyphAccount } from './glyph.ts';
-import { ensureRulesNote, lineDiff } from './server.ts';
+import { ensureRulesNote, keepKeys, lineDiff } from './server.ts';
 import { aNote, connected, told, WRITTEN } from './testKit.ts';
 
 /**
@@ -709,5 +709,23 @@ describe('deleting notes, to the Trash', () => {
     const rules = JSON.parse((await call('get_rules')).text) as { id: string; body: string };
     expect(rules.id).not.toBe('gone');
     expect(rules.body).toContain('## Standing requests');
+  });
+});
+
+/**
+ * A rewrite keeps a ticket's type and key under either name the key is written as (docs/MARKDOWN_FIRST.md §11,
+ * 2026-10-31: the one-block shape reads the ticket's key as `issue:` too), and a one-block body's library keys ride
+ * along as any other key the rewrite kept.
+ */
+describe('keepKeys and the two shapes of front matter', () => {
+  it('puts back a ticket’s type and its key, written as id: or as issue:', () => {
+    expect(keepKeys('---\ntype: ticket\nid: GHO-12\nstatus: Done\n---\n# Loop\n', '# Loop\n\nRewritten.\n')).toBe('---\ntype: ticket\nid: GHO-12\nstatus: Done\n---\n# Loop\n\nRewritten.\n');
+    const merged = '---\nid: 7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6\ntype: ticket\nissue: GHO-12\nstatus: Done\n---\n# Loop\n';
+    const kept = keepKeys(merged, '---\nstatus: To do\n---\n# Loop\n\nRewritten.\n');
+    expect(kept).toContain('type: ticket\n');
+    expect(kept).toContain('issue: GHO-12\n');
+    expect(kept).toContain('status: To do\n');
+    expect(kept).not.toContain('status: Done');
+    expect(kept.split('\n').filter((line) => line === '---')).toHaveLength(2);
   });
 });

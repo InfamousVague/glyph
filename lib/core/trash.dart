@@ -62,17 +62,24 @@ class MemoryTrash extends ValueNotifier<TrashHeld> implements Trash {
   }
 }
 
+/// Whether [note] is in the trash: in the held map, or its file under the library's `.trash/` folder
+/// ([Note.inTrash]; Matt, 2026-10-31: "a `.trash/` folder, as Obsidian does"). The files' word counts too, so a note
+/// whose file another device or a restored backup put in the trash is never shown live while the map catches up
+/// (lib/core/trash_files.dart).
+bool trashedNote(Note note, TrashHeld held) => held.containsKey(note.id) || note.inTrash;
+
 /// The notes that are not in the trash: everything the app shows outside the Trash folder (`outOfTrash`).
 List<Note> outOfTrash(Iterable<Note> notes, TrashHeld held) => [
       for (final note in notes)
-        if (!held.containsKey(note.id)) note,
+        if (!trashedNote(note, held)) note,
     ];
 
-/// The notes in the trash, the most recently thrown away first (`inTrash`).
+/// The notes in the trash, the most recently thrown away first (`inTrash`); one the map has no time for (its file
+/// alone says it is trashed) sorts last.
 List<Note> inTrash(Iterable<Note> notes, TrashHeld held) {
   final found = [
     for (final note in notes)
-      if (held.containsKey(note.id)) note,
+      if (trashedNote(note, held)) note,
   ];
   // A merge sort keeps two thrown away in the same millisecond in the order they were given, as the page's sort does.
   mergeSort<Note>(found, compare: (a, b) => (held[b.id] ?? 0).compareTo(held[a.id] ?? 0));

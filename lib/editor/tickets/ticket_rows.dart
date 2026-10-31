@@ -33,12 +33,13 @@ const Set<String> advancedRows = <String>{'cycle', 'milestone'};
 /// Matt, 2026-10-31), so the panel of a ticket without one is the page's to the letter.
 const List<String> shownOnlyWhenSet = <String>['component'];
 
-/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading), and how the note
-/// looks; its watchers and what it duplicates, which its team's part shows (ticket_follow.dart); its component,
-/// which is a row of the panel's (the port's own, 2026-10-31); and its time spent, which has a row of its own
-/// (ticket_work.dart); and the days its status was taken and it was finished, which `withStatus` writes for the
-/// planning (lib/core/properties.dart) and the panel says in its own words.
-const Set<String> _unsaid = <String>{'type', 'id', 'look', 'watchers', 'duplicate-of', 'component', 'spent', 'status-since', 'done'};
+/// Keys the panel never names under itself: the ticket's own type, its id (the panel's heading) under either key it
+/// is written as (`id` or `issue`, lib/core/front_matter.dart `ticketKeyIn`), and how the note looks; its watchers
+/// and what it duplicates, which its team's part shows (ticket_follow.dart); its component, which is a row of the
+/// panel's (the port's own, 2026-10-31); its time spent, which has a row of its own (ticket_work.dart); and the days
+/// its status was taken and it was finished, which `withStatus` writes for the planning (lib/core/properties.dart)
+/// and the panel says in its own words.
+const Set<String> _unsaid = <String>{'type', 'id', 'issue', 'look', 'watchers', 'duplicate-of', 'component', 'spent', 'status-since', 'done'};
 
 /// The panel's rows for a ticket's front matter: the four always, then any of the rest that is set, or all of them
 /// with [more]. In [simple] mode the advanced ones wait for More, set or not; where the host draws no planning

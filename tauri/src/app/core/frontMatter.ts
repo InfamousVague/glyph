@@ -36,16 +36,56 @@ export const FRONT_MATTER_LINES = 40;
 const KEY_LINE = /^\s*[\w.-]+\s*:/;
 
 /**
+ * A list's item under a key, `  - bugbash`: the lines Obsidian writes a `tags:` list as, one under the other, which a
+ * block holds only under a `key:` line or another item of its (2026-10-31, with the one-block shape below).
+ */
+const ITEM_LINE = /^\s*-(?:\s|$)/;
+
+/**
+ * The two shapes (docs/MARKDOWN_FIRST.md §11; Matt, 2026-10-31: "one block, phased"). A note with page properties has
+ * been two `---` blocks on disk, the library's and then the page's, which is the block the readers here read at the top
+ * of a body. Other apps write ONE block with every key in it, and a merged body will carry the library's keys beside the
+ * page's once the writers switch. So the library's keys are never the page's properties (`isLibraryProperty`), and the
+ * ticket's key, which the shapes fight over (`id: GHO-12` against the library's note id), is read by `ticketKeyValue`:
+ * `issue:`, the key other tools use, or an `id:` that reads as one.
+ */
+export const LIBRARY_KEYS: ReadonlySet<string> = new Set(['id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed', 'recording-ms']);
+
+/** A ticket's key, `GHO-12` (core/properties.ts `ISSUE_KEY`), in any case. */
+const TICKET_KEY = /^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,5}$/i;
+
+/** Whether a property line is the library's and not the page's: one of `LIBRARY_KEYS`, except an `id` that is a ticket's key. */
+export function isLibraryProperty(key: string, value: string): boolean {
+  const low = key.trim().toLowerCase();
+  if (!LIBRARY_KEYS.has(low)) return false;
+  return low !== 'id' || !TICKET_KEY.test(value.trim());
+}
+
+/**
+ * A ticket's key as the front matter says it, as written: its `issue:`, else an `id:` that reads as a ticket's key; null
+ * for neither, and for an `id:` that is the library's note id in a one-block body.
+ */
+export function ticketKeyValue(body: string): string | null {
+  const issue = frontMatterValue(body, 'issue');
+  if (issue && issue.trim()) return issue;
+  const id = frontMatterValue(body, 'id');
+  return id !== null && TICKET_KEY.test(id.trim()) ? id : null;
+}
+
+/**
  * Where a note's front matter ends: the index of the first line after its closing fence, or 0 where it has none -
  * no fence on the first line, a line of words before the close, or no close within the first 40 lines. So
  * `lines.slice(frontMatterEnd(lines))` is always the note's words, and the keys are `lines.slice(1, end - 1)`.
  */
 export function frontMatterEnd(lines: readonly string[]): number {
   if (!FENCE.test(lines[0] ?? '')) return 0;
+  let underKey = false;
   for (let n = 1; n < Math.min(lines.length, FRONT_MATTER_LINES); n += 1) {
     const line = lines[n] ?? '';
     if (FENCE.test(line)) return n + 1;
-    if (!KEY_LINE.test(line) && line.trim() !== '') return 0;
+    if (KEY_LINE.test(line)) underKey = true;
+    else if (line.trim() === '') underKey = false;
+    else if (!underKey || !ITEM_LINE.test(line)) return 0;
   }
   return 0;
 }
