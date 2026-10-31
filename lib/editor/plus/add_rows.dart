@@ -179,6 +179,7 @@ class AddGates {
     this.button = false,
     this.simple = false,
     this.toggles = false,
+    this.gantt = false,
   });
 
   final bool picture;
@@ -222,6 +223,9 @@ class AddGates {
 
   /// The editor draws a toggle block (lib/editor/view/section_folds.dart): A toggle, in More.
   final bool toggles;
+
+  /// The editor draws a ```gantt fence (lib/editor/gantt): A Gantt chart, in More.
+  final bool gantt;
 }
 
 /// The gates, for a screen that can do these (a picture picker, a video, a place, a note to link, a canvas to
@@ -244,6 +248,7 @@ AddGates readGates({
   bool button = false,
   bool simple = false,
   bool toggles = false,
+  bool gantt = false,
   List<PlusEffect> effects = const <PlusEffect>[],
   List<PlusInsert> inserts = const <PlusInsert>[],
 }) => AddGates(
@@ -265,6 +270,7 @@ AddGates readGates({
   button: button,
   simple: simple,
   toggles: toggles,
+  gantt: gantt,
 );
 
 // ---- the moment, in words (core/stamp.ts, core/noteNames.ts) -----------------------------------------------------------
@@ -399,6 +405,8 @@ List<AddRow> _fullMoreRows(AddGates gates) => <AddRow>[
   // A note that is not a ticket yet, and not a notebook, can be made one: its front matter written for it (§160).
   if (gates.ticket) const AddRow(id: 'ticket', words: 'Make this a ticket'),
   const AddRow(id: 'chart', words: 'A diagram'),
+  // A ```gantt fence (docs/GANTT.md; Matt, 2026-10-31): a project's tasks as a list, drawn as a chart to drag.
+  if (gates.gantt) const AddRow(id: 'gantt', words: 'A Gantt chart'),
   const AddRow(id: 'formula', words: 'A formula'),
   if (gates.canvas) const AddRow(id: 'canvas', words: 'A canvas', step: AddStep.canvas),
   const AddRow(id: 'footnote', words: 'A footnote'),
@@ -457,6 +465,16 @@ const String chartCard = '```mermaid\nflowchart LR\n  A[Start] --> B[Then]\n  B 
 /// A chart that reads as one at a glance: three boxes in a row with arrows between, in Mermaid, with "Start"
 /// selected to be written over.
 final String chartSeed = chartCard.trimRight();
+
+/// A small Gantt chart (docs/GANTT.md): a title, a section, two tasks the second waiting on the first, and a
+/// milestone after them, from [now]'s day, with "Project" selected to be written over.
+({String text, BlockSelect select}) ganttSeed(DateTime now) {
+  final start = isoDayAfterDate(now, 0);
+  final end = isoDayAfterDate(now, 2);
+  final text = '```gantt\ntitle: Project\n\n## Plan\n- Plan it [$start → $end]\n- Build it [+3d] after: Plan it\n- ◆ Ship it after: Build it\n```';
+  final from = text.indexOf('Project');
+  return (text: text, select: BlockSelect.at(from, from + 'Project'.length));
+}
 
 /// A counter, with what it counts selected to be written over, as the Guide's `- Water [3/8]` is.
 const String counterSeed = 'Count [0/8]';
@@ -611,6 +629,9 @@ RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> 
     case 'chart':
       final start = chartSeed.indexOf('Start');
       return RowBlock(chartSeed, BlockSelect.at(start, start + 'Start'.length));
+    case 'gantt':
+      final gantt = ganttSeed(now);
+      return RowBlock(gantt.text, gantt.select);
     case 'board':
       final board = boardSeed(state.doc.toString());
       return RowBlock(board.text, board.select);

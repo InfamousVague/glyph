@@ -142,6 +142,7 @@ import '../core/query/query.dart';
 import '../editor/band/band.dart' as band;
 import '../editor/boards/boards.dart' show drawnBoards;
 import '../editor/diagrams/diagrams.dart' show drawnMermaid;
+import '../editor/gantt/gantt.dart' show drawnGantt;
 import '../editor/editor.dart';
 import '../editor/editor_widget.dart';
 import '../editor/find_bar/find_bar.dart';
@@ -872,6 +873,9 @@ class NoteDeskState extends State<NoteDesk> {
     drawnBoards(),
     // A ```mermaid fence drawn as its diagram (Editor.tsx `drawnMermaid()`).
     drawnMermaid(),
+    // A ```gantt fence drawn as a Gantt chart to drag, its [[tickets]] read from the library the queries read
+    // (lib/editor/gantt; Matt, 2026-10-31).
+    drawnGantt(() => _queries),
     // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title.
     if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.
@@ -972,6 +976,7 @@ class NoteDeskState extends State<NoteDesk> {
       if (_world.openTag != null) tagOpener.of(_world.openTag!),
       drawnBoards(),
       drawnMermaid(),
+      drawnGantt(() => _bookQueries),
       if (_world.queryNotes != null) queries(() => _bookQueries),
       if (_world.bodyOf != null)
         canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _openWithin(title))),
@@ -1910,6 +1915,8 @@ class NoteDeskState extends State<NoteDesk> {
           simple: _prefs.value.simple,
           // A `<details>` toggle, in More and the `/` palette (lib/editor/view/section_folds.dart).
           toggles: true,
+          // A ```gantt fence, a project to drag (lib/editor/gantt; Matt, 2026-10-31).
+          gantt: true,
           // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
           onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
