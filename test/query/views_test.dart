@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/gantt/gantt.dart';
 import 'package:ghost_md/core/query/query.dart';
 
 import 'support.dart' show noon;
 
 /// The port's own query views and columns (Matt, 2026-10-30, "add all 12"): a calendar on a day field of its own,
-/// the drawn timeline's plan, a chart's bars and rollups over linked notes (lib/core/query/rollup.dart, chart.dart,
-/// timeline.dart), each worked out from the library a query already reads.
+/// a query as a Gantt chart, a chart's bars and rollups over linked notes (lib/core/query/rollup.dart, chart.dart,
+/// lib/core/gantt/query.dart), each worked out from the library a query already reads.
 const String today = '2026-10-05';
 
 QueryNote note(String id, String body, [String day = '2026-10-01']) => QueryNote(id: id, body: body, createdAt: noon(day), updatedAt: noon(day));
@@ -142,39 +143,29 @@ void main() {
     });
   });
 
-  group('the timeline\'s plan', () {
-    test('a bar from each start to each end, one day where there is one, and the rest counted', () {
-      final result = run('from: tickets\nshow: timeline');
-      final plan = timelineOf(result.groups, today, zoom: TimelineZoom.week);
-      final bars = {for (final bar in plan.lanes.single.bars) bar.row.key: (bar.start, bar.end, bar.to - bar.from)};
-      expect(bars, {'gho1': ('2026-09-28', '2026-10-03', 6), 'gho2': ('2026-10-10', '2026-10-10', 1), 'gho3': ('2026-10-06', '2026-10-06', 1)});
-      expect(plan.undated, 0);
-      // From a Monday, before the first bar; today on it.
-      expect(dateOfDayWeekday(plan.first), DateTime.monday);
-      expect(plan.first.compareTo('2026-09-28') <= 0, isTrue);
-      expect(plan.dayAt(plan.today), today);
-      expect(plan.ticks.first.at, 0);
+  // `show: timeline` and `show: gantt` are one chart now (lib/core/gantt/query.dart; Matt, 2026-10-31).
+  group('a query as a Gantt chart', () {
+    test('a bar from each start to each end, one day where there is one, and one with neither dashed on today', () {
+      for (final show in ['gantt', 'timeline']) {
+        final result = run('from: tickets\nshow: $show');
+        final model = ganttOfQuery(result, today);
+        final bars = {for (final item in model.items) item.key: (item.start, item.end, item.days, item.undated)};
+        expect(bars, {'gho1': ('2026-09-28', '2026-10-03', 6, false), 'gho2': ('2026-10-10', '2026-10-10', 1, false), 'gho3': ('2026-10-06', '2026-10-06', 1, false)});
+        expect(model.items.map((item) => item.label), ['GHO-1', 'GHO-2', 'GHO-3']);
+        expect(model.byKey['gho3']!.done, isTrue);
+        expect(model.follow, isFalse, reason: 'a query’s bars move one at a time');
+      }
     });
 
-    test('its own fields, in groups, at the zoom its span asks for', () {
-      final result = run('from: tickets\nshow: timeline\nstart: due\nend: due\ngroup: assignee');
+    test('its own fields, in groups, its zoom, and what blocks a ticket as an arrow', () {
+      final result = run('from: tickets\nshow: gantt\nstart: due\nend: due\ngroup: assignee\nzoom: quarter');
       expect(result.startField, 'due');
-      final plan = timelineOf(result.groups, today);
-      expect(plan.zoom, TimelineZoom.week);
-      expect([for (final lane in plan.lanes) lane.group.label], ['Alex', 'Sam']);
-      expect(plan.undated, 1);
-      expect(zoomFor(10), TimelineZoom.week);
-      expect(zoomFor(60), TimelineZoom.month);
-      expect(zoomFor(200), TimelineZoom.quarter);
-      final quarter = timelineOf(result.groups, today, zoom: TimelineZoom.quarter);
-      expect(quarter.first.endsWith('-01'), isTrue);
-      expect(quarter.ticks.every((tick) => tick.day.endsWith('-01')), isTrue);
-    });
-
-    test('a bar carried by its ends never turns round', () {
-      expect(movedBar('2026-10-01', '2026-10-05', 2, moveStart: false, moveEnd: true), (start: '2026-10-01', end: '2026-10-07'));
-      expect(movedBar('2026-10-01', '2026-10-05', 9, moveStart: true, moveEnd: false), (start: '2026-10-05', end: '2026-10-05'));
-      expect(movedBar('2026-10-01', '2026-10-05', -3, moveStart: true, moveEnd: true), (start: '2026-09-28', end: '2026-10-02'));
+      final model = ganttOfQuery(result, today, blockers: (row) => row.id == 'GHO-2' ? const ['gho-1', 'GHO-9'] : const []);
+      expect(model.groups.map((group) => group.name), ['Alex', 'Sam']);
+      expect(model.byKey['gho3']!.undated, isTrue);
+      expect(model.byKey['gho3']!.start, today);
+      expect(model.zoom, GanttZoom.quarter);
+      expect(model.byKey['gho2']!.after, ['gho1'], reason: 'one not on the chart draws nothing');
     });
   });
 
@@ -215,4 +206,3 @@ void main() {
   });
 }
 
-int dateOfDayWeekday(String day) => DateTime.parse(day).weekday;

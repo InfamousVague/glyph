@@ -65,8 +65,9 @@ class DiagramAsk {
   /// Device pixels to the logical one.
   final double ratio;
 
-  /// A query's timeline (lib/editor/queries/query_timeline.dart): the block wears the card's `.gantt` rules too,
-  /// in these inks. Null for a diagram in a note.
+  /// A query's Mermaid timeline, the block in the card's `.gantt` rules and these inks. No query asks for one since
+  /// `show: gantt` became the app's own chart (lib/editor/queries/query_gantt.dart, 2026-10-31); a diagram in a note
+  /// asks with null.
   final DiagramTimeline? timeline;
 
   /// What the page is asked, less the picture's number.

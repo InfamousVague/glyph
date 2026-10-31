@@ -91,7 +91,7 @@ const List<({String value, String label})> builderGroups = <({String value, Stri
 ];
 
 /// The ways to show a query, in the order the builder offers them.
-const List<ShowAs> builderViews = <ShowAs>[ShowAs.table, ShowAs.list, ShowAs.board, ShowAs.calendar, ShowAs.timeline, ShowAs.chart, ShowAs.gantt, ShowAs.count];
+const List<ShowAs> builderViews = <ShowAs>[ShowAs.table, ShowAs.list, ShowAs.board, ShowAs.calendar, ShowAs.gantt, ShowAs.chart, ShowAs.count];
 
 /// The day field a calendar puts a record on (`date:`); null is the first it has (`DATE_FIELDS`, the port's own).
 const List<({String? value, String label})> builderDays = <({String? value, String label})>[
@@ -268,14 +268,15 @@ class _QueryBuilderState extends State<QueryBuilder> {
               SheetRow(
                 key: ValueKey<String>('show:${view.name}'),
                 icon: _mark(queryViews[view]!.icon),
-                label: view == ShowAs.gantt ? 'Gantt (Mermaid)' : queryViews[view]!.label,
-                chosen: show.isNotEmpty ? show == view.name || shown == view : view == ShowAs.table,
+                label: queryViews[view]!.label,
+                // `timeline` is read as the Gantt chart, and chosen as it.
+                chosen: show.isNotEmpty ? show == view.name || shown == view || (view == ShowAs.gantt && shown == ShowAs.timeline) : view == ShowAs.table,
                 onPress: () => onBody(withClause(body, showLine, view.name)),
               ),
           ],
         ),
         if (shown == ShowAs.calendar) ...choices('Put each on', 'date', builderDays),
-        if (shown == ShowAs.timeline) ...<Widget>[
+        if (shown == ShowAs.timeline || shown == ShowAs.gantt) ...<Widget>[
           ...choices('Bars start on', 'start', builderStarts),
           ...choices('Bars end on', 'end', builderEnds),
           ...choices('Zoom', 'zoom', const <({String? value, String label})>[

@@ -7,6 +7,7 @@ import { titleKey } from '../app/core/titleKey.ts';
 import { IMAGE_READY, imageUrl } from '../app/core/images.ts';
 import { wikiLinksIn, type WikiLink } from '../app/editor/wikiLinks.ts';
 import { MOST_EMBED_DEPTH, embedOf, sectionOf, type Embed } from './embeds.ts';
+import { daysSaid, readGantt } from './gantt.ts';
 import styles from './Rendered.module.css';
 
 /**
@@ -359,6 +360,8 @@ function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
         .filter((c) => c.name === 'CodeText')
         .map((c) => d.text.slice(c.from, c.to))
         .join('\n');
+      // A ```gantt fence is its list, drawn readably (gantt.ts): the reader draws no charts.
+      if (info && d.text.slice(info.from, info.to).trim().toLowerCase() === 'gantt') return <GanttRead key={key} body={code} />;
       return (
         <pre key={key} className={styles.code} data-lang={info ? d.text.slice(info.from, info.to) : undefined}>
           <code>{code}</code>
@@ -385,6 +388,43 @@ function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
     default:
       return <p key={key}>{d.text.slice(node.from, node.to)}</p>;
   }
+}
+
+/** A ```gantt fence as the list it is: its title, its sections, and each task with its days, people, progress and waits. */
+function GanttRead({ body }: { body: string }) {
+  const list = readGantt(body);
+  return (
+    <section className={styles.gantt} aria-label={list.title ? `Gantt chart: ${list.title}` : 'Gantt chart'}>
+      {list.title ? <p className={styles.ganttTitle}>{list.title}</p> : null}
+      {list.sections.map((section, s) => (
+        <div key={s}>
+          {section.name ? <p className={styles.ganttSection}>{section.name}</p> : null}
+          <ul className={styles.ganttTasks}>
+            {section.tasks.map((task, t) => {
+              const days = daysSaid(task);
+              return (
+                <li key={t} data-milestone={task.milestone ? '' : undefined} data-done={task.progress === 100 ? '' : undefined}>
+                  <span className={styles.ganttMark} aria-hidden="true" />
+                  <span className={styles.ganttName}>{task.name}</span>
+                  {days ? <span className={styles.ganttDays}>{days}</span> : null}
+                  {task.people.length > 0 ? <span className={styles.ganttMeta}>{task.people.map((p) => `@${p}`).join(' ')}</span> : null}
+                  {task.progress !== null ? (
+                    <span className={styles.ganttProgress} title={`${task.progress}% done`}>
+                      <span className={styles.ganttTrack}>
+                        <span style={{ inlineSize: `${task.progress}%` }} />
+                      </span>
+                      <em>{task.progress}%</em>
+                    </span>
+                  ) : null}
+                  {task.after.length > 0 ? <span className={styles.ganttMeta}>after {task.after.join(', ')}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
 }
 
 /** A picture the share carries, drawn once the page has lent it. */
