@@ -25,6 +25,10 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.26.1", features = ["v4"] }
+# A file name composed the one way (NFC) before it is written, and names compared so (library/names.rs
+# `composed`, `same_name`): a tree written on Android must not hold `Plan.md` and `plan.md`, or two spellings of
+# `Café.md`, which a Mac or an iPhone would merge on checkout.
+unicode-normalization = "0.1"
 # The account's keys and the sealed wire (src/crypto.rs, docs/STAGE7.md): what the web app asks of WebCrypto, in pure
 # Rust, so the phone's .so needs no OpenSSL. PBKDF2 is written over hmac in crypto.rs (its two blocks on two
 # threads); the pbkdf2 crate below is only the test that holds it to the standard.

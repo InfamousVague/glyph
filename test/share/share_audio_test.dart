@@ -40,7 +40,7 @@ class Here {
   late final SignedAccount account;
   late final Shares shares;
 
-  List<String> get puts => [for (final call in service.calls) if (call.startsWith('PUT shares/') && !call.contains('/audio')) call];
+  List<String> get puts => [for (final call in service.calls) if (call.startsWith('PUT shares/') && !call.contains('/audio') && !call.endsWith('/meta')) call];
   List<String> get parts => [for (final call in service.calls) if (call.startsWith('PUT shares/') && call.contains('/audio/')) call];
 
   ShareEntry entry(String noteId) => prefs.value.shares[noteId]!;

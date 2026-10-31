@@ -29,8 +29,8 @@ class Here {
   late final SignedAccount account;
   late final Shares shares;
 
-  /// Every share written to the service, in order.
-  List<String> get puts => [for (final call in service.calls) if (call.startsWith('PUT shares/')) call];
+  /// Every share written to the service, in order: the words, not what the device sealed about each beside them.
+  List<String> get puts => [for (final call in service.calls) if (call.startsWith('PUT shares/') && !call.endsWith('/meta')) call];
 
   String keyOf(String noteId) => readShareLink(shares.linkFor(noteId)!)!.key;
 

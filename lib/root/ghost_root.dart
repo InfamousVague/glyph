@@ -2004,6 +2004,9 @@ class _GhostRootState extends State<GhostRoot> {
     if (_library case final CoreLibrary core) {
       webhooks.start(saves: core.savedHere, notes: () => _shown);
       _webhooksLife = AppLifecycleListener(onHide: () => unawaited(webhooks.flush()));
+      // A shared note says so in its page front matter, `share: <id>` (lib/share/share.dart; 2026-10-31): written as a
+      // save of the person's own, so it keeps versions and syncs as any edit does.
+      _services?.shares?.save = (note, body) => core.save(note.id, body);
     }
     // A notebook's rules, the timers and the pull requests on its tickets (root_ticket_rules.dart; Matt, 2026-10-31).
     _ticketsWired.start();

@@ -113,35 +113,37 @@ struct ByDescriptor {
     path: Option<String>,
 }
 
-/// The folders the archive carries: the library where it is (the app's own folder, or the one the person chose,
-/// library_root.rs), and the media under the data directory. A folder chosen on Android has no path to walk, so
-/// its notes come as text instead (`library_texts`) and only its `.glyph/`, kept in the app's storage, is walked.
+/// The folder the archive walks: the library where it is (the app's own folder, or the one the person chose,
+/// library_root.rs). A folder chosen on Android has no path to walk, so its notes come as text instead
+/// (`library_texts`) and only its `.glyph/`, kept in the app's storage, is walked. The attachments are not walked
+/// as folders but listed from wherever the app keeps each (`entries`).
 fn sources(core: &Core) -> Vec<Source> {
-    let data = core.data_dir();
-    let library = {
-        let library = core.notes().lock();
-        match library.folder() {
-            Some(folder) => Source { dir: folder, name: "Library" },
-            None => Source { dir: library.glyph_dir(), name: "Library/.glyph" },
-        }
-    };
-    vec![
-        library,
-        Source { dir: data.join(crate::paths::IMAGES), name: "images" },
-        Source { dir: data.join(crate::paths::VIDEO), name: "video" },
-        Source { dir: data.join(crate::paths::RECORDINGS), name: "recordings" },
-    ]
+    let library = core.notes().lock();
+    match library.folder() {
+        Some(folder) => vec![Source { dir: folder, name: "Library" }],
+        None => vec![Source { dir: library.glyph_dir(), name: "Library/.glyph" }],
+    }
+}
+
+/// Every file the archive carries from the folders: the library walked, then its attachments under `Library/<kind>/`
+/// from wherever each is kept (library/attachments.rs), none twice.
+fn entries(core: &Core) -> Result<Vec<export::Entry>, String> {
+    let mut found = export::entries(&sources(core)).map_err(|e| format!("The notes could not be listed: {e}"))?;
+    let have: std::collections::HashSet<String> = found.iter().map(|entry| entry.name.clone()).collect();
+    found.extend(export::attachments(&core.attachments(), &have).map_err(|e| format!("The pictures could not be listed: {e}"))?);
+    Ok(found)
 }
 
 /// A library with no folder to walk (one chosen on Android): every note and versions file, read as text, under
-/// `Library/` in the archive as they are in the folder. Nothing for a library with a folder, which `sources` walks.
+/// `Library/` in the archive as they are in the folder. Nothing for a library with a folder, which `sources` walks;
+/// nothing of `.glyph/`, which `sources` walks for a tree too; and nothing for a note that cannot be read now.
 fn library_texts(core: &Core) -> Result<Vec<Extra>, String> {
     let library = core.notes().lock();
     if library.folder().is_some() {
         return Ok(Vec::new());
     }
     let texts = library.texts().map_err(|e| format!("The notes could not be read: {e}"))?;
-    Ok(texts.into_iter().map(|(path, text)| Extra { name: format!("Library/{path}"), bytes: text.into_bytes() }).collect())
+    Ok(texts.into_iter().filter(|(path, _)| !path.starts_with(".glyph/")).filter_map(|(path, text)| text.map(|text| Extra { name: format!("Library/{path}"), bytes: text.into_bytes() })).collect())
 }
 
 /// Writes the whole archive into `out`, telling how far it has got.
@@ -151,7 +153,7 @@ fn write_into<W: std::io::Write>(core: &Core, state: &ExportState, request: &Exp
     }
     let mut extras = page_files(request)?;
     extras.extend(library_texts(core)?);
-    let entries = export::entries(&sources(core)).map_err(|e| format!("The notes could not be listed: {e}"))?;
+    let entries = entries(core)?;
     let manifest = serde_json::json!({
         "app": "Ghost.md",
         "exported": request.exported_at,
@@ -279,9 +281,10 @@ mod tests {
         let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
         let at = |name: &str| format!("ghostmarkdown_2026-10-01_21-42-05/{name}");
         assert_eq!(&names[..3], [at("README.txt"), at("settings.json"), at("manifest.json")], "the page's files and the manifest come first");
-        for carried in ["Library/Inbox/Milk.md", "Library/Inbox/Plan.md", "Library/.glyph/library.json", "images/a.jpg", "video/f.mp4", "recordings/n1.wav"] {
+        for carried in ["Library/Inbox/Milk.md", "Library/Inbox/Plan.md", "Library/.glyph/library.json", "Library/image/a.jpg", "Library/video/f.mp4", "Library/recordings/n1.wav"] {
             assert!(names.contains(&at(carried).as_str()), "{carried} is carried: {names:?}");
         }
+        assert_eq!(names.iter().filter(|name| name.ends_with("a.jpg")).count(), 1, "a picture is carried once, wherever the app keeps it: {names:?}");
         assert!(!names.iter().any(|name| name.contains("index.sqlite") || name.contains("models") || name.contains("jobs")), "the index, the models and a write-up are left out: {names:?}");
         let manifest: Value = serde_json::from_slice(&files[2].1).unwrap();
         assert_eq!((manifest["app"].as_str(), manifest["exported"].as_str(), manifest["page"].as_str(), manifest["notes"].as_u64()), (Some("Ghost.md"), Some("2026-10-01T20:42:05.000Z"), Some("flutter"), Some(2)));

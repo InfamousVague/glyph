@@ -25,8 +25,7 @@
 //! trashed here is, on an old build, a live file in the synced trash map, which
 //! the app still writes for a release (lib/core/kept_trash.dart).
 
-use super::names::unique_name;
-use super::{folder_of, in_folder, Library, Result, INBOX};
+use super::{folder_of, Library, Result, INBOX};
 use crate::note::Note;
 
 /// The folder at the library's root that holds trashed notes.
@@ -81,7 +80,7 @@ impl Library {
         let Some(was) = live_path_of(&row.path) else { return self.get_note(id) };
         let folder = folder_of(was);
         let folder = if folder.is_empty() || self.vault.folder_exists(folder) { folder } else { INBOX };
-        let to = in_folder(folder, &unique_name(file_stem_of(was), |name| self.vault.exists(&in_folder(folder, name))));
+        let to = self.free_path(folder, file_stem_of(was));
         self.move_note_file(id, &row.path, &to)
     }
 

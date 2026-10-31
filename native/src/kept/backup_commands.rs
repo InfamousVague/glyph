@@ -42,6 +42,7 @@ use serde_json::Value;
 
 use crate::backup::{self, Last, Media, Progress, Target};
 use crate::dispatch::{read, Core};
+use crate::library::AttachmentKind;
 
 // copied:begin
 #[derive(Default)]
@@ -304,11 +305,14 @@ fn run_onto(core: &Core, state: &BackupState, target: &dyn Target, free: Option<
         let library = core.notes().lock();
         library.texts().map_err(|e| format!("The notes could not be read: {e}"))?
     };
-    let data = core.data_dir();
+    // Each kind from wherever the app keeps it (library/attachments.rs): under the library, or beside it still.
+    let places = core.attachments();
+    let listed = |kind: AttachmentKind| places.of(kind).files().map_err(|e| format!("The {} could not be listed: {e}", kind.said()));
     let media = [
-        Media { dir: data.join(crate::paths::IMAGES), name: "Pictures" },
-        Media { dir: data.join(crate::paths::VIDEO), name: "Films" },
-        Media { dir: data.join(crate::paths::RECORDINGS), name: "Recordings" },
+        Media { files: listed(AttachmentKind::Image)?, name: "Pictures" },
+        Media { files: listed(AttachmentKind::File)?, name: "Files" },
+        Media { files: listed(AttachmentKind::Video)?, name: "Films" },
+        Media { files: listed(AttachmentKind::Recording)?, name: "Recordings" },
     ];
     let items = backup::plan(texts, &media).map_err(|e| format!("The notes could not be listed: {e}"))?;
     backup::run(target, &items, &request.readme, &request.backed_up_at, free, &state.cancel, progress).map_err(said)
@@ -404,7 +408,9 @@ mod tests {
         core.call("create_note", json!({"id": "n1", "body": "# Plan\n\n![](image/a.jpg)\n", "source": "editor"})).unwrap();
         core.call("create_note", json!({"id": "n2", "body": "# Milk\n", "source": "editor"})).unwrap();
         core.call("versions_write", json!({"id": "n1", "text": "{}"})).unwrap();
-        for file in ["images/a.jpg", "video/f.mp4", "recordings/n1.wav", "recordings/.orphans.json"] {
+        core.call("set_note_recording", json!({"id": "n1", "recordingMs": 1500, "segments": []})).unwrap();
+        // The pictures under the library and one an older build left beside it, the files beside it, as they are now.
+        for file in ["Library/image/a.jpg", "images/older.png", "images/files/lease.pdf", "video/f.mp4", "recordings/n1.wav", "recordings/.orphans.json"] {
             std::fs::create_dir_all(root.join("data").join(file).parent().unwrap()).unwrap();
             std::fs::write(root.join("data").join(file), b"bytes").unwrap();
         }
@@ -412,14 +418,15 @@ mod tests {
         let state = BackupState::default();
         let mut told = Vec::new();
         let backed = run_onto(&core, &state, &drive, None, &request("2026-10-05T20:00:00.000Z"), |progress| told.push(progress)).unwrap();
-        assert_eq!((backed.notes, backed.files, backed.written, backed.unchanged, backed.removed), (2, 6, 6, 0, 0));
-        for file in ["Inbox/Plan.md", "Inbox/Plan.versions", "Inbox/Milk.md", "Attachments/Pictures/a.jpg", "Attachments/Films/f.mp4", "Attachments/Recordings/n1.wav", "README.txt", ".ghostmd-backup.json"] {
+        assert_eq!((backed.notes, backed.files, backed.written, backed.unchanged, backed.removed), (2, 10, 10, 0, 0));
+        for file in ["Inbox/Plan.md", "Inbox/Plan.versions", "Inbox/Milk.md", ".glyph/library.json", ".glyph/notes/n1.json", "Attachments/Pictures/a.jpg", "Attachments/Pictures/older.png", "Attachments/Files/lease.pdf", "Attachments/Films/f.mp4", "Attachments/Recordings/n1.wav", "README.txt", ".ghostmd-backup.json"] {
             assert!(root.join("drive/Ghost.md").join(file).is_file(), "{file} is on the drive");
         }
         assert!(!root.join("drive/Ghost.md/Attachments/Recordings/.orphans.json").exists(), "a dot file is the app's own");
+        assert!(!root.join("drive/Ghost.md/Attachments/Pictures/files").exists(), "the files are their own kind, not a folder of the pictures");
         assert_eq!(std::fs::read_to_string(root.join("drive/Ghost.md/README.txt")).unwrap(), "What this is.\n");
-        assert_eq!(told.first().map(|p| (p.done, p.files, p.of)), Some((0, 0, 6)));
-        assert_eq!(told.last().map(|p| (p.done == p.total, p.files)), Some((true, 6)));
+        assert_eq!(told.first().map(|p| (p.done, p.files, p.of)), Some((0, 0, 10)));
+        assert_eq!(told.last().map(|p| (p.done == p.total, p.files)), Some((true, 10)));
 
         // A note changed, one deleted: only the first is written, and the second is taken off.
         core.call("update_note", json!({"id": "n1", "body": "# Plan\n\nMore.\n", "expectedRevision": 1})).unwrap();
@@ -476,17 +483,18 @@ mod tests {
         let id = started["id"].as_str().unwrap().to_string();
         let ended = crate::events::tests::wait_for(Duration::from_secs(20), |event, payload| event == crate::work::END && payload["id"] == id.as_str()).expect("the backup ends");
         assert_eq!(ended["kind"], "backup");
-        let bytes = std::fs::metadata(root.join("drive/Ghost.md/Inbox/Kept.md")).unwrap().len();
-        assert_eq!(ended["ok"], json!({"notes": 1, "files": 1, "written": 1, "unchanged": 0, "removed": 0, "bytes": bytes}));
-        assert!(!crate::events::tests::heard(|event, payload| event == "backup://progress" && payload["of"] == 1).is_empty(), "it says how far it has got");
+        // The note, and the library's own record of itself (`.glyph/library.json`, which `texts` carries now).
+        let bytes = std::fs::metadata(root.join("drive/Ghost.md/Inbox/Kept.md")).unwrap().len() + std::fs::metadata(root.join("drive/Ghost.md/.glyph/library.json")).unwrap().len();
+        assert_eq!(ended["ok"], json!({"notes": 1, "files": 2, "written": 2, "unchanged": 0, "removed": 0, "bytes": bytes}));
+        assert!(!crate::events::tests::heard(|event, payload| event == "backup://progress" && payload["of"] == 2).is_empty(), "it says how far it has got");
         assert_eq!(call(&core, "backup_last", json!({"folder": drive})), Ok(json!({"backedUpAt": "2026-10-05T20:00:00.000Z", "notes": 1})));
         let files = call(&core, "backup_files", json!({"folder": drive})).unwrap();
-        assert_eq!(files.as_array().unwrap().iter().map(|file| file["path"].as_str().unwrap()).collect::<Vec<_>>(), ["Inbox/Kept.md", "README.txt", ".ghostmd-backup.json"]);
+        assert_eq!(files.as_array().unwrap().iter().map(|file| file["path"].as_str().unwrap()).collect::<Vec<_>>(), [".glyph/library.json", "Inbox/Kept.md", "README.txt", ".ghostmd-backup.json"]);
         assert_eq!(call(&core, "backup_cancel", json!({})), Ok(Value::Null));
         // Let go when it ended: the next may start, and its start forgets the stop asked for meanwhile.
         let again = call(&core, "backup_run", json!({"request": {"backedUpAt": "2026-10-05T21:00:00.000Z", "readme": "R\n"}, "folder": drive})).unwrap();
         let id = again["id"].as_str().unwrap().to_string();
         let ended = crate::events::tests::wait_for(Duration::from_secs(20), |event, payload| event == crate::work::END && payload["id"] == id.as_str()).expect("the second ends");
-        assert_eq!((ended["ok"]["written"].as_u64(), ended["ok"]["unchanged"].as_u64()), (Some(0), Some(1)));
+        assert_eq!((ended["ok"]["written"].as_u64(), ended["ok"]["unchanged"].as_u64()), (Some(0), Some(2)));
     }
 }
