@@ -651,12 +651,51 @@ the reader build before any device writes the new shape.
 | 4 | Trash and meetings | `trashed:` and `meeting:` as index columns (`set_trashed` beside `set_archived`; `meeting` written from the five writers); `KeptTrash` and `Preferences.meetings` become views with the preference dual-written | An old build pushing a `NotePayload` without the field clears it on a new one, hence the dual write; the purge keeps exempting org notes; `recordingStaysHere` reads the column | Index tests for the columns; purge test; a mixed-build sync fixture | M |
 | 5 | Attachments under the library | `images/` → `Library/image/`, `images/files/` → `Library/file/`, `video/` → `Library/video/`, `recordings/` → `Library/recordings/`; one move at open; read-both for a release; Kotlin twins; backup and export write the same names; `.gitattributes` | Sync carries files by kind+name, unchanged; old builds look in the old folders (fallback read); SAF libraries need `TreeTarget` writes; reset.rs must not wipe a chosen folder's `image/` | Core tests for `kept_path` both ways; `images::referenced` unchanged; backup and export layout tests; a restore from a clone renders every picture | L |
 | 6 | Shares on the sites model | `share:<id>` meta sealed under the account key on the server (sites.rs copied); `list_shares` answers audio meta; `sent`/`lacked` to device storage; `preferences.shares` written in parallel for a release then dropped | Old builds read the preference; the prefs merge loses a field it no longer carries, fine | Server tests for the new blob; a sign-in-on-fresh-device test recovers every share | M |
-| 7 | One front matter block | Phase A: readers accept the merged shape and `issue:` (index.rs, Dart, web frontMatter.ts, MCP `keepKeys`). Phase B, a release later: the writer merges the five keys into the page's block, writes `issue:`; migration on next save | Phase B must not ship until every device has A (GHST-107-class hazard: an old build reading a merged body takes `id: <uuid>` as the ticket key and loses `type:`); sync carries whole bodies; team CRDT docs churn once | `a_tickets_front_matter_is_the_pages_and_is_kept_whole` replaced by a one-block test; Obsidian-vault fixture whose only block holds `tags:` reads its properties; mixed-build fixture | L |
+| 7 | One front matter block | **Phase A, done 2026-10-31 (readers):** every reader takes both shapes; the writer is behind a switch that is off. Phase B, a release later: the switch goes on. See the note under the table | Phase B must not ship until every device has A; with A the Rust library hands the Dart side the page's keys as a block of their own whatever shape the file is in, so a synced body never carries the library's keys and old builds read a new build's notes as before | `a_one_block_file_reads_as_the_pages_and_stays_one_block`, `a_one_block_tickets_own_id_is_never_the_notes`, `with_one_block_on_a_two_block_file_is_merged_at_the_next_write` (library/tests.rs), frontmatter.rs's own; test/core/one_block_test.dart (every Dart reader, both shapes, the round trips, the switch on and off); `the one-block shape` in frontMatter.test.ts and properties.test.ts; `keepKeys` in mcp/server.test.ts | L |
 | 8 | Canvases and Mermaid | Derived `<Title>.canvas` written by the plugin and publisher; fence → Mermaid gantt writer; `<details>` in Rendered.tsx | None (derived files) | Round-trip JSON Canvas; Mermaid output snapshot | M |
 | 9 | Restore-then-sign-in merge | `_merge` uses the common `.versions` hash as a base for `mergedWords` before a conflict copy; marks as hashes | Touches the "never a loss" guarantee; two-device fixtures | Fixtures with and without a shared base | M |
 
 The git plugin (section 10) can ship after slice 1 and ride every later slice unchanged: it commits whatever `texts()`
 and `glyph_dir()` give it, and its mapper is what makes slices 3 and 5 optional for the repo's shape.
+
+**Slice 7, phase A, as built (2026-10-31).** One reader on each side, and every other reader through it:
+
+- The Rust library (tauri/src-tauri/src/library/frontmatter.rs `read`/`write`) reads a file in either shape to the
+  same two things: the library's block and the page's body, a body that opens with the page's own keys as a block
+  (the Dart side has only ever seen that). A one-block file's page keys are taken out of the block for the body and
+  merged back into it on a write, so the file stays one block: a pin (`set_front`), a save, a synced edit (`apply_note`).
+  A two-block file reads and writes as before. An unchanged body writes either shape back byte for byte. The library's
+  keys are `LIBRARY_KEYS` (`id`, `created`, `updated`, `source`, `pinned`, `archived`, `trashed`); an `id` whose value
+  is a ticket's key (`GHO-12`) is the page's, never the note's id, and when the library claims the block's `id:` line
+  for its own id (`claim_id`) the ticket's moves to `issue:`. A page block merged into a block the library has claimed
+  has its `id: GHO-12` written `issue: GHO-12` (`page_lines_for`), since one block has one `id:`. An Obsidian vault's
+  `tags:` and the rest are the page's keys now (they were the library's, invisible to the page, until this slice), so
+  they are in the body every device syncs: the body is the whole truth of a note's properties, in both shapes.
+- The Dart side (lib/core/front_matter.dart) has `libraryKeys`, `isLibraryProperty`, `ticketKeyIn`/`ticketKeyValue`
+  (the ticket's key: `issue:`, else an `id:` that reads as one, never the library's), `ticketKeyName` (which key a
+  writer uses: `id` as today, `issue` where the block already says `issue:` or its `id:` is the library's) and the
+  switch `FrontMatter.oneBlock`. `propertiesOf` leaves the library's keys out; `ticketOf`, `ticketIdOf`, the link
+  index, `NoteFacts.ticketKey`, the notebook finder, the query engine's records and the panel's rows all read through
+  these; `withTicketKey` is the one writer of a ticket's key. The web's frontMatter.ts and properties.ts (the share
+  page's reader and the connector's) carry the same: `LIBRARY_KEYS`, `isLibraryProperty`, `ticketKeyValue`; `keepKeys`
+  keeps `issue:`. What makes a file a ticket is unchanged: `type: ticket` (or `type: epic`), in any case, in whichever
+  shape; a block with `status:` and `due:` alone is a page with properties (a Hugo draft, a journal's day), not a
+  ticket, and every field but `type` is optional.
+- With the one-block shape every reader also holds a list written as lines under its key (`tags:\n  - bugbash`, as
+  Obsidian writes one) to be front matter; such a block was words before (lib/core/front_matter.dart, frontMatter.ts,
+  library/names.rs `front_matter_end`).
+
+**What the writer switch (phase B) needs.** Flip `ONE_BLOCK` (frontmatter.rs) and `FrontMatter.oneBlock`
+(front_matter.dart) together, in one release, once every device runs a build with phase A. On: a two-block file is
+merged into one at its next write (any write: a pin, a save, a synced edit; nothing migrates files that are not
+written), a new note is written as one block, and a page's `id: GHO-12` is written `issue:`; `withFrontMatterValue`
+merges a body that opens with two blocks. Before flipping: (1) the Rust test `a_tickets_front_matter_is_the_pages_and_is_kept_whole`
+asserts today's two-block layout and goes, with the on/off tests made unconditional; (2) `newTicketBody` and the
+panel should write `issue:` for new tickets outright, which they do not while an old build might read them (today
+they write `id:` unless the block's `id:` is the library's); (3) the connector's `create_note` and the templates'
+ticket blocks (lib/notes/own_templates.dart `ticketPropertyKeys`) are read for `id:` writers once more; (4) a
+mixed-build fixture (a one-block body from a phase-B device, read by a phase-A build) should sit in the Rust tests;
+(5) tauri/docs/LIBRARY.md's paragraph on the two blocks is rewritten.
 
 ## 10. The 'Back up to git' plugin
 

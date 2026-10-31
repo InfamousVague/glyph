@@ -85,10 +85,56 @@ describe('a note’s properties', () => {
   });
 
   it('are none where the note has no front matter, as frontMatterEnd decides it', () => {
-    for (const body of ['', '# Note\n\ntype: ticket', '---\ntype: ticket\nwords here\n---\n', '---\ntype: ticket\n', 'Words\n---\ntype: ticket\n---', '---\ntags:\n  - a\n---\n']) {
+    for (const body of ['', '# Note\n\ntype: ticket', '---\ntype: ticket\nwords here\n---\n', '---\ntype: ticket\n', 'Words\n---\ntype: ticket\n---', '---\n- a\n---\n']) {
       expect(frontMatterEnd(body.split('\n')), body).toBe(0);
       expect(propertiesOf(body), body).toEqual([]);
     }
+  });
+
+  it('read a list written as lines under its key, as Obsidian writes one (2026-10-31), the key with an empty value', () => {
+    const body = '---\ntags:\n  - a\n  - b\ntype: ticket\n---\n';
+    expect(frontMatterEnd(body.split('\n'))).toBe(6);
+    expect(propertiesOf(body)).toEqual([
+      { key: 'tags', value: '', line: 1 },
+      { key: 'type', value: 'ticket', line: 4 },
+    ]);
+  });
+});
+
+/**
+ * The two shapes (docs/MARKDOWN_FIRST.md §11; Matt, 2026-10-31: "one block, phased"): the page's block alone, as it has
+ * been, and ONE block with the library's keys (`id`, `created`, `pinned`, `archived`, `source`) beside the page's, in any
+ * order, as Obsidian writes a note and as a merged body will arrive once the writers switch. The readers answer the same
+ * for both, and the ticket's key, the one key the shapes fight over, is read as `issue:` too and never from the library's `id:`.
+ */
+describe('the one-block shape', () => {
+  const pageOnly = '---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\ndue: 2026-10-03\nlabels: [bug, ui]\n---\n# Fix the login loop\n';
+  const merged =
+    '---\nid: 7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6\ntype: ticket\ncreated: 2026-09-14T10:32:10.123Z\nissue: GHO-12\nstatus: In progress\npinned: true\nassignee: Sam\nsource: capture\ndue: 2026-10-03\nlabels: [bug, ui]\narchived: 2026-09-15T08:00:00.000Z\n---\n# Fix the login loop\n';
+
+  it('leaves the library’s keys out of the page’s properties', () => {
+    expect(propertiesOf(merged).map((p) => p.key)).toEqual(['type', 'issue', 'status', 'assignee', 'due', 'labels']);
+    expect(propertiesOf(merged).map((p) => p.value)).toEqual(propertiesOf(pageOnly).map((p) => p.value));
+    expect(propertiesOf(merged).map((p) => p.line)).toEqual([2, 4, 5, 7, 9, 10]);
+    expect(propertiesOf('---\nid: GHO-12\ntype: ticket\n---\n').map((p) => p.key)).toEqual(['id', 'type']);
+  });
+
+  it('reads the ticket and its key the same from either shape, from issue: or an id: that is one', () => {
+    expect(ticketOf(merged)).toEqual(ticketOf(pageOnly));
+    expect(ticketIdOf(merged)).toBe('GHO-12');
+    expect(ticketIdOf('---\ntype: ticket\nissue: gho-3\nid: GHO-12\n---\n')).toBe('GHO-3');
+    expect(ticketIdOf('---\nid: 7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6\ntype: ticket\nstatus: Done\n---\n')).toBeNull();
+    expect(isTicket(merged)).toBe(true);
+    // The minimum: `type: ticket`, in any case, in whichever shape; a status and a due day alone are a page's properties.
+    expect(isTicket('---\nid: 7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6\nstatus: To do\ndue: 2026-11-01\n---\n')).toBe(false);
+    expect(ticketOf('---\ntype: ticket\nstatus: Done\ndue: 2026-11-01\ntags:\n  - bug\n---\n# From Obsidian\n')).toMatchObject({ id: null, status: 'Done', category: 'done', due: '2026-11-01' });
+  });
+
+  it('writes a page key into the one block without a second block, and round-trips either shape', () => {
+    expect(withProperty(pageOnly, 'status', 'In progress')).toBe(pageOnly);
+    expect(withProperty(merged, 'status', 'In progress')).toBe(merged);
+    expect(withProperty(merged, 'status', 'Done')).toBe(merged.replace('status: In progress', 'status: Done'));
+    expect(withProperty(merged, 'estimate', '3').split('\n').filter((line) => line === '---')).toHaveLength(2);
   });
 });
 

@@ -250,23 +250,35 @@ fn without_front_matter<'a>(lines: &'a [&'a str]) -> (Option<String>, &'a [&'a s
 
 /// The page's `frontMatterEnd` (core/frontMatter.ts): the index of the line
 /// after the closing fence, or 0 where there is no front matter. That is a
-/// fence (`---` or `+++`) on the first line, then only `key:` lines and blank
-/// ones, then a fence within the first 40 lines. A note that opens with a
-/// rule and some words opens with a rule. The file's own front matter is read
-/// by another rule (frontmatter.rs `split`), which the page never sees.
+/// fence (`---` or `+++`) on the first line, then only `key:` lines, blank
+/// ones and a list's items under a key (`  - bugbash`, as Obsidian writes a
+/// `tags:` list), then a fence within the first 40 lines. A note that opens
+/// with a rule and some words opens with a rule. The file's own front matter
+/// is read by another rule (frontmatter.rs `split`), which the page never sees.
 fn front_matter_end(lines: &[&str]) -> usize {
     if !lines.first().is_some_and(|line| is_fence(line)) {
         return 0;
     }
+    let mut under_key = false;
     for (n, line) in lines.iter().enumerate().take(FRONT_MATTER_LINES).skip(1) {
         if is_fence(line) {
             return n + 1;
         }
-        if !is_key_line(line) && !line.trim().is_empty() {
+        if is_key_line(line) {
+            under_key = true;
+        } else if line.trim().is_empty() {
+            under_key = false;
+        } else if !under_key || !is_item_line(line) {
             return 0;
         }
     }
     0
+}
+
+/// A list's item under a key: the page's `^\s*-(?:\s|$)`.
+fn is_item_line(line: &str) -> bool {
+    let rest = line.trim_start();
+    rest.strip_prefix('-').is_some_and(|after| after.is_empty() || after.starts_with(char::is_whitespace))
 }
 
 /// A front matter fence on a line of its own: the page's `FENCE`.

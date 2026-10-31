@@ -9,6 +9,68 @@
 //! lists). Writing replaces only the lines of a key whose value changes, and
 //! appends a key that wasn't there. Everything else (unknown keys, nested maps,
 //! comments, blank lines, the person's quoting) comes back byte for byte.
+//!
+//! Two shapes of file (docs/MARKDOWN_FIRST.md §11, Matt, 2026-10-31: "one block,
+//! phased"). Until now a note with page properties was written as TWO blocks:
+//! the library's (`LIBRARY_KEYS`), then the page's (`type: ticket`, `status:`,
+//! `due:` ...), which the Dart side writes at the top of the body. Other apps
+//! write ONE block with every key in it, and that is where Ghost.md is going.
+//! `read` takes a file in either shape to the same two things, the library's
+//! block and the page's body (a body that opens with the page's own block, as
+//! the Dart side has always seen it), and `write` puts them back in the shape
+//! the file had: a one-block file stays one block, a two-block file stays two
+//! until `ONE_BLOCK` is on. Off, nothing writes a one-block file that wasn't
+//! one already; it goes on a release after every device reads both shapes.
+
+/// The keys the library manages, which are never the page's: a one-block file
+/// has them beside the page's keys, and `read` takes them out of the body. The
+/// Dart side's `libraryKeys` (lib/core/front_matter.dart) is this list.
+pub const LIBRARY_KEYS: &[&str] = &["id", "created", "updated", "source", "pinned", "archived", "trashed"];
+
+/// Whether writers merge the library's keys into the page's block (one `---`
+/// block in the file) rather than writing a block of their own above it. OFF:
+/// it goes on a release after every device reads both shapes
+/// (docs/MARKDOWN_FIRST.md §9 slice 7). Tests set it either way with
+/// `one_block_for_test`.
+pub const ONE_BLOCK: bool = false;
+
+#[cfg(test)]
+thread_local! {
+    static ONE_BLOCK_OVERRIDE: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// `ONE_BLOCK`, or what a test on this thread set it to.
+pub fn one_block() -> bool {
+    #[cfg(test)]
+    if let Some(set) = ONE_BLOCK_OVERRIDE.with(|cell| cell.get()) {
+        return set;
+    }
+    ONE_BLOCK
+}
+
+/// Sets `one_block` for the rest of this test thread.
+#[cfg(test)]
+pub fn one_block_for_test(on: bool) {
+    ONE_BLOCK_OVERRIDE.with(|cell| cell.set(Some(on)));
+}
+
+/// Whether `text` is a ticket's key, `GHO-12`: a letter, one to nine more
+/// letters or digits, a dash and a number of up to six figures, in any case
+/// (lib/core/properties.dart `issueKey`). A one-block ticket written by hand
+/// may say `id: GHO-12`, and that `id` is the page's, not the library's.
+pub fn is_issue_key(text: &str) -> bool {
+    let text = text.trim();
+    let Some((prefix, number)) = text.split_once('-') else { return false };
+    let mut prefix = prefix.chars();
+    let starts = prefix.next().is_some_and(|c| c.is_ascii_alphabetic());
+    let rest: Vec<char> = prefix.collect();
+    starts
+        && (1..=9).contains(&rest.len())
+        && rest.iter().all(|c| c.is_ascii_alphanumeric())
+        && (1..=6).contains(&number.len())
+        && number.starts_with(|c: char| ('1'..='9').contains(&c))
+        && number.chars().all(|c| c.is_ascii_digit())
+}
 
 /// A value Glyph reads or writes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -196,6 +258,138 @@ impl FrontMatter {
             !l.starts_with([' ', '\t', '#']) && l.split_once(':').is_some_and(|(key, _)| keys.contains(&key.trim()))
         })
     }
+
+    /// Whether the key starting on line `at` is the library's (`LIBRARY_KEYS`):
+    /// an `id` whose value is a ticket's key is the page's.
+    fn library_key_at(&self, at: usize) -> bool {
+        let Some(key) = key_of(&self.lines[at]) else { return false };
+        if !LIBRARY_KEYS.contains(&key) {
+            return false;
+        }
+        key != "id" || !self.text("id").is_some_and(|id| is_issue_key(&id))
+    }
+
+    /// The block in two: the library's lines (its keys' spans, and every line
+    /// that is no page key's: comments, blank lines) and the page's (the spans
+    /// of every other key). A two-block file's first block is all library.
+    fn parted(&self) -> (FrontMatter, FrontMatter) {
+        let mut library = Vec::new();
+        let mut page = Vec::new();
+        let mut at = 0;
+        while at < self.lines.len() {
+            let Some(key) = key_of(&self.lines[at]) else {
+                library.push(self.lines[at].clone());
+                at += 1;
+                continue;
+            };
+            let (start, end) = self.span(key).unwrap_or((at, at + 1));
+            let (start, end) = if start == at { (start, end) } else { (at, at + 1) };
+            let into = if self.library_key_at(at) { &mut library } else { &mut page };
+            into.extend(self.lines[start..end].iter().cloned());
+            at = end;
+        }
+        (FrontMatter { lines: library }, FrontMatter { lines: page })
+    }
+
+    /// The page's keys in this block, as a block of their own: empty for the
+    /// library's own block of a two-block file, and for one with nothing but the
+    /// library's keys and the person's comments.
+    pub fn page(&self) -> FrontMatter {
+        self.parted().1
+    }
+
+    /// Whether the block holds a key of the page's: the mark of a one-block file.
+    pub fn has_page_keys(&self) -> bool {
+        self.page().lines.iter().any(|line| key_of(line).is_some())
+    }
+
+    /// This block with the page's keys made `page`'s: as it stands where they
+    /// already are (so an unchanged page writes the file back byte for byte),
+    /// else the library's lines in their order and the page's after them.
+    pub fn with_page(&self, page: Option<&FrontMatter>) -> FrontMatter {
+        let (library, had) = self.parted();
+        let wanted = page.map(|page| self.page_lines_for(page)).unwrap_or_default();
+        if had.lines == wanted {
+            return self.clone();
+        }
+        FrontMatter { lines: library.lines.into_iter().chain(wanted).collect() }
+    }
+
+    /// `page`'s lines as one block can hold them beside the library's. The one
+    /// `id:` of a block the library has claimed is the library's, so a page's
+    /// `id: GHO-12` (the ticket key the Dart side still writes, until every
+    /// device reads `issue:`) is written `issue: GHO-12`, the key other tools
+    /// use, or left out where the page says `issue:` already. A block with no
+    /// library id yet takes the page's lines as they are.
+    fn page_lines_for(&self, page: &FrontMatter) -> Vec<String> {
+        let claimed = self.text("id").is_some_and(|id| !is_issue_key(&id));
+        let tickets = page.text("id").is_some_and(|id| is_issue_key(&id));
+        if !claimed || !tickets {
+            return page.lines.clone();
+        }
+        let has_issue = page.get("issue").is_some();
+        let mut lines = Vec::with_capacity(page.lines.len());
+        for line in &page.lines {
+            if key_of(line) == Some("id") {
+                if let Some(colon) = line.find(':').filter(|_| !has_issue) {
+                    lines.push(format!("issue:{}", &line[colon + 1..]));
+                }
+                continue;
+            }
+            lines.push(line.clone());
+        }
+        lines
+    }
+
+    /// Gives the library's `id` to this block. A one-block ticket written by
+    /// hand may hold its own `id: GHO-12`: that moves to `issue:`, the key
+    /// other tools use and every reader of ours reads too, so the library's id
+    /// doesn't take the ticket's.
+    pub fn claim_id(&mut self, id: &str) {
+        if let Some(had) = self.text("id").filter(|had| is_issue_key(had)) {
+            if self.get("issue").is_none() {
+                self.set("issue", Some(Value::Text(had)));
+            }
+        }
+        self.set("id", Some(Value::Text(id.to_string())));
+    }
+}
+
+/// A file in either shape read to the library's block and the page's body: the
+/// body the Dart side sees opens with the page's own block where the file has
+/// page keys, wherever the file keeps them. A two-block file reads as it always
+/// did (its first block, then the rest). A one-block file's page keys are taken
+/// out as a block at the top of the body; a first block with page keys that a
+/// second block follows (a file no app writes) is read as both blocks' page keys
+/// in one, and written back as one.
+pub fn read(text: &str) -> (FrontMatter, String) {
+    let (front, rest) = split(text);
+    let front = front.unwrap_or_default();
+    if !front.has_page_keys() {
+        return (front, rest.to_string());
+    }
+    let mut page = front.page();
+    let (second, rest) = match split(rest) {
+        (Some(second), after) => (Some(second), after),
+        (None, _) => (None, rest),
+    };
+    if let Some(second) = second {
+        page.lines.extend(second.lines);
+    }
+    (front, join(Some(&page), rest))
+}
+
+/// The file written from the library's block and the page's body, in the shape
+/// the file had: a one-block file (a block with page keys) takes the body's
+/// block into its own, a two-block file keeps the body's block as the second,
+/// and with `one_block()` on every file is written as one. Nothing of the
+/// person's goes: the library's lines keep their order and their comments.
+pub fn write(front: &FrontMatter, body: &str) -> String {
+    if !one_block() && !front.has_page_keys() {
+        return join(Some(front), body);
+    }
+    let (page, rest) = split(body);
+    join(Some(&front.with_page(page.as_ref())), rest)
 }
 
 #[cfg(test)]
@@ -254,6 +448,68 @@ mod tests {
         assert!(out.contains("answer: \"yes\"\n"));
         let (again, _) = split(&out);
         assert_eq!(again.unwrap().text("title").as_deref(), Some("Bugs: the list"));
+    }
+
+    const ONE_BLOCK_FILE: &str = "---\nstatus: To do\nid: 7c1e\n# the person's comment\ntags:\n  - bugbash\ncreated: 2026-09-14T10:32:10.123Z\ntype: ticket\npinned: true\n---\n# Loop\n\nIt loops.\n";
+    const TWO_BLOCK_FILE: &str = "---\nid: 7c1e\ncreated: 2026-09-14T10:32:10.123Z\n---\n---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Loop\n";
+
+    #[test]
+    fn a_one_block_file_reads_as_the_librarys_block_and_the_pages_body() {
+        let (front, body) = read(ONE_BLOCK_FILE);
+        assert_eq!(front.text("id").as_deref(), Some("7c1e"));
+        assert!(front.flag("pinned") && front.has_page_keys());
+        assert_eq!(body, "---\nstatus: To do\ntags:\n  - bugbash\ntype: ticket\n---\n# Loop\n\nIt loops.\n", "the page's keys with their lists, in their order; the comment stays the library's");
+        assert_eq!(write(&front, &body), ONE_BLOCK_FILE, "an unchanged page writes the file back byte for byte");
+        let (two_front, two_body) = read(TWO_BLOCK_FILE);
+        assert!(!two_front.has_page_keys());
+        assert_eq!(two_body, "---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Loop\n", "a two-block file reads as it always did");
+        assert_eq!(write(&two_front, &two_body), TWO_BLOCK_FILE);
+        assert_eq!(read("# Plain\n"), (FrontMatter::new(), "# Plain\n".to_string()));
+    }
+
+    #[test]
+    fn a_changed_page_is_written_into_the_one_block_and_a_second_block_never_made() {
+        let (mut front, body) = read(ONE_BLOCK_FILE);
+        front.set("pinned", None);
+        let out = write(&front, &body.replace("status: To do", "status: Done"));
+        assert_eq!(out, "---\nid: 7c1e\n# the person's comment\ncreated: 2026-09-14T10:32:10.123Z\nstatus: Done\ntags:\n  - bugbash\ntype: ticket\n---\n# Loop\n\nIt loops.\n");
+        assert_eq!(write(&front, "# Loop\n"), "---\nid: 7c1e\n# the person's comment\ncreated: 2026-09-14T10:32:10.123Z\n---\n# Loop\n", "every page key taken off leaves the library's");
+        // A first block with page keys that a second block follows reads as one page and writes back as one block.
+        let (front, body) = read("---\nid: x\ntags: [a]\n---\n---\ntype: ticket\n---\n# Both\n");
+        assert_eq!(body, "---\ntags: [a]\ntype: ticket\n---\n# Both\n");
+        assert_eq!(write(&front, &body), "---\nid: x\ntags: [a]\ntype: ticket\n---\n# Both\n");
+    }
+
+    #[test]
+    fn a_tickets_id_is_the_pages_and_gives_way_to_issue_when_the_library_claims_the_line() {
+        assert!(is_issue_key("GHO-12") && is_issue_key("gho-1") && is_issue_key(" A1-999999 "));
+        assert!(!is_issue_key("7c1e") && !is_issue_key("G-1") && !is_issue_key("GHO-0") && !is_issue_key("GHO-1234567") && !is_issue_key("1A-2") && !is_issue_key("ABCDEFGHIJK-1"));
+        let (front, body) = read("---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Loop\n");
+        assert_eq!(front.text("id").as_deref(), Some("GHO-12"), "the block still says it");
+        assert_eq!(body, "---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Loop\n", "but it is the page's key, not the library's");
+        let mut front = front;
+        front.claim_id("7c1e");
+        assert_eq!(join(Some(&front), ""), "---\ntype: ticket\nid: 7c1e\nstatus: To do\nissue: GHO-12\n---\n", "the line is the library's, the key moved to issue:");
+        // The page still says `id: GHO-12` (the key the Dart side writes today): merged into the claimed block it is `issue:`.
+        assert_eq!(write(&front, &body), "---\nid: 7c1e\ntype: ticket\nissue: GHO-12\nstatus: To do\n---\n# Loop\n");
+        assert_eq!(write(&front, "---\ntype: ticket\nid: GHO-12\nissue: GHO-12\n---\n# Loop\n"), "---\nid: 7c1e\ntype: ticket\nissue: GHO-12\n---\n# Loop\n", "said twice, the id line goes");
+        let mut plain = FrontMatter::new();
+        plain.set("id", Some(Value::Text("7c1e".into())));
+        plain.claim_id("7c1e");
+        assert_eq!(plain.get("issue"), None, "a library id is claimed in place");
+    }
+
+    #[test]
+    fn with_one_block_on_a_two_block_file_is_written_as_one() {
+        one_block_for_test(true);
+        let (front, body) = read(TWO_BLOCK_FILE);
+        assert_eq!(write(&front, &body), "---\nid: 7c1e\ncreated: 2026-09-14T10:32:10.123Z\ntype: ticket\nissue: GHO-12\nstatus: To do\n---\n# Loop\n");
+        assert_eq!(write(&front, "# Loop\n"), "---\nid: 7c1e\ncreated: 2026-09-14T10:32:10.123Z\n---\n# Loop\n");
+        let mut fresh = FrontMatter::new();
+        fresh.set("id", Some(Value::Text("n1".into())));
+        assert_eq!(write(&fresh, "---\nbook: true\n---\n# Book\n"), "---\nid: n1\nbook: true\n---\n# Book\n");
+        one_block_for_test(false);
+        assert_eq!(write(&fresh, "---\nbook: true\n---\n# Book\n"), "---\nid: n1\n---\n---\nbook: true\n---\n# Book\n", "off: two blocks as before");
     }
 
     #[test]

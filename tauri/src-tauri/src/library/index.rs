@@ -12,7 +12,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension};
 
 use super::dates::parse_iso;
-use super::frontmatter::split;
+use super::frontmatter::{is_issue_key, read};
 use super::names::title_of;
 use super::sidecar::Sidecar;
 use super::vault::Entry;
@@ -170,10 +170,10 @@ impl Library {
     /// revision moved on when the body changed.
     pub(super) fn index_file(&mut self, entry: &Entry) -> Result<()> {
         let Ok(text) = self.vault.read(&entry.path) else { return Ok(()) };
-        let (front, body) = split(&text);
-        let front = front.unwrap_or_default();
+        let (front, body) = read(&text);
         let at_path = self.row_at(&entry.path)?;
-        let named = front.text("id").filter(|id| !id.trim().is_empty());
+        // A one-block ticket written by hand may say `id: GHO-12`: that is the ticket's key, not a note's id.
+        let named = front.text("id").filter(|id| !id.trim().is_empty() && !is_issue_key(id));
         let (id, id_in_file) = match named {
             Some(id) => match self.row(&id)? {
                 // The same id at another path that still exists: this file is a copy, and gets its own.
@@ -210,7 +210,7 @@ impl Library {
             rusqlite::params![
                 id,
                 entry.path,
-                body,
+                &body,
                 created_at,
                 entry.modified_ms,
                 front.text("source").unwrap_or_else(|| "editor".to_string()),
@@ -221,7 +221,7 @@ impl Library {
                 sidecar.formatted_for,
                 sidecar.formatted_model,
                 prior_revision,
-                title_of(body),
+                title_of(&body),
                 entry.size as i64,
             ],
         )?;

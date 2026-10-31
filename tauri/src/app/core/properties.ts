@@ -1,5 +1,5 @@
 import { isIsoDay } from './days.ts';
-import { frontMatterEnd, frontMatterValue, unquoted, withFrontMatterValue } from './frontMatter.ts';
+import { frontMatterEnd, frontMatterValue, isLibraryProperty, ticketKeyValue, unquoted, withFrontMatterValue } from './frontMatter.ts';
 import { isDoneName } from './itemSyntax.ts';
 import { priorityOf, type PriorityName } from './taskFields.ts';
 
@@ -54,7 +54,12 @@ export function propertiesOf(body: string): Property[] {
   const found: Property[] = [];
   for (let line = 1; line < end - 1; line += 1) {
     const said = PROPERTY_LINE.exec(lines[line] ?? '');
-    if (said) found.push({ key: said[1] ?? '', value: unquoted((said[2] ?? '').trim()), line });
+    if (!said) continue;
+    const key = said[1] ?? '';
+    const value = unquoted((said[2] ?? '').trim());
+    // The library's own keys, which a one-block body carries beside the page's, are not the page's properties.
+    if (isLibraryProperty(key, value)) continue;
+    found.push({ key, value, line });
   }
   return found;
 }
@@ -298,9 +303,12 @@ export function notebookKey(notebook: string): string | null {
   return PROJECT_KEY.test(key) ? key : null;
 }
 
-/** A ticket's id, its `id:` as an issue key (`issueKeyOf`); null where it has none or it is not one. */
+/**
+ * A ticket's id as an issue key (`issueKeyOf`): its `issue:`, else an `id:` that is one (core/frontMatter.ts
+ * `ticketKeyValue`); null where it has neither. A one-block note's `id:` is the library's and never read as a ticket's.
+ */
 export function ticketIdOf(body: string): string | null {
-  return issueKeyOf(frontMatterValue(body, 'id'));
+  return issueKeyOf(ticketKeyValue(body));
 }
 
 /**

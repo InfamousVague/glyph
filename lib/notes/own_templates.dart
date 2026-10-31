@@ -60,8 +60,9 @@ String templatePageBody(NoteTemplate template) {
   return look != null ? withLook(named, look) : named;
 }
 
-/// A ticket's own keys, in the order a new ticket writes them (`core/properties.ts` `TICKET_PROPERTIES`).
-const List<String> ticketPropertyKeys = ['type', 'id', 'status', 'assignee', 'priority', 'due', 'start', 'estimate', 'blocked-by', 'parent', 'labels'];
+/// A ticket's own keys, in the order a new ticket writes them (`core/properties.ts` `TICKET_PROPERTIES`), and `issue`,
+/// the ticket's key as other tools write it (lib/core/front_matter.dart `ticketKeyIn`).
+const List<String> ticketPropertyKeys = ['type', 'id', 'issue', 'status', 'assignee', 'priority', 'due', 'start', 'estimate', 'blocked-by', 'parent', 'labels'];
 
 final RegExp _propertyLine = RegExp(r'^([\w.-]+)[ \t]*:(.*)$');
 

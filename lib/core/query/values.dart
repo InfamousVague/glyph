@@ -298,7 +298,8 @@ Value _noteValue(QueryRecord record, String field) {
   if (field == 'checked') return ticket != null ? BoolValue(on: ticket.category == StatusCategory.done) : emptyValue;
   if (field == 'status') return _status(ticket != null ? ticket.status : said, record.workflow);
   if (ticket != null) {
-    if (field == 'id') return _text(ticket.id ?? said);
+    // The ticket's key, under either key it is written as (lib/core/front_matter.dart `ticketKeyIn`).
+    if (field == 'id' || field == 'issue') return _text(ticket.id ?? said);
     if (field == 'priority') return ticket.priority != null ? PriorityValue(ticket.priority) : _typed(field, said, record.workflow);
     if (field == 'assignee') return _people(propertyList(said));
     if (field == 'estimate' && ticket.estimate != null) {
