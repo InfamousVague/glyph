@@ -1,0 +1,634 @@
+/*
+ * The site's chrome (page.tsx): the reader page's look (Reader.module.css, Site.module.css) laid out as a small website
+ * with a folder tree down the side. The tokens are the app's (app.css, ink.css, the kit's tokens.css), so a page reads
+ * here as it does in Ghost.md, in light or dark as the system is. No script lays anything out: the menu on a phone is a
+ * checkbox, a folder is a `<details>`, a meeting's Summary | Transcript two radio buttons.
+ */
+
+.site {
+  min-block-size: 100dvh;
+  margin: 0;
+  color: var(--glacier-text);
+  background: var(--glacier-bg);
+  /* app.css turns rubber-banding off for the phone shell; a page scrolls. */
+  overscroll-behavior: auto;
+}
+
+.bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-2) var(--app-gutter);
+  background: var(--app-paper-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.siteTitle {
+  flex: 1;
+  /* Never squeezed to nothing by the search on a phone: the name shows at least its first word. */
+  min-inline-size: 5rem;
+  overflow: hidden;
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuBox {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.menuButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35em;
+  min-block-size: 2rem;
+  padding: 0 0.75em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  color: var(--glacier-text);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+  user-select: none;
+}
+
+.search {
+  flex: 0 1 16rem;
+  min-inline-size: 5rem;
+}
+
+@media (max-width: 34rem) {
+  .search {
+    flex-basis: 9rem;
+  }
+}
+
+.search input {
+  inline-size: 100%;
+  min-block-size: 2rem;
+  padding: 0 0.75em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper);
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.search input:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring, var(--app-ink));
+  outline-offset: 1px;
+}
+
+.body {
+  display: block;
+}
+
+/* The folder tree: behind Pages on a phone, down the side from a Fold's inner screen up. */
+.side {
+  display: none;
+  padding: var(--glacier-space-3) var(--app-gutter);
+  background: var(--app-paper-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.menuBox:checked ~ .body .side {
+  display: block;
+}
+
+.main {
+  max-inline-size: 48rem;
+  min-inline-size: 0;
+  margin: 0 auto;
+  padding: var(--glacier-space-5) var(--app-gutter) 0;
+}
+
+@media (min-width: 56rem) {
+  .menuButton {
+    display: none;
+  }
+
+  .body {
+    display: grid;
+    grid-template-columns: 16rem minmax(0, 48rem);
+    justify-content: center;
+    gap: var(--glacier-space-6);
+    padding-inline: var(--app-gutter);
+  }
+
+  .side,
+  .menuBox:checked ~ .body .side {
+    display: block;
+    position: sticky;
+    inset-block-start: 3.25rem;
+    align-self: start;
+    max-block-size: calc(100dvh - 4rem);
+    overflow-y: auto;
+    padding: var(--glacier-space-5) 0;
+    background: none;
+    border: none;
+  }
+
+  .main {
+    margin: 0;
+    padding-inline: 0;
+  }
+}
+
+.list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: block;
+  padding: 0.4em 0.75em;
+  border-radius: var(--glacier-radius-md);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.35;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+  color: var(--glacier-text);
+}
+
+.item[aria-current='page'] {
+  background: color-mix(in srgb, var(--glacier-text) 9%, transparent);
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.item[data-pinned]::before {
+  content: '★ ';
+  color: var(--app-ink-3);
+}
+
+.folder {
+  margin-block-start: var(--glacier-space-2);
+}
+
+.folder > summary {
+  padding: var(--glacier-space-2) 0.65rem var(--glacier-space-1);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  cursor: pointer;
+  user-select: none;
+}
+
+.folder .folder {
+  margin-inline-start: 0.65rem;
+}
+
+.crumbs {
+  margin-block-end: var(--glacier-space-3);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+}
+
+.crumbs a {
+  color: inherit;
+}
+
+.title {
+  margin: 0 0 var(--glacier-space-4);
+  font-size: var(--glacier-font-size-3xl);
+  letter-spacing: var(--app-tracking-title);
+  line-height: 1.15;
+}
+
+.quiet {
+  color: var(--glacier-text-muted);
+}
+
+/* A ticket's or a notebook's front matter: its keys and values in two quiet columns over the words. */
+.properties {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25em 1em;
+  margin: 0 0 var(--glacier-space-5);
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.properties > div {
+  display: contents;
+}
+
+.properties dt {
+  color: var(--glacier-text-muted);
+}
+
+.properties dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.properties a {
+  color: var(--app-ink);
+}
+
+/* The fences the site draws itself (fences.tsx). */
+.fenceBox {
+  margin: 0 0 0.85em;
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
+  font-size: 0.94em;
+}
+
+.fenceBox table {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+
+.fenceBox th,
+.fenceBox td {
+  padding: 0.35em 0.6em;
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.fenceBox th {
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-muted);
+}
+
+.fenceBox tr[data-overdue] td[data-kind='day'] {
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.fenceBox h4 {
+  margin: 0.8em 0 0.3em;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+.fenceBox pre {
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-size: 0.88em;
+}
+
+.fenceNote {
+  margin: 0 0 0.5em;
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+}
+
+.queryList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* These lists are not the note's: no bullet from the reader's list rule (Rendered.module.css). */
+.queryList li::before,
+.board li::before,
+.threads li::before,
+.results li::before {
+  content: none;
+}
+
+.queryList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3em 0.6em;
+  padding: 0.3em 0;
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.queryList li[data-done] > a,
+.queryList li[data-done] > span:first-of-type {
+  color: var(--app-ink-3);
+  text-decoration: line-through;
+}
+
+.queryMeta {
+  color: var(--app-ink-3);
+  font-size: 0.85em;
+}
+
+.queryCount {
+  margin: 0;
+  font-size: var(--glacier-font-size-3xl);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.queryBoard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--glacier-space-3);
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--glacier-space-3);
+}
+
+.board ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board li {
+  padding: 0.4em 0.6em;
+  margin-block-end: 0.3em;
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-paper);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.board li[data-done] {
+  color: var(--app-ink-3);
+  text-decoration: line-through;
+}
+
+.formFields {
+  margin: 0;
+  padding-inline-start: 1.2em;
+}
+
+.fenceDetails {
+  margin: 0 0 0.85em;
+  padding: var(--glacier-space-2) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-md);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  font-size: 0.94em;
+}
+
+.fenceDetails > summary {
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.threads {
+  margin: 0.5em 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.threads > li {
+  padding: 0.5em 0;
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.threads li[data-resolved] {
+  color: var(--app-ink-3);
+}
+
+.threads p {
+  margin: 0 0 0.3em;
+}
+
+.threads time {
+  color: var(--app-ink-3);
+  font-size: 0.85em;
+}
+
+.threads ul {
+  margin: 0.3em 0 0 1em;
+  padding: 0;
+  list-style: none;
+}
+
+/* A canvas, still (canvas.tsx). */
+.canvasFigure {
+  margin: 0 0 var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  background: var(--app-paper-2);
+  overflow: hidden;
+}
+
+.canvasSvg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 75dvh;
+  color: var(--app-ink-3);
+  font-family: var(--glacier-font-sans);
+}
+
+.canvasCard {
+  fill: var(--app-paper);
+  stroke: var(--glacier-border);
+  stroke-width: 1.5;
+}
+
+.canvasGroup {
+  fill: color-mix(in srgb, var(--app-ink) 4%, transparent);
+  stroke: var(--glacier-border);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.canvasText {
+  fill: var(--app-ink);
+  font-size: 14px;
+}
+
+.canvasLabel {
+  fill: var(--app-ink-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.canvasEdge {
+  fill: none;
+  stroke: var(--app-ink-3);
+  stroke-width: 1.5;
+}
+
+/* A meeting: Summary | Transcript as two radio buttons, the pane the chosen one is drawn, the other not. */
+.meeting {
+  min-inline-size: 0;
+}
+
+.segmented {
+  display: flex;
+  max-inline-size: 22rem;
+  padding: 3px;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper-2);
+}
+
+.segmented input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented label {
+  flex: 1;
+  padding: 0.35em 0.8em;
+  border-radius: var(--glacier-radius-full);
+  text-align: center;
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+  user-select: none;
+}
+
+.segmented input:checked + label {
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.segmented input:focus-visible + label {
+  outline: 2px solid var(--glacier-focus-ring, var(--app-ink));
+}
+
+.summaryPane,
+.transcriptPane {
+  display: none;
+  min-inline-size: 0;
+}
+
+/* The ids are the page's own (page.tsx), not this module's to hash. */
+.meeting:has(:global(#view-summary):checked) .summaryPane,
+.meeting:has(:global(#view-transcript):checked) .transcriptPane {
+  display: block;
+}
+
+.tape {
+  inline-size: 100%;
+}
+
+/* The home page: the pinned notes, then the recent ones, as cards. */
+.homeHeading {
+  margin: var(--glacier-space-5) 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+  color: var(--app-ink-3);
+}
+
+.cards {
+  display: grid;
+  gap: var(--glacier-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: 0.2em;
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+}
+
+.card > a {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-semibold);
+  text-decoration: none;
+}
+
+.card > a:hover {
+  text-decoration: underline;
+}
+
+.card p {
+  margin: 0;
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.cardMeta {
+  color: var(--app-ink-3);
+  font-size: var(--glacier-font-size-xs);
+}
+
+/* The search's answers, drawn over the page by client/search.js. */
+.results {
+  margin: 0 0 var(--glacier-space-4);
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  background: var(--app-paper-2);
+}
+
+.results ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.results li {
+  padding: 0.35em 0;
+}
+
+.results a {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.results small {
+  display: block;
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+}
+
+.results mark {
+  background: var(--app-mark);
+  color: inherit;
+}
+
+.foot {
+  margin-block-start: var(--glacier-space-6);
+  padding-block: var(--glacier-space-5) var(--glacier-space-6);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  text-align: center;
+}
+
+.made {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.alone {
+  min-block-size: 100dvh;
+  padding-block-start: var(--glacier-space-6);
+}
+
+.alone a {
+  color: var(--app-ink);
+}

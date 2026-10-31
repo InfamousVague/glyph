@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "workspaces": { "Work": { "hue": "moss" }, "Home": { "hue": "sea" } },
+  "publish": {
+    "title": "The config's title",
+    "description": "Notes from a fixture library.",
+    "recent": 5
+  }
+}
