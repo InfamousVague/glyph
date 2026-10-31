@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.3.93",
+    "date": "2026-10-31",
+    "title": "A Gantt you can drag, and tickets that run themselves",
+    "items": [
+      {"icon": "chart-gantt", "words": "Gantt charts are plain Markdown you drag: move, resize and link tasks, and old Mermaid gantts convert in a tap.", "kind": "new"},
+      {"icon": "refresh-cw", "words": "Cycles with a burndown, estimates and velocity, epics and milestones, and priority chips with stale marks.", "kind": "new"},
+      {"icon": "list-filter", "words": "My tickets across every notebook, a Triage list worked by keys, and bulk edits with one Undo.", "kind": "new"},
+      {"icon": "tag", "words": "Coloured labels and components on tickets, filterable and groupable everywhere.", "kind": "new"},
+      {"icon": "flag", "words": "Rules like \"When status becomes Done, post to Slack\", GitHub PRs on tickets, and Start/Stop timers.", "kind": "new"},
+      {"icon": "eye", "words": "Watch tickets to hear of changes, see each ticket's history, and get a morning digest of what's due.", "kind": "new"},
+      {"icon": "copy", "words": "Possible duplicates are shown, and Merge into… moves comments and links with one Undo.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.3.92",
     "date": "2026-10-31",
     "title": "Twelve new things for your notes",
