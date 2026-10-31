@@ -266,9 +266,11 @@ class FakeService {
   final Map<String, StoredFile> files = {};
   ({int rev, String blob})? _prefs;
 
-  /// The links shared from the account, as stored: each share's sealed blob by its id, and when it was written, in
-  /// seconds. Not in the web's fake, whose share tests stand in for the call itself; here they go through the fetcher.
-  final Map<String, ({String blob, int updated})> shares = {};
+  /// The links shared from the account, as stored: each share's sealed blob by its id, when it was first and last
+  /// written, in seconds, and what the account's devices sealed about it under the account key (server/src/shares.rs,
+  /// the meta; null until a device writes one). Not in the web's fake, whose share tests stand in for the call itself;
+  /// here they go through the fetcher.
+  final Map<String, ({String blob, int created, int updated, String? meta})> shares = {};
 
   /// A shared meeting's recording as kept (server/src/shares.rs): its upload's id and its sealed parts, by share id.
   final Map<String, ({String upload, List<Uint8List> parts})> shareAudio = {};
@@ -657,13 +659,30 @@ class FakeService {
 
     // --- shared links (server/src/shares.rs): sealed blobs by id, the account's to write and take down ---
     if (path == 'shares' && method == 'GET') {
-      return _json(200, {'shares': [for (final MapEntry(:key, :value) in shares.entries) {'id': key, 'updated': value.updated}]});
+      return _json(200, {
+        'shares': [
+          for (final MapEntry(:key, :value) in shares.entries) {'id': key, 'created': value.created, 'updated': value.updated, 'meta': value.meta},
+        ],
+      });
     }
     if (share != null && method == 'PUT') {
       final blob = body['blob'];
       if (blob is! String || blob.isEmpty) return _refuse(400, 'That share is empty or too large.');
-      shares[Uri.decodeComponent(share[1]!)] = (blob: blob, updated: clock() ~/ 1000);
+      final id = Uri.decodeComponent(share[1]!);
+      final was = shares[id];
+      shares[id] = (blob: blob, created: was?.created ?? clock() ~/ 1000, updated: clock() ~/ 1000, meta: was?.meta);
       return _json(200, {'ok': true});
+    }
+    // What the account's devices seal about a share, kept beside it: after the share, and gone with it.
+    final shareMeta = RegExp(r'^shares/([^/]+)/meta$').firstMatch(path);
+    if (shareMeta != null && method == 'PUT') {
+      final id = Uri.decodeComponent(shareMeta[1]!);
+      final meta = body['meta'];
+      if (meta is! String || meta.isEmpty || meta.length > 4096) return _refuse(400, 'What that share says about itself could not be read.');
+      final was = shares[id];
+      if (was == null) return _refuse(404, 'There is no share of yours at that link. Share the note first.');
+      shares[id] = (blob: was.blob, created: was.created, updated: was.updated, meta: meta);
+      return _json(200, {'id': id});
     }
     if (share != null && method == 'DELETE') {
       final id = Uri.decodeComponent(share[1]!);

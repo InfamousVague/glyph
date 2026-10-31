@@ -26,9 +26,27 @@ import styles from './Rendered.module.css';
  * An embed on a line of its own, `![[Note#Heading]]` (embeds.ts), is drawn as the app draws it, a quoted card with the
  * page's title and the section in it, when that page is in the same share; any other is a "from [[Note]]" placeholder.
  * Two levels at most, and a page that would draw itself, or a page it is drawn inside of, is the placeholder too.
+ *
+ * A static site built from a library (publish/, docs/MARKDOWN_FIRST.md §8 and §11 decision 4; Matt, 2026-10-31: "build
+ * the publisher now") draws the same tree through `site`: a `[[wiki link]]` is then a plain `<a>` to the page's address
+ * (with its heading's anchor), a picture or a file the note links at `image/`, `file/`, `video/` or `recordings/` is
+ * the copy the site carries, a heading has an id, and a fence the site knows how to draw (a query's result, a form's
+ * description) is the site's to draw. Without `site` nothing here changes: the reader page is as it was.
  */
 
 const markdown = parser.configure([GFM, { remove: ['SetextHeading'] }]);
+
+/** How a static site resolves what a note points at (see the header). Every answer null leaves the reader's own drawing. */
+export interface SiteDraw {
+  /** A page's address for a `[[wiki link]]`, by the title and the anchor as written; null for a title with no page. */
+  hrefOf: (title: string, anchor: string | null) => string | null;
+  /** The site's address for a file a note links, `image/<name>`, `file/<name>`, `video/<name>`, `recordings/<name>`; null for one it has not got. */
+  fileHref: (target: string) => string | null;
+  /** A fence drawn the site's way, by its info word and its code; undefined leaves it to the reader. */
+  fence?: (info: string, code: string) => ReactNode | undefined;
+  /** A heading's id, from its words as written. */
+  headingId?: (text: string) => string;
+}
 
 /** Where a link may go. */
 function safeHref(url: string): string | null {
@@ -56,6 +74,8 @@ interface Draw {
   /** How many embeds deep these words are, and the pages they are drawn inside of, by their titles' keys. */
   depth: number;
   within: ReadonlySet<string>;
+  /** A static site's resolutions (the header); undefined on the reader page. */
+  site?: SiteDraw;
 }
 
 const SKIPPED = new Set(['HeaderMark', 'EmphasisMark', 'CodeMark', 'LinkMark', 'QuoteMark', 'ListMark', 'TaskMarker', 'StrikethroughMark', 'CodeInfo', 'LinkTitle', 'LinkLabel', 'URL']);
@@ -66,9 +86,31 @@ function children(node: SyntaxNode): SyntaxNode[] {
   return out;
 }
 
-/** A `[[wiki link]]`: a page of the share opens; anything else is its words. */
+/** What a `[[Note|alias]]` shows: its alias, else the link as written. */
+function wikiShown(link: WikiLink, d: Draw): string {
+  const inside = d.text.slice(link.from + 2, link.to - 2).trim();
+  const bar = inside.indexOf('|');
+  return bar >= 0 && d.site ? inside.slice(bar + 1).trim() || inside : inside;
+}
+
+/** A `[[wiki link]]`: a page of the share opens; anything else is its words. On a site, a link to the page's address. */
 function wiki(link: WikiLink, d: Draw, key: string): ReactNode {
-  const shown = d.text.slice(link.from + 2, link.to - 2).trim();
+  const shown = wikiShown(link, d);
+  if (d.site) {
+    // `[[Note|alias]]`: the alias is not part of the anchor.
+    const anchor = link.anchor ? link.anchor.split('|')[0]!.trim() || null : null;
+    const title = link.title.split('|')[0]!.trim();
+    const href = d.site.hrefOf(title, anchor);
+    return href ? (
+      <a key={key} className={styles.wiki} href={href}>
+        {shown}
+      </a>
+    ) : (
+      <span key={key} className={styles.wikiPlain} title={`No page called “${title}”`}>
+        {shown}
+      </span>
+    );
+  }
   return d.known(link.title) ? (
     <button key={key} type="button" className={styles.wiki} onClick={() => d.open(link.title)}>
       {shown}
@@ -143,9 +185,18 @@ function inlineNode(node: SyntaxNode, d: Draw, key: string): ReactNode {
     }
     case 'Link': {
       const url = children(node).find((c) => c.name === 'URL');
-      const href = url ? safeHref(slice(url)) : null;
       const inner = bracketed(node);
       const content = inline(node, d, key, inner.from, inner.to);
+      // On a site, a file the note links (`[x.pdf](file/…)`, a tape at `recordings/…`) is the site's own copy.
+      const kept = url && d.site ? d.site.fileHref(slice(url).trim()) : null;
+      if (kept) {
+        return (
+          <a key={key} href={kept}>
+            {content}
+          </a>
+        );
+      }
+      const href = url ? safeHref(slice(url)) : null;
       return href ? (
         <a key={key} href={href} target="_blank" rel="noopener noreferrer">
           {content}
@@ -159,6 +210,13 @@ function inlineNode(node: SyntaxNode, d: Draw, key: string): ReactNode {
       const inner = bracketed(node);
       const alt = d.text.slice(inner.from, inner.to);
       const target = url ? slice(url).trim() : '';
+      if (d.site) {
+        // The site's copy of the picture, or the film; one it has not got is its words.
+        const kept = d.site.fileHref(target);
+        if (kept && target.startsWith('video/')) return <video key={key} className={styles.picture} src={kept} controls preload="metadata" aria-label={alt || 'A film'} />;
+        if (kept) return <img key={key} className={styles.picture} src={kept} alt={alt} loading="lazy" />;
+        if (/^(image|file|video|recordings)\//.test(target)) return <span key={key} className={styles.missing}>{alt || 'A picture that isn’t in the library.'}</span>;
+      }
       if (target.startsWith('image/')) return <Picture key={key} name={target.slice('image/'.length)} alt={alt} />;
       const href = safeHref(target);
       return href ? (
@@ -296,7 +354,18 @@ function embedded(embed: Embed, d: Draw, key: string): ReactNode {
     <blockquote key={key} className={styles.embed} data-embed="" aria-label={`From ${label}`}>
       <div className={styles.embedHead}>
         <LinkMark />
-        {d.known(embed.title) ? (
+        {d.site ? (
+          (() => {
+            const href = d.site.hrefOf(embed.title, embed.anchor);
+            return href ? (
+              <a className={styles.embedTitle} href={href}>
+                {label}
+              </a>
+            ) : (
+              <span className={styles.embedTitle}>{label}</span>
+            );
+          })()
+        ) : d.known(embed.title) ? (
           <button type="button" className={styles.embedTitle} onClick={() => d.open(embed.title)}>
             {label}
           </button>
@@ -314,7 +383,10 @@ function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
   if (heading) {
     // The words after `# `, not the space that parts them from it.
     const mark = children(node).find((c) => c.name === 'HeaderMark' && c.from === node.from);
-    return createElement(`h${heading[1]}`, { key }, inline(node, d, key, skipSpace(d.text, mark ? mark.to : node.from)));
+    const from = skipSpace(d.text, mark ? mark.to : node.from);
+    // On a site a heading has an id, so `[[Note#Heading]]` can land on it.
+    const id = d.site?.headingId ? d.site.headingId(d.text.slice(from, node.to)) || undefined : undefined;
+    return createElement(`h${heading[1]}`, { key, id }, inline(node, d, key, from));
   }
   switch (node.name) {
     case 'Paragraph': {
@@ -360,8 +432,14 @@ function block(node: SyntaxNode, d: Draw, key: string): ReactNode {
         .filter((c) => c.name === 'CodeText')
         .map((c) => d.text.slice(c.from, c.to))
         .join('\n');
+      const word = info ? d.text.slice(info.from, info.to).trim() : '';
+      // A site draws the fences it knows (a query's result, a form's fields); what it leaves is drawn as here.
+      if (d.site?.fence) {
+        const drawn = d.site.fence(word, code);
+        if (drawn !== undefined) return <div key={key}>{drawn}</div>;
+      }
       // A ```gantt fence is its list, drawn readably (gantt.ts): the reader draws no charts.
-      if (info && d.text.slice(info.from, info.to).trim().toLowerCase() === 'gantt') return <GanttRead key={key} body={code} />;
+      if (word.toLowerCase() === 'gantt') return <GanttRead key={key} body={code} />;
       return (
         <pre key={key} className={styles.code} data-lang={info ? d.text.slice(info.from, info.to) : undefined}>
           <code>{code}</code>
@@ -445,15 +523,18 @@ export function Rendered({
   known = () => false,
   open = () => undefined,
   bodyOf = () => null,
+  site,
 }: {
   body: string;
   known?: (title: string) => boolean;
   open?: (title: string) => void;
   /** The share's pages' words by title, for its embeds (see the header). */
   bodyOf?: (title: string) => string | null;
+  /** A static site's resolutions (the header); left out on the reader page. */
+  site?: SiteDraw;
 }) {
   const text = useMemo(() => body.slice(frontMatterOffset(body)), [body]);
   const tree = useMemo(() => markdown.parse(text), [text]);
   const own = titleKey(noteTitle(body));
-  return <div className={styles.rendered}>{blocks(tree.topNode, { text, known, open, bodyOf, depth: 0, within: new Set(own ? [own] : []) }, 'b')}</div>;
+  return <div className={styles.rendered}>{blocks(tree.topNode, { text, known, open, bodyOf, depth: 0, within: new Set(own ? [own] : []), site }, 'b')}</div>;
 }

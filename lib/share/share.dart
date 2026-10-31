@@ -13,6 +13,18 @@
 /// ([ShareEntry.places]): a share follows every save, so a tag added to a note shared last week would otherwise
 /// publish the coordinates to everyone holding the link. The opt-in is the design; there is no rounding fallback.
 ///
+/// A SHARE SURVIVES A RESTORE (2026-10-31; docs/MARKDOWN_FIRST.md §11 decision 8, "the sites model"). The key in the
+/// link lived only in the synced settings, so a person who restored their notes from a repository, or lost the
+/// settings, lost every link: readers kept reading the last blob and the owner could neither update nor stop it. Now,
+/// as a published site does (lib/share/sites.dart), each share's device also seals what it knows of the share -
+/// [shareMetaOf]: the note's id, the key, the three switches, the recording's descriptor - under the ACCOUNT key in
+/// the context `share:<id>`, and keeps it on the service beside the blob (`PUT shares/{id}/meta`; server/src/shares.rs),
+/// which the service cannot open and never shows a reader. The settings keep their entry for a release, read first and
+/// written through. On sign-in ([Shares.restoreShares]; and once at launch) the account's shares are listed with their
+/// metas, each is opened, and any the settings lack is put back: the same id, the same key, the link unchanged. And the
+/// note itself says it is shared: `share: <id>` in its page's front matter ([shareMarkerKey]), the id and never the key,
+/// so a restored file whose id changed is still found by its marker; it is left out of what the share carries.
+///
 /// What differs:
 /// - The page's module state is [Shares], made with the account, the [Api], the crypto, the preferences, the notes
 ///   and the pictures; the pure halves ([sharedOf], [sealShare], [openShare], [withPictures], [forkShared],
@@ -118,6 +130,48 @@ class Shared {
 
 /// The context a share is sealed in: a synced note's ciphertext cannot be passed off as a share, nor the reverse.
 const String shareContext = 'glyph/v1/share';
+
+/// The context what the account's devices keep about a share is sealed in, under the account key (see the header).
+String shareMetaContext(String id) => 'share:$id';
+
+/// The page front matter key that says a note is shared, by the share's id (see the header). Never the key.
+const String shareMarkerKey = 'share';
+
+/// What a device seals about [noteId]'s share, under the account key: enough to share the note again at the same link
+/// with the same switches, and to name the recording its share carries.
+Map<String, Object?> shareMetaOf(String noteId, ShareEntry kept) => {
+      'v': 1,
+      'noteId': noteId,
+      'key': kept.key,
+      if (kept.place) 'place': true,
+      if (kept.places) 'places': true,
+      if (!kept.recording) 'recording': false,
+      if (kept.audio != null) 'audio': kept.audio,
+    };
+
+/// A share's meta, opened, as an entry under the share's [id]: null for one this build cannot read.
+({String noteId, ShareEntry entry})? shareEntryOfMeta(String id, Object? meta) {
+  if (meta is! Map || meta['v'] != 1 || meta['noteId'] is! String || meta['key'] is! String) return null;
+  final key = meta['key'] as String;
+  if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(key)) return null;
+  return (
+    noteId: meta['noteId'] as String,
+    entry: ShareEntry(
+      id: id,
+      key: key,
+      place: meta['place'] == true,
+      places: meta['places'] == true,
+      recording: meta['recording'] != false,
+      audio: meta['audio'] is Map ? Map.unmodifiable((meta['audio'] as Map).map((key, value) => MapEntry('$key', value))) : null,
+    ),
+  );
+}
+
+/// The share's id a note's page front matter names, or null.
+String? shareMarkerOf(String body) {
+  final marked = frontMatterValue(body, shareMarkerKey);
+  return marked != null && RegExp(r'^[A-Za-z0-9_-]{22,64}$').hasMatch(marked.trim()) ? marked.trim() : null;
+}
 
 /// Where a reader reads: the small page (read.html), on ghostmarkdown.com (`READER_URL`). `--dart-define
 /// GLYPH_READER=…` names another, as the page's `VITE_GLYPH_READER` does.
@@ -321,7 +375,10 @@ String _titleOf(String body) {
 /// the words unless [places] does (see the header). [at] is when, the clock's unless given.
 Shared sharedOf(Note note, List<Note> notes, {bool place = false, bool places = false, int? at}) {
   String carried(String body) {
-    final tagged = place ? body : withoutGeoTag(body);
+    // The marker that says the note is shared is the library's, not the reader's: left out, so the share reads the
+    // same before and after it was written.
+    final unmarked = frontMatterValue(body, shareMarkerKey) == null ? body : withFrontMatterValue(body, shareMarkerKey, null);
+    final tagged = place ? unmarked : withoutGeoTag(unmarked);
     return places ? tagged : withoutPlaces(tagged);
   }
 
@@ -379,8 +436,10 @@ class Shares extends ChangeNotifier {
   /// [listNotes] reads this device's notes (`listNotes`); [prefs] is where the shares are kept.
   /// [recordings] reads this device's meeting recordings, for a share that carries one (lib/share/share_audio.dart);
   /// without it no share carries a recording, though one sent from another device is still named.
-  Shares({required this.account, required this.api, required this.crypto, required this.prefs, required this.pictures, required this.listNotes, this.recordings}) {
+  Shares({required this.account, required this.api, required this.crypto, required this.prefs, required this.pictures, required this.listNotes, this.recordings, this.save}) {
     prefs.addListener(notifyListeners);
+    _for = account.session?.accountId;
+    account.addListener(_accountChanged);
   }
 
   final AccountSource account;
@@ -390,6 +449,10 @@ class Shares extends ChangeNotifier {
   final SharePictures pictures;
   final Future<List<Note>> Function() listNotes;
   final ShareRecordings? recordings;
+
+  /// Writes a note's words here, as a save of the person's own (`CoreLibrary.save`), for the `share:` marker (see the
+  /// header); the root gives it once the library is open. Without one no marker is written, and none is taken off.
+  Future<void> Function(Note note, String body)? save;
 
   /// The recordings being sent, by note id, with how much of each has gone (0 to 1).
   final ValueNotifier<Map<String, double>> audioSending = ValueNotifier(const {});
@@ -490,8 +553,152 @@ class Shares extends ChangeNotifier {
     final all = _readKept();
     all[note.id] = (all[note.id] ?? kept).copyWith(recording: kept.recording, sent: shareDigest(shared), lacked: () => carried.lacked.isEmpty ? null : List.unmodifiable(carried.lacked));
     _writeKept(all);
+    // What this device knows of the share, sealed beside it; and the note marked as shared (see the header).
+    await _keepMeta(note.id, all[note.id]!);
+    await _mark(note, kept.id);
     _sendAudioSoon(note);
     return shareLink(kept.id, kept.key);
+  }
+
+  // ---- the share's meta, and the note's marker ---------------------------------------------------------------------
+
+  /// What each share's meta said when it was last sent from here, by share id, and when a send last failed: sent once
+  /// per change, and after a refusal (an older service answers 404) tried again no sooner than ten minutes on.
+  final Map<String, String> _metaSent = {};
+  final Map<String, int> _metaFailed = {};
+  static const Duration _metaRetry = Duration(minutes: 10);
+
+  /// Seals [kept] under the account key and keeps it on the service beside the share, unless the service already has
+  /// it as it is now. A failure is kept quiet: the settings still hold the entry, and a later refresh tries again.
+  Future<void> _keepMeta(String noteId, ShareEntry kept) async {
+    final said = jsonEncode(shareMetaOf(noteId, kept));
+    if (_metaSent[kept.id] == said) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final failed = _metaFailed[kept.id];
+    if (failed != null && now - failed < _metaRetry.inMilliseconds) return;
+    try {
+      final session = account.session;
+      final key = await account.accountKey();
+      if (session == null || key == null) return;
+      final meta = await crypto.seal(key, shareMetaOf(noteId, kept), shareMetaContext(kept.id));
+      await api.call('PUT', 'shares/${kept.id}/meta', token: session.token, body: {'meta': meta});
+      _metaSent[kept.id] = said;
+      _metaFailed.remove(kept.id);
+    } catch (failure) {
+      // An older service, or offline: the entry in the settings stands, and this is tried again.
+      _metaFailed[kept.id] = now;
+      debugPrint('[share] a share’s meta was not kept: ${failure.runtimeType}');
+    }
+  }
+
+  /// Writes `share: <id>` into [note]'s page front matter, where it does not say so already.
+  Future<void> _mark(Note note, String id) async {
+    final write = save;
+    if (write == null || shareMarkerOf(note.body) == id) return;
+    try {
+      await write(note, withFrontMatterValue(note.body, shareMarkerKey, id));
+    } catch (failure) {
+      debugPrint('[share] the note was not marked as shared: $failure');
+    }
+  }
+
+  /// Takes the `share:` marker off [noteId]'s note, where it has one.
+  Future<void> _unmark(String noteId) async {
+    final write = save;
+    if (write == null) return;
+    try {
+      Note? note;
+      for (final n in await listNotes()) {
+        if (n.id == noteId) {
+          note = n;
+          break;
+        }
+      }
+      if (note == null || shareMarkerOf(note.body) == null) return;
+      await write(note, withFrontMatterValue(note.body, shareMarkerKey, null));
+    } catch (failure) {
+      debugPrint('[share] the share marker was not taken off: $failure');
+    }
+  }
+
+  int? _for;
+  bool _restored = false;
+  Future<int>? _restoring;
+  Future<void>? _settling;
+
+  /// Signed in, or another account in: what the service knows of the account's shares is put back here, and what
+  /// came back is shared again as the notes read now ([refreshShares] does both).
+  void _accountChanged() {
+    final now = account.session?.accountId;
+    if (now == _for) return;
+    _for = now;
+    _restored = false;
+    _metaSent.clear();
+    _metaFailed.clear();
+    if (now != null) _settling = refreshShares().then<void>((_) {}, onError: (Object _) {});
+  }
+
+  /// What a sign-in started, for the tests to wait on.
+  @visibleForTesting
+  Future<void> get settled => _settling ?? Future<void>.value();
+
+  /// Puts back every share of the account's the settings here do not list, from what the account's devices sealed
+  /// about each on the service (see the header): the same id and key, so the link is unchanged. A meta's note is the
+  /// one with its id, or failing that the one whose page front matter carries `share: <id>` (a restored file whose id
+  /// changed); a note not here at all keeps its entry under the meta's id, as the synced settings would. Answers how
+  /// many were put back. Asked twice at once, it restores once.
+  Future<int> restoreShares() => _restoring ??= _restore().whenComplete(() => _restoring = null);
+
+  Future<int> _restore() async {
+    final session = account.session;
+    final key = await account.accountKey();
+    if (session == null || key == null) return 0;
+    final answer = await api.callMap('GET', 'shares', token: session.token);
+    final listed = answer['shares'];
+    _restored = true;
+    if (listed is! List) return 0;
+    final found = <({String noteId, ShareEntry entry})>[];
+    for (final each in listed) {
+      if (each is! Map || each['id'] is! String || each['meta'] is! String) continue;
+      final id = each['id'] as String;
+      try {
+        final opened = shareEntryOfMeta(id, await crypto.open(key, each['meta'] as String, shareMetaContext(id)));
+        if (opened != null) found.add(opened);
+      } catch (_) {
+        // Sealed by a newer app, or not this account's: passed over.
+      }
+    }
+    if (found.isEmpty) return 0;
+    final all = _readKept();
+    final held = {for (final entry in all.values) entry.id};
+    List<Note>? notes;
+    var restored = 0;
+    final marked = <Note, String>{};
+    for (final (:noteId, :entry) in found) {
+      if (held.contains(entry.id)) continue;
+      notes ??= await listNotes();
+      Note? note;
+      for (final n in notes) {
+        if (n.id == noteId) {
+          note = n;
+          break;
+        }
+      }
+      note ??= notes.where((n) => shareMarkerOf(n.body) == entry.id).firstOrNull;
+      final under = note?.id ?? noteId;
+      // A note already shared from here under another id keeps that one.
+      if (all.containsKey(under)) continue;
+      all[under] = entry;
+      held.add(entry.id);
+      restored += 1;
+      if (note != null && shareMarkerOf(note.body) != entry.id) marked[note] = entry.id;
+    }
+    if (restored == 0) return 0;
+    _writeKept(all);
+    for (final MapEntry(key: note, value: id) in marked.entries) {
+      await _mark(note, id);
+    }
+    return restored;
   }
 
   /// Whether [noteId]'s share carries where it was written (`sharingPlace`).
@@ -505,6 +712,7 @@ class Shares extends ChangeNotifier {
     if (kept == null) return;
     all[noteId] = kept.copyWith(place: on);
     _writeKept(all);
+    await _keepMeta(noteId, all[noteId]!);
     await refreshShares();
   }
 
@@ -519,6 +727,7 @@ class Shares extends ChangeNotifier {
     if (kept == null) return;
     all[noteId] = kept.copyWith(places: on);
     _writeKept(all);
+    await _keepMeta(noteId, all[noteId]!);
     await refreshShares();
   }
 
@@ -554,6 +763,7 @@ class Shares extends ChangeNotifier {
     _writeKept(all);
     _audioProblems.remove(noteId);
     if (!on) await api.call('DELETE', 'shares/${kept.id}/audio', token: _token());
+    await _keepMeta(noteId, all[noteId]!);
     await refreshShares();
   }
 
@@ -636,6 +846,7 @@ class Shares extends ChangeNotifier {
     final all = _readKept();
     all[note.id] = all[note.id]!.copyWith(audio: () => sent!.toJson());
     _writeKept(all);
+    await _keepMeta(note.id, all[note.id]!);
     // The words again, naming the recording: its descriptor is in what the share holds, so the digest moved.
     await refreshShares();
   }
@@ -662,11 +873,24 @@ class Shares extends ChangeNotifier {
     await api.call('DELETE', 'shares/${kept.id}', token: _token());
     all.remove(noteId);
     _writeKept(all);
+    // The service took the meta down with the share; the note stops saying it is shared.
+    _metaSent.remove(kept.id);
+    _metaFailed.remove(kept.id);
+    await _unmark(noteId);
   }
 
   /// Writes again every share whose note, or whose book's chapters, changed since it was last sent
-  /// (`refreshShares`). Answers how many went.
+  /// (`refreshShares`). Answers how many went. Once per sign-in, first, the account's shares the settings lack are put
+  /// back from the service ([restoreShares]); and every share whose meta the service has not had as it is now is
+  /// given it (a share made by an older build, or on an older service).
   Future<int> refreshShares() async {
+    if (!_restored && account.session != null) {
+      try {
+        await restoreShares();
+      } catch (_) {
+        // Offline: tried again at the next refresh.
+      }
+    }
     final all = _readKept();
     if (all.isEmpty || account.session == null) return 0;
     final notes = await listNotes();
@@ -681,6 +905,7 @@ class Shares extends ChangeNotifier {
       }
       final kept = all[id];
       if (note == null || kept == null) continue;
+      await _keepMeta(id, kept);
       // A meeting's recording, where this device has one the share has not had as it is now: on its own, after.
       if (kept.recording && isMeeting(note)) _sendAudioSoon(note);
       final shared = _sharedOf(note, notes, kept);
@@ -741,6 +966,7 @@ class Shares extends ChangeNotifier {
     }
     _unfollow.clear();
     prefs.removeListener(notifyListeners);
+    account.removeListener(_accountChanged);
     audioSending.dispose();
     super.dispose();
   }

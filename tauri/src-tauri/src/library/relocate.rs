@@ -170,19 +170,41 @@ impl Library {
         to.drafted.extend(self.drafted.drain());
     }
 
-    /// Every note's file and versions file as text, by its path in the folder: the export's way to a library with
-    /// no folder to walk (one reached through Android's SAF). A note iCloud has not brought down is left out.
-    pub fn texts(&self) -> Result<Vec<(String, String)>> {
+    /// Every note's file and versions file as text, by its path in the folder, and with them what `.glyph/` keeps
+    /// that is not a cache: `library.json` and `notes/<id>.json`, a recording's length and phrases (docs/
+    /// MARKDOWN_FIRST.md §5 gap 8: the drive backup skipped them). What the backup writes, and the export's way to
+    /// a library with no folder to walk (one reached through Android's SAF).
+    ///
+    /// A FILE iCLOUD HAS NOT BROUGHT DOWN IS `None`: there, and not readable now. Never left out, since whatever
+    /// diffs this list against a last copy (backup.rs removes 'a note gone from the app') would take a note the
+    /// Mac merely evicted for one the person deleted, and delete it from the drive (the critic's third finding).
+    pub fn texts(&self) -> Result<Vec<(String, Option<String>)>> {
         let mut out = Vec::new();
-        for entry in self.vault.markdown()? {
-            match self.vault.read(&entry.path) {
-                Ok(text) => out.push((entry.path.clone(), text)),
-                Err(e) if super::vault::not_downloaded(&e) => continue,
-                Err(e) => return Err(e.into()),
+        let read = |path: &str| -> Result<Option<String>> {
+            match self.vault.read(path) {
+                Ok(text) => Ok(Some(text)),
+                Err(e) if super::vault::not_downloaded(&e) => Ok(None),
+                Err(e) => Err(e.into()),
             }
+        };
+        for entry in self.vault.markdown()? {
+            out.push((entry.path.clone(), read(&entry.path)?));
             let versions = versions_path(&entry.path);
             if self.vault.exists(&versions) {
-                out.push((versions.clone(), self.vault.read(&versions)?));
+                out.push((versions.clone(), read(&versions)?));
+            }
+        }
+        let glyph = self.vault.glyph_dir();
+        let manifest = glyph.join("library.json");
+        if manifest.is_file() {
+            out.push((".glyph/library.json".to_string(), Some(std::fs::read_to_string(&manifest)?)));
+        }
+        if let Ok(sidecars) = std::fs::read_dir(glyph.join("notes")) {
+            let mut sidecars: Vec<_> = sidecars.filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().ends_with(".json") && !e.file_name().to_string_lossy().starts_with('.')).collect();
+            sidecars.sort_by_key(|e| e.file_name());
+            for sidecar in sidecars {
+                let name = sidecar.file_name().to_string_lossy().into_owned();
+                out.push((format!(".glyph/notes/{name}"), Some(std::fs::read_to_string(sidecar.path())?)));
             }
         }
         Ok(out)
@@ -428,5 +450,26 @@ mod tests {
         // A placeholder the index never read is not a note until it comes down.
         put(&drive, "Inbox/.Elsewhere.md.icloud", "bplist00");
         assert_eq!(there.list_notes().unwrap().len(), 2);
+    }
+
+    /// What the backup writes and the export carries: the notes, their versions files, and what `.glyph/` keeps that
+    /// is not a cache; and a note iCloud has not brought down is there and unread (`None`), never left out as if
+    /// deleted (the critic's third finding in docs/MARKDOWN_FIRST.md §12).
+    #[test]
+    fn the_texts_carry_the_sidecars_and_a_note_off_this_mac_as_there_and_unread() {
+        let data = TempDir::new("relocate-texts");
+        let drive = data.join("iCloud/Notes");
+        let mut there = chosen(&data, &drive);
+        there.save_note("n1", "# Trip\n\npack\n", "editor").unwrap();
+        there.save_note("n2", "# Home\n", "editor").unwrap();
+        there.set_recording("n1", Some(&Recording::new(2000, Vec::new()).unwrap())).unwrap();
+        assert!(there.write_versions("n2", "v1\n").unwrap());
+        std::fs::remove_file(drive.join("Inbox/Trip.md")).unwrap();
+        put(&drive, "Inbox/.Trip.md.icloud", "bplist00");
+        let texts = there.texts().unwrap();
+        let listed: Vec<(&str, bool)> = texts.iter().map(|(path, text)| (path.as_str(), text.is_some())).collect();
+        assert_eq!(listed, [("Inbox/Home.md", true), ("Inbox/Home.versions", true), ("Inbox/Trip.md", false), (".glyph/library.json", true), (".glyph/notes/n1.json", true)]);
+        assert!(texts.iter().find(|(path, _)| path == ".glyph/notes/n1.json").unwrap().1.as_deref().unwrap().contains("\"recordingMs\":2000"));
+        assert!(texts.iter().find(|(path, _)| path == "Inbox/Home.md").unwrap().1.as_deref().unwrap().contains("# Home"));
     }
 }

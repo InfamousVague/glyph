@@ -1,0 +1,12 @@
+{
+  "nodes": [
+    { "id": "g", "type": "group", "x": -20, "y": -40, "width": 560, "height": 180, "label": "Q4", "color": "5" },
+    { "id": "a", "type": "text", "x": 0, "y": 0, "width": 220, "height": 100, "text": "# Beta\nShip the waitlist to the first hundred people." },
+    { "id": "b", "type": "file", "x": 300, "y": 0, "width": 220, "height": 100, "file": "Fix the login loop.md", "color": "1" },
+    { "id": "c", "type": "link", "x": 0, "y": 200, "width": 220, "height": 60, "url": "https://ghostmarkdown.com" }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "a", "toNode": "b", "label": "blocks" },
+    { "id": "e2", "fromNode": "a", "toNode": "c", "fromSide": "bottom", "toSide": "top", "toEnd": "none" }
+  ]
+}

@@ -35,6 +35,8 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 # carries no order, no time and no host, and nothing may ever read meaning out
 # of one.
 uuid = { version = "1.26.1", features = ["v4"] }
+# Composed file names and their comparison (library/names.rs `composed`, `same_name`); native/Cargo.toml says why.
+unicode-normalization = "0.1"
 # Bytes the page sends inside JSON, where the Android WebView cannot hand
 # request bodies to native code: capture_push's audio, and a pasted picture
 # (images::save_image_data, which iOS has too, so this is not in the section

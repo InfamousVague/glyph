@@ -367,8 +367,8 @@ void main() {
       preferences.update((now) => now.copyWith(shares: {...now.shares, 'elsewhere': const ShareEntry(id: 'EEEEEEEEEEEEEEEEEEEEEE', key: 'KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK')}));
       // On the server and in no device's list: one long settled, one written a moment ago by another device.
       final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      device.service.shares['OOOOOOOOOOOOOOOOOOOOOO'] = (blob: 'x', updated: nowSeconds - 3600);
-      device.service.shares['FFFFFFFFFFFFFFFFFFFFFF'] = (blob: 'x', updated: nowSeconds - 5);
+      device.service.shares['OOOOOOOOOOOOOOOOOOOOOO'] = (blob: 'x', created: nowSeconds - 7200, updated: nowSeconds - 3600, meta: null);
+      device.service.shares['FFFFFFFFFFFFFFFFFFFFFF'] = (blob: 'x', created: nowSeconds - 5, updated: nowSeconds - 5, meta: null);
       await device.pump(tester, SharedLinks(services: device.services));
       await settle(tester, 12);
       expect(find.text('Cabin trip'), findsOneWidget);

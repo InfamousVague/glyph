@@ -83,7 +83,8 @@ fn library_texts(app: &AppHandle) -> Result<Vec<Extra>, String> {
         return Ok(Vec::new());
     }
     let texts = library.texts().map_err(|e| format!("The notes could not be read: {e}"))?;
-    Ok(texts.into_iter().map(|(path, text)| Extra { name: format!("Library/{path}"), bytes: text.into_bytes() }).collect())
+    // Nothing of `.glyph/`, which `sources` walks for a tree too; nothing for a note that cannot be read now.
+    Ok(texts.into_iter().filter(|(path, _)| !path.starts_with(".glyph/")).filter_map(|(path, text)| text.map(|text| Extra { name: format!("Library/{path}"), bytes: text.into_bytes() })).collect())
 }
 
 /// The page's files, only by plain names at the archive's top: never a path that would land among the notes.

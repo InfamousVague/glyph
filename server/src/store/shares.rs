@@ -3,6 +3,12 @@
 //!
 //! A share has no revision. It is written whole each time its owner edits, and `updated_at` - wall-clock seconds, not
 //! the account's write counter - is its version, which is what the app's ten-minute rule reads.
+//!
+//! Beside the blob a share may carry `meta`, as a site does (store/sites.rs): what the owner's devices sealed about it
+//! under the ACCOUNT key - the note it is of, its link's key, its switches - so a device signing in afresh lists the
+//! account's shares with their links, where before the link's key lived only in the synced settings and went with
+//! them (docs/MARKDOWN_FIRST.md §11 decision 8). Written on its own (`put_share_meta`), after the share, and never
+//! moving `updated_at`, which is the words' version. NULL on a share from an older app. The service can open neither.
 
 use super::Store;
 use rusqlite::{params, OptionalExtension};
@@ -23,6 +29,31 @@ impl From<rusqlite::Error> for ShareWrite {
     fn from(_: rusqlite::Error) -> Self {
         ShareWrite::Failed
     }
+}
+
+/// Why a share's meta was not written.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ShareMetaWrite {
+    /// There is no share of this account's by that id: the share goes first.
+    NoShare,
+    /// Something below the rules failed.
+    Failed,
+}
+
+impl From<rusqlite::Error> for ShareMetaWrite {
+    fn from(_: rusqlite::Error) -> Self {
+        ShareMetaWrite::Failed
+    }
+}
+
+/// A share as its owner lists it: its id, when it was first and last written, and what its devices sealed about it,
+/// where one has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShareRow {
+    pub id: String,
+    pub created: i64,
+    pub updated: i64,
+    pub meta: Option<String>,
 }
 
 impl Store {
@@ -68,9 +99,22 @@ impl Store {
         gone
     }
 
-    /// An account's shares, newest written first: their ids and when each was written.
-    pub fn shares_of(&self, account: i64) -> Vec<(String, i64)> {
-        self.all("SELECT id, updated_at FROM shares WHERE account_id = ?1 ORDER BY updated_at DESC", params![account], |r| Ok((r.get(0)?, r.get(1)?)))
+    /// Writes what an account's devices sealed about its share; refused where the account has no share by that id.
+    /// The share's own time is left as it is: the meta is not an edit a reader sees.
+    pub fn put_share_meta(&self, account: i64, id: &str, meta: &str) -> Result<(), ShareMetaWrite> {
+        let changed = self.lock().execute("UPDATE shares SET meta = ?1 WHERE id = ?2 AND account_id = ?3", params![meta, id, account])?;
+        if changed == 0 {
+            return Err(ShareMetaWrite::NoShare);
+        }
+        Ok(())
+    }
+
+    /// An account's shares, newest written first: their ids, when each was first and last written, and each one's
+    /// meta where a device has sealed one.
+    pub fn shares_of(&self, account: i64) -> Vec<ShareRow> {
+        self.all("SELECT id, created_at, updated_at, meta FROM shares WHERE account_id = ?1 ORDER BY updated_at DESC, id", params![account], |r| {
+            Ok(ShareRow { id: r.get(0)?, created: r.get(1)?, updated: r.get(2)?, meta: r.get(3)? })
+        })
     }
 }
 
@@ -109,6 +153,29 @@ mod tests {
         s.put_share(a.id, "old", "b", 10, 500).unwrap();
         s.put_share(a.id, "new", "b", 20, 500).unwrap();
         s.put_share(a.id, "old", "b", 30, 500).unwrap();
-        assert_eq!(s.shares_of(a.id), vec![("old".to_string(), 30), ("new".to_string(), 20)]);
+        assert_eq!(for_each(&s.shares_of(a.id)), vec![("old".to_string(), 10, 30), ("new".to_string(), 20, 20)]);
+    }
+
+    /// Each listed share as (id, first written, last written).
+    fn for_each(rows: &[ShareRow]) -> Vec<(String, i64, i64)> {
+        rows.iter().map(|row| (row.id.clone(), row.created, row.updated)).collect()
+    }
+
+    #[test]
+    fn a_share_s_meta_is_written_after_the_share_moves_no_time_and_goes_with_it() {
+        let (s, a, _dir) = fixture();
+        assert_eq!(s.put_share_meta(a.id, "mine", "m1"), Err(ShareMetaWrite::NoShare), "the share goes first");
+        s.put_share(a.id, "mine", "sealed", 10, 500).unwrap();
+        assert_eq!(s.shares_of(a.id)[0].meta, None, "an older app's share says nothing about itself");
+        assert_eq!(s.put_share_meta(a.id, "mine", "m1"), Ok(()));
+        assert_eq!(s.put_share_meta(a.id, "mine", "m2"), Ok(()), "written over, as the devices' latest word");
+        let listed = s.shares_of(a.id);
+        assert_eq!((listed[0].meta.as_deref(), listed[0].updated), (Some("m2"), 10), "the words' time stands");
+        assert_eq!(s.share("mine"), Some(("sealed".to_string(), 10)), "a reader sees nothing of it");
+        let b = s.create_account("other", "", "", None, &[], 1).unwrap();
+        assert_eq!(s.put_share_meta(b.id, "mine", "theirs"), Err(ShareMetaWrite::NoShare), "another account has no share by that id");
+        assert_eq!(s.shares_of(a.id)[0].meta.as_deref(), Some("m2"));
+        assert!(s.delete_share(a.id, "mine"));
+        assert!(s.shares_of(a.id).is_empty(), "taken down, the meta is gone with the share");
     }
 }
