@@ -86,3 +86,9 @@ app.*.map.json
 # The publisher vendored into the app (tool/publish-assets.sh): built at release, 2 MB, never committed; the README stays.
 /assets/publish/*
 !/assets/publish/README.txt
+
+# Test fixtures named *.log are kept, whatever "*.log" above says: the carry's (test/carry/web_stores_test.dart) are a
+# web view's LevelDB files, whose write-ahead logs are NNNNNN.log, and the test report's (test/diag/test_report_test.dart)
+# holds cargo's words as tool/check.sh leaves them in native.log. They were never committed, so those tests failed in
+# every checkout but the ones that made them.
+!/test/**/fixtures/**/*.log
