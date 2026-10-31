@@ -80,6 +80,8 @@ class PaletteWorld {
     this.simple = false,
     this.focusMode = false,
     this.settings,
+    this.tickets = const [],
+    this.timing,
   });
 
   /// Every note, newest first: each is an "Open …".
@@ -131,7 +133,15 @@ class PaletteWorld {
   /// What there is to find in Settings and among the plugins (settings_places.dart), asked for only once something
   /// is typed: the index reads every page's line and every setting the page lists.
   final ValueGetter<SettingsIndex>? settings;
+
+  /// The tickets a timer can be started on (lib/book/timers.dart; Matt, 2026-10-31: "Start timer on HT-12"), newest
+  /// first, and the one this device's timer runs on, if one does.
+  final List<PaletteTicket> tickets;
+  final PaletteTicket? timing;
 }
+
+/// A ticket, as a timer's command names it.
+typedef PaletteTicket = ({String noteId, String key, String title});
 
 /// What the palette can set off (`PaletteDoing`). Every one of these is something the app already does by hand. A
 /// doing left null has no command.
@@ -148,6 +158,8 @@ class PaletteDoing {
     this.speak,
     this.speakInto,
     required this.closeTab,
+    this.startTimer,
+    this.stopTimer,
     required this.showList,
     required this.browseNotes,
     required this.back,
@@ -206,6 +218,11 @@ class PaletteDoing {
   final VoidCallback? speak;
   final void Function(String id)? speakInto;
   final void Function(String id) closeTab;
+
+  /// A timer started on a ticket, and this device's stopped and logged (lib/book/timers.dart): absent where the app
+  /// has no timers. Offered in simple mode too.
+  final void Function(String noteId)? startTimer;
+  final VoidCallback? stopTimer;
   final VoidCallback showList;
 
   /// The All notes grid.
@@ -390,6 +407,26 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
     final leave = doing.leaveTabGroup;
     if (isTab && (world.tabGroup ?? '').isNotEmpty && leave != null) {
       add('tab:group:leave', 'Take this tab out of its group', here, 'tab group ungroup remove', () => leave(note.id));
+    }
+  }
+
+  // ---- timers -----------------------------------------------------------------------------------------------------
+  // The open ticket's first, then any ticket by its key or its title once "timer" or a key is typed.
+  final startTimer = doing.startTimer;
+  final timing = world.timing;
+  final stopTimer = doing.stopTimer;
+  if (timing != null && stopTimer != null) add('timer:stop', 'Stop the timer on ${timing.key}', 'Timers', 'timer stop log time tracking ${timing.title}', stopTimer);
+  if (startTimer != null) {
+    final open = note == null ? null : world.tickets.where((each) => each.noteId == note.id).firstOrNull;
+    if (open != null && open.noteId != timing?.noteId) add('timer:start:${open.noteId}', 'Start timer on ${open.key}', 'Timers', 'timer start clock time tracking ${open.title}', () => startTimer(open.noteId));
+    final typed = query.trim().toLowerCase();
+    if (typed.contains('timer') || RegExp(r'[a-z][a-z0-9]{1,9}-\d').hasMatch(typed)) {
+      var offered = 0;
+      for (final each in world.tickets) {
+        if (each.noteId == open?.noteId || each.noteId == timing?.noteId) continue;
+        add('timer:start:${each.noteId}', 'Start timer on ${each.key} ${each.title}', 'Timers', 'timer start clock time tracking', () => startTimer(each.noteId));
+        if ((offered += 1) == mostNotes) break;
+      }
     }
   }
 

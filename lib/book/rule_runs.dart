@@ -301,7 +301,7 @@ class TicketRules {
     final runs = <RuleRun>[];
     for (final each in fired) {
       final run = RuleRun(id: runId(each.rule, after.id, each.cause, after.updatedAt), rule: each.rule, noteId: after.id, title: NoteFacts.of(after).title, body: after.body, cause: each.cause);
-      if (_claimRun(run.id)) runs.add(run);
+      if (claimRun(run.id)) runs.add(run);
     }
     for (final run in runs) {
       await this.run(run, depth: depth);
@@ -310,7 +310,7 @@ class TicketRules {
   }
 
   /// The run's id written as started here, unless it is there already: true where it is this device's to run.
-  bool _claimRun(String id) {
+  bool claimRun(String id) {
     if (runsOf(preferences()).containsKey(id)) return false;
     final me = device().id;
     final now = clock();
@@ -457,7 +457,7 @@ class TicketRules {
       if (began != null) since[entry.note.id] = began;
       for (final each in firedByClock(rules.rules, body: entry.note.body, ticket: ticket, today: today, blockedSince: began, now: now)) {
         final run = RuleRun(id: runId(each.rule, entry.note.id, each.cause), rule: each.rule, noteId: entry.note.id, title: entry.title, body: entry.note.body, cause: each.cause);
-        if (_claimRun(run.id)) runs.add(run);
+        if (claimRun(run.id)) runs.add(run);
       }
     }
     if (!mapEquals(since, blocked)) setPreferences((prefs) => prefs.copyWith(more: {...prefs.more, ruleBlockedKey: since}));

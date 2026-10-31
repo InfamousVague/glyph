@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert' show utf8;
 
 import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, setEquals, kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:crypto/crypto.dart' as hashes;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -35,14 +37,18 @@ import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
 import '../editor/ai/blanks.dart' show openNoteBlanks;
 import '../editor/editor.dart' as ed show Change, EditorViewLike, TransactionSpec;
-import '../editor/items/field_menu.dart' show DayPicker;
+import '../editor/items/field_menu.dart' show DayPicker, todayIs;
+import '../editor/tickets/ticket_work.dart' show TicketCardTimer, TicketWorkOptions, stopTimerAsking, ticketCardTimer;
 import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
 import '../editor/media/clip_refs.dart' show TapeIds;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../editor/media/rich_embeds/oembed.dart' show KeptEmbeds, OEmbedFetch, PictureFetch;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
+import '../book/rule_runs.dart' show RuleNotice, RuleWorld, TicketRules;
+import '../book/rules.dart' show githubReposOf, onMergeOf;
 import '../book/tickets.dart';
+import '../book/timers.dart' show TicketTimers, ticketTimers;
 import '../academy/academy_screen.dart';
 import '../academy/banner.dart';
 import '../canvas/how_canvas.dart' show howCanvasBody;
@@ -55,6 +61,7 @@ import '../capture/ui/capture_screen.dart';
 import '../capture/ui/meeting_screen.dart';
 import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
+import '../commands/palette.dart' show PaletteTicket;
 import '../commands/command_bar.dart';
 import '../commands/settings_places.dart' show SettingsIndex, settingsIndex, setupsPrepared;
 import '../comments/ask.dart';
@@ -107,6 +114,10 @@ import '../core/versions_record.dart';
 import '../core/versions_share.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
+import '../core/bytes.dart' show toBase64Url;
+import '../core/notifications.dart' show ticketRuleKind;
+import '../mentions/mention_notices.dart' show mentionContext, mentionPayload;
+import '../mentions/mention_syntax.dart' show handleKey;
 import '../diag/built_report.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
 import '../editor/queries/queries.dart' show NoteChange;
@@ -178,10 +189,11 @@ import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanSh
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../activity/activity_chime.dart' show startActivityChime;
 import '../activity/activity_surfaces.dart' show startActivitySurfaces;
-import '../core/background_jobs.dart' show ChannelBackgroundJobs, activity, activityRoutes;
+import '../core/background_jobs.dart' show ChannelBackgroundJobs, JobFix, JobFixKind, JobKind, JobTally, activity, activityRoutes;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
+import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/channels.dart' show channels, postToChannel;
 import '../plugins/slack/mrkdwn.dart' show noteMessage;
@@ -253,6 +265,7 @@ part 'root_parts.dart';
 part 'root_buttons.dart';
 part 'root_templates.dart';
 part 'root_voice.dart';
+part 'root_tickets.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -684,6 +697,9 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// What the note on screen reads of the library, read once per change to the notes (lib/root/library_reads.dart).
   late final LibraryReads _reads = LibraryReads(shown: () => _shown, all: () => _library.value);
+
+  /// The ticket features' wiring (root_tickets.dart): the rules, the timers, the pull requests.
+  late final _RootTickets _ticketsWired = _RootTickets(this);
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -1226,7 +1242,7 @@ class _GhostRootState extends State<GhostRoot> {
     write: (id, change) => unawaited(_writeNote(id, change)),
     addTicket: _addFromQuery,
     // `[[GHO-12]]` finds the ticket by its key too.
-    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket),
+    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket, work: _ticketsWired.work(id)),
     // A ticket's lock and its sub-tickets' progress on a board or a query that lists it (lib/book/ticket_links.dart).
     ticketMarks: _reads.ticketMarks,
     // What a button in a note reaches past it with (root_buttons.dart).
@@ -1815,6 +1831,7 @@ class _GhostRootState extends State<GhostRoot> {
     _calendarLife?.dispose();
     calendar.stop();
     _webhooksLife?.dispose();
+    _ticketsWired.dispose();
     webhooks.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
@@ -1929,6 +1946,8 @@ class _GhostRootState extends State<GhostRoot> {
       webhooks.start(saves: core.savedHere, notes: () => _shown);
       _webhooksLife = AppLifecycleListener(onHide: () => unawaited(webhooks.flush()));
     }
+    // A notebook's rules, the timers and the pull requests on its tickets (root_tickets.dart; Matt, 2026-10-31).
+    _ticketsWired.start();
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

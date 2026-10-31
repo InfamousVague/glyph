@@ -190,7 +190,7 @@ class _TicketWorkState extends State<TicketWork> {
         _tap(
           key: const ValueKey('ticket-timer-stop'),
           label: 'Stop the timer, ${elapsed(running)}${mine ? '' : ' on your ${running.deviceName ?? 'other device'}'}',
-          onTap: widget.editable ? () => unawaited(stopTimer(context, timers!, running)) : null,
+          onTap: widget.editable ? () => unawaited(stopTimerAsking(context, timers!, running)) : null,
           child: Part('timerOn', child: _chip('${elapsed(running)}${mine ? '' : ' on your ${running.deviceName ?? 'other device'}'}', icon: Lucide.square, color: red, strong: true)),
         )
       else if (timers != null && widget.editable)
@@ -316,7 +316,7 @@ class _TicketCardTimerState extends State<TicketCardTimer> {
             if (running == null) {
               unawaited(widget.timers.start(widget.noteId, title: widget.title, key: widget.ticketKey));
             } else {
-              unawaited(stopTimer(context, widget.timers, running));
+              unawaited(stopTimerAsking(context, widget.timers, running));
             }
           },
           child: Padding(
@@ -357,7 +357,7 @@ Future<T?> showWorkSheet<T>(BuildContext context, Widget Function(void Function(
 
 /// Stops [timer], asking first where it ran past ten hours (lib/book/timers.dart `confirmLong`, which the root points
 /// here).
-Future<void> stopTimer(BuildContext context, TicketTimers timers, RunningTimer timer) async {
+Future<void> stopTimerAsking(BuildContext context, TicketTimers timers, RunningTimer timer) async {
   timers.confirmLong ??= (timer, minutes) => askLongTimer(context, timer, minutes);
   await timers.stop(timer);
 }

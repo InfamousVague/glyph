@@ -820,6 +820,9 @@ extension _RootParts on _GhostRootState {
         // Settings and the plugins, as Settings itself reads them (Matt, 2026-10-29: "Add the ability to search
         // settings and plugins from the command search").
         settings: () => _paletteSettings(context),
+        // "Start timer on HT-12" (root_tickets.dart).
+        tickets: _ticketsWired.paletteTickets,
+        timing: _ticketsWired.timing,
       ),
       doing: () => paletteDoingFor(
         shell: _shell.currentState!,
@@ -872,6 +875,8 @@ extension _RootParts on _GhostRootState {
         openSmart: _organize.showSmart,
         settingsAt: _openSettingsAt,
         marketPlugin: (id) => _showMarket(plugin: id),
+        startTimer: _ticketsWired.timers == null ? null : _ticketsWired.startTimer,
+        stopTimer: _ticketsWired.timers == null ? null : _ticketsWired.stopTimer,
       ),
     );
   }
