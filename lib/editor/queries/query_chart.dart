@@ -156,6 +156,10 @@ class ChartGeometry {
 /// What a bar, or one series of it, says: `In progress · Sam: 3`.
 String chartSaid(ChartData data, int bar, int? series) {
   final label = data.buckets[bar].label;
+  // A line's points are not parts of a whole: each series says its own (a burndown's remaining and its ideal).
+  if (series == null && data.kind == ChartKind.line && data.series.length > 1) {
+    return '$label · ${[for (final (s, each) in data.series.indexed) if (data.points[bar][s].value != null) '${each.label}: ${data.points[bar][s].text}'].join(', ')}';
+  }
   if (series == null || data.series.length == 1) {
     final text = data.series.length == 1 ? data.points[bar].single.text : plainNumber(data.whole(bar));
     return '$label: $text';

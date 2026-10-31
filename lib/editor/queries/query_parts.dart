@@ -31,6 +31,7 @@ import '../fields/field_picker.dart' show StatusIcon;
 import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show ChipLook, FieldMenu, chipLook, dayLabel, daySaid;
 import '../looks/look.dart' show layoutUnitFloor;
+import '../../core/planning/planning.dart' show ticketPriorityLabel;
 import 'plan_marks.dart' show PriorityChip;
 import 'query_layout.dart';
 import 'queries.dart' show TicketMarks;
@@ -529,10 +530,13 @@ class QueryPicked extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!acts.pickable(row, column.field)) return child;
+    // A ticket's priority is said as its chip says it, Urgent for highest (plan_marks.dart).
+    final cell = this.cell;
+    final words = acts.planning && row.kind == RecordKind.ticket && cell is PriorityCell ? ticketPriorityLabel(cell.name) : _said(cell);
     return Semantics(
       container: true,
       button: true,
-      label: '${column.label}: ${_said(cell)}. Change it',
+      label: '${column.label}: $words. Change it',
       onTap: () => acts.pick(row, column, cell),
       excludeSemantics: true,
       child: _Control(acts: acts, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => acts.pick(row, column, cell), child: child)),

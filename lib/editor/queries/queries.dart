@@ -334,7 +334,14 @@ class DrawnQuery extends StatelessWidget {
       // An event is the calendar's, not a note's to write.
       if (!writable || row.kind == RecordKind.event) return;
       fireMotor(HapticKind.selection);
-      put(row.noteId, row.kind, row.line, row.source, field, value);
+      // A roadmap's bar carried by its ends sets the days it is read from (lib/core/query/planning.dart): a ticket's
+      // start and due, a milestone note's date.
+      final written = switch (field) {
+        'roadmap-start' => row.kind == RecordKind.ticket ? 'start' : 'date',
+        'roadmap-end' => row.kind == RecordKind.ticket ? 'due' : 'date',
+        _ => field,
+      };
+      put(row.noteId, row.kind, row.line, row.source, written, value);
     }
 
     /// Whether [row] is still in the query once its [field] is [value]: the query run again over the library with
@@ -497,7 +504,7 @@ class DrawnQuery extends StatelessWidget {
       planning: options?.history != null,
       // A cycle's unfinished tickets, each moved to the next cycle (lib/core/query/planning.dart), and said, with an
       // Undo that puts each back.
-      onCarry: !writable
+      onCarry: !writable || options?.history == null
           ? null
           : (offer) {
               fireMotor(HapticKind.selection);

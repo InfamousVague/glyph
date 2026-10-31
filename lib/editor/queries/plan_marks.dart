@@ -51,6 +51,7 @@ class PriorityChip extends StatelessWidget {
     final px = size ?? look.xs;
     final label = ticketPriorityLabel(name);
     return Semantics(
+      container: true,
       label: '$label priority',
       excludeSemantics: true,
       child: Part(
@@ -74,6 +75,7 @@ class StaleMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
+    container: true,
     label: 'Stale: ${days == 1 ? 'a day' : '$days days'} in this status',
     excludeSemantics: true,
     child: Part(
