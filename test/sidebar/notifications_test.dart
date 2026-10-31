@@ -12,10 +12,12 @@ const NotificationOrg ghost = (id: 'o1', name: 'Ghost');
 
 void main() {
   group('the kinds', () {
-    test('are the service’s nine, the account’s ten and a member’s mention and ticket change, each in one category', () {
-      expect(kinds, hasLength(21));
+    test('are the service’s nine, the account’s eleven and a member’s mention and ticket change, each in one category', () {
+      expect(kinds, hasLength(22));
       expect(serverKinds, hasLength(9));
-      expect(selfKinds, hasLength(10));
+      expect(selfKinds, hasLength(11));
+      // A notebook's rule telling its own person (lib/book/rules.dart; Matt, 2026-10-31).
+      expect(selfKinds, contains(ticketRuleKind));
       expect(memberKinds, ['mention', 'ticket']);
       // A ticket watched and the morning's digest are the person's own too (Matt, 2026-10-31).
       expect(categoryOf('ticket'), 'mentions');
