@@ -32,6 +32,9 @@
 /// page's `Array.sort` leaves them; Dart's own sort promises no such thing.
 library;
 
+import '../planning/cycles.dart' show Cycle;
+import '../planning/history.dart' show StatusPast;
+import '../planning/planning.dart' show isMilestoneType;
 import '../properties.dart' show StatusCategory, defaultStatuses, statusCategory;
 import '../sums.dart' show totalOf;
 import '../task_fields.dart' show samePerson;
@@ -39,6 +42,7 @@ import '../title_key.dart' show titleKey;
 import 'chart.dart';
 import 'collate.dart';
 import 'gantt.dart';
+import 'planning.dart';
 import 'read.dart';
 import 'records.dart';
 import 'rollup.dart';
@@ -151,6 +155,7 @@ class QueryRow extends QueryData {
     required this.overdue,
     this.end,
     this.dayField,
+    this.plan,
   });
 
   /// Its note's id, and its line for a to-do: one row's key, whatever else changes.
@@ -193,6 +198,10 @@ class QueryRow extends QueryData {
   /// The field [day] is from, which a day carried to another on a calendar sets; null where it has no day, and for
   /// an event (the port's own).
   final String? dayField;
+
+  /// A ticket's planning, for its card and its row: stale, its estimate, its cycle, an epic's progress (planning.dart;
+  /// the port's own).
+  final RowPlan? plan;
 
   @override
   Object? toJson() => {
@@ -269,6 +278,9 @@ class QueryResult extends QueryData {
     this.startField = 'start',
     this.endField = 'due',
     this.zoom,
+    this.plan,
+    this.carry,
+    this.cycle,
   });
 
   final QueryKind kind;
@@ -304,6 +316,12 @@ class QueryResult extends QueryData {
   final String startField;
   final String endField;
   final TimelineZoom? zoom;
+
+  /// The planning view it is, its unfinished tickets offered to the next cycle, and the cycle a burndown is of
+  /// (planning.dart; the port's own).
+  final PlanView? plan;
+  final CarryOffer? carry;
+  final Cycle? cycle;
 
   @override
   Object? toJson() => {
@@ -452,7 +470,11 @@ String? _dayOf(QueryRecord record, String field, [FieldLook look = valueOf]) {
 /// A record's row's key: its note's id, and its line for a to-do; an event's own.
 String rowKeyOf(QueryRecord record) => record.event != null ? 'event:${record.event!.id}' : (record.kind == RecordKind.task ? '${record.noteId}:${record.line}' : record.noteId);
 
-QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [FieldLook look = valueOf, Query? query]) {
+/// The fields a timeline's bar runs between: its `start:` and `end:`, a roadmap's own span where unsaid.
+String _startFieldOf(Query? query) => query?.start ?? (query?.plan == PlanView.roadmap ? 'roadmap-start' : 'start');
+String _endFieldOf(Query? query) => query?.end ?? (query?.plan == PlanView.roadmap ? 'roadmap-end' : 'due');
+
+QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [FieldLook look = valueOf, Query? query, PlanningIndex? plan]) {
   final event = record.event;
   if (event != null) {
     // An event is on its first day, runs to its last (a gantt's bar), and is never late: it is not a thing to do.
@@ -489,8 +511,8 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [Fi
       break;
     }
   }
-  final startField = query?.start ?? 'start';
-  final endField = query?.end ?? 'due';
+  final startField = _startFieldOf(query);
+  final endField = _endFieldOf(query);
   return QueryRow(
     key: record.kind == RecordKind.task ? '${record.noteId}:${record.line}' : record.noteId,
     kind: record.kind,
@@ -510,6 +532,7 @@ QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today, [Fi
     overdue: due != null && due.compareTo(today) < 0 && !done,
     end: endField == 'due' ? due : _dayOf(record, endField, look),
     dayField: dayField,
+    plan: plan == null ? null : rowPlanOf(plan, record),
   );
 }
 
@@ -583,8 +606,11 @@ List<String> _workflowOf(Query query, QueryLibrary library, List<QueryRecord> re
 
 /// [query] run over [library] on [today] (a day, days.dart): every record of its kind that is from what `from:`
 /// names and passes `where:`, sorted, limited, grouped and totalled, as the rows the drawing draws.
-QueryResult runQuery(Query query, QueryLibrary library, String today) {
-  final show = query.show ?? _defaultShow[query.kind]!;
+///
+/// [past] is what the tickets' versions say of their statuses (lib/core/planning/history.dart), for a burndown and a
+/// stale ticket's days; without it, those are read from the tickets' own words.
+QueryResult runQuery(Query query, QueryLibrary library, String today, {StatusPast? past}) {
+  final show = query.show ?? (query.plan == null ? _defaultShow[query.kind]! : (query.plan == PlanView.roadmap ? ShowAs.timeline : ShowAs.chart));
   final named = <String, LibraryNote?>{};
   final warnings = <String>[];
   for (final title in _linksIn(query.from)) {
@@ -596,17 +622,23 @@ QueryResult runQuery(Query query, QueryLibrary library, String today) {
   final groupField = query.group ?? (show == ShowAs.board ? 'status' : null);
   final asksDone = [...fieldsNamed(query.where), ?groupField].any(_doneFields.contains);
   final from = query.from;
-  final where = query.where;
-  final look = rollupLook(query.rollups, library, today);
-  final passed = [
+  // The planning of tickets (planning.dart): its fields read beside the rollups', and `cycle = current` read as a test.
+  final plan = PlanningIndex(library, today, past: past);
+  final where = planningWhere(query.where);
+  final look = planningLook(rollupLook(query.rollups, library, today), plan, own: {for (final rollup in query.rollups) rollup.name});
+  final roadmap = query.plan == PlanView.roadmap;
+  final read = [
     for (final record in library.records)
-      if (_ofKind(record, query.kind) &&
+      if ((_ofKind(record, query.kind) || (roadmap && record.kind == RecordKind.note && isMilestoneType(record.props['type']))) &&
           (from == null || _fromHolds(from, record, named)) &&
           (query.kind != QueryKind.tasks || asksDone || record.done == false) &&
           (where == null || holdsOn(where, record, today, look)))
         record,
   ];
-  final ordered = _sorted(passed, query.sort.isNotEmpty ? query.sort : _defaultSort[query.kind]!, look);
+  // A roadmap is of its epics and milestones, where it has any.
+  bool planned(QueryRecord record) => (record.ticket?.epic ?? false) || isMilestoneType(record.props['type']);
+  final passed = roadmap && read.any(planned) ? [for (final record in read) if (planned(record)) record] : [for (final record in read) if (!roadmap || record.kind != RecordKind.note || isMilestoneType(record.props['type'])) record];
+  final ordered = _sorted(passed, query.sort.isNotEmpty ? query.sort : (roadmap ? const [SortKey('roadmap-start'), SortKey('roadmap-end')] : _defaultSort[query.kind]!), look);
   final limit = query.limit;
   final shown = limit != null && limit != 0 ? ordered.sublist(0, limit < ordered.length ? limit : ordered.length) : ordered;
 
@@ -629,13 +661,32 @@ QueryResult runQuery(Query query, QueryLibrary library, String today) {
           key: group.key,
           label: _groupLabel(group.value, groupField),
           cell: isEmptyValue(group.value) ? null : _cellOf(group.value, groupField, today, true),
-          rows: [for (final record in group.records) _rowOf(record, columns, today, look, query)],
+          rows: [for (final record in group.records) _rowOf(record, columns, today, look, query, plan)],
           totals: _totalsOf(query.total, group.records, look),
         ),
     ];
   } else {
-    groups = [QueryGroup(key: '', label: '', cell: null, rows: [for (final record in shown) _rowOf(record, columns, today, look, query)], totals: _totalsOf(query.total, shown, look))];
+    groups = [QueryGroup(key: '', label: '', cell: null, rows: [for (final record in shown) _rowOf(record, columns, today, look, query, plan)], totals: _totalsOf(query.total, shown, look))];
   }
+
+  // The notebook its planning is of: the one `from:` names, else its first ticket's.
+  String? notebook;
+  for (final title in _linksIn(query.from)) {
+    final note = named[title];
+    if (note != null && note.book) {
+      notebook = note.title;
+      break;
+    }
+  }
+  notebook ??= passed.where((record) => record.kind == RecordKind.ticket).firstOrNull?.notebook;
+  final planChart = show != ShowAs.chart
+      ? null
+      : switch (query.plan) {
+          PlanView.burndown => burndownChart(query, passed, plan, notebook, rowKeyOf),
+          PlanView.velocity => velocityChart(query, passed, plan, notebook, rowKeyOf),
+          _ => null,
+        };
+  if (planChart?.warning case final warning?) warnings.add(warning);
 
   return QueryResult(
     kind: query.kind,
@@ -650,10 +701,13 @@ QueryResult runQuery(Query query, QueryLibrary library, String today) {
     gantt: show == ShowAs.gantt ? ganttOf(groups, kindWords[query.kind]!) : null,
     warnings: warnings,
     today: today,
-    chart: show == ShowAs.chart ? chartOf(query, shown, rowKeyOf, look, group: query.group) : null,
+    chart: show == ShowAs.chart ? (planChart != null ? planChart.chart : chartOf(query, shown, rowKeyOf, look, group: query.group)) : null,
     dateField: query.date,
-    startField: query.start ?? 'start',
-    endField: query.end ?? 'due',
+    startField: _startFieldOf(query),
+    endField: _endFieldOf(query),
     zoom: query.zoom,
+    plan: query.plan,
+    carry: carryOfferOf(query, plan, notebook),
+    cycle: planChart?.cycle,
   );
 }

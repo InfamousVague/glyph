@@ -70,7 +70,7 @@ void main() {
 
     test('says what is wrong, and where', () {
       QueryProblem problem(String body) => readQuery(body).problem!;
-      expect(problem('chart: radar').message, '“radar” isn’t a chart: bar, line or pie.');
+      expect(problem('chart: radar').message, '“radar” isn’t a chart: bar, line, pie, burndown or velocity.');
       expect(problem('zoom: decade').message, '“decade” isn’t a zoom: week, month or quarter.');
       expect(problem('y: sum').message, '“sum” needs a field to work out, like sum(hours).');
       expect(problem('date: due, start').message, 'date: is one field, like due.');

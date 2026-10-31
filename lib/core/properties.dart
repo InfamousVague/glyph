@@ -40,7 +40,7 @@ import 'package:flutter/foundation.dart';
 import 'days.dart' show isIsoDay;
 import 'front_matter.dart';
 import 'item_syntax.dart' show isDoneName, jsTrim;
-import 'task_fields.dart' show priorityOf;
+import 'task_fields.dart' show Priority, priorityOf, priorities;
 
 export 'item_syntax.dart' show isDoneName;
 
@@ -236,6 +236,10 @@ const List<TicketProperty> ticketProperties = [
   TicketProperty(key: 'blocked-by', kind: PropertyKind.links, label: 'Blocked by'),
   TicketProperty(key: 'parent', kind: PropertyKind.link, label: 'Parent'),
   TicketProperty(key: 'labels', kind: PropertyKind.list, label: 'Labels'),
+  // The port's own (Matt, 2026-10-31; lib/core/planning): the cycle a ticket is planned in, a name or a cycle note,
+  // and the milestone it is for.
+  TicketProperty(key: 'cycle', kind: PropertyKind.link, label: 'Cycle'),
+  TicketProperty(key: 'milestone', kind: PropertyKind.link, label: 'Milestone'),
 ];
 
 /// What a property holds by its key, any case: a ticket's own kind, and `text` for any other.
@@ -250,8 +254,15 @@ PropertyKind propertyKind(String key) {
 /// The `type:` that makes a note a ticket (`TICKET_TYPE`).
 const String ticketType = 'ticket';
 
-/// Whether a note is a ticket: its front matter says `type: ticket`, in any case.
-bool isTicket(String body) => frontMatterValue(body, 'type')?.trim().toLowerCase() == ticketType;
+/// The `type:`s a ticket may have: a ticket's, and an epic's, which is a ticket that others are under (Matt,
+/// 2026-10-31; lib/core/planning/planning.dart). The port's own.
+const Set<String> ticketTypes = {ticketType, 'epic'};
+
+/// Whether a `type:` makes a note a ticket, in any case.
+bool isTicketType(String? type) => ticketTypes.contains(type?.trim().toLowerCase());
+
+/// Whether a note is a ticket: its front matter says `type: ticket` (or `type: epic`), in any case.
+bool isTicket(String body) => isTicketType(frontMatterValue(body, 'type'));
 
 // ---- statuses -----------------------------------------------------------------------------------------------------
 
@@ -375,6 +386,7 @@ class Ticket {
     this.blockedBy = const [],
     this.parent,
     this.labels = const [],
+    this.epic = false,
   });
   final String? id;
 
@@ -404,6 +416,9 @@ class Ticket {
   /// Its labels, a `#` before one taken off.
   final List<String> labels;
 
+  /// Whether it is an epic, `type: epic`: the port's own, which its JSON leaves out.
+  final bool epic;
+
   /// The object the web has for it, key for key.
   Map<String, Object?> toJson() => {
         'id': id,
@@ -432,10 +447,11 @@ class Ticket {
       other.estimate == estimate &&
       listEquals(other.blockedBy, blockedBy) &&
       other.parent == parent &&
-      listEquals(other.labels, labels);
+      listEquals(other.labels, labels) &&
+      other.epic == epic;
 
   @override
-  int get hashCode => Object.hash(id, status, category, assignee, priority, due, start, estimate, Object.hashAll(blockedBy), parent, Object.hashAll(labels));
+  int get hashCode => Object.hash(id, status, category, assignee, priority, due, start, estimate, Object.hashAll(blockedBy), parent, Object.hashAll(labels), epic);
 
   @override
   String toString() => 'Ticket(${toJson()})';
@@ -444,11 +460,17 @@ class Ticket {
 final RegExp _ats = RegExp(r'^@+');
 final RegExp _hashes = RegExp(r'^#+');
 
+/// A ticket's priority as written, which may say `urgent` (Matt, 2026-10-31: `priority: urgent|high|medium|low`):
+/// Tasks' highest, one rank read either way. Anything else as task_fields.dart reads it. A note that is no ticket
+/// keeps `urgent` as its words, as the web reads it.
+Priority? ticketPriorityOf(String? said) => said?.trim().toLowerCase() == 'urgent' ? priorities.first : priorityOf(said);
+
 /// A ticket's properties, or null where the note is not one. [statuses] is its notebook's workflow ([statusesOf]).
 Ticket? ticketOf(String body, [List<String>? statuses]) {
   // The front matter is found once, and each property read from where it lies.
   final front = frontMatterSpan(body);
-  if (front.isEmpty || frontMatterValueIn(body, front, 'type')?.trim().toLowerCase() != ticketType) return null;
+  final type = frontMatterValueIn(body, front, 'type');
+  if (front.isEmpty || !isTicketType(type)) return null;
   String? said(String key) {
     final value = frontMatterValueIn(body, front, key);
     if (value == null) return null;
@@ -465,18 +487,21 @@ Ticket? ticketOf(String body, [List<String>? statuses]) {
   final estimate = parseFloat(said('estimate') ?? '');
   final assignee = said('assignee');
   final person = assignee == null ? '' : jsTrim(assignee.replaceFirst(_ats, ''));
-  final parents = linkTargets(said('parent'));
+  // `epic: "[[Epic]]"` is read as its parent where it names none (lib/core/planning/planning.dart says why an epic's
+  // tickets are its sub-tickets): one link, written `parent:`, read either way.
+  final parents = linkTargets(said('parent') ?? said('epic'));
   return Ticket(
     id: issueKeyOf(frontMatterValueIn(body, front, 'id')),
     status: status,
     category: statusCategory(status, statuses),
     assignee: person.isEmpty ? null : person,
-    priority: priorityOf(said('priority'))?.name,
+    priority: ticketPriorityOf(said('priority'))?.name,
     due: day('due'),
     start: day('start'),
     estimate: estimate != null && estimate.isFinite ? estimate : null,
     blockedBy: linkTargets(said('blocked-by')),
     parent: parents.isEmpty ? null : parents.first,
     labels: propertyList(said('labels')).map((label) => jsTrim(label.replaceFirst(_hashes, ''))).where((label) => label.isNotEmpty).toList(),
+    epic: type?.trim().toLowerCase() == 'epic',
   );
 }

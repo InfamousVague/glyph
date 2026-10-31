@@ -423,7 +423,8 @@ bool valueMatches(Value value, Op op, Literal literal, String today) {
   final words = _literalText(literal, today);
   final negative = op == Op.ne || op == Op.notContains;
   if (value is PriorityValue) {
-    final other = priorityOf(words);
+    // `priority = urgent` is a ticket's most urgent (properties.dart `ticketPriorityOf`).
+    final other = ticketPriorityOf(words);
     if (other == null) return negative;
     // The most urgent the greatest: highest is 0 in rank, so the order is turned round.
     return _ordered(_sign(other.rank - priorityRank(value.name)), op);

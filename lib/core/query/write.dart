@@ -99,7 +99,13 @@ String queryText(Query query) {
   if (where != null) lines.add('where: ${conditionText(where)}');
   if (query.sort.isNotEmpty) lines.add('sort: ${[for (final key in query.sort) key.desc ? '${key.field} desc' : key.field].join(', ')}');
   if (query.group != null) lines.add('group: ${query.group}');
-  if (query.show != null) lines.add('show: ${query.show!.name}');
+  final plan = query.plan;
+  if (plan != null && (query.show == null || query.show == (plan == PlanView.roadmap ? ShowAs.timeline : ShowAs.chart))) {
+    lines.add('show: ${plan.name}');
+  } else if (query.show != null) {
+    lines.add('show: ${query.show!.name}');
+  }
+  if (query.cycle != null) lines.add('cycle: ${query.cycle}');
   if (query.date != null) lines.add('date: ${query.date}');
   if (query.start != null) lines.add('start: ${query.start}');
   if (query.end != null) lines.add('end: ${query.end}');

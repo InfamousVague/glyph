@@ -36,6 +36,11 @@ import '../../art/lucide.g.dart';
 import '../../book/tickets.dart' show TicketChoice, Wait, waitingOn;
 import '../../core/days.dart' show isIsoDay;
 import '../../core/properties.dart';
+import '../../activity/job_mark.dart' show activityCalm;
+import '../../core/planning/cycles.dart' show cycleDaysWords;
+import '../../core/planning/planning.dart' show EpicProgress, ticketPriorityLabel;
+import '../../core/preferences.dart' show preferences;
+import '../../core/query/planning.dart' show TicketPlanning;
 import '../../core/task_fields.dart' show priorityOf;
 import '../../sheet/ask_first.dart';
 import '../../sheet/css.dart' show snapBorder;
@@ -48,13 +53,15 @@ import '../items/field_chips.dart' show priorityIcon;
 import '../items/field_menu.dart' show DayPicker;
 import '../looks/look.dart' show layoutUnitFloor;
 import '../queries/query_layout.dart';
+import '../queries/plan_marks.dart' show PriorityChip, StaleMark, TicketPrioritySheet;
 import '../queries/query_look.dart';
+import 'ticket_planning.dart';
 import 'ticket_rows.dart';
 
 /// What the screen hands the editor for a ticket's panel and its keys: the library's tickets, read when they are
 /// drawn (`TicketOptions`).
 class TicketOptions {
-  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem});
+  const TicketOptions({required this.statuses, required this.people, required this.choices, required this.find, required this.open, this.nextId, this.subTickets, this.addSubTicket, this.problem, this.planning});
 
   /// The workflow this note's status moves through: its notebook's (lib/book/tickets.dart), or the default.
   final List<String> Function() statuses;
@@ -85,6 +92,10 @@ class TicketOptions {
   /// Why a value cannot be written for Blocked by or Parent, in a sentence, or null where it can: a ring, a ticket
   /// waiting on itself however far round (lib/book/ticket_links.dart `blockedByProblem`, `parentProblem`).
   final String? Function(String key, Object? value)? problem;
+
+  /// Its planning (lib/core/query/planning.dart; Matt, 2026-10-31): its cycle and the cycles it could move to, how
+  /// long it has sat, an epic's progress, the milestones. Absent, its Cycle and Milestone rows are the words written.
+  final TicketPlanning? Function()? planning;
 }
 
 /// A property's name, as the panel says it (lib/core/properties.dart `ticketProperties`).
@@ -96,7 +107,7 @@ String labelOf(String key) {
 }
 
 class TicketPanel extends StatefulWidget {
-  const TicketPanel({super.key, required this.look, required this.front, required this.options, required this.editable, required this.write, required this.openLines, required this.today, this.locale, this.dayPicker});
+  const TicketPanel({super.key, required this.look, required this.front, required this.options, required this.editable, required this.write, required this.openLines, required this.today, this.locale, this.dayPicker, this.simple});
 
   final QueryLook look;
 
@@ -119,6 +130,9 @@ class TicketPanel extends StatefulWidget {
 
   /// The app's calendar, which a tap on a day asks (the page's `<input type="date">` and its `showPicker`).
   final DayPicker? dayPicker;
+
+  /// Simple mode (GHST-103), whose advanced rows wait behind More; the preference where unsaid.
+  final bool? simple;
 
   @override
   State<TicketPanel> createState() => _TicketPanelState();
@@ -329,25 +343,57 @@ class _TicketPanelState extends State<TicketPanel> {
         return _stepped(<Widget>[_chip(assignee ?? 'Empty', mark: avatar, empty: assignee == null, property: 'Assignee', onPress: pick('assignee'))]);
       case 'priority':
         final priority = priorityOf(ticket.priority);
-        // .priority[data-tone] …: the kit's chevrons, coloured as a to-do's chip colours them. `size={16}
-        //   strokeWidth={2.6}`
-        final mark = priority == null
-            ? null
-            : Part(
-                'priority',
-                child: AppIcon(
-                  priorityIcon[priority.name]!,
-                  size: 16,
-                  strokeWidth: 2.6,
-                  color: switch (priority.name) {
-                    'highest' || 'high' => look.t.color('glacier-red-11'),
-                    'medium' => look.t.color('glacier-amber-11'),
-                    'low' => look.t.color('glacier-blue-11'),
-                    _ => look.ink3,
-                  },
-                ),
-              );
-        return _stepped(<Widget>[_chip(priority?.label ?? 'Empty', mark: mark, empty: priority == null, property: 'Priority', onPress: pick('priority'))]);
+        if (options?.planning == null) {
+          // .priority[data-tone] …: the kit's chevrons, coloured as a to-do's chip colours them. `size={16}
+          //   strokeWidth={2.6}`
+          final mark = priority == null
+              ? null
+              : Part(
+                  'priority',
+                  child: AppIcon(
+                    priorityIcon[priority.name]!,
+                    size: 16,
+                    strokeWidth: 2.6,
+                    color: switch (priority.name) {
+                      'highest' || 'high' => look.t.color('glacier-red-11'),
+                      'medium' => look.t.color('glacier-amber-11'),
+                      'low' => look.t.color('glacier-blue-11'),
+                      _ => look.ink3,
+                    },
+                  ),
+                );
+          return _stepped(<Widget>[_chip(priority?.label ?? 'Empty', mark: mark, empty: priority == null, property: 'Priority', onPress: pick('priority'))]);
+        }
+        // Where the host draws its planning, a ticket's priority is its coloured chip (Matt, 2026-10-31: urgent, high,
+        // medium, low; queries/plan_marks.dart), where the page drew the kit's chevrons beside its name.
+        if (priority == null) return _stepped(<Widget>[_chip('Empty', empty: true, property: 'Priority', onPress: pick('priority'))]);
+        final label = ticketPriorityLabel(priority.name);
+        return _stepped(<Widget>[
+          _tap(
+            label: 'Priority: $label. Change it',
+            onTap: pick('priority'),
+            child: Container(
+              constraints: BoxConstraints(minHeight: layoutUnitFloor(1.9 * look.em)),
+              padding: EdgeInsets.symmetric(horizontal: look.space(2)),
+              alignment: Alignment.centerLeft,
+              child: PriorityChip(look: look, name: priority.name, size: look.em),
+            ),
+          ),
+        ]);
+      case 'cycle':
+        final planning = options?.planning?.call();
+        final cycle = planning?.cycle;
+        final written = linkTargets(_raw('cycle')).firstOrNull;
+        final said = cycle != null ? cycleChipWords(cycle, planning?.current) : (written ?? 'Empty');
+        final days = cycle == null ? '' : cycleDaysWords(cycle);
+        return _stepped(<Widget>[_chip(days.isEmpty ? said : '$said · $days', mark: Part('cycleMark', child: AppIcon(Lucide.refreshCw, size: 13, strokeWidth: 2.2, color: look.ink3)), empty: cycle == null && written == null, property: 'Cycle', onPress: planning == null ? null : pick('cycle'))]);
+      case 'milestone':
+        final planning = options?.planning?.call();
+        final own = linkTargets(_raw('milestone')).firstOrNull;
+        final shown = own ?? planning?.milestone;
+        final day = planning?.milestoneDay;
+        final said = shown == null ? 'Empty' : (day == null ? shown : '$shown · ${dayLabel(day, widget.today, widget.locale)}');
+        return _stepped(<Widget>[_chip(own == null && shown != null ? '$said (its epic’s)' : said, mark: shown == null ? null : Part('milestoneMark', child: AppIcon(Lucide.flag, size: 13, strokeWidth: 2.2, color: look.ink3)), empty: shown == null, property: 'Milestone', onPress: planning == null ? null : pick('milestone'))]);
       case 'due' || 'start':
         final day = key == 'due' ? ticket.due : ticket.start;
         final written = _raw(key);
@@ -423,8 +469,18 @@ class _TicketPanelState extends State<TicketPanel> {
         return StatusSheet(look: look, value: ticket.status, statuses: statuses, onClose: close, onPick: (value) => unawaited(_writeStatus(ticket, value, statuses)));
       case 'sub-ticket':
         return SubTicketSheet(onClose: close, onAdd: (title) => options.addSubTicket?.call(title));
-      case 'priority':
+      case 'priority' when options.planning == null:
         return FieldPicker(pick: PriorityPick(value: ticket.priority), label: 'Priority', record: record, onClose: close, onPick: (value) => widget.write('priority', value));
+      case 'priority':
+        return TicketPrioritySheet(look: look, value: ticket.priority, record: record.isEmpty ? null : record, onClose: close, onPick: (written) => widget.write('priority', written));
+      case 'cycle':
+        final planning = options.planning?.call();
+        if (planning == null) return null;
+        return CycleSheet(planning: planning, onClose: close, onPick: (written) => widget.write('cycle', written));
+      case 'milestone':
+        final planning = options.planning?.call();
+        if (planning == null) return null;
+        return MilestoneSheet(planning: planning, own: linkTargets(_raw('milestone')).firstOrNull, onClose: close, onPick: (written) => widget.write('milestone', written));
       case 'assignee':
         return FieldPicker(pick: PersonPick(value: ticket.assignee, people: options.people()), label: 'Assignee', record: record, onClose: close, onPick: (value) => widget.write('assignee', value));
       case 'due' || 'start':
@@ -437,9 +493,12 @@ class _TicketPanelState extends State<TicketPanel> {
 
   /// Its sub-tickets: a bar of how many are done, each one a tap away, and Add sub-ticket (Matt, 2026-10-30, of a
   /// list of plain-Markdown features: "add all 12"). Under the rows, ruled off as the foot is.
-  Widget _subTickets(List<TicketChoice> children, {required bool adds}) {
+  Widget _subTickets(List<TicketChoice> children, {required bool adds, EpicProgress? epic}) {
     final done = children.where((child) => child.category == StatusCategory.done).length;
-    final fraction = children.isEmpty ? 0.0 : done / children.length;
+    // An epic's bar is by its tickets' points where they have them (lib/core/planning/planning.dart).
+    final fraction = epic != null && !epic.isEmpty ? epic.fraction : (children.isEmpty ? 0.0 : done / children.length);
+    final heading = epic != null ? 'In this epic' : 'Sub-tickets';
+    final words = epic != null && !epic.isEmpty ? epic.words : '$done of ${children.length} done';
     final options = widget.options;
     return Padding(
       padding: EdgeInsets.only(top: look.space(1), bottom: look.space(1)),
@@ -454,12 +513,12 @@ class _TicketPanelState extends State<TicketPanel> {
             children: <Widget>[
               Semantics(
                 container: true,
-                label: 'Sub-tickets, $done of ${children.length} done',
+                label: '$heading, $words',
                 excludeSemantics: true,
                 child: Row(
                   children: <Widget>[
-                    Expanded(child: PageWords('Sub-tickets', look.sans(look.em, color: look.ink3), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    Part('progressWords', child: PageWords('$done of ${children.length} done', look.sans(look.xs, color: look.ink3), line: look.lineXs, softWrap: false)),
+                    Expanded(child: PageWords(heading, look.sans(look.em, color: look.ink3), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Part('progressWords', child: PageWords(words, look.sans(look.xs, color: look.ink3), line: look.lineXs, softWrap: false)),
                   ],
                 ),
               ),
@@ -577,8 +636,11 @@ class _TicketPanelState extends State<TicketPanel> {
   ({Widget panel, double least}) _panel(BuildContext context, Ticket ticket, List<String> statuses) {
     final options = widget.options;
     final editable = widget.editable;
-    final rows = panelRows(widget.front, _more);
-    final hidden = editable && !_more ? hiddenRows(widget.front) : const <String>[];
+    final simple = widget.simple ?? preferences.value.simple;
+    final planned = options?.planning != null;
+    final rows = panelRows(widget.front, _more, simple, planned);
+    final hidden = editable && !_more ? hiddenRows(widget.front, simple, planned) : const <String>[];
+    final planning = options?.planning?.call();
     final others = otherKeys(widget.front);
     final waits = <({String target, TicketChoice found})>[
       if (options != null)
@@ -638,6 +700,9 @@ class _TicketPanelState extends State<TicketPanel> {
                         // .key { font-family: var(--glacier-font-mono); font-weight: var(--glacier-font-weight-semibold);
                         //   letter-spacing: 0.02em; color: var(--app-ink-2) }
                         CssItem(least: 0, child: Part('key', child: PageWords(id != null && id.isNotEmpty ? id : 'Ticket', look.mono(look.em, weight: 'semibold', color: look.ink2, tracking: 0.02 * look.em), line: look.line, softWrap: false, maxLines: 1))),
+                        // An epic says so, and a ticket left in its status too long says how long (planning.dart).
+                        if (ticket.epic) CssItem(shrink: 0, child: Part('epic', child: PageWords('Epic', look.sans(look.xs, weight: 'semibold', color: activityCalm(look.t) ? look.ink2 : look.t.color('glacier-purple-11'), tracking: 0.02 * look.xs), line: look.lineXs, softWrap: false))),
+                        if (planning?.staleDays case final days?) CssItem(least: 0, child: StaleMark(look: look, days: days)),
                         if (offered != null)
                           // .give { padding: 0 var(--glacier-space-2); border: 1px solid var(--app-rule);
                           //   border-radius: var(--glacier-radius-full); background: var(--app-paper);
@@ -741,7 +806,7 @@ class _TicketPanelState extends State<TicketPanel> {
                     ],
                   ),
                 ),
-                if (children.isNotEmpty) _subTickets(children, adds: adds),
+                if (children.isNotEmpty) _subTickets(children, adds: adds, epic: ticket.epic ? planning?.progress : null),
                 if (hidden.isNotEmpty || (others.isNotEmpty && editable) || (adds && children.isEmpty))
                   // .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
                   //   gap: var(--glacier-space-1) var(--glacier-space-3); margin-block-start: var(--glacier-space-1);

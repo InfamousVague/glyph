@@ -38,6 +38,12 @@
 ///     x:        the field a chart's bars or slices are of; `group:`, else the status
 ///     y:        what each measures: count, or sum, average, min, max or percent of a field (`sum(hours)`)
 ///     series:   a field a chart's bars are split by, each a colour
+///     cycle:    the cycle a burndown is of: current where unsaid, previous, next, `2026-C45` or `[[Sprint 12]]`
+///
+/// And the planning views of tickets (Matt, 2026-10-31; lib/core/query/planning.dart): `show: burndown` and `show:
+/// velocity` (charts, or `chart: burndown` under `show: chart`), and `show: roadmap`, a timeline of epics and
+/// milestones. Their fields - `cycle`, `stale`, `age`, `epic`, `milestone`, `progress` - are fields like any other,
+/// and `where: cycle = current` and `where: stale` read as a person would mean them.
 ///
 /// A field is written as Dataview keys one: lower case, a space a dash (task_fields.dart `fieldKey`), so `Due Date`
 /// and `due-date` are one field. A value on the right of a test is words unless it is something else: a number, a
@@ -106,6 +112,11 @@ class Measure extends QueryData {
 
 /// A chart's shape (`chart:`).
 enum ChartKind { bar, line, pie }
+
+/// A planning view of tickets (Matt, 2026-10-31; lib/core/planning): a cycle's burndown and the cycles' velocity, each
+/// a chart, and the roadmap of epics and milestones, a timeline. Written `show: burndown`, `show: velocity` and
+/// `show: roadmap`, or `chart: burndown` under `show: chart`.
+enum PlanView { burndown, velocity, roadmap }
 
 /// How many days a timeline shows across its card (`zoom:`).
 enum TimelineZoom { week, month, quarter }
@@ -336,6 +347,8 @@ class Query extends QueryData {
     this.y,
     this.series,
     this.rollups = const [],
+    this.plan,
+    this.cycle,
   });
 
   /// What the records are: notes (tickets among them), tickets alone, or to-dos. Notes, where `from:` does not say.
@@ -371,8 +384,14 @@ class Query extends QueryData {
   /// The columns worked out over linked notes, in the order written.
   final List<Rollup> rollups;
 
+  /// A planning view (lib/core/query/planning.dart): a burndown, velocity, or the roadmap; null for none.
+  final PlanView? plan;
+
+  /// The cycle a burndown is of, as written (`current`, `previous`, `2026-C45`, `[[Sprint 12]]`); null for the current.
+  final String? cycle;
+
   /// Whether anything of a view's own is written: what the web's JSON has no keys for.
-  bool get hasViewLines => date != null || start != null || end != null || zoom != null || chart != null || x != null || y != null || series != null || rollups.isNotEmpty;
+  bool get hasViewLines => date != null || start != null || end != null || zoom != null || chart != null || x != null || y != null || series != null || rollups.isNotEmpty || plan != null || cycle != null;
 
   @override
   Object? toJson() => {
@@ -394,6 +413,8 @@ class Query extends QueryData {
         if (y != null) 'y': y!.toJson(),
         if (series != null) 'series': series,
         if (rollups.isNotEmpty) 'rollups': [for (final rollup in rollups) rollup.toJson()],
+        if (plan != null) 'plan': plan!.name,
+        if (cycle != null) 'cycle': cycle,
       };
 }
 
@@ -443,10 +464,13 @@ const Map<String, String> _clauses = {
   'y': 'y',
   'series': 'series',
   'rollup': 'rollup',
+  // A burndown's cycle (lib/core/query/planning.dart).
+  'cycle': 'cycle',
+  'sprint': 'cycle',
 };
 
 /// The names, as a sentence lists them (`QUERY_LINES`), the web's first, so a "did you mean" finds the one it did.
-const List<String> queryLines = ['from', 'where', 'sort', 'group', 'show', 'columns', 'total', 'limit', 'rollup', 'date', 'start', 'end', 'zoom', 'chart', 'x', 'y', 'series'];
+const List<String> queryLines = ['from', 'where', 'sort', 'group', 'show', 'columns', 'total', 'limit', 'rollup', 'date', 'start', 'end', 'zoom', 'chart', 'x', 'y', 'series', 'cycle'];
 
 /// The names a "did you mean" offers: a letter's name is too near every short word to be one.
 final List<String> _nearLines = [for (final name in queryLines) if (name.length > 1) name];
@@ -1035,6 +1059,8 @@ Reading readQuery(String body) {
   TimelineZoom? zoom;
   ChartKind? chart;
   Measure? y;
+  PlanView? plan;
+  String? cycle;
   final rollups = <Rollup>[];
   final seen = <String, int>{};
   final wheres = <Condition>[];
@@ -1098,6 +1124,12 @@ Reading readQuery(String body) {
         case 'show':
           final way = value.toLowerCase();
           ShowAs? as;
+          // A planning view is a chart or a timeline of its own (lib/core/query/planning.dart).
+          final planned = PlanView.values.where((each) => each.name == way).firstOrNull;
+          if (planned != null) {
+            plan = planned;
+            as = planned == PlanView.roadmap ? ShowAs.timeline : ShowAs.chart;
+          }
           for (final each in ShowAs.values) {
             if (each.name == way) as = each;
           }
@@ -1119,8 +1151,15 @@ Reading readQuery(String body) {
           zoom = TimelineZoom.values.where((each) => each.name == way || '${each.name}s' == way).firstOrNull;
           if (zoom == null) throw _Trouble(0, '${_said(value)} isn’t a zoom: week, month or quarter.');
         case 'chart':
-          chart = _chartWords[value.toLowerCase()];
-          if (chart == null) throw _Trouble(0, '${_said(value)} isn’t a chart: bar, line or pie.');
+          final planned = const {'burndown': PlanView.burndown, 'velocity': PlanView.velocity}[value.toLowerCase()];
+          if (planned != null) {
+            plan = planned;
+          } else {
+            chart = _chartWords[value.toLowerCase()];
+            if (chart == null) throw _Trouble(0, '${_said(value)} isn’t a chart: bar, line, pie, burndown or velocity.');
+          }
+        case 'cycle':
+          cycle = jsTrim(value);
         case 'y':
           y = _readMeasure(value);
         case 'rollup':
@@ -1159,6 +1198,8 @@ Reading readQuery(String body) {
     y: y,
     series: series,
     rollups: rollups,
+    plan: plan,
+    cycle: cycle,
   ));
 }
 

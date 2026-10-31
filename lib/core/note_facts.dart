@@ -34,7 +34,7 @@ import 'front_matter.dart';
 import 'note.dart';
 import 'note_text.dart' show noteTitleIn, peekMarkdown;
 import 'note_text.dart' as words show firstLine;
-import 'properties.dart' show StatusCategory, Ticket, statusCategory, statusesOf, ticketOf, ticketType;
+import 'properties.dart' show StatusCategory, Ticket, isTicketType, statusCategory, statusesOf, ticketOf;
 import 'short_url.dart' show shortenUrls;
 import 'title_key.dart' show titleKey;
 
@@ -159,7 +159,7 @@ class NoteFacts {
   late final int? canvasCards = isCanvas ? _worked(canvasOf(_body)?.nodes.length) : null;
 
   /// Whether it is a ticket (`isTicket`).
-  late final bool isTicket = _worked(value('type')?.trim().toLowerCase() == ticketType);
+  late final bool isTicket = _worked(isTicketType(value('type')));
 
   // ---- a notebook's --------------------------------------------------------------------------------------------------
 
