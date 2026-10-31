@@ -310,13 +310,16 @@ mod tests {
         app.carry_drafts_into(&mut there);
         assert_eq!(there.get_note("draft").unwrap().map(|n| n.body), Some(String::new()));
 
-        // One of the vault's own notes, edited in Ghost.md: Obsidian's front matter kept, and its name, so its
-        // daily note and every [[link]] to it still find it.
+        // One of the vault's own notes, edited in Ghost.md: Obsidian's front matter is the page's own (its one
+        // block holds the page's keys, frontmatter.rs `read`), kept in the one block with the library's keys after
+        // it, and its name kept, so its daily note and every [[link]] to it still find it.
         let daily = there.list_notes().unwrap().into_iter().find(|n| n.path.as_deref() == Some("Daily/2026-10-01.md")).unwrap();
-        let saved = there.save_note(&daily.id, "Went for a walk.\n\nAnd a swim.\n", "editor").unwrap();
+        assert_eq!(daily.body, "---\ntags: daily\n---\nWent for a walk.\n", "the page sees Obsidian's keys as its own");
+        let saved = there.save_note(&daily.id, "---\ntags: daily\n---\nWent for a walk.\n\nAnd a swim.\n", "editor").unwrap();
         assert_eq!(saved.path.as_deref(), Some("Daily/2026-10-01.md"));
         let text = read(&vault, "Daily/2026-10-01.md");
         assert!(text.starts_with(&format!("---\ntags: daily\nid: {}\n", daily.id)), "{text}");
+        assert_eq!(text.matches("---\n").count(), 2, "one block, not two: {text}");
         // A note Ghost.md named still follows its title.
         assert_eq!(there.save_note("road", "# Roadmap for 2027\n", "editor").unwrap().path.as_deref(), Some("workspaces/Work/Roadmap for 2027.md"));
     }
