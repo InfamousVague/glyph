@@ -28,13 +28,16 @@ const List<String> serverKinds = ['invite', 'invite-accepted', 'invite-declined'
 /// `form-answer` is a ticket filed from an answer to a form (lib/forms/form_inbox.dart; Matt, 2026-10-30): an older
 /// build does not know it, and draws nothing for it. `page-expired`, a verified page whose time ran out
 /// (lib/verified/verified.dart; Matt, 2026-10-30: "add all 12"), is the app's own and has no web counterpart yet.
-const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'form-answer', 'page-expired'];
+/// `ticket-digest` is the morning's word on a person's tickets, due, overdue and blocked (lib/book/ticket_digest.dart;
+/// Matt, 2026-10-31), written by the one device that sends it.
+const List<String> selfKinds = ['note-created', 'note-edited', 'note-appended', 'journal-entry', 'rule-added', 'summary-written', 'sync-conflict', 'form-answer', 'page-expired', 'ticket-digest'];
 
 /// Written by the service on a member's word, to another member of the organization, sealed under the organization
 /// key (lib/mentions/mention_notices.dart; server/src/notifications.rs): who sent it and the organization ride in the
 /// clear, as a server kind's do, and the words in a seal, as a self kind's do. An older build does not know the kind
-/// and does not draw the row.
-const List<String> memberKinds = ['mention'];
+/// and does not draw the row. `ticket` is a ticket's watchers told what changed on it, the same way
+/// (lib/book/ticket_events.dart; Matt, 2026-10-31).
+const List<String> memberKinds = ['mention', 'ticket'];
 
 /// Every kind this build knows (`KINDS`).
 const List<String> kinds = [...serverKinds, ...selfKinds, ...memberKinds];
@@ -64,6 +67,8 @@ const Map<String, String> kindHues = {
   'form-answer': 'sea',
   'page-expired': 'amber',
   'mention': 'violet',
+  'ticket': 'violet',
+  'ticket-digest': 'amber',
 };
 
 bool isKind(Object? value) => value is String && kinds.contains(value);
@@ -99,6 +104,9 @@ const Map<String, String> _categoryOf = {
   // they vouch for wants looking at. The bell's Mentions filter shows the first.
   'mention': 'mentions',
   'page-expired': 'mentions',
+  // A ticket the person watches, and their morning's tickets: their own business, as a mention is.
+  'ticket': 'mentions',
+  'ticket-digest': 'mentions',
 };
 
 /// The category of a kind this build knows: one of [categories], or `invites`.
@@ -110,7 +118,7 @@ String categoryOf(String kind) => _categoryOf[kind]!;
 /// about, and what that kind says of it.
 @immutable
 class NotificationDetails {
-  const NotificationDetails({required this.kind, required this.noteId, required this.title, this.by, this.added, this.removed, this.first, this.at, this.lines, this.journal});
+  const NotificationDetails({required this.kind, required this.noteId, required this.title, this.by, this.added, this.removed, this.first, this.at, this.lines, this.journal, this.what});
 
   /// One of [selfKinds], or a member's `mention`: the one trusted, where the row's own `kind` is for the service's
   /// pruning.
@@ -137,6 +145,9 @@ class NotificationDetails {
   /// `journal-entry`: the journal's name.
   final String? journal;
 
+  /// `ticket`: what was done to it, `closed`, `commented` or `changed` (lib/book/ticket_events.dart `batchWhat`).
+  final String? what;
+
   /// An opened payload, if it has the shape of a self kind: a kind this build knows, about a note with a title
   /// (`isDetails`); null otherwise.
   static NotificationDetails? fromJson(Object? value) {
@@ -156,6 +167,7 @@ class NotificationDetails {
       at: text('at'),
       lines: count('lines'),
       journal: text('journal'),
+      what: text('what'),
     );
   }
 }
@@ -318,6 +330,16 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
       return open('mention') ? '${_text(opened!.by, _who(n.from))} mentioned you in ${opened.title}' : '${_who(n.from)} mentioned you in a note';
     case 'page-expired':
       return open('page-expired') ? '${opened!.title} needs review: its verification ran out' : 'A verified page needs review';
+    case 'ticket':
+      if (!open('ticket')) return '${_who(n.from)} changed a ticket you watch';
+      final by = _text(opened!.by, _who(n.from));
+      return switch (opened.what) {
+        'closed' => '$by closed ${opened.title}',
+        'commented' => '$by commented on ${opened.title}',
+        _ => '$by changed ${opened.title}',
+      };
+    case 'ticket-digest':
+      return open('ticket-digest') ? 'Your tickets today: ${opened!.title}' : 'Your tickets for today';
   }
   // A kind this build does not know is not drawn (`listed`); asked for anyway, it has no words.
   return '';
@@ -327,7 +349,7 @@ String sentenceOf(FeedNotification n, [NotificationDetails? opened]) {
 /// (`detailOf`).
 String? detailOf(NotificationDetails? opened) {
   if (opened == null) return null;
-  if (opened.kind == 'note-edited' || opened.kind == 'note-appended' || opened.kind == 'journal-entry' || opened.kind == 'rule-added' || opened.kind == 'mention') {
+  if (opened.kind == 'note-edited' || opened.kind == 'note-appended' || opened.kind == 'journal-entry' || opened.kind == 'rule-added' || opened.kind == 'mention' || opened.kind == 'ticket' || opened.kind == 'ticket-digest') {
     final first = opened.first;
     return first == null || first.isEmpty ? null : first;
   }
@@ -374,6 +396,9 @@ bool isPendingInvite(FeedNotification n) => n.kind == 'invite' && n.state == 'pe
 
 /// A member's mention of this account: what the bell's Mentions filter shows.
 bool isMention(FeedNotification n) => n.kind == 'mention';
+
+/// A change to a ticket this account watches: what the row's Unwatch is offered on (lib/book/ticket_events.dart).
+bool isTicketEvent(FeedNotification n) => n.kind == 'ticket';
 
 /// The kinds about an organization, whose row opens it; an invitation is answered on its own row instead
 /// (`ORG_KINDS`, notes/NotificationsDrawer.tsx).

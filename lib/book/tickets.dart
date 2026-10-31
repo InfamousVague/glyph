@@ -32,6 +32,7 @@ import '../core/properties.dart';
 import '../core/query/collate.dart' show localeCompare;
 import '../core/task_fields.dart' show FieldKind, fieldsIn, personKey;
 import '../core/title_key.dart' show titleKey;
+import 'ticket_watchers.dart' show ticketCreator, watchersOf, withWatcher;
 
 // ---- the notebook's key -------------------------------------------------------------------------------------------
 
@@ -92,6 +93,9 @@ String newTicketBody(String title, {required String? id, required List<String> s
   if (id != null && id.isNotEmpty && ticketIdOf(body) == null) body = withProperty(body, 'id', id);
   final status = jsTrim(frontMatterValue(body, 'status') ?? '');
   if (status.isEmpty || !_inWorkflow(status, statuses)) body = withProperty(body, 'status', firstOpenStatus(statuses));
+  // Its maker watches it (lib/book/ticket_watchers.dart; Matt, 2026-10-31), where the template named nobody.
+  final creator = ticketCreator.value;
+  if (creator != null && watchersOf(body).isEmpty) body = withWatcher(body, creator, true);
   return body;
 }
 

@@ -315,6 +315,14 @@ class FakeService {
 
   /// Every post to the mentions route, told or not, in order: what a test counts the device's calls by.
   final List<Map<String, Object?>> mentionPosts = [];
+
+  /// The `ticket` rows the service wrote into members' feeds for a ticket's watchers (server/src/notifications.rs
+  /// `ticket_event`), by handle then id, each once; and every post to the route, in order.
+  final Map<String, Map<String, ({String from, String org, String blob, int generation})>> ticketTold = {};
+  final List<Map<String, Object?>> ticketPosts = [];
+
+  /// Whether the service has the ticket events' route: false is an older glyph-api, whose answer is its 404.
+  bool ticketEvents = true;
   int _counter = 0;
   final Set<String> _tokens = {};
   final Set<String> _nonces = {};
@@ -1143,6 +1151,29 @@ class FakeService {
       return _json(200, {'declined': true});
     }
 
+    final ticketEvent = RegExp(r'^orgs/([^/]+)/ticket-events$').firstMatch(path);
+    if (ticketEvent != null && method == 'POST' && !ticketEvents) return _refuse(404, noSuchRoute);
+    if (ticketEvent != null && method == 'POST') {
+      ticketPosts.add(body);
+      final found = inOrg(Uri.decodeComponent(ticketEvent[1]!));
+      if (found == null) return _refuse(404, 'No such organization.');
+      final id = body['id'] == null ? '' : '${body['id']}';
+      if (!RegExp(r'^[A-Za-z0-9_-]{1,64}$').hasMatch(id)) return _refuse(400, "That change's id could not be read.");
+      final to = body['to'], blob = body['blob'], generation = body['generation'];
+      if (to is! List || to.isEmpty || to.length > 20) return _refuse(400, "A ticket's change tells one to twenty members.");
+      if (generation is! num || generation < 1) return _refuse(400, "That change's key could not be read.");
+      if (blob is! String || blob.isEmpty || blob.length > 8 * 1024) return _refuse(400, 'That change is empty or too large.');
+      final told = <String>[];
+      for (final handle in to) {
+        final row = found.org.rows[_lower('$handle')];
+        if (row == null || row.state != 'member' || _lower(row.handle) == _lower(me)) continue;
+        final feedOf = ticketTold.putIfAbsent(_lower(row.handle), () => {});
+        if (feedOf.containsKey(id)) continue;
+        feedOf[id] = (from: me, org: found.org.id, blob: blob, generation: generation.toInt());
+        told.add(row.handle);
+      }
+      return _json(200, {'told': told});
+    }
     final mention = RegExp(r'^orgs/([^/]+)/mentions$').firstMatch(path);
     if (mention != null && method == 'POST') {
       mentionPosts.add(body);

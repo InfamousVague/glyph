@@ -12,11 +12,14 @@ const NotificationOrg ghost = (id: 'o1', name: 'Ghost');
 
 void main() {
   group('the kinds', () {
-    test('are the service’s nine, the account’s nine and a member’s mention, each in one category', () {
-      expect(kinds, hasLength(19));
+    test('are the service’s nine, the account’s ten and a member’s mention and ticket change, each in one category', () {
+      expect(kinds, hasLength(21));
       expect(serverKinds, hasLength(9));
-      expect(selfKinds, hasLength(9));
-      expect(memberKinds, ['mention']);
+      expect(selfKinds, hasLength(10));
+      expect(memberKinds, ['mention', 'ticket']);
+      // A ticket watched and the morning's digest are the person's own too (Matt, 2026-10-31).
+      expect(categoryOf('ticket'), 'mentions');
+      expect(categoryOf('ticket-digest'), 'mentions');
       // A mention and a verified page run out are the person's own business, with no switch (Matt, 2026-10-30).
       expect(categoryOf('mention'), 'mentions');
       expect(categoryOf('page-expired'), 'mentions');
