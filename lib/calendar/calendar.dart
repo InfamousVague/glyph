@@ -31,6 +31,7 @@ import '../core/preferences.dart';
 import '../core/query/records.dart' show QueryEvent, QueryNote, libraryOf;
 import '../core/stored.dart';
 import '../root/account_wiring.dart' show accountBase, ghostApiDefine;
+import '../sync/kept_secrets.dart';
 import 'event.dart';
 import 'google.dart';
 import 'ics.dart';
@@ -65,16 +66,20 @@ String? defaultGoogleBase() {
 const String _userAgent = 'GhostMd/0.1.0 (https://ghostmarkdown.com)';
 
 class CalendarService extends ChangeNotifier {
-  CalendarService({Fetcher? fetch, PreferencesStore? prefs, Stored Function()? kept, String? Function()? googleBase, int Function()? clock, Future<void> Function(String url)? open, this.todosWait = todosSoon})
+  /// [secrets] holds the addresses, Google's refresh token and this device's access token (lib/sync/kept_secrets.dart):
+  /// the app's own unless a test gives its own.
+  CalendarService({Fetcher? fetch, PreferencesStore? prefs, Stored Function()? kept, KeptSecrets? secrets, String? Function()? googleBase, int Function()? clock, Future<void> Function(String url)? open, this.todosWait = todosSoon})
       : _fetch = fetch,
         _prefs = prefs,
-        _kept = CalendarKept(kept),
+        _secrets = secrets ?? integrationSecrets,
+        _kept = CalendarKept(kept, secrets ?? integrationSecrets),
         _googleBase = googleBase ?? defaultGoogleBase,
         _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
         _open = open ?? openLink;
 
   Fetcher? _fetch;
   final PreferencesStore? _prefs;
+  final KeptSecrets _secrets;
   final CalendarKept _kept;
   final String? Function() _googleBase;
   final int Function() _clock;
@@ -106,10 +111,37 @@ class CalendarService extends ChangeNotifier {
   /// Every event on [day] (`YYYY-MM-DD`), in [inDayOrder].
   List<CalendarEvent> on(String day) => eventsOn(events.value, day);
 
-  /// The calendars the account has.
-  CalendarSetup get setup => calendarSetupOf(prefs.value);
+  /// The calendars the account has, their secrets from the secure store (setup.dart says why): before [ready] has
+  /// read those, an address whose secret is only there is not listed yet, and Google's token reads empty.
+  CalendarSetup get setup => calendarSetupOf(prefs.value, secret: _secrets.peek);
 
   void _setSetup(CalendarSetup next) => prefs.update((now) => withCalendarSetup(now, next));
+
+  Future<void>? _readying;
+
+  /// The secrets read from the secure store, and any an older build left in the settings blob moved there and taken
+  /// out of the blob (setup.dart, "the secrets are not in it"). Every pass waits on it; asked again after the settings
+  /// change, for an address added on another device, or a blob an older device wrote.
+  Future<void> ready() => _readying ??= _ready().whenComplete(() => _readying = null);
+
+  Future<void> _ready() async {
+    final raw = prefs.value.more[calendarsKey];
+    await _secrets.load([googleRefreshName, for (final id in CalendarSetup.addressIdsIn(raw)) icalAddressName(id)]);
+    await _kept.adopt();
+    if (!CalendarSetup.storedInTheClear(raw)) return;
+    // An older build's blob: each secret into the store, and the blob written again without them. The store's own
+    // copy stands where it has one, since that is the newer word (a token refreshed here after the blob was written).
+    final clear = CalendarSetup.fromJson(raw);
+    for (final address in clear.addresses) {
+      if (_secrets.peek(icalAddressName(address.id)) == null) await _secrets.write(icalAddressName(address.id), address.url);
+    }
+    final google = clear.google;
+    if (google != null && google.refreshToken.isNotEmpty && _secrets.peek(googleRefreshName) == null) await _secrets.write(googleRefreshName, google.refreshToken);
+    if (identical(prefs.value.more[calendarsKey], raw)) {
+      _setSetup(setup);
+      _seen = jsonOfSetup(setup);
+    }
+  }
 
   /// How the last read of a source went: `ical:<id>`, `google:<id>`, or [googleSource] for Google's as a whole.
   SourceStatus? statusOf(String source) => _kept.statuses()[source];
@@ -201,6 +233,7 @@ class CalendarService extends ChangeNotifier {
     _seen = jsonOfSetup(setup);
     _wasLocal = _localOnly;
     prefs.addListener(_onPrefs);
+    unawaited(ready().then((_) => _onPrefs(), onError: (Object _) {}));
     _icalBeat = Timer.periodic(icalEvery, (_) => unawaited(syncIcal(force: true)));
     _googleBeat = Timer.periodic(googleEvery, (_) => unawaited(syncGoogle()));
     // After the first frame: nothing it does can throw into the launch.
@@ -269,6 +302,11 @@ class CalendarService extends ChangeNotifier {
   /// read soon and what is gone is forgotten. Local only turned off is a read too.
   bool _wasLocal = false;
   void _onPrefs() {
+    // A blob from another device may name an address whose secret is not read yet, or carry an older build's secrets
+    // in the clear: read, moved, and this heard again once they are.
+    if (CalendarSetup.storedInTheClear(prefs.value.more[calendarsKey]) || CalendarSetup.addressIdsIn(prefs.value.more[calendarsKey]).any((id) => !_secrets.loaded(icalAddressName(id)))) {
+      unawaited(ready().then((_) => _onPrefs(), onError: (Object _) {}));
+    }
     final now = jsonOfSetup(setup);
     final local = _localOnly;
     final unlocked = _wasLocal && !local;
@@ -328,6 +366,7 @@ class CalendarService extends ChangeNotifier {
 
   Future<void> _ical(bool force) async {
     if (_localOnly || !active) return;
+    await ready();
     final current = setup;
     for (final address in current.addresses) {
       if (_readByGoogle(address, current)) continue;
@@ -380,10 +419,13 @@ class CalendarService extends ChangeNotifier {
     final read = calendarAddress(typed);
     final url = read.url;
     if (url == null) return read.problem;
+    await ready();
     final now = setup;
     final id = addressId(url);
     if (now.addresses.any((each) => each.id == id)) return 'That calendar is here already.';
     final address = CalendarAddress(id: id, url: url);
+    // The address into the secure store first, so the blob that names it reads whole at once.
+    await _secrets.write(icalAddressName(id), url);
     _setSetup(now.copyWith(addresses: [...now.addresses, address]));
     _seen = jsonOfSetup(setup);
     _changed();
@@ -392,10 +434,11 @@ class CalendarService extends ChangeNotifier {
     return null;
   }
 
-  /// Takes the address off, and forgets what it gave.
+  /// Takes the address off, and forgets what it gave, its secret with it.
   void removeAddress(String id) {
     final now = setup;
     _setSetup(now.copyWith(addresses: [for (final each in now.addresses) if (each.id != id) each]));
+    unawaited(_secrets.write(icalAddressName(id), null));
     _seen = jsonOfSetup(setup);
     _forgetGone();
   }
@@ -457,16 +500,19 @@ class CalendarService extends ChangeNotifier {
     }
     _collecting = true;
     try {
+      await ready();
       final claim = await api.claim(flight.state, flight.verifier);
       if (claim is GooglePending) return;
       final tokens = (claim as GoogleSignedIn).tokens;
       _kept.flight = null;
       _stopClaim();
       final refresh = tokens.refreshToken ?? setup.google?.refreshToken;
-      if (refresh == null) {
+      if (refresh == null || refresh.isEmpty) {
         _problem = 'Google didn’t give Ghost.md a way to stay signed in. Connect again.';
         return;
       }
+      // The refresh token into the secure store (setup.dart says why), never the blob.
+      await _secrets.write(googleRefreshName, refresh);
       _kept.tokens = tokens;
       final session = GoogleSession(api: api, refreshToken: refresh, tokens: tokens, onTokens: (next) => _kept.tokens = next);
       var calendars = const <GoogleCalendarInfo>[];
@@ -508,6 +554,7 @@ class CalendarService extends ChangeNotifier {
     _kept.flight = null;
     _stopClaim();
     _setSetup(setup.copyWith(google: () => null));
+    unawaited(_secrets.write(googleRefreshName, null));
     _seen = jsonOfSetup(setup);
     _forgetGone();
   }
@@ -610,9 +657,16 @@ class CalendarService extends ChangeNotifier {
       GoogleSession(api: api, refreshToken: google.refreshToken, tokens: _kept.tokens, onTokens: (next) => _kept.tokens = next);
 
   Future<void> _google() async {
+    await ready();
     final google = setup.google;
     final api = _api;
     if (google == null || api == null || _localOnly || !active) return;
+    if (google.refreshToken.isEmpty) {
+      // Connected on another device, whose sealed key has not reached this one: nothing to call Google with yet.
+      _kept.setStatus(googleSource, SourceStatus(at: _clock(), problem: 'Google Calendar’s sign-in hasn’t reached this device yet. It comes with the next sync; or connect it again here.'));
+      _changed();
+      return;
+    }
     String? problem;
     try {
       final session = _session(google, api);
