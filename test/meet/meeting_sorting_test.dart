@@ -239,10 +239,12 @@ void main() {
       plugins.setEnabled('google-meet', false);
       plugins.setEnabled('zoom', false);
       expect(listed(d.device.services), isFalse, reason: 'no meeting page in Simple, nothing to bring it');
-      // Simple's search finds the card's rows alone there.
+      // Simple's search finds the card's rows there, and since the command search finds settings (f982a8dd, 2026-10-29)
+      // the rest behind More too, each opening More in place (recordingBehindMore); until then it listed the card's alone.
       final names = settingsSections.singleWhere((s) => s.id == 'recording').settings!(facts(d.device.services)).map((f) => f.name);
       expect(names, containsAll(['Sync meeting recordings', 'Sort meetings into workspaces']));
-      expect(names, isNot(contains('Stop when I go quiet')));
+      expect(names, contains('Stop when I go quiet'));
+      expect(recordingBehindMore, contains('Stop when I go quiet'), reason: 'looked for in Simple, it opens More');
     });
   });
 
