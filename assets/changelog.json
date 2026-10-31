@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.3.94",
+    "date": "2026-10-31",
+    "title": "Your notes are the files, and the files can live in git",
+    "items": [
+      {"icon": "git-branch", "words": "Back up to git: a new plugin commits your library to a repository on GitHub or any host, pushes as you write, and restores a fresh device from a clone.", "kind": "new"},
+      {"icon": "globe", "words": "Publish as a website: a switch in the plugin turns the repository into a static site on GitHub Pages, with search and a sidebar from your folders.", "kind": "new"},
+      {"icon": "image", "words": "Pictures, files and recordings now live inside the library folder, where the notes link them.", "kind": "better"},
+      {"icon": "trash-2", "words": "The trash is a .trash folder in the library, as in Obsidian, so a restore keeps trashed notes trashed.", "kind": "better"},
+      {"icon": "share-2", "words": "Share links survive a restore: each one's key is kept sealed under your account, and the note says it is shared.", "kind": "better"},
+      {"icon": "file-text", "words": "Tickets and notebooks written as one front-matter block are read, so a ticket made in Obsidian works, and canvases get a .canvas file.", "kind": "better"},
+      {"icon": "archive", "words": "Folders, meeting marks, snippets and the versions switch are kept in the library too, so a fresh device rebuilds them from the files.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.3.93",
     "date": "2026-10-31",
     "title": "A Gantt you can drag, and tickets that run themselves",
