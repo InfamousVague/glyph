@@ -1169,10 +1169,32 @@ mod tests {
         assert_eq!(run(&root, "n1", &now()), Answer::Done { title: "Meeting".into(), line: None, transcript_chars: 0, summary: false });
     }
 
+    /// The phone's meeting service spools a tape into `<data>/recordings/` (MeetingService.kt) and `finish` is the
+    /// first time the core touches it: the tape ends up where this crate keeps tapes (under the library in the
+    /// Flutter app's core; beside it, where it already was, in the Tauri app), and the note has its length.
+    #[test]
+    fn finish_brings_a_tape_the_meeting_service_spooled_beside_the_library_to_where_tapes_are_kept() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, kept) = phone(1);
+        let spooled = root.join("recordings/n1.wav");
+        std::fs::create_dir_all(spooled.parent().unwrap()).unwrap();
+        std::fs::rename(&kept, &spooled).unwrap();
+        assert_eq!(finish(&root, "n1", "Meeting"), Ok(1000));
+        assert!(kept.is_file(), "{}", kept.display());
+        assert_eq!(spooled.is_file(), spooled == kept, "beside the library only where that is where tapes are kept");
+        assert_eq!(std::fs::read(&kept).unwrap()[40..44], (16_000u32 * 2).to_le_bytes(), "the header put right where it now is");
+        assert_eq!(run(&root, "n1", &now()), Answer::Done { title: "Meeting".into(), line: None, transcript_chars: 0, summary: false });
+    }
+
     #[test]
     fn finish_on_a_library_that_cannot_open_keeps_the_wav_and_a_queued_file_that_says_so() {
         let _one = lock(&TEST_SERIAL);
-        let (root, wav_path) = phone(2);
+        let (root, spooled) = phone(2);
+        // The tape as the phone's meeting service leaves it, beside the library (MeetingService.kt `recordingsDir`):
+        // the one place a WAV is when the library cannot be opened to say where tapes go.
+        let wav_path = root.join("recordings/n1.wav");
+        std::fs::create_dir_all(wav_path.parent().unwrap()).unwrap();
+        std::fs::rename(&spooled, &wav_path).unwrap();
         std::fs::remove_dir_all(root.join("Library")).unwrap();
         std::fs::write(root.join("Library"), b"in the way").unwrap();
         let error = finish(&root, "n1", "Meeting").unwrap_err();
