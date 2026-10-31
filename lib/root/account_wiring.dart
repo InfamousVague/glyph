@@ -53,6 +53,8 @@ import '../mail/mail_in.dart';
 import '../meet/live_captions.dart';
 import '../meet/meet_api.dart' show MeetApi;
 import '../meet/meet_in.dart';
+import '../book/ticket_events.dart';
+import '../book/ticket_watchers.dart' show ticketCreator;
 import '../mentions/mention_notices.dart';
 import '../mentions/mention_reminders.dart';
 import '../verified/verified_notices.dart';
@@ -209,6 +211,8 @@ class WiredAccount {
     // What this device's own changes to a team's notes owe: each person's mention typed, told once the edit has synced
     // (lib/mentions/mention_notices.dart; Matt, 2026-10-30: "add all 12").
     final mentions = MentionLedger(kept: device);
+    // And each change to a team's ticket, told to its watchers in a batch (lib/book/ticket_events.dart; Matt, 2026-10-31).
+    final ticketEvents = TicketEventLedger(kept: device);
     String? orgOfNote(String noteId) {
       final space = workspaces.workspaceOf(noteId);
       return space == null ? null : orgOfWorkspace(workspaces.value.list, space.id);
@@ -219,7 +223,10 @@ class WiredAccount {
       store: _AccountDocs(making.dataDir, account, making.docsFor),
       onMade: (noteId, before, after) {
         final session = account.session, org = orgOfNote(noteId);
-        if (session != null && org != null) mentions.made(session.accountId, org, noteId, before, after);
+        if (session != null && org != null) {
+          mentions.made(session.accountId, org, noteId, before, after);
+          ticketEvents.made(session.accountId, org, noteId, before, after);
+        }
       },
     );
     // Whose a day mentioned is, for the reminders' plan (lib/mentions/mention_reminders.dart): kept up with the account.
@@ -231,6 +238,8 @@ class WiredAccount {
         wrote: (noteId, day) => session != null && mentions.wroteDay(session.accountId, noteId, day),
         key: '${session?.accountId ?? ''}:${session?.handle ?? ''}',
       );
+      // Who a ticket made on this device names as its first watcher (lib/book/ticket_watchers.dart).
+      ticketCreator.value = session?.handle;
     }
 
     who();
@@ -272,7 +281,14 @@ class WiredAccount {
       touched: touched,
       onNotesChanged: refresh,
       // Each organization's channel, then the mentions this device typed in its notes told (lib/mentions).
-      teamNotes: mentionsAfter(teamNotesPass(docs), mentions, me: () => account.session?.handle, words: (id) async => (await notes.get(id))?.body, title: (id, words) => noteTitle(words)),
+      // And then its tickets' changes told to their watchers (lib/book/ticket_events.dart).
+      teamNotes: ticketEventsAfter(
+        mentionsAfter(teamNotesPass(docs), mentions, me: () => account.session?.handle, words: (id) async => (await notes.get(id))?.body, title: (id, words) => noteTitle(words)),
+        ticketEvents,
+        me: () => account.session?.handle,
+        words: (id) async => (await notes.get(id))?.body,
+        title: (id, words) => ticketNoticeTitle(words, noteTitle(words)),
+      ),
       // The notifications, then the verified pages this account vouches for that ran out told in its bell
       // (lib/verified/verified_notices.dart).
       feedPass: (ctx) async {

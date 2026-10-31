@@ -101,7 +101,7 @@ class NoteMenuArea extends StatelessWidget {
 /// The note's menu, drawn while the [controller] has one open (`NoteMenuHost`). Nothing for a note no longer in
 /// [notes]. What differs from the page is in the library doc: who opens it, and the controller being handed in.
 class NoteMenuHost extends StatelessWidget {
-  const NoteMenuHost({super.key, required this.controller, required this.notes, required this.onOpen, this.onComment, required this.onPin, required this.onArchive, required this.onDelete, this.coarse, this.workspaces});
+  const NoteMenuHost({super.key, required this.controller, required this.notes, required this.onOpen, this.onComment, required this.onPin, required this.onArchive, required this.onDelete, this.coarse, this.workspaces, this.more});
 
   final NoteMenuController controller;
 
@@ -122,6 +122,9 @@ class NoteMenuHost extends StatelessWidget {
 
   /// The workspaces, for Move to; absent, the row is not shown.
   final WorkspaceStore? workspaces;
+
+  /// Rows of the note's own kind, before Delete: a ticket's Watch or Unwatch (lib/root/root_tickets.dart).
+  final List<Widget> Function(BuildContext context, Note note)? more;
 
   @override
   Widget build(BuildContext context) {
@@ -163,6 +166,7 @@ class NoteMenuHost extends StatelessWidget {
             GlacierMenuItem(icon: icon(it.starred ? Lucide.pinOff : Lucide.pin), onSelect: () => onPin(it), child: Text(it.starred ? 'Unpin' : 'Pin')),
             GlacierMenuItem(icon: icon(archived ? Lucide.archiveRestore : Lucide.archive), onSelect: () => onArchive(it, !archived), child: Text(archived ? 'Unarchive' : 'Archive')),
             if (workspaces != null) ...folderMoveRows(context, workspaces!, FolderCarry.note(it.id, title.isNotEmpty ? title : 'Untitled')),
+            ...?more?.call(context, it),
             const GlacierMenuSeparator(),
             // In the one red the app has (NoteMenu.module.css `.danger`).
             GlacierMenuItem(danger: true, style: dangerRowStyle(t), icon: icon(Lucide.trash2), onSelect: () => onDelete(it), child: const Text('Delete')),

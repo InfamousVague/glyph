@@ -145,13 +145,14 @@ void main() {
     testWidgets('offers no card without one, and a row for each the account has joined, never one it is only invited to', (tester) async {
       final device = await Device.make();
       await device.pump(tester, NotificationsPane(services: device.services));
-      expect(titlesOf(tester), ['What reaches you']);
+      // The morning's ticket digest under them (Matt, 2026-10-31).
+      expect(titlesOf(tester), ['What reaches you', 'Ticket digest']);
       await endSettings(tester);
       final id = await ghost(device);
       device.service.invited('Boo', 'sam');
       await device.services.syncNow();
       await device.pump(tester, NotificationsPane(services: device.services));
-      expect(titlesOf(tester), ['What reaches you', 'Mute an organization']);
+      expect(titlesOf(tester), ['What reaches you', 'Mute an organization', 'Ticket digest']);
       expect(rowLabels(tester, 'Mute an organization'), ['Ghost']);
       expect(find.text('1 member'), findsOneWidget);
       await tester.tap(find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Mute Ghost'));

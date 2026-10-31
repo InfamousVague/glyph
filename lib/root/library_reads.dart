@@ -22,7 +22,7 @@ import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../core/properties.dart';
 import '../core/query/records.dart' show QueryNote;
-import '../editor/tickets/tickets.dart' show TicketOptions;
+import '../editor/tickets/tickets.dart' show TicketFollow, TicketOptions;
 import '../notes/note_templates.dart';
 import '../notes/own_templates.dart';
 import '../perf/frame_log.dart';
@@ -183,7 +183,7 @@ class LibraryReads {
   ///
   /// And its sub-tickets, Add sub-ticket ([addSub], the root's), and the rings a Blocked by or a Parent would make,
   /// refused (lib/book/ticket_links.dart).
-  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub}) {
+  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub, TicketFollow? follow}) {
     TicketEntry? self() => entries.where((entry) => entry.note.id == noteId).firstOrNull;
     Note? notebook() {
       for (final note in notes) {
@@ -213,6 +213,8 @@ class LibraryReads {
         return entry == null ? const <TicketChoice>[] : [for (final child in subTicketsOf(entry, entries)) ticketChoice(child)];
       },
       addSubTicket: addSub == null ? null : (title) => addSub(noteId, title),
+      // Its watchers, history, possible duplicates and merge (lib/editor/tickets/ticket_follow.dart).
+      follow: follow,
       problem: (key, value) {
         final entry = self();
         if (entry == null) return null;

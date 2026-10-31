@@ -39,6 +39,7 @@ library;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart' show GlacierContext;
 
+import '../../book/ticket_watchers.dart' show withAutoWatch;
 import '../../core/properties.dart';
 import '../editor.dart';
 import '../items/field_menu.dart' show dayPicker, todayIs;
@@ -54,6 +55,7 @@ import '../view/line.dart' show EditorRunScope;
 import 'ticket_panel.dart';
 
 export 'ticket_panel.dart';
+export 'ticket_follow.dart';
 export 'ticket_rows.dart';
 
 /// The library's tickets changed: every panel and key title is drawn again.
@@ -105,6 +107,51 @@ void writeProperty(EditorViewLike view, String key, Object? value) {
 bool _ticketNote(EditorState state) {
   final front = _frontOf(state);
   return front != null && isTicket(front.text);
+}
+
+/// Whether a document is a ticket's, by its front matter alone.
+bool _ticketDoc(Doc doc) {
+  final front = frontMatter(doc);
+  if (front == null) return false;
+  return isTicket(doc.sliceString(doc.line(front.from).from, doc.line(front.to).to));
+}
+
+/// Who a change made here makes a watcher of the ticket - its creator, a new assignee picked, whoever comments,
+/// whoever is newly mentioned (lib/book/ticket_watchers.dart; Matt, 2026-10-31) - written into its `watchers:` with
+/// the change itself, so one Undo takes both back. Only a change that could make one is read whole: an at sign or a
+/// comment's lines typed, a letter on a line with an at sign, or the front matter touched; never another device's, an
+/// undo or a redo.
+Object autoWatch(Transaction tr, String? Function() me) {
+  // Nor a merge's or an Unwatch's own writing (lib/root/root_tickets.dart), which says who watches itself.
+  if (!tr.docChanged || tr.annotation(Transaction.remote) == true || tr.isUserEvent('undo') || tr.isUserEvent('redo') || tr.isUserEvent('ticket')) return tr;
+  final who = me();
+  if (who == null || who.isEmpty) return tr;
+  final doc = tr.newDoc;
+  if (!_ticketDoc(doc)) return tr;
+  final front = frontMatter(tr.startState.doc);
+  final frontEnd = front == null ? -1 : tr.startState.doc.line(front.to).to;
+  var could = false;
+  tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
+    if (could) return;
+    final text = inserted.toString();
+    // A name finished by the letter or space after it is on a line that has an at sign.
+    if (fromA <= frontEnd || text.contains('@') || (text.contains('\n') && text.length > 12) || doc.lineAt(fromB).text.contains('@')) could = true;
+  });
+  if (!could) return tr;
+  final before = tr.startState.doc.toString(), after = doc.toString();
+  final next = withAutoWatch(before, after, me: who, caret: tr.isUserEvent(propertyUserEvent) ? null : tr.newSelection.main.head);
+  if (next == null || next == after) return tr;
+  var start = 0;
+  while (start < after.length && start < next.length && after.codeUnitAt(start) == next.codeUnitAt(start)) {
+    start += 1;
+  }
+  var end = after.length, nextEnd = next.length;
+  while (end > start && nextEnd > start && after.codeUnitAt(end - 1) == next.codeUnitAt(nextEnd - 1)) {
+    end -= 1;
+    nextEnd -= 1;
+  }
+  final written = ChangeSet.of(ChangeSpec(from: start, to: end, insert: next.substring(start, nextEnd)), after.length);
+  return TransactionSpec(changes: tr.changes.compose(written), selection: tr.newSelection.map(written), effects: tr.effects, annotations: tr.annotations, scrollIntoView: tr.scrollIntoView);
 }
 
 /// A ticket's panel, drawn in place of its front matter.
@@ -325,6 +372,8 @@ Extension tickets(TicketOptions? Function() options) {
   return Extension.list(<Extension>[
     trackFocus,
     panel,
+    // A ticket's watchers kept up as it is written (lib/book/ticket_watchers.dart).
+    EditorState.transactionFilter.of((tr) => autoWatch(tr, () => options()?.follow?.me())),
     // The folded front matter steps aside for a ticket's panel (view/extended.dart).
     frontMatterDrawn.of((state) => _ticketNote(state) && options() != null),
     ViewPlugin.define<_KeyTitles>((view) => _KeyTitles(view, options), decorations: (value) => value.decorations),

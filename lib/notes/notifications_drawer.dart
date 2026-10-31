@@ -64,6 +64,7 @@ class NotificationsDrawer extends StatefulWidget {
     this.onOpened,
     this.emptyArt,
     this.now,
+    this.onUnwatch,
   });
 
   /// The rows as the feed lists them: of a kind this build knows, not hidden, newest first.
@@ -100,6 +101,10 @@ class NotificationsDrawer extends StatefulWidget {
 
   /// This moment, in ms, for "2 hr ago"; the clock's when left out.
   final int? now;
+
+  /// A ticket's change told to this account as one of its watchers: the ticket's note, to watch no more
+  /// (lib/book/ticket_events.dart). Absent, its row offers no Unwatch.
+  final void Function(String noteId)? onUnwatch;
 
   @override
   State<NotificationsDrawer> createState() => _NotificationsDrawerState();
@@ -230,6 +235,7 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
                 onOpen: () => _open(n),
                 onClear: isPendingInvite(n) ? null : () => widget.onHide?.call(n.id),
                 onAnswer: widget.onAnswerInvite,
+                onUnwatch: widget.onUnwatch,
               ),
           ],
         ),
@@ -510,7 +516,7 @@ const Map<String, LucideIcon> _marks = {
 /// invitation; and a cross that clears it out of the list, there on a hover with a mouse and always on a touch
 /// screen.
 class _Row extends StatefulWidget {
-  const _Row({super.key, required this.n, required this.index, required this.last, required this.opened, required this.now, required this.onOpen, required this.onClear, required this.onAnswer});
+  const _Row({super.key, required this.n, required this.index, required this.last, required this.opened, required this.now, required this.onOpen, required this.onClear, required this.onAnswer, this.onUnwatch});
 
   final FeedNotification n;
   final int index;
@@ -520,6 +526,7 @@ class _Row extends StatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback? onClear;
   final Future<String?> Function(String orgId, bool accept)? onAnswer;
+  final void Function(String noteId)? onUnwatch;
 
   @override
   State<_Row> createState() => _RowState();
@@ -688,6 +695,34 @@ class _RowState extends State<_Row> with SingleTickerProviderStateMixin {
                       ),
                   ],
                 ),
+                // A ticket watched: Unwatch under its words, as an invitation's answers are.
+                if (isTicketEvent(n) && widget.opened != null && widget.onUnwatch != null)
+                  Padding(
+                    // Under the line, in the words' column: up into the body's own foot, so it reads as the row's.
+                    padding: EdgeInsets.fromLTRB(2 * rem + t.space(3) + t.space(2), 0, t.space(2), t.space(2)),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Transform.translate(
+                        offset: Offset(0, -t.space(2)),
+                        child: GlacierPressable(
+                          key: ValueKey('unwatch-${n.id}'),
+                          semanticLabel: 'Unwatch ${widget.opened!.title}',
+                          onPressed: () => widget.onUnwatch!(widget.opened!.noteId),
+                          builder: (context, state) => Padding(
+                            padding: EdgeInsets.symmetric(vertical: t.space(1)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 0.35 * xs,
+                              children: [
+                                ExcludeSemantics(child: lucide(Lucide.eyeOff, size: 13, strokeWidth: 2.2, color: t.color(state.pressed ? 'app-ink' : 'app-ink-3'))),
+                                Text('Unwatch', maxLines: 1, softWrap: false, style: pageText(t, xs, weight: 'medium', color: t.color(state.pressed ? 'app-ink' : 'app-ink-3'))),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (pending && org != null)
                   Padding(
                     // `.actions { padding: 0 var(--glacier-space-2) var(--glacier-space-3) calc(2rem + var(--glacier-space-3) + var(--glacier-space-2)) }`
