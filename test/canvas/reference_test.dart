@@ -8,7 +8,7 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/canvas/canvas_view.dart';
 import 'package:ghost_md/canvas/sample_canvas.dart';
-import 'package:ghost_md/editor/diagrams/diagrams.dart' show DiagramStore, diagramStore;
+import 'package:ghost_md/editor/diagrams/diagrams.dart' show DiagramStore, diagramFullScreenButtons, diagramStore;
 
 import '../editor/diagrams/support.dart' show PicturedBridge, settleDiagrams;
 import '../support/render.dart';
@@ -59,7 +59,13 @@ Finder labelled(Pattern label) => find.bySemanticsLabel(label);
 
 void main() {
   setUpAll(loadAppFonts);
-  setUp(() => diagramStore = DiagramStore(bridge: PicturedBridge()));
+  setUp(() {
+    diagramStore = DiagramStore(bridge: PicturedBridge());
+    // The page has no full-screen button on the chart card's diagram (lib/editor/diagrams/full_screen.dart, since
+    // cd062169): the drawing under it is what is held to the page, as test/editor/blocks/reference_test.dart does.
+    diagramFullScreenButtons = false;
+  });
+  tearDown(() => diagramFullScreenButtons = true);
 
   for (final (width, height, phone) in [(390.0, 844.0, true), (1280.0, 800.0, false)]) {
     for (final theme in ['light', 'dark']) {
