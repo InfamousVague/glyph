@@ -34,6 +34,7 @@ import 'custom_ai/custom_ai.dart' show customAiPlugin;
 import 'discord/discord.dart' show discordPlugin;
 import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
 import 'gemini/gemini.dart' show geminiPlugin;
+import 'git_backup/git_backup.dart' show gitBackupPlugin;
 import 'github/github.dart' show githubPlugin;
 import 'keymaps/keymaps.dart' show keymapsPlugin;
 import 'lovart/lovart.dart' show lovartPlugin;
@@ -86,6 +87,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-10-29: "add vim controls to the app via a plugin as well", then "add a vim / emac controls via a
   // plugin": a note typed from a hardware keyboard as Vim or Emacs types (keymaps/keymaps.dart).
   keymapsPlugin,
+  // Matt, 2026-10-31: "add a plugin to backup on git": the Library folder committed and pushed to a repository the
+  // person owns (git_backup/git_backup.dart, docs/GIT_BACKUP.md).
+  gitBackupPlugin,
 ]);
 
 void Function()? _unhear;

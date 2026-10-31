@@ -56,13 +56,17 @@ class AccountGateState extends ChangeNotifier {
 /// What differs from the web original: the strip that drags the Mac's window (`data-tauri-drag-region`) is the
 /// desktop shell's to add (stage 10).
 class AccountGate extends StatelessWidget {
-  const AccountGate({super.key, required this.services, this.onWayIn, required this.onDone});
+  const AccountGate({super.key, required this.services, this.onWayIn, required this.onDone, this.onHaveBackup});
 
   final AccountServices? services;
 
   /// A way in of the page's own, where there are no [services].
   final SettingsWayIn? onWayIn;
   final VoidCallback onDone;
+
+  /// "I have a backup" (lib/plugins/git_backup; Matt, 2026-10-31): the library opened from its git repository on a
+  /// fresh device, before signing in. Absent where the build has no core to clone with.
+  final VoidCallback? onHaveBackup;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +105,15 @@ class AccountGate extends StatelessWidget {
                             child: SettingsWord(key: const ValueKey('account-gate-skip'), onPressed: onDone, child: const Text('Use without an account')),
                           ),
                         ),
+                        if (onHaveBackup != null) ...[
+                          SizedBox(height: t.space(2)),
+                          Align(
+                            child: DefaultTextStyle(
+                              style: pageText(t, t.lenOf('1rem'), color: t.color('glacier-text')),
+                              child: SettingsWord(key: const ValueKey('account-gate-backup'), onPressed: onHaveBackup!, child: const Text('I have a backup')),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

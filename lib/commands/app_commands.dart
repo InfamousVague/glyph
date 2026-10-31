@@ -165,6 +165,7 @@ PaletteDoing paletteDoingFor({
   void Function(String id)? marketPlugin,
   void Function(String noteId)? startTimer,
   VoidCallback? stopTimer,
+  VoidCallback? backUpNow,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -180,6 +181,7 @@ PaletteDoing paletteDoingFor({
     closeTab: shell.closeTab,
     startTimer: startTimer,
     stopTimer: stopTimer,
+    backUpNow: backUpNow,
     showList: shell.backToList,
     browseNotes: shell.showAllNotes,
     back: shell.goBack,

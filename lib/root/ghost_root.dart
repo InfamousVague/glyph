@@ -200,10 +200,11 @@ import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanSh
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../activity/activity_chime.dart' show startActivityChime;
 import '../activity/activity_surfaces.dart' show startActivitySurfaces;
-import '../core/background_jobs.dart' show ChannelBackgroundJobs, JobFix, JobFixKind, JobKind, JobTally, activity, activityRoutes;
+import '../core/background_jobs.dart' show ChannelBackgroundJobs, JobFix, JobFixKind, JobKind, JobTally, NoBackgroundJobs, activity, activityRoutes;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
+import '../plugins/git_backup/git_backup.dart' show GitBackupService, gitBackupSettings;
 import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/channels.dart' show channels, postToChannel;
@@ -284,6 +285,7 @@ part 'root_ticket_queue.dart';
 part 'root_tickets.dart';
 part 'root_voice.dart';
 part 'root_ticket_rules.dart';
+part 'root_git_backup.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -736,6 +738,7 @@ class _GhostRootState extends State<GhostRoot> {
   late final TicketsReads _ticketReads = TicketsReads(notes: () => _reads.queryNotes);
   /// The ticket features' wiring (root_ticket_rules.dart): the rules, the timers, the pull requests.
   late final _RootTicketRules _ticketsWired = _RootTicketRules(this);
+  late final _RootGitBackup _gitWired = _RootGitBackup(this);
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -1882,6 +1885,7 @@ class _GhostRootState extends State<GhostRoot> {
     calendar.stop();
     _webhooksLife?.dispose();
     _ticketsWired.dispose();
+    _gitWired.dispose();
     webhooks.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
@@ -2003,6 +2007,8 @@ class _GhostRootState extends State<GhostRoot> {
     }
     // A notebook's rules, the timers and the pull requests on its tickets (root_ticket_rules.dart; Matt, 2026-10-31).
     _ticketsWired.start();
+    // The git backup (root_git_backup.dart; Matt, 2026-10-31): the library's changes committed and pushed.
+    unawaited(_gitWired.start());
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

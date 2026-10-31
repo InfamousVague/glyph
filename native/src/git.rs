@@ -8,7 +8,7 @@
 //! | --- | --- | --- |
 //! | `git_init` | `{repo}` | `{created}`: a repository at that folder, made if there was none, its first branch `main` |
 //! | `git_status` | `{repo}` | `{head, branch, changes: [{path, kind}]}`: the worktree against HEAD, `kind` one of added, removed, modified, renamed, typechange, conflict |
-//! | `git_commit` | `{repo, message, author: {name, email}, alsoParent?}` | `{id}`, or `{id: null}` when nothing changed. Every file in the folder (`.gitignore` honoured) is the commit; `alsoParent` names a second parent, the merge the app made |
+//! | `git_commit` | `{repo, message, author: {name, email}, alsoParent?, keep?}` | `{id}`, or `{id: null}` when nothing changed. Every file in the folder (`.gitignore` honoured) is the commit; `alsoParent` names a second parent, the merge the app made; `keep` names folders taken from HEAD's tree as they were, whether or not they are on disk |
 //! | `git_remote_set` | `{repo, url, name?}` | `null`: the remote (`origin`) and `main`'s tracking of it, written to the repository's config |
 //! | `git_remote` | `{repo}` | `{name, url}` or `null` |
 //! | `git_clone` | `{url, into, token?, user?, shallow?}` | `{head, files}`: a clone with its files checked out, shallow (depth 1) when asked |
@@ -18,6 +18,12 @@
 //! | `git_merge_base` | `{repo, a, b}` | the merge base's id, or `null` |
 //! | `git_blob` | `{repo, commit, path}` | the file's text at that commit, or `null` where the commit has no such file |
 //! | `git_three_way` | `{repo, path}` | `{base, ours, theirs}`: one file's text at the merge base, at `main` and at `origin/main`, for lib/core/merge_words.dart to put together |
+//! | `git_log` | `{repo, count?}` | `[{id, time, message, name}]`: the last commits of HEAD, newest first, `time` in seconds since the epoch (the plugin's page: when the last backup was) |
+//! | `git_diff` | `{repo, from?, to}` | `[{path, kind, from?}]`: what `to`'s tree has over `from`'s (everything added when `from` is null), `kind` added, removed, modified or renamed (`from` the old path): what the remote changed since the merge base, for the plugin's merge |
+//! | `git_write_blob` | `{repo, commit, path, into}` | `{bytes}` with the file's bytes at that commit written to the file `into`, or `null` where the commit has no such file: a picture the remote has, taken as it is |
+//!
+//! The plugin's slice (2026-10-31) added the last three, `shallow` to `git_status`'s answer and `deepen` to
+//! `git_fetch` (a shallow clone brought to its whole history, as `git fetch --unshallow` does).
 //!
 //! **Errors.** Each is a sentence (ffi.rs's `err`), and the sentence begins with a word the app can match on:
 //! `No repository:`, `Sign-in refused:`, `Not fast-forward:`, `No connection:`, or none of those for everything
@@ -63,7 +69,7 @@ use gix::ObjectId;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-const COMMANDS: &[&str] = &["git_init", "git_status", "git_commit", "git_remote_set", "git_remote", "git_clone", "git_fetch", "git_divergence", "git_push", "git_merge_base", "git_blob", "git_three_way"];
+const COMMANDS: &[&str] = &["git_init", "git_status", "git_commit", "git_remote_set", "git_remote", "git_clone", "git_fetch", "git_divergence", "git_push", "git_merge_base", "git_blob", "git_three_way", "git_log", "git_diff", "git_write_blob"];
 
 /// The one branch this spike works on: the app's library has no reason for a second.
 const BRANCH: &str = "main";
@@ -165,6 +171,11 @@ struct Commit {
     author: Who,
     #[serde(default)]
     also_parent: Option<String>,
+    /// Folders taken from HEAD's tree rather than the working folder, as `orgs/Acme`: whatever the last commit had
+    /// of them, whether or not the folder is there now (the plugin's excluded organizations, and the team's notes
+    /// held aside after a restore: never deleted from the repository by a device that does not carry them).
+    #[serde(default)]
+    keep: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -199,6 +210,32 @@ struct WithAuth {
     repo: PathBuf,
     #[serde(flatten)]
     auth: Auth,
+    /// `git_fetch` only: a shallow repository brought to its whole history.
+    #[serde(default)]
+    deepen: bool,
+}
+
+#[derive(Deserialize)]
+struct Log {
+    repo: PathBuf,
+    #[serde(default)]
+    count: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct Diff {
+    repo: PathBuf,
+    #[serde(default)]
+    from: Option<String>,
+    to: String,
+}
+
+#[derive(Deserialize)]
+struct WriteBlob {
+    repo: PathBuf,
+    commit: String,
+    path: String,
+    into: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -226,6 +263,26 @@ struct ThreeWay {
 pub struct Change {
     pub path: String,
     pub kind: &'static str,
+}
+
+/// One file two commits differ in, as `git_diff` lists it; `from` is the old path of a rename.
+#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TreeChange {
+    pub path: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+}
+
+/// One commit, as `git_log` lists it.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Logged {
+    pub id: String,
+    /// Seconds since the epoch, the committer's.
+    pub time: i64,
+    pub message: String,
+    /// The author's name.
+    pub name: String,
 }
 
 /// `main` against `origin/main`.
@@ -261,15 +318,15 @@ pub fn call(command: &str, args: Value) -> std::result::Result<Value, String> {
             answer((|| {
                 let repo = open(&repo)?;
                 let head = head_id(&repo).map(|id| id.to_string());
-                Ok(json!({ "head": head, "branch": BRANCH, "changes": status(&repo)? }))
+                Ok(json!({ "head": head, "branch": BRANCH, "shallow": repo.is_shallow()?, "changes": status(&repo)? }))
             })())
         }
         "git_commit" => {
-            let Commit { repo, message, author, also_parent } = crate::dispatch::read(command, args)?;
+            let Commit { repo, message, author, also_parent, keep } = crate::dispatch::read(command, args)?;
             answer((|| {
                 let repo = open(&repo)?;
                 let also = also_parent.map(|hex| parse_id(&hex)).transpose()?;
-                Ok(json!({ "id": commit(&repo, &message, &author, also)?.map(|id| id.to_string()) }))
+                Ok(json!({ "id": commit(&repo, &message, &author, also, &keep)?.map(|id| id.to_string()) }))
             })())
         }
         "git_remote_set" => {
@@ -288,10 +345,10 @@ pub fn call(command: &str, args: Value) -> std::result::Result<Value, String> {
             answer(clone(&url, &into, &auth, shallow).map(|(head, files)| json!({ "head": head.map(|id| id.to_string()), "files": files })))
         }
         "git_fetch" => {
-            let WithAuth { repo, auth } = crate::dispatch::read(command, args)?;
+            let WithAuth { repo, auth, deepen } = crate::dispatch::read(command, args)?;
             answer((|| {
                 let repo = open(&repo)?;
-                fetch(&repo, &auth)?;
+                fetch(&repo, &auth, deepen)?;
                 serde_json::to_value(divergence(&repo)?).map_err(|e| Fail::Other(e.to_string()))
             })())
         }
@@ -300,7 +357,7 @@ pub fn call(command: &str, args: Value) -> std::result::Result<Value, String> {
             answer(open(&repo).and_then(|repo| divergence(&repo)).and_then(|d| serde_json::to_value(d).map_err(|e| Fail::Other(e.to_string()))))
         }
         "git_push" => {
-            let WithAuth { repo, auth } = crate::dispatch::read(command, args)?;
+            let WithAuth { repo, auth, .. } = crate::dispatch::read(command, args)?;
             answer(open(&repo).and_then(|repo| push(&repo, &auth)).and_then(|p| serde_json::to_value(p).map_err(|e| Fail::Other(e.to_string()))))
         }
         "git_merge_base" => {
@@ -329,6 +386,34 @@ pub fn call(command: &str, args: Value) -> std::result::Result<Value, String> {
                     }
                 };
                 Ok(json!({ "base": at(&d.base)?, "ours": at(&d.local)?, "theirs": at(&d.remote)? }))
+            })())
+        }
+        "git_log" => {
+            let Log { repo, count } = crate::dispatch::read(command, args)?;
+            answer(open(&repo).and_then(|repo| log(&repo, count.unwrap_or(20))).and_then(|l| serde_json::to_value(l).map_err(|e| Fail::Other(e.to_string()))))
+        }
+        "git_diff" => {
+            let Diff { repo, from, to } = crate::dispatch::read(command, args)?;
+            answer((|| {
+                let repo = open(&repo)?;
+                let from = from.map(|hex| parse_id(&hex)).transpose()?;
+                serde_json::to_value(diff(&repo, from, parse_id(&to)?)?).map_err(|e| Fail::Other(e.to_string()))
+            })())
+        }
+        "git_write_blob" => {
+            let WriteBlob { repo, commit, path, into } = crate::dispatch::read(command, args)?;
+            answer((|| {
+                let repo = open(&repo)?;
+                match blob_at(&repo, parse_id(&commit)?, &path)? {
+                    Some(bytes) => {
+                        if let Some(parent) = into.parent() {
+                            std::fs::create_dir_all(parent)?;
+                        }
+                        std::fs::write(&into, &bytes)?;
+                        Ok(json!({ "bytes": bytes.len() }))
+                    }
+                    None => Ok(Value::Null),
+                }
             })())
         }
         _ => Err(format!("Ghost.md's core has no command named {command}.")),
@@ -419,21 +504,71 @@ pub fn status(repo: &gix::Repository) -> Result<Vec<Change>> {
     Ok(changes)
 }
 
-/// Every file of the folder as blobs and trees in the object store, `.git` left out and `.gitignore` honoured: the
-/// root tree's id, the empty tree's for a folder with nothing in it.
-fn snapshot(repo: &gix::Repository) -> Result<ObjectId> {
+/// What a snapshot takes from HEAD rather than the folder: the folders `keep` names (relative, `/`-separated, as
+/// `orgs/Acme`), looked up in HEAD's tree.
+struct Kept<'a> {
+    folders: &'a [String],
+    head: Option<gix::Tree<'a>>,
+}
+
+impl Kept<'_> {
+    fn names(&self, rela: &str) -> bool {
+        self.folders.iter().any(|k| k.trim_matches('/') == rela)
+    }
+
+    /// HEAD's entry at `rela`, where HEAD has one.
+    fn entry(&self, rela: &str) -> Result<Option<gix::objs::tree::Entry>> {
+        let Some(head) = &self.head else { return Ok(None) };
+        Ok(head.lookup_entry_by_path(rela)?.map(|found| gix::objs::tree::Entry { mode: found.mode(), filename: found.filename().to_owned(), oid: found.oid().to_owned() }))
+    }
+
+    /// The kept folders whose parent is `dir_rela` ("" for the root) and that are not among `present`: HEAD's
+    /// entries for them, so a folder gone from disk stays in the commit.
+    fn missing(&self, dir_rela: &str, present: &[String]) -> Result<Vec<gix::objs::tree::Entry>> {
+        let mut out = Vec::new();
+        for folder in self.folders {
+            let folder = folder.trim_matches('/');
+            let (parent, name) = match folder.rfind('/') {
+                Some(at) => (&folder[..at], &folder[at + 1..]),
+                None => ("", folder),
+            };
+            if parent != dir_rela || name.is_empty() || present.iter().any(|p| p == name) {
+                continue;
+            }
+            if let Some(entry) = self.entry(folder)? {
+                out.push(entry);
+            }
+        }
+        Ok(out)
+    }
+}
+
+fn rela_text(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// Every file of the folder as blobs and trees in the object store, `.git` left out and `.gitignore` honoured, the
+/// `keep` folders taken from HEAD: the root tree's id, the empty tree's for a folder with nothing in it.
+fn snapshot(repo: &gix::Repository, keep: &[String]) -> Result<ObjectId> {
     let workdir = repo.workdir().ok_or_else(|| Fail::Other("the repository is bare and has no files to commit".into()))?.to_path_buf();
     let index = repo.index_or_empty()?;
     let mut excludes = repo.excludes(&index, None, gix::worktree::stack::state::ignore::Source::WorktreeThenIdMappingIfNotSkipped)?;
-    Ok(tree_of(repo, &workdir, &workdir, &mut excludes)?.unwrap_or_else(|| gix::ObjectId::empty_tree(repo.object_hash())))
+    let head = match head_id(repo) {
+        Some(id) if !keep.is_empty() => Some(repo.find_commit(id)?.tree()?),
+        _ => None,
+    };
+    let kept = Kept { folders: keep, head };
+    Ok(tree_of(repo, &workdir, &workdir, &mut excludes, &kept)?.unwrap_or_else(|| gix::ObjectId::empty_tree(repo.object_hash())))
 }
 
 /// `dir` as a tree object, or `None` when it holds nothing a commit keeps (git has no empty trees).
-fn tree_of(repo: &gix::Repository, workdir: &Path, dir: &Path, excludes: &mut gix::AttributeStack<'_>) -> Result<Option<ObjectId>> {
+fn tree_of(repo: &gix::Repository, workdir: &Path, dir: &Path, excludes: &mut gix::AttributeStack<'_>, kept: &Kept<'_>) -> Result<Option<ObjectId>> {
     use gix::objs::tree::{Entry, EntryKind};
     let mut names: Vec<_> = std::fs::read_dir(dir)?.collect::<std::io::Result<Vec<_>>>()?;
     names.sort_by_key(|entry| entry.file_name());
-    let mut entries = Vec::new();
+    let dir_rela = rela_text(dir.strip_prefix(workdir).expect("under the worktree"));
+    let present: Vec<String> = names.iter().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    let mut entries = kept.missing(&dir_rela, &present)?;
     for entry in names {
         let name = entry.file_name();
         if dir == workdir && name == ".git" {
@@ -443,6 +578,13 @@ fn tree_of(repo: &gix::Repository, workdir: &Path, dir: &Path, excludes: &mut gi
         let meta = std::fs::symlink_metadata(&path)?;
         let rela = path.strip_prefix(workdir).expect("under the worktree");
         let filename = gix::path::into_bstr(Path::new(&name))?.into_owned();
+        if meta.is_dir() && kept.names(&rela_text(rela)) {
+            // As HEAD has it, or not at all.
+            if let Some(from_head) = kept.entry(&rela_text(rela))? {
+                entries.push(from_head);
+            }
+            continue;
+        }
         if meta.file_type().is_symlink() {
             // A link is kept as git keeps one: its target's bytes.
             let target = std::fs::read_link(&path)?;
@@ -455,7 +597,7 @@ fn tree_of(repo: &gix::Repository, workdir: &Path, dir: &Path, excludes: &mut gi
             continue;
         }
         if meta.is_dir() {
-            if let Some(oid) = tree_of(repo, workdir, &path, excludes)? {
+            if let Some(oid) = tree_of(repo, workdir, &path, excludes, kept)? {
                 entries.push(Entry { mode: EntryKind::Tree.into(), filename, oid });
             }
         } else if meta.is_file() {
@@ -495,10 +637,10 @@ fn write_index(repo: &gix::Repository, tree: ObjectId) -> Result<()> {
     Ok(())
 }
 
-/// A commit of everything in the folder, with `also` as a second parent when the app merged; `None` when the folder
-/// is what HEAD already holds and there is no merge to record.
-pub fn commit(repo: &gix::Repository, message: &str, author: &Who, also: Option<ObjectId>) -> Result<Option<ObjectId>> {
-    let tree = snapshot(repo)?;
+/// A commit of everything in the folder, with `also` as a second parent when the app merged, and the `keep` folders
+/// as HEAD has them (see `Kept`); `None` when the folder is what HEAD already holds and there is no merge to record.
+pub fn commit(repo: &gix::Repository, message: &str, author: &Who, also: Option<ObjectId>, keep: &[String]) -> Result<Option<ObjectId>> {
+    let tree = snapshot(repo, keep)?;
     let head = head_id(repo);
     let head_tree = match head {
         Some(id) => Some(repo.find_commit(id)?.tree_id()?.detach()),
@@ -610,8 +752,9 @@ pub fn clone(url: &str, into: &Path, auth: &Auth, shallow: bool) -> Result<(Opti
     Ok((head_id(&repo), outcome.files_updated))
 }
 
-/// `origin` fetched into `refs/remotes/origin/*`.
-pub fn fetch(repo: &gix::Repository, auth: &Auth) -> Result<()> {
+/// `origin` fetched into `refs/remotes/origin/*`; with `deepen`, a shallow repository is brought to its whole history
+/// (git's own `--unshallow` is a deepen by 2^31-1, and that is what is asked here).
+pub fn fetch(repo: &gix::Repository, auth: &Auth, deepen: bool) -> Result<()> {
     // Without reflog lines for the remote-tracking refs it moves: those want a committer, which an isolated
     // repository has not, and the app records nothing in reflogs.
     let mut repo = repo.clone();
@@ -623,8 +766,69 @@ pub fn fetch(repo: &gix::Repository, auth: &Auth) -> Result<()> {
     if let Some(options) = transport_options(&url) {
         connection.set_transport_options(options);
     }
-    connection.prepare_fetch(gix::progress::Discard, Default::default())?.receive(gix::progress::Discard, &gix::interrupt::IS_INTERRUPTED)?;
+    let mut prepared = connection.prepare_fetch(gix::progress::Discard, Default::default())?;
+    if deepen && repo.is_shallow()? {
+        prepared = prepared.with_shallow(gix::remote::fetch::Shallow::Deepen(i32::MAX as u32));
+    }
+    prepared.receive(gix::progress::Discard, &gix::interrupt::IS_INTERRUPTED)?;
     Ok(())
+}
+
+/// The last `count` commits of HEAD, newest first; none while the branch is unborn.
+pub fn log(repo: &gix::Repository, count: usize) -> Result<Vec<Logged>> {
+    let Some(head) = head_id(repo) else { return Ok(Vec::new()) };
+    let mut out = Vec::new();
+    for info in repo.rev_walk([head]).all()?.take(count) {
+        let info = info?;
+        let commit = repo.find_commit(info.id)?;
+        let time = commit.time().map(|t| t.seconds).unwrap_or(0);
+        let name = commit.author().map(|a| a.name.to_string()).unwrap_or_default();
+        out.push(Logged { id: info.id.to_string(), time, message: commit.message_raw_sloppy().to_str_lossy().trim_end().to_string(), name });
+    }
+    Ok(out)
+}
+
+/// What `to`'s tree has over `from`'s, file by file; everything `to` holds, as added, when `from` is `None`.
+pub fn diff(repo: &gix::Repository, from: Option<ObjectId>, to: ObjectId) -> Result<Vec<TreeChange>> {
+    use gix::object::tree::diff::ChangeDetached;
+    let to_tree = repo.find_commit(to)?.tree()?;
+    let from_tree = match from {
+        Some(id) => Some(repo.find_commit(id)?.tree()?),
+        None => None,
+    };
+    let changes = repo.diff_tree_to_tree(from_tree.as_ref(), Some(&to_tree), None)?;
+    let mut out = Vec::new();
+    for change in changes {
+        let (path, kind, from) = match change {
+            ChangeDetached::Addition { location, entry_mode, .. } => {
+                if entry_mode.is_tree() {
+                    continue;
+                }
+                (location, "added", None)
+            }
+            ChangeDetached::Deletion { location, entry_mode, .. } => {
+                if entry_mode.is_tree() {
+                    continue;
+                }
+                (location, "removed", None)
+            }
+            ChangeDetached::Modification { location, entry_mode, .. } => {
+                if entry_mode.is_tree() {
+                    continue;
+                }
+                (location, "modified", None)
+            }
+            ChangeDetached::Rewrite { source_location, location, entry_mode, .. } => {
+                if entry_mode.is_tree() {
+                    continue;
+                }
+                (location, "renamed", Some(source_location.to_str_lossy().into_owned()))
+            }
+        };
+        out.push(TreeChange { path: path.to_str_lossy().into_owned(), kind, from });
+    }
+    out.sort();
+    Ok(out)
 }
 
 pub fn merge_base(repo: &gix::Repository, a: ObjectId, b: ObjectId) -> Result<Option<ObjectId>> {
@@ -823,8 +1027,8 @@ mod tests {
         let status_before = status(&repo_a).unwrap();
         assert_eq!(status_before.iter().map(|c| c.path.as_str()).collect::<Vec<_>>(), [".gitignore", "Notes/first.md", "Notes/second.md"]);
         assert!(status_before.iter().all(|c| c.kind == "added"));
-        let first = commit(&repo_a, "two notes", &who(), None).unwrap().expect("a commit");
-        assert_eq!(commit(&repo_a, "nothing", &who(), None).unwrap(), None, "nothing changed, nothing committed");
+        let first = commit(&repo_a, "two notes", &who(), None, &[]).unwrap().expect("a commit");
+        assert_eq!(commit(&repo_a, "nothing", &who(), None, &[]).unwrap(), None, "nothing changed, nothing committed");
         assert_eq!(status(&repo_a).unwrap(), Vec::<Change>::new());
         assert_eq!(head_id(&repo_a), Some(first));
         // git agrees with what was written.
@@ -851,17 +1055,17 @@ mod tests {
 
         // A change on each side; b pushes first.
         write(&b, "Notes/first.md", "# First\n\nline one\nline two (b)\nline three\n");
-        let on_b = commit(&repo_b, "b's line", &who(), None).unwrap().unwrap();
+        let on_b = commit(&repo_b, "b's line", &who(), None, &[]).unwrap().unwrap();
         push(&repo_b, &Auth::default()).unwrap();
         write(&a, "Notes/first.md", "# First (a)\n\nline one\nline two\nline three\n");
         write(&a, "Notes/third.md", "# Third\n");
-        let on_a = commit(&repo_a, "a's title and a third note", &who(), None).unwrap().unwrap();
+        let on_a = commit(&repo_a, "a's title and a third note", &who(), None, &[]).unwrap().unwrap();
         let refused = push(&repo_a, &Auth::default()).unwrap_err();
         assert!(matches!(refused, Fail::NonFastForward(_)), "{refused:?}");
         assert!(refused.said().starts_with("Not fast-forward: "));
 
         // a fetches and sees the divergence, with the three texts of the note both changed.
-        fetch(&repo_a, &Auth::default()).unwrap();
+        fetch(&repo_a, &Auth::default(), false).unwrap();
         let d = divergence(&repo_a).unwrap();
         assert_eq!((d.state, d.ahead, d.behind), ("diverged", 1, 1));
         assert_eq!(d.local.as_deref(), Some(on_a.to_string().as_str()));
@@ -880,7 +1084,7 @@ mod tests {
 
         // The merge is the app's (merge_words.dart); here its result is written and committed with both parents.
         write(&a, "Notes/first.md", "# First (a)\n\nline one\nline two (b)\nline three\n");
-        let merged = commit(&repo_a, "merge", &who(), Some(on_b)).unwrap().unwrap();
+        let merged = commit(&repo_a, "merge", &who(), Some(on_b), &[]).unwrap().unwrap();
         let parents = git(&["log", "-1", "--format=%P", &merged.to_string()], &a);
         assert_eq!(parents, format!("{on_a} {on_b}"));
         let pushed = push(&repo_a, &Auth::default()).unwrap();
@@ -888,12 +1092,104 @@ mod tests {
         assert_eq!(divergence(&repo_a).unwrap().state, "same");
         assert_eq!(git(&["rev-parse", BRANCH], &root.join("remote.git")), merged.to_string());
         // The other clone takes it, and git finds the remote whole and sound.
-        fetch(&repo_b, &Auth::default()).unwrap();
+        fetch(&repo_b, &Auth::default(), false).unwrap();
         let d = divergence(&repo_b).unwrap();
         assert_eq!((d.state, d.ahead, d.behind), ("behind", 0, 2));
         assert_eq!(git(&["fsck", "--strict"], &root.join("remote.git")), "");
         assert_eq!(git(&["show", &format!("{merged}:Notes/first.md")], &root.join("remote.git")), "# First (a)\n\nline one\nline two (b)\nline three");
         assert_eq!(git(&["show", &format!("{merged}:Notes/third.md")], &root.join("remote.git")), "# Third");
+    }
+
+    /// The plugin's slice: the log the page reads, the tree diff the merge walks, a blob written to a file, and a
+    /// shallow clone deepened to the whole history.
+    #[test]
+    fn log_diff_write_blob_and_deepen() {
+        let root = TempDir::new("git-log-diff");
+        let url = bare(&root);
+        let a = root.join("a");
+        init(&a).unwrap();
+        let repo_a = open(&a).unwrap();
+        assert_eq!(log(&repo_a, 5).unwrap(), Vec::<Logged>::new(), "an unborn branch has no log");
+        write(&a, "Inbox/one.md", "# One\n");
+        write(&a, "image/p.jpg", "\u{ff}\u{d8}bytes");
+        let first = commit(&repo_a, "New: One", &who(), None, &[]).unwrap().unwrap();
+        write(&a, "Inbox/one.md", "# One\n\nmore\n");
+        write(&a, "Inbox/two.md", "# Two\n");
+        std::fs::remove_file(a.join("image/p.jpg")).unwrap();
+        let second = commit(&repo_a, "2 notes changed: One, Two", &who(), None, &[]).unwrap().unwrap();
+
+        let logged = log(&repo_a, 5).unwrap();
+        assert_eq!(logged.len(), 2);
+        assert_eq!((logged[0].id.as_str(), logged[0].message.as_str(), logged[0].name.as_str()), (second.to_string().as_str(), "2 notes changed: One, Two", "Ghost"));
+        assert_eq!(logged[1].message, "New: One");
+        assert!(logged[0].time > 1_700_000_000, "{}", logged[0].time);
+        assert_eq!(log(&repo_a, 1).unwrap().len(), 1);
+        let by_call = call("git_log", json!({ "repo": a.to_str().unwrap(), "count": 1 })).unwrap();
+        assert_eq!(by_call[0]["message"], "2 notes changed: One, Two");
+
+        let changes = diff(&repo_a, Some(first), second).unwrap();
+        assert_eq!(changes, vec![TreeChange { path: "Inbox/one.md".into(), kind: "modified", from: None }, TreeChange { path: "Inbox/two.md".into(), kind: "added", from: None }, TreeChange { path: "image/p.jpg".into(), kind: "removed", from: None }]);
+        let all = diff(&repo_a, None, first).unwrap();
+        assert_eq!(all.iter().map(|c| (c.path.as_str(), c.kind)).collect::<Vec<_>>(), [("Inbox/one.md", "added"), ("image/p.jpg", "added")], "against nothing, everything is added; folders are not listed");
+        let by_call = call("git_diff", json!({ "repo": a.to_str().unwrap(), "from": first.to_string(), "to": second.to_string() })).unwrap();
+        assert_eq!(by_call[2]["kind"], "removed");
+        assert!(by_call[2].get("from").is_none(), "no old path unless renamed");
+
+        let into = root.join("out").join("p.jpg");
+        let written = call("git_write_blob", json!({ "repo": a.to_str().unwrap(), "commit": first.to_string(), "path": "image/p.jpg", "into": into.to_str().unwrap() })).unwrap();
+        assert_eq!(written["bytes"], 9, "two two-byte characters and five ASCII");
+        assert_eq!(std::fs::read(&into).unwrap(), "\u{ff}\u{d8}bytes".as_bytes());
+        assert_eq!(call("git_write_blob", json!({ "repo": a.to_str().unwrap(), "commit": second.to_string(), "path": "image/p.jpg", "into": into.to_str().unwrap() })).unwrap(), Value::Null, "removed by then");
+
+        // A shallow clone sees one commit; deepened, both.
+        set_remote(&repo_a, REMOTE, &url).unwrap();
+        let repo_a = open(&a).unwrap();
+        push(&repo_a, &Auth::default()).unwrap();
+        let b = root.join("b");
+        clone(&url, &b, &Auth::default(), true).unwrap();
+        let repo_b = open(&b).unwrap();
+        assert!(repo_b.is_shallow().unwrap());
+        assert_eq!(log(&repo_b, 5).unwrap().len(), 1);
+        let status = call("git_status", json!({ "repo": b.to_str().unwrap() })).unwrap();
+        assert_eq!(status["shallow"], true);
+        fetch(&repo_b, &Auth::default(), true).unwrap();
+        let repo_b = open(&b).unwrap();
+        assert!(!repo_b.is_shallow().unwrap(), "deepened to the whole history");
+        assert_eq!(log(&repo_b, 5).unwrap().len(), 2);
+        assert_eq!(git(&["rev-list", "--count", "HEAD"], &b), "2");
+        assert_eq!(call("git_status", json!({ "repo": b.to_str().unwrap() })).unwrap()["shallow"], false);
+    }
+
+    /// `keep`: a folder taken from HEAD as it was, whether the folder changed on disk or is gone, and left out
+    /// where HEAD never had it.
+    #[test]
+    fn kept_folders_come_from_head() {
+        let root = TempDir::new("git-keep");
+        let a = root.join("a");
+        init(&a).unwrap();
+        let repo = open(&a).unwrap();
+        write(&a, "Inbox/one.md", "# One\n");
+        write(&a, "orgs/Acme/plan.md", "# Plan\n");
+        write(&a, "orgs/Beta/b.md", "# B\n");
+        // Beta kept before any HEAD has it: not committed at all.
+        let first = commit(&repo, "first", &who(), None, &["orgs/Beta".to_string()]).unwrap().unwrap();
+        assert_eq!(git(&["ls-files"], &a), "Inbox/one.md\norgs/Acme/plan.md");
+        // Acme changed and Beta added on disk; both kept: the commit has Acme as it was and still no Beta.
+        write(&a, "orgs/Acme/plan.md", "# Plan\n\nchanged on this device\n");
+        write(&a, "orgs/Acme/new.md", "# New\n");
+        write(&a, "Inbox/one.md", "# One\n\nmore\n");
+        let second = commit(&repo, "second", &who(), None, &["orgs/Acme".to_string(), "orgs/Beta/".to_string()]).unwrap().unwrap();
+        assert_eq!(git(&["show", &format!("{second}:orgs/Acme/plan.md")], &a), "# Plan");
+        assert_eq!(git(&["ls-tree", "-r", "--name-only", &second.to_string()], &a), "Inbox/one.md\norgs/Acme/plan.md");
+        // Acme gone from disk and kept: still in the commit; nothing else changed, so nothing to commit.
+        std::fs::remove_dir_all(a.join("orgs/Acme")).unwrap();
+        assert_eq!(commit(&repo, "third", &who(), None, &["orgs/Acme".to_string(), "orgs/Beta".to_string()]).unwrap(), None);
+        // Not kept: Acme's removal and Beta's arrival are the commit.
+        let fourth = commit(&repo, "fourth", &who(), None, &[]).unwrap().unwrap();
+        assert_eq!(git(&["ls-tree", "-r", "--name-only", &fourth.to_string()], &a), "Inbox/one.md\norgs/Beta/b.md");
+        let by_call = call("git_commit", json!({ "repo": a.to_str().unwrap(), "message": "x", "author": {"name": "G", "email": "g@x"}, "keep": ["orgs/Beta"] })).unwrap();
+        assert_eq!(by_call["id"], Value::Null, "nothing changed");
+        assert_eq!(diff(&repo, Some(first), fourth).unwrap().iter().map(|c| (c.path.as_str(), c.kind)).collect::<Vec<_>>(), [("Inbox/one.md", "modified"), ("orgs/Acme/plan.md", "removed"), ("orgs/Beta/b.md", "added")]);
     }
 
     #[test]
@@ -904,9 +1200,9 @@ mod tests {
         init(&a).unwrap();
         let repo_a = open(&a).unwrap();
         write(&a, "one.md", "1\n");
-        commit(&repo_a, "one", &who(), None).unwrap();
+        commit(&repo_a, "one", &who(), None, &[]).unwrap();
         write(&a, "two.md", "2\n");
-        let second = commit(&repo_a, "two", &who(), None).unwrap().unwrap();
+        let second = commit(&repo_a, "two", &who(), None, &[]).unwrap().unwrap();
         set_remote(&repo_a, REMOTE, &url).unwrap();
         let repo_a = open(&a).unwrap();
         push(&repo_a, &Auth::default()).unwrap();
@@ -925,14 +1221,14 @@ mod tests {
         let a = root.join("a");
         init(&a).unwrap();
         let repo = open(&a).unwrap();
-        assert!(matches!(fetch(&repo, &Auth::default()), Err(Fail::Other(_))), "no remote yet");
+        assert!(matches!(fetch(&repo, &Auth::default(), false), Err(Fail::Other(_))), "no remote yet");
         set_remote(&repo, REMOTE, "https://127.0.0.1:9/nobody/nothing.git").unwrap();
         let repo = open(&a).unwrap();
-        let err = fetch(&repo, &Auth { user: None, token: Some("x".into()) }).unwrap_err();
+        let err = fetch(&repo, &Auth { user: None, token: Some("x".into()) }, false).unwrap_err();
         assert!(matches!(err, Fail::Network(_)), "{err:?}");
         assert!(err.said().starts_with("No connection: "));
         write(&a, "one.md", "1\n");
-        commit(&repo, "one", &who(), None).unwrap();
+        commit(&repo, "one", &who(), None, &[]).unwrap();
         let err = push(&repo, &Auth::default()).unwrap_err();
         assert!(matches!(err, Fail::Network(_)), "{err:?}");
     }
@@ -969,7 +1265,7 @@ mod tests {
         }
         let repo = open(&a).unwrap();
         let t = Instant::now();
-        let first = commit(&repo, "the library", &who(), None).unwrap().unwrap();
+        let first = commit(&repo, "the library", &who(), None, &[]).unwrap().unwrap();
         let commit_all = t.elapsed();
         set_remote(&repo, REMOTE, &url).unwrap();
         let repo = open(&a).unwrap();
@@ -992,14 +1288,14 @@ mod tests {
 
         write(&a, "Notes/000/note-0.md", "# Note 0\n\nchanged\n");
         let t = Instant::now();
-        let second = commit(&repo, "one line", &who(), None).unwrap().unwrap();
+        let second = commit(&repo, "one line", &who(), None, &[]).unwrap().unwrap();
         let commit_one = t.elapsed();
         let t = Instant::now();
         push(&repo, &Auth::default()).unwrap();
         let push_one = t.elapsed();
         let repo_b = open(&b).unwrap();
         let t = Instant::now();
-        fetch(&repo_b, &Auth::default()).unwrap();
+        fetch(&repo_b, &Auth::default(), false).unwrap();
         let fetch_one = t.elapsed();
         assert_eq!(divergence(&repo_b).unwrap().remote.as_deref(), Some(second.to_string().as_str()));
         let pack_bytes: u64 = walkdir(&root.join("remote.git").join("objects")).into_iter().map(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)).sum();

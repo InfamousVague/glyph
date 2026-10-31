@@ -35,6 +35,7 @@ import '../book/ticket_digest.dart' show chosenDigestClaim, ticketDigestKey, tic
 import '../book/timers.dart' show ticketTimersKey;
 import '../core/preferences.dart';
 import '../core/stored.dart';
+import '../plugins/git_backup/claim.dart' show chosenPusherClaim, pusherClaimKey;
 import '../plugins/lovart/banner_run.dart' show bannerClaimKey, chosenBannerClaim;
 import 'sealed_keys.dart' show mergedSealedKeys, sealedKeysKey;
 
@@ -135,6 +136,9 @@ const List<String> syncedPrefs = [
   ruleBlockedKey,
   ruleSweepKey,
   ticketTimersKey,
+  // Which device pushes the git backup (lib/plugins/git_backup/claim.dart; Matt, 2026-10-31, decision 13): claimed as
+  // the sweep is, so one device of the account pushes and the others commit and watch (`chosenPusherClaim`).
+  pusherClaimKey,
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.
@@ -301,6 +305,14 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
     } else if (key == ruleSweepKey) {
       // The clock's rules claimed on another device first are that device's to run.
       final chosen = chosenSweepClaim(mine[key], theirs[key], now: now);
+      if (chosen == null) {
+        out.remove(key);
+      } else {
+        out[key] = chosen;
+      }
+    } else if (key == pusherClaimKey) {
+      // The git backup's push claimed on another device first is that device's to make.
+      final chosen = chosenPusherClaim(mine[key], theirs[key], now: now);
       if (chosen == null) {
         out.remove(key);
       } else {
