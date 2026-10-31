@@ -68,6 +68,19 @@ minijinja-contrib = { version = "2.24", default-features = false, features = ["p
 # Not Tauri: the two functions of `tauri::async_runtime` model_files.rs calls (shims/tauri).
 tauri = { path = "shims/tauri", optional = true }
 
+# "Back up to git" (src/git.rs, a spike of 2026-10-31): gitoxide, git in pure Rust, so the phone's .so needs no
+# libgit2, OpenSSL or libcurl. No default features (those bring curl's transport, regex, signal handlers); what is on:
+# the HTTP transport over reqwest with rustls (fetch, clone, and the push git.rs writes itself, since gix has none
+# yet), the index and worktree written for a clone's checkout and read for the status, merge bases, SHA-1, and the
+# pack code's threads. The transport is the vendored copy below: the one line it changes keeps aws-lc-rs out, and
+# rustls here is told to use ring, the provider the voice downloads already carry; webpki-roots is the trust store,
+# since rustls's platform verifier wants a Kotlin half on Android. gix-pack is named outright for `generate`,
+# the pack writer a push needs and gix's own features never turn on.
+gix = { version = "0.90", default-features = false, features = ["blocking-http-transport-reqwest-rust-tls", "worktree-mutation", "revision", "sha1", "parallel"] }
+gix-pack = { version = "0.77", default-features = false, features = ["generate", "streaming-input", "object-cache-dynamic"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+webpki-roots = "1"
+
 # saf.rs, Rust's calls into Kotlin for a folder chosen through Android's picker (stage 9A), and recording_jobs.rs,
 # the JNI door a meeting's service and its WorkManager job call with the app closed.
 [target.'cfg(target_os = "android")'.dependencies]
@@ -135,6 +148,9 @@ opt-level = 3
 # native/target and writes nothing beside the source.
 [patch.crates-io]
 whisper-rs-sys = { path = "../tauri/src-tauri/vendor/whisper-rs-sys" }
+# gix-transport 0.62.0 as published, but its reqwest-with-rustls feature asks reqwest for `rustls-no-provider` rather
+# than `rustls`, which would compile aws-lc-rs (a C library, a second cipher provider beside ring) into every target.
+gix-transport = { path = "vendor/gix-transport" }
 
 # Panics must unwind (the default): ffi.rs catches them at the boundary. Do not set `panic = "abort"`.
 [profile.release]

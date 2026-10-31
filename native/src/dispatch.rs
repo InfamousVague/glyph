@@ -451,6 +451,8 @@ pub fn invoke(command: &str, args: Value) -> Result<Value, String> {
         command if crate::kept::updates::has(command) => crate::kept::updates::call(command, args),
         // Long jobs are cancelled and listed with no library either (work.rs).
         command if crate::work::has(command) => crate::work::call(command, args),
+        // The git spike (git.rs): each command names the repository it works on, so none needs the library.
+        command if crate::git::has(command) => crate::git::call(command, args),
         // Stage 8A's proof that each engine runs: a model file and a job, no library (smoke.rs).
         #[cfg(feature = "voice")]
         command if crate::smoke::has(command) => crate::smoke::call(command, args),
