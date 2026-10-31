@@ -7,8 +7,8 @@
       {"icon": "sidebar", "words": "A new sidebar: switch between Personal and each organization, with Home, Search, My tickets, Updates, Favorites and the space's pages.", "kind": "new"},
       {"icon": "list-tree", "words": "Pages nest: add a page inside another, drag to reorder or nest, and give any page an icon. A folder with an index.md is a page.", "kind": "new"},
       {"icon": "book-open", "words": "Doc pages get breadcrumbs, an icon and cover, who edited last, an outline beside the text, and previous and next at the foot.", "kind": "new"},
-      {"icon": "eye", "words": "Each organization chooses whether its pages open to read or to edit, set on its home page.", "kind": "new"},
-      {"icon": "users", "words": "An organization's home is its Home.md page, with its members, pinned pages, and a page for each member's tickets and docs.", "kind": "new"},
+      {"icon": "users", "words": "An organization's home is its Home.md page: members, pinned pages, whether pages open to read or edit, and a page per member.", "kind": "new"},
+      {"icon": "book-open-text", "words": "Docs, a new kind of notebook: parts and pages, made by you or by your AI assistant, in the app or through the connector.", "kind": "new"},
       {"icon": "bell", "words": "Follow a page to see its changes in Updates, now an inbox with Mentions, Tickets, Docs and Team. Editing or a mention follows for you.", "kind": "new"},
       {"icon": "circle-user", "words": "See who else is on a page: their avatars sit in the header, and a dot marks the page in the sidebar.", "kind": "new"}
     ]
