@@ -140,7 +140,7 @@ class _TicketWorkState extends State<TicketWork> {
       );
 
   Widget _tap({required String label, required VoidCallback? onTap, required Widget child, Key? key}) {
-    if (onTap == null) return child;
+    if (onTap == null) return KeyedSubtree(key: key, child: child);
     return Semantics(
       key: key,
       container: true,
@@ -160,7 +160,7 @@ class _TicketWorkState extends State<TicketWork> {
   }
 
   /// A quiet chip: an icon and words on the panel's paper, the panel's `.give`.
-  Widget _chip(String words, {LucideIcon? icon, Color? color, Color? dot, bool strong = false}) {
+  Widget _chip(String words, {LucideIcon? icon, Color? color, Color? dot, bool strong = false, LucideIcon? after, Color? afterColor}) {
     final ink = color ?? look.ink2;
     return Container(
       padding: EdgeInsets.symmetric(horizontal: look.space(2), vertical: look.space(1) / 2),
@@ -171,6 +171,7 @@ class _TicketWorkState extends State<TicketWork> {
           if (dot != null) ...<Widget>[Container(width: 7, height: 7, decoration: ShapeDecoration(color: dot, shape: const CircleBorder())), SizedBox(width: look.space(1))],
           if (icon != null) ...<Widget>[AppIcon(icon, size: 12, strokeWidth: 2.2, color: ink), SizedBox(width: look.space(1))],
           Flexible(child: PageWords(words, look.sans(look.xs, color: ink, weight: strong ? 'semibold' : 'regular'), line: look.lineXs, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          if (after != null) ...<Widget>[SizedBox(width: look.space(1)), AppIcon(after, size: 12, strokeWidth: 2.4, color: afterColor ?? ink)],
         ],
       ),
     );
@@ -214,7 +215,7 @@ class _TicketWorkState extends State<TicketWork> {
   Color _stateColor(PullState state) => switch (state) {
         PullState.open => look.t.color('glacier-green-9'),
         PullState.draft => look.ink4,
-        PullState.merged => look.t.color('glacier-violet-9'),
+        PullState.merged => look.t.color('glacier-purple-9'),
         PullState.closed => look.t.color('glacier-red-9'),
       };
 
@@ -229,10 +230,12 @@ class _TicketWorkState extends State<TicketWork> {
               onTap: switch (widget.options.openUrl) { final open? when linked.pull.url.isNotEmpty => () => open(linked.pull.url), _ => null },
               child: Part(
                 'pull',
+                // Its checks after its words: a tick, a cross in red, a clock while they run.
                 child: _chip(
-                  '${linked.words}${switch (linked.checks) { PullChecks.passing => ' ✓', PullChecks.failing => ' ✕', PullChecks.pending => ' …', null => '' }}',
+                  linked.words,
                   dot: _stateColor(linked.pull.state),
-                  color: linked.checks == PullChecks.failing ? look.t.color('glacier-red-11') : null,
+                  after: switch (linked.checks) { PullChecks.passing => Lucide.check, PullChecks.failing => Lucide.x, PullChecks.pending => Lucide.clock, null => null },
+                  afterColor: switch (linked.checks) { PullChecks.passing => look.t.color('glacier-green-11'), PullChecks.failing => look.t.color('glacier-red-11'), _ => look.ink3 },
                 ),
               ),
             ),
@@ -249,7 +252,7 @@ class _TicketWorkState extends State<TicketWork> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         if (showTime) Part('time', child: _row('Time', _time())),
-        if (pulls.isNotEmpty) Part('pulls', child: _row('Pull requests', _pulls(pulls))),
+        if (pulls.isNotEmpty) Part('pulls', child: _row('PRs', _pulls(pulls))),
       ],
     );
   }
