@@ -46,6 +46,7 @@ import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show daySaid;
 import '../items/field_menu.dart' show DayPicker;
 import 'lane_carry.dart';
+import 'plan_marks.dart';
 import 'query_board.dart';
 import 'query_builder.dart';
 import 'query_calendar.dart';
@@ -121,7 +122,16 @@ class QueryView extends StatefulWidget {
     this.dayPicker,
     this.ticketMarks,
     this.onOpenTitle,
+    this.onCarry,
+    this.planning = false,
   }) : linesEditable = linesEditable ?? editable;
+
+  /// Whether a ticket's planning is drawn on its card and its row (plan_marks.dart): the host's to say.
+  final bool planning;
+
+  /// A cycle's unfinished tickets moved to the next, in one action (plan_marks.dart [CarryBar]). Absent, the offer is
+  /// not made.
+  final void Function(CarryOffer offer)? onCarry;
 
   /// A ticket's lock and its sub-tickets' progress, by note id (ticket_marks.dart).
   final TicketMarks Function(String noteId)? ticketMarks;
@@ -209,6 +219,7 @@ class QueryViewState extends State<QueryView> {
       marks: switch (widget.ticketMarks) { final marks? => (row) => row.id == null || row.kind == RecordKind.task ? null : marks(row.noteId), null => null },
       onSet: widget.editable ? widget.onSet : null,
       onOpenTitle: widget.onOpenTitle,
+      planning: widget.planning,
       pickable: (row, field) => canPick && picksField(row, field),
       pick: (row, column, cell) {
         final pick = pickOf(row, column.field, cell, widget.today ?? result.today, widget.people ?? () => const <String>[]);
@@ -316,6 +327,7 @@ class QueryViewState extends State<QueryView> {
         onBuild: onBody == null ? null : () => setState(() => _building = true),
       ),
       for (final (index, warning) in result.warnings.indexed) _quiet('warning', warning, first: index == 0),
+      if ((result.carry, widget.editable ? widget.onCarry : null) case (final offer?, final carry?)) CarryBar(look: look, offer: offer, onCarry: carry),
       if (nothing)
         _quiet('empty', 'Nothing matches this query yet.', first: result.warnings.isEmpty)
       else
@@ -351,7 +363,19 @@ class QueryViewState extends State<QueryView> {
           },
           onClose: () => setState(() => _building = false),
         ),
-      if (picking != null && onSet != null)
+      // A ticket's priority from its own four, each its chip (plan_marks.dart).
+      if (picking != null && onSet != null && widget.planning && picking.pick is PriorityPick && picking.row.kind == RecordKind.ticket)
+        TicketPrioritySheet(
+          look: look,
+          value: (picking.pick as PriorityPick).value,
+          record: picking.row.id ?? picking.row.name,
+          onClose: () => setState(() => _picking = null),
+          onPick: (written) {
+            fireMotor(HapticKind.selection);
+            onSet(picking.row, picking.field, written);
+          },
+        )
+      else if (picking != null && onSet != null)
         FieldPicker(
           pick: picking.pick,
           label: picking.label,
@@ -571,6 +595,7 @@ class QueryRowLine extends StatelessWidget {
             if (keyed) CssItem(whole: true, child: QueryKeyLine(look: look, id: id)),
             QueryName(look: look, row: row, acts: acts, hideKey: keyLine),
             if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks, bar: false),
+            if (acts.planning && QueryPlanMarks.has(row, card: false)) QueryPlanMarks(look: look, row: row, acts: acts, card: false),
             if (result != null && QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts),
           ],
         ),
@@ -816,6 +841,7 @@ class _QueryTableState extends State<QueryTable> {
                       // .nameCellInner .box { margin-block-start: 0.15em }
                       if (QueryBox.has(row)) ...<Widget>[QueryBox(look: look, row: row, acts: acts, drop: 0.15 * buttonType), SizedBox(width: look.space(2))],
                       QueryName(look: look, row: row, acts: acts, hideKey: column.field == 'title' && keyed, wrap: false),
+                      if (acts.planning ? row.plan?.staleDays : null case final days?) ...<Widget>[SizedBox(width: look.space(2)), Padding(padding: EdgeInsets.only(top: 0.2 * look.em), child: StaleMark(look: look, days: days))],
                     ],
                   ),
                 ),
@@ -834,7 +860,7 @@ class _QueryTableState extends State<QueryTable> {
                 column: column,
                 cell: row.cells[index],
                 acts: acts,
-                child: cellView(look, row.cells[index], field: column.field, acts: acts, quiet: quiet, brief: false, workflow: row.workflow, parent: look.em) ?? const SizedBox.shrink(),
+                child: cellView(look, row.cells[index], field: column.field, acts: acts, quiet: quiet, brief: false, workflow: row.workflow, parent: look.em, ticket: acts.planning && row.kind == RecordKind.ticket) ?? const SizedBox.shrink(),
               ),
               ends: look.space(2),
               above: look.hair / 2,

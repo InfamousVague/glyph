@@ -89,7 +89,7 @@ bool _inWorkflow(String status, List<String> statuses) => statuses.any((each) =>
 String newTicketBody(String title, {required String? id, required List<String> statuses, String? words}) {
   var body = words ?? '# ${jsTrim(title)}\n\n';
   final type = frontMatterValue(body, 'type');
-  if (type == null || jsTrim(type).toLowerCase() != 'ticket') body = withProperty(body, 'type', 'ticket');
+  if (!isTicketType(type)) body = withProperty(body, 'type', 'ticket');
   if (id != null && id.isNotEmpty && ticketIdOf(body) == null) body = withProperty(body, 'id', id);
   final status = jsTrim(frontMatterValue(body, 'status') ?? '');
   if (status.isEmpty || !_inWorkflow(status, statuses)) body = withProperty(body, 'status', firstOpenStatus(statuses));

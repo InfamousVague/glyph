@@ -63,7 +63,7 @@ void main() {
 
   test('reads each pair of versions once: a file that grew is read for its new version alone', () async {
     var file = kept;
-    final history = TicketHistory((_) async => file);
+    final history = TicketTimeline((_) async => file);
     expect(await history.of('n1'), hasLength(11));
     expect(history.read, 6);
     expect(await history.of('n1'), hasLength(11));
@@ -80,7 +80,7 @@ void main() {
   test('the app’s history is what ticketHistory answers, and none before it is registered', () async {
     registerTicketHistory(null);
     expect(await ticketHistory('n1'), isEmpty);
-    registerTicketHistory(TicketHistory((id) async => id == 'n1' ? kept : const []));
+    registerTicketHistory(TicketTimeline((id) async => id == 'n1' ? kept : const []));
     addTearDown(() => registerTicketHistory(null));
     expect((await ticketHistory('n1')).map((c) => c.key).where((k) => k == 'status'), hasLength(2));
     expect(await ticketHistory('n2'), isEmpty);

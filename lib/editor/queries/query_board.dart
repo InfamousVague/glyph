@@ -39,6 +39,7 @@ import '../boards/board_box.dart' show LaneSnap, LaneSnapPhysics;
 import '../boards/divider.dart' show BoardSplit;
 import '../boards/navigate.dart' show boardEdge, noteScroller;
 import 'lane_carry.dart';
+import 'plan_marks.dart';
 import 'query_layout.dart';
 import 'query_look.dart';
 import 'query_parts.dart';
@@ -192,6 +193,8 @@ class _QueryBoardState extends State<QueryBoard> {
       if (QueryMeta.has(row, result)) QueryMeta(look: look, row: row, result: result, acts: acts, fills: true),
       // A ticket's lock and its sub-tickets' progress (ticket_marks.dart).
       if (acts.marks?.call(row) case final marks? when QueryTicketMarks.has(marks)) QueryTicketMarks(look: look, marks: marks),
+      // Its estimate, an epic's points, and stale (plan_marks.dart).
+      if (acts.planning && QueryPlanMarks.has(row)) QueryPlanMarks(look: look, row: row, acts: acts),
     ];
     return Part(
       'card',

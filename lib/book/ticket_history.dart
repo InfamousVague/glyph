@@ -9,12 +9,13 @@
 ///     Matt created it · Tuesday
 ///
 /// **Fast.** The changes between two versions depend on nothing but their two texts, so each pair is read once and
-/// kept by the versions' hashes ([TicketHistory]); a file that grew by a version is read for that version alone, and
+/// kept by the versions' hashes ([TicketTimeline]); a file that grew by a version is read for that version alone, and
 /// one merged from another device (a version kept in the middle) reads only the pairs it has not seen.
 ///
 /// **For others to use.** [ticketHistory] answers a ticket's changes, oldest first, from whatever the app registered
-/// ([registerTicketHistory]): what the cycles' burndowns read, a status's moves by day. Pure apart from that, so each
-/// sequence of versions is a test (test/book_core/ticket_history_test.dart).
+/// ([registerTicketHistory]): what a burndown can read, a status's moves by day, by who. The cycles' own reader of
+/// statuses (lib/core/planning/history.dart `TicketHistory`) is apart from this one, hence [TicketTimeline]'s name.
+/// Pure apart from that, so each sequence of versions is a test (test/book_core/ticket_history_test.dart).
 library;
 
 import 'package:flutter/foundation.dart';
@@ -104,8 +105,8 @@ List<TicketChange> historyOf(List<Version> versions) {
 }
 
 /// Each note's history, kept per pair of versions so it is read once (see the header).
-class TicketHistory {
-  TicketHistory(this._versions);
+class TicketTimeline {
+  TicketTimeline(this._versions);
 
   /// A note's versions, oldest first (lib/core/versions_record.dart `versionsOf`).
   final Future<List<Version>> Function(String noteId) _versions;
@@ -150,10 +151,10 @@ class TicketHistory {
   }
 }
 
-TicketHistory? _registered;
+TicketTimeline? _registered;
 
 /// The app's history, given where the versions are (lib/root/ghost_root.dart): what [ticketHistory] reads.
-void registerTicketHistory(TicketHistory? history) => _registered = history;
+void registerTicketHistory(TicketTimeline? history) => _registered = history;
 
 /// A ticket's changes, oldest first: status, assignee, due, priority, labels and estimate, and the ticket being
 /// made, each with when and who (see the header). None before the app has registered its history.

@@ -21,20 +21,39 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../core/properties.dart';
-import '../core/query/records.dart' show QueryNote;
+import '../core/days.dart' show isoDay;
+import '../core/planning/history.dart' show StatusPast;
+import '../core/query/planning.dart' show PlanningIndex, ticketPlanningOf;
+import '../core/query/records.dart' show QueryNote, RecordCache, libraryOf, recordCache;
 import '../editor/tickets/tickets.dart' show TicketFollow, TicketOptions;
 import '../notes/note_templates.dart';
 import '../notes/own_templates.dart';
 import '../perf/frame_log.dart';
 
 class LibraryReads {
-  LibraryReads({required this.shown, required this.all});
+  LibraryReads({required this.shown, required this.all, this.history, String Function()? today}) : _today = today ?? (() => isoDay(DateTime.now()));
 
   /// The notes every screen shows: none in the Trash, none a pending delete is holding back.
   final List<Note> Function() shown;
 
   /// Every note the store has, the Trash's too.
   final List<Note> Function() all;
+
+  /// What the tickets' versions say of their statuses (lib/core/planning/history.dart), for a panel's stale mark;
+  /// absent, a ticket's days are counted from when it was last changed.
+  final StatusPast? history;
+  final String Function() _today;
+
+  /// The library's planning (lib/core/query/planning.dart), read once a change and a day.
+  PlanningIndex? _plan;
+  final RecordCache _records = recordCache();
+
+  PlanningIndex get plan {
+    final today = _today();
+    final had = _plan;
+    if (had != null && had.today == today) return had;
+    return _plan = PlanningIndex(libraryOf(queryNotes, _records), today, past: history);
+  }
 
   List<Note>? _shown;
   List<TicketEntry>? _entries;
@@ -68,7 +87,11 @@ class LibraryReads {
     _templates = null;
     _entryIds = null;
     _journals = null;
+    _plan = null;
   }
+
+  /// A ticket's versions were read (lib/core/planning/history.dart): its days are worked out again.
+  void historyRead() => _plan = null;
 
   List<Note> get notes => _shown ??= shown();
 
@@ -215,6 +238,8 @@ class LibraryReads {
       addSubTicket: addSub == null ? null : (title) => addSub(noteId, title),
       // Its watchers, history, possible duplicates and merge (lib/editor/tickets/ticket_follow.dart).
       follow: follow,
+      // Its cycle, its age, its epic's progress, the milestones (lib/core/query/planning.dart).
+      planning: () => ticketPlanningOf(plan, noteId),
       problem: (key, value) {
         final entry = self();
         if (entry == null) return null;

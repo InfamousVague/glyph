@@ -103,6 +103,7 @@ import '../core/template.dart' show openEnd;
 import '../core/trash.dart';
 import '../core/untouched.dart';
 import '../core/updates.dart';
+import '../core/planning/history.dart' show TicketHistory;
 import '../core/versions_record.dart';
 import '../core/versions_share.dart';
 import '../core/versions_store.dart';
@@ -142,7 +143,7 @@ import '../notes/template_choice.dart';
 import '../book/ticket_links.dart' show subTicketBody;
 import '../book/ticket_digest.dart';
 import '../book/ticket_duplicates.dart' show likelyDuplicates;
-import '../book/ticket_history.dart' show TicketHistory, registerTicketHistory;
+import '../book/ticket_history.dart' show TicketTimeline, registerTicketHistory;
 import '../book/ticket_merge.dart';
 import '../book/ticket_watchers.dart' show watches, withWatcher;
 import '../core/days.dart' show isoDay;
@@ -536,7 +537,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// Each ticket's history from its versions, read a pair of versions at a time and kept (lib/book/ticket_history.dart),
   /// and its likely duplicates as last read; the morning's digest and its next look (root_tickets.dart).
-  late final TicketHistory _ticketHistory = TicketHistory((id) async => (await _versions.versionsOf(id)).versions);
+  late final TicketTimeline _ticketTimeline = TicketTimeline((id) async => (await _versions.versionsOf(id)).versions);
   final Map<String, ({String body, int version, List<LikelyDuplicate> likely})> _duplicatesRead = {};
   TicketDigestRunner? _digest;
   Timer? _digestPoke;
@@ -701,7 +702,16 @@ class _GhostRootState extends State<GhostRoot> {
   void _say(BuildContext context, String message) => GlacierToast.of(context).toast(message: Text(message));
 
   /// What the note on screen reads of the library, read once per change to the notes (lib/root/library_reads.dart).
-  late final LibraryReads _reads = LibraryReads(shown: () => _shown, all: () => _library.value);
+  late final LibraryReads _reads = LibraryReads(shown: () => _shown, all: () => _library.value, history: _ticketHistory);
+
+  /// When each ticket's status changed, read from its versions as a burndown or a stale mark first asks
+  /// (lib/core/planning/history.dart; Matt, 2026-10-31): a team's tickets keep versions, a person's own where switched
+  /// on. Read again when a note's versions change.
+  late final TicketHistory _ticketHistory = TicketHistory((id) async => [for (final version in (await _versions.versionsOf(id)).versions) (at: version.at, text: version.text)]);
+  StreamSubscription<String>? _versionsHeard;
+
+  /// The queries and panels drawn again once versions are read.
+  late final Listenable _planningChanges = Listenable.merge([_libraryChanges, _ticketHistory]);
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -1234,8 +1244,10 @@ class _GhostRootState extends State<GhostRoot> {
     pictures: _pictures,
     films: widget.films,
     services: _services,
-    changes: _libraryChanges,
+    changes: _planningChanges,
     queryNotes: () => _reads.queryNotes,
+    // What the tickets' versions say of their statuses, for a burndown and a stale mark (lib/core/planning).
+    ticketHistory: () => _ticketHistory,
     // The calendars' events (lib/calendar, docs/CALENDAR.md): `from: events`, and a calendar of to-dos.
     queryEvents: calendar.queryEvents,
     eventsChanged: calendar.events,
@@ -1833,6 +1845,9 @@ class _GhostRootState extends State<GhostRoot> {
     // A voice a test brought is the test's to let go.
     if (widget.voice == null) _voice?.dispose();
     _libraryChanges.removeListener(_reads.changed);
+    _ticketHistory.removeListener(_reads.historyRead);
+    unawaited(_versionsHeard?.cancel());
+    _ticketHistory.dispose();
     _linkIndex.dispose();
     _calendarLife?.dispose();
     calendar.stop();
@@ -1930,11 +1945,13 @@ class _GhostRootState extends State<GhostRoot> {
     appAssistant.addListener(_claudeKeyMoved);
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    _ticketHistory.addListener(_reads.historyRead);
+    _versionsHeard = _versionsStore.changed.listen(_ticketHistory.forget);
     // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).
     _startClaude();
     _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
     // A ticket's history, for its panel and for whatever reads it by its id (lib/book/ticket_history.dart).
-    registerTicketHistory(_ticketHistory);
+    registerTicketHistory(_ticketTimeline);
     _libraryChanges.addListener(_digestHeard);
     // The calendars, read for the life of the app (lib/calendar/calendar.dart, docs/CALENDAR.md): now, on their
     // beats, and when the app comes back to the front; the to-dos a pass puts on Google's are the library's.

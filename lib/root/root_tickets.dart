@@ -28,7 +28,7 @@ extension _RootTickets on _GhostRootState {
   /// What a ticket's panel is handed for its team's parts.
   TicketFollow _ticketFollow(String noteId) => TicketFollow(
         me: () => _me,
-        history: () => _ticketHistory.of(noteId),
+        history: () => _ticketTimeline.of(noteId),
         duplicates: () {
           final note = _library.noteOf(noteId);
           if (note == null) return const <LikelyDuplicate>[];
