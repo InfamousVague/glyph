@@ -59,7 +59,8 @@ fn evicted_name(name: &str) -> Option<&str> {
 }
 
 pub trait Vault: Send {
-    /// Every `.md` file under the library, at any depth, except inside dot folders (`.glyph`, `.obsidian`, `.git`).
+    /// Every `.md` file under the library, at any depth, except inside dot folders (`.glyph`, `.obsidian`, `.git`) -
+    /// but for `.trash/` at the root, the trash (trash.rs), whose files are notes in the trash.
     fn markdown(&self) -> io::Result<Vec<Entry>>;
     fn read(&self, path: &str) -> io::Result<String>;
     /// Writes the whole file, creating its folders; a reader never sees half of it. Answers its new stat.
@@ -67,6 +68,11 @@ pub trait Vault: Send {
     fn rename(&self, from: &str, to: &str) -> io::Result<()>;
     fn remove(&self, path: &str) -> io::Result<()>;
     fn exists(&self, path: &str) -> bool;
+    /// Whether `folder` is there to put a file back into (a restore from the trash, trash.rs). `exists` by default,
+    /// which through SAF answers for a folder as for a file.
+    fn folder_exists(&self, folder: &str) -> bool {
+        self.exists(folder)
+    }
     fn stat(&self, path: &str) -> io::Result<Entry>;
     /// Sets the file's modified time (a front-matter-only change is not an edit), answering its stat.
     fn keep_modified(&self, path: &str, modified_ms: i64) -> io::Result<Entry>;
@@ -170,7 +176,9 @@ impl FsVault {
         for item in std::fs::read_dir(dir)? {
             let item = item?;
             let name = item.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') {
+            // The trash at the root is the one dot folder whose files are notes (trash.rs); a `.trash` deeper down
+            // is another app's and stays skipped with the rest.
+            if name.starts_with('.') && !(prefix.is_empty() && name == super::trash::TRASH && item.file_type()?.is_dir()) {
                 // iCloud's stand-in for a note it took off this Mac is the note, until the file itself is back.
                 if let Some(real) = evicted_name(&name) {
                     if item.file_type()?.is_file() && !dir.join(real).exists() {
@@ -244,6 +252,10 @@ impl Vault for FsVault {
         self.at(path).map(|p| p.exists() || Self::evicted(&p).is_some()).unwrap_or(false)
     }
 
+    fn folder_exists(&self, folder: &str) -> bool {
+        self.at(folder).map(|p| p.is_dir()).unwrap_or(false)
+    }
+
     fn stat(&self, path: &str) -> io::Result<Entry> {
         let full = self.at(path)?;
         self.entry(path, &full)
@@ -280,12 +292,13 @@ mod tests {
     fn the_notes_are_every_markdown_file_but_those_in_dot_folders() {
         let root = TempDir::new("vault");
         let vault = FsVault::new(&root).unwrap();
-        for file in ["Inbox/a.md", "Work/Deep/b.MD", ".obsidian/c.md", "Work/.trash/d.md", ".hidden.md", "notes.txt"] {
+        for file in ["Inbox/a.md", "Work/Deep/b.MD", ".obsidian/c.md", "Work/.trash/d.md", ".hidden.md", "notes.txt", ".trash/Inbox/e.md", ".trash/.obsidian/f.md"] {
             std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
             std::fs::write(root.join(file), "x").unwrap();
         }
         let paths: Vec<String> = vault.markdown().unwrap().into_iter().map(|entry| entry.path).collect();
-        assert_eq!(paths, ["Inbox/a.md", "Work/Deep/b.MD"], "sorted, forward slashes, any case of .md");
+        assert_eq!(paths, [".trash/Inbox/e.md", "Inbox/a.md", "Work/Deep/b.MD"], "sorted, forward slashes, any case of .md; the root's trash is the one dot folder read");
+        assert!(vault.folder_exists("Work/Deep") && !vault.folder_exists("Work/Deep/b.MD") && !vault.folder_exists("Nowhere"));
     }
 
     #[test]

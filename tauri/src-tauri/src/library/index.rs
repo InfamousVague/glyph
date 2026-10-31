@@ -21,7 +21,8 @@ use crate::note::{new_id, Note};
 
 /// The index's shape. A different one is dropped and rebuilt: it is only a cache. 3 (2.3.94): `stat_modified_at`,
 /// the file's own time beside the note's (`modified_at`, the later of the file's time and its `updated:` key).
-const INDEX_VERSION: i64 = 3;
+/// 4: `trashed`, whether the file is under `.trash/` (trash.rs).
+const INDEX_VERSION: i64 = 4;
 
 const INDEX_SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS notes (
@@ -40,7 +41,8 @@ const INDEX_SCHEMA: &str = "
         recording_ms INTEGER,
         formatted_for INTEGER,
         formatted_model TEXT,
-        revision INTEGER NOT NULL DEFAULT 1
+        revision INTEGER NOT NULL DEFAULT 1,
+        trashed INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS command_mutations (
         id TEXT PRIMARY KEY,
@@ -100,12 +102,15 @@ pub(super) struct Row {
     pub(super) formatted_for: Option<i64>,
     pub(super) formatted_model: Option<String>,
     pub(super) revision: i64,
+    /// In the trash: its file is under `.trash/` (trash.rs). The path says so too; the column is for asking the
+    /// index without reading every path.
+    pub(super) trashed: bool,
 }
 
 /// Every column a row is read from and written with, in `row_of`'s order.
 /// `id_in_file` (whether the file's own front matter carries the id) is
 /// written for every file and read by nothing yet.
-const ROW_COLUMNS: &str = "id, path, body, created_at, modified_at, source, pinned, archived_at, id_in_file, recording_ms, formatted_for, formatted_model, revision";
+const ROW_COLUMNS: &str = "id, path, body, created_at, modified_at, source, pinned, archived_at, id_in_file, recording_ms, formatted_for, formatted_model, revision, trashed";
 
 /// Unpacks a row selected as `ROW_COLUMNS`.
 fn row_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
@@ -122,6 +127,7 @@ fn row_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         formatted_for: row.get(10)?,
         formatted_model: row.get(11)?,
         revision: row.get::<_, Option<i64>>(12)?.unwrap_or(1),
+        trashed: row.get::<_, i64>(13)? != 0,
     })
 }
 
@@ -275,7 +281,7 @@ impl Library {
         let tx = rusqlite::Transaction::new_unchecked(&self.index, rusqlite::TransactionBehavior::Immediate)?;
         tx.execute("DELETE FROM notes WHERE path = ?1 OR id = ?2", rusqlite::params![entry.path, id])?;
         tx.execute(
-            &format!("INSERT INTO notes ({ROW_COLUMNS}, title, size, stat_modified_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"),
+            &format!("INSERT INTO notes ({ROW_COLUMNS}, title, size, stat_modified_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"),
             rusqlite::params![
                 id,
                 entry.path,
@@ -290,6 +296,7 @@ impl Library {
                 sidecar.formatted_for,
                 sidecar.formatted_model,
                 prior_revision,
+                super::trash::is_trashed_path(&entry.path) as i64,
                 title_of(&body),
                 entry.size as i64,
                 entry.modified_ms,

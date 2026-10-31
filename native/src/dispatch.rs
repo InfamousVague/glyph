@@ -363,6 +363,16 @@ impl Core {
                 let Archived { id, archived } = read(command, args)?;
                 answer(store.lock().set_archived(&id, archived).map_err(said)?)
             }
+            // Moves a note's file into `.trash/` at its own path, or back out (library/trash.rs); `null` for a note
+            // that is gone. Not an edit: the note keeps its time and its revision.
+            "trash_note" => {
+                let ById { id } = read(command, args)?;
+                answer(store.lock().trash_note(&id).map_err(said)?)
+            }
+            "restore_note" => {
+                let ById { id } = read(command, args)?;
+                answer(store.lock().restore_note(&id).map_err(said)?)
+            }
             // Keeps a spoken note's recording length and phrases, or forgets both with `recordingMs: null`.
             "set_note_recording" => {
                 let SetRecording { id, recording_ms, segments } = read(command, args)?;
@@ -708,6 +718,15 @@ mod tests {
         assert_eq!(core.call("versions_write", json!({"id": "n1", "text": "{}"})).unwrap(), true);
         assert_eq!(core.call("versions_read", json!({"id": "n1"})).unwrap(), "{}");
         assert!(root.join("data/Library/Inbox/Plan.versions").is_file());
+
+        // Into the trash and back: the file moves under `.trash/` at its own path, versions and all, and the note
+        // keeps its revision.
+        let trashed = core.call("trash_note", json!({"id": "n1"})).unwrap();
+        assert_eq!((trashed["path"].as_str(), trashed["revision"].as_i64()), (Some(".trash/Inbox/Plan.md"), Some(2)));
+        assert!(root.join("data/Library/.trash/Inbox/Plan.versions").is_file() && !root.join("data/Library/Inbox/Plan.md").exists());
+        assert_eq!(core.call("list_notes", json!({})).unwrap()[0]["path"], ".trash/Inbox/Plan.md");
+        assert_eq!(core.call("restore_note", json!({"id": "n1"})).unwrap()["path"], "Inbox/Plan.md");
+        assert_eq!(core.call("restore_note", json!({"id": "nobody"})).unwrap(), Value::Null);
 
         assert_eq!(core.call("delete_note", json!({"id": "n1"})).unwrap(), true);
         assert_eq!(core.call("delete_note", json!({"id": "n1"})).unwrap(), false);

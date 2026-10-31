@@ -278,9 +278,10 @@ mod tests {
         let before = app.list_notes().unwrap();
 
         let mut there = chosen(&data, &vault);
-        assert_eq!(there.note_count().unwrap(), 3, "every Markdown file in the vault is a note, the trash's and .obsidian's not");
+        assert_eq!(there.note_count().unwrap(), 4, "every Markdown file in the vault is a note, Obsidian's trash's as a trashed one (trash.rs), .obsidian's not");
+        assert!(there.list_notes().unwrap().iter().any(|n| n.path.as_deref() == Some(".trash/Old.md")));
         let copied = app.copy_into(&mut there).unwrap();
-        assert_eq!((copied.notes, copied.adopted, copied.renamed, copied.same), (2, 3, 1, 0));
+        assert_eq!((copied.notes, copied.adopted, copied.renamed, copied.same), (2, 4, 1, 0));
 
         // The vault's own files, exactly as they were.
         assert_eq!(read(&vault, "Inbox/Plan.md"), "---\ntags: [trip]\naliases: [The plan]\n---\n# Their plan\n");
@@ -296,7 +297,7 @@ mod tests {
         assert_eq!(read(&vault, "Inbox/Plan 2.versions"), "# Ghost.md versions 1\n");
         assert!(vault.join(".glyph/notes/plan.json").exists(), "what isn't text travels with the folder");
         assert_eq!(there.get_note("road").unwrap().unwrap().path.as_deref(), Some("workspaces/Work/Roadmap.md"));
-        assert_eq!(there.list_notes().unwrap().len(), 5);
+        assert_eq!(there.list_notes().unwrap().len(), 6);
 
         // The index is the app's, not the folder's: nothing there for a sync service to tear.
         assert!(!vault.join(".glyph/index.sqlite").exists());
@@ -332,12 +333,14 @@ mod tests {
         there.save_note("n1", "# Written here\n", "editor").unwrap();
         let mut home = Library::open_fs(&data.join("Library")).unwrap();
         let copied = there.copy_into(&mut home).unwrap();
-        assert_eq!(copied.notes, 4);
+        assert_eq!(copied.notes, 5, "the vault's trashed note among them");
         assert_eq!(there.forget_copied(&copied), 0, "a folder of the person's is never emptied");
-        assert_eq!(there.list_notes().unwrap().len(), 4);
+        assert_eq!(there.list_notes().unwrap().len(), 5);
         assert!(vault.join("Inbox/Written here.md").exists() && vault.join("Projects/Deep/Idea.md").exists());
-        assert_eq!(home.list_notes().unwrap().len(), 4);
+        assert_eq!(home.list_notes().unwrap().len(), 5);
         assert_eq!(read(&data, "Library/Projects/Deep/Idea.md"), "An idea with no front matter.\n");
+        // A trashed note copies into the trash, still trashed.
+        assert!(read(&data, "Library/.trash/Old.md").ends_with("thrown away in Obsidian"));
     }
 
     #[test]

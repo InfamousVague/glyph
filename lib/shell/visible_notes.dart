@@ -26,7 +26,9 @@ class VisibleNotes {
 /// being another module's.
 VisibleNotes visibleNotes(List<Note> notes, {Set<String> hidden = const {}, Map<String, int> trash = const {}}) {
   final kept = hidden.isEmpty ? notes : [for (final n in notes) if (!hidden.contains(n.id)) n];
-  final visible = [for (final n in kept) if (!trash.containsKey(n.id)) n];
-  final trashed = [for (final n in kept) if (trash.containsKey(n.id)) n]..sort((a, b) => (trash[b.id] ?? 0).compareTo(trash[a.id] ?? 0));
+  // In the trash by the map, or by its file being under `.trash/` (lib/core/trash.dart `trashedNote`): a note whose
+  // file is there is never shown live while the map catches up with it.
+  final visible = [for (final n in kept) if (!trash.containsKey(n.id) && !n.inTrash) n];
+  final trashed = [for (final n in kept) if (trash.containsKey(n.id) || n.inTrash) n]..sort((a, b) => (trash[b.id] ?? 0).compareTo(trash[a.id] ?? 0));
   return VisibleNotes(visible: List.unmodifiable(visible), trashed: List.unmodifiable(trashed), live: Set.unmodifiable({for (final n in visible) n.id}));
 }
