@@ -141,6 +141,20 @@ class BoolValue extends Value {
 /// A field that says nothing (`EMPTY`).
 const Value emptyValue = EmptyValue();
 
+/// Who `me` is in a test on a person (Matt, 2026-10-31, the My tickets inbox: "a query `where: assignee = me` that
+/// works anywhere"): the account's handle and any other name the person goes by, set by the app as the account
+/// changes (lib/root/account_wiring.dart). With nothing set, `me` is only someone written as `me`.
+List<String> queryMe = const [];
+
+final RegExp _meWord = RegExp(r'^@?(me|myself)$', caseSensitive: false);
+
+/// Whether a person's name is the one a query's words mean: the same person however written, and for `me`, the
+/// account's own handle ([queryMe]) too.
+bool personMeant(String name, String words) {
+  if (samePerson(name, words)) return true;
+  return _meWord.hasMatch(jsTrim(words)) && queryMe.any((me) => samePerson(name, me));
+}
+
 final RegExp _ats = RegExp(r'^@+');
 final RegExp _hashes = RegExp(r'^#+');
 
@@ -451,7 +465,7 @@ bool valueMatches(Value value, Op op, Literal literal, String today) {
       // Before or after in the workflow: the other status's place in the value's, or where it stands if it has none.
       return _ordered(_sign(rank - _statusRank(words, workflow).rank), op);
     case PeopleValue(:final names):
-      final has = names.any((name) => samePerson(name, words));
+      final has = names.any((name) => personMeant(name, words));
       if (op == Op.eq || op == Op.contains) return has;
       if (negative) return !has;
       return _ordered(textOrder(names[0], words), op);

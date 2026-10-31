@@ -34,7 +34,6 @@ library;
 
 import '../properties.dart' show StatusCategory, defaultStatuses, statusCategory;
 import '../sums.dart' show totalOf;
-import '../task_fields.dart' show samePerson;
 import '../title_key.dart' show titleKey;
 import 'chart.dart';
 import 'collate.dart';
@@ -377,7 +376,7 @@ bool _fromHolds(Source source, QueryRecord record, Map<String, LibraryNote?> nam
       return note.book ? record.books.contains(note.key) : record.linksTo.contains(note.id);
     case PersonSource(:final name):
       final said = valueOf(record, 'assignee');
-      return said is PeopleValue && said.names.any((each) => samePerson(each, name));
+      return said is PeopleValue && said.names.any((each) => personMeant(each, name));
     case WordsSource(:final words):
       return record.haystack.contains(words.toLowerCase());
     case NotSource(:final of):
