@@ -68,6 +68,7 @@ import '../../core/back.dart';
 import '../../core/book.dart' show chaptersOf, isBookBody;
 import '../../core/item_syntax.dart' show withoutLead;
 import '../../core/note.dart';
+import '../../meet/meeting_mark.dart' show MeetingMark, withMeetingMark;
 import '../../core/note_text.dart' show noteTitle;
 import '../../core/preferences.dart' show longNoteMs;
 import '../../core/text.dart' show capitalise;
@@ -91,6 +92,7 @@ import '../meeting_turns.dart' show meetingTranscript;
 import '../offers.dart' show placingOf;
 import '../place.dart';
 import '../quiet.dart';
+import '../../editor/media/clip_refs.dart' show withTapeId;
 import '../recorder.dart';
 import '../refine.dart' show RefineJob;
 import '../refine_text.dart' show withoutCommands;
@@ -639,7 +641,24 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     if (had != null) return had;
     final continued = _writer.target;
     final appending = continued != null && (continued.recordingMs ?? 0) > 0;
-    return _takeTape = (appending ? _r.tapes?.tapeId(continued.id) : null) ?? _r.newTapeId();
+    return _takeTape = (appending ? _r.tapes?.tapeIdIn(continued.id, continued.body) : null) ?? _r.newTapeId();
+  }
+
+  /// The tape named in the note's own words too, `tape: k3f9x2` (lib/editor/media/clip_refs.dart `withTapeId`;
+  /// docs/MARKDOWN_FIRST.md §5, gap 13): this device's record of it is set beside, and a library restored from its
+  /// files alone, the WAV put back, still plays the note's memos. Written over the note as it was just saved, so the
+  /// words the refine checks against ([RefineJob.savedBody]) are these. A write that fails leaves the device's record.
+  Future<Note> _tapeNamed(Note saved, String tape) async {
+    final next = withTapeId(saved.body, tape);
+    if (next == saved.body) return saved;
+    try {
+      final written = await _r.store.updateNote(saved.id, next, saved.revision);
+      _writer.remember(written);
+      return written;
+    } catch (failure) {
+      _r.warn?.call('[glyph] the tape was not named in the note: $failure');
+      return saved;
+    }
   }
 
   /// The take's segments, copied to what the screen draws.
@@ -1138,7 +1157,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     // A meeting before it has words or a recording: a sync pass that lists the note from here on must already find
     // it among the meetings, or it would send the audio that is kept on this device.
     _r.setPreferences((now) => now.copyWith(meetings: {...now.meetings, recordedAs: _meetingStartedAt}));
-    var saved = await _writer.queue(() => _writer.persist(recordedAs, meetingBody(_meetingTitled, segments), NoteSource.capture));
+    // And written into the note itself (lib/meet/meeting_mark.dart), so a Library folder restored elsewhere knows it.
+    final marked = withMeetingMark(meetingBody(_meetingTitled, segments), MeetingMark(startMs: _meetingStartedAt, kind: 'phone'));
+    var saved = await _writer.queue(() => _writer.persist(recordedAs, marked, NoteSource.capture));
     final recordedMs = stopped.recordedMs;
     if (recordedMs != null && (_session.session?.keepsAudio ?? false)) {
       try {
@@ -1147,6 +1168,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         _r.warn?.call('[glyph] recording not kept: $failure');
       }
       _r.tapes?.setTapeId(saved.id, _tapeOfTake());
+      saved = await _tapeNamed(saved, _tapeOfTake());
       _r.enqueueRefine(RefineJob(id: saved.id, fromMs: 0, recordingMs: recordedMs, baseBody: '', savedBody: saved.body, titled: false, priorSegments: const [], promptTail: '', meeting: true));
     }
     if (_r.preferences().summaries != 'off') _r.enqueueSummary(saved.id, 'meeting');
@@ -1565,6 +1587,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
           }
           // The tape this take wrote to, so the voice memos already in the note know it again when it is opened.
           _r.tapes?.setTapeId(saved.id, _tapeOfTake());
+          saved = await _tapeNamed(saved, _tapeOfTake());
           // The better words: the larger model over this take's recording, later, or now in the review after a
           // recording when that runs.
           final placing = _writer.placing;

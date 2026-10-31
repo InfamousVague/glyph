@@ -156,6 +156,25 @@ Mention? personBeside(String text, List<Mention> mentions, Mention day, [int off
   return null;
 }
 
+/// Whether [before] ends with a person's mention, nothing but spaces after it: `Ask @sam ` - so a day written next
+/// is theirs, and needs no other name beside it.
+bool personEnds(String before) {
+  final found = mentionsIn(before);
+  if (found.isEmpty) return false;
+  final last = found.last;
+  return last.person && before.substring(last.to).trim().isEmpty;
+}
+
+/// A day as the editor writes it when it is typed or picked: `@2026-11-06`, or `@matt @2026-11-06` in a team's note
+/// (docs/MARKDOWN_FIRST.md §11, decision 18; Matt, 2026-10-31), so whose day it is stands in the words themselves
+/// rather than in who happened to type it. [owner] is the writer's handle in a team's note, null in a note of their
+/// own; a person already named right before the day ([personEnds] of [before], the line up to the at sign) is the
+/// one it is for, and no name is added.
+String signedDay(String day, {String? owner, String before = ''}) {
+  if (owner == null || owner.isEmpty || personEnds(before)) return '@$day';
+  return '@$owner @$day';
+}
+
 // ---- days typed as words ------------------------------------------------------------------------------------------
 
 const List<String> _weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];

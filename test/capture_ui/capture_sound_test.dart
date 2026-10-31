@@ -3,6 +3,7 @@ import 'package:ghost_md/app/widgets.dart';
 import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/place.dart';
 import 'package:ghost_md/capture/take_types.dart';
+import 'package:ghost_md/editor/media/clip_refs.dart' show tapeIdOf, withTapeId;
 
 import '../support/render.dart';
 import 'support/harness.dart';
@@ -33,7 +34,9 @@ void main() {
       await capture.until(() => capture.isWhere('Adding to “2026-09-28 14.05”'));
       await capture.say('Walked along the river.', 0);
       await capture.doneAndFinished();
-      expect(capture.notes.body('entry'), '$entry\n**14:05** Walked along the river.');
+      // The take names its tape in the entry's front matter (lib/editor/media/clip_refs.dart); the words under it are these.
+      expect(withTapeId(capture.notes.body('entry')!, null), '$entry\n**14:05** Walked along the river.');
+      expect(tapeIdOf(capture.notes.body('entry')!), isNotNull);
       expect(capture.refines, hasLength(1));
       final job = capture.refines.single;
       expect((job.id, job.baseBody, job.placing), ('entry', entry, const PlacingEnd(lead: '**14:05** ')));
@@ -278,7 +281,8 @@ void main() {
       await capture.doneAndFinished();
 
       final stored = capture.notes.note('groceries')!;
-      expect(stored.body, '# Groceries\n\n- Eggs\n- For the soup');
+      expect(withTapeId(stored.body, null), '# Groceries\n\n- Eggs\n- For the soup');
+      expect(tapeIdOf(stored.body), isNotNull, reason: 'the tape named in the note (lib/editor/media/clip_refs.dart)');
       expect(stored.recordingMs, 36000);
       expect(stored.segments, [eggs, seg('For the soup.', 31000)]);
       expect(capture.refines, hasLength(1));
@@ -298,7 +302,8 @@ void main() {
       await capture.say('Call Sam.', 1000);
       await capture.say('Buy fuses.', 2000);
       final done = await capture.doneAndFinished();
-      expect(capture.notes.body('house'), '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+      expect(withTapeId(capture.notes.body('house')!, null), '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+      expect(tapeIdOf(capture.notes.body('house')!), isNotNull);
       expect(done.note?.id, 'house');
       expect(done.note?.segments, [seg('Call Sam.', 1000)]);
       final landing = done.landing!;

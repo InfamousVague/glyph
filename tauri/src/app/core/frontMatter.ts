@@ -49,7 +49,7 @@ const ITEM_LINE = /^\s*-(?:\s|$)/;
  * ticket's key, which the shapes fight over (`id: GHO-12` against the library's note id), is read by `ticketKeyValue`:
  * `issue:`, the key other tools use, or an `id:` that reads as one.
  */
-export const LIBRARY_KEYS: ReadonlySet<string> = new Set(['id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed']);
+export const LIBRARY_KEYS: ReadonlySet<string> = new Set(['id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed', 'recording-ms']);
 
 /** A ticket's key, `GHO-12` (core/properties.ts `ISSUE_KEY`), in any case. */
 const TICKET_KEY = /^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,5}$/i;

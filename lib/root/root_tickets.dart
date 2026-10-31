@@ -48,7 +48,9 @@ extension _RootTickets on _GhostRootState {
       );
 
   /// Where a merge reads and writes: an open editor's words where the note is open, so nothing typed is lost, else
-  /// the library's; a version kept of each note's words before, where the note keeps versions.
+  /// the library's; a version kept of each note's words before, where the note keeps versions - and of the target's
+  /// and the duplicate's whatever their switch says (docs/MARKDOWN_FIRST.md §11, decision 21), so the `.versions` file
+  /// beside each can take the merge back after a restore, when this device's undo record is gone.
   MergeWorld get _mergeWorld => MergeWorld(
         body: (id) async {
           final view = openNoteScreen(_shell.currentContext, id)?.view;
@@ -56,8 +58,8 @@ extension _RootTickets on _GhostRootState {
           return (await _library.get(id))?.body;
         },
         write: (id, body) => _changeNote(id, (_) => body, userEvent: 'ticket.merge'),
-        keepVersion: (id, text, label) async {
-          if (_versions.keepsVersions(id)) await _versions.keepVersion(id, text, label: label);
+        keepVersion: (id, text, label, {bool always = false}) async {
+          if (always || _versions.keepsVersions(id)) await _versions.keepVersion(id, text, label: label);
         },
         kept: _stored,
       );
@@ -135,7 +137,8 @@ extension _RootTickets on _GhostRootState {
   /// The morning's digest as the notes are now (lib/book/ticket_digest.dart).
   TicketDigest _digestOf(String day) => digestFor(_reads.entries, me: _me, today: day, team: _teamNote, skip: (entry) => _trash.isTrashed(entry.note.id) || (entry.note.archivedAt ?? 0) != 0);
 
-  /// The digest's runner, started once the notes are read: claimed, sent, and on a phone rung as a reminder.
+  /// The digest's runner, started once the notes are read: claimed, sent, and on a phone rung as a reminder. Its first
+  /// look waits for the launch screen to go ([_digestLook]).
   void _startDigest() {
     late final TicketDigestRunner runner;
     runner = TicketDigestRunner(
@@ -159,13 +162,24 @@ extension _RootTickets on _GhostRootState {
       planChanged: () => extraReminders.value = () => [?digestReminderOf(runner)],
     );
     _digest = runner;
-    unawaited(runner.look());
+    _digestLook();
+  }
+
+  /// The digest looked at, once the launch screen has gone and not before (ghost_root.dart `_launchGone` looks then).
+  /// A look claims the morning through a sync pass of its own, and under the launch screen the only pass is the
+  /// engine's launch pass, the one the screen's sync line says: on a signed-in launch in the digest's six hours the
+  /// digest's pass answered under the screen before the engine's had begun, and the screen said "In sync" without
+  /// ever having said it was syncing, or went at once where the launch pass had no answer to give (2026-10-31,
+  /// test/root/launch_lines_test.dart).
+  void _digestLook() {
+    if (_launchUp) return;
+    unawaited(_digest?.look());
   }
 
   /// The notes changed: the digest looked at again, a moment later, for a phone's alarm to carry today's words.
   void _digestHeard() {
     _digestPoke?.cancel();
-    _digestPoke = Timer(const Duration(seconds: 5), () => unawaited(_digest?.look()));
+    _digestPoke = Timer(const Duration(seconds: 5), _digestLook);
   }
 
   /// The digest's page, where a tap on its notification lands (or the My tickets inbox, once there is one).

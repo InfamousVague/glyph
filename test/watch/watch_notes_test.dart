@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/meet/meeting_mark.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/mail/mail_note.dart' show mailNoteId;
 import 'package:ghost_md/watch/watch_link.dart';
@@ -93,6 +94,7 @@ void main() {
     final note = store.notes[watchNoteId('quiet')]!;
     expect(note.body, startsWith('# Watch recording, '));
     expect(note.body, contains('Nothing was heard in this recording.'));
+    expect(meetingMarkOf(note.body), isNull, reason: 'a short take is no meeting');
     expect(note.recordingMs, 4200);
     notes.dispose();
   });
@@ -183,7 +185,9 @@ void main() {
     expect(await notes.kick(), 1);
     final id = watchNoteId('talk');
     expect(listened, isEmpty);
-    expect(store.notes[id]!.body, startsWith('# Watch recording, '));
+    // Marked a meeting in its own words (lib/meet/meeting_mark.dart), the title under the mark.
+    expect(withMeetingMark(store.notes[id]!.body, null), startsWith('# Watch recording, '));
+    expect(meetingMarkOf(store.notes[id]!.body)?.kind, 'phone');
     expect(store.notes[id]!.recordingMs, meetingFromMs + 1);
     expect(meetings, {id: 1760000000000});
     expect(writeUps, [id]);

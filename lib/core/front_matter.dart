@@ -32,9 +32,10 @@ final RegExp frontMatterFence = RegExp(r'^(---|\+\+\+)\s*$');
 // note id against a ticket's `id: GHO-12`), is read by [ticketKeyIn]: a ticket's key is `issue:`, the key other
 // tools use, or an `id:` that reads as one.
 
-/// The keys the library manages, which are never the page's properties: the five the Rust library writes today, and
-/// `updated` and `trashed`, which it is gaining (tauri/src-tauri/src/library/frontmatter.rs `LIBRARY_KEYS` is this list).
-const Set<String> libraryKeys = <String>{'id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed'};
+/// The keys the library manages, which are never the page's properties: the five the Rust library wrote first,
+/// `updated` and `trashed`, and `recording-ms`, a recording's length (docs/MARKDOWN_FIRST.md §5 gap 8; the device's
+/// sidecar read as the fallback). tauri/src-tauri/src/library/frontmatter.rs `LIBRARY_KEYS` is this list.
+const Set<String> libraryKeys = <String>{'id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed', 'recording-ms'};
 
 /// A ticket's key, `GHO-12`: its notebook's key, a dash, and a number from 1, up to six figures, in capitals
 /// (lib/core/properties.dart `issueKey` is this pattern).

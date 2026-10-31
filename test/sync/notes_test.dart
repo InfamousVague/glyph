@@ -67,6 +67,21 @@ void main() {
       expect(bodies(phone), ['the Mac’s words', 'the phone’s words']);
     });
 
+    test('takes the service’s path for a note this device holds at another path with the same words, and no copy', () async {
+      // A Library folder restored from a clone, signed in after: the clone had `Inbox/Plan.md`, the account has it
+      // filed in Work (lib/core/folder_adopter.dart files from paths; the account's filing arrived later than the
+      // repo). The path differs, the words do not: theirs, moved, never doubled (docs/MARKDOWN_FIRST.md §12).
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['a'] = note('a', '# Plan\n\nwords', createdAt: 1, updatedAt: 1, path: 'workspaces/Work/Plan.md');
+      await phone.run();
+      mac.notes['a'] = note('a', '# Plan\n\nwords', createdAt: 1, updatedAt: 1, path: 'Inbox/Plan.md');
+      final outcome = await mac.run();
+      expect((outcome.conflicts, mac.notes.length), (0, 1));
+      expect(mac.notes['a']?.path, 'workspaces/Work/Plan.md');
+      // And nothing goes back: the Mac now says what the service says.
+      expect(await mac.run(), Outcome());
+    });
+
     test('takes the other device’s pin or archive without a copy, when only those changed on both', () async {
       final (api: _, :phone, :mac) = await pair();
       final one = note('a', 'words', createdAt: 1, updatedAt: 1);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -5,6 +7,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/art.dart';
 import '../../core/preferences.dart';
 import '../../core/snippets.dart';
+import '../../core/snippets_note.dart' show SnippetsSource, snippetsSource;
 import '../account_forms.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
@@ -31,12 +34,18 @@ String snippetsSummary(Preferences prefs) {
 /// preview of what typing the trigger would write this minute, with a bar where the caret lands. What is wrong is said
 /// as it is typed (no trigger, one that breaks the rule or is taken, no words), and Save waits for it.
 ///
-/// Kept in the preferences ([Preferences.snippets]), so a snippet made on the phone is on the Mac.
+/// Kept in the Snippets note (lib/core/snippets_note.dart; docs/MARKDOWN_FIRST.md decision 19), which syncs as any
+/// note does and is in the Library folder, and in the preferences ([Preferences.snippets]) for the builds before it,
+/// so a snippet made on the phone is on the Mac.
 class SnippetsPane extends StatefulWidget {
-  const SnippetsPane({super.key, this.prefs, this.clock});
+  const SnippetsPane({super.key, this.prefs, this.clock, this.snippets});
 
   /// The preferences it reads and writes; the app's own when left out.
   final PreferencesStore? prefs;
+
+  /// The snippets as the Snippets note holds them (lib/core/snippets_note.dart), read and written through it; the
+  /// app's own when left out, and the preferences alone where the app has none yet (a test).
+  final SnippetsSource? snippets;
 
   /// The moment the previews are written at; the device's own when left out.
   final DateTime Function()? clock;
@@ -77,7 +86,21 @@ class _SnippetsPaneState extends State<SnippetsPane> {
 
   void _typed() => setState(() {});
 
-  void _set(List<Snippet> next) => _store.update((now) => now.copyWith(snippets: List.unmodifiable(next)));
+  SnippetsSource? get _source => widget.snippets ?? snippetsSource;
+
+  /// The list as it is now: the Snippets note's where there is one, else the preferences'.
+  List<Snippet> _list() => _source?.value ?? _store.value.snippets;
+
+  /// Kept in the Snippets note (and the preferences, for the builds before it), or in the preferences alone where
+  /// the app has no note to write.
+  void _set(List<Snippet> next) {
+    final source = _source;
+    if (source != null) {
+      unawaited(source.set(next));
+      return;
+    }
+    _store.update((now) => now.copyWith(snippets: List.unmodifiable(next)));
+  }
 
   void _open(Snippet? snippet) => setState(() {
         _editing = _Editing(snippet?.id);
@@ -121,9 +144,9 @@ class _SnippetsPaneState extends State<SnippetsPane> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: _store,
+        listenable: _source == null ? _store : Listenable.merge([_store, _source]),
         builder: (context, _) {
-          final list = _store.value.snippets;
+          final list = _list();
           final now = _now();
           final editing = _editing;
           return PaneBody(

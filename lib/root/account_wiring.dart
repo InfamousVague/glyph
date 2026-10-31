@@ -280,6 +280,8 @@ class WiredAccount {
       kept: device,
       touched: touched,
       onNotesChanged: refresh,
+      // Which notes say they are meetings, beside the preferences (lib/meet/meeting_mark.dart).
+      notesNow: shownNotes,
       // Each organization's channel, then the mentions this device typed in its notes told (lib/mentions).
       // And then its tickets' changes told to their watchers (lib/book/ticket_events.dart).
       teamNotes: ticketEventsAfter(

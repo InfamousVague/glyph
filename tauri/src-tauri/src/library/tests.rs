@@ -246,7 +246,18 @@ fn recordings_and_formatted_versions_live_beside_not_in_the_markdown() {
     assert_eq!(note.segments.unwrap()[0].text, "Said.");
     assert_eq!(note.formatted.as_deref(), Some("# Said\n\nTidy."));
     assert!(!read(&root, "Inbox/Said.md").contains("Tidy"), "the .md holds only the note");
+    assert!(read(&root, "Inbox/Said.md").contains("\nrecording-ms: 1900\n"), "the length in the library's block too (MARKDOWN_FIRST §5 gap 8)");
     assert!(root.join(".glyph/notes/r.json").exists());
+    // The sidecar gone (a backup or a clone that skipped `.glyph/`): the length is read from the file.
+    std::fs::remove_file(root.join(".glyph/notes/r.json")).unwrap();
+    std::fs::write(root.join("Inbox/Said.md"), read(&root, "Inbox/Said.md").replace("# Said", "# Said again")).unwrap();
+    let reread = library.get_note("r").unwrap().unwrap();
+    assert_eq!((reread.recording_ms, reread.segments), (Some(1900), None));
+    // Forgotten with the recording.
+    library.set_recording("r", None).unwrap();
+    assert!(!read(&root, "Inbox/Said.md").contains("recording-ms"));
+    assert_eq!(library.get_note("r").unwrap().unwrap().recording_ms, None);
+    library.set_recording("r", Some(&recording)).unwrap();
     let listed = library.list_notes().unwrap();
     assert_eq!(listed[0].formatted, None, "the list doesn't carry the formatted text");
     assert!(library.delete_note("r").unwrap());
@@ -481,6 +492,11 @@ fn a_synced_note_keeps_its_own_times_folder_and_what_isnt_text() {
     library.save_note("local", "# Newer\n", "editor").unwrap();
     let list = library.list_notes().unwrap();
     assert_eq!(list.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["local", "s1"]);
+    // Its recording's length arrives in the library's block as well as the sidecar (stamp; MARKDOWN_FIRST §5 gap 8).
+    assert!(text.contains("\nrecording-ms: 1500\n"), "{text}");
+    let taped = Note { recording_ms: Some(2500), ..remote("s2", "# Taped\n") };
+    assert_eq!(library.apply_note(&taped).unwrap().recording_ms, Some(2500));
+    assert!(read(&root, "Work/Trips/Taped.md").contains("\nrecording-ms: 2500\n"));
 }
 
 #[test]
@@ -781,7 +797,7 @@ fn a_save_writes_when_the_words_changed_and_the_note_shows_the_later_of_the_key_
     let applied = fresh.apply_note(&remote("s", "# Synced\n")).unwrap();
     assert!(read(&root, "Work/Trips/Hello.md").contains("updated: 2026-03-04T05:06:07.000Z\n"), "{}", read(&root, "Work/Trips/Hello.md"));
     assert_eq!(applied.updated_at, parse_iso("2026-03-04T05:06:07.000Z").unwrap());
-    assert_eq!(MANAGED_KEYS, ["id", "created", "updated", "source", "pinned", "archived"]);
+    assert_eq!(MANAGED_KEYS, ["id", "created", "updated", "source", "pinned", "archived", "recording-ms"]);
     assert!(MANAGED_KEYS.iter().all(|key| frontmatter::LIBRARY_KEYS.contains(key)), "every managed key is one the one-block reader takes as the library's");
 }
 

@@ -50,6 +50,60 @@ void main() {
       record.setKeepsVersions('home-note', false);
       expect(preferences.value.versions, isEmpty);
     });
+
+    test('is what the note itself says first (`versions: true|false`), written as the choice is made, with the preferences behind it', () async {
+      final bodies = <String, String>{'home-note': '# Home\n', 'team-note': '---\nstatus: Open\n---\n# Team\n'};
+      final changes = <String>[];
+      final written = VersionsRecord(
+        store: store,
+        preferences: preferences,
+        workspaces: workspaces,
+        bodyOf: (id) => bodies[id],
+        change: (id, change) async {
+          bodies[id] = change(bodies[id]!);
+          changes.add(id);
+        },
+      );
+      final team = workspaces.ensureOrgWorkspace(const OrgLike(id: 'o1', name: 'Ghost'));
+      workspaces.fileNote('team-note', team.id);
+
+      written.setKeepsVersions('home-note', true);
+      await Future<void>.delayed(Duration.zero);
+      expect(bodies['home-note'], '---\nversions: true\n---\n# Home\n');
+      expect(preferences.value.versions, {'home-note': true}, reason: 'the builds before the key read this');
+      expect(written.keepsVersions('home-note'), isTrue);
+      // Switched on, the words are kept at once: the file is there for another device to see.
+      expect((await written.versionsOf('home-note')).versions.map((v) => v.text), ['# Home\n']);
+
+      written.setKeepsVersions('team-note', false);
+      await Future<void>.delayed(Duration.zero);
+      expect(bodies['team-note'], '---\nstatus: Open\nversions: false\n---\n# Team\n');
+      expect(written.keepsVersions('team-note'), isFalse);
+
+      // The note's word stands over the preferences: a key from another device, a map from before it.
+      preferences.update((now) => now.copyWith(versions: const {'home-note': false, 'team-note': true}));
+      expect((written.keepsVersions('home-note'), written.keepsVersions('team-note')), (true, false));
+      bodies['home-note'] = '# Home\n';
+      bodies['team-note'] = '# Team\n';
+      expect((written.keepsVersions('home-note'), written.keepsVersions('team-note')), (false, true));
+      expect(versionsSaidIn('---\nversions: yes\n---\n'), isTrue);
+      expect(versionsSaidIn('---\nversions: maybe\n---\n'), isNull);
+    });
+
+    test('reads a personal note with a versions file beside it and no word either way as keeping history', () async {
+      await store.writeVersionsFile('restored', 'v1 2026-10-31T10:00:00.000Z me 0000000000000000\n  +# Restored\n');
+      expect(record.keepsVersions('restored'), isFalse, reason: 'not learnt yet');
+      var told = 0;
+      record.keeping.addListener(() => told += 1);
+      await record.learnFiles(['restored', 'nothing']);
+      expect((record.keepsVersions('restored'), record.keepsVersions('nothing'), told, record.hasFile('restored')), (true, false, 1, true));
+      // Switched off by hand, the file no longer decides.
+      record.setKeepsVersions('restored', false);
+      expect(record.keepsVersions('restored'), isFalse);
+      // And a version kept here teaches the record of the file at once.
+      await record.keepVersion('fresh', '# Fresh', now: 1);
+      expect(record.hasFile('fresh'), isTrue);
+    });
   });
 
   group('keeping versions', () {

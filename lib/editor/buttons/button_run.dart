@@ -16,7 +16,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../core/background_jobs.dart';
 import '../../core/note_buttons.dart';
-import '../../core/properties.dart' show withProperty;
+import '../../core/properties.dart' show withTicketProperty;
 import '../../sheet/ask_first.dart';
 import '../editor.dart';
 
@@ -94,7 +94,7 @@ bool _set(EditorViewLike view, NoteButton button) {
   final doc = view.state.doc.toString();
   var next = doc;
   for (final MapEntry(:key, :value) in button.values.entries) {
-    next = withProperty(next, _keyAsWritten(next, key), value.trim().isEmpty ? null : value.trim());
+    next = withTicketProperty(next, _keyAsWritten(next, key), value.trim().isEmpty ? null : value.trim());
   }
   if (next == doc) return false;
   var start = 0;

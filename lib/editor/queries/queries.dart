@@ -59,7 +59,7 @@ import '../../core/book.dart' show withChapter;
 import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/item_syntax.dart' show taskBox;
 import '../../core/planning/history.dart' show StatusPast;
-import '../../core/properties.dart' show StatusCategory, statusCategory, withProperty;
+import '../../core/properties.dart' show StatusCategory, statusCategory, withTicketProperty;
 import '../../sheet/ask_first.dart';
 import '../../tickets/ui/bulk_bar.dart' show BulkActions;
 import '../../core/query/query.dart';
@@ -332,7 +332,7 @@ class DrawnQuery extends StatelessWidget {
         return;
       }
       final body = view.state.doc.toString();
-      final next = withProperty(body, field, value);
+      final next = withTicketProperty(body, field, value);
       if (next != body) change(ChangeSpec(from: 0, to: body.length, insert: next));
     }
 

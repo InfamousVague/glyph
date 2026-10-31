@@ -307,8 +307,8 @@ extension _RootVoice on _GhostRootState {
           ? null
           : (id, replace) => summaries.enqueueSummary(id, preferences.value.meetings.containsKey(id) ? SummaryKind.meeting : SummaryKind.recording, replace: replace),
       summaryEdited: (id, body) {
-        final section = summarySection(body, keptText(id));
-        return section != null && !summaryUnchanged(id, section.text);
+        final section = summarySection(body, keptTextIn(id, body));
+        return section != null && !summaryUnchangedIn(id, body, section.text);
       },
       // Claude writes the meetings here: their tapes offer Summarize with no model on the device.
       writesMeetings: () => summaries?.claude?.chosen ?? false,
@@ -380,7 +380,12 @@ extension _RootVoice on _GhostRootState {
       requestNotifications: () => askToNotify(service, live),
       deleteNote: _library.destroy,
       dropSummary: (id) => voice.summaries?.dropSummary(id),
-      forgetMeeting: (id) => preferences.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id))),
+      // Not a meeting after all: out of the preferences, and its `meeting:` mark out of its words (meeting_mark.dart),
+      // or the mark would make it one again.
+      forgetMeeting: (id) {
+        preferences.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id)));
+        quietly(_changeNote(id, (body) => withMeetingMark(body, null), userEvent: 'meeting.forget'));
+      },
     );
   }
 

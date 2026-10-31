@@ -58,8 +58,8 @@ String shown(TestView view) => '${view.text.substring(0, view.head)}|${view.text
 /// The picker as a note has it, with sam and ana in the team and Matt signed in.
 MentionPicker picker() => MentionPicker(people: () => const [(handle: 'sam', hue: 'sea'), (handle: 'ana', hue: 'rose')], me: () => 'matt', today: () => friday);
 
-TestView typing(String doc, {MentionPicker? with_}) =>
-    TestView.of(doc, doc.length, null, [history(), mentions(MentionHooks(hue: hue, today: () => friday, picking: with_)), editorKeymap.of(defaultKeymap)]);
+TestView typing(String doc, {MentionPicker? with_, String? owner}) =>
+    TestView.of(doc, doc.length, null, [history(), mentions(MentionHooks(hue: hue, today: () => friday, picking: with_, owner: () => owner)), editorKeymap.of(defaultKeymap)]);
 
 /// What the picker was last told, as [TestView] has no update listeners: asked of the state each time.
 void tell(MentionPicker p, TestView view, EditorViewLike as) => p.asked(as, view.state.field(mentionAsk));
@@ -115,6 +115,28 @@ void main() {
         type(view, letter);
       }
       expect(view.text, '`@today ');
+    });
+
+    test('in a team’s note a bare day is signed with the writer, and one Undo takes the words back (MARKDOWN_FIRST §11 decision 18)', () {
+      final view = typing('Call by ', owner: 'matt');
+      for (final letter in '@friday '.split('')) {
+        type(view, letter);
+      }
+      expect(shown(view), 'Call by @matt @2026-11-06 |');
+      expect(undo(view), isTrue);
+      expect(shown(view), 'Call by @friday|');
+      // A person named right before the day is the one it is for.
+      final sams = typing('Ask ', owner: 'matt');
+      for (final letter in '@sam @tomorrow '.split('')) {
+        type(sams, letter);
+      }
+      expect(sams.text, 'Ask @sam @2026-10-31 ');
+      // A note of the person's own keeps the bare day.
+      final own = typing('Call by ');
+      for (final letter in '@friday '.split('')) {
+        type(own, letter);
+      }
+      expect(own.text, 'Call by @2026-11-06 ');
     });
   });
 

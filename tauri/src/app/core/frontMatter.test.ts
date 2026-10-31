@@ -29,7 +29,7 @@ describe('the one-block shape (docs/MARKDOWN_FIRST.md §11, 2026-10-31)', () => 
   });
 
   it('knows the library’s keys, which are never the page’s, except a ticket’s own id', () => {
-    expect([...LIBRARY_KEYS]).toEqual(['id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed']);
+    expect([...LIBRARY_KEYS]).toEqual(['id', 'created', 'updated', 'source', 'pinned', 'archived', 'trashed', 'recording-ms']);
     for (const key of LIBRARY_KEYS) expect(isLibraryProperty(key.toUpperCase(), 'x'), key).toBe(true);
     expect(isLibraryProperty('id', 'GHO-12')).toBe(false);
     expect(isLibraryProperty('id', '7c1e2f3a-4b5c-4d6e-8f90-a1b2c3d4e5f6')).toBe(true);

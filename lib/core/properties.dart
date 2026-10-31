@@ -37,7 +37,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'days.dart' show isIsoDay;
+import 'days.dart' show isIsoDay, isoDay;
 import 'front_matter.dart';
 import 'item_syntax.dart' show isDoneName, jsTrim;
 import 'task_fields.dart' show Priority, priorityOf, priorities;
@@ -234,6 +234,54 @@ String withProperty(String body, String key, Object? value) {
   if (value is String) return withFrontMatterValue(body, key, yamlValue(value));
   final items = (value as List).cast<String>().map(jsTrim).where((item) => item.isNotEmpty).toList();
   return withFrontMatterValue(body, key, items.isNotEmpty ? yamlList(items) : null);
+}
+
+/// The day a ticket took the status it has, `status-since: 2026-11-06`, and the day it was finished, `done:
+/// 2026-11-06` (the key Obsidian Tasks writes a finished to-do's day under, which lib/core/planning/history.dart
+/// already read).
+const String statusSinceKey = 'status-since';
+const String doneKey = 'done';
+
+/// A ticket's body with its status set to [status], and the days that say when written with it (docs/MARKDOWN_FIRST.md
+/// §5, gap 10; Matt, 2026-10-31): [statusSinceKey] is [today] where the status is not the one the ticket had, and
+/// [doneKey] is [today] the day it comes to stand as finished in [workflow] (left as it is while it stays finished, so a move
+/// between two done statuses keeps the first day; taken off when it is opened again). Every path that moves a ticket
+/// writes through here - the panel, a board's lane, a query's cell, a bulk edit, triage, a rule, a button, a merge, a
+/// reminder's tick - so a personal ticket with no versions still says when it moved: history.dart reads the two days
+/// after the versions and before the day the file last changed, which git and a restore reset. Null for [status] takes
+/// the status off, and the two days with it. [today] is the clock's day where unsaid.
+String withStatus(String body, String? status, {String? today, List<String>? workflow}) {
+  final day = today ?? isoDay(DateTime.now());
+  final was = jsTrim(frontMatterValue(body, 'status') ?? '');
+  final next = status == null ? '' : jsTrim(status);
+  if (next.isEmpty) {
+    var out = withProperty(body, 'status', null);
+    out = withProperty(out, statusSinceKey, null);
+    return withProperty(out, doneKey, null);
+  }
+  // The key in the case the note wrote it (`Status:`), as the panel's `writeProperty` keeps it.
+  final key = propertiesOf(body).map((property) => property.key).firstWhere((written) => written.toLowerCase() == 'status', orElse: () => 'status');
+  var out = withProperty(body, key, next);
+  final changed = _statusWords(was) != _statusWords(next);
+  if (changed) out = withProperty(out, statusSinceKey, day);
+  final done = statusCategory(next, workflow) == StatusCategory.done;
+  final wasDone = was.isNotEmpty && statusCategory(was, workflow) == StatusCategory.done;
+  if (!done) {
+    out = withProperty(out, doneKey, null);
+  } else if (!wasDone) {
+    out = withProperty(out, doneKey, day);
+  }
+  return out;
+}
+
+/// [withProperty], with a ticket's status written through [withStatus] so its days go with it: the one writer for a
+/// field a person names rather than picks (a bulk edit's, a board lane's, a rule's, a button's, the panel's).
+/// Anything else, and a note that is not a ticket, is [withProperty] as it is.
+String withTicketProperty(String body, String key, Object? value, {String? today, List<String>? workflow}) {
+  if (jsTrim(key).toLowerCase() == 'status' && (value == null || value is String) && isTicket(body)) {
+    return withStatus(body, value as String?, today: today, workflow: workflow);
+  }
+  return withProperty(body, key, value);
 }
 
 // ---- tickets ------------------------------------------------------------------------------------------------------

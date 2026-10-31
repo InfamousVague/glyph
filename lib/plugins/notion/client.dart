@@ -44,9 +44,10 @@ import 'package:flutter/widgets.dart';
 
 import '../../account/api.dart' show FetchRequest, FetchResponse;
 import '../../core/bytes.dart' show toBase64Url;
+import '../../core/front_matter.dart' show frontMatterValue;
 import '../../core/iphone_app.dart' show notOnIPhone;
 import '../details_cache.dart' show failureWords;
-import '../host.dart' show PluginPermissionError;
+import '../host.dart' show PluginPermissionError, pluginNotes;
 import 'manifest.dart';
 import 'sha256.dart';
 
@@ -562,9 +563,28 @@ Map<String, Board> boardLinks() {
   });
 }
 
-Board? boardFor(String noteId) => boardLinks()[noteId];
+/// The front matter key a note's board is written under (docs/MARKDOWN_FIRST.md §3.8; tauri/docs/LIBRARY.md reserves
+/// it): the board's URL, so the note says where its list goes wherever the folder is opened.
+const String notionBoardKey = 'notion-board';
 
-/// Links [noteId] to [board]; null takes the note off Notion.
+final RegExp _boardIdIn = RegExp(r'([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![0-9a-f])', caseSensitive: false);
+
+/// The board a note sends to: this device's link first, else the one the note's own `notion-board:` names (the
+/// device's storage was per device, so a note linked on the Mac said nothing on the phone; 2026-10-31). A board
+/// known only from the note is read as its URL and id, titled by its URL, with Notion's default title property
+/// (`Name`) until the picker is opened on it, which keeps the whole board here again.
+Board? boardFor(String noteId) {
+  final kept = boardLinks()[noteId];
+  if (kept != null) return kept;
+  final body = pluginNotes.bodyOf?.call(noteId);
+  final said = body == null ? null : frontMatterValue(body, notionBoardKey)?.trim();
+  if (said == null || said.isEmpty) return null;
+  final id = _boardIdIn.firstMatch(said)?.group(1) ?? said;
+  return Board(id: id, title: said, url: said.startsWith('http') ? said : '', titleProperty: 'Name');
+}
+
+/// Links [noteId] to [board]; null takes the note off Notion. Kept here, and written into the note as
+/// `notion-board: <url>` for every other device and a folder opened elsewhere.
 void linkBoard(String noteId, Board? board) {
   // A copy: what a read answers is shared with every other read of it (lib/plugins/host.dart).
   final links = {...boardLinks()};
@@ -574,6 +594,8 @@ void linkBoard(String noteId, Board? board) {
     links.remove(noteId);
   }
   host.storage.set(_linksKey, {for (final MapEntry(:key, :value) in links.entries) key: value.toJson()});
+  final write = pluginNotes.setProperty;
+  if (write != null) unawaited(write(noteId, notionBoardKey, board == null ? null : (board.url.isNotEmpty ? board.url : board.id)).catchError((Object _) {}));
 }
 
 // ---- for the tests ---------------------------------------------------------------------------------------------

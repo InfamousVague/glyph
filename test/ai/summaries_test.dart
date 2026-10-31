@@ -336,9 +336,16 @@ void main() {
       expect(fakes[0].model, 'qwen3.5-4b');
       fakes[0].finish(answer);
       await tester.advance(0);
-      expect(notes['n1']?.body, '# March launch\n\n$section\n\nThat is the March launch settled. Sam owns the press list.');
+      expect(withoutSummaryFacts(notes['n1']?.body ?? ''), '# March launch\n\n$section\n\nThat is the March launch settled. Sam owns the press list.');
       final written = readSummary('n1');
       expect((written?.text, written?.model, written?.forMs), (section, 'qwen3.5-4b', 4000));
+      // The same facts in the note's own front matter, the section named by its hash (summary_keep.dart), so a library
+      // restored from its files alone still knows the section is the app's and how long the tape was.
+      final facts = summaryFactsOf(notes['n1']!.body);
+      expect((facts?.text, facts?.model, facts?.forMs), (section, 'qwen3.5-4b', 4000));
+      expect(readSummaryIn('n1', notes['n1']!.body), written);
+      expect(summaryUnchangedIn('gone', notes['n1']!.body, section), isTrue, reason: 'read from the note where the device has no record');
+      expect(summaryBehindIn('gone', notes['n1']!.body, 9000), isTrue);
       expect(queued(), isEmpty);
       expect(changed, 1);
       expect(summarized, contains((id: 'n1', title: 'March launch')));
@@ -488,7 +495,7 @@ void main() {
       await tester.advance(0);
       fakes[0].finish(answer);
       await tester.advance(0);
-      expect(notes['n1']?.body, '# March launch settled\n\n$section\n\nWords.');
+      expect(withoutSummaryFacts(notes['n1']?.body ?? ''), '# March launch settled\n\n$section\n\nWords.');
       expect(summarized, contains((id: 'n1', title: 'March launch settled')));
     });
 
@@ -587,7 +594,7 @@ void main() {
       await tester.advance(0);
       fakes[0].finish(next);
       await tester.advance(0);
-      expect(notes['n1']?.body, body('## Summary\nA newer line.\n\n- [ ] Book the venue.\n- [x] Send Sam the list.'));
+      expect(withoutSummaryFacts(notes['n1']?.body ?? ''), body('## Summary\nA newer line.\n\n- [ ] Book the venue.\n- [x] Send Sam the list.'));
     });
 
     summaryTest('is left alone by a job of the queue’s own when the person edited it, and replaced when they asked for that', (tester) async {
@@ -606,7 +613,7 @@ void main() {
       await tester.advance(500);
       fakes[1].finish(next);
       await tester.advance(0);
-      expect(notes['n1']?.body, body('## Summary\nA newer line.\n\n- [ ] Book the venue.'));
+      expect(withoutSummaryFacts(notes['n1']?.body ?? ''), body('## Summary\nA newer line.\n\n- [ ] Book the venue.'));
     });
 
     summaryTest('reads the note again after a conflict and writes once more, then keeps the text for the next pass', (tester) async {
@@ -820,7 +827,7 @@ void main() {
       phoneResults['n1'] = result;
       await tester.advance(0);
       expect(fakes, isEmpty);
-      expect(notes['n1']?.body, '# March launch\n\n$section\n\nThat is the March launch settled. Sam owns the press list.');
+      expect(withoutSummaryFacts(notes['n1']?.body ?? ''), '# March launch\n\n$section\n\nThat is the March launch settled. Sam owns the press list.');
       final written = readSummary('n1');
       expect((written?.text, written?.model), (section, 'qwen3.5-2b'));
       expect(queued(), isEmpty);

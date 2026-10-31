@@ -16,8 +16,11 @@
 ///
 /// **One undo.** The merge is a plan first ([planMerge]): each note's words before and after, nothing written. The
 /// sheet says what it will do and warns of what it will not; the merge writes the plan ([applyMerge]), a version kept of
-/// each note's words before it (lib/core/versions_record.dart, where the note keeps versions), and [undoMerge] puts
-/// every note back as one step, any changed since left as it is and said.
+/// each note's words before it (lib/core/versions_record.dart), and [undoMerge] puts every note back as one step, any
+/// changed since left as it is and said. The two notes whose words change substantively, the target and the duplicate,
+/// keep that version whether or not they keep versions (docs/MARKDOWN_FIRST.md §11, decision 21; Matt, 2026-10-31): the
+/// undo record is this device's alone, so after a restore the `.versions` file beside each is what can take the merge
+/// back. A note whose links were rewritten keeps one only where it keeps versions, as a merge can touch dozens.
 ///
 /// Plain Markdown in and out, pure but for the writing, so each is a test (test/book_core/ticket_merge_test.dart).
 library;
@@ -174,8 +177,9 @@ String _renamed(String body, Map<String, String> rename) {
 }
 
 /// What merging [duplicate] into [target] writes (see the header). [notes] is every note, by id, with its words now;
-/// [index] the link index; [editable] whether a note may be changed here (a team's that this device can write).
-MergePlan planMerge({required TicketEntry duplicate, required TicketEntry target, required Map<String, ({String title, String body})> notes, required LinkIndex index, bool Function(String id)? editable}) {
+/// [index] the link index; [editable] whether a note may be changed here (a team's that this device can write);
+/// [today] the day the duplicate is closed on (`withStatus`), the clock's where unsaid.
+MergePlan planMerge({required TicketEntry duplicate, required TicketEntry target, required Map<String, ({String title, String body})> notes, required LinkIndex index, bool Function(String id)? editable, String? today}) {
   final dupName = _nameOf(duplicate), targetName = _nameOf(target);
   final dupKeys = <String>{
     titleKey(duplicate.title),
@@ -242,7 +246,7 @@ MergePlan planMerge({required TicketEntry duplicate, required TicketEntry target
 
   // The duplicate: closed, and pointing at the target; its comments gone with the move.
   var closed = taken.body;
-  closed = withProperty(closed, 'status', duplicateStatus(duplicate.statuses));
+  closed = withStatus(closed, duplicateStatus(duplicate.statuses), today: today, workflow: duplicate.statuses);
   closed = withProperty(closed, duplicateOfKey, '[[$targetName]]');
 
   final writes = <MergeWrite>[
@@ -341,8 +345,9 @@ class MergeWorld {
   final Future<String?> Function(String id) body;
   final Future<void> Function(String id, String body) write;
 
-  /// Keeps [text] as a version of the note, named: where the note keeps versions.
-  final Future<void> Function(String id, String text, String label)? keepVersion;
+  /// Keeps [text] as a version of the note, named: where the note keeps versions, or whatever its switch says with
+  /// [always] (the merge's two notes, lib/core/versions_record.dart `keepVersion` either way).
+  final Future<void> Function(String id, String text, String label, {bool always})? keepVersion;
   final Stored? _kept;
   final int Function()? _clock;
 
@@ -358,6 +363,10 @@ List<MergeRecord> mergesKept(Stored kept) => kept.read<List<MergeRecord>>(_merge
 /// The merge that closed [duplicateId], if this device made it and can take it back.
 MergeRecord? mergeOf(Stored kept, String duplicateId) => mergesKept(kept).where((each) => each.duplicateId == duplicateId).lastOrNull;
 
+/// Whether [id] is one of the two notes a merge changes substantively, the target or the duplicate: their version is
+/// kept whatever their switch says (see the header).
+bool _substantive(MergePlan plan, String id) => id == plan.targetId || id == plan.duplicateId;
+
 /// The plan written: a version of each note's words before it kept, then each note written. Answers the record its
 /// Undo takes back. A note changed since the plan was made is a conflict, and nothing is written.
 Future<MergeRecord> applyMerge(MergePlan plan, MergeWorld world) async {
@@ -367,7 +376,7 @@ Future<MergeRecord> applyMerge(MergePlan plan, MergeWorld world) async {
   }
   final label = 'Before merging ${plan.duplicateName} into ${plan.targetName}';
   for (final write in plan.writes) {
-    await world.keepVersion?.call(write.id, write.before, label);
+    await world.keepVersion?.call(write.id, write.before, label, always: _substantive(plan, write.id));
   }
   for (final write in plan.writes) {
     await world.write(write.id, write.after);
@@ -388,7 +397,7 @@ Future<List<String>> undoMerge(MergeRecord record, MergeWorld world) async {
       left.add(write.title.isEmpty ? 'Untitled' : write.title);
       continue;
     }
-    await world.keepVersion?.call(write.id, now, 'Before undoing the merge of ${record.duplicateName}');
+    await world.keepVersion?.call(write.id, now, 'Before undoing the merge of ${record.duplicateName}', always: write.id == record.targetId || write.id == record.duplicateId);
     await world.write(write.id, write.before);
   }
   final kept = [for (final each in mergesKept(world.kept)) if (jsonEncode(each.toJson()) != jsonEncode(record.toJson())) each];

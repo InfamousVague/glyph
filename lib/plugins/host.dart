@@ -70,6 +70,30 @@ void usePluginGround(PluginGround ground) {
   _storageChanged();
 }
 
+/// The notes, as far as a plugin may reach them (2026-10-31, docs/MARKDOWN_FIRST.md §5 gap 12): a note's words as the
+/// list holds them, to read a per-note link written into its front matter (`notion-board:`, `github:`), and one
+/// property set on a note, written through whatever holds the note open (lib/root/root_commands.dart `_changeNote`).
+/// Per-note links were kept on each device alone (`glyph-notion-links`, `glyph-project-links`) and so were already
+/// lost on a person's second device; in the note they travel with it. Nothing until the root gives them: a plugin
+/// then reads its storage alone, as before.
+class PluginNotes {
+  const PluginNotes({this.bodyOf, this.setProperty});
+
+  /// A note's words as the list holds them, or null for none by that id.
+  final String? Function(String noteId)? bodyOf;
+
+  /// Sets a front matter property on a note, or takes it off with null.
+  final Future<void> Function(String noteId, String key, String? value)? setProperty;
+}
+
+PluginNotes _notes = const PluginNotes();
+
+/// What the plugins may read and write of the notes.
+PluginNotes get pluginNotes => _notes;
+
+/// Gives the plugins their way to the notes: the root, once the library is read; a test, with its own.
+void usePluginNotes(PluginNotes next) => _notes = next;
+
 /// What the secrets doors have read or written, by name, across hosts: one store, one memory of it.
 final Map<String, String?> _held = {};
 

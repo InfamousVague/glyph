@@ -180,6 +180,9 @@ void main() {
     test('falls back on the ticket’s own words where it keeps no versions', () {
       final history = TicketHistory((id) async => const []);
       expect(statusSince(history, 'k1', 'In progress', updated: '2026-10-25'), (day: '2026-10-25', source: HistorySource.changed));
+      // The day written as it moved (`withStatus`) comes before the file's day, which a checkout resets.
+      expect(statusSince(history, 'k1', 'In progress', updated: '2026-10-25', body: '---\ntype: ticket\nstatus: In progress\nstatus-since: 2026-10-23\n---\n'), (day: '2026-10-23', source: HistorySource.written));
+      expect(writtenSince('---\nstatus-since: soon\n---\n'), isNull);
       history.hold('k1', statusChanges(versions.take(3)));
       expect(statusSince(history, 'k1', 'In progress', updated: '2026-10-25'), (day: '2026-10-22', source: HistorySource.versions));
       expect(finishedOn(const NoPast(), 'k2', '---\ntype: ticket\nstatus: Done\ndone: 2026-10-24\n---\n', 'Done', defaultStatuses, updated: '2026-10-28'), (day: '2026-10-24', source: HistorySource.written));
