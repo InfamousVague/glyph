@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Ghost.md · The previous home page</title>
+    <meta name="description" content="Notes, journals, boards, canvases and notebooks, kept as plain Markdown on your own devices and sealed when they sync. Claude, your Google Calendar, Notion, GitHub and Slack are a switch away." />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+    <meta property="og:title" content="Ghost.md · Notes, boards and plans, in plain Markdown" />
+    <meta property="og:description" content="Notes, journals, boards, canvases and notebooks in plain Markdown, on your own devices. Claude, your calendar, Notion, GitHub and Slack are a switch away." />
+    <meta property="og:image" content="https://ghostmarkdown.com/icon.png" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <meta name="robots" content="noindex" />
+    <!--
+      ghostmarkdown.com (tauri/docs/LANDING.md, docs/DESIGN.md §153, §154). Since 2026-10-18 (Matt: "highlight more important
+      features that set us apart like the claude integrations and calendar integrations as well as notion etc") it leads
+      with what sets Ghost.md apart: the Market, what a team gets (Matt, 2026-10-31: tickets, query boards, the Gantt
+      and the rest, "towards the top"), Claude (in the app and through the connector), the calendar, and the plugins
+      with Notion first; then the core (plain Markdown, voice, planning marks, files, organizations, versions),
+      privacy and the ways to get it. Everything that shows the app is the app: its screens (shots/,
+      scripts/landing-shots.mjs) and its cassette (parts/, src/landing/parts.tsx). What it says is
+      what the app does: the Guide and the code are the sources.
+
+      The downloads are the release's own files, their versions and sizes read from the manifests the apps update from
+      (/apk.json, /desktop.json, /windows.json). The stores are one line each in home.js (`STORES`): Coming soon until a listing is live.
+    -->
+    <link rel="preload" href="../fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../glacier/tokens.css" />
+    <link rel="stylesheet" href="../site.css" />
+    <link rel="stylesheet" href="../parts/parts.css" />
+    <link rel="stylesheet" href="home.css" />
+    <script src="../theme.js"></script>
+    <script src="home.js" defer></script>
+    <script src="../files.js" defer></script>
+    <script src="home-market.js" defer></script>
+    <script type="module" src="../parts/parts.js"></script>
+    <!--
+      The previous home page (Matt, 2026-10-31: "replace the main website with this hybrid version we've built, put the
+      old website behind /old"): ghostmarkdown.com's home as it was before the blend of Air and Slides took its place at /,
+      kept whole here with its own home.css, home.js and home-market.js, the rest of the site's files one folder up.
+    -->
+    <style>
+      .old-note { margin: 0; padding: 0.55rem var(--gutter, 16px); background: var(--ink); color: var(--paper); font-size: var(--glacier-font-size-sm, 0.9rem); text-align: center; }
+      .old-note a { color: inherit; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <!-- Claude's and Notion's own marks (Simple Icons, landing/brands/), and Lovart's (from lovart.ai's header), each standing for the product it names: drawn once, used by <use>. -->
+    <svg class="unseen" aria-hidden="true" focusable="false">
+      <symbol id="claude-mark" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z" /></symbol>
+      <symbol id="lovart-mark" viewBox="0 0 24 24"><path d="M12 0c6.627 0 12 5.373 12 12s-5.373 12-12 12S0 18.627 0 12 5.373 0 12 0M9.682 17.947h4.586v-1.609h-2.795v-5.773h-1.79zM17.05 7.51a3.37 3.37 0 0 0-3.367 3.373 3.37 3.37 0 0 0 3.367 3.373c1.86 0 3.37-1.51 3.37-3.373a3.37 3.37 0 0 0-3.37-3.373m-1.2 2.17a1.697 1.697 0 0 1 2.404 0c.664.666.664 1.74 0 2.406a1.697 1.697 0 0 1-2.404 0 1.7 1.7 0 0 1 0-2.405M3.956 12.284h4.03v-1.88h-4.03z" /></symbol>
+      <symbol id="notion-mark" viewBox="0 0 24 24"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" /></symbol>
+    </svg>
+    <a class="skip" href="#main">Skip to the page</a>
+    <p class="old-note">This is the previous home page. <a href="/">The current one is here.</a></p>
+
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="#top"><img src="../icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
+        <ul class="bar-links">
+          <li><a href="../market.html">Market</a></li>
+          <li><a href="#for-teams">Teams</a></li>
+          <li><a href="#claude">Claude</a></li>
+          <li><a href="#calendar">Calendar</a></li>
+          <li><a href="#meetings">Meetings</a></li>
+          <li><a href="#plugins">Plugins</a></li>
+          <li><a href="#organize">Markdown</a></li>
+          <li><a href="#private">Privacy</a></li>
+          <li><a href="/docs/">Docs</a></li>
+        </ul>
+        <a class="pill pill-ink bar-cta" href="#download"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-download"/></svg><span>Download</span></a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <!-- The opening: what it is, the way in, and the app itself. -->
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="wrap hero-words">
+          <h1 id="hero-title">Notes, boards and plans,<br />in plain&nbsp;Markdown.</h1>
+          <p class="lead">Notes, journals, boards, canvases and notebooks, kept as plain Markdown on your own devices and sealed when they sync. When you want more, Claude, your calendar, Notion, GitHub and Slack are a switch away.</p>
+          <div class="ctas">
+            <a class="pill pill-ink pill-lg" id="hero-get" href="#download">
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-download"/></svg>
+              <span id="hero-get-word">Get Ghost.md</span>
+            </a>
+            <a class="pill pill-lg" href="https://attack.fm/glyph/"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-globe"/></svg><span>Open in your browser</span></a>
+          </div>
+          <p class="fine">No account needed. Android, iPhone, Mac, Windows and the web.</p>
+          <!-- What sets it apart, in one row: each a link to its section below. -->
+          <ul class="with-row" aria-label="Works with">
+            <li><a href="#claude"><svg class="brand-mark brand-claude" viewBox="0 0 24 24" aria-hidden="true"><use href="#claude-mark"/></svg>Claude</a></li>
+            <li><a href="#calendar"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-calendar-days"/></svg>Google Calendar</a></li>
+            <li><a href="#plugins"><svg class="brand-mark brand-notion" viewBox="0 0 24 24" aria-hidden="true"><use href="#notion-mark"/></svg>Notion</a></li>
+            <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-git-branch"/></svg>GitHub</a></li>
+            <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-hash"/></svg>Slack</a></li>
+            <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-webhook"/></svg>Webhooks</a></li>
+          </ul>
+        </div>
+        <figure class="wrap laptop-wrap">
+          <div class="laptop">
+            <img src="../shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen: a search with its filters, two pinned notes, recent notes as cards, and the week's notes below." />
+          </div>
+        </figure>
+      </section>
+
+      <!-- The Market, high on the page (Matt, 2026-10-27: "also show the market page high on the list of the website with
+           the dedicated market page that opens plugins in the app"): a few of its plugins drawn from market.json, the
+           listing market.html reads (lib/market/market_listing.dart), each opening its own page there, where Open in
+           Ghost.md takes it into the app (ghostmd://market/plugin/<id>). Filled by home-market.js; without it, the two
+           ways in still stand. -->
+      <section class="band band-tint" id="market" aria-labelledby="market-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-shopping-bag"/></svg>The Market</p>
+            <h2 id="market-title">Plugins, themes, fonts and icons.</h2>
+            <p>Everything in the Market is built in: adding one is a switch, with nothing to download. Browse it here, and open any of it straight in the app.</p>
+            <p class="ctas">
+              <a class="pill pill-ink pill-lg" href="../market.html"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-shopping-bag"/></svg><span>Browse the Market</span></a>
+              <a class="pill pill-lg" id="market-open-app" href="ghostmd://market"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-square-arrow-out-up-right"/></svg><span>Open it in Ghost.md</span></a>
+            </p>
+          </header>
+          <ul class="market-picks" id="market-picks" aria-label="From the Market"></ul>
+          <p class="fine center" id="market-count"></p>
+        </div>
+      </section>
+
+      <!-- For teams (Matt, 2026-10-31: "a section towards the top that outlines all the team features, such as the
+           gantt, query boards, tickets and more"): what a notebook with a key gives a team, a line each, with the app
+           showing it (docs/GANTT.md, docs/FORMS.md, lib/book/rules.dart, lib/core/query/planning.dart, lib/tickets/).
+           The pictures are the feature-shot tests' (test/gantt, test/editor/queries, test/tickets, test/forms,
+           test/root/mentions_verified_shots_test.dart), on their fixture notes. Organizations themselves, writing
+           together live and comments are #teams, further down. -->
+      <section class="band" id="for-teams" aria-labelledby="for-teams-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-users"/></svg>For teams</p>
+            <h2 id="for-teams-title">Tickets, cycles and a Gantt, in files the team owns.</h2>
+            <p>Give a notebook a key and its notes become tickets. Boards, a Gantt, burndowns and a roadmap are drawn from a query, and all of it stays Markdown: front matter and fences, readable in Obsidian or on GitHub, backed up with git.</p>
+          </header>
+          <figure class="wrap laptop-wrap laptop-plan">
+            <div class="laptop">
+              <img src="../shots/teams-gantt.webp" width="1920" height="1200" loading="lazy" alt="A Gantt chart in a note: a launch plan's tasks as bars across November in three sections, an arrow from each to the one that waits on it, two milestones as diamonds, a red line on today, and Week, Month and Quarter to zoom." />
+            </div>
+            <figcaption class="fine center">The Gantt, in plain Markdown: drag a bar to move or stretch it, link what waits on what, mark a milestone. <code>show: gantt</code> draws one from any query.</figcaption>
+          </figure>
+          <ul class="crew">
+            <li>
+              <figure class="crew-pic"><img src="../shots/teams-epic.webp" width="1600" height="1000" loading="lazy" alt="An epic's panel at the top of its note: KLN-1, In progress, High, its milestone, and the four tickets in it as chips over a progress bar, 2 of 4 done." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-ticket"/></svg><span>Tickets in notebooks</span></h3>
+              <p>Keys like HT-12, statuses, assignees, due days, priorities, labels and components. Sub-tickets with a progress bar, a check before a blocked ticket is done, and templates for new ones.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="../shots/teams-board.webp" width="1600" height="1000" loading="lazy" alt="A query drawn as a board grouped by label, two cards picked, and the bar over them: Status, Assignee, Labels, Due, Priority, Move, Delete." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-layout-grid"/></svg><span>Boards, tables, calendars, charts</span></h3>
+              <p>One <code>```query</code> fence, shown as a board, a table, a list, a calendar, a chart or a rollup. Pick a few cards and change them all at once.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="../shots/teams-cycle.webp" width="1600" height="1000" loading="lazy" alt="A cycle's burndown: the points remaining against the ideal line across two weeks, and above it a bar saying the last cycle ended with one unfinished, with a button to move it to the next." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-refresh-cw"/></svg><span>Cycles, epics and a roadmap</span></h3>
+              <p>Cycles with a burndown and velocity, and unfinished work carried to the next. Epics that add up their tickets, milestones, and a roadmap drawn from them.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="../shots/teams-mine.webp" width="1600" height="1000" loading="lazy" alt="My tickets on a wide window: six tickets in groups, Overdue, Today, This week, Later and No date, each with its key, its notebook, its due day, its priority and its labels." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-list-checks"/></svg><span>My tickets and Triage</span></h3>
+              <p>Everything assigned to you across every notebook, by when it is due. Triage works a queue by keys: J and K to move, A to assign, P for priority, T for done.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="../shots/teams-form.webp" width="1600" height="1000" loading="lazy" alt="A ticket filed from a form, in the Mac app: BUG-1 in the Bug reports notebook, its fields still empty but for Time with its Start button, Merge into under them, and the form's answers in its front matter." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-share-2"/></svg><span>Forms that land as tickets</span></h3>
+              <p>Share a link and anyone can fill the form in, with no account. Each answer arrives sealed and becomes a ticket in the notebook, ready to triage.</p>
+            </li>
+            <li>
+              <figure class="crew-pic"><img src="../shots/teams-verified.webp" width="1600" height="1000" loading="lazy" alt="A team's note in the Mac app: Verified by Matt until Dec 10 at its top, people and days as @ chips in its lines, a passed day in red, and the picker an @ opens, offering Today and Tomorrow." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-shield-check"/></svg><span>Organizations</span></h3>
+              <p>Shared notebooks and folders, sealed end to end. @mention a teammate or a day, verify a page as the team's current truth, and leave comments in the margin. <a href="#teams">Writing together</a> is below.</p>
+            </li>
+          </ul>
+          <ul class="tiles">
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-workflow"/></svg><h3>Rules</h3><p>“When status becomes Done, post to Slack.” Sentences in a <code>```rules</code> fence in the notebook, run as its tickets change.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-git-branch"/></svg><h3>Pull requests and time</h3><p>A GitHub pull request sits on its ticket, and Start and Stop keep the time spent on it.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-eye"/></svg><h3>Watchers and history</h3><p>Watch a ticket to hear of its changes, read its history, and get a morning digest of what is due.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-copy"/></svg><h3>Duplicates and merge</h3><p>Possible duplicates are shown as a ticket is made, and Merge into… moves comments and links, with one Undo.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-audio-lines"/></svg><h3>Meetings</h3><p>Ghost joins Meet and Zoom, writes the transcript as the call runs, and posts the summary to Slack.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><h3>All of it Markdown</h3><p>Front matter and fences, nothing else. Open the notebook in Obsidian or on GitHub, and keep it in git.</p></li>
+          </ul>
+          <p class="fine center">A notebook's key, statuses and rules live in its index note; each ticket is its own <code>.md</code> file. Every mark is on <a href="../reference.html">the formatting reference</a>.</p>
+        </div>
+      </section>
+
+      <!-- Claude (2026-10-18; Matt: "highlight more important features that set us apart like the claude integrations"):
+           both ways in. The app's own Claude with the person's key (docs/CLAUDE_APP.md, the Flutter app on Android, the
+           iPhone and the Mac), and Claude's own apps through the connector (tauri/docs/MCP.md, docs/CLAUDE_LIVE.md). -->
+      <section class="band" id="claude" aria-labelledby="claude-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-sparkles"/></svg>Claude</p>
+            <h2 id="claude-title">Claude, built in and connected.</h2>
+            <p>Ask Claude inside Ghost.md and watch it write into your notes as it thinks. Or let Claude's own apps read and write them, and see it working, live.</p>
+          </header>
+          <div class="split split-claude">
+            <div class="pair">
+              <figure class="phone"><img src="../shots/claude-chat.webp" width="390" height="844" loading="lazy" alt="The Claude chat: asked what is still to pack, Claude reads the Packing note and answers, then plans the Lisbon days, each note it reads listed as it goes." /></figure>
+              <figure class="phone phone-low"><img src="../shots/claude-typing.webp" width="390" height="844" loading="lazy" alt="Claude typing into the note Lisbon, the first three days, its caret labelled Claude, with Stop following and Stop above." /></figure>
+            </div>
+            <div>
+              <h3 class="sub with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-message-square-text"/></svg><span>In the app, with your own key</span></h3>
+              <ul class="points points-stack">
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-eye"/></svg>Watch it type.</b> Ask in the chat and the note opens as Claude starts writing. Its words arrive at its own caret, word by word, and the page follows them.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-brain"/></svg>Its thinking, shown.</b> What Claude is weighing streams in as it goes, with a line for every note it reads or changes.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-mouse-pointer-2"/></svg>Follow along, or take over.</b> Claude moves from note to note and you go with it. Type anywhere and the following stops; Claude's words keep landing where it was.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-audio-lines"/></svg>Talk to it.</b> Press Claude's microphone on the dock and say what you want. The words are heard on the device, and no audio is kept. On Android and the Mac.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-key-round"/></svg>Your key, your device.</b> Your Anthropic key is kept in the device's secure storage, and reaches your other devices only sealed to your account, never readable on the way. What you ask goes from the device to Anthropic, and nowhere else.</li>
+              </ul>
+            </div>
+          </div>
+
+          <article class="brand-card brand-card-wide">
+            <header class="brand-head">
+              <svg class="brand-mark brand-claude" viewBox="0 0 24 24" role="img" aria-label="Claude"><use href="#claude-mark"/></svg>
+              <h3>From claude.ai, Claude Desktop and Claude Code.</h3>
+            </header>
+            <p>Add Ghost.md as a connector and Claude reads, searches and writes your notes, tickets and comments included. While it works it shows as online, and you can open the note it is in and see its caret move.</p>
+            <div class="brand-cols">
+              <ul class="asks">
+                <li><q>Make a ticket for the login loop, highest priority, for Sam.</q><span>A ticket note, its fields in front matter, in the notebook you name.</span></li>
+                <li><q>What is due this week, and who has it?</q><span>It searches your tickets and to-dos and tells you.</span></li>
+                <li><q>Tidy my meeting note, as suggestions.</q><span>Each change is marked for you to Keep or Revert.</span></li>
+              </ul>
+              <ul class="points points-stack">
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-radio"/></svg>Online, by name.</b> Claude shows as online, saying what it is reading or editing, and Follow takes you to it.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-message-square"/></svg>In the comments.</b> It reads a note's threads, replies and resolves them, as a person would.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-signature"/></svg>Signed, and careful.</b> Claude joins the authors of what it writes. It never writes over an edit from your other devices, and what it deletes waits in the Trash for you.</li>
+              </ul>
+            </div>
+            <div class="connect">
+              <p>Connect Claude</p>
+              <code id="mcp">https://ghostmarkdown.com/api/mcp</code>
+              <button type="button" class="pill" data-copy="#mcp"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-copy"/></svg><span>Copy</span></button>
+            </div>
+            <p class="fine">In claude.ai and Claude Desktop: Settings › Connectors › Add custom connector. In Claude Code: <code>claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp</code></p>
+          </article>
+          <p class="fine center">Claude in the app is on Android, iPhone and the Mac, and Anthropic bills your key. The connector works with every version of Ghost.md.</p>
+        </div>
+      </section>
+
+      <!-- Calendar (docs/CALENDAR.md): the Calendar plugin, Google sign-in and any iCal address. -->
+      <section class="band band-tint" id="calendar" aria-labelledby="calendar-title">
+        <div class="wrap split split-flip">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-calendar-days"/></svg>Calendar</p>
+              <h2 id="calendar-title">Your calendar, in your notes.</h2>
+              <p>Connect Google Calendar and your day is one page: today's events at the head of home, above your notes, and your dated to-dos on your calendar.</p>
+            </header>
+            <ul class="points points-stack">
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-calendar-sync"/></svg>To-dos on your calendar, within seconds.</b> A to-do with a due day is an all-day event a few seconds after you write it. Change the day and it moves; tick it off and it is gone.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-database"/></svg>Events you can query.</b> Ask for events like any note, and draw them as a list, a table, a month or a timeline.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-calendar-check"/></svg>Any calendar.</b> Paste the iCal address of an iCloud, Outlook or Fastmail calendar and its events are in too. Nothing to sign in to.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-shield-check"/></svg>Kept to itself.</b> Only the events Ghost.md made are ever changed. The addresses and the sign-in stay on your devices and in your sealed settings.</li>
+            </ul>
+            <pre class="mark-code"><code>```query
+from: events
+where: start >= today
+show: calendar
+```</code></pre>
+            <p class="fine">In the app on Android, iPhone and the Mac.</p>
+          </div>
+          <figure class="phone"><img src="../shots/calendar.webp" width="390" height="844" loading="lazy" alt="A note drawing a month calendar of to-dos with a day, beside the day's meetings from Google Calendar: coffee at 10:30 and a run at 5." /></figure>
+        </div>
+      </section>
+
+      <!-- Meetings (docs/MEET.md, GHST-106 to GHST-112; Matt, 2026-10-25: "add a meetings section to the website"): Ghost
+           in a Google Meet, invited by the account's address or a link, every occurrence of a series, the take sealed
+           to the account and written up on the device, sent to every device as it lands, sorted into a workspace's
+           Meetings folder. Only what the app does today: Google Meet alone, and Ghost waits in the lobby. -->
+      <section class="band" id="meetings" aria-labelledby="meetings-title">
+        <div class="wrap split">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-users"/></svg>Meetings</p>
+              <h2 id="meetings-title">Ghost goes to your meetings.</h2>
+              <p>Invite Ghost to a Google Meet call and it joins by itself, records the meeting, and files it as a note: the transcript with who said what, and a summary of what was decided and who does what next.</p>
+            </header>
+            <ul class="points points-stack">
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-calendar-check"/></svg>Invite it like anyone else.</b> Add your Ghost address, a name of your own like <code>you@in.ghostmarkdown.com</code>, as a guest on a Google Calendar invite. Or paste a Meet link and press Join.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-refresh-cw"/></svg>Every standup, not just the first.</b> A recurring meeting is joined every time it comes round. Skip one, or stop joining the series, from Settings › Meetings.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-message-square-text"/></svg>Who said what.</b> The transcript comes with the speakers' names, and the summary is written on your device, with the to-dos as to-dos.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-smartphone"/></svg>On every device, as soon as it ends.</b> The recording reaches your phone and computer the moment Ghost leaves the call, and sits on a shelf of tapes on your home page.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-folder-tree"/></svg>Filed where it belongs.</b> Each meeting is sorted into the right workspace's Meetings folder, by what was said in it.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-shield-check"/></svg>Sealed as it records.</b> The meeting's sound passes through Ghost.md's server while it records, sealed to your account as it arrives. It is written up on your device.</li>
+            </ul>
+            <p class="fine">Google Meet for now. Ghost joins from its own account, so someone in the call lets it in.</p>
+          </div>
+          <figure class="phone"><img src="../shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's note on a phone: its tape at the top, then the transcript, each line led by the speaker's name in bold." /></figure>
+        </div>
+      </section>
+
+      <!-- Plugins (tauri/docs/PLUGINS.md "In the Flutter app", lib/plugins/catalogue.dart): the marketplace in Settings,
+           Notion first since Matt named it, then every plugin the Flutter app builds in. Per platform as the code says:
+           Notion and Slack are not on the iPhone yet (lib/core/iphone_app.dart notOnIPhone), place reminders are
+           Android's (docs/INTEGRATIONS.md §3). -->
+      <section class="band" id="plugins" aria-labelledby="plugins-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-puzzle"/></svg>Plugins</p>
+            <h2 id="plugins-title">Notion and the rest, as plugins.</h2>
+            <p>The Market is a catalog to browse. Every plugin ships inside the app: switch one on and it is there, switch it off and it offers nothing, keeping what it had.</p>
+            <!-- The Market on the site (market.html; Matt, 2026-10-26: "add a browsable marketplace listed under the plugins
+                 section on the website that deeplinks to the app"): every plugin, theme and font, each opened in the app. -->
+            <p class="ctas"><a class="pill pill-ink pill-lg" href="../market.html"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-shopping-bag"/></svg><span>Browse the Market</span></a></p>
+          </header>
+          <div class="split">
+            <article class="brand-card">
+              <header class="brand-head">
+                <svg class="brand-mark brand-notion" viewBox="0 0 24 24" role="img" aria-label="Notion"><use href="#notion-mark"/></svg>
+                <h3>Your to-dos, as Notion tasks.</h3>
+              </header>
+              <p>Sign in with Notion and pick a board. Then a to-do in any note can become a task there.</p>
+              <ul class="points points-stack">
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-list-checks"/></svg>One at a time, or a whole list.</b> Swipe an item, tap the quiet Notion after it, or send the note's list from its More sheet.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-refresh-cw"/></svg>In step both ways.</b> Tick the item and the task moves; change the task in Notion and its status shows on the item.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-panel-bottom-open"/></svg>Open it in place.</b> Tap a linked item to see the task in a drawer, without leaving the note.</li>
+              </ul>
+              <p class="fine">Not on the iPhone yet.</p>
+            </article>
+            <figure class="phone"><img src="../shots/plugins.webp" width="390" height="844" loading="lazy" alt="Settings, Plugins: 6 of 12 added, a search and categories, with Claude, Calendar, GitHub and Webhooks added." /></figure>
+          </div>
+          <ul class="tiles">
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-git-branch"/></svg><h3>GitHub</h3><p>A note linked to a repo sends its items as issues, ticked both ways.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-hash"/></svg><h3>Slack</h3><p>Post a note, a meeting's summary or your team's news to a channel. Not on the iPhone yet.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-webhook"/></svg><h3>Webhooks</h3><p>Out: tell a URL when notes change or a to-do is done. In: a URL that adds to a note, from Zapier, Make, IFTTT or curl.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-import"/></svg><h3>Todoist and Things</h3><p>Bring your projects in: tasks, due days, priorities, labels and sub-tasks, as notes and to-dos.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-contact"/></svg><h3>Contacts</h3><p>The people on your to-dos with their pictures, and a card to call, text or email them. Nothing about them leaves the device.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-map-pin-check"/></svg><h3>Place reminders</h3><p>A to-do with a place reminds you when you get there. On Android.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-film"/></svg><h3>Rich embeds</h3><p>A YouTube, Spotify or Figma link alone on a line is a card that plays or shows it.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-sticker"/></svg><h3>Marks</h3><p>Ghost.md's own marks on top of Markdown: a spoiler in smoke, highlights, asides, redactions and effects.</p></li>
+          </ul>
+          <p class="fine center">Claude and Calendar are plugins too. The catalog is in the app on Android, iPhone and the Mac, and <a href="../market.html">on this site</a>, with every theme and font.</p>
+        </div>
+      </section>
+
+      <!-- Lovart (lib/plugins/lovart/, docs/LOVART.md; Matt, 2026-10-26: "add a lovart section to the website that describes
+           this integration give it it's own page and a small section on the main page"): the plugin in brief, and its page. -->
+      <section class="band band-tint" id="lovart" aria-labelledby="lovart-title">
+        <div class="wrap split">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow eyebrow-brand"><svg class="brand-mark brand-lovart" viewBox="0 0 24 24" role="img" aria-label="Lovart"><use href="#lovart-mark"/></svg>Lovart</p>
+              <h2 id="lovart-title">Images from your notes.</h2>
+              <p>The Lovart plugin brings Lovart&rsquo;s design agent into your notes. Write <code>{image: …}</code> where a picture should go, ask any note for a moodboard of four, and a design meeting comes back with inspiration once it is written up.</p>
+            </header>
+            <p class="ctas ctas-start"><a class="pill" href="../lovart.html"><span>How it works</span></a><a class="pill" href="https://www.lovart.ai/" rel="noopener" target="_blank"><svg class="i brand-lovart" viewBox="0 0 24 24" aria-hidden="true"><use href="#lovart-mark"/></svg><span>Check out Lovart</span><svg class="i" aria-hidden="true"><use href="../icons.svg#i-square-arrow-out-up-right"/></svg></a></p>
+            <p class="fine">With your own Lovart account and its credits. The keys stay on your devices, sealed when they sync.</p>
+          </div>
+          <figure class="phone"><img src="../shots/lovart-done.webp" width="390" height="844" loading="lazy" alt="A note with a picture Lovart made in place of its {image: …} cue: a reading nook by a rainy window, Lovart's mark at its bottom right." /></figure>
+        </div>
+      </section>
+
+      <!-- Organize: the core under the integrations. -->
+      <section class="band" id="organize" aria-labelledby="organize-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-library"/></svg>Plain Markdown</p>
+            <h2 id="organize-title">A place for everything, in files you own.</h2>
+            <p>Under it all, every note is a <code>.md</code> file. Journals, boards, canvases, notebooks and tickets are Markdown too, so any app can open them.</p>
+          </header>
+          <ul class="shelf">
+            <li>
+              <figure class="phone"><img src="../shots/home.webp" width="390" height="844" loading="lazy" alt="The home page: pinned notes in a list, then recent notes as cards." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-house"/></svg><span>Home</span></h3>
+              <p>Pinned first, then where you left off.</p>
+            </li>
+            <li>
+              <figure class="phone"><img src="../shots/journal.webp" width="390" height="844" loading="lazy" alt="A journal: its entries by month, each with its day and time." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-notebook-pen"/></svg><span>Journals</span></h3>
+              <p>Dated entries, from your own template.</p>
+            </li>
+            <li>
+              <figure class="phone"><img src="../shots/board.webp" width="390" height="844" loading="lazy" alt="A board: to-dos in a note, and the same items as cards in columns." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-square-kanban"/></svg><span>Boards</span></h3>
+              <p>To-dos as cards, still lines in the note.</p>
+            </li>
+            <li>
+              <figure class="phone"><img src="../shots/canvas.webp" width="390" height="844" loading="lazy" alt="A canvas: cards joined by labeled lines." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-waypoints"/></svg><span>Canvases</span></h3>
+              <p>Ideas on a page, joined up.</p>
+            </li>
+          </ul>
+          <ul class="points">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-search"/></svg>Find anything.</b> Search every word, and filter by notebook, pinned or workspace.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-layers"/></svg>Keep work apart.</b> Workspaces hold their own notes, each in its color.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-book-open"/></svg>Notebooks.</b> Notes in order, read straight through, with timelines and diagrams drawn from their own lines.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Document. -->
+      <section class="band" id="document" aria-labelledby="document-title">
+        <div class="wrap split split-flip">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-mic"/></svg>Voice</p>
+              <h2 id="document-title">Speak a note. Record a meeting.</h2>
+            </header>
+            <p class="body">Say what you want written and it arrives as Markdown, its to-dos as to-dos. Record a meeting, even with the phone locked, and afterwards the device transcribes it and writes a summary under the title: what was decided, and the to-dos. The tape stays with the note, on the device.</p>
+            <p class="fine">On Android and the Mac. The words are heard on the device, and the microphone is on only while you record.</p>
+          </div>
+          <!-- The app's own cassette (src/landing/parts.tsx): it plays as the page shows it; a tap pauses it. -->
+          <figure class="tape-fig">
+            <div class="tape-host" data-part="tape" data-title="Standup" data-length="40000"></div>
+            <figcaption class="fine">A meeting's tape, as it sits at the top of its note, playing. Tap it to pause.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- Plan: the marks Ghost.md draws as a team's tools (docs/MARKDOWN.md, docs/TICKETS.md, docs/QUERIES.md, docs/BOARDS.md). -->
+      <section class="band" id="plan" aria-labelledby="plan-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-square-kanban"/></svg>Plan</p>
+            <h2 id="plan-title">Tickets, boards and queries, written in Markdown.</h2>
+            <p>A few plain marks, drawn as the tools a team plans with. The file stays text: any Markdown app opens it, and Obsidian and GitHub read the same marks.</p>
+          </header>
+          <figure class="wrap laptop-wrap laptop-plan">
+            <div class="laptop">
+              <img src="../shots/query.webp" width="1280" height="800" loading="lazy" alt="A query drawn as a board: a notebook's tickets in four lanes, To do, In progress, In review and Done, each card with its key, its person, its priority and its due day." />
+            </div>
+            <figcaption class="fine center">Five lines of a query, drawn as a ticket board that keeps up as the tickets change.</figcaption>
+          </figure>
+          <ul class="marks">
+            <li>
+              <figure class="phone"><img src="../shots/fields.webp" width="390" height="844" loading="lazy" alt="To-dos with a person, a priority, a tag and a due day drawn as chips, a choice, and a sum worked out." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-list-todo"/></svg><span>To-dos that carry their details</span></h3>
+              <p>A person, a priority and a due day on any to-do, as Obsidian Tasks writes them, drawn as chips you tap to change.</p>
+              <pre class="mark-code"><code>- [ ] Renew the insurance @matt ⏫ 📅 2026-10-02</code></pre>
+            </li>
+            <li>
+              <figure class="phone"><img src="../shots/ticket.webp" width="390" height="844" loading="lazy" alt="A ticket: its key, status, assignee, priority, due day, estimate, what blocks it and its labels, above its words and its to-dos." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-ticket"/></svg><span>Tickets</span></h3>
+              <p>A note whose front matter says it is a ticket. Its fields become a panel at the top, and a notebook with a key numbers them.</p>
+              <pre class="mark-code"><code>---
+type: ticket
+id: PRD-11
+status: In progress
+assignee: Sam
+priority: highest
+---</code></pre>
+            </li>
+            <li>
+              <figure class="phone"><img src="../shots/table.webp" width="390" height="844" loading="lazy" alt="A query drawn as a table: five open tickets by priority, with their status and estimate, and the estimates added up." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-database"/></svg><span>Queries</span></h3>
+              <p>What matches across every note, as a table, a list, a board, a month, a timeline or a count. Totals add up as you go.</p>
+              <pre class="mark-code"><code>```query
+from: tickets [[Product]]
+where: status != Done
+sort: priority, due
+total: estimate
+```</code></pre>
+            </li>
+            <li>
+              <figure class="phone"><img src="../shots/board.webp" width="390" height="844" loading="lazy" alt="A board: to-dos in a note, and the same items as cards in columns." /></figure>
+              <h3 class="with-i"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-layout-grid"/></svg><span>Boards</span></h3>
+              <p>Named items laid out in columns. Drag a card to move it, and the line under the board sets how tall it is.</p>
+              <pre class="mark-code"><code>```board
+To do: ship-page
+Done: pick-date
+```</code></pre>
+            </li>
+          </ul>
+          <ul class="points">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-chart-gantt"/></svg>Timelines.</b> <code>show: gantt</code> draws a query's tickets as bars across their days.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-calculator"/></svg>Sums.</b> A line starting <code>=</code> shows its answer: <code>= $45 + $18 * 2</code> → $81.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-workflow"/></svg>Diagrams.</b> A <code>```mermaid</code> block is drawn as its diagram, and stays text in the file.</li>
+          </ul>
+          <p class="fine center">Every mark, with an example to copy, is on <a href="../reference.html">the formatting reference</a>. The app's Academy teaches them one at a time, by typing each.</p>
+        </div>
+      </section>
+
+      <!-- Your files: how a workspace is kept, as the library writes it (docs/LIBRARY.md, src-tauri/src/library/). The
+           files are examples in the library's own form: its block (id, created, pinned, source) first, then the page's. -->
+      <section class="band" id="files" aria-labelledby="files-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-folder-tree"/></svg>Your files</p>
+            <h2 id="files-title">Plain Markdown, all the way down.</h2>
+            <p>Every note is one <code>.md</code> file, named after its title, in its workspace's folder. Its settings are front matter at the top; everything else is words you can read. Here is a workspace called Product. Tap a file to see what is in it.</p>
+          </header>
+          <div class="files" data-files>
+            <nav class="tree" aria-label="The library's folders and files">
+              <ul>
+                <li style="--depth:0" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">Library/</span><span class="tree-what">Every note, as a .md file</span></li><li style="--depth:1" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">workspaces/</span></li><li style="--depth:2" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">Product/</span><span class="tree-what">The Product workspace</span></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f0" aria-label="Product.md, A notebook, its tickets numbered PRD"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">Product.md</span><span class="tree-what">A notebook, its tickets numbered PRD</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f1" aria-label="Fix the login loop.md, A ticket, PRD-11"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">Fix the login loop.md</span><span class="tree-what">A ticket, PRD-11</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f2" aria-label="Pricing page copy.md, A ticket, PRD-10"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">Pricing page copy.md</span><span class="tree-what">A ticket, PRD-10</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f3" aria-label="This sprint.md, A query, drawn as a ticket board"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">This sprint.md</span><span class="tree-what">A query, drawn as a ticket board</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f4" aria-label="Launch plan.md, A board of named to-dos"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">Launch plan.md</span><span class="tree-what">A board of named to-dos</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="v0" aria-label="Launch plan.versions, Its version history"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-clock"/></svg><span class="tree-name">Launch plan.versions</span><span class="tree-what">Its version history</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f5" aria-label="Standup.md, A meeting, recorded and written up"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">Standup.md</span><span class="tree-what">A meeting, recorded and written up</span></button></li><li style="--depth:1" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">Inbox/</span><span class="tree-what">Notes in no workspace</span></li><li style="--depth:2"><button type="button" class="tree-file" data-file="f6" aria-label="Grocery run.md, A note in no workspace"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-text"/></svg><span class="tree-name">Grocery run.md</span><span class="tree-what">A note in no workspace</span></button></li><li style="--depth:1" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">.glyph/</span><span class="tree-what">Ghost.md&#x27;s own, hidden</span></li><li style="--depth:2"><button type="button" class="tree-file" data-file="o0" aria-label="index.sqlite, Not a note"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-database"/></svg><span class="tree-name">index.sqlite</span><span class="tree-what">Not a note</span></button></li><li style="--depth:2" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">notes/</span></li><li style="--depth:3"><button type="button" class="tree-file" data-file="o1" aria-label="e3b6d018….json, Not a note"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-braces"/></svg><span class="tree-name">e3b6d018….json</span><span class="tree-what">Not a note</span></button></li><li style="--depth:0" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">recordings/</span><span class="tree-what">Beside the library</span></li><li style="--depth:1"><button type="button" class="tree-file" data-file="o2" aria-label="e3b6d018….wav, A tape"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-music"/></svg><span class="tree-name">e3b6d018….wav</span><span class="tree-what">A tape</span></button></li><li style="--depth:0" class="tree-folder"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-folder"/></svg><span class="tree-name">images/</span><span class="tree-what">Beside the library</span></li><li style="--depth:1"><button type="button" class="tree-file" data-file="o3" aria-label="2b0c4a6e….jpg, A picture"><svg class="i tree-icon" aria-hidden="true"><use href="../icons.svg#i-file-image"/></svg><span class="tree-name">2b0c4a6e….jpg</span><span class="tree-what">A picture</span></button></li>
+              </ul>
+            </nav>
+            <figure class="file" aria-live="polite">
+              <figcaption class="file-path" data-file-path>workspaces/Product/Fix the login loop.md</figcaption>
+              <div class="file-body" data-file-body></div>
+            </figure>
+            <template id="file-f0" data-path="workspaces/Product/Product.md"><pre class="file-text"><code>---
+id: 0f3c9a52-8d1e-4b7a-a3c2-6e1f9b0d4a87
+created: 2026-09-24T09:12:40.118Z
+---
+---
+title: &quot;Product&quot;
+book: true
+key: PRD
+statuses: [To do, In progress, In review, Done]
+---
+# Product
+
+What we are building this quarter.
+
+- [[Sign-in page on the Mac]]
+- [[Pricing page copy]]
+- [[Fix the login loop]]
+- [[Release notes for 1.10]]
+</code></pre></template><template id="file-f1" data-path="workspaces/Product/Fix the login loop.md"><pre class="file-text"><code>---
+id: 4b8e2c1a-6f0d-4e39-9b57-1c2a8d3e5f60
+created: 2026-09-29T14:02:11.482Z
+---
+---
+type: ticket
+id: PRD-11
+status: In progress
+assignee: Sam
+priority: highest
+due: 2026-10-02
+estimate: 3
+blocked-by: &quot;[[PRD-9]]&quot;
+labels: [bug, auth]
+authors: Matt, Claude
+---
+# Fix the login loop
+
+Signing in on the phone sends you back to the sign-in page once the cookie has expired.
+
+- [x] Find where the cookie is dropped
+- [ ] Refresh it before it expires @sam 📅 2026-10-01
+- [ ] Test on a slow network
+</code></pre></template><template id="file-f2" data-path="workspaces/Product/Pricing page copy.md"><pre class="file-text"><code>---
+id: 9a1d7e33-2c4b-4f08-8e6a-5b0c3d7f2e19
+created: 2026-09-27T16:45:02.907Z
+---
+---
+type: ticket
+id: PRD-10
+status: In review
+assignee: Matt
+priority: high
+due: 2026-10-03
+estimate: 1
+---
+# Pricing page copy
+
+Three plans, said plainly.
+
+| Plan | Price | For |
+| --- | --- | --- |
+| Free | $0 | One device |
+| Sync | $4 | Every device |
+</code></pre></template><template id="file-f3" data-path="workspaces/Product/This sprint.md"><pre class="file-text"><code>---
+id: c27e5b90-1a3f-4d6c-b8e4-0f9a2d1c7b35
+created: 2026-09-30T08:20:55.310Z
+---
+# This sprint
+
+```query
+from: tickets [[Product]]
+where: status != Done
+sort: priority, due
+show: board
+```
+
+```query
+from: tickets [[Product]]
+total: estimate
+show: table
+```
+</code></pre></template><template id="file-f4" data-path="workspaces/Product/Launch plan.md"><pre class="file-text"><code>---
+id: 5e8f1c24-7b9a-4a3d-9c61-2d4e8f0b6a17
+created: 2026-09-26T11:03:47.552Z
+pinned: true
+---
+# Launch plan
+
+- [ ] Ship the pricing page ^ship-page
+- [x] Pick a launch date ^pick-date
+- [ ] Record the demo ^record-demo
+
+```board
+To do: ship-page
+In progress: record-demo
+Done: pick-date
+```
+</code></pre></template><template id="file-f5" data-path="workspaces/Product/Standup.md"><pre class="file-text"><code>---
+id: e3b6d018-4c2f-4e7b-a95d-8f1c0a3b2d64
+created: 2026-10-01T09:30:12.004Z
+source: capture
+---
+# Standup
+
+## Summary
+
+We agreed to ship the home page on Friday.
+
+- [ ] Write the release notes @matt
+- [ ] Ask Sam about the screenshots
+
+**0:04** Morning, everyone. Quick one today.
+
+**0:11** The home page is ready for review.
+</code></pre></template><template id="file-f6" data-path="Inbox/Grocery run.md"><pre class="file-text"><code>---
+id: 71a0f4c8-3e5d-4b92-8a17-6c2f9d0e1b53
+created: 2026-10-01T07:58:30.219Z
+---
+# Grocery run
+
+- [ ] Milk
+- [ ] Sourdough
+- [x] Coffee beans
+</code></pre></template><template id="file-v0" data-path="workspaces/Product/Launch plan.versions"><pre class="file-text"><code># Ghost.md versions 1
+# note 5e8f1c24-7b9a-4a3d-9c61-2d4e8f0b6a17
+# A version is the change from the one before it: &quot;=N&quot; keeps N lines, &quot;-&quot; takes a line out, &quot;+&quot; puts one in.
+
+v1 2026-09-26T11:03:47.000Z matt 0351c39d full
+  +# Launch plan
+  +
+  +- [ ] Ship the pricing page ^ship-page
+  +- [ ] Pick a launch date ^pick-date
+  +
+v2 2026-09-29T16:20:05.000Z sam dfb138ca &quot;Date picked&quot;
+  =3
+  -- [ ] Pick a launch date ^pick-date
+  +- [x] Pick a launch date ^pick-date
+  +- [ ] Record the demo ^record-demo
+  =1
+v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
+  =6
+  +```board
+  +To do: ship-page
+  +In progress: record-demo
+  +Done: pick-date
+  +```
+  +
+</code></pre></template><template id="file-o0" data-path="Library/.glyph/index.sqlite"><p class="file-about">The search index: a cache, rebuilt from the .md files whenever it is missing. Delete it and no writing is lost.</p></template><template id="file-o1" data-path="Library/.glyph/notes/e3b6d018….json"><p class="file-about">What a note has that is not text: its recording&#x27;s length, and the phrases that line its words up with the sound.</p></template><template id="file-o2" data-path="recordings/e3b6d018….wav"><p class="file-about">The meeting&#x27;s tape, kept beside the library, on the device.</p></template><template id="file-o3" data-path="images/2b0c4a6e….jpg"><p class="file-about">A picture a note shows, as ![](image/2b0c4a6e….jpg) in its words.</p></template>
+          </div>
+          <ul class="points">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-lock-open"/></svg>Nothing locked away.</b> The files are the notes. The index beside them is a cache, rebuilt from the files whenever it is missing.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-book-open"/></svg>Read anywhere.</b> Obsidian shows the front matter as properties, GitHub draws it as a table, and every list, table and link is ordinary Markdown.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-settings-2"/></svg>Settings you can see.</b> The first block at the top is the library's: the note's id and when it was made. A ticket or a notebook has a second, its own: a ticket's fields, a notebook's key.</li>
+          </ul>
+          <p class="fine center">On Android and the Mac. In a browser, notes are kept in the browser's own storage.</p>
+        </div>
+      </section>
+
+      <!-- Teams: organizations, their shared notes, live editing and comments (docs/TEAMS.md, docs/SHARED.md). -->
+      <section class="band band-tint" id="teams" aria-labelledby="teams-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-users"/></svg>Organizations</p>
+            <h2 id="teams-title">Write together, in the same note, at the same time.</h2>
+            <p>Make an organization and invite people by their handle or with a link. Each member gets the organization's workspace, and a note filed there is the team's: on everyone's devices, and open to everyone at once.</p>
+          </header>
+          <ul class="facts">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-mouse-pointer-2"/></svg>Live cursors.</b> Typing reaches the others as it is typed. Everyone in the note is a caret in their own colour with their name on it, and what they select is washed in it.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-radio"/></svg>Who is where.</b> The organization's page shows who is here now and what they are editing. Open someone's profile and Jump to cursor takes you to the spot they are writing.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-message-square-text"/></svg>Comments.</b> Leave one on a few words or a line, reply in a thread, and resolve it when it is settled. Comments are kept in the note's own Markdown, so any editor can read them.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-rotate-ccw-clock"/></svg>Every change, by who.</b> A team's notes keep their version history from the start, and the audit log lists every change to every note in the workspace, with the team's news beside it.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-key-round"/></svg>Sealed for the team.</b> Team notes are encrypted with a key only members hold. The service can't read a title, a word, a comment or where anyone's cursor is.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-hash"/></svg>Slack, if you want it.</b> Post a note, a meeting's summary or the team's news to a channel. Nothing is sent unless you choose to.</li>
+          </ul>
+          <p class="fine center">Organizations come with a Ghost.md account. Their names and members' handles are kept on the service so an invitation can reach people; the notes stay encrypted.</p>
+        </div>
+      </section>
+
+      <!-- Version history (docs/DESIGN.md §182). -->
+      <section class="band" id="history" aria-labelledby="history-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-rotate-ccw-clock"/></svg>Version history</p>
+            <h2 id="history-title">Every version, kept like git.</h2>
+            <p>A note can keep every version of itself: after a pause in the writing, when you leave it, or by hand with a name. Notes in an organization keep one from the start; any note of your own does once you switch it on under More. Open the history and it is a timeline of who changed what, and when.</p>
+          </header>
+          <figure class="file versions-file">
+            <figcaption class="file-path">workspaces/Product/Launch plan.versions</figcaption>
+            <div class="file-body"><pre class="file-text"><code># Ghost.md versions 1
+# note 5e8f1c24-7b9a-4a3d-9c61-2d4e8f0b6a17
+# A version is the change from the one before it: &quot;=N&quot; keeps N lines, &quot;-&quot; takes a line out, &quot;+&quot; puts one in.
+
+v1 2026-09-26T11:03:47.000Z matt 0351c39d full
+  +# Launch plan
+  +
+  +- [ ] Ship the pricing page ^ship-page
+  +- [ ] Pick a launch date ^pick-date
+  +
+v2 2026-09-29T16:20:05.000Z sam dfb138ca &quot;Date picked&quot;
+  =3
+  -- [ ] Pick a launch date ^pick-date
+  +- [x] Pick a launch date ^pick-date
+  +- [ ] Record the demo ^record-demo
+  =1
+v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
+  =6
+  +```board
+  +To do: ship-page
+  +In progress: record-demo
+  +Done: pick-date
+  +```
+  +
+</code></pre></div>
+          </figure>
+          <ul class="points">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-git-branch"/></svg>Only what changed.</b> Each version is a line saying who and when, then the lines it took out (<code>-</code>) and put in (<code>+</code>), as git keeps a change. Every fiftieth is a whole copy, and each is checked against its hash.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-rotate-ccw"/></svg>Go back to any of them.</b> A version shows what it changed, and what restoring it would. Restoring keeps a new version, so going back can be undone too.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-share-2"/></svg>A file you can send.</b> It sits beside the note, moves with it, and syncs sealed like the note. Two devices that both kept versions are merged, so none is lost.</li>
+          </ul>
+          <p class="fine center">On Android and the Mac from 1.12.0. In a browser, versions are kept in the browser's own storage.</p>
+        </div>
+      </section>
+
+      <!-- Private. -->
+      <section class="band" id="private" aria-labelledby="private-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="../icons.svg#i-lock"/></svg>Private</p>
+            <h2 id="private-title">Yours, and only yours.</h2>
+          </header>
+          <ul class="facts">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-user-round-x"/></svg>No account needed.</b> Without one, nothing of yours is on a server.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-shield-check"/></svg>Sealed before it syncs.</b> Notes, tapes and pictures are encrypted on the device, end to end. The service can't read them.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-eye-off"/></svg>No ads, no analytics.</b> No trackers, in the app or on this site.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-key-round"/></svg>Teams, sealed too.</b> An organization's notes are encrypted with a key only its members hold.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-file-archive"/></svg>Take it all with you.</b> Export everything as one <code>.ghostex</code> file: every note as Markdown, its pictures and files, password protected if you like.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="../icons.svg#i-plug"/></svg>Integrations you choose.</b> Each plugin is added or removed in the Market, and Local only holds back every one that uses the internet.</li>
+          </ul>
+          <p class="fine center">Connecting Claude through our hosted connector lets it read your notes while connected; run the connector on your own computer to keep your key there. <a href="../privacy.html">The privacy policy</a></p>
+        </div>
+      </section>
+
+      <!-- Download. -->
+      <section class="band band-tint" id="download" aria-labelledby="download-title">
+        <div class="wrap">
+          <header class="band-head">
+            <h2 id="download-title">Get Ghost.md</h2>
+          </header>
+          <div class="ways" id="ways">
+            <a class="way" id="android" href="/glyph.apk" download>
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-smartphone"/></svg>
+              <span class="way-words"><b>Android</b><span data-meta="apk">The app, from here</span></span>
+            </a>
+            <a class="way" id="mac" href="/glyph.dmg" download>
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-laptop"/></svg>
+              <span class="way-words"><b>Mac</b><span data-meta="dmg">macOS 13.1 or later</span></span>
+            </a>
+            <a class="way" id="windows" href="/glyph-setup.exe" download>
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-monitor"/></svg>
+              <span class="way-words"><b>Windows</b><span data-meta="exe">Windows 10 or later</span></span>
+            </a>
+            <a class="way" id="web" href="https://attack.fm/glyph/">
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-globe"/></svg>
+              <span class="way-words"><b>Browser</b><span>No install</span></span>
+            </a>
+          </div>
+          <div class="stores">
+            <span class="store" data-store="play" aria-disabled="true">
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-play"/></svg>
+              <span><small>Get it on</small>Google Play</span>
+              <em>Coming soon</em>
+            </span>
+            <span class="store" data-store="appStore" aria-disabled="true">
+              <svg class="i" aria-hidden="true"><use href="../icons.svg#i-shopping-bag"/></svg>
+              <span><small>Download on the</small>App Store</span>
+              <em>Coming soon</em>
+            </span>
+          </div>
+          <p class="fine center" id="windows-note" hidden>
+            The Windows app is not signed yet. The first time, Windows says it protected your PC: choose More info, then Run anyway.
+          </p>
+          <p class="fine center" id="mac-note" hidden>
+            The Mac app is not notarized yet. The first time, macOS says it can't check it: choose Done, then System Settings › Privacy &amp; Security › Open Anyway. On macOS 14 or older,
+            Control-click it and choose Open.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <p class="brand"><img src="../icon.png" width="28" height="28" alt="" /><span>Ghost.md</span></p>
+        <div class="swatches" role="radiogroup" aria-label="This site's page">
+          <button type="button" role="radio" class="swatch" data-theme-pick="system" aria-checked="true" title="System"><span class="sw sw-system"></span><span class="unseen">System</span></button>
+          <button type="button" role="radio" class="swatch" data-theme-pick="light" aria-checked="false" title="Light"><span class="sw sw-light"></span><span class="unseen">Light</span></button>
+          <button type="button" role="radio" class="swatch" data-theme-pick="dark" aria-checked="false" title="Dark"><span class="sw sw-dark"></span><span class="unseen">Dark</span></button>
+          <button type="button" role="radio" class="swatch" data-theme-pick="dawn" aria-checked="false" title="Dawn"><span class="sw sw-dawn"></span><span class="unseen">Dawn</span></button>
+          <button type="button" role="radio" class="swatch" data-theme-pick="boreal" aria-checked="false" title="Boreal"><span class="sw sw-boreal"></span><span class="unseen">Boreal</span></button>
+          <button type="button" role="radio" class="swatch" data-theme-pick="ember" aria-checked="false" title="Ember"><span class="sw sw-ember"></span><span class="unseen">Ember</span></button>
+        </div>
+        <ul>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="../lovart.html">Lovart</a></li>
+          <li><a href="../reference.html">Formatting reference</a></li>
+          <li><a href="../privacy.html">Privacy</a></li>
+          <li><a href="../delete-account.html">Delete your account</a></li>
+        </ul>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,1572 @@
+/*
+ * ghostmarkdown.com's home page (index.html; docs/DESIGN.md §153, §154). Its sizes, spacing, radii, motion and shadows
+ * are Glacier's tokens; its colours are the app's ink (site.css). Everything that shows the app is the app - its
+ * screens in a phone's or a laptop's frame, and its cassette (parts/) - so this sheet draws only the page around them.
+ */
+
+:root {
+  --gutter: max(16px, env(safe-area-inset-left));
+  --measure: 70rem;
+  --ease: var(--glacier-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  --shadow: 0 1px 0 var(--rule), 0 30px 60px -30px color-mix(in oklch, black 55%, transparent);
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  font-size: var(--glacier-font-size-md, 1rem);
+  line-height: 1.55;
+  overflow-x: clip;
+}
+
+a {
+  color: inherit;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: var(--glacier-radius-sm, 6px);
+}
+
+.wrap {
+  inline-size: min(100%, calc(var(--measure) + var(--gutter) * 2));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.center {
+  text-align: center;
+  margin-inline: auto;
+}
+
+.skip {
+  position: absolute;
+  inset-inline-start: 1rem;
+  inset-block-start: -4rem;
+  z-index: 50;
+  padding: 0.6rem 1rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.skip:focus {
+  inset-block-start: 1rem;
+}
+
+/* ---- the bar: glass over the page, as the app's header is -------------------------------------------------------- */
+
+.bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 20;
+  padding-block-start: env(safe-area-inset-top);
+  background: color-mix(in oklch, var(--paper) 72%, transparent);
+  backdrop-filter: saturate(1.4) blur(18px);
+  -webkit-backdrop-filter: saturate(1.4) blur(18px);
+  border-block-end: 1px solid color-mix(in oklch, var(--rule) 70%, transparent);
+}
+
+.bar-in {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-6, 1.5rem);
+  inline-size: min(100%, calc(var(--measure) + var(--gutter) * 2));
+  margin-inline: auto;
+  padding: 0.7rem var(--gutter);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.brand img {
+  border-radius: 0.55rem;
+}
+
+.bar-links {
+  display: none;
+  gap: var(--glacier-space-5, 1.25rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar-links a {
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 500;
+}
+
+.bar-links a:hover {
+  color: var(--ink);
+}
+
+.bar-cta {
+  margin-inline-start: auto;
+}
+
+/* From where the links, Docs and the Market among them, fit beside the brand and Download without the bar running off
+   the page (1000px since the Market's link, 2026-10-26: it ran 43px off at 940). */
+@media (min-width: 1000px) {
+  .bar-links {
+    display: flex;
+  }
+}
+
+/* ---- buttons ----------------------------------------------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 2.5rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 160ms var(--ease),
+    border-color 160ms var(--ease),
+    background-color 160ms var(--ease);
+}
+
+.pill:hover {
+  border-color: var(--ink-3);
+}
+
+.pill:active {
+  transform: scale(0.97);
+}
+
+.pill-ink {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.pill-ink:hover {
+  border-color: var(--ink);
+  background: color-mix(in oklch, var(--ink) 88%, var(--paper));
+}
+
+.pill-lg {
+  min-block-size: 3.1rem;
+  padding: 0 1.4rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+/* Every icon is Lucide's, from the site's sprite (icons.svg, scripts/landing-icons.mjs), in the text's own ink. */
+.i {
+  inline-size: 1.15em;
+  block-size: 1.15em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- the opening ------------------------------------------------------------------------------------------------- */
+
+.hero {
+  padding-block: clamp(3rem, 9vw, 6.5rem) clamp(3rem, 7vw, 5rem);
+}
+
+.hero-words {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 7.6vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-weight: 750;
+  text-wrap: balance;
+}
+
+.lead {
+  max-inline-size: 40rem;
+  margin: var(--glacier-space-6, 1.5rem) 0 0;
+  font-size: var(--glacier-font-size-lg, 1.2rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin-block-start: var(--glacier-space-8, 2rem);
+}
+
+.fine {
+  margin: var(--glacier-space-4, 1rem) 0 0;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  color: var(--ink-3);
+}
+
+.fine a {
+  color: var(--ink-2);
+}
+
+.laptop-wrap {
+  margin-block: clamp(2.5rem, 6vw, 4rem) 0;
+}
+
+.laptop {
+  max-inline-size: 60rem;
+  margin: 0 auto;
+  padding: 0.6rem 0.6rem 0;
+  border-radius: 1rem 1rem 0 0;
+  background: oklch(0.13 0 0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.3 0 0),
+    var(--shadow);
+}
+
+.laptop img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.laptop::after {
+  content: '';
+  display: block;
+  block-size: 0.9rem;
+  margin-inline: -1.6rem;
+  border-radius: 0 0 1rem 1rem;
+  background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
+}
+
+/* ---- a band: one idea, its words, and the app showing it --------------------------------------------------------- */
+
+.band {
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+  border-block-start: 1px solid var(--rule);
+}
+
+.band-tint {
+  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
+}
+
+.band-head {
+  display: grid;
+  justify-items: center;
+  max-inline-size: 40rem;
+  margin: 0 auto clamp(2rem, 5vw, 3rem);
+  text-align: center;
+}
+
+.band-head-start {
+  justify-items: start;
+  margin-inline: 0;
+  text-align: start;
+}
+
+.eyebrow {
+  margin: 0 0 var(--glacier-space-3, 0.75rem);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.band h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 4.4vw, 2.9rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 750;
+  text-wrap: balance;
+}
+
+.band-head p:not(.eyebrow),
+.body {
+  margin: var(--glacier-space-4, 1rem) 0 0;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.split {
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 4rem);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .split-flip > :first-child {
+    order: 2;
+  }
+}
+
+/* ---- a phone: the app's screens in a frame ----------------------------------------------------------------------- */
+
+.phone {
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  margin: 0 auto;
+  padding: 0.45rem;
+  border-radius: 2rem;
+  background: oklch(0.13 0 0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.3 0 0),
+    var(--shadow);
+}
+
+.phone img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: 1.6rem;
+}
+
+/* The four ways to keep things, side by side where there is room, and a row to scroll through on a phone. */
+.shelf {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(72%, 16rem);
+  gap: var(--glacier-space-5, 1.25rem);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) var(--glacier-space-3, 0.75rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  list-style: none;
+}
+
+.shelf li {
+  scroll-snap-align: start;
+}
+
+.shelf h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.shelf p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+@media (min-width: 900px) {
+  .shelf {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+
+.points {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  margin: clamp(2rem, 5vw, 3rem) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.points b {
+  color: var(--ink);
+}
+
+@media (min-width: 760px) {
+  .points:not(.points-stack) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.points-stack {
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+}
+
+/* Two of the app's screens, the second a step lower. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  max-inline-size: 34rem;
+  margin-inline: auto;
+}
+
+.phone-low {
+  margin-block-start: 3rem;
+}
+
+/* The connector's address, to copy into Claude. */
+.connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+}
+
+.connect p {
+  margin: 0;
+  font-weight: 650;
+}
+
+.connect code {
+  flex: 1 1 15rem;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+
+/* The app's cassette (parts/): a button, as it is on a note. */
+.tape-fig {
+  display: grid;
+  justify-items: center;
+  margin: 0;
+}
+
+.tape-host {
+  inline-size: min(100%, 26rem);
+}
+
+.part-tape {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 1rem;
+}
+
+
+/*
+ * An icon before a band's eyebrow, a card's heading, a lead in bold, a section's name: each on a square filled with
+ * its colour, as a row's icon is in the app's Settings (Matt: "bring splashes of color into the marketing website
+ * like we do on the settings page with the color filled icon squares"). The square is the svg's own box - a tint of
+ * the hue behind, the hue as the stroke, padding round the drawing - so the markup is as it was. A band has a hue,
+ * which its eyebrow wears; the cards and the points under it take the hues in turn, so a row reads as a set of
+ * different things rather than one colour three times. Dark and light pairs are site.css's.
+ */
+.band {
+  --hue: var(--hue-blue);
+}
+
+#for-teams { --hue: var(--hue-mint); }
+#plan { --hue: var(--hue-purple); }
+#files { --hue: var(--hue-yellow); }
+#history { --hue: var(--hue-mint); }
+#claude { --hue: var(--hue-coral); }
+#calendar { --hue: var(--hue-blue); }
+#plugins { --hue: var(--hue-purple); }
+#organize { --hue: var(--hue-green); }
+#teams { --hue: var(--hue-red); }
+#document { --hue: var(--hue-green); }
+#private { --hue: var(--hue-graphite); }
+
+:is(.shelf, .marks, .crew, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 1) { --hue: var(--hue-blue); }
+:is(.shelf, .marks, .crew, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 2) { --hue: var(--hue-purple); }
+:is(.shelf, .marks, .crew, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 3) { --hue: var(--hue-coral); }
+:is(.shelf, .marks, .crew, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 4) { --hue: var(--hue-green); }
+:is(.shelf, .marks, .crew, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 5) { --hue: var(--hue-yellow); }
+:is(.shelf, .marks, .crew, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 6) { --hue: var(--hue-mint); }
+
+.eyebrow .i,
+.with-i .i,
+.i-lead {
+  box-sizing: border-box;
+  border-radius: 0.34em;
+  background: color-mix(in srgb, var(--hue, var(--hue-blue)) 16%, transparent);
+  color: var(--hue, var(--hue-blue));
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.eyebrow .i {
+  inline-size: 1.85em;
+  block-size: 1.85em;
+  padding: 0.4em;
+}
+
+.with-i {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.with-i .i {
+  inline-size: 1.75em;
+  block-size: 1.75em;
+  padding: 0.36em;
+}
+
+.i-lead {
+  inline-size: 1.7em;
+  block-size: 1.7em;
+  padding: 0.36em;
+  margin-inline-end: 0.5rem;
+  vertical-align: -0.5em;
+}
+
+/* ---- plan: the marks, each with the screen it draws and the lines that draw it --------------------------------- */
+
+.laptop-plan {
+  margin-block: 0 clamp(2.5rem, 6vw, 4rem);
+  padding: 0;
+}
+
+.laptop-plan .laptop {
+  border-radius: 1rem;
+  padding-block-end: 0.6rem;
+}
+
+.laptop-plan .laptop img {
+  border-radius: 0.5rem;
+}
+
+.laptop-plan .laptop::after {
+  display: none;
+}
+
+.laptop-plan figcaption {
+  margin-block-start: var(--glacier-space-4, 1rem);
+}
+
+/* Like the shelf: a row to scroll through on a phone, four across where there is room. */
+.marks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(78%, 17rem);
+  gap: var(--glacier-space-5, 1.25rem);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) var(--glacier-space-3, 0.75rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  list-style: none;
+}
+
+.marks li {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  align-content: start;
+  min-inline-size: 0;
+  scroll-snap-align: start;
+}
+
+.marks h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.marks p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+@media (min-width: 900px) {
+  .marks {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+
+/* The lines that draw it: the characters themselves, in the typewriter face. */
+.mark-code {
+  align-self: start;
+  margin: var(--glacier-space-3, 0.75rem) 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-md, 0.6rem);
+  background: color-mix(in oklch, var(--ink) 4%, var(--paper));
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.points code,
+.crew code,
+.tiles code,
+.mark-code code {
+  font-family: var(--mono, ui-monospace, monospace);
+  /* The characters as they are typed: JetBrains Mono's ligatures drew != as one sign, which is not what to type. */
+  font-variant-ligatures: none;
+}
+
+/* ---- for teams: the Gantt in the laptop, then what a notebook with a key gives a team, each with the app showing it -- */
+
+/* Six of the app's windows, each in a frame like the laptop's, one across on a phone, two, then three where there is
+   room (the pictures are 16:10; one that is not is shown from its top). */
+.crew {
+  display: grid;
+  gap: var(--glacier-space-6, 1.5rem) var(--glacier-space-5, 1.25rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crew li {
+  display: grid;
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.crew-pic {
+  margin: 0;
+  padding: 0.4rem;
+  border-radius: 0.9rem;
+  background: oklch(0.13 0 0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.3 0 0),
+    var(--shadow);
+}
+
+.crew-pic img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 0.5rem;
+}
+
+.crew h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.crew p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.crew p a {
+  color: var(--ink);
+}
+
+@media (min-width: 640px) {
+  .crew {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .crew {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The rest as the plugins' tiles, three across here so its six fill two rows. */
+#for-teams .tiles {
+  margin-block-start: clamp(2rem, 5vw, 3rem);
+}
+
+@media (min-width: 1000px) {
+  #for-teams .tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---- your files: a workspace's folder as a tree, and the file tapped, as it is on disk ------------------------------- */
+
+.files {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  min-inline-size: 0;
+}
+
+@media (min-width: 900px) {
+  .files {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: start;
+  }
+}
+
+.tree {
+  min-inline-size: 0;
+  padding: 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
+}
+
+.tree ul {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tree li {
+  min-inline-size: 0;
+  padding-inline-start: calc(var(--depth, 0) * 1.1rem);
+}
+
+.tree-folder,
+.tree-file {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-block-size: 2.1rem;
+  padding: 0.35rem 0.55rem;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.tree-file {
+  inline-size: 100%;
+  border: none;
+  border-radius: var(--glacier-radius-md, 0.6rem);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tree-file:hover {
+  background: color-mix(in oklch, var(--ink) 5%, var(--paper));
+}
+
+.tree-file[aria-pressed='true'] {
+  background: color-mix(in oklch, var(--ink) 9%, var(--paper));
+}
+
+.tree-file:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.tree-name {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.tree-folder .tree-name {
+  font-weight: 650;
+}
+
+.tree-what {
+  flex: 1 1 8rem;
+  min-inline-size: 0;
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  text-align: end;
+}
+
+/* Lucide's folder and file icons (icons.svg): a folder in the ink, a file a step quieter. */
+.tree .tree-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  align-self: center;
+  stroke-width: 1.75;
+  color: var(--ink-2);
+}
+
+.tree-folder .tree-icon {
+  color: var(--ink);
+}
+
+.file {
+  min-inline-size: 0;
+  margin: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.file-path {
+  padding: 0.6rem 0.9rem;
+  border-block-end: 1px solid var(--rule);
+  background: color-mix(in oklch, var(--ink) 4%, var(--paper));
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.file-text {
+  margin: 0;
+  padding: 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.file-text code {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-variant-ligatures: none;
+}
+
+.file-about {
+  margin: 0;
+  padding: 0.9rem;
+  color: var(--ink-2);
+}
+
+/* ---- Claude and the plugins: a product under its own mark ------------------------------------------------------------ */
+
+.duo {
+  display: grid;
+  gap: var(--glacier-space-5, 1.25rem);
+}
+
+@media (min-width: 900px) {
+  .duo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.brand-card {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  min-inline-size: 0;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-xl, 1.25rem);
+  background: var(--paper);
+}
+
+.brand-card > p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.brand-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.brand-head h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.4rem);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.brand-mark {
+  flex: none;
+  inline-size: 2.4rem;
+  block-size: 2.4rem;
+}
+
+/* Each in its own colour: Claude's orange, Notion's ink. */
+.brand-claude {
+  fill: #d97757;
+}
+
+.brand-notion {
+  fill: var(--ink);
+}
+
+/* Lovart's mark in the ink, as Notion's is (lovart.html, and its section on the home page). */
+.brand-lovart {
+  fill: var(--ink);
+}
+
+.eyebrow-brand .brand-mark {
+  inline-size: 1.3rem;
+  block-size: 1.3rem;
+}
+
+/* A section's own link under its words, at their start (the home page's Lovart). */
+.ctas-start {
+  justify-content: start;
+  margin-block-start: var(--glacier-space-5, 1.25rem);
+}
+
+/* lovart.html: the cue as it is typed, beside what it does; the steps numbered. */
+.cue-fig {
+  margin: 0;
+  align-self: center;
+}
+
+.cue-fig .mark-code {
+  font-size: 0.9rem;
+}
+
+/* lovart.html: what Lovart made, its words under it; and the steps as the app draws them, side by side. */
+.made,
+.shots {
+  display: grid;
+  gap: var(--glacier-space-6, 1.5rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 760px) {
+  .made {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.made figure {
+  margin: 0;
+}
+
+.made-pic {
+  position: relative;
+  display: block;
+}
+
+.made-pic img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--glacier-radius-lg, 1rem);
+  box-shadow: var(--shadow);
+}
+
+/* Lovart's mark at the corner of what it made, as the app draws it (lib/editor/media/lovart_badge.dart). */
+.made-mark {
+  position: absolute;
+  inset-inline-end: 0.6rem;
+  inset-block-end: 0.6rem;
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+  padding: 0.22rem;
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 0.6);
+  fill: #fff;
+}
+
+.made figcaption {
+  margin-block-start: var(--glacier-space-3, 0.75rem);
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  overflow-wrap: anywhere;
+}
+
+.shots {
+  grid-auto-flow: column;
+  grid-auto-columns: min(78%, 16rem);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) var(--glacier-space-3, 0.75rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+}
+
+.shots li {
+  scroll-snap-align: start;
+}
+
+.shots h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.shots p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+@media (min-width: 1000px) {
+  .shots {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+
+.steps {
+  counter-reset: step;
+}
+
+.steps li {
+  counter-increment: step;
+}
+
+.steps li > b:first-child::before {
+  content: counter(step) '. ';
+  color: var(--ink-3);
+}
+
+.asks {
+  display: grid;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asks li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: color-mix(in oklch, var(--ink) 4%, var(--paper));
+}
+
+.asks q {
+  color: var(--ink);
+  font-weight: 600;
+  quotes: '\201C' '\201D';
+}
+
+.asks span {
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.brand-card .connect {
+  margin: 0;
+}
+
+.brand-card .points-stack {
+  margin: 0;
+}
+
+/* The row under the opening: what it works with, each a link to its section. Claude's and Notion's marks in their
+   own colours, the rest Lucide's on their hue's square. */
+.with-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: var(--glacier-space-6, 1.5rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.with-row a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.25rem;
+  padding: 0.3rem 0.85rem 0.3rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 160ms var(--ease);
+}
+
+.with-row a:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.with-row .i,
+.with-row .brand-mark {
+  box-sizing: border-box;
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+}
+
+.with-row .i {
+  background: color-mix(in srgb, var(--hue) 16%, transparent);
+  color: var(--hue);
+}
+
+.with-row .brand-mark {
+  background: color-mix(in oklch, var(--ink) 6%, transparent);
+}
+
+/* Claude: two of the app's screens beside what it does in the app, then the card for Claude's own apps. */
+.sub {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.4rem);
+  letter-spacing: -0.02em;
+}
+
+.split-claude {
+  align-items: start;
+}
+
+.split-claude .points-stack {
+  margin-block-start: var(--glacier-space-5, 1.25rem);
+}
+
+.brand-card-wide {
+  margin-block-start: clamp(2.5rem, 6vw, 4rem);
+}
+
+.brand-cols {
+  display: grid;
+  gap: var(--glacier-space-5, 1.25rem);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .brand-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.brand-card .fine {
+  margin: 0;
+}
+
+.brand-card .fine code {
+  overflow-wrap: anywhere;
+}
+
+#calendar .mark-code {
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+  max-inline-size: 22rem;
+}
+
+#calendar .points-stack {
+  margin-block-start: 0;
+}
+
+/* Plugins: Notion's card and a screen, then the rest of the catalogue as tiles. */
+#plugins .split {
+  align-items: start;
+}
+
+.tiles {
+  display: grid;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin: clamp(2.5rem, 6vw, 4rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 560px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tiles li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-content: start;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: var(--paper);
+}
+
+.tiles .i-lead {
+  grid-row: 1 / span 2;
+  margin: 0;
+  vertical-align: 0;
+}
+
+.tiles h3 {
+  margin: 0.15rem 0 0.25rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.tiles p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+/* ---- private ----------------------------------------------------------------------------------------------------- */
+
+.facts {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  margin: 0 0 var(--glacier-space-6, 1.5rem);
+  padding: 0;
+  list-style: none;
+}
+
+.facts li {
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  color: var(--ink-2);
+}
+
+.facts b {
+  display: block;
+  margin-block-end: 0.3rem;
+  color: var(--ink);
+}
+
+@media (min-width: 760px) {
+  .facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+#private .fine,
+#mac-note {
+  max-inline-size: 42rem;
+  margin-inline: auto;
+}
+
+/* ---- the ways to get it ------------------------------------------------------------------------------------------ */
+
+.ways {
+  display: grid;
+  gap: var(--glacier-space-3, 0.75rem);
+  max-inline-size: 52rem;
+  margin: 0 auto;
+}
+
+@media (min-width: 760px) {
+  .ways {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.way {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    border-color 160ms var(--ease),
+    transform 160ms var(--ease);
+}
+
+.way:hover {
+  border-color: var(--ink-3);
+  transform: translateY(-2px);
+}
+
+.way .i {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+}
+
+.way-words {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.way-words span {
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The way for the device in hand, the filled one, and first (home.js moves it there, so the keyboard meets it first too). */
+.way[data-first] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.way[data-first] .way-words span {
+  color: color-mix(in oklch, var(--paper) 72%, var(--ink));
+}
+
+.stores {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+}
+
+/* A store's button: a link once its listing is live (home.js `STORES`), and a quiet "Coming soon" until then. */
+.store {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 0.65rem;
+  padding: 0.5rem 1rem 0.55rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-md, 0.7rem);
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1.15;
+  font-weight: 650;
+  font-size: 1.02rem;
+}
+
+.store .i {
+  grid-row: 1 / span 2;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+
+.store small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.store em {
+  grid-column: 2;
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.store[aria-disabled='true'] {
+  border-style: dashed;
+  color: var(--ink-2);
+}
+
+a.store:hover {
+  border-color: var(--ink-3);
+}
+
+/* ---- the foot, with the app's six pages to try on the site ------------------------------------------------------- */
+
+.foot {
+  padding-block: 2rem calc(2rem + env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--rule);
+}
+
+.foot-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+
+.foot ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.foot a {
+  color: var(--ink-2);
+}
+
+.swatches {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.swatch {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.2rem;
+  block-size: 2.2rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--ink);
+}
+
+.sw {
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 25%, transparent);
+}
+
+.sw-system {
+  background: linear-gradient(135deg, oklch(0.995 0 0) 50%, oklch(0.11 0 0) 50%);
+}
+.sw-light {
+  background: oklch(0.995 0 0);
+}
+.sw-dark {
+  background: oklch(0.11 0 0);
+}
+.sw-dawn {
+  background: oklch(0.97 0.012 60);
+}
+.sw-boreal {
+  background: oklch(0.2 0.02 165);
+}
+.sw-ember {
+  background: oklch(0.2 0.025 40);
+}
+
+/* ---- movement, only for those who want it ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    scroll-behavior: auto;
+  }
+
+  .pill,
+  .way,
+  .with-row a {
+    transition: none;
+  }
+
+  .pill:active,
+  .way:hover {
+    transform: none;
+  }
+}
+
+/* ---- The Market band (index.html #market, home-market.js): a few plugins, each a card to its page on market.html. */
+.market-picks {
+  list-style: none;
+  margin: var(--glacier-space-6, 2rem) 0 var(--glacier-space-4, 1.25rem);
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+}
+
+.market-picks:empty {
+  display: none;
+}
+
+.mp-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  block-size: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.mp-card:hover,
+.mp-card:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--ink-4);
+  transform: translateY(-1px);
+}
+
+.mp-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 0.8rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% 5%, rgb(255 255 255 / 0.25), transparent 60%),
+    linear-gradient(135deg, var(--deep), color-mix(in srgb, var(--deep) 45%, var(--bright)), var(--bright));
+}
+
+.mp-tile .i {
+  inline-size: 52%;
+  block-size: 52%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mp-mark {
+  display: block;
+  inline-size: 50%;
+  block-size: 50%;
+  background: currentColor;
+  -webkit-mask: var(--mark) center / contain no-repeat;
+  mask: var(--mark) center / contain no-repeat;
+}
+
+.mp-words {
+  display: grid;
+  gap: 0.1rem;
+  min-inline-size: 0;
+}
+
+.mp-words b {
+  font-weight: 600;
+}
+
+.mp-words span,
+.mp-words small {
+  color: var(--ink-3);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.mp-words small {
+  font-size: 0.78rem;
+}
