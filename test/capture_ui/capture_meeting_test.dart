@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/meet/meeting_mark.dart';
 import 'package:ghost_md/core/summary_text.dart' show dateTitled;
 
 import '../support/render.dart';
@@ -32,7 +33,9 @@ void main() {
       await capture.untilFinished(1, 4000);
       final saved = capture.finished.single.note!;
       expect(dateTitled(saved.body), isTrue);
-      expect(saved.body, matches(RegExp(r'^# Meeting, .+\n\n## Transcript\n\n\(0:\d\d\) We settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$')));
+      // Marked a meeting in its own words (lib/meet/meeting_mark.dart), the words under the mark.
+      expect(meetingMarkOf(saved.body)?.kind, 'phone');
+      expect(withMeetingMark(saved.body, null), matches(RegExp(r'^# Meeting, .+\n\n## Transcript\n\n\(0:\d\d\) We settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$')));
       expect(saved.source, NoteSource.capture);
       expect(saved.recordingMs, 200000);
       expect(capture.prefs.meetings[saved.id], isA<num>());

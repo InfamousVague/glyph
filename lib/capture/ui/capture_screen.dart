@@ -68,6 +68,7 @@ import '../../core/back.dart';
 import '../../core/book.dart' show chaptersOf, isBookBody;
 import '../../core/item_syntax.dart' show withoutLead;
 import '../../core/note.dart';
+import '../../meet/meeting_mark.dart' show MeetingMark, withMeetingMark;
 import '../../core/note_text.dart' show noteTitle;
 import '../../core/preferences.dart' show longNoteMs;
 import '../../core/text.dart' show capitalise;
@@ -1138,7 +1139,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     // A meeting before it has words or a recording: a sync pass that lists the note from here on must already find
     // it among the meetings, or it would send the audio that is kept on this device.
     _r.setPreferences((now) => now.copyWith(meetings: {...now.meetings, recordedAs: _meetingStartedAt}));
-    var saved = await _writer.queue(() => _writer.persist(recordedAs, meetingBody(_meetingTitled, segments), NoteSource.capture));
+    // And written into the note itself (lib/meet/meeting_mark.dart), so a Library folder restored elsewhere knows it.
+    final marked = withMeetingMark(meetingBody(_meetingTitled, segments), MeetingMark(startMs: _meetingStartedAt, kind: 'phone'));
+    var saved = await _writer.queue(() => _writer.persist(recordedAs, marked, NoteSource.capture));
     final recordedMs = stopped.recordedMs;
     if (recordedMs != null && (_session.session?.keepsAudio ?? false)) {
       try {

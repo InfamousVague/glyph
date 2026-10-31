@@ -140,6 +140,7 @@ import '../core/note_text.dart';
 import '../core/planning/history.dart' show StatusPast;
 import '../core/preferences.dart';
 import '../core/query/query.dart';
+import '../core/snippets_note.dart' show snippetsSource;
 import '../editor/band/band.dart' as band;
 import '../editor/boards/boards.dart' show drawnBoards;
 import '../editor/diagrams/diagrams.dart' show drawnMermaid;
@@ -650,6 +651,10 @@ class NoteDeskState extends State<NoteDesk> {
   int _finds = 0;
 
   PreferencesStore get _prefs => widget.prefs ?? preferences;
+
+  /// The person's snippets now: the Snippets note's where the root has one (lib/core/snippets_note.dart), else the
+  /// preferences'.
+  List<Snippet> _snippetsNow() => snippetsSource?.value ?? _prefs.value.snippets;
   NoteDeskWorld get _world => widget.world;
 
   /// The editor's controller, for a test or a diagnostic.
@@ -839,7 +844,7 @@ class NoteDeskState extends State<NoteDesk> {
     editorInput(assist: _prefs.value.assist),
     // `;sig` and a space becomes the snippet (Settings › Snippets; lib/editor/input/snippets.dart): the list asked as
     // a trigger is typed, so one added in Settings works in a note already open.
-    if (!widget.readOnly) snippetExpansion(() => _prefs.value.snippets),
+    if (!widget.readOnly) snippetExpansion(_snippetsNow),
     // @people and @days as chips, a day typed as words written as the day, and the at sign's picker.
     _mentions.extension(readOnly: widget.readOnly),
     // Empty until the note is live: then the binding to its document, and the others' carets.
@@ -1922,7 +1927,7 @@ class NoteDeskState extends State<NoteDesk> {
           localOnly: _prefs.value.localOnly,
           effects: plusEffects(),
           // The plugins' words, then the person's snippets, each at More's end and in the `/` palette.
-          inserts: <PlusInsert>[...plusInserts(), ...snippetInserts(_prefs.value.snippets, DateTime.now())],
+          inserts: <PlusInsert>[...plusInserts(), ...snippetInserts(_snippetsNow(), DateTime.now())],
           // Every canvas among the notes, for the +'s A canvas: a frame of it drawn in the words.
           canvases: _world.bodyOf == null ? null : () => <String>[for (final title in _world.titles()) if (isCanvasBody(_world.bodyOf!(title) ?? '')) title],
           boards: true,

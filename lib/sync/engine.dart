@@ -60,6 +60,7 @@ import '../forms/form_inbox.dart' show FormPass, FormPassContext;
 import '../integrations/webhooks/incoming.dart' show HookPass, HookPassContext;
 import '../mail/mail_in.dart' show MailPass, MailPassContext;
 import '../meet/meet_in.dart' show MeetPass, MeetPassContext;
+import '../meet/meeting_mark.dart' show meetingsOf;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../team/folders.dart';
@@ -333,6 +334,7 @@ class SyncEngine {
     int Function()? now,
     this.touched,
     this.onNotesChanged,
+    this.notesNow,
     this.ready,
     this.sharedLive,
     this.teamNotes,
@@ -374,6 +376,13 @@ class SyncEngine {
   final AccountCrypto crypto;
   final KeyStore keys;
   final PreferencesStore prefs;
+
+  /// The notes as the list holds them now, for which of them say they are meetings (lib/meet/meeting_mark.dart
+  /// `meetingsOf`, read beside the preferences); none, and the preferences alone say.
+  final List<Note> Function()? notesNow;
+
+  /// Which notes are meetings and when each began, both ways: the preferences and the notes' own word.
+  Map<String, num> _meetings() => meetingsOf(prefs.value, notesNow?.call() ?? const <Note>[]);
   final LocalNotes notes;
   final LocalFiles files;
   final NotificationFeed feed;
@@ -726,7 +735,7 @@ class SyncEngine {
               // Drawn as soon as the rows are in, before their histories and pictures.
               pulled: () => unawaited(_changed()),
               // A team's note's recording goes to every member (GHST-112), under the same switch as the account's.
-              meetings: () => prefs.value.meetings,
+              meetings: _meetings,
               syncMeetingRecordings: () => prefs.value.syncMeetingRecordings,
               reseal: reseal,
               progress: count,
@@ -932,7 +941,7 @@ class SyncEngine {
           // Which notes are meetings, and whether their audio may go. Read when each recording is decided, not when
           // the pass began: a meeting finished during a pass is listed as it is made, and a snapshot from before it
           // would send its audio.
-          meetings: () => prefs.value.meetings,
+          meetings: _meetings,
           syncMeetingRecordings: () => prefs.value.syncMeetingRecordings,
           // A note kept twice is worth a row in the feed: the person has two copies to look at.
           onConflict: (copy) => unawaited(record?.record('sync-conflict', {'noteId': copy.noteId, 'title': copy.title})),

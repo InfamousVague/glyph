@@ -27,6 +27,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import '../capture/meeting_turns.dart' show transcriptTurns;
+import '../core/front_matter.dart' show frontMatterEnd;
 import '../core/note.dart' show Segment;
 import '../mail/mail_note.dart' show mailNoteId;
 import '../tapes/transcript_words.dart' show ShownTurn;
@@ -190,8 +191,12 @@ String personsWords(String live) {
   final lines = live.split('\n');
   final out = <String>[];
   var skipping = false;
+  // The note's front matter (its `meeting:` mark, lib/meet/meeting_mark.dart) is the note's, not the person's words,
+  // and the title is the first line after it.
+  final front = frontMatterEnd(lines);
   for (final (i, line) in lines.indexed) {
-    if (i == 0 && line.startsWith('# ')) continue;
+    if (i < front) continue;
+    if (i == front && line.startsWith('# ')) continue;
     if (line.trim() == liveLine || line.trim() == liveLineNoTake) continue;
     if (line.startsWith('## ')) {
       skipping = line.trimRight() == '## Captions' || line.trimRight() == '## Transcript';

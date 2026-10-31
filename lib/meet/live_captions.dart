@@ -202,6 +202,9 @@ Future<String?> liveNoteFor(String meeting, {required LocalNotes notes, required
   if (liveNoteMadeBefore(kept, id)) return null;
   final filedAs = meetingNotesOf(prefs.value)[meeting];
   if (filedAs != null && filedAs != id && await notes.get(filedAs) != null) return null;
+  // Not marked a meeting in its own words yet (meeting_mark.dart): the mark's `start` would be this device's clock, and
+  // the live note is the very same words on every device so two devices making it meet as one. The take, filed with
+  // the meeting's own start (meet_in.dart), writes the mark.
   await notes.apply(Note(id: id, body: liveNoteBody(title), createdAt: now, updatedAt: now, source: NoteSource.capture));
   markLiveNoteMade(kept, id, now);
   prefs.update((was) => withMeetingNote(was.copyWith(meetings: {...was.meetings, id: now}), meeting, id));

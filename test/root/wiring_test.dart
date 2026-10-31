@@ -602,7 +602,9 @@ void main() {
       await tester.runAsync(device.account.signOut);
       await tester.runAsync(() => versions.keepVersion(id, 'As it is.', now: 2000));
       final kept = (await tester.runAsync(() => versions.versionsOf(id)))!.versions;
-      expect([for (final version in kept) version.by], ['matt', 'me']);
+      // Three, not two: the first version made a `.versions` file beside a personal note, which reads as history on
+      // (lib/core/versions_record.dart, 2026-10-31), so the open screen kept the note's own words as it came on.
+      expect([for (final version in kept) version.by], ['matt', 'matt', 'me']);
       await close(tester);
     });
 

@@ -47,6 +47,7 @@ import '../capture/recorder.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/template.dart' show Placing;
+import '../meet/meeting_mark.dart' show MeetingMark, withMeetingMark;
 import '../core/untouched.dart';
 import '../shell/screen.dart';
 import 'voice_wiring.dart';
@@ -344,7 +345,8 @@ class CaptureRoute {
     try {
       final startedAt = _now();
       final title = meetingTitle(startedAt, voice.recorder.locale);
-      final note = await world.createNote('# $title\n', source: NoteSource.capture);
+      // Marked a meeting in its own words (lib/meet/meeting_mark.dart), and in the preferences below.
+      final note = await world.createNote(withMeetingMark('# $title\n', MeetingMark(startMs: startedAt, kind: 'phone')), source: NoteSource.capture);
       world.fileNewNote(note.id);
       voice.recorder.tapes?.setTapeId(note.id, voice.recorder.newTapeId());
       final filed = world.filedIn?.call(note.id);

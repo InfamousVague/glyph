@@ -85,6 +85,8 @@ import '../core/trash_files.dart';
 import '../core/mac_app.dart' show runsAsMacApp;
 import '../core/library_files.dart' show LibraryFiles;
 import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
+import '../core/folder_adopter.dart' show adoptFolders;
+import '../core/library_config.dart' show LibraryConfig, LibraryConfigKeeper, configFileFor;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
@@ -106,6 +108,7 @@ import '../core/properties.dart';
 import '../core/query/query.dart' show TicketDraft, queryMe;
 import '../core/reset.dart' show resetLocalData;
 import '../core/sample_library.dart';
+import '../core/snippets_note.dart' show SnippetsSource, snippetsSource;
 import '../core/stored.dart';
 import '../core/swipe.dart' show NoteSwipe;
 import '../core/template.dart' show openEnd;
@@ -119,6 +122,7 @@ import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../core/bytes.dart' show toBase64Url;
 import '../core/notifications.dart' show ticketRuleKind;
+import '../meet/meeting_mark.dart' show meetingsOf, withMeetingMark;
 import '../mentions/mention_notices.dart' show mentionContext, mentionPayload;
 import '../mentions/mention_syntax.dart' show handleKey;
 import '../diag/built_report.dart';
@@ -206,6 +210,7 @@ import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
+import '../plugins/host.dart' show PluginNotes, onPluginStorage, usePluginNotes;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/channels.dart' show channels, postToChannel;
 import '../plugins/slack/mrkdwn.dart' show noteMessage;
@@ -555,7 +560,23 @@ class _GhostRootState extends State<GhostRoot> {
     if (shows != _bannerShown && mounted) _told(() => _bannerShown = shows);
   }
 
-  late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces, keeper: () => _services?.session?.handle);
+  late final VersionsRecord _versions = VersionsRecord(
+    store: _versionsStore,
+    preferences: preferences,
+    workspaces: _workspaces,
+    keeper: () => _services?.session?.handle,
+    // The choice is the note's (`versions: true|false`, docs/MARKDOWN_FIRST.md decision 6): read from its words, written
+    // through the open editor where there is one (root_commands.dart `_changeNote`).
+    bodyOf: (id) => _library.noteOf(id)?.body,
+    change: (id, change) => _changeNote(id, change, userEvent: 'versions.switch'),
+  );
+
+  /// The committed library config, `Library/.glyph/config.json` (lib/core/library_config.dart), kept in step with the
+  /// preferences from [_open] on; null where the library has no folder Dart can reach (a SAF tree, the web, a test).
+  LibraryConfigKeeper? _libraryConfig;
+
+  /// The person's snippets, read from the Snippets note where there is one (lib/core/snippets_note.dart).
+  late final SnippetsSource _snippets = SnippetsSource(library: _library);
 
   /// Each ticket's history from its versions, read a pair of versions at a time and kept (lib/book/ticket_history.dart),
   /// and its likely duplicates as last read; the morning's digest and its next look (root_tickets.dart).
@@ -1821,6 +1842,12 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     _stopDesktop?.call();
+    _stopConfigTouch?.call();
+    _configLife?.dispose();
+    unawaited(_libraryConfig?.flush());
+    _libraryConfig?.dispose();
+    if (identical(snippetsSource, _snippets)) snippetsSource = null;
+    _snippets.dispose();
     _libraryChanges.removeListener(_digestHeard);
     _digestPoke?.cancel();
     _digest?.dispose();
@@ -2017,6 +2044,8 @@ class _GhostRootState extends State<GhostRoot> {
       // save of the person's own, so it keeps versions and syncs as any edit does.
       _services?.shares?.save = (note, body) => core.save(note.id, body);
     }
+    // And the library config, written whole as the app goes behind another (lib/core/library_config.dart).
+    _configLife = AppLifecycleListener(onHide: () => unawaited(_libraryConfig?.flush()), onResume: () => unawaited(_libraryConfig?.reread()));
     // A notebook's rules, the timers and the pull requests on its tickets (root_ticket_rules.dart; Matt, 2026-10-31).
     _ticketsWired.start();
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
@@ -2103,6 +2132,13 @@ class _GhostRootState extends State<GhostRoot> {
   Future<void> _open() async {
     await _library.load();
     if (!_notesRead.isCompleted) _notesRead.complete();
+    // What the folder itself says of the library (docs/MARKDOWN_FIRST.md, 2026-10-31): the committed config read into
+    // the preferences where it is newer or they are empty, then the folders and filings the paths name, then which
+    // personal notes have a history beside them. Before anything else reads the notes, and quiet about what fails:
+    // a library with none of it is a library as it was.
+    if (_real && mounted) await _readLibraryDescription();
+    if (mounted) usePluginNotes(PluginNotes(bodyOf: (id) => _library.noteOf(id)?.body, setProperty: (id, key, value) => _changeNote(id, (body) => withProperty(body, key, value), userEvent: 'plugin.link')));
+    if (mounted) snippetsSource = _snippets;
     // The build's test report, from here on, for whoever has Developer mode on: never ahead of the notes.
     if (mounted) _builtReport.start();
     // At launch, which opens on the home page: what the phone let go of before it was left.
@@ -2165,6 +2201,37 @@ class _GhostRootState extends State<GhostRoot> {
     }
     await _settleStarterExamples();
   }
+
+  /// The library's own description read as it is opened (see [_open]): the config, the folders from the paths, the
+  /// histories, the snippets note. Each step on its own, so one that fails leaves the others to run.
+  Future<void> _readLibraryDescription() async {
+    final folder = _libraryFolder;
+    if (folder != null) {
+      try {
+        final file = configFileFor(await folder.status());
+        if (file != null) {
+          final keeper = _libraryConfig = LibraryConfigKeeper(file: file, preferences: preferences, stored: _stored);
+          await keeper.open();
+          // The channels a plugin names change outside the preferences: written with the next flush.
+          _stopConfigTouch = onPluginStorage(keeper.touch);
+        }
+      } catch (failure) {
+        debugPrint('[glyph] the library config was not read: $failure');
+      }
+    }
+    try {
+      final adopted = adoptFolders(_workspaces, _library.value, orgFolders: {for (final entry in (_libraryConfig?.fileConfig ?? LibraryConfig.empty).orgs.entries) entry.key: entry.value.org});
+      if (!adopted.isEmpty) debugPrint('[glyph] folders from the files: $adopted');
+    } catch (failure) {
+      debugPrint('[glyph] the folders were not read from the files: $failure');
+    }
+    // Which personal notes keep a history, by the file beside them: asked in the background, the shelf first.
+    unawaited(_versions.learnFiles([for (final note in _library.value) if (!_versions.versionsByDefault(note.id)) note.id]).catchError((Object _) {}));
+    unawaited(_snippets.migrate().catchError((Object _) {}));
+  }
+
+  VoidCallback? _stopConfigTouch;
+  AppLifecycleListener? _configLife;
 
   /// The key that says the example notes were given, or passed over (GHST-103).
   static const String starterExamplesKey = 'glyph-starter-examples';

@@ -48,6 +48,7 @@ import '../core/background_jobs.dart';
 import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
+import 'meeting_mark.dart' show MeetingMark, withMeetingMark;
 import '../core/stored.dart';
 import '../plugins/registry.dart' show plugins;
 import '../sync/notes.dart' show LocalNotes;
@@ -185,7 +186,9 @@ Future<int> syncMeet(MeetPassContext ctx) async {
         continue;
       }
       final startedAt = opened.startedAt > 0 ? opened.startedAt : (take.at > 0 ? take.at : now);
-      final filed = meetNoteBody(opened, now: now, writeUp: writeUp, why: opened.audio.isEmpty ? CaptionsOnly.noSound : CaptionsOnly.notKept);
+      final meeting = take.meeting.isNotEmpty ? take.meeting : opened.meeting;
+      // Marked a meeting in its own words (meeting_mark.dart): when it began, the service it was on, its booking.
+      final filed = withMeetingMark(meetNoteBody(opened, now: now, writeUp: writeUp, why: opened.audio.isEmpty ? CaptionsOnly.noSound : CaptionsOnly.notKept), MeetingMark(startMs: startedAt, kind: opened.service.name, booking: meeting.isEmpty ? null : meeting));
       // The live note, read again here: the person may have written in it while the take came.
       final was = handing ? await ctx.notes.get(noteId) ?? live : null;
       await ctx.notes.apply(Note(
@@ -202,7 +205,6 @@ Future<int> syncMeet(MeetPassContext ctx) async {
       // Its live words are the take's now.
       liveTranscripts.forget(noteId);
       written += 1;
-      final meeting = take.meeting.isNotEmpty ? take.meeting : opened.meeting;
       ctx.prefs.update((was) => withMeetingNote(was.copyWith(meetings: {...was.meetings, noteId: startedAt}), meeting, noteId));
       if (writeUp) {
         _setPending(ctx.kept, [..._pending(ctx.kept).where((id) => id != noteId), noteId]);
