@@ -137,6 +137,7 @@ import '../core/place_refs.dart' as place_refs;
 import '../core/video_refs.dart' show videoMarkdown;
 import '../core/note.dart';
 import '../core/note_text.dart';
+import '../core/planning/history.dart' show StatusPast;
 import '../core/preferences.dart';
 import '../core/query/query.dart';
 import '../editor/band/band.dart' as band;
@@ -305,6 +306,7 @@ class NoteDeskWorld {
     this.services,
     this.changes,
     this.queryNotes,
+    this.ticketHistory,
     this.queryEvents,
     this.eventsChanged,
     this.openAt,
@@ -388,6 +390,10 @@ class NoteDeskWorld {
 
   /// The library a ```query reads (lib/root/library_reads.dart); absent, a query is drawn as its lines.
   final List<QueryNote> Function()? queryNotes;
+
+  /// What the tickets' versions say of their statuses (lib/core/planning/history.dart): a burndown's days, a stale
+  /// ticket's.
+  final StatusPast? Function()? ticketHistory;
 
   /// The calendars' events a query reads (`from: events`, and a calendar of to-dos; docs/CALENDAR.md), and what
   /// says they changed, when every query in the open note is drawn again. Absent, there are none.
@@ -1028,6 +1034,7 @@ class NoteDeskState extends State<NoteDesk> {
           ticketMarks: _world.ticketMarks,
           bulk: _world.bulk,
           labelColours: _world.labelColours,
+          history: _world.ticketHistory,
         );
 
   /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
@@ -1055,6 +1062,7 @@ class NoteDeskState extends State<NoteDesk> {
           ticketMarks: _world.ticketMarks,
           bulk: _world.bulk,
           labelColours: _world.labelColours,
+          history: _world.ticketHistory,
           listedWritable: () => !widget.readOnly && _world.write != null,
         );
 

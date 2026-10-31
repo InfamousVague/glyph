@@ -33,6 +33,8 @@ import '../fields/field_picker.dart' show StatusIcon;
 import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show ChipLook, FieldMenu, chipLook, dayLabel, daySaid;
 import '../looks/look.dart' show layoutUnitFloor;
+import '../../core/planning/planning.dart' show ticketPriorityLabel;
+import 'plan_marks.dart' show PriorityChip;
 import 'query_layout.dart';
 import 'queries.dart' show TicketMarks;
 import 'query_look.dart';
@@ -42,7 +44,7 @@ final RegExp _priorityWord = RegExp(r' priority$');
 
 /// What a row and a cell need from the query's drawing to act and to name days (`Acts`).
 class QueryActs {
-  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks, this.selection, this.order, this.labelColours});
+  const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl, this.onSet, this.onOpenTitle, this.marks, this.planning = false, this.selection, this.order, this.labelColours});
 
   final String today;
   final String? locale;
@@ -72,6 +74,10 @@ class QueryActs {
   /// Opens the note a relation's chip names, by its title (the port's own). Absent, a chip is words.
   final void Function(String title)? onOpenTitle;
 
+  /// Whether a ticket's planning is drawn (plan_marks.dart; Matt, 2026-10-31): its priority as a coloured chip, its
+  /// estimate, an epic's points and stale. The host's to say, as it says a ticket's lock; without it a query is drawn
+  /// as the page drew it.
+  final bool planning;
   /// The tickets picked for a bulk edit, and every pickable row's key in the order drawn (lib/tickets/ui/bulk_bar.dart;
   /// Matt, 2026-10-31). Absent, nothing is picked.
   final QuerySelection? selection;
@@ -540,10 +546,13 @@ class QueryPicked extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!acts.pickable(row, column.field)) return child;
+    // A ticket's priority is said as its chip says it, Urgent for highest (plan_marks.dart).
+    final cell = this.cell;
+    final words = acts.planning && row.kind == RecordKind.ticket && cell is PriorityCell ? ticketPriorityLabel(cell.name) : _said(cell);
     return Semantics(
       container: true,
       button: true,
-      label: '${column.label}: ${_said(cell)}. Change it',
+      label: '${column.label}: $words. Change it',
       onTap: () => acts.pick(row, column, cell),
       excludeSemantics: true,
       child: _Control(acts: acts, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => acts.pick(row, column, cell), child: child)),
@@ -554,7 +563,9 @@ class QueryPicked extends StatelessWidget {
 /// A cell, drawn as what it holds (`CellView`). [quiet] is a row that is finished with, whose days are not late;
 /// [brief] is a list's or a card's line of them, where a priority is its mark alone and an empty cell is nothing at
 /// all. [parent] is the type it stands in.
-Widget? cellView(QueryLook look, Cell cell, {required String field, required QueryActs acts, required bool quiet, required bool brief, List<String>? workflow, required double parent, QueryRow? row}) {
+///
+/// [ticket] is a ticket's row, whose priority is its coloured chip (plan_marks.dart), Urgent to Low.
+Widget? cellView(QueryLook look, Cell cell, {required String field, required QueryActs acts, required bool quiet, required bool brief, List<String>? workflow, required double parent, bool ticket = false, QueryRow? row}) {
   final line = pageLine(parent, QueryLook.leading);
   switch (cell) {
     case EmptyCell():
@@ -581,6 +592,8 @@ Widget? cellView(QueryLook look, Cell cell, {required String field, required Que
         excludeSemantics: true,
         child: Part('day', child: PageWords(dayLabel(day, acts.today, acts.locale), look.sans(parent, color: color ?? (brief ? look.ink2 : null), tabular: true), line: line, softWrap: false)),
       );
+    case PriorityCell(:final name) when ticket:
+      return Part('priority', child: _onLine(look, parent, PriorityChip(look: look, name: name, size: look.xs)));
     case PriorityCell(:final name):
       final chip = chipLook(FieldSpan(kind: FieldKind.priority, from: 0, to: 0, key: 'priority', value: name), today: acts.today, done: quiet, locale: acts.locale);
       if (chip == null) return null;
@@ -697,7 +710,7 @@ class QueryMeta extends StatelessWidget {
     final quiet = row.category == StatusCategory.done || row.done == true;
     final cells = <Widget>[];
     for (final (column, cell) in shown(row, result)) {
-      final drawn = cellView(look, cell, field: column.field, acts: acts, quiet: quiet, brief: true, workflow: row.workflow, parent: look.xs, row: row);
+      final drawn = cellView(look, cell, field: column.field, acts: acts, quiet: quiet, brief: true, workflow: row.workflow, parent: look.xs, ticket: acts.planning && row.kind == RecordKind.ticket, row: row);
       if (drawn == null) continue;
       cells.add(Part('metaCell', child: QueryPicked(look: look, row: row, column: column, cell: cell, acts: acts, child: drawn)));
     }

@@ -261,7 +261,9 @@ void main() {
     });
 
     test('reads nothing it cannot use as nothing', () {
-      final read = ticketOf('---\ntype: ticket\nid: twelve\nassignee:\npriority: urgent\nestimate: some\n---\n')!;
+      // `urgent` is a ticket's priority since 2026-10-31 (Matt: `priority: urgent|high|medium|low`), so the one that
+      // reads as nothing is a word that is none.
+      final read = ticketOf('---\ntype: ticket\nid: twelve\nassignee:\npriority: whenever\nestimate: some\n---\n')!;
       expect([read.id, read.assignee, read.priority, read.estimate, read.blockedBy, read.parent], [null, null, null, null, <String>[], null]);
     });
 
@@ -289,6 +291,8 @@ void main() {
         'parent:link',
         'labels:list',
         'component:text',
+        'cycle:link',
+        'milestone:link',
       ]);
       expect(ticketProperties.firstWhere((each) => each.key == 'blocked-by').label, 'Blocked by');
       expect(propertyKind('Due'), PropertyKind.date);
