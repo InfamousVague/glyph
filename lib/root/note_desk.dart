@@ -1019,7 +1019,28 @@ class NoteDeskState extends State<NoteDesk> {
   Tape _memoTape() {
     final note = _world.noteById?.call(widget.noteId);
     if (_world.clipPlayer == null || note == null || (note.recordingMs ?? 0) <= 0) return Tape.none;
-    return Tape(src: widget.noteId, id: _world.tapes?.tapeId(widget.noteId));
+    // The note's own `tape:` first, this device's record where it says none (lib/editor/media/clip_refs.dart).
+    return Tape(src: widget.noteId, id: _world.tapes?.tapeIdIn(widget.noteId, _view?.state.doc.toString() ?? note.body));
+  }
+
+  /// The tape's name in the note's own front matter set to [id], or taken off for null, through the editor so it is
+  /// one step of the note's history and saves as typing does (`withTapeId`).
+  void _nameTape(String? id) {
+    final view = _view;
+    if (view == null) return;
+    final now = view.state.doc.toString();
+    final next = withTapeId(now, id);
+    if (next == now) return;
+    var start = 0;
+    while (start < now.length && start < next.length && now.codeUnitAt(start) == next.codeUnitAt(start)) {
+      start += 1;
+    }
+    var endNow = now.length, endNext = next.length;
+    while (endNow > start && endNext > start && now.codeUnitAt(endNow - 1) == next.codeUnitAt(endNext - 1)) {
+      endNow -= 1;
+      endNext -= 1;
+    }
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: start, to: endNow, insert: next.substring(start, endNext)), userEvent: 'input.tape'));
   }
 
   /// The note as a plugin changes it: through the editor, so each change is one undo and saves like typing.
@@ -1339,14 +1360,16 @@ class NoteDeskState extends State<NoteDesk> {
     final full = await _world.getNote?.call(id).then<Note?>((note) => note, onError: (Object _) => null);
     final ms = tape.length;
     final segments = full?.segments ?? tape.segments ?? const <Segment>[];
-    final held = _world.tapes?.tapeId(id);
+    final held = _world.tapes?.tapeIdIn(id, _view?.state.doc.toString() ?? full?.body ?? '');
     _world.tapes?.setTapeId(id, null);
+    _nameTape(null);
     final removed = _removed = Object();
     try {
       await write(id, null, const <Segment>[]);
     } catch (failure) {
       if (identical(_removed, removed)) _removed = null;
       _world.tapes?.setTapeId(id, held);
+      _nameTape(held);
       widget.say('The recording couldn’t be removed: $failure');
       return;
     }
@@ -1361,6 +1384,7 @@ class NoteDeskState extends State<NoteDesk> {
           if (!identical(_removed, removed)) return;
           _removed = null;
           _world.tapes?.setTapeId(id, held);
+          _nameTape(held);
           unawaited(write(id, ms, segments).then<void>((_) {}, onError: (Object _) {}));
         },
       ),

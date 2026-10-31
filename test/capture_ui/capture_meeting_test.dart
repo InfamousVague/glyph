@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/summary_text.dart' show dateTitled;
+import 'package:ghost_md/editor/media/clip_refs.dart' show tapeIdOf, withTapeId;
 
 import '../support/render.dart';
 import 'support/harness.dart';
@@ -32,11 +33,15 @@ void main() {
       await capture.untilFinished(1, 4000);
       final saved = capture.finished.single.note!;
       expect(dateTitled(saved.body), isTrue);
-      expect(saved.body, matches(RegExp(r'^# Meeting, .+\n\n## Transcript\n\n\(0:\d\d\) We settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$')));
+      // The note names its tape in its front matter (lib/editor/media/clip_refs.dart `withTapeId`); the words under it are the meeting's.
+      expect(tapeIdOf(saved.body), isNotNull);
+      expect(withTapeId(saved.body, null), matches(RegExp(r'^# Meeting, .+\n\n## Transcript\n\n\(0:\d\d\) We settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$')));
       expect(saved.source, NoteSource.capture);
       expect(saved.recordingMs, 200000);
       expect(capture.prefs.meetings[saved.id], isA<num>());
       expect(capture.tapes.tapeId(saved.id), isNotNull);
+      // And the note's own words name the same tape (lib/editor/media/clip_refs.dart `withTapeId`).
+      expect(tapeIdOf(capture.notes.body(saved.id) ?? saved.body), capture.tapes.tapeId(saved.id));
       expect(capture.refines, hasLength(1));
       final job = capture.refines.single;
       expect((job.id, job.fromMs, job.recordingMs, job.meeting, job.titled), (saved.id, 0, 200000, true, false));

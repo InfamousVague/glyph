@@ -73,8 +73,8 @@ Refining make() => Refining(
         backend.invoked.add({'command': 'set_note_recording', 'args': args});
         return await backend.answers['set_note_recording']!(args) as Note?;
       },
-      keptText: (id) => summaries[id],
-      summaryUnchanged: (id, text) => summaries[id] == text,
+      keptText: (id, _) => summaries[id],
+      summaryUnchanged: (id, _, text) => summaries[id] == text,
       writeUpRunning: () => writingUp,
       warn: (_) {},
     );

@@ -298,9 +298,10 @@ class Refining {
   final Future<Note?> Function(String id, int? recordingMs, List<Segment> segments) setNoteRecording;
 
   /// The summary section the app last wrote into a note, or null (`ai/summaryKeep.ts` `keptText`), and whether a
-  /// section is still that one, word for word (`summaryUnchanged`).
-  final String? Function(String id) keptText;
-  final bool Function(String id, String text) summaryUnchanged;
+  /// section is still that one, word for word (`summaryUnchanged`). Both are handed the note's words too, for the
+  /// facts the note itself carries (lib/ai/summary_keep.dart `keptTextIn`, `summaryUnchangedIn`).
+  final String? Function(String id, String body) keptText;
+  final bool Function(String id, String body, String text) summaryUnchanged;
 
   /// Whether a meeting's write-up has the speech model now (meeting_live.dart `writeUpRunning`).
   final bool Function() writeUpRunning;
@@ -558,9 +559,9 @@ class Refining {
     if (refined.isEmpty) return;
     final note = await getNote(job.id);
     if (note == null) return;
-    final kept = keptText(job.id);
+    final kept = keptText(job.id, note.body);
     final section = summarySection(note.body, kept);
-    final ours = section != null && summaryUnchanged(job.id, section.text);
+    final ours = section != null && summaryUnchanged(job.id, note.body, section.text);
     // The editor's landing puts a newline after the note's last line; that is not an edit.
     final asSaved = (ours ? withSummary(job.savedBody, section.text, kept: kept) : job.savedBody).trimRight();
     if (note.body.trimRight() == asSaved) {

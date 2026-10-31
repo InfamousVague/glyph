@@ -151,6 +151,27 @@ void main() {
       expect(wantsBanner(plain(withBanner('# Trip\n\n$_words', 'a.png'))), isFalse);
       expect(wantsBanner(Note(id: 'n', body: '# Trip\n\n$_words', createdAt: 0, updatedAt: 0, archivedAt: 5)), isFalse);
     });
+
+    test('nor one that says banner: none, which a run asked for the taken-off ones still picks (MARKDOWN_FIRST §5 gap 13)', () {
+      final declined = withoutBanner(withBanner('# Trip\n\n$_words', 'a.png'));
+      expect(declined, '---\nbanner: none\n---\n# Trip\n\n$_words');
+      expect(bannerDeclined(declined), isTrue);
+      expect(bannerOf(declined), isNull, reason: 'an older build reads it as no banner');
+      expect(wantsBanner(plain(declined)), isFalse);
+      expect(wantsBanner(plain(declined), takenOff: true), isTrue);
+      expect(bannerDeclined('# Trip'), isFalse);
+    });
+
+    test('is taken off on purpose from the cog, as banner: none in the note’s own words', () async {
+      final editing = TestNote(withBanner('# Trip\n\n$_words', 'a.png'));
+      await removeBanner(editing);
+      expect(editing.body(), '---\nbanner: none\n---\n# Trip\n\n$_words');
+      expect(editing.said, ['Header image removed. This note stays without one.']);
+      final bare = TestNote('# Trip\n\n$_words');
+      await removeBanner(bare);
+      expect(bare.body(), '# Trip\n\n$_words');
+      expect(bare.said, ['This note has no header image.']);
+    });
   });
 
   group('made as a note is left', () {
@@ -273,6 +294,13 @@ void main() {
     tearDown(() => lovartBannerJob = null);
 
     Note dated(String id, String body, int at) => notes[id] = Note(id: id, body: body, createdAt: 0, updatedAt: at);
+
+    test('leaves a note that says banner: none alone, unless asked for the ones taken off', () async {
+      dated('kept', '# Note\n\n$_words', 1);
+      dated('off', '---\nbanner: none\n---\n# Off\n\n$_words', 2);
+      expect((await bannerAsks(notes.values.toList())).map((ask) => ask.id), ['kept']);
+      expect((await bannerAsks(notes.values.toList(), takenOff: true)).map((ask) => (ask.id, ask.again)), [('off', true), ('kept', false)]);
+    });
 
     test('picks the newest notes that are ones to have a banner, at most a hundred', () {
       for (var i = 0; i < 120; i += 1) {

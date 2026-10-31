@@ -329,6 +329,30 @@ void main() {
       expect(freshTapeId(), matches(RegExp(r'^[a-z0-9]{6,10}$')));
       expect(freshTapeId(), isNot(freshTapeId()));
     });
+
+    test('is written into the note’s own front matter, and read from there first (MARKDOWN_FIRST §5 gap 13)', () {
+      expect(withTapeId('# Walk\n\nWords.', 'k3f9x2'), '---\ntape: k3f9x2\n---\n# Walk\n\nWords.');
+      expect(tapeIdOf(withTapeId('# Walk\n\nWords.', 'k3f9x2')), 'k3f9x2');
+      expect(withTapeId(withTapeId('# Walk\n', 'k3f9x2'), null), '# Walk\n', reason: 'the recording removed takes the name off');
+      expect(withTapeId('---\nlocation: 1,2\n---\n# Walk', 'k3f9x2'), '---\nlocation: 1,2\ntape: k3f9x2\n---\n# Walk');
+      expect(tapeIdOf('---\ntape: ""\n---\n# Walk'), isNull);
+      final tapes = TapeIds(MemoryStored());
+      tapes.setTapeId('a', 'device1');
+      expect(tapes.tapeIdIn('a', '---\ntape: k3f9x2\n---\n# A'), 'k3f9x2', reason: 'the note’s word first');
+      expect(tapes.tapeIdIn('a', '# A'), 'device1', reason: 'the device’s where the note says nothing');
+      expect(tapes.tapeIdIn('b', '# B'), isNull);
+    });
+
+    test('a library restored from its files alone, the WAV put back, still plays its memos', () {
+      // The device's record of tape ids is gone with the device; the note's words and its recording are back.
+      final restored = TapeIds(MemoryStored());
+      const note = '---\ntape: k3f9x2\n---\n# Walk\n\nThe river was high. ![voice 0:12](tape:12000-19500@k3f9x2)\n';
+      final clip = clipsIn(note).single;
+      expect(clip.tape, 'k3f9x2');
+      expect(playsOn(Clip(startMs: clip.startMs, endMs: clip.endMs, tape: clip.tape), restored.tapeIdIn('walk', note)), isTrue);
+      // The same note before the name was written into it: quiet, as it was.
+      expect(playsOn(Clip(startMs: clip.startMs, endMs: clip.endMs, tape: clip.tape), restored.tapeIdIn('walk', '# Walk\n\n![voice 0:12](tape:12000-19500@k3f9x2)')), isFalse);
+    });
   });
 
   group('the gates', () {

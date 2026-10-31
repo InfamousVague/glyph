@@ -45,7 +45,7 @@ import '../ai/summaries.dart';
 import '../ai/summary_claude.dart' show MeetingClaude;
 import '../assistant/app_assistant.dart' show appAssistant;
 import '../ai/summary_handoff.dart' show SummaryHandoff, thisDevice;
-import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
+import '../ai/summary_keep.dart' show keptTextIn, summaryUnchangedIn;
 import '../capture/audio.dart';
 import '../capture/device_mic.dart';
 import '../capture/engine.dart';
@@ -440,8 +440,8 @@ class Voice {
       getNote: store.getNote,
       updateNote: store.updateNote,
       setNoteRecording: store.setNoteRecording,
-      keptText: keptText,
-      summaryUnchanged: summaryUnchanged,
+      keptText: keptTextIn,
+      summaryUnchanged: summaryUnchangedIn,
       writeUpRunning: () => live?.writeUpRunning() ?? false,
       onVisible: onVisible,
     );

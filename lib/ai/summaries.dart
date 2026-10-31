@@ -164,7 +164,7 @@ import 'runs.dart' show RunHandle, RunPhase, anyRunning;
 import 'summary_ask.dart';
 import 'summary_claude.dart' show ClaudeWriting, MeetingClaude, claudeLasting;
 import 'summary_handoff.dart' show HandoffQueue, SummaryHandoff;
-import 'summary_keep.dart' show KeptSummary, keepSummary, readSummary;
+import 'summary_keep.dart' show KeptSummary, keepSummary, readSummaryIn, withSummaryFacts;
 import 'summary_text.dart' show carryTicked, shapeSummary, summaryHeading, summarySection, transcriptPieces, withSummary;
 import 'support/failure.dart' show failureText;
 import 'support/runnable.dart' show cannotRun, isTemplateFailure, markCannotRun;
@@ -1419,7 +1419,7 @@ class Summaries implements HandoffQueue {
   Future<bool> _summarizedAlready(String id) async {
     try {
       final note = await getNote(id);
-      return note != null && summarySection(note.body, readSummary(id)?.text) != null;
+      return note != null && summarySection(note.body, readSummaryIn(id, note.body)?.text) != null;
     } catch (_) {
       return false;
     }
@@ -1440,7 +1440,7 @@ class Summaries implements HandoffQueue {
       _finish(job);
       return;
     }
-    final ask = SummaryAsk(words: '', model: job.model ?? preferences().formatModel, maxTokens: 0, replace: job.replace == true, text: text);
+    final ask = SummaryAsk(words: '', model: job.model ?? preferences().formatModel, maxTokens: 0, replace: job.replace == true, text: text, forMs: note.recordingMs ?? 0);
     final starter = _starters[job.id];
     final outcome = starter != null ? await _throughEditor(job, starter, ask) : await _write(job, text, ask, note.recordingMs ?? 0);
     if (outcome == _Outcome.written) {
@@ -1498,7 +1498,7 @@ class Summaries implements HandoffQueue {
       context = fill(notesContext, {'words': _counted(plain.split(_spaces).where((word) => word.isNotEmpty).length)});
     }
     if (pieces.length > 1) activity.handle(summaryJobId(job.id))?.progress(done: pieces.length, total: pieces.length + 1, steps: 'from ${pieces.length} parts', line: 'Writing the summary');
-    final ask = SummaryAsk(words: words, context: context, model: model, maxTokens: budget, replace: job.replace == true);
+    final ask = SummaryAsk(words: words, context: context, model: model, maxTokens: budget, replace: job.replace == true, forMs: note.recordingMs ?? 0);
     final starter = _starters[job.id];
     // An open note's run is the phone's model's, in its editor. Claude's answer is asked here and handed to the
     // editor whole, which lands it at once as a run's lines land, with Keep and Revert.
@@ -1595,7 +1595,7 @@ class Summaries implements HandoffQueue {
       // The note was opened while the model wrote: its editor is the one writer now, and lands the answer itself.
       final starter = _starters[job.id];
       if (starter != null) return _throughEditor(job, starter, ask.withText(text));
-      final kept = readSummary(job.id);
+      final kept = readSummaryIn(job.id, note.body);
       final current = summarySection(note.body, kept?.text);
       var section = shaped.section;
       if (current != null) {
@@ -1603,7 +1603,10 @@ class Summaries implements HandoffQueue {
         if (!(kept != null && kept.text == current.text) && job.replace != true) return _Outcome.left;
         section = carryTicked(current.text, section);
       }
-      final next = withSummary(note.body, section, title: shaped.title, kept: kept?.text);
+      // The record of what was written, kept on this device and written into the note's own front matter with the
+      // section (summary_keep.dart `withSummaryFacts`), so a library restored from its files still knows it.
+      final record = KeptSummary(text: section, model: ask.model, at: DateTime.now().millisecondsSinceEpoch, forMs: note.recordingMs ?? recordingMs);
+      final next = withSummaryFacts(withSummary(note.body, section, title: shaped.title, kept: kept?.text), record);
       try {
         await updateNote(job.id, next, note.revision);
       } catch (error) {
@@ -1611,7 +1614,7 @@ class Summaries implements HandoffQueue {
         if (_conflict.hasMatch(failureText(error))) continue;
         rethrow;
       }
-      keepSummary(job.id, KeptSummary(text: section, model: ask.model, at: DateTime.now().millisecondsSinceEpoch, forMs: note.recordingMs ?? recordingMs));
+      keepSummary(job.id, record);
       await _synced();
       _said(job, next);
       return _Outcome.written;

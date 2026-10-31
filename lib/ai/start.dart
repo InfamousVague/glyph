@@ -168,8 +168,8 @@ SummaryStarted startRecordingRun(StateCommandTarget view, String noteId, Availab
 SummaryStarted _startRecordingSummary(StateCommandTarget view, String noteId, String fallbackModel, SummaryAsk ask) {
   if (jsTrim(ask.words).isEmpty) return const SummaryRefused('nothing');
   final body = view.state.doc.toString();
-  final section = summarySection(body, keptText(noteId));
-  if (section != null && !ask.replace && !summaryUnchanged(noteId, section.text)) return const SummaryRefused('edited');
+  final section = summarySection(body, keptTextIn(noteId, body));
+  if (section != null && !ask.replace && !summaryUnchangedIn(noteId, body, section.text)) return const SummaryRefused('edited');
   final RunScope scope;
 
   // A blank line lands first when the line above the section is words: the title, or a paragraph.
@@ -222,7 +222,7 @@ SummaryStarted _startRecordingSummary(StateCommandTarget view, String noteId, St
 
   final model = ask.model.isEmpty ? fallbackModel : ask.model;
   final ready = ask.text;
-  if (ready != null) return SummaryLanded(_landReady(view, noteId, model, scope, restore(ready, true), retitle));
+  if (ready != null) return SummaryLanded(_landReady(view, noteId, model, scope, restore(ready, true), retitle, ask.forMs));
   final context = ask.context;
   final handle = noteRunStarter(
     RunRequest(
@@ -244,16 +244,37 @@ SummaryStarted _startRecordingSummary(StateCommandTarget view, String noteId, St
   // the store's listeners are told first (ai/note_landing.dart).
   unawaited(
     handle.done.then((state) {
-      if (state.phase == RunPhase.done) retitle();
+      if (state.phase == RunPhase.done) {
+        retitle();
+        _writeFacts(view, model, ask.forMs);
+      }
     }),
   );
   return SummaryRun(handle);
 }
 
+/// The summary's facts into the note's front matter as the section lands in its editor (summary_keep.dart
+/// `withSummaryFacts`: the model, now, the tape's length and the section's hash), as the AI's signature is written,
+/// so the note itself says what the app wrote where the device's record is gone. Nothing where no section landed.
+void _writeFacts(StateCommandTarget view, String model, int forMs) {
+  final now = view.state.doc.toString();
+  final section = summarySection(now);
+  if (section == null) return;
+  final next = withSummaryFacts(now, KeptSummary(text: section.text, model: model, at: DateTime.now().millisecondsSinceEpoch, forMs: forMs));
+  if (next == now) return;
+  final ends = commonEnds(now, next);
+  view.dispatch(
+    TransactionSpec(
+      changes: ChangeSpec(from: ends.prefix, to: now.length - ends.suffix, insert: next.substring(ends.prefix, next.length - ends.suffix)),
+      annotations: aiEdit.of(AiEdit.sign),
+    ),
+  );
+}
+
 /// A finished answer landed at once, with no run: the queue had it before the note was opened. The lander lands it
 /// over the scope as tracked changes, as a run's lines would land (ai/note_landing.dart), the AI signs it and the
 /// log keeps a record of it with the before and after for Undo. Answers the section as it landed, for the keep.
-String _landReady(StateCommandTarget view, String noteId, String model, RunScope scope, String text, void Function() retitle) {
+String _landReady(StateCommandTarget view, String noteId, String model, RunScope scope, String text, void Function() retitle, int forMs) {
   final at = DateTime.now().millisecondsSinceEpoch;
   final runId = 'ready-${at.toRadixString(36)}';
   recordRun(RunRecord(id: runId, noteId: noteId, kind: RunKind.summarize, instruction: null, model: model, at: at, ms: 0, outputTokens: 0, outcome: RunOutcome.done, message: null, truncated: false));
@@ -275,6 +296,7 @@ String _landReady(StateCommandTarget view, String noteId, String model, RunScope
       ),
     );
   }
+  _writeFacts(view, model, forMs);
   final after = view.state.doc.toString();
   if (after != before) recordChange(noteId, runId, before, after);
   return summarySection(text)?.text ?? '';
