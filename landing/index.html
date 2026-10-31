@@ -73,11 +73,11 @@
         <li><a href="#top" aria-label="Start" title="Start"></a></li>
         <li><a href="#market" aria-label="The Market" title="The Market"></a></li>
         <li><a href="#for-teams" aria-label="For teams" title="For teams"></a></li>
+        <li><a href="#lovart" aria-label="Lovart" title="Lovart"></a></li>
         <li><a href="#claude" aria-label="Claude" title="Claude"></a></li>
         <li><a href="#calendar" aria-label="Calendar" title="Calendar"></a></li>
         <li><a href="#meetings" aria-label="Meetings" title="Meetings"></a></li>
         <li><a href="#plugins" aria-label="Plugins" title="Plugins"></a></li>
-        <li><a href="#lovart" aria-label="Lovart" title="Lovart"></a></li>
         <li><a href="#organize" aria-label="Plain Markdown" title="Plain Markdown"></a></li>
         <li><a href="#document" aria-label="Voice" title="Voice"></a></li>
         <li><a href="#plan" aria-label="Plan" title="Plan"></a></li>
@@ -115,7 +115,7 @@
         </div>
         <figure class="wrap laptop-wrap">
           <div class="laptop">
-            <img src="shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen: a search with its filters, two pinned notes, recent notes as cards, and the week's notes below." />
+            <img src="shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen: a search with its filters, a pinned note, recent notes as cards, and the day's notes below." />
           </div>
         </figure>
       </section>
@@ -204,6 +204,24 @@
         </div>
       </section>
 
+      <!-- Lovart (lib/plugins/lovart/, docs/LOVART.md; Matt, 2026-10-26: "add a lovart section to the website that describes
+           this integration give it it's own page and a small section on the main page"): the plugin in brief, and its page.
+           Right after For teams since 2026-10-31 (Matt: "move lovart up higher"), on the plain page, no wash. -->
+      <section class="band" id="lovart" aria-labelledby="lovart-title">
+        <div class="wrap split">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow eyebrow-brand"><svg class="brand-mark brand-lovart" viewBox="0 0 24 24" role="img" aria-label="Lovart"><use href="#lovart-mark"/></svg>Lovart</p>
+              <h2 id="lovart-title">Images from your notes.</h2>
+              <p>The Lovart plugin brings Lovart&rsquo;s design agent into your notes. Write <code>{image: …}</code> where a picture should go, ask any note for a moodboard of four, and a design meeting comes back with inspiration once it is written up.</p>
+            </header>
+            <p class="ctas ctas-start"><a class="pill" href="lovart.html"><span>How it works</span></a><a class="pill" href="https://www.lovart.ai/" rel="noopener" target="_blank"><svg class="i brand-lovart" viewBox="0 0 24 24" aria-hidden="true"><use href="#lovart-mark"/></svg><span>Check out Lovart</span><svg class="i" aria-hidden="true"><use href="icons.svg#i-square-arrow-out-up-right"/></svg></a></p>
+            <p class="fine">With your own Lovart account and its credits. The keys stay on your devices, sealed when they sync.</p>
+          </div>
+          <figure class="phone"><img src="shots/lovart-done.webp" width="390" height="844" loading="lazy" alt="A note with a picture Lovart made in place of its {image: …} cue: a reading nook by a rainy window, Lovart's mark at its bottom right." /></figure>
+        </div>
+      </section>
+
       <!-- Claude (2026-10-18; Matt: "highlight more important features that set us apart like the claude integrations"):
            both ways in. The app's own Claude with the person's key (docs/CLAUDE_APP.md, the Flutter app on Android, the
            iPhone and the Mac), and Claude's own apps through the connector (tauri/docs/MCP.md, docs/CLAUDE_LIVE.md). -->
@@ -282,7 +300,7 @@ show: calendar
 ```</code></pre>
             <p class="fine">In the app on Android, iPhone and the Mac.</p>
           </div>
-          <figure class="phone"><img src="shots/calendar.webp" width="390" height="844" loading="lazy" alt="A note drawing a month calendar of to-dos with a day, beside the day's meetings from Google Calendar: coffee at 10:30 and a run at 5." /></figure>
+          <figure class="phone"><img src="shots/calendar.webp" width="390" height="844" loading="lazy" alt="A note drawing a month calendar of the to-dos with a day, a dot on each day that has one, and the day picked listed under it." /></figure>
         </div>
       </section>
 
@@ -308,7 +326,7 @@ show: calendar
             </ul>
             <p class="fine">Google Meet for now. Ghost joins from its own account, so someone in the call lets it in.</p>
           </div>
-          <figure class="phone"><img src="shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's note on a phone: its tape at the top, then the transcript, each line led by the speaker's name in bold." /></figure>
+          <figure class="phone"><img src="shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's note on a phone: its tape at the top with Play, Note and Transcript to switch between, and the summary under the title." /></figure>
         </div>
       </section>
 
@@ -340,7 +358,7 @@ show: calendar
               </ul>
               <p class="fine">Not on the iPhone yet.</p>
             </article>
-            <figure class="phone"><img src="shots/plugins.webp" width="390" height="844" loading="lazy" alt="Settings, Plugins: 6 of 12 added, a search and categories, with Claude, Calendar, GitHub and Webhooks added." /></figure>
+            <figure class="phone"><img src="shots/plugins.webp" width="390" height="844" loading="lazy" alt="The Market in the app: plugins, themes, fonts and icons, a search, and Claude featured first, already added." /></figure>
           </div>
           <ul class="tiles">
             <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-git-branch"/></svg><h3>GitHub</h3><p>A note linked to a repo sends its items as issues, ticked both ways.</p></li>
@@ -353,23 +371,6 @@ show: calendar
             <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-sticker"/></svg><h3>Marks</h3><p>Ghost.md's own marks on top of Markdown: a spoiler in smoke, highlights, asides, redactions and effects.</p></li>
           </ul>
           <p class="fine center">Claude and Calendar are plugins too. The catalog is in the app on Android, iPhone and the Mac, and <a href="market.html">on this site</a>, with every theme and font.</p>
-        </div>
-      </section>
-
-      <!-- Lovart (lib/plugins/lovart/, docs/LOVART.md; Matt, 2026-10-26: "add a lovart section to the website that describes
-           this integration give it it's own page and a small section on the main page"): the plugin in brief, and its page. -->
-      <section class="band band-tint" id="lovart" aria-labelledby="lovart-title">
-        <div class="wrap split">
-          <div>
-            <header class="band-head band-head-start">
-              <p class="eyebrow eyebrow-brand"><svg class="brand-mark brand-lovart" viewBox="0 0 24 24" role="img" aria-label="Lovart"><use href="#lovart-mark"/></svg>Lovart</p>
-              <h2 id="lovart-title">Images from your notes.</h2>
-              <p>The Lovart plugin brings Lovart&rsquo;s design agent into your notes. Write <code>{image: …}</code> where a picture should go, ask any note for a moodboard of four, and a design meeting comes back with inspiration once it is written up.</p>
-            </header>
-            <p class="ctas ctas-start"><a class="pill" href="lovart.html"><span>How it works</span></a><a class="pill" href="https://www.lovart.ai/" rel="noopener" target="_blank"><svg class="i brand-lovart" viewBox="0 0 24 24" aria-hidden="true"><use href="#lovart-mark"/></svg><span>Check out Lovart</span><svg class="i" aria-hidden="true"><use href="icons.svg#i-square-arrow-out-up-right"/></svg></a></p>
-            <p class="fine">With your own Lovart account and its credits. The keys stay on your devices, sealed when they sync.</p>
-          </div>
-          <figure class="phone"><img src="shots/lovart-done.webp" width="390" height="844" loading="lazy" alt="A note with a picture Lovart made in place of its {image: …} cue: a reading nook by a rainy window, Lovart's mark at its bottom right." /></figure>
         </div>
       </section>
 
