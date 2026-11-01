@@ -461,6 +461,7 @@ extension _SpacesTree on _NoteTreeState {
     // A folder's page: the folder's own two deletes after the page's (Matt, 2026-11-01: "add ability to context menu
     // delete folders and items inside them"), never an organization's own workspace's.
     final folderScope = folder == null || folder.org != null ? null : FolderMenuScope.maybeOf(context);
+    final showIn = FolderMenuScope.maybeOf(context)?.show;
     return PopMenu(
       key: ValueKey('page-menu:${note.id}:${at.at.dx}:${at.at.dy}'),
       anchor: GlacierAnchor.point(at.at),
@@ -483,6 +484,12 @@ extension _SpacesTree on _NoteTreeState {
         if (folder != null && folder.org == null)
           GlacierMenuItem(icon: icon(Lucide.folderOpen), onSelect: () => _set(() => _manage = _Manage(folder)), child: Text('${folder.name}, folder settings…')),
         ...folderMoveRows(context, widget.workspaces, FolderCarry.note(note.id, said)),
+        // Show in Finder (Explorer, Files) for the page's file (Matt, 2026-11-01: "also add an 'open in finder'
+        // option"), else a folder's page's directory; nothing on a phone (lib/core/show_in_files.dart).
+        if (note.path != null)
+          ...showInFilesRows(showIn, note.path, key: const ValueKey('page-menu-show'), icon: icon(Lucide.hardDrive))
+        else if (folder != null)
+          ...folderShowRows(showIn, folder, widget.workspaces.value.list, icon: icon(Lucide.hardDrive)),
         if (onTrash != null || folderScope != null) const GlacierMenuSeparator(),
         if (onTrash != null)
           GlacierMenuItem(key: const ValueKey('page-menu-delete'), danger: true, style: dangerRowStyle(t), icon: icon(Lucide.trash2), onSelect: () => onTrash([note.id]), child: const Text('Delete')),

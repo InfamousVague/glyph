@@ -35,6 +35,8 @@ extension _RootParts on _GhostRootState {
     noteExists: _noteLive,
     onSetTemplate: (folder) => unawaited(_setFolderTemplate(folder)),
     onNoteMenu: _menu.open,
+    // Show in Finder (Explorer, Files) for a folder's directory and a page's file, on a desktop.
+    show: _showInFiles,
     child: Stack(
       fit: StackFit.expand,
       children: [
@@ -1002,6 +1004,8 @@ extension _RootParts on _GhostRootState {
         workspaces: _workspaces,
         // A ticket's Watch or Unwatch (root_tickets.dart).
         more: (context, note) => [..._favoriteMenuRows(context, note), ..._ticketMenuRows(context, note)],
+        // Show in Finder (Explorer, Files) for the note's file, on a desktop (lib/core/show_in_files.dart).
+        show: _showInFiles,
       );
 
   /// The sheet of the oldest share waiting: kept or not, the person goes back to the app they shared from, and the

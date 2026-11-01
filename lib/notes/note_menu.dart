@@ -25,7 +25,13 @@
 /// - **Move to** (2026-10-20, the port's own), where [NoteMenuHost.workspaces] is given: the folders the note may go
 ///   to, as carrying it onto one would move it (lib/notes/folder_drag.dart), with the same toast and Undo; a flyout
 ///   where a mouse has room, else listed in place under its label. Nothing into or out of an organization.
+/// - **Show in Finder** (2026-11-01, the port's own; Matt: "also add an 'open in finder' option"), where
+///   [NoteMenuHost.show] is given and the note has a file on the disk: Show in Explorer on Windows, Show in Files on
+///   Linux, nothing on a phone (lib/core/show_in_files.dart). After Move to and the note's own rows, before the rule
+///   over Delete.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
@@ -34,6 +40,7 @@ import 'package:glacier/glacier.dart';
 import '../art/art.dart';
 import '../core/note.dart';
 import '../core/note_text.dart';
+import '../core/show_in_files.dart';
 import '../core/workspaces.dart';
 import 'folder_drag.dart';
 import '../shell/pop_menu.dart';
@@ -101,7 +108,7 @@ class NoteMenuArea extends StatelessWidget {
 /// The note's menu, drawn while the [controller] has one open (`NoteMenuHost`). Nothing for a note no longer in
 /// [notes]. What differs from the page is in the library doc: who opens it, and the controller being handed in.
 class NoteMenuHost extends StatelessWidget {
-  const NoteMenuHost({super.key, required this.controller, required this.notes, required this.onOpen, this.onComment, required this.onPin, required this.onArchive, required this.onDelete, this.coarse, this.workspaces, this.more});
+  const NoteMenuHost({super.key, required this.controller, required this.notes, required this.onOpen, this.onComment, required this.onPin, required this.onArchive, required this.onDelete, this.coarse, this.workspaces, this.more, this.show});
 
   final NoteMenuController controller;
 
@@ -125,6 +132,9 @@ class NoteMenuHost extends StatelessWidget {
 
   /// Rows of the note's own kind, before Delete: a ticket's Watch or Unwatch (lib/root/root_tickets.dart).
   final List<Widget> Function(BuildContext context, Note note)? more;
+
+  /// Show in Finder, Explorer or Files for the note's file; absent, or on a phone, the row is not shown.
+  final ShowInFiles? show;
 
   @override
   Widget build(BuildContext context) {
@@ -167,6 +177,7 @@ class NoteMenuHost extends StatelessWidget {
             GlacierMenuItem(icon: icon(archived ? Lucide.archiveRestore : Lucide.archive), onSelect: () => onArchive(it, !archived), child: Text(archived ? 'Unarchive' : 'Archive')),
             if (workspaces != null) ...folderMoveRows(context, workspaces!, FolderCarry.note(it.id, title.isNotEmpty ? title : 'Untitled')),
             ...?more?.call(context, it),
+            ...showInFilesRows(show, it.path, key: const ValueKey('note-menu-show'), icon: icon(Lucide.hardDrive)),
             const GlacierMenuSeparator(),
             // In the one red the app has (NoteMenu.module.css `.danger`).
             GlacierMenuItem(danger: true, style: dangerRowStyle(t), icon: icon(Lucide.trash2), onSelect: () => onDelete(it), child: const Text('Delete')),
@@ -175,4 +186,12 @@ class NoteMenuHost extends StatelessWidget {
       },
     );
   }
+}
+
+/// Show in Finder (Explorer, Files) for the library's [relative] path, a note's file or with [directory] a folder's
+/// (lib/core/show_in_files.dart): its one row where [show] offers it there, else none.
+List<Widget> showInFilesRows(ShowInFiles? show, String? relative, {required Key key, required Widget icon, bool directory = false}) {
+  final words = show?.offer(relative, directory: directory);
+  if (show == null || words == null || relative == null) return const [];
+  return [GlacierMenuItem(key: key, icon: icon, onSelect: () => unawaited(show.show(relative, directory: directory)), child: Text(words))];
 }
