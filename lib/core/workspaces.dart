@@ -246,6 +246,51 @@ String _tidy(String name) => name.replaceAll(RegExp(r'\s+'), ' ').trim();
 /// catches up when the library answers.
 typedef NotesFiled = void Function(List<String> noteIds, Workspace? workspace);
 
+/// What is in a folder, for deleting it with everything in it ([WorkspaceStore.folderContents]).
+@immutable
+class FolderContents {
+  const FolderContents({required this.folders, required this.notes, required this.trashed, this.org});
+
+  /// The folders under it, however deep, by id; not itself.
+  final List<String> folders;
+
+  /// The notes filed in it or under it that are not in the trash.
+  final List<String> notes;
+
+  /// The notes filed in it or under it that are in the trash already.
+  final List<String> trashed;
+
+  /// The organization it is in, walking its parents; null for a personal folder. An organization's notes are the
+  /// team's, so deleting them deletes them for every member, and the Trash is the person's own: they skip it.
+  final String? org;
+
+  bool get team => org != null;
+}
+
+/// What [WorkspaceStore.removeFolderFamily] took away: each folder with where it stood in the list, every note's
+/// filing in them, and whether one of them was the chosen workspace.
+@immutable
+class FolderDeletion {
+  const FolderDeletion({required this.folders, required this.filings, this.current});
+
+  final List<({int at, Workspace folder})> folders;
+  final Map<String, String> filings;
+  final String? current;
+}
+
+/// What deleting a folder with its notes takes, counted (Matt, 2026-11-01): "Plans, 3 folders and 24 notes"; "Plans
+/// and its 24 notes" with no folders inside; "Plans and the folder in it" with no notes; "Plans" for an empty one.
+String folderDeletePhrase(String name, {required int folders, required int notes}) {
+  String many(int count, String one) => count == 1 ? '1 $one' : '$count ${one}s';
+  if (folders == 0 && notes == 0) return name;
+  if (folders == 0) return notes == 1 ? '$name and its note' : '$name and its $notes notes';
+  if (notes == 0) return folders == 1 ? '$name and the folder in it' : '$name and the $folders folders in it';
+  return '$name, ${many(folders, 'folder')} and ${many(notes, 'note')}';
+}
+
+/// The question deleting a folder with its notes asks: "Delete Plans, 3 folders and 24 notes?" ([folderDeletePhrase]).
+String folderDeleteQuestion(String name, {required int folders, required int notes}) => 'Delete ${folderDeletePhrase(name, folders: folders, notes: notes)}?';
+
 /// The workspaces, and everything done to them. Listen to it as a [ValueListenable]: its value is the same snapshot
 /// until something changes, and each change tells its listeners once.
 class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspaces> {
@@ -542,6 +587,77 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     for (final child in inside) {
       _refile(child);
     }
+  }
+
+  /// What deleting folder [id] with everything in it would take (Matt, 2026-11-01: "add ability to context menu
+  /// delete folders and items inside them"): the folders under it however deep, and the notes filed in it or in any
+  /// of them, those already in the trash apart. [has] says which notes are really there, so a filing left behind by
+  /// a note that has gone is not counted; left out, every filing counts. Null for an organization's own workspace,
+  /// which is never deleted by hand, and for a folder the list does not have.
+  FolderContents? folderContents(String id, {bool Function(String noteId)? has}) {
+    if (isOrgWorkspace(id)) return null;
+    final sheet = _current;
+    if (!sheet.list.any((w) => w.id == id)) return null;
+    final family = workspaceFamily(sheet.list, id);
+    final inFamily = family.toSet();
+    final held = trash?.value ?? const <String, int>{};
+    final live = <String>[], trashed = <String>[];
+    for (final entry in sheet.notes.entries) {
+      if (!inFamily.contains(entry.value) || !(has?.call(entry.key) ?? true)) continue;
+      (held.containsKey(entry.key) ? trashed : live).add(entry.key);
+    }
+    return FolderContents(folders: family.sublist(1), notes: live, trashed: trashed, org: orgOfWorkspace(sheet.list, id));
+  }
+
+  /// Folder [id] and every folder under it gone at once, in one write, with no note filed in any of them any more
+  /// and no file moved: what deleting a folder with its notes leaves once the notes have gone to the Trash, or been
+  /// deleted (lib/notes/note_actions.dart `deleteFolder`). A note in the Trash keeps its file where it was under
+  /// `.trash/`, as Obsidian keeps a deleted folder's (docs/MARKDOWN_FIRST.md §4a), and is restored to the inbox once
+  /// the folder is gone from disk. Answers what went, for [putBackFolders]; null, and nothing changes, for an
+  /// organization's own workspace or a folder the list does not have.
+  FolderDeletion? removeFolderFamily(String id) {
+    if (isOrgWorkspace(id)) return null;
+    final sheet = _current;
+    if (!sheet.list.any((w) => w.id == id)) return null;
+    final gone = workspaceFamily(sheet.list, id).toSet();
+    final folders = [
+      for (var at = 0; at < sheet.list.length; at += 1)
+        if (gone.contains(sheet.list[at].id)) (at: at, folder: sheet.list[at]),
+    ];
+    final filings = {
+      for (final entry in sheet.notes.entries)
+        if (gone.contains(entry.value)) entry.key: entry.value,
+    };
+    _write(WorkspaceSheet(
+      list: [for (final w in sheet.list) if (!gone.contains(w.id)) w],
+      notes: {
+        for (final entry in sheet.notes.entries)
+          if (!gone.contains(entry.value)) entry.key: entry.value,
+      },
+      current: gone.contains(sheet.current) ? null : sheet.current,
+    ));
+    return FolderDeletion(folders: folders, filings: filings, current: gone.contains(sheet.current) ? sheet.current : null);
+  }
+
+  /// A [removeFolderFamily] taken back, for its Undo: each folder where it stood in the list, unless one of its id
+  /// has been made since; each note filed where it was, unless it has been filed somewhere since; the chosen one
+  /// chosen again, if nothing else has been. The notes' files follow their filings ([onFiled]).
+  void putBackFolders(FolderDeletion gone) {
+    final sheet = _current;
+    final list = [...sheet.list];
+    final had = {for (final w in list) w.id};
+    for (final each in gone.folders) {
+      if (had.contains(each.folder.id)) continue;
+      list.insert(min(each.at, list.length), each.folder);
+    }
+    final ids = {for (final w in list) w.id};
+    final notes = {...sheet.notes};
+    for (final entry in gone.filings.entries) {
+      if (!notes.containsKey(entry.key) && ids.contains(entry.value)) notes[entry.key] = entry.value;
+    }
+    _write(WorkspaceSheet(list: list, notes: notes, current: sheet.current ?? (gone.current != null && ids.contains(gone.current) ? gone.current : null)));
+    final top = gone.folders.where((each) => each.folder.parent == null || !gone.folders.any((other) => other.folder.id == each.folder.parent)).firstOrNull;
+    if (top != null) _refile(top.folder.id);
   }
 
   /// The organization's workspace, made if this device has none: `org-<orgId>`, named and coloured after it. Found, it

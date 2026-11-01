@@ -4,15 +4,20 @@
 /// A mouse's right-click on a folder - its tile in the icon view (lib/notes/icon_browser.dart), its chip on a
 /// folders' strip (lib/notes/folder_strip.dart), its row in the sidebar (lib/notes/note_tree.dart) - opens Open,
 /// Rename…, Move to (the folders it may go to, as carrying it would move it: lib/notes/folder_drag.dart, never into
-/// or out of an organization), and Delete folder… in the one red. Rename… and Delete folder… are the folder's own
-/// sheet (lib/notes/workspace_sheet.dart), Delete opened at its question of what becomes of the notes: kept, or put
-/// in the Trash with it, where they wait to be restored. So nothing is deleted from a menu without being asked, and
-/// a folder of an organization's goes by the same rules and the same moves as from its sheet. An organization's own
-/// workspace has no menu: it is not renamed, moved or deleted by hand.
+/// or out of an organization), then Remove folder, keep its notes… and, in the one red, Delete folder and its
+/// notes… (Matt, 2026-11-01: "add ability to context menu delete folders and items inside them"). Rename… and both
+/// deletes are the folder's own sheet (lib/notes/workspace_sheet.dart): Remove opened at its question of what becomes
+/// of the notes, Delete at the question of deleting everything in it, which counts the folders and the notes under it
+/// ("Delete Plans, 3 folders and 24 notes?") and says where they go: a personal folder's notes to the Trash, with an
+/// Undo after; an organization's deleted for every member, which cannot be undone (lib/notes/note_actions.dart
+/// `deleteFolder`). So nothing is deleted from a menu without being asked, and a folder of an organization's goes by
+/// the same rules and the same moves as from its sheet. An organization's own workspace has no menu: it is not
+/// renamed, moved or deleted by hand. Simple mode (GHST-103) has the same rows: deleting is basic.
 ///
-/// A finger's press and hold on a folder is the drag that carries it (folder_drag.dart `FolderCarrySource`), so it
-/// opens nothing here; on a phone a folder's sheet is its row's More in the sidebar, and its pill's on the list, as
-/// before. The rows are the root's, through a [FolderMenuScope] over the app: where none is, a right-click does
+/// A finger's press and hold on a folder is the drag that carries it (folder_drag.dart `FolderCarrySource`); let go
+/// where it was held, without carrying it anywhere, it opens this menu where the tiles and the chips are (the icon
+/// view, All notes by folder; Matt, 2026-11-01), and on a phone a folder's sheet is its row's More in the sidebar,
+/// and its pill's on the list, as before. The rows are the root's, through a [FolderMenuScope] over the app: where none is, a right-click does
 /// nothing, as in a test of a screen alone. The scope also carries a note's menu, for a list that was handed none
 /// (an organization's page's icon view).
 library;
@@ -30,11 +35,22 @@ import 'note_menu.dart' show byMouse;
 
 /// What a folder's menu does, from the root: its sheet to rename it, or at Delete.
 class FolderMenuScope extends InheritedWidget {
-  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onSetTemplate, this.onNoteMenu, required super.child});
+  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, required super.child});
 
   final WorkspaceStore store;
   final ValueChanged<Workspace> onRename;
+
+  /// Remove folder, keep its notes…: the folder's sheet at its question of what becomes of the notes.
   final ValueChanged<Workspace> onDelete;
+
+  /// Delete folder and its notes…: the folder's sheet at the question of deleting everything in it. Left out, no row.
+  final ValueChanged<Workspace>? onDeleteAll;
+
+  /// The delete itself, once a sheet has asked: for the sheets the sidebar and the list open of their own.
+  final ValueChanged<Workspace>? deleteAll;
+
+  /// Whether a note is really there and out of the trash, for the counts a question says.
+  final bool Function(String noteId)? noteExists;
 
   /// Set template…: the template every new note made in the folder starts from (lib/notes/place_templates.dart).
   final ValueChanged<Workspace>? onSetTemplate;
@@ -45,7 +61,7 @@ class FolderMenuScope extends InheritedWidget {
   static FolderMenuScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<FolderMenuScope>();
 
   @override
-  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu;
+  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu;
 }
 
 /// The right-click a folder's tile, chip or row answers: its menu at the pointer, a mouse's other button only. An
@@ -71,6 +87,21 @@ class FolderMenuArea extends StatelessWidget {
     );
   }
 }
+
+/// The two deletes a folder's menu ends with: Remove folder, keep its notes…, and Delete folder and its notes… in the
+/// one red where the scope has it. A page's menu in the spaces' tree ends with the same (lib/notes/note_tree_spaces.dart).
+List<Widget> folderDeleteRows(FolderMenuScope scope, Workspace folder, {required Widget Function(LucideIcon which) icon, required Tokens t}) => [
+      GlacierMenuItem(key: const ValueKey('folder-menu-remove'), icon: icon(Lucide.folder), onSelect: () => scope.onDelete(folder), child: const Text('Remove folder, keep its notes…')),
+      if (scope.onDeleteAll != null)
+        GlacierMenuItem(
+          key: const ValueKey('folder-menu-delete-all'),
+          danger: true,
+          style: dangerRowStyle(t),
+          icon: icon(Lucide.trash2),
+          onSelect: () => scope.onDeleteAll!(folder),
+          child: const Text('Delete folder and its notes…'),
+        ),
+    ];
 
 /// Opens [folderId]'s menu at [at], over the app, until a row is chosen or it is dismissed.
 void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId, Offset at, {VoidCallback? onOpen}) {
@@ -104,14 +135,7 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
           if (scope.onSetTemplate != null && !preferences.value.simple) GlacierMenuItem(key: const ValueKey('folder-menu-template'), icon: icon(Lucide.copyPlus), onSelect: () => scope.onSetTemplate!(folder), child: const Text('Set template…')),
           if (context.mounted) ...folderMoveRows(context, store, FolderCarry.folder(folder.id, folder.name)),
           const GlacierMenuSeparator(),
-          GlacierMenuItem(
-            key: const ValueKey('folder-menu-delete'),
-            danger: true,
-            style: dangerRowStyle(t),
-            icon: icon(Lucide.trash2),
-            onSelect: () => scope.onDelete(folder),
-            child: const Text('Delete folder…'),
-          ),
+          ...folderDeleteRows(scope, folder, icon: icon, t: t),
         ],
       );
     },

@@ -977,6 +977,10 @@ class _NoteTreeState extends State<NoteTree> {
                 onOrganization: widget.onOrganization,
                 notesIn: widget.notesInWorkspace,
                 onTrashNotes: widget.onTrashNotes,
+                // Delete folder and its notes, where the app's folder menu does it (lib/notes/folder_menu.dart): a
+                // folder's More on a phone comes here, its question about the notes offering it.
+                onDeleteAll: FolderMenuScope.maybeOf(context)?.deleteAll,
+                noteExists: FolderMenuScope.maybeOf(context)?.noteExists,
               ),
             ...overlay,
           ],

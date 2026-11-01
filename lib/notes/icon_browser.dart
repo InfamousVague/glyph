@@ -11,7 +11,11 @@
 /// on up to two lines and its count small under that; a note's is its kind's glyph the same way - a notebook, a
 /// canvas, a cassette, a page of words, as the rows mark them (lib/home/home_rows.dart `KindMark`) - its title on up
 /// to two lines, and when it was touched. A tap on a folder enters it, as the strip's chip does; a tap on a note
-/// opens it; a mouse's right-click on a note asks for its menu, as the cards do. The keyboard's focus rings a tile.
+/// opens it; a mouse's right-click on a note asks for its menu, as the cards do, and so does a finger's press held
+/// and let go where it was (Matt, 2026-11-01: "Also add context menus to all the items in the file folder view to
+/// delete notes"; the hold that does not let go there carries the tile, lib/notes/folder_drag.dart), a folder's its
+/// folder's menu (lib/notes/folder_menu.dart): Open, Rename…, Move to, Remove folder, keep its notes… and Delete
+/// folder and its notes…. The keyboard's focus rings a tile.
 ///
 /// Cards or icons is chosen at a level and carries down (Matt, 2026-10-20: "When navigating into a folder sub folders
 /// should share the same ability to have icons or list keeping the parents selection"): a level's view is the one
@@ -238,11 +242,14 @@ class IconBrowser extends StatelessWidget {
                 child: _FolderTile(key: ValueKey('tile-folder-${each.folder.id}'), folder: each, onPressed: () => onFolder(each.folder.id)),
               );
               if (store == null) return tile;
+              final scope = FolderMenuScope.maybeOf(context);
               // A place to drop a note or a folder, and itself carried into another; an organization's own stays.
+              // A finger held on it and let go where it was: its menu, as a mouse's right-click opens it.
               return FolderCarrySource(
                 store: store,
                 carry: FolderCarry.folder(each.folder.id, each.folder.name),
                 enabled: !isOrgWorkspace(each.folder.id),
+                onHeld: scope == null ? null : (at) => showFolderMenu(context, scope, each.folder.id, at, onOpen: () => onFolder(each.folder.id)),
                 child: FolderDropZone(key: ValueKey('drop-${each.folder.id}'), store: store, target: each.folder.id, decorate: true, radius: t.radius('md'), builder: (context, _) => tile),
               );
             }
@@ -255,7 +262,9 @@ class IconBrowser extends StatelessWidget {
             final Widget tile = _NoteTile(key: ValueKey('tile-note-${note.id}'), note: note, now: now, onPressed: () => onOpen(note.id), onMenu: onMenu == null ? null : (at) => onMenu(note, at));
             if (store == null) return tile;
             final title = NoteFacts.of(note).title.trim();
-            return FolderCarrySource(store: store, carry: FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title), child: tile);
+            // A finger held on it and let go where it was: the note's menu (Matt, 2026-11-01: "Also add context menus to
+            // all the items in the file folder view to delete notes"), the one a mouse's right-click opens.
+            return FolderCarrySource(store: store, carry: FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title), onHeld: onMenu == null ? null : (at) => onMenu(note, at), child: tile);
           }
 
           return Column(

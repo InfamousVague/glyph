@@ -20,8 +20,11 @@
 /// - **The order words are a Chromium page's**, the Fold's own WebView: a `<button>` there has one pixel of padding
 ///   above and below its word, so a word is 20px tall at the phone's size. WebKit gives a button two above and three
 ///   below, and the same line is 23px on an iPhone. Measured in both; see test/allnotes.
-/// - A note's menu (`notes/noteMenu.ts`) opens on a mouse's right-click, as on the page, and never on a finger's
-///   long press: [AllNotesScreen.onNoteMenu] is told which note and where.
+/// - A note's menu (`notes/noteMenu.ts`) opens on a mouse's right-click, as on the page, and on a card never on a
+///   finger's long press: [AllNotesScreen.onNoteMenu] is told which note and where. In the icon view (All notes by
+///   folder) a finger's press held and let go where it was opens it too, and a folder tile's its folder's menu (Matt,
+///   2026-11-01: "Also add context menus to all the items in the file folder view to delete notes";
+///   lib/notes/icon_browser.dart).
 /// - The cards' AI corner mark and where a note was written are the card's own gaps (see lib/home/note_card.dart).
 /// - The glide back to the top borrows more room than the page did (lib/core/glide_to_top.dart).
 /// - The page's smoke under the bar is a blur here, [BlurEdge], asked for with [AllNotesScreen.wisp] (the `wispEdge`
@@ -74,6 +77,7 @@ import '../shell/page_dock.dart';
 import '../shell/wide_screen.dart' show mousePointer;
 import 'all_notes.dart';
 import 'folder_drag.dart';
+import 'folder_menu.dart' show FolderMenuScope;
 import 'folder_strip.dart';
 import 'icon_browser.dart';
 import 'pull_to_refresh.dart';
@@ -811,6 +815,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 onOrganization: widget.onOrganizationSettings ?? widget.onOrganization,
                 notesIn: widget.notesInWorkspace,
                 onTrashNotes: widget.onTrashNotes,
+                // Delete folder and its notes, where the app's folder menu does it (lib/notes/folder_menu.dart).
+                onDeleteAll: FolderMenuScope.maybeOf(context)?.deleteAll,
+                noteExists: FolderMenuScope.maybeOf(context)?.noteExists,
               ),
             OnBack(active: up != null && !widget.simple, onBack: () => widget.workspaces.chooseWorkspace(up), child: const SizedBox.shrink()),
           ],

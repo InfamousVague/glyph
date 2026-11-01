@@ -29,6 +29,10 @@ extension _RootParts on _GhostRootState {
     store: _workspaces,
     onRename: (folder) => _manageFolder(folder),
     onDelete: (folder) => _manageFolder(folder, deleting: true),
+    // Delete folder and its notes… (2026-11-01): the sheet at its question, and the delete once it is answered.
+    onDeleteAll: (folder) => _manageFolder(folder, all: true),
+    deleteAll: _deleteFolderAndNotes,
+    noteExists: _noteLive,
     onSetTemplate: (folder) => unawaited(_setFolderTemplate(folder)),
     onNoteMenu: _menu.open,
     child: Stack(
@@ -739,7 +743,7 @@ extension _RootParts on _GhostRootState {
       },
       onRefresh: _pullRefresh,
       onNoteMenu: _menu.open,
-      onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace, parent: null, deleting: false)),
+      onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace, parent: null, deleting: false, all: false)),
       // New folder on the folders' strip (GHST-107): the sheet for a folder inside the chosen workspace.
       onNewFolder: _newFolder,
       // New note on the strip and in the icon view: a note filed in the folder shown.
@@ -1073,11 +1077,11 @@ extension _RootParts on _GhostRootState {
 
   /// The workspace sheet for a new folder inside [parent] (the folders' strips' and tiles' New folder, GHST-107), or
   /// at the top for null (the icon view with nothing chosen).
-  void _newFolder(String? parent) => _told(() => _workspace = (editing: null, parent: parent, deleting: false));
+  void _newFolder(String? parent) => _told(() => _workspace = (editing: null, parent: parent, deleting: false, all: false));
 
   /// A folder's sheet from its menu (lib/notes/folder_menu.dart): to rename it, or at its Delete, which asks what
   /// becomes of its notes, as the sheet's own Delete does.
-  void _manageFolder(Workspace folder, {bool deleting = false}) => _told(() => _workspace = (editing: folder, parent: null, deleting: deleting));
+  void _manageFolder(Workspace folder, {bool deleting = false, bool all = false}) => _told(() => _workspace = (editing: folder, parent: null, deleting: deleting, all: all));
 
   Widget _workspacePart(BuildContext context) {
     final sheet = _workspace;
@@ -1089,6 +1093,9 @@ extension _RootParts on _GhostRootState {
       parent: sheet.parent,
       folders: sheet.parent != null,
       deleting: sheet.deleting,
+      deletingAll: sheet.all,
+      onDeleteAll: _deleteFolderAndNotes,
+      noteExists: _noteLive,
       onClose: () => _told(() => _workspace = null),
       onOrganization: _services == null ? null : _openOrganizationSettings,
       notesIn: _notesIn,

@@ -20,7 +20,7 @@ import 'support.dart';
 
 /// A folder's menu at a right-click (Matt, 2026-10-23: "add a right click context menu to files and folders to delete
 /// them"; lib/notes/folder_menu.dart): on a tile in the icon view, a chip on a folders' strip and a row in the
-/// sidebar; Rename… and Delete folder… through the folder's own sheet, Delete at its question about the notes; none on
+/// sidebar; Rename… and Remove folder, keep its notes… through the folder's own sheet, Delete at its question about the notes; none on
 /// an organization's own workspace, and none without the app's scope. A note's tile has its menu too, from the scope
 /// where its page was handed none. Pictures to build/feature-shots/organize/folder-menu-*.png.
 void main() {
@@ -70,7 +70,7 @@ void main() {
         ),
       );
 
-  testWidgets('a folder’s tile: Open, Rename…, Move to and Delete folder…, each doing what it says', (tester) async {
+  testWidgets('a folder’s tile: Open, Rename…, Move to and Remove folder, keep its notes…, each doing what it says', (tester) async {
     final store = storeOf();
     final opened = <String>[];
     final did = await pump(tester, store, icons(store, onFolder: opened.add));
@@ -78,11 +78,11 @@ void main() {
     expect(find.text('Open'), findsOneWidget);
     expect(find.text('Rename…'), findsOneWidget);
     expect(find.byKey(const ValueKey('move-to-home')), findsOneWidget, reason: 'Move to, where a folder may go');
-    expect(find.text('Delete folder…'), findsOneWidget);
-    await tester.tap(find.text('Delete folder…'));
+    expect(find.text('Remove folder, keep its notes…'), findsOneWidget);
+    await tester.tap(find.text('Remove folder, keep its notes…'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(did, ['delete work']);
-    expect(find.text('Delete folder…'), findsNothing);
+    expect(find.text('Remove folder, keep its notes…'), findsNothing);
     await rightClick(tester, find.byKey(const ValueKey('tile-folder-home')));
     await tester.tap(find.text('Rename…'));
     await tester.pump(const Duration(milliseconds: 300));
@@ -100,7 +100,7 @@ void main() {
     final store = storeOf();
     final did = await pump(tester, store, icons(store));
     await rightClick(tester, find.byKey(const ValueKey('tile-folder-org-o1')));
-    expect(find.text('Delete folder…'), findsNothing);
+    expect(find.text('Remove folder, keep its notes…'), findsNothing);
     await rightClick(tester, find.byKey(ValueKey('tile-note-${organizeNotes().first.id}')));
     expect(did, ['note menu ${organizeNotes().first.id}']);
     await away(tester);
@@ -110,7 +110,7 @@ void main() {
     final store = storeOf();
     await pump(tester, store, icons(store), scoped: false);
     await rightClick(tester, find.byKey(const ValueKey('tile-folder-work')));
-    expect(find.text('Delete folder…'), findsNothing);
+    expect(find.text('Remove folder, keep its notes…'), findsNothing);
     await away(tester);
   });
 
@@ -127,11 +127,11 @@ void main() {
       ),
     );
     await rightClick(tester, find.byKey(const ValueKey('folder-chip-clients')));
-    await tester.tap(find.text('Delete folder…'));
+    await tester.tap(find.text('Remove folder, keep its notes…'));
     await tester.pump(const Duration(milliseconds: 300));
     await rightClick(tester, find.byKey(const ValueKey('folder-row-work')));
     expect(find.text('Open'), findsNothing, reason: 'a row opens and shuts by its own press');
-    await tester.tap(find.text('Delete folder…'));
+    await tester.tap(find.text('Remove folder, keep its notes…'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(did, ['delete clients', 'delete work']);
     await away(tester);

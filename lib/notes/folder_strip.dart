@@ -136,15 +136,18 @@ class FolderStrip extends StatelessWidget {
 
   /// A folder's chip, where things are carried here: a place to drop a note or a folder, and itself carried into
   /// another folder.
-  Widget _carried(Widget chip, Workspace folder) {
+  Widget _carried(BuildContext context, Widget chip, Workspace folder) {
     final store = this.store;
     if (store == null) return chip;
+    final scope = FolderMenuScope.maybeOf(context);
     return FolderCarrySource(
       key: ValueKey('carry-folder-${folder.id}'),
       store: store,
       carry: FolderCarry.folder(folder.id, folder.name),
       // An organization's own workspace stays at the top.
       enabled: !isOrgWorkspace(folder.id),
+      // A finger held on it and let go where it was: its menu, as a mouse's right-click opens it (2026-11-01).
+      onHeld: scope == null ? null : (at) => showFolderMenu(context, scope, folder.id, at, onOpen: () => onChoose(folder.id)),
       child: Builder(
         builder: (context) => FolderDropZone(
           key: ValueKey('drop-${folder.id}'),
@@ -235,7 +238,7 @@ class FolderStrip extends StatelessWidget {
                       FolderMenuArea(
                         folderId: each.folder.id,
                         onOpen: () => onChoose(each.folder.id),
-                        child: _carried(_Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)), each.folder),
+                        child: _carried(context, _Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)), each.folder),
                       ),
                     if (onNewFolder != null) _NewChip(key: const ValueKey('folder-new'), glyph: Lucide.folderPlus, words: 'New folder', onPressed: () => onNewFolder!(chosen)),
                     if (onNewNote != null) _NewChip(key: const ValueKey('folder-new-note'), glyph: Lucide.filePlus, words: 'New note', onPressed: () => onNewNote!(chosen)),

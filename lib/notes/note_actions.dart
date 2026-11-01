@@ -13,6 +13,10 @@
 ///
 /// Archive and pin are real at once: they are flags, not edits, and undoing one is setting it back.
 ///
+/// A folder deleted with everything in it ([NoteActions.deleteFolder]; Matt, 2026-11-01) is every note under it put
+/// in the trash at once with one Undo that also puts the folders back; an organization's is deleted for every member,
+/// with none, since a team's deletes skip the Trash.
+///
 /// What differs:
 /// - The hook is a class, [NoteActions], which can be listened to for [NoteActions.hidden] (the hook's state). Its
 ///   toasts go through [NoteActions.say], so it holds no `BuildContext`; [NoteActions.toaster] makes one from the
@@ -37,6 +41,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/note.dart';
+import '../core/note_folders.dart' show folderFor;
 import '../core/note_text.dart';
 import '../core/sample_library.dart';
 import '../core/swipe.dart';
@@ -74,7 +79,7 @@ class NoteToast {
 /// library doc for what differs: the meeting's write-up and what is kept beside a note are callbacks, and with no
 /// [trash] a delete takes the note out of the library.
 class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
-  NoteActions({required this.library, required this.workspaces, this.trash, required this.say, this.haptic, this.onForget, this.onTrashed, this.onRestored});
+  NoteActions({required this.library, required this.workspaces, this.trash, required this.say, this.haptic, this.onForget, this.onTrashed, this.onRestored, this.onFoldersGone});
 
   final NoteLibrary library;
   final WorkspaceStore workspaces;
@@ -96,6 +101,10 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
 
   /// A note out of the trash, by Restore or by Undo: a meeting's write-up is asked for again (`resumeWriteUp`).
   final ValueChanged<Note>? onRestored;
+
+  /// A folder deleted with its notes for good (its Undo run out, or none to wait for): its directories, as the
+  /// library names them, the deepest first, to be taken off the disk once empty (lib/core/folder_dirs.dart).
+  final void Function(List<String> folders)? onFoldersGone;
 
   /// A [say] that shows the kit's toast from [context] (`GlacierToast.of`), with Undo as its action.
   static void Function(NoteToast toast) toaster(BuildContext context) {
@@ -199,6 +208,103 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
       undo: () {
         library.restore(gone);
         if (filed != null) workspaces.fileNote(gone.id, filed);
+        haptic?.call(HapticKind.success);
+      },
+    ));
+  }
+
+  /// The directories of folders deleted with their notes whose Undo still stands: taken off the disk when it runs
+  /// out, or at once as these actions go.
+  final Map<Timer, List<String>> _dirsWaiting = {};
+
+  void _dirsGone(List<String> folders) {
+    if (folders.isNotEmpty) onFoldersGone?.call(folders);
+  }
+
+  /// A folder deleted with everything in it, once the person has said so (Matt, 2026-11-01: "add ability to context
+  /// menu delete folders and items inside them"; lib/notes/workspace_sheet.dart asks): every note in it and in every
+  /// folder under it, however deep, and then the folders.
+  ///
+  /// A personal folder's notes go to the Trash as any deleted note does, each its own entry there, and the folders
+  /// go from the list in one change; the toast's Undo brings the notes out of the Trash and puts the folders back
+  /// where they stood, each note filed where it was. Their directories leave the disk once the Undo has run out and
+  /// they are empty ([onFoldersGone]); the trashed files keep their paths under `.trash/`.
+  ///
+  /// An organization's folder is the team's, and its notes are deleted for every member: an organization's deletes
+  /// skip the Trash (lib/team/sync.dart deletes the rows, and every member's device drops the note outright and,
+  /// with the folder emptied, the folder; lib/team/folders.dart `prune`). So nothing comes back, and the toast has no
+  /// Undo; the question said so before anything went. A team note already in this person's Trash under the folder
+  /// goes with them, since it is still in the folder for everyone else. The notes are deleted first and the folders
+  /// after, so no note is ever refiled on the way and put to the team at another path.
+  Future<void> deleteFolder(String folderId) async {
+    final contents = workspaces.folderContents(folderId, has: (id) => library.noteOf(id) != null);
+    final list = workspaces.value.list;
+    final folder = list.where((w) => w.id == folderId).firstOrNull;
+    if (contents == null || folder == null) return;
+    // The directories, worked out while the folders are still listed: the deepest first.
+    final dirs = [
+      for (final id in workspaceFamily(list, folderId).reversed)
+        if (list.where((w) => w.id == id).firstOrNull case final each?) ?folderFor(each, list),
+    ];
+    final said = folderDeletePhrase(folder.name, folders: contents.folders.length, notes: contents.notes.length);
+    if (contents.team) {
+      unawaited(_commit());
+      final gone = [...contents.notes, ...contents.trashed];
+      for (final id in gone) {
+        try {
+          await library.destroy(id);
+          _forgetKept(id);
+        } catch (error) {
+          debugPrint('[glyph] delete failed: $error');
+        }
+      }
+      trash?.forget(gone);
+      workspaces.removeFolderFamily(folderId);
+      try {
+        await library.refresh();
+      } catch (error) {
+        debugPrint('[glyph] refresh after delete failed: $error');
+      }
+      haptic?.call(HapticKind.warning);
+      say(NoteToast('Deleted $said for every member.'));
+      _dirsGone(dirs);
+      return;
+    }
+    final bin = trash;
+    final notes = [for (final id in contents.notes) ?library.noteOf(id)];
+    final taken = <Note>[];
+    for (final note in notes) {
+      if (bin != null) {
+        bin.trashNote(note.id);
+        onTrashed?.call(note);
+      } else if (library.delete(note.id) case final gone?) {
+        // No trash to wait in: out of the library, and back by Undo, as [_take] does.
+        taken.add(gone);
+      }
+    }
+    final removed = workspaces.removeFolderFamily(folderId);
+    late final Timer waiting;
+    waiting = Timer(noteUndo, () {
+      if (_dirsWaiting.remove(waiting) != null) _dirsGone(dirs);
+    });
+    _dirsWaiting[waiting] = dirs;
+    haptic?.call(HapticKind.warning);
+    say(NoteToast(
+      notes.isEmpty ? 'Deleted $said.' : 'Deleted $said. ${notes.length == 1 ? 'It is' : 'They are'} in the Trash.',
+      duration: noteUndo,
+      undo: () {
+        waiting.cancel();
+        _dirsWaiting.remove(waiting);
+        if (removed != null) workspaces.putBackFolders(removed);
+        for (final note in notes) {
+          if (bin != null) {
+            bin.restoreNote(note.id);
+            onRestored?.call(note);
+          }
+        }
+        for (final note in taken) {
+          library.restore(note);
+        }
         haptic?.call(HapticKind.success);
       },
     ));
@@ -332,6 +438,12 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     unawaited(_commit());
+    // A deleted folder's Undo goes with these actions: its directories go now.
+    for (final entry in _dirsWaiting.entries.toList()) {
+      entry.key.cancel();
+      _dirsGone(entry.value);
+    }
+    _dirsWaiting.clear();
     _gone = true;
     if (_watching) WidgetsBinding.instance.removeObserver(this);
     super.dispose();

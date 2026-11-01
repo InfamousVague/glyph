@@ -41,6 +41,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
@@ -491,7 +492,7 @@ class FolderDropZone extends StatelessWidget {
 /// pointer is a lifted pill with its name ([FolderCarryPill]); the thing itself is dimmed where it was. A screen
 /// reader is offered Move to… ([folderDestinations]) as a custom action, a menu at the thing itself.
 class FolderCarrySource extends StatefulWidget {
-  const FolderCarrySource({super.key, required this.store, required this.carry, required this.child, this.enabled = true, this.moveAction = true});
+  const FolderCarrySource({super.key, required this.store, required this.carry, required this.child, this.enabled = true, this.moveAction = true, this.onHeld});
 
   final WorkspaceStore store;
   final FolderCarry carry;
@@ -503,12 +504,26 @@ class FolderCarrySource extends StatefulWidget {
   /// inner wins and the swipes would be lost.
   final bool moveAction;
 
+  /// A finger's press held and let go where it was, carried nowhere: its menu at that point in the window (Matt,
+  /// 2026-11-01: "Also add context menus to all the items in the file folder view to delete notes", a long press on
+  /// touch). The hold that starts a carry is the same hold, so the menu waits for the finger to come up: moved past
+  /// the slop, it was a carry, and nothing opens. A mouse's drag has no hold, and its menu is its right-click.
+  final ValueChanged<Offset>? onHeld;
+
   @override
   State<FolderCarrySource> createState() => _FolderCarrySourceState();
 }
 
 class _FolderCarrySourceState extends State<FolderCarrySource> {
+  /// Where the finger went down, and whether it has gone further than the slop from there since.
+  Offset? _down;
+  bool _moved = false;
+
+  /// Whether the hold became a carry: the menu is for one let go where it was held.
+  bool _held = false;
+
   void _started() {
+    _held = true;
     folderCarrying.value = widget.carry;
     _announce(context, 'Moving ${widget.carry.label}. Drop it on a folder.');
   }
@@ -550,11 +565,30 @@ class _FolderCarrySourceState extends State<FolderCarrySource> {
             dragAnchorStrategy: anchor,
             hapticFeedbackOnStart: true,
             onDragStarted: _started,
-            onDragEnd: (_) => _ended(),
+            onDragEnd: (_) {
+              _ended();
+              final at = _down, held = _held;
+              _held = false;
+              if (held && !_moved && at != null && mounted) widget.onHeld?.call(at);
+            },
             child: widget.child,
           );
-    if (!widget.moveAction) return drag;
-    return Semantics(customSemanticsActions: {folderMoveAction: () => showFolderMoveMenu(context, widget.store, carry)}, child: drag);
+    final Widget source = widget.onHeld == null || mousePointer
+        ? drag
+        : Listener(
+            onPointerDown: (event) {
+              _down = event.position;
+              _moved = false;
+              _held = false;
+            },
+            onPointerMove: (event) {
+              final at = _down;
+              if (at != null && (event.position - at).distance > kTouchSlop) _moved = true;
+            },
+            child: drag,
+          );
+    if (!widget.moveAction) return source;
+    return Semantics(customSemanticsActions: {folderMoveAction: () => showFolderMoveMenu(context, widget.store, carry)}, child: source);
   }
 }
 

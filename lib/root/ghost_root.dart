@@ -89,6 +89,7 @@ import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
 import '../core/folder_adopter.dart' show adoptFolders;
 import '../core/library_config.dart' show LibraryConfig, LibraryConfigKeeper, configFileFor;
 import '../core/favorites.dart' show favoritesIn, withFavorite;
+import '../core/folder_dirs.dart' show libraryRootOf, removeEmptyFolderDirs;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
@@ -1544,6 +1545,7 @@ class _GhostRootState extends State<GhostRoot> {
           _places?.setPendingTag(note.id, null);
         },
         onRestored: (note) => unawaited(resumeWriteUp(note, prefs: preferences.value, summaries: _voice?.summaries)),
+        onFoldersGone: (folders) => unawaited(_removeFolderDirs(folders)),
       )..addListener(_changed);
 
   /// The note actions (a delete waiting on its Undo), the walkthrough or the way into an account changed.
@@ -1861,8 +1863,9 @@ class _GhostRootState extends State<GhostRoot> {
   VoidCallback? _stopDesktop;
 
   /// The workspace sheet: shut, a new one (inside [parent] from a folders' strip's New folder, GHST-107), or one
-  /// to change.
-  ({Workspace? editing, String? parent, bool deleting})? _workspace;
+  /// to change; [deleting] opens it at its question about the notes, [all] at the question of deleting everything in
+  /// it (a folder's menu's Delete folder and its notes…).
+  ({Workspace? editing, String? parent, bool deleting, bool all})? _workspace;
 
   /// The Trash's sheet (lib/notes/trash_sheet.dart): shut, open on its list, or on one note's page ([note]).
   ({String? note})? _trashSheet;
@@ -2420,6 +2423,30 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   void _trashNotes(Iterable<String> ids) => ids.forEach(_trash.trashNote);
+
+  /// Whether a note is in the library and out of the trash: what a folder's delete counts.
+  bool _noteLive(String id) {
+    final note = _library.noteOf(id);
+    return note != null && !trashedNote(note, _trash.value);
+  }
+
+  /// A folder deleted with every note and folder in it, once its sheet has asked (Matt, 2026-11-01: "add ability to
+  /// context menu delete folders and items inside them"; lib/notes/note_actions.dart `deleteFolder`).
+  void _deleteFolderAndNotes(Workspace folder) => unawaited(_actions.deleteFolder(folder.id));
+
+  /// A deleted folder's directories taken off the disk once empty (lib/core/folder_dirs.dart), after the notes'
+  /// moves into `.trash/` have landed; nothing where Dart cannot reach the library.
+  Future<void> _removeFolderDirs(List<String> folders) async {
+    final library = _libraryFolder;
+    if (library == null) return;
+    try {
+      await _trashFiles?.settled();
+      final root = libraryRootOf(await library.status());
+      if (root != null) await removeEmptyFolderDirs(root, folders);
+    } catch (failure) {
+      debugPrint('[glyph] a deleted folder’s directories stayed: $failure');
+    }
+  }
 
   /// The Trash, as a section of its own (lib/notes/trash_sheet.dart), on its list or on [note]'s page.
   void _openTrash([String? note]) => setState(() => _trashSheet = (note: note));

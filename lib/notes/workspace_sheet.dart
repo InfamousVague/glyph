@@ -4,7 +4,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/icons.dart';
 import '../core/preferences.dart' show preferences;
-import '../core/workspaces.dart' show Workspace, WorkspaceStore, orgOfWorkspace, workspacePathName;
+import '../core/workspaces.dart' show FolderContents, Workspace, WorkspaceStore, folderDeleteQuestion, orgOfWorkspace, orgWorkspaceId, workspacePathName;
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
 import 'org_mark.dart';
@@ -30,8 +30,13 @@ import 'workspace_swatch.dart';
 ///   the trash; left out, every note filed in it), and [onTrashNotes] puts them in the trash before the workspace
 ///   goes (the web's `deleteWorkspace(id, { trashNotes: true })`). Without [onTrashNotes] the row that would use it
 ///   is there and cannot be pressed.
+/// - **Delete folder and its notes** (Matt, 2026-11-01: "add ability to context menu delete folders and items inside
+///   them"), the port's own, where the app's folders hand [onDeleteAll]: the question about the notes is then Remove
+///   folder, keep its notes, or Delete folder and its notes…, which asks again with the counts of everything under it
+///   ("Delete Plans, 3 folders and 24 notes?", [deletingAll] opening the sheet there from a folder's menu) and says
+///   where it goes: to the Trash for a personal folder, for every member and for good for an organization's.
 class WorkspaceManageSheet extends StatefulWidget {
-  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, this.deleting = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes, this.onSetTemplate, this.templateOf});
+  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, this.deleting = false, this.deletingAll = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes, this.onDeleteAll, this.noteExists, this.onSetTemplate, this.templateOf});
 
   final WorkspaceStore store;
 
@@ -49,6 +54,11 @@ class WorkspaceManageSheet extends StatefulWidget {
   /// (lib/notes/folder_menu.dart; Matt, 2026-10-23: "add a right click context menu to files and folders to delete
   /// them"). Cancel there shuts the sheet, which was opened for nothing else.
   final bool deleting;
+
+  /// Whether the sheet opens at the question of deleting the folder with everything in it: a folder's menu's Delete
+  /// folder and its notes… (Matt, 2026-11-01: "add ability to context menu delete folders and items inside them").
+  /// Cancel there shuts the sheet, which was opened for nothing else.
+  final bool deletingAll;
   final VoidCallback onClose;
 
   /// An organization's own screen, for its workspace's one row.
@@ -59,6 +69,15 @@ class WorkspaceManageSheet extends StatefulWidget {
 
   /// Puts these notes in the trash: "Delete, and move the notes to Trash".
   final void Function(List<String> noteIds)? onTrashNotes;
+
+  /// Deletes the folder with every note in it and every folder under it, once the sheet has asked and been told
+  /// Delete (lib/notes/note_actions.dart `deleteFolder`: the notes to the Trash with an Undo, an organization's for
+  /// every member). Left out, the question about the notes is the web's two rows, and there is no such question.
+  final ValueChanged<Workspace>? onDeleteAll;
+
+  /// Whether a note is really there and out of the trash, for the counts the question says; left out, every filing
+  /// counts.
+  final bool Function(String noteId)? noteExists;
 
   /// Set template…, for a folder's new notes (lib/notes/place_templates.dart), and the name of the one it has now;
   /// left out, no row. Simple mode keeps it behind the sheet's More.
@@ -79,6 +98,9 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
   /// Delete pressed: the sheet asks what becomes of the notes before anything goes.
   late bool _deleting = widget.deleting;
 
+  /// Delete folder and its notes pressed: the sheet asks, with the counts, before anything goes.
+  late bool _deletingAll = widget.deletingAll;
+
   /// New folder inside pressed: the sheet makes a folder inside the one it is up for.
   bool _making = false;
 
@@ -89,10 +111,11 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
   void didUpdateWidget(WorkspaceManageSheet old) {
     super.didUpdateWidget(old);
     // `useEffect(..., [editing, which])`: another workspace in the same sheet starts again from its own.
-    if (old.editing != widget.editing || old.deleting != widget.deleting) {
+    if (old.editing != widget.editing || old.deleting != widget.deleting || old.deletingAll != widget.deletingAll) {
       _name = widget.editing?.name ?? '';
       _hue = widget.editing?.hue ?? 'ink';
       _deleting = widget.deleting;
+      _deletingAll = widget.deletingAll;
       _making = false;
       _moving = false;
     }
@@ -177,6 +200,48 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
     );
   }
 
+  /// The question before a folder goes with everything in it, counting what goes: "Delete Plans, 3 folders and 24
+  /// notes?". A personal folder's notes go to the Trash, and the toast after has an Undo; an organization's are
+  /// deleted for every member, which nothing undoes, and the question says so (lib/notes/note_actions.dart
+  /// `deleteFolder`). Delete is the one red row; Cancel goes back to where the sheet was, or shuts a sheet opened for
+  /// the question alone.
+  Widget _deleteAllSheet(Workspace editing, FolderContents everything) {
+    final list = widget.store.value.list;
+    final orgName = everything.org == null ? null : list.where((w) => w.id == orgWorkspaceId(everything.org!)).firstOrNull?.name;
+    final notes = everything.notes.length;
+    final String note;
+    if (everything.team) {
+      note = '${notes == 0 ? 'It is' : 'They are'} deleted for every member${orgName == null ? '' : ' of $orgName'}, on every device. This cannot be undone.';
+    } else {
+      note = notes == 0 ? 'Undo puts it back.' : 'Notes go to the Trash, where they can be restored until it is emptied.';
+    }
+    void back() => widget.deletingAll ? widget.onClose() : setState(() => _deletingAll = false);
+    return Sheet(
+      label: 'Delete ${editing.name}',
+      onBack: widget.deletingAll ? null : back,
+      onClose: widget.onClose,
+      children: [
+        SheetTitle.text(folderDeleteQuestion(editing.name, folders: everything.folders.length, notes: notes)),
+        SheetNote(note),
+        SheetGroup(
+          children: [
+            SheetRow(
+              key: const ValueKey('folder-delete-all-yes'),
+              label: everything.team ? 'Delete for everyone' : 'Delete',
+              danger: true,
+              onPress: () {
+                final act = widget.onDeleteAll;
+                widget.onClose();
+                act?.call(editing);
+              },
+            ),
+            SheetRow(key: const ValueKey('folder-delete-all-no'), label: 'Cancel', onPress: back),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final editing = widget.editing;
@@ -214,9 +279,45 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
       );
     }
 
+    final everything = widget.onDeleteAll == null || editing == null ? null : widget.store.folderContents(editing.id, has: widget.noteExists);
+    if (editing != null && _deletingAll && everything != null) return _deleteAllSheet(editing, everything);
+
     if (editing != null && _deleting) {
       final notes = _notesIn(editing.id);
       final count = notes.length == 1 ? 'its 1 note' : 'its ${notes.length} notes';
+      // The app's folders: kept, or deleted with everything under them, which asks again with the counts. A folder
+      // with nothing under it at all is the one row, as before.
+      if (everything != null && (everything.notes.isNotEmpty || everything.folders.isNotEmpty)) {
+        final inside = everything.folders.isNotEmpty;
+        return Sheet(
+          label: 'Delete ${editing.name}',
+          onClose: widget.onClose,
+          children: [
+            SheetTitle.text('Delete ${editing.name}?'),
+            SheetNote(everything.notes.isEmpty ? 'What happens to the folders in it?' : 'What happens to ${everything.notes.length == 1 ? 'its 1 note' : 'its ${everything.notes.length} notes'}?'),
+            SheetGroup(
+              children: [
+                SheetRow(
+                  key: const ValueKey('folder-delete-keep'),
+                  label: 'Remove folder, keep its notes',
+                  hint: inside ? '${_keptHint(editing)} The folders inside it stay, a level up.' : _keptHint(editing),
+                  onPress: () => _delete(editing, notes, trashNotes: false),
+                ),
+                SheetRow(
+                  key: const ValueKey('folder-delete-all'),
+                  label: 'Delete folder and its notes…',
+                  hint: everything.team
+                      ? 'Deleted for every member. This cannot be undone.'
+                      : (inside ? 'The notes and the folders in it go, the notes to the Trash.' : 'The notes go to the Trash.'),
+                  danger: true,
+                  onPress: () => setState(() => _deletingAll = true),
+                ),
+                SheetRow(label: 'Cancel', onPress: widget.deleting ? widget.onClose : () => setState(() => _deleting = false)),
+              ],
+            ),
+          ],
+        );
+      }
       return Sheet(
         label: 'Delete ${editing.name}',
         onClose: widget.onClose,

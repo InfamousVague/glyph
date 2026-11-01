@@ -17,7 +17,8 @@ part of 'note_tree.dart';
 //   with its `icon:` (an emoji, or an icon's name: lucide.g.dart `Lucide.all`), a notebook's or a canvas's mark
 //   or a folder's otherwise; folded shut until opened, the folds this device's (`glyph-tree-pages-open`). A page's
 //   + makes a page inside it ([newPageIn]: a plain note becomes its folder's page first) and its … is its menu:
-//   Open, Favorites, Rename…, Add a page inside, Move to, Delete. A row is dragged (a finger holds first, a mouse
+//   Open, Favorites, Rename…, Add a page inside, Move to, Delete, and on a folder's page the folder's Remove folder,
+//   keep its notes… and Delete folder and its notes… (lib/notes/folder_menu.dart). A row is dragged (a finger holds first, a mouse
 //   just drags): let go over the top or the foot of another row it goes before or after it, which writes the
 //   folder's `order:` ([PageMover.setOrder]); over its middle it goes into that page ([planMoveInto],
 //   [PageMover.run]), and a move the plan refuses says why in a toast ([refusalWords]). A note with no file yet,
@@ -457,6 +458,9 @@ extension _SpacesTree on _NoteTreeState {
     final favorite = given.favorites.contains(note.id);
     final onFavorite = given.onFavorite, onRename = given.onRename, onTrash = widget.onTrashNotes;
     final folder = node?.folder == null ? null : byFolder[node!.folder];
+    // A folder's page: the folder's own two deletes after the page's (Matt, 2026-11-01: "add ability to context menu
+    // delete folders and items inside them"), never an organization's own workspace's.
+    final folderScope = folder == null || folder.org != null ? null : FolderMenuScope.maybeOf(context);
     return PopMenu(
       key: ValueKey('page-menu:${note.id}:${at.at.dx}:${at.at.dy}'),
       anchor: GlacierAnchor.point(at.at),
@@ -479,10 +483,10 @@ extension _SpacesTree on _NoteTreeState {
         if (folder != null && folder.org == null)
           GlacierMenuItem(icon: icon(Lucide.folderOpen), onSelect: () => _set(() => _manage = _Manage(folder)), child: Text('${folder.name}, folder settings…')),
         ...folderMoveRows(context, widget.workspaces, FolderCarry.note(note.id, said)),
-        if (onTrash != null) ...[
-          const GlacierMenuSeparator(),
+        if (onTrash != null || folderScope != null) const GlacierMenuSeparator(),
+        if (onTrash != null)
           GlacierMenuItem(key: const ValueKey('page-menu-delete'), danger: true, style: dangerRowStyle(t), icon: icon(Lucide.trash2), onSelect: () => onTrash([note.id]), child: const Text('Delete')),
-        ],
+        if (folderScope != null) ...folderDeleteRows(folderScope, folder!, icon: icon, t: t),
       ],
     );
   }
