@@ -66,6 +66,7 @@ const Map<PluginCategory, String> _categoryHues = {
   PluginCategory.imports: 'blue',
   PluginCategory.connections: 'indigo',
   PluginCategory.editor: 'amber',
+  PluginCategory.projects: 'mint',
 };
 
 /// A plugin's hue: its page's in Settings where it has one (`PluginSettings.hue`), so its tile and its row there

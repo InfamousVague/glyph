@@ -61,6 +61,7 @@ import 'library.dart' show NoteLibrary;
 import 'note.dart';
 import 'note_facts.dart';
 import 'note_folders.dart' show folderFor, inboxFolder, orgsFolder, workspacesFolder;
+import 'project_tools.dart' show ticketsTool, toolsOn, withNeeds;
 import 'properties.dart' show linkTargets, withFrontMatterValue, withProperty, yamlValue;
 import 'title_key.dart' show titleKey;
 import 'workspaces.dart';
@@ -230,6 +231,7 @@ enum DocsMode { read, edit }
 ///     type: teamspace
 ///     docs: read          # read | edit
 ///     pins: ["[[Onboarding]]", "[[Roadmap]]"]
+///     plugins: [tickets, planning, gantt]
 ///     icon: 🏠
 ///     ---
 ///
@@ -239,9 +241,14 @@ enum DocsMode { read, edit }
 /// a list: `pinned` is one of the library's own keys (front_matter.dart `libraryKeys`, a note's pin, `true`), so
 /// once the writers put everything in one block (docs/MARKDOWN_FIRST.md §9 slice 7) the library would read a
 /// `pinned:` list as the pin and write `pinned` off the note at its next unpinned write. The template writes `pins:`.
+///
+/// `plugins:` is the project tools the team has turned on (docs/PM_PLUGINS.md; Matt, 2026-11-01: "when starting an org
+/// it asks you which of the org based plugins you'd like to enable"): kept here so the whole team shares the list and
+/// a clone of the Library folder has it. None said is none on; a word that is no tool's is left out, and a tool that
+/// needs Tickets is off where Tickets is not in the list (project_tools.dart [toolsOn]).
 @immutable
 class TeamspaceSettings {
-  const TeamspaceSettings({this.isTeamspace = false, this.docs = DocsMode.edit, this.pinned = const [], this.icon});
+  const TeamspaceSettings({this.isTeamspace = false, this.docs = DocsMode.edit, this.pinned = const [], this.icon, this.plugins = const {}});
 
   /// Personal's: edit-first, nothing pinned.
   static const TeamspaceSettings personal = TeamspaceSettings();
@@ -253,6 +260,9 @@ class TeamspaceSettings {
   /// The pinned pages' titles, in order (each `[[link]]`'s title).
   final List<String> pinned;
   final PageIcon? icon;
+
+  /// The project tools on for the team ([toolsOn] of `plugins:`).
+  final Set<String> plugins;
 
   /// The settings a home page's [body] says; the defaults for null (no home page).
   factory TeamspaceSettings.of(String? body) {
@@ -270,6 +280,7 @@ class TeamspaceSettings {
       docs: docs == 'read' ? DocsMode.read : DocsMode.edit,
       pinned: List.unmodifiable(pins),
       icon: PageIcon.of(frontMatterValueIn(body, span, 'icon')),
+      plugins: Set.unmodifiable(toolsOn(frontMatterList(body, 'plugins'))),
     );
   }
 
@@ -280,10 +291,10 @@ class TeamspaceSettings {
 
   @override
   bool operator ==(Object other) =>
-      other is TeamspaceSettings && other.isTeamspace == isTeamspace && other.docs == docs && listEquals(other.pinned, pinned) && other.icon == icon;
+      other is TeamspaceSettings && other.isTeamspace == isTeamspace && other.docs == docs && listEquals(other.pinned, pinned) && other.icon == icon && setEquals(other.plugins, plugins);
 
   @override
-  int get hashCode => Object.hash(isTeamspace, docs, Object.hashAll(pinned), icon);
+  int get hashCode => Object.hash(isTeamspace, docs, Object.hashAll(pinned), icon, Object.hashAllUnordered(plugins));
 }
 
 /// A home page's [body] with its `docs:` set to [mode] (Matt, 2026-10-31: "A per-space setting": how a teamspace's
@@ -292,6 +303,12 @@ class TeamspaceSettings {
 /// back. Written through the one front matter writer (properties.dart `withFrontMatterValue`), so it follows the
 /// one-block switch wherever that stands.
 String withDocsMode(String body, DocsMode mode) => withFrontMatterValue(body, 'docs', mode.name);
+
+/// A home page's [body] with its `plugins:` set to [tools] and what they need (project_tools.dart [withNeeds]), in the
+/// suite's order, on one line (a list someone wrote under the key, a line an item, is taken up first); none takes the
+/// key off, which reads the same. Every other line as it was; front matter made where the page had none: [withDocsMode]'s
+/// way.
+String withProjectPlugins(String body, Iterable<String> tools) => withFrontMatterList(body, 'plugins', withNeeds(tools));
 
 /// A page's [body] with its `icon:` set to [icon] (an emoji, a shortcode, an icon pack's name: [PageIcon.of] reads
 /// each), quoted where YAML would read it as something else; null or blank takes the key off.
@@ -304,13 +321,19 @@ String withPageIcon(String body, String? icon) {
 /// a short welcome, and two ```query fences, the library's recent changes and its open tickets (lib/core/query/read.dart
 /// is their grammar). Titled Home in its front matter, so the app's own folder, which names a file after its title,
 /// keeps it `Home.md`. The queries read the whole library: the grammar has no folder to read from yet.
-String teamspaceHomeBody(String orgName, {DocsMode docs = DocsMode.edit, String icon = '🏠'}) {
+///
+/// [plugins] are the project tools the team chose as it was made (docs/PM_PLUGINS.md), written as `plugins:` with what
+/// they need; the open tickets' query is written only where Tickets is among them, since with it off that query would
+/// be a chip asking for it.
+String teamspaceHomeBody(String orgName, {DocsMode docs = DocsMode.edit, String icon = '🏠', Iterable<String> plugins = const []}) {
   final name = orgName.trim().isEmpty ? 'the team' : orgName.trim();
+  final tools = withNeeds(plugins);
   return [
     '---',
     'title: Home',
     'type: teamspace',
     'docs: ${docs.name}',
+    if (tools.isNotEmpty) 'plugins: [${tools.join(', ')}]',
     'icon: ${yamlValue(icon)}',
     '---',
     '# $name',
@@ -326,15 +349,17 @@ String teamspaceHomeBody(String orgName, {DocsMode docs = DocsMode.edit, String 
     'show: list',
     '```',
     '',
-    '## Open tickets',
-    '',
-    '```query',
-    'from: tickets',
-    'where: status != Done',
-    'sort: priority, due',
-    'show: table',
-    '```',
-    '',
+    if (tools.contains(ticketsTool)) ...[
+      '## Open tickets',
+      '',
+      '```query',
+      'from: tickets',
+      'where: status != Done',
+      'sort: priority, due',
+      'show: table',
+      '```',
+      '',
+    ],
   ].join('\n');
 }
 
@@ -953,10 +978,10 @@ class PageMover {
   /// organization's workspace so it is the team's and syncs to every member (Matt, 2026-10-31, the teamspace home:
   /// "Create the home page"). The note made, or null where the library did not put it where it was asked; null too
   /// for Personal, which has no home page.
-  Future<Note?> createHome(Space space, {DocsMode docs = DocsMode.edit}) async {
+  Future<Note?> createHome(Space space, {DocsMode docs = DocsMode.edit, Iterable<String> plugins = const []}) async {
     final folder = space.folder, to = space.homePath;
     if (folder == null || to == null) return null;
-    final made = await library.createNote(teamspaceHomeBody(space.name, docs: docs));
+    final made = await library.createNote(teamspaceHomeBody(space.name, docs: docs, plugins: plugins));
     final whole = await library.get(made.id) ?? made;
     final placed = await library.apply(whole.copyWith(path: () => to));
     if (placed.path != to) return null;

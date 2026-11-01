@@ -126,7 +126,8 @@ import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../core/bytes.dart' show toBase64Url;
 import '../core/notifications.dart' show isMention, ticketRuleKind;
-import '../core/page_tree.dart' show DocsMode, PageMover, Space, spaceOfOrg, teamspaceHomeIn, withDocsMode;
+import '../core/page_tree.dart' show DocsMode, PageMover, Space, TeamspaceSettings, spaceOfOrg, spacesFor, teamspaceHomeIn, withDocsMode, withProjectPlugins;
+import '../plugins/projects/suite.dart';
 import '../core/versions_log.dart' show ChangesAcross;
 import '../meet/meeting_mark.dart' show meetingsOf, withMeetingMark;
 import '../mentions/mention_notices.dart' show mentionContext, mentionPayload;
@@ -1212,6 +1213,18 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// A plugin was switched on or off, or Local only held some off: the parts that draw Claude (every dock, the chat,
   /// the bar) read again, and the app's Claude switched off closes its chat and stops what it was doing.
+  /// The library or the workspaces changed: an organization's home page, or which notes are an organization's, may
+  /// have, so the project tools' answers are read again (the suite tells only where one differs).
+  void _projectsHeard() {
+    _toolsUsed.clear();
+    _suite.changed();
+  }
+
+  /// A project tool's answer moved somewhere: what reads them is drawn again.
+  void _toolsMoved() {
+    if (mounted) _told(() => _toolsAt += 1);
+  }
+
   void _pluginsMoved() {
     if (!mounted) return;
     _told(() {
@@ -1594,6 +1607,25 @@ class _GhostRootState extends State<GhostRoot> {
   /// fetches, the app's updates, the AI of the note on screen, and what is known of the tapes on this device.
   int _accountAt = 0, _syncAt = 0, _docsAt = 0, _presenceAt = 0, _voiceAt = 0, _modelsAt = 0, _updatesAt = 0, _aiAt = 0, _tapesAt = 0;
 
+  /// The project tools' switches (lib/plugins/projects/suite.dart), counted as the suite says any answer moved: the
+  /// sidebar's My tickets and Triage, the palette's entries and Settings read them (root_teamspaces.dart).
+  int _toolsAt = 0;
+
+  /// The tools each organization's notes use, for its banner, worked out once per change of the library.
+  final Map<String, Set<String>> _toolsUsed = {};
+
+  /// The project tools' switches and their scope, the app's from initState on (`useProjectSuite`).
+  late final ProjectSuite _suite = ProjectSuite(
+    registry: () => plugins,
+    orgOfNote: _orgOfNoteForTools,
+    listOf: _orgToolsListed,
+    orgIds: _orgIdsHere,
+    orgName: _orgNameHere,
+    usedIn: (orgId) => _toolsUsed[orgId] ??= _toolsUsedIn(orgId),
+    writeOrg: _writeOrgTools,
+    stored: _stored,
+  );
+
   /// Any preference at all, for the two parts that hand the whole of them on (a note's desk, the palette): the
   /// others select the fields they read. Counted, not compared: two sets of preferences are told apart by writing
   /// both out.
@@ -1898,6 +1930,11 @@ class _GhostRootState extends State<GhostRoot> {
     if (identical(snippetsSource, _snippets)) snippetsSource = null;
     _snippets.dispose();
     _libraryChanges.removeListener(_digestHeard);
+    _libraryChanges.removeListener(_projectsHeard);
+    _workspaces.removeListener(_projectsHeard);
+    _suite.removeListener(_toolsMoved);
+    if (identical(projectSuite, _suite)) useProjectSuite(ProjectSuite());
+    _suite.dispose();
     _digestPoke?.cancel();
     _digest?.dispose();
     registerTicketHistory(null);
@@ -2068,6 +2105,8 @@ class _GhostRootState extends State<GhostRoot> {
     appAssistant.addListener(_claudeKeyMoved);
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    // The project tools' switches, the person's and each organization's home page's (root_teamspaces.dart).
+    _startProjectSuite();
     _ticketHistory.addListener(_reads.historyRead);
     _versionsHeard = _versionsStore.changed.listen(_ticketHistory.forget);
     // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).

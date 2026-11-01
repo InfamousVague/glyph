@@ -34,6 +34,7 @@ import 'front_matter.dart';
 import 'note.dart';
 import 'note_text.dart' show noteTitleIn, peekMarkdown;
 import 'note_text.dart' as words show firstLine;
+import 'project_tools.dart' show toolsUsedIn;
 import 'properties.dart' show StatusCategory, Ticket, isTicketType, statusCategory, statusesOf, ticketOf;
 import 'short_url.dart' show shortenUrls;
 import 'title_key.dart' show titleKey;
@@ -164,6 +165,11 @@ class NoteFacts {
   /// The ticket's key as written, its `issue:` or an `id:` that reads as one (`ticketKeyIn`); null for neither, and
   /// never the library's note id. Asked of any note, ticket or not, by the notebook finder.
   late final String? ticketKey = _worked(ticketKeyIn(_body, front));
+
+  /// The project tools its words use (project_tools.dart `toolsUsedIn`): a ticket, a notebook of them, a ```gantt,
+  /// ```board, ```rules or ```form fence, a query that needs one. What an organization's banner asks of every note
+  /// (docs/PM_PLUGINS.md). Not to be changed.
+  late final Set<String> tools = _worked(Set<String>.unmodifiable(toolsUsedIn(_body, front)));
 
   // ---- a notebook's --------------------------------------------------------------------------------------------------
 

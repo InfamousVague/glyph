@@ -247,13 +247,34 @@ void main() {
       final settings = TeamspaceSettings.of(body);
       expect((settings.isTeamspace, settings.docs, settings.icon!.emoji), (true, DocsMode.edit, '🏠'));
       expect(TeamspaceSettings.of(teamspaceHomeBody('Acme', docs: DocsMode.read)).docs, DocsMode.read);
-      final fences = queryFencesIn(body);
-      expect(fences, hasLength(2));
+      // With no project tools chosen, no plugins: and only the recent changes (docs/PM_PLUGINS.md).
+      expect(settings.plugins, isEmpty);
+      expect(body, isNot(contains('plugins:')));
+      expect(queryFencesIn(body), hasLength(1));
+      final ticketed = teamspaceHomeBody('Acme', plugins: ['gantt', 'time-tracking']);
+      expect(ticketed, contains('plugins: [tickets, gantt, time-tracking]\n'), reason: 'what a tool needs is written with it, in the suite’s order');
+      expect(TeamspaceSettings.of(ticketed).plugins, {'tickets', 'gantt', 'time-tracking'});
+      final fences = queryFencesIn(ticketed);
+      expect(fences, hasLength(2), reason: 'the open tickets, with Tickets on');
       for (final fence in fences) {
         expect(readQuery(fence.body).problem, isNull, reason: fence.body);
       }
       final made = PageTree.build([at('h', 'orgs/Acme/Home.md', body)], workspaces: spaces);
       expect(made.nodeOf('h')!.title, 'Home', reason: 'titled Home, so the app names its file Home.md');
+    });
+
+    test('a home page’s plugins: are the team’s project tools, written and read back', () {
+      final home = teamspaceHomeBody('Acme');
+      final on = withProjectPlugins(home, ['planning', 'boards']);
+      expect(on, contains('plugins: [tickets, planning, boards]\n'));
+      expect(TeamspaceSettings.of(on).plugins, {'tickets', 'planning', 'boards'});
+      // Every other line as it was.
+      expect(on.replaceFirst('plugins: [tickets, planning, boards]\n', ''), home);
+      expect(withProjectPlugins(on, const []), home, reason: 'none takes the key off');
+      // A list written by hand under the key, a dependent without Tickets, and a word that is no tool's.
+      const byHand = '---\ntype: teamspace\nplugins:\n  - planning\n  - gantt\n  - sparkles\n---\n# Acme\n';
+      expect(TeamspaceSettings.of(byHand).plugins, {'gantt'}, reason: 'Planning stands on Tickets, which is not on');
+      expect(withProjectPlugins(byHand, ['gantt']), '---\ntype: teamspace\nplugins: [gantt]\n---\n# Acme\n');
     });
   });
 

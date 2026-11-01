@@ -35,11 +35,11 @@ extension _RootTeamspaces on _GhostRootState {
   Space? _spaceOf(String orgId) => spaceOfOrg(_workspaces.value.list, orgId);
 
   /// Makes the organization's home page (`orgs/<Org>/Home.md`), filed in its workspace, so the team has it.
-  Future<void> _createHome(String orgId, {DocsMode docs = DocsMode.edit}) async {
+  Future<void> _createHome(String orgId, {DocsMode docs = DocsMode.edit, Iterable<String> plugins = const []}) async {
     final space = _spaceOf(orgId);
     if (space == null) return;
     try {
-      final made = await PageMover(library: _library, workspaces: _workspaces).createHome(space, docs: docs);
+      final made = await PageMover(library: _library, workspaces: _workspaces).createHome(space, docs: docs, plugins: plugins);
       await _library.refresh().catchError((Object _) {});
       if (made == null && mounted) _say(context, 'The home page could not be put in ${space.name}’s folder.');
     } catch (failure) {
@@ -54,6 +54,83 @@ extension _RootTeamspaces on _GhostRootState {
     final home = teamspaceHomeIn(_library.value, space);
     if (home == null) return _createHome(orgId, docs: mode);
     await _changeNote(home.id, (body) => withDocsMode(body, mode), userEvent: 'teamspace.docs').catchError((Object _) {});
+  }
+
+  // ---- the project tools (docs/PM_PLUGINS.md) -----------------------------------------------------------------------
+
+  /// Makes the root's suite the app's, and hears what may move its answers: the library and the workspaces (an
+  /// organization's home page, which notes are a team's); the registry's switches it hears by itself.
+  void _startProjectSuite() {
+    useProjectSuite(_suite);
+    _libraryChanges.addListener(_projectsHeard);
+    _workspaces.addListener(_projectsHeard);
+    _suite.addListener(_toolsMoved);
+  }
+
+  /// The organization a note is in: its workspace's, else the one whose folder its path is under; null for a
+  /// personal note.
+  String? _orgOfNoteForTools(String noteId) {
+    final list = _workspaces.value.list;
+    final filed = _workspaces.workspaceOf(noteId);
+    if (filed != null) return orgOfWorkspace(list, filed.id);
+    final path = _library.noteOf(noteId)?.path;
+    if (path == null || !path.startsWith('$orgsFolder/')) return null;
+    for (final space in spacesFor(list)) {
+      final folder = space.folder;
+      if (space.orgId != null && folder != null && path.startsWith('$folder/')) return space.orgId;
+    }
+    return null;
+  }
+
+  /// The tools an organization's home page lists; null where this device has no workspace for it.
+  Set<String>? _orgToolsListed(String orgId) {
+    final space = _spaceOf(orgId);
+    if (space == null) return null;
+    return TeamspaceSettings.of(teamspaceHomeIn(_library.value, space)?.body).plugins;
+  }
+
+  /// The organizations this device has a workspace for.
+  List<String> _orgIdsHere() => [for (final w in _workspaces.value.list) ?orgIdOf(w.id)];
+
+  String? _orgNameHere(String orgId) {
+    for (final w in _workspaces.value.list) {
+      if (w.id == orgWorkspaceId(orgId)) return w.name;
+    }
+    return null;
+  }
+
+  /// The tools an organization's notes use (`NoteFacts.tools`), its home page's own left out.
+  Set<String> _toolsUsedIn(String orgId) {
+    final out = <String>{};
+    final space = _spaceOf(orgId);
+    final home = space == null ? null : teamspaceHomeIn(_library.value, space);
+    for (final note in _shown) {
+      if (note.id == home?.id) continue;
+      final tools = NoteFacts.of(note).tools;
+      if (tools.isEmpty || out.containsAll(tools)) continue;
+      if (_orgOfNoteForTools(note.id) == orgId) out.addAll(tools);
+    }
+    return out;
+  }
+
+  /// Writes an organization's tools into its home page's `plugins:`, the home page made with them where there is
+  /// none yet. Answers whether they were written.
+  Future<bool> _writeOrgTools(String orgId, Set<String> tools) async {
+    final space = _spaceOf(orgId);
+    if (space == null) return false;
+    final home = teamspaceHomeIn(_library.value, space);
+    try {
+      if (home == null) {
+        final made = await PageMover(library: _library, workspaces: _workspaces).createHome(space, plugins: tools);
+        await _library.refresh().catchError((Object _) {});
+        return made != null;
+      }
+      await _changeNote(home.id, (body) => withProjectPlugins(body, tools), userEvent: 'teamspace.plugins');
+      return true;
+    } catch (failure) {
+      if (mounted) _say(context, 'The tools were not turned on: $failure');
+      return false;
+    }
   }
 
   /// A mention of this account in a team page follows the page, once per mention (lib/team/follow.dart
