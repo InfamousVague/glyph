@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.3.96",
+    "date": "2026-11-01",
+    "title": "Delete a folder with everything in it",
+    "items": [
+      {"icon": "trash-2", "words": "Delete folder and its notes, from a folder's menu: notes go to the Trash, with Undo. A team's are deleted for everyone.", "kind": "new"},
+      {"icon": "folder-open", "words": "In All notes by folder, hold or right-click a note to open, move or delete it, and a folder for its menu.", "kind": "new"},
+      {"icon": "activity", "words": "The activity tray's downloads and syncs line up with its headings.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.3.95",
     "date": "2026-10-31",
     "title": "Teamspaces: your team's docs, laid out like a wiki",
