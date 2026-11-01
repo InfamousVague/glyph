@@ -90,6 +90,7 @@ import '../core/folder_adopter.dart' show adoptFolders;
 import '../core/library_config.dart' show LibraryConfig, LibraryConfigKeeper, configFileFor;
 import '../core/favorites.dart' show favoritesIn, withFavorite;
 import '../core/folder_dirs.dart' show libraryRootOf, removeEmptyFolderDirs;
+import '../core/show_in_files.dart' show ShowInFiles;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
@@ -1041,6 +1042,14 @@ class _GhostRootState extends State<GhostRoot> {
   VoidCallback? get _browseFiles => _files.offered(() {
         if (mounted) setState(() => _canBrowse = true);
       });
+
+  /// Show in Finder (Explorer, Files) in a note's and a folder's menus on a desktop (Matt, 2026-11-01: "also add an
+  /// 'open in finder' option"; lib/core/show_in_files.dart): under the library's root as Settings › Library has it,
+  /// asked as the app starts so the first right-click has the row. None without the core, as in a test.
+  late final ShowInFiles _showInFiles = ShowInFiles(root: () async {
+    final library = _libraryFolder;
+    return library == null ? null : libraryRootOf(await library.status());
+  });
 
   /// Whether the phone has said it can show the folder: what a sidebar is drawn again for.
   bool _canBrowse = false;
@@ -2008,6 +2017,8 @@ class _GhostRootState extends State<GhostRoot> {
     super.initState();
     _startWhatsNew();
     _smoke();
+    // Where the library is, for the menus' Show in Finder: asked now, on a desktop only.
+    if (_libraryFolder != null) _showInFiles.refresh().ignore();
     _wispEdge.addListener(_smoke);
     // Local only turning on or off changes which plugins are on without a switch moving: the registry is told of
     // that, and not of a tab opened or a note filed, which told everything that draws a plugin to draw again.

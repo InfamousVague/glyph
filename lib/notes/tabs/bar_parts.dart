@@ -133,9 +133,46 @@ class _RenderLineBox extends RenderShiftedBox {
 /// `color-mix(in oklch, var(--app-ink) N%, transparent)`: the hover wash of a tab and of the + after the last one.
 Color inkWash(Tokens t, int percent) => t.colorOf('color-mix(in oklch, var(--app-ink) $percent%, transparent)');
 
-/// The header's glass (app.css `--app-glass-mix`, `--app-glass-blur`): the page's paper at two thirds, over a blur of
-/// whatever runs under it.
-Color glassTint(Tokens t) => t.colorOf(ghostPlain ? plainGlass : 'color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)');
+/// The glass (app.css `--app-glass-mix`, `--app-glass-blur`): the page's paper at two thirds, over a blur of whatever
+/// runs under it.
+Color glassTint(Tokens t) => t.colorOf(ghostPlain ? plainGlass : glassRecipe);
+
+/// The glass's tint as the stylesheet says it.
+const String glassRecipe = 'color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)';
+
+/// [glass] made the header's: `--app-header-shade` of black laid over it (app.css; Matt, 2026-11-01: "make the header
+/// 50% darker glass"), half in the dark and a step on paper. Mixed rather than laid on, it is one colour, and the
+/// same one, since both are drawn premultiplied.
+String headerGlass(String glass) => 'color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), $glass)';
+
+/// The header's glass: the pane, the tab bar across a split window, the Islands' capsules. A plain build's is its own
+/// pane's tint (lib/app/plain.dart) darkened the same.
+Color headerGlassTint(Tokens t) => t.colorOf(headerGlass(ghostPlain ? (ghostBarBlur ? plainBarBlurGlass : plainGlass) : glassRecipe));
+
+/// The glass every control on the header is drawn in (app.css `--app-control-glass`; Matt, 2026-11-01: "make sure all
+/// components in the header support glass"): the page's ink at a small share, so what is under the control - the
+/// header's glass and the blur under that - shows through it, a step more ([lit]) under a mouse or a finger. No
+/// control blurs for itself: the bar's blur is already under it, and a filter a button would read the backdrop again.
+/// [ink] is the colour the glass is a share of: the page's ink, or the accent's for a control that is the accent's.
+Color controlGlass(Tokens t, {bool lit = false, String ink = 'app-ink'}) =>
+    t.colorOf('color-mix(in oklch, var(--$ink) var(${lit ? '--app-control-glass-lit' : '--app-control-glass'}), transparent)');
+
+/// The control glass of a control that stands out (the Labelled bar's "on", New, the button for you): the accent's
+/// at the lit share, and the share once more over that under a mouse or a finger. Without an accent the accent is
+/// the ink, and this is the ink's glass a step up.
+Color accentGlass(Tokens t, {bool lit = false}) {
+  final glass = controlGlass(t, lit: true, ink: 'glacier-accent-9');
+  return lit ? Color.alphaBlend(controlGlass(t, ink: 'glacier-accent-9'), glass) : glass;
+}
+
+/// A control of the header as a surface: [controlGlass] with the hairline the pills wear, a circle or a round of
+/// [radius]; lit, the glass a step up and the hairline the stronger border, as the title pill's always was.
+BoxDecoration controlGlassBox(Tokens t, {bool lit = false, bool circle = false, double radius = 999, double? border}) => BoxDecoration(
+      color: controlGlass(t, lit: lit),
+      shape: circle ? BoxShape.circle : BoxShape.rectangle,
+      borderRadius: circle ? null : BorderRadius.circular(radius),
+      border: Border.all(color: t.color(lit ? 'glacier-border' : 'glacier-border-subtle'), width: border ?? t.len('glacier-hairline')),
+    );
 
 /// A plain build's glass (lib/app/plain.dart): with no blur behind it the pane is nearly the page's own ground, so
 /// what scrolls under a bar is a shadow of itself and not words read through it.
@@ -167,7 +204,8 @@ ui.ImageFilter glassFilter(Tokens t) {
 class BarGlass extends StatelessWidget {
   const BarGlass({super.key, this.radius = 0, this.border, this.shadows = const [], this.tint, this.blur = true, this.head = false, required this.child});
 
-  /// This is the app's header: the one pane a plain build may still blur, slightly (lib/app/plain.dart `ghostBarBlur`).
+  /// This is the app's header: the one pane a plain build may still blur, slightly (lib/app/plain.dart `ghostBarBlur`),
+  /// and its tint is the header's darker glass ([headerGlassTint]) unless another is given.
   final bool head;
 
   final double radius;
@@ -187,6 +225,7 @@ class BarGlass extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final shape = BorderRadius.circular(radius);
+    final own = tint ?? (head ? headerGlassTint(t) : glassTint(t));
     return CustomPaint(
       painter: shadows.isEmpty ? null : _OuterShadowPainter(shadows, radius),
       child: Stack(
@@ -203,10 +242,10 @@ class BarGlass extends StatelessWidget {
                       // One group with the tabs' strip under it: what is behind the two is read once.
                       ? BackdropFilter.grouped(
                           filter: ui.ImageFilter.blur(sigmaX: plainBarBlurSigma, sigmaY: plainBarBlurSigma, tileMode: TileMode.clamp),
-                          child: ColoredBox(color: tint ?? t.colorOf(plainBarBlurGlass)),
+                          child: ColoredBox(color: own),
                         )
-                      : BackdropFilter.grouped(enabled: !ghostPlain, filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t))))
-                  : ColoredBox(color: tint ?? glassTint(t)),
+                      : BackdropFilter.grouped(enabled: !ghostPlain, filter: glassFilter(t), child: ColoredBox(color: own)))
+                  : ColoredBox(color: own),
             ),
           ),
           if (border != null)
@@ -281,8 +320,9 @@ class InsetRing extends StatelessWidget {
 
 /// `.sidebar` and `.step` (NoteTabs.module.css): one ring of the bar, `--app-bar-ring` across - the sidebar's button,
 /// an arrow, the people icon, the bell, the cog, the aside's toggle. Muted until hovered or pressed, when it takes the
-/// page's ink on `--app-paper-2`; `on` is a ring round it in its own ink (`[data-on]`); with nothing to do
-/// ([onPressed] null) it stays, dead, at 30%, so the row never changes width.
+/// page's ink on the header's control glass ([controlGlass], lit; `--app-paper-2` until 2026-11-01); `on` is a ring
+/// round it in its own ink (`[data-on]`); with nothing to do ([onPressed] null) it stays, dead, at 30%, so the row
+/// never changes width.
 class BarRing extends StatelessWidget {
   const BarRing({
     super.key,
@@ -346,7 +386,9 @@ class BarRing extends StatelessWidget {
               width: t.len('app-line'),
               radius: radius,
               child: DecoratedBox(
-                decoration: BoxDecoration(color: lit ? t.color('app-paper-2') : null, borderRadius: radius),
+                // Lit, the header's control glass a step up (Matt, 2026-11-01: "make sure all components in the header
+                // support glass"), where it was the second paper.
+                decoration: BoxDecoration(color: lit ? controlGlass(t, lit: true) : null, borderRadius: radius),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -432,7 +474,7 @@ class BarWord extends StatelessWidget {
               key: anchorKey,
               constraints: BoxConstraints(minHeight: t.len('app-bar-ring')),
               padding: EdgeInsets.symmetric(horizontal: t.space(2)),
-              decoration: BoxDecoration(color: lit ? t.color('app-paper-2') : null, borderRadius: radius),
+              decoration: BoxDecoration(color: lit ? controlGlass(t, lit: true) : null, borderRadius: radius),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: t.space(1),
@@ -463,6 +505,8 @@ class BarCapsule extends StatelessWidget {
     final hairline = t.len('glacier-hairline');
     return BarGlass(
       radius: t.radius('full'),
+      // The header's darker glass: in the Islands the capsules are the header.
+      tint: headerGlassTint(t),
       border: BorderSide(color: t.color('glacier-border-subtle'), width: hairline),
       shadows: t.cssShadows('app-float-shadow'),
       child: Padding(

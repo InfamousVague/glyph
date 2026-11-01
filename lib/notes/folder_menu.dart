@@ -12,7 +12,9 @@
 /// Undo after; an organization's deleted for every member, which cannot be undone (lib/notes/note_actions.dart
 /// `deleteFolder`). So nothing is deleted from a menu without being asked, and a folder of an organization's goes by
 /// the same rules and the same moves as from its sheet. An organization's own workspace has no menu: it is not
-/// renamed, moved or deleted by hand. Simple mode (GHST-103) has the same rows: deleting is basic.
+/// renamed, moved or deleted by hand. Simple mode (GHST-103) has the same rows: deleting is basic. On a desktop, Show in
+/// Finder (Explorer, Files) comes after Move to, where the folder's directory is on the disk (Matt, 2026-11-01: "also
+/// add an 'open in finder' option"; lib/core/show_in_files.dart), from the scope's [FolderMenuScope.show].
 ///
 /// A finger's press and hold on a folder is the drag that carries it (folder_drag.dart `FolderCarrySource`); let go
 /// where it was held, without carrying it anywhere, it opens this menu where the tiles and the chips are (the icon
@@ -27,15 +29,17 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/art.dart';
+import '../core/note_folders.dart' show folderFor;
 import '../core/preferences.dart' show preferences;
+import '../core/show_in_files.dart';
 import '../core/workspaces.dart';
 import '../shell/pop_menu.dart';
 import 'folder_drag.dart';
-import 'note_menu.dart' show byMouse;
+import 'note_menu.dart' show byMouse, showInFilesRows;
 
 /// What a folder's menu does, from the root: its sheet to rename it, or at Delete.
 class FolderMenuScope extends InheritedWidget {
-  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, required super.child});
+  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, this.show, required super.child});
 
   final WorkspaceStore store;
   final ValueChanged<Workspace> onRename;
@@ -58,10 +62,13 @@ class FolderMenuScope extends InheritedWidget {
   /// A note's menu at a point in the window, for a list that was handed none of its own.
   final void Function(String noteId, Offset at)? onNoteMenu;
 
+  /// Show in Finder, Explorer or Files, for a folder's directory and a page's file; absent, or on a phone, no row.
+  final ShowInFiles? show;
+
   static FolderMenuScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<FolderMenuScope>();
 
   @override
-  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu;
+  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu || old.show != show;
 }
 
 /// The right-click a folder's tile, chip or row answers: its menu at the pointer, a mouse's other button only. An
@@ -134,6 +141,7 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
           // behind its More.
           if (scope.onSetTemplate != null && !preferences.value.simple) GlacierMenuItem(key: const ValueKey('folder-menu-template'), icon: icon(Lucide.copyPlus), onSelect: () => scope.onSetTemplate!(folder), child: const Text('Set template…')),
           if (context.mounted) ...folderMoveRows(context, store, FolderCarry.folder(folder.id, folder.name)),
+          ...folderShowRows(scope.show, folder, store.value.list, icon: icon(Lucide.hardDrive)),
           const GlacierMenuSeparator(),
           ...folderDeleteRows(scope, folder, icon: icon, t: t),
         ],
@@ -142,3 +150,8 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
   );
   overlay.insert(entry);
 }
+
+/// Show in Finder (Explorer, Files) for [folder]'s directory, the one filing names (lib/core/note_folders.dart
+/// `folderFor`, [all] for its parents'), where it is on the disk.
+List<Widget> folderShowRows(ShowInFiles? show, Workspace folder, List<Workspace> all, {required Widget icon}) =>
+    showInFilesRows(show, folderFor(folder, all), key: const ValueKey('folder-menu-show'), icon: icon, directory: true);
