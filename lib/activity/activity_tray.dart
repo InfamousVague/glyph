@@ -220,7 +220,10 @@ class ActivityRow extends StatelessWidget {
       label: '${job.title}. ${job.liveLine}${where == null ? '' : ', $where'}',
       child: Container(
         margin: EdgeInsets.only(bottom: t.space(2)),
-        padding: EdgeInsets.all(t.space(2)),
+        // Flush with the tray's words, as the update's line and Today are (Matt, 2026-11-01: "The download and sync are
+        // tabbed in when they should be flush against the left padding"); only a failed row, on its red wash inside its
+        // border, keeps room at its sides.
+        padding: failed ? EdgeInsets.all(t.space(2)) : EdgeInsets.symmetric(vertical: t.space(2)),
         decoration: BoxDecoration(
           color: failed ? colour.withValues(alpha: colour.a * 0.1) : null,
           borderRadius: BorderRadius.circular(t.radius('md')),
