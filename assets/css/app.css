@@ -468,7 +468,7 @@ body {
    * but the tabs and such are fully opaque"): the same mix and blur as the screen's own header pane, so the cards
    * scrolled under the bar show through it as they do under the title strip above it, which is the pane alone.
    */
-  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  background: color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent));
   -webkit-backdrop-filter: var(--app-glass-blur);
   backdrop-filter: var(--app-glass-blur);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
@@ -660,12 +660,45 @@ body:has(.app-headerPane) .app-statusScrim {
   --app-float-shadow: 0 16px 40px rgb(0 0 0 / 34%);
 }
 
+/*
+ * The header's glass is that glass made darker (Matt, 2026-11-01, of the Mac's header in the dark: "the header is a
+ * mix of glass and not glass elements, make the header 50% darker glass and make sure all components in the header
+ * support glass"): `--app-header-shade` of black laid over the glass, so the pane, the tab bar across a split window
+ * and the Islands' capsules let half the light through that the glass did, in the dark - the tint at half its
+ * lightness and what runs under it at half its brightness, the blur as it was. Mixed rather than laid on, it is one
+ * colour: `color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), <the glass>)` is the glass under that share of
+ * black, both being drawn premultiplied.
+ *
+ * On paper half would turn a white header mid-grey, mud rather than glass; there the step is 8%, a frosted grey a
+ * shade under the page, which reads as darker glass and keeps the page's white the brightest thing on the screen.
+ *
+ * Every control on the header is the one glass of its own (`--app-control-glass`): the page's ink at that share over
+ * the header's glass, with the hairline the pills have always worn, a step more (`--app-control-glass-lit`) under a
+ * mouse or a finger. Nothing in it is opaque, so the bar's blur is under every pill, circle and field; none of them
+ * blurs again for itself. An "on" control (ink, its glyph in paper) is a state, not a surface, and stays solid.
+ */
+:root {
+  --app-header-shade: 8%;
+  --app-control-glass: 6%;
+  --app-control-glass-lit: 11%;
+}
+
+[data-theme='dark'] {
+  --app-header-shade: 50%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --app-header-shade: 50%;
+  }
+}
+
 .app-headerPane {
   position: absolute;
   inset-inline: 0;
   inset-block-start: 0;
   z-index: 3;
-  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  background: color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent));
   -webkit-backdrop-filter: var(--app-glass-blur);
   backdrop-filter: var(--app-glass-blur);
 }
@@ -679,7 +712,7 @@ body:has(.app-headerPane) .app-statusScrim {
   background: linear-gradient(
     to bottom,
     transparent var(--app-safe-top),
-    color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent) var(--app-safe-top)
+    color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)) var(--app-safe-top)
   );
 }
 

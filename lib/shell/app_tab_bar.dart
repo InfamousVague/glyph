@@ -50,6 +50,8 @@ class AppTabBar extends StatelessWidget {
       // read as a double rule.
       final lined = t.attrs['tabs'] != 'rows';
       bar = BarGlass(
+        // The header's darker glass, as the pane under it (`--app-header-shade`).
+        tint: headerGlassTint(t),
         child: DecoratedBox(
           position: DecorationPosition.foreground,
           decoration: BoxDecoration(

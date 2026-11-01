@@ -4,8 +4,9 @@ import 'package:glacier/glacier.dart';
 import '../notes/tabs/bar_parts.dart';
 
 /// A header pane over a screen that scrolls under it: `.app-headerPane` of the web app's app.css. Dark glass in the
-/// dark and light glass on paper, the page's own colour at two thirds over a blur of whatever runs under it, from
-/// the top of the phone: its [child] is padded down by `--app-safe-top`, the notch and the tab bar, so the pane is
+/// dark and light glass on paper, the page's own colour at two thirds over a blur of whatever runs under it, made the
+/// header's darker glass (`--app-header-shade`, [headerGlassTint]; Matt, 2026-11-01: "make the header 50% darker
+/// glass"), from the top of the phone: its [child] is padded down by `--app-safe-top`, the notch and the tab bar, so the pane is
 /// the glass behind the bar too.
 ///
 /// Under a split window's bar, which is glass of its own across the whole window, the pane's tint starts where the
@@ -34,7 +35,7 @@ class HeaderPane extends StatelessWidget {
         child: Stack(
           fit: StackFit.passthrough,
           children: [
-            Positioned(left: 0, right: 0, top: safeTop, bottom: 0, child: ColoredBox(color: glassTint(t))),
+            Positioned(left: 0, right: 0, top: safeTop, bottom: 0, child: ColoredBox(color: headerGlassTint(t))),
             content,
           ],
         ),

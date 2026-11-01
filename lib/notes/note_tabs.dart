@@ -727,12 +727,13 @@ class _NoteTabsState extends State<NoteTabs> {
     final Widget top;
     final double topH;
     if (style == TopBarStyle.ledger) {
-      // The tool row under the tabs is the open tab's own ground: paper, with a line under it, the bar's whole width.
+      // The tool row under the tabs is the open tab's own ground, with a line under it, the bar's whole width: the
+      // header's glass, as the open tab is, where it was paper - a solid strip across the glass (Matt, 2026-11-01:
+      // "the header is a mix of glass and not glass elements").
       topH = ring + 4 + hairline;
       top = Container(
         padding: EdgeInsets.fromLTRB(start, 2, end, 2),
         decoration: BoxDecoration(
-          color: t.color('glacier-bg'),
           border: Border(bottom: BorderSide(color: t.color('glacier-border-subtle'), width: hairline)),
         ),
         child: version != null

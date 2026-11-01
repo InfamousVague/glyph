@@ -23,6 +23,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/background_jobs.dart';
 import '../notes/floating_card.dart';
+import '../notes/tabs/bar_parts.dart' show controlGlass;
 import '../sheet/sheet.dart';
 import 'activity_look.dart';
 import 'activity_tray.dart';
@@ -335,7 +336,18 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
         },
         semanticLabel: activityRingLabel(jobs, update: update),
         pressScale: null,
-        builder: (context, state) => GlacierFocusRing(visible: state.focused, radius: 999, child: face),
+        // On a disc of the header's control glass, as the button for you beside it, where the bar showed through the ring
+        // (Matt, 2026-11-01: "make sure all components in the header support glass"); a step up under a mouse or a
+        // finger and while the tray is open.
+        builder: (context, state) => GlacierFocusRing(
+          visible: state.focused,
+          radius: 999,
+          child: DecoratedBox(
+            key: const ValueKey('activity-ring:glass'),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: controlGlass(t, lit: state.hovered || state.pressed || _open)),
+            child: face,
+          ),
+        ),
       ),
     );
     if (!_open) return button;

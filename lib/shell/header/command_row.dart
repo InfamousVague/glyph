@@ -21,6 +21,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/icon_packs.dart' show IconStyle;
 import '../../art/lucide.g.dart';
+import '../../notes/tabs/bar_parts.dart' show controlGlassBox;
 import '../header_toolbar.dart';
 import '../top_bar_tools.dart' show BarButton;
 import 'grouped_row.dart' show fallbackTools;
@@ -111,11 +112,9 @@ class CommandField extends StatelessWidget {
             return Container(
               height: t.len('app-bar-ring'),
               padding: EdgeInsets.symmetric(horizontal: t.space(3)),
-              decoration: BoxDecoration(
-                color: t.color(lit ? 'app-paper-3' : 'app-paper-2'),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: t.color(lit ? 'glacier-border' : 'glacier-border-subtle'), width: t.len('glacier-hairline')),
-              ),
+              // The header's control glass, the bar's blur under it, where it was the second paper and the third lit
+              // (Matt, 2026-11-01: "make sure all components in the header support glass").
+              decoration: controlGlassBox(t, lit: lit),
               // Squeezed below its glass, the gap after it and the key's hint (a Mac's window at its floor of 360 in the
               // Islands, whose window buttons take the bar's start; or the one frame a screen's own controls stay in the
               // row after it goes, before they are handed back), the line keeps that much and is cut at the pill's edge.
@@ -171,7 +170,8 @@ class CommandField extends StatelessWidget {
   }
 }
 
-/// A ring with no ground: Back, the sidebar's toggle.
+/// A ring: Back, the sidebar's toggle. It had no ground, the bar showing through it; it is a circle of the header's
+/// control glass now, as the title pill is, so every control on the bar is the same glass.
 class _Plain extends StatelessWidget {
   const _Plain({required this.act, required this.fine, this.step = 0});
   final HeaderAct act;
@@ -193,7 +193,8 @@ class _Plain extends StatelessWidget {
         return Container(
           width: ring,
           height: ring,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: lit ? t.color('app-paper-2') : null),
+          // A circle of the header's control glass, as every control on the bar is (2026-11-01).
+          decoration: controlGlassBox(t, lit: lit, circle: true),
           child: Center(child: HeaderGlyph(act, size: 19 + step, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
         );
       },
@@ -223,7 +224,7 @@ class _Filters extends StatelessWidget {
         child: Container(
           width: ring,
           height: ring,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: on ? t.color('glacier-text') : (lit ? t.color('app-paper-2') : null)),
+          decoration: on ? BoxDecoration(shape: BoxShape.circle, color: t.color('glacier-text')) : controlGlassBox(t, lit: lit, circle: true),
           child: Center(child: HeaderGlyph(_act, size: 18 + step, color: ink, strokeWidth: 1.7)),
         ),
       );
@@ -286,7 +287,7 @@ class _CommandMenu extends StatelessWidget {
           Container(
             width: ring,
             height: ring,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: lit ? t.color('app-paper-2') : null),
+            decoration: controlGlassBox(t, lit: lit, circle: true),
             child: Center(child: HeaderGlyph(act, size: 19 + step, color: lit ? t.color('glacier-text') : t.color('glacier-text-muted'), strokeWidth: 1.7)),
           ),
           rim: t.color('glacier-bg'),

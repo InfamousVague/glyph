@@ -1,7 +1,7 @@
 /// Version 2 of the header toolbar, **Grouped** (lib/shell/header_toolbar.dart): the controls in clusters, each
 /// cluster a pill of its own, so the row reads as three things rather than ten.
 ///
-/// - **The way around**, at the start: Home and the notes' sidebar in one pill on the page's second paper, then,
+/// - **The way around**, at the start: Home and the notes' sidebar in one pill on the header's control glass, then,
 ///   apart from it by the bar's own gap, Back and Forward in another ([GroupedWay]; Matt, 2026-10-28: "the grouped
 ///   ones need a bit of space between the home sidebar and navigation buttons"). Two pills read as two things on
 ///   the folded Fold, where a hairline inside one pill was lost; one pill with a hole in it read as a broken pill.
@@ -31,6 +31,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/icon_packs.dart' show IconStyle;
+import '../../notes/tabs/bar_parts.dart' show controlGlass, controlGlassBox;
 import '../header_toolbar.dart';
 import 'header_kit.dart';
 
@@ -147,9 +148,11 @@ class GroupedYou extends StatelessWidget {
           Container(
             width: ring,
             height: ring,
+            // The header's control glass, as the pills are, where it was the bar showing through a ring (Matt,
+            // 2026-11-01: "make sure all components in the header support glass").
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: lit ? t.color('app-paper-2') : null,
+              color: controlGlass(t, lit: lit),
               border: Border.all(color: lit ? ink : t.color('glacier-border-subtle'), width: 1.5),
             ),
             child: Center(child: HeaderGlyph(act, size: glyph, color: lit ? ink : t.color('glacier-text-muted'))),
@@ -163,7 +166,9 @@ class GroupedYou extends StatelessWidget {
   }
 }
 
-/// A pill of segments on the page's second paper, a ring high, with a hairline round it.
+/// A pill of segments on the header's control glass, a ring high, with a hairline round it: translucent over the bar's
+/// own glass and blur, where it was the page's second paper, solid (Matt, 2026-11-01: "the header is a mix of glass and
+/// not glass elements").
 class GroupedPill extends StatelessWidget {
   const GroupedPill({super.key, required this.children});
   final List<Widget> children;
@@ -175,11 +180,7 @@ class GroupedPill extends StatelessWidget {
     return Container(
       height: t.len('app-bar-ring'),
       padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: t.color('app-paper-2'),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: t.color('glacier-border-subtle'), width: hairline),
-      ),
+      decoration: controlGlassBox(t, border: hairline),
       // A gap between the circles, so two buttons read as two (Matt, 2026-10-29, of Home and the sidebar: "too close
       // together it's missing the gap").
       child: Row(mainAxisSize: MainAxisSize.min, spacing: t.space(1), children: children),
@@ -242,10 +243,12 @@ class GroupedSegmentFace extends StatelessWidget {
       Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(color: on ? ink : (lit ? paper : null), shape: BoxShape.circle),
+        // Lit, the control glass once more over the pill's, so the two together are its lit step and the segment stays
+        // glass (it was the page's paper); on, ink, a state rather than a surface.
+        decoration: BoxDecoration(color: on ? ink : (lit ? controlGlass(t) : null), shape: BoxShape.circle),
         child: Center(child: HeaderGlyph(act, size: glyph, color: color, strokeWidth: 2)),
       ),
-      rim: t.color('app-paper-2'),
+      rim: paper,
       ink: ink,
       paper: t.color('app-paper'),
     );

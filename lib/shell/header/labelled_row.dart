@@ -19,13 +19,14 @@
 /// the bar instead, behind the button, rather than reaching into either.)
 ///
 /// Iconography: the chosen pack's **Filled** style, a size up from the other versions', in the page's ink; what is
-/// on, and New, wear the accent's soft ground.
+/// on, and New, wear the accent's glass (bar_parts.dart `accentGlass`; its soft ground, solid, until 2026-11-01).
 library;
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/icon_packs.dart' show IconStyle;
+import '../../notes/tabs/bar_parts.dart' show accentGlass, controlGlass;
 import '../header_toolbar.dart';
 import 'grouped_row.dart' show fallbackTools;
 import 'header_kit.dart';
@@ -109,7 +110,9 @@ class _LabelledFace extends StatelessWidget {
     final lit = (state.hovered || state.pressed) && !state.disabled;
     final strong = on || accent;
     final color = strong ? t.color('glacier-accent-text') : (lit ? t.color('glacier-text') : t.color('glacier-text-muted'));
-    final ground = strong ? t.color(lit ? 'glacier-accent-soft-hover' : 'glacier-accent-soft') : (lit ? t.color('app-paper-2') : null);
+    // The header's control glass (Matt, 2026-11-01: "make sure all components in the header support glass"): the
+    // accent's for what stands out, the ink's lit, where they were the accent's soft ground and the second paper, solid.
+    final ground = strong ? accentGlass(t, lit: lit) : (lit ? controlGlass(t, lit: true) : null);
     final glyph = HeaderGlyph(act, size: 18, color: color, strokeWidth: 2);
     return withMarks(
       act,
@@ -159,7 +162,7 @@ class _You extends StatelessWidget {
             Container(
               width: ring,
               height: ring,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: t.color(lit ? 'glacier-accent-soft-hover' : 'glacier-accent-soft')),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: accentGlass(t, lit: lit)),
               child: Center(child: HeaderGlyph(act, size: 18, color: t.color('glacier-accent-text'))),
             ),
             rim: t.color('glacier-bg'),
