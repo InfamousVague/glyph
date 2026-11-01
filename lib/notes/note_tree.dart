@@ -27,6 +27,7 @@ import '../team/presence_avatars.dart' show PresenceMarked;
 import 'book_place_mark.dart';
 import 'folder_drag.dart';
 import 'folder_menu.dart';
+import 'note_menu.dart' show showInFilesRows;
 import 'note_peek.dart';
 import 'org_mark.dart';
 import 'tree.dart';
