@@ -30,7 +30,8 @@
 ///   files it the same (lib/team/folders.dart). Whether a workspace is in an organization is read by walking its
 ///   parents ([orgOfWorkspace]); the id's prefix ([isOrgWorkspace]) says only whether it is the organization's own.
 ///   Nothing is moved into or out of an organization: [canMove] keeps a folder in the organization it is in, or out
-///   of every one. The organization's workspace gone ([dropOrgWorkspace]) takes its folders with it.
+///   of every one. The organization's workspace gone ([dropOrgWorkspace]) leaves its folders and notes in a personal
+///   folder named after it (2026-11-01).
 /// - **A folder's id is its place's** (2026-10-23; Matt: "When creating multiple folders it seems like it's syncing
 ///   then duplicating the folder I created a meetings folder and got one with no notes but the color i chose and then
 ///   one with no color but the note i placed inside"). A folder was given a random id as it was made, and a folder
@@ -696,22 +697,65 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     if (clean.isNotEmpty && clean != was.name) _rename(id, clean);
   }
 
-  /// The organization's workspace gone, as when the person leaves it, and every folder under it with it (GHST-107:
-  /// a folder of a team the person has left is nobody's): their notes are unfiled, never deleted, and the list shows
-  /// all notes if one of them was chosen.
-  void dropOrgWorkspace(String orgId) {
+  /// The organization's workspace gone, as when the person leaves it or it is deleted, its notes and its folders
+  /// kept as the person's own, in a folder of theirs named after it (Matt, 2026-11-01, "Leaving an org"): Hello HQ's
+  /// workspace becomes a personal folder called Hello HQ at the top, each folder that was inside it is inside that
+  /// one as it was ("Hello HQ › Engineering Tasks", the same id, name and colour), and every note filed in any of them
+  /// stays filed where it was, the ones filed in the organization's own workspace in the new folder. Its files follow
+  /// ([onFiled]): `orgs/Hello HQ/Engineering Tasks/` becomes `workspaces/Hello HQ/Engineering Tasks/`.
+  ///
+  /// Before, the notes were unfiled and their files went to `Inbox/`, every folder of the team's with them; on
+  /// 2026-11-01 deleting Hello HQ left about a thousand of Matt's notes loose at the top, his own and the team's
+  /// alike, and nothing said which folder each had been in. The filings are re-pointed whether or not this device
+  /// holds the note: a note of the account's that only the settings filed there (one the connector calls
+  /// `accountOnly`) lands in the same folder when it arrives.
+  ///
+  /// A personal folder at the top already called that is the one (the notes join it, and a folder inside it of the
+  /// same name as one coming in is made one with it, [mergeTwinFolders]); a new one takes the organization's colour
+  /// and the id its place gives it ([folderIdFor]), so every device of the person that drops the same organization
+  /// makes the same folder and their settings meet it as one. A note is never deleted, unfiled or put in the trash
+  /// here. The chosen workspace, if it was one of them, is the same folder still (the organization's own: the new
+  /// one). Answers the new folder's id; null, and nothing happens, when this device has nothing of the organization.
+  String? dropOrgWorkspace(String orgId) {
     final sheet = _current;
-    final gone = workspaceFamily(sheet.list, orgWorkspaceId(orgId)).toSet();
-    if (!sheet.list.any((w) => gone.contains(w.id))) return;
-    onFiled?.call([for (final entry in sheet.notes.entries) if (gone.contains(entry.value)) entry.key], null);
+    final root = orgWorkspaceId(orgId);
+    final gone = workspaceFamily(sheet.list, root).toSet();
+    if (!sheet.list.any((w) => gone.contains(w.id))) return null;
+    final org = sheet.list.where((w) => w.id == root).firstOrNull;
+    if (org == null) return null;
+    // Its name as the folder's, or a word for one whose name cleans away to nothing on disk.
+    final name = folderName(org.name).isEmpty ? 'Former organization' : _tidy(org.name);
+    final rest = [for (final w in sheet.list) if (w.id != root) w];
+    Workspace? home;
+    for (final w in rest) {
+      if (w.parent == null && !isOrgWorkspace(w.id) && w.name.toLowerCase() == name.toLowerCase()) home = w;
+    }
+    final had = home != null;
+    final made = home ?? Workspace(id: _idFor(rest, name, null), name: name, hue: org.hue);
     _write(WorkspaceSheet(
-      list: [for (final w in sheet.list) if (!gone.contains(w.id)) w],
-      notes: {
-        for (final entry in sheet.notes.entries)
-          if (!gone.contains(entry.value)) entry.key: entry.value,
-      },
-      current: gone.contains(sheet.current) ? null : sheet.current,
+      list: [
+        for (final w in rest) w.parent == root ? w.copyWith(parent: () => made.id) : w,
+        if (!had) made,
+      ],
+      notes: {for (final entry in sheet.notes.entries) entry.key: entry.value == root ? made.id : entry.value},
+      current: sheet.current == root ? made.id : sheet.current,
     ));
+    _refile(made.id);
+    if (had) mergeTwinFolders();
+    return made.id;
+  }
+
+  /// What leaving or deleting organization [orgId] carries into the person's folder named after it
+  /// ([dropOrgWorkspace]), counted for the question that asks first: the folders under its workspace however deep,
+  /// and the notes filed in it or in any of them that are not in the trash. Zeroes for one this device has nothing of.
+  ({int folders, int notes}) orgHoldings(String orgId) {
+    final sheet = _current;
+    final root = orgWorkspaceId(orgId);
+    if (!sheet.list.any((w) => w.id == root)) return (folders: 0, notes: 0);
+    final family = workspaceFamily(sheet.list, root).toSet();
+    final held = trash?.value ?? const <String, int>{};
+    final notes = sheet.notes.entries.where((entry) => family.contains(entry.value) && !held.containsKey(entry.key)).length;
+    return (folders: family.length - 1, notes: notes);
   }
 
   /// Folders that are one folder made twice, made one again: two or more inside the same parent whose names name the
@@ -816,6 +860,23 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
       if (w.id == id) to = w;
     }
     onFiled?.call(moved, to);
+  }
+
+  /// Tells [onFiled] where each of [noteIds] that is filed belongs by its filing as it stands, nothing in the sheet
+  /// changed: for notes that arrived after their filing was made, whose files are still where they were then
+  /// (lib/sync/notes.dart `SyncContext.refile`). A file already in its folder, or in a folder of a vault's own inside
+  /// it, stays; an unfiled note is left where its path is, for the adopters to read (lib/core/folder_adopter.dart).
+  void refileNotes(List<String> noteIds) {
+    final sheet = _current;
+    final by = <String, List<String>>{};
+    for (final id in noteIds) {
+      final at = sheet.notes[id];
+      if (at != null) (by[at] ??= []).add(id);
+    }
+    for (final entry in by.entries) {
+      final space = sheet.list.where((w) => w.id == entry.key).firstOrNull;
+      if (space != null) onFiled?.call(entry.value, space);
+    }
   }
 
   /// A note just made: filed in the chosen workspace, if there is one and the note is not filed yet.

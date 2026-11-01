@@ -51,7 +51,9 @@ in its hue, with the id `org-<orgId>` (the id is the truth: `isOrgWorkspace` rea
 rewriting the settings keeps `id`, `name` and `hue` and drops any other field). It is reconciled against the
 service's list after each pass that gets one, over rows with state `member` only: made on joining, renamed and
 re-hued with the organization, dropped when the person leaves, is removed, or the organization is deleted - its notes
-unfiled, never deleted. On disk its folder is `orgs/<name>`, beside `workspaces/<name>`, so a personal workspace of
+never deleted, and since 2026-11-01 never unfiled either: the Flutter app turns the workspace into a folder of the
+person's named after the organization, every folder that was in it inside that one, every note filed where it was
+(lib/core/workspaces.dart `dropOrgWorkspace`; docs/SYNC.md, "Leaving an organization"). On disk its folder is `orgs/<name>`, beside `workspaces/<name>`, so a personal workspace of
 the same name collides with nothing; `addWorkspace` dedupes names among personal workspaces only, and an organization's
 pill, chip and folder row carry `data-org` and a small mark before the name. Its hue follows the organization and is
 set in the organization's General section; the personal swatch is not offered for it, and Rename and Remove refuse it.
@@ -76,7 +78,7 @@ written under `orgs/<the organization>/<the folders>/` as the phone writes it (c
 and an organization's pill shows the notes in its folders with its own.
 
 **Leaving and deleting.** A member removing their own handle is leaving: the row goes, every remaining member is told
-(`member-left`), and the workspace is dropped on their devices with its notes unfiled. The owner deleting the
+(`member-left`), and the workspace is dropped on their devices, its notes kept in a folder named after it. The owner deleting the
 organization settles every pending invitation (declined, hidden), tells every member (`org-deleted`), and the rows go
 with it. **Deleting an account** is refused, inside `delete_account`'s own transaction, while the account owns an
 organization anyone else is in, joined or invited: 403 "Hand over or delete your organizations first.". An

@@ -98,3 +98,51 @@ settings, the plugins' storage and secrets, and the switches).
 - **Meetings.** With the key and the switch on the Mac, the summaries' handoff, which hears Claude's settings and the
   switches (lib/root/voice_wiring.dart), sees the Mac able to write a waiting meeting up. Slack's channels on every
   device let the device that writes a meeting up post it; `slackMeetingPosts` still posts it once.
+
+## Leaving an organization, and moves between organizations
+
+Matt, 2026-11-01 ("Leaving an org", "Moves between orgs"). That day the connector filed 26 of Hello HQ's team notes
+into a folder of HelloTrade's; Matt then deleted Hello HQ (server/src/store/orgs.rs `delete_org`, whose rows
+cascade), and the 26 were gone everywhere: the settings said HelloTrade, HelloTrade's team never held them. The same
+deletion left about a thousand of his notes the settings had filed under Hello HQ loose at the top, in no folder.
+
+**Leaving or deleting.** The organization's workspace becomes a folder of the person's named after it, in its
+colour, with the id its place gives it (`folderIdFor`, so every device makes the same one); every folder that was
+inside it is inside that one with its id, name and colour; every note filed in any of them stays filed where it was,
+the ones in the organization's own workspace in the new folder; the files follow, `orgs/Hello HQ/Engineering Tasks/`
+to `workspaces/Hello HQ/Engineering Tasks/` (lib/core/workspaces.dart `dropOrgWorkspace`). Filings are re-pointed
+whether or not this device holds the note. Nothing is deleted, unfiled or trashed. A team's note this device holds
+becomes the person's own and goes to the account at the next pass: on a delete the team's rows are gone for everyone
+on the service, and each member keeps what their devices held, as files, as docs/MARKDOWN_FIRST.md asks (an old build
+unfiles them into the inbox instead, which also keeps them; neither deletes another member's note, since the
+organization's channel is not run for an organization the list no longer has). Settings › the organization ›
+Delete or Leave says so, counted ("Its 24 notes and 3 folders are kept on your devices in a folder of your own called
+"Hello HQ"…"), and Delete syncs first and waits while a note is still on its way into another organization
+(`SyncEngine.movesPending`).
+
+The notes that missed that are mended too. A note at `orgs/<name>/…` that is filed nowhere, where no organization of
+the person's is that name, is filed in their folder of that name once the organizations are known
+(lib/core/folder_adopter.dart `fileFormerOrgNotes`, after every pass that got the list). And a row of the account's
+feed passed over because its note was a team's here is kept aside (lib/sync/notes.dart `SyncState.aside`): once the
+note is no team's, or its team has never had it, while this device lacks it, the feed is read again from that row
+and the note taken. A state kept by a build before this is read again from the start once, which finds the thousand.
+
+**Moves between organizations: the second holds it before the first lets go.**
+
+- A note filed from organization A into B on a device: A's channel keeps A's row while B's state does not hold the
+  note (lib/team/sync.dart `mayLetGo`, from the engine's reading of B's kept state, `teamHoldingIn`), so the note is
+  never only on the device. B's channel puts it; A lets go at the next pass. The note's document is one per note
+  whichever team has it: A's channel neither drops it as A's row goes nor moves its place in the log; B's row is put
+  with its history at B's log's start (`_pushOne`), and a device whose document came from A takes B's place in the
+  log from B's first row (`_takeRow`). A note filed back into an organization it once left is put over its old row
+  there, where before the deletion was taken and the note removed from the device.
+- The connector writes the row into B's store itself, reads it back from B's feed, then deletes A's
+  (tauri/docs/MCP.md, "Filing is sharing").
+- **A note the settings file in a team that never had it**, held by no device but in the account's feed (the
+  connector's `accountOnly`): its row is taken where the team's channel has read its feed whole (`goneRead`, a
+  team's deletions gathered, once from the start for a state kept before) and neither holds nor deleted it, and the
+  team's channel puts it; the account's row of it stays until the team holds it (`SyncState.owed`). One a team let
+  go of, or one a team cannot speak for yet, is never taken.
+
+The service needed no change: a move is the devices' and the connector's, and `delete_org` cascading the team's rows
+is right once nothing lives only there.

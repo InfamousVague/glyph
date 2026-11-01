@@ -446,13 +446,19 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('deletes on a second tap, the workspace going with it, and closes', (tester) async {
+    testWidgets('deletes on a second tap, the workspace going with it into a folder of the person’s named after it, and closes', (tester) async {
       final device = await Device.make();
       final id = await ghost(device);
+      final plans = device.workspaces.addWorkspace('Plans', 'ink', 'org-$id')!;
+      device.workspaces.fileNote('n1', 'org-$id');
+      device.workspaces.fileNote('n2', plans.id);
       var closed = 0;
       await pumpSheet(tester, device, id, onClose: () => closed += 1);
       await goBack(tester);
       await openSection(tester, 'Delete');
+      // What it does, counted (Matt, 2026-11-01, "Leaving an org"): the person's copies kept in a folder named after it.
+      expect(find.textContaining('Its 2 notes and 1 folder are kept on your devices in a folder of your own called “Ghost”, the folders inside it as they were'), findsOneWidget);
+      expect(find.textContaining('The team’s notes go from the service for every member'), findsOneWidget);
       await tester.tap(find.widgetWithText(RowAction, 'Delete'));
       await tester.pump();
       expect(find.text('Tap again'), findsOneWidget);
@@ -461,7 +467,10 @@ void main() {
       await settle(tester, 10);
       expect(closed, 1);
       expect(device.service.orgs.containsKey(id), isFalse);
-      expect(device.workspaces.value.list, isEmpty);
+      final kept = device.workspaces.value.list;
+      expect([for (final w in kept) (w.name, isOrgWorkspace(w.id), w.parent == null)], [('Plans', false, false), ('Ghost', false, true)]);
+      expect(device.workspaces.workspaceOf('n1')?.name, 'Ghost');
+      expect(device.workspaces.workspaceOf('n2')?.id, plans.id);
       await endSettings(tester);
     });
 
@@ -479,8 +488,22 @@ void main() {
       await settle(tester, 10);
       expect(closed, 1);
       expect(device.service.rowIn(id), isNull);
-      expect(device.workspaces.value.list, isEmpty);
+      expect([for (final w in device.workspaces.value.list) (w.name, isOrgWorkspace(w.id))], [('Boo', false)]);
       await endSettings(tester);
+    });
+  });
+
+  // Matt, 2026-11-01, "Leaving an org" and "Moves between orgs": what Leave and Delete say, counted.
+  group('the words under Leave and Delete', () {
+    test('count what is kept, in a folder named after the organization, and say what deleting does for everyone', () {
+      expect(orgGoneWords('Hello HQ', notes: 24, folders: 3, deleting: true), 'The team’s notes go from the service for every member, and each is told; each member keeps what their devices hold the same way. Its 24 notes and 3 folders are kept on your devices in a folder of your own called “Hello HQ”, the folders inside it as they were: nothing goes loose, and nothing is deleted here. Invitations waiting are withdrawn.');
+      expect(orgGoneWords('Hello HQ', notes: 1, folders: 0, deleting: false), 'Your workspace for it goes from your devices. Its 1 note is kept on your devices in a folder of your own called “Hello HQ”: nothing goes loose, and nothing is deleted here. The others are told.');
+      expect(orgGoneWords('Boo', notes: 0, folders: 0, deleting: false), 'Your workspace for it goes from your devices. Anything filed in it here is kept in a folder of your own called “Boo”. The others are told.');
+    });
+
+    test('say why deleting waits for a note on its way to another organization', () {
+      expect(orgMovesWaitingWords('Hello HQ', {'HelloTrade': 26}), '26 notes are still on the way from “Hello HQ” to “HelloTrade”. Sync again once they are there, or move them into a folder of your own, then delete.');
+      expect(orgMovesWaitingWords('Hello HQ', {'HelloTrade': 1, 'Ghost.md': 1}), '2 notes are still on the way from “Hello HQ” to “HelloTrade” and “Ghost.md”. Sync again once they are there, or move them into a folder of your own, then delete.');
     });
   });
 }

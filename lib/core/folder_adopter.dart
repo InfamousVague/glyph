@@ -104,6 +104,35 @@ FolderAdoption adoptFolders(WorkspaceStore workspaces, Iterable<Note> notes, {Ma
   return FolderAdoption(folders: made, filed: filed, waiting: waiting);
 }
 
+/// Notes left at an organization's path when the organization is no longer the person's, filed in a personal folder
+/// named after it, the folders under it kept (Matt, 2026-11-01, "Leaving an org"): an unfiled note at
+/// `orgs/Hello HQ/Engineering Tasks/Plan.md`, where no organization's workspace here is Hello HQ's, goes in
+/// "Hello HQ › Engineering Tasks", made where missing, as [WorkspaceStore.dropOrgWorkspace] files the notes it has
+/// filings for. These are the notes that missed that: the ones a build before it unfiled as the organization went
+/// (about a thousand of Matt's when Hello HQ was deleted on 2026-11-01, which the connector listed at the top), and
+/// the account's rows of such notes that arrive here later (lib/sync/notes.dart `aside`). Only once the organizations
+/// are known (the sync engine calls it after a list the service answered, lib/sync/engine.dart): before sign-in an
+/// organization's path is its team's, waiting ([adoptFolders]). A filed note is left as it is filed, and nothing is
+/// deleted. Answers how many were filed.
+int fileFormerOrgNotes(WorkspaceStore workspaces, Iterable<Note> notes) {
+  final into = <String, List<String>>{};
+  for (final note in notes) {
+    final path = livePathOf(note.path);
+    if (path == null || note.inTrash || workspaces.workspaceOf(note.id) != null) continue;
+    final parts = path.split('/');
+    if (parts.length < 3 || parts.first != orgsFolder || parts[1].isEmpty) continue;
+    if (_orgFor(workspaces, parts[1], const {}) != null) continue;
+    final (folder, _) = _personalFolderAt(workspaces, [parts[1], ...orgFolderNames(path)]);
+    if (folder != null) (into[folder] ??= []).add(note.id);
+  }
+  var filed = 0;
+  for (final entry in into.entries) {
+    workspaces.fileNotes(entry.value, entry.key);
+    filed += entry.value.length;
+  }
+  return filed;
+}
+
 /// Files [noteId] in the folder workspace its directory [dir] names, making the folders on the way as [adoptFolders]
 /// does: `workspaces/Work/Plan` is the folder Plan inside Work, `orgs/Acme/Plan` the folder Plan in Acme's workspace.
 /// What a page moved on disk asks for afterwards (lib/core/page_tree.dart `PageMover`; docs/TEAMSPACES.md): the file

@@ -4,8 +4,9 @@
 /// it.
 ///
 /// The workspace is reconciled against the list after every pass that gets one (D5): made for each organization the
-/// person is a member of, renamed and re-hued with it, dropped once they have left or it is gone - its notes
-/// unfiled, never deleted. Only a 200 list is acted on; a list that did not arrive (offline, a service without the
+/// person is a member of, renamed and re-hued with it, dropped once they have left or it is gone - its notes and
+/// folders kept in a personal folder named after it (lib/core/workspaces.dart `dropOrgWorkspace`; Matt, 2026-11-01,
+/// "Leaving an org"), never deleted. Only a 200 list is acted on; a list that did not arrive (offline, a service without the
 /// route yet, a 500) leaves the workspaces and the cached list exactly as they were, because reading a failure as
 /// "no organizations" would unfile every member's notes and push that to their other devices. The reconcile runs
 /// outside the pass's `applyingRemote` (lib/sync/engine.dart), so the preference change it makes is pushed a moment
@@ -212,7 +213,10 @@ class Orgs extends ChangeNotifier {
     return org;
   }
 
-  /// The organization deleted (owner); its workspace goes here, its notes unfiled (`deleteOrg`).
+  /// The organization deleted (owner); its workspace goes here, its notes and folders kept in a personal folder
+  /// named after it (`deleteOrg`; [WorkspaceStore.dropOrgWorkspace]). The team's rows go on the service for every
+  /// member; what this device holds of them stays, as the person's own. The screen that asks syncs first and refuses
+  /// while a note is still on its way to another organization (lib/settings/organization_sheet.dart).
   Future<void> deleteOrg(String id, {CallContext? ctx}) async {
     await _call('DELETE', 'orgs/${_enc(id)}', ctx);
     _keepRow(id, null);
@@ -312,8 +316,8 @@ class Orgs extends ChangeNotifier {
 
   /// The workspaces brought into line with a list the service answered (`reconcileOrgWorkspaces`): one for each
   /// organization the person is a member of, named and coloured after it; an organization's workspace whose
-  /// organization is not in the list goes, its notes unfiled. An invitation is not a membership, and gets no
-  /// workspace until it is accepted.
+  /// organization is not in the list goes, its notes and folders into a personal folder named after it. An
+  /// invitation is not a membership, and gets no workspace until it is accepted.
   void reconcileOrgWorkspaces(List<OrgRow> list) {
     final members = [for (final row in list) if (row.state == 'member') row];
     for (final org in members) {

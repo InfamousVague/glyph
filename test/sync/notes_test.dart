@@ -684,6 +684,100 @@ void main() {
     });
   });
 
+  // Matt, 2026-11-01 ("Leaving an org", "Moves between orgs"): the rows passed over for a team's note, and a note the
+  // settings file in a team that never had it.
+  group('a team’s note’s row passed over, and taken again', () {
+    test('is kept aside while the note is a team’s, and taken once it is no team’s, on a device that lacks it', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['a'] = note('a', '# Spec', path: 'orgs/Hello HQ/Spec.md');
+      await phone.run();
+      // The settings file it in Hello HQ on the Mac, which has never had it: passed over, and kept aside.
+      final team = {'a'};
+      await mac.run(teamNote: team.contains);
+      expect(mac.notes.containsKey('a'), isFalse);
+      expect(mac.state.aside.keys, ['a']);
+      // Nothing new in the feed, and the note still a team’s: nothing is read again.
+      expect(await mac.run(teamNote: team.contains), Outcome());
+      // The organization gone, the note is the person's: its row is read again and taken, and told to be refiled.
+      team.clear();
+      final refiled = <String>[];
+      expect((await mac.run(teamNote: team.contains, refile: refiled.addAll)).changed, 1);
+      expect(mac.notes['a']?.body, '# Spec');
+      expect(refiled, ['a']);
+      expect(mac.state.aside, isEmpty);
+      // And once taken, it is not read again.
+      expect(await mac.run(teamNote: team.contains), Outcome());
+    });
+
+    test('a state kept before rows were kept aside reads the feed again from its start, once, where a team is in play', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['a'] = note('a', '# A');
+      phone.notes['b'] = note('b', '# B');
+      await phone.run();
+      await mac.run();
+      // What a build before this one kept, after passing over b as a team's.
+      final kept = mac.state.toJson()
+        ..remove('aside')
+        ..['notes'] = {'a': mac.state.notes['a']!.toJson()};
+      mac.state = SyncState.fromJson(kept);
+      mac.notes.remove('b');
+      expect(mac.state.asideRead, isFalse);
+      final outcome = await mac.run(teamNote: (_) => false);
+      expect(outcome.changed, 1, reason: 'b taken; a passed over by its revision');
+      expect(mac.notes['b']?.body, '# B');
+      expect(mac.state.asideRead, isTrue);
+      expect(mac.state.toJson().containsKey('aside'), isTrue);
+    });
+
+    test('a note filed in a team that never had it, on no device, is taken from the account; its row stays until the team holds it', () async {
+      final (api: service, :phone, :mac) = await pair();
+      phone.notes['s'] = note('s', '# Stray');
+      await phone.run();
+      final team = {'s'};
+      var holding = TeamHolding.absent;
+      await mac.run(teamNote: team.contains, teamHolds: (_) => holding);
+      expect(mac.notes['s']?.body, '# Stray', reason: 'taken for the team to put');
+      expect(mac.state.owed, {'s'});
+      expect(service.notes['s']?.deleted, isFalse, reason: 'the account keeps it while the team does not');
+      await mac.run(teamNote: team.contains, teamHolds: (_) => holding);
+      expect(service.notes['s']?.deleted, isFalse);
+      holding = TeamHolding.held;
+      await mac.run(teamNote: team.contains, teamHolds: (_) => holding);
+      expect(service.notes['s']?.deleted, isTrue, reason: 'and goes once the team holds it');
+      expect(mac.state.owed, isEmpty);
+    });
+
+    test('a note its team let go of, or one the team cannot speak for yet, is never taken: its row stays a leftover', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['g'] = note('g', '# Gone');
+      phone.notes['u'] = note('u', '# Unknown');
+      await phone.run();
+      final team = {'g', 'u'};
+      await mac.run(teamNote: team.contains, teamHolds: (id) => id == 'g' ? TeamHolding.gone : TeamHolding.unknown);
+      expect(mac.notes, isEmpty);
+      expect(mac.state.owed, isEmpty);
+      expect(mac.state.aside.keys.toSet(), {'g', 'u'});
+    });
+
+    test('a note made a team’s here goes from the account at once, as before: only one taken for its team waits', () async {
+      final (api: service, :phone, :mac) = await pair();
+      phone.notes['a'] = note('a', '# Roadmap');
+      await phone.run();
+      await phone.run(teamNote: (_) => true, teamHolds: (_) => TeamHolding.absent);
+      expect(service.notes['a']?.deleted, isTrue);
+      expect(mac.notes, isEmpty);
+    });
+
+    test('reads a team’s holding from its channel’s state as it is kept', () {
+      expect(teamHoldingIn(null, 'a'), TeamHolding.unknown);
+      expect(teamHoldingIn({'reads': 2, 'cursor': 5, 'notes': {'a': {}}}, 'a'), TeamHolding.held);
+      expect(teamHoldingIn({'reads': 2, 'cursor': 5, 'notes': {}, 'gone': ['a']}, 'a'), TeamHolding.gone);
+      expect(teamHoldingIn({'reads': 2, 'cursor': 5, 'notes': {}}, 'a'), TeamHolding.unknown, reason: 'its deletions not read whole');
+      expect(teamHoldingIn({'reads': 2, 'cursor': 0, 'notes': {}, 'goneRead': true}, 'a'), TeamHolding.absent);
+      expect(teamHoldingIn({'reads': 1, 'cursor': 5, 'notes': {}, 'goneRead': true}, 'a'), TeamHolding.unknown, reason: 'a state an older build kept is read again');
+    });
+  });
+
   group('this device’s own notes are never applied from the list', () {
     test('a copy kept for a conflict is the note as its file has it, phrases and all, not as the list has it', () async {
       // The library's list has no phrases and no formatted version (docs/STAGE3.md, the first trap): the pass asks

@@ -142,6 +142,33 @@ abstract interface class LeftTeams {
   void sent(String id);
 }
 
+/// Whether an organization's channel holds a note, as this device last read it (lib/team/sync.dart
+/// `TeamSyncState.holding`; Matt, 2026-11-01, "Moves between orgs"). What the account's sync asks of the team a note
+/// is filed in before it lets the account's row of it go, and before it takes a row it would otherwise pass over.
+enum TeamHolding {
+  /// Its row is live, as this device last read or put it.
+  held,
+
+  /// Its row was deleted: a member took it out of the team, or deleted it for everyone.
+  gone,
+
+  /// The team has never had it, as far as a feed read whole says.
+  absent,
+
+  /// This device cannot say: the feed has not been read whole yet, or there is no channel here for it at all.
+  unknown,
+}
+
+/// [TeamHolding] read straight from an organization's channel state as it is kept (`glyph-sync-<account>-team-<org>`,
+/// lib/team/sync.dart `TeamSyncState.toJson`), without opening the rest of it: the engine asks this per note.
+TeamHolding teamHoldingIn(Object? kept, String id) {
+  if (kept is! Map) return TeamHolding.unknown;
+  final notes = kept['notes'], gone = kept['gone'], reads = kept['reads'];
+  if (notes is Map && notes.containsKey(id)) return TeamHolding.held;
+  if (gone is List && gone.contains(id)) return TeamHolding.gone;
+  return kept['goneRead'] == true && reads is num && reads >= 2 ? TeamHolding.absent : TeamHolding.unknown;
+}
+
 /// How long a note that left a team is kept from the account's deletions and put again ([LeftTeams]): the days an
 /// old build may sleep through before it next syncs.
 const Duration leftTeamsKept = Duration(days: 14);
@@ -261,6 +288,8 @@ class SyncContext {
     this.filesRoute,
     this.generation,
     this.leftTeams,
+    this.teamHolds,
+    this.refile,
     this.progress,
   });
 
@@ -304,6 +333,23 @@ class SyncContext {
   /// The notes lately out of a team here, kept from an old build's deletion ([LeftTeams]); none, and none are.
   final LeftTeams? leftTeams;
 
+  /// Whether the team a note is filed in here holds it ([TeamHolding]; Matt, 2026-11-01, "Moves between orgs"). A
+  /// row of the account's that a team's note would be passed over for is taken where this device lacks the note and
+  /// the team has never had it (a filing made by the connector or another device that no device put to the team
+  /// yet): the note comes here, and the team's channel puts it, rather than staying in the account where no screen
+  /// shows it; and the account's row of it goes only once the team holds it ([SyncState.owed]). None, and a team
+  /// note's rows are passed over, as before.
+  final TeamHolding Function(String id)? teamHolds;
+
+  /// Told of the notes a pass took that it had passed over before, or would have ([SyncState.aside],
+  /// [SyncState.owed]): their filings were made while this device lacked them, so nothing moved their files, and
+  /// their rows' paths say where they were then. The app moves each file to where its filing says (lib/core/
+  /// workspaces.dart `refileNotes`). None, and they stay at their rows' paths.
+  final void Function(List<String> ids)? refile;
+
+  /// The notes this pass took from [SyncState.aside] or for [SyncState.owed], for [refile].
+  final Set<String> _back = {};
+
   /// Told what the pass finds to do and does ([SyncProgress]); none, and nothing is told.
   final SyncProgress? progress;
 
@@ -313,6 +359,12 @@ class SyncContext {
   bool _team(String id) => teamNote?.call(id) ?? false;
   int _clock() => (now ?? () => DateTime.now().millisecondsSinceEpoch)();
   bool _keptOut(String id) => leftTeams?.kept(id) ?? false;
+
+  /// Whether the account's row of team note [id] may go: the team holds it, or nothing here can say ([teamHolds]).
+  bool _teamHas(String id) => teamHolds == null || teamHolds!(id) == TeamHolding.held;
+
+  /// Whether a row of team note [id] that this device lacks is to be taken all the same: the team has never had it.
+  bool _owedToTeam(String id) => teamHolds?.call(id) == TeamHolding.absent;
   String get _route => filesRoute ?? 'recordings';
 
   /// `?base=` and, for a team's files, the generation the bytes are sealed under.
@@ -479,16 +531,24 @@ class FileMark {
 
 /// What a device remembers of the account's feed (`SyncState`).
 class SyncState {
-  SyncState({this.cursor = 0, Map<String, NoteMark>? notes, Map<String, FileMark>? files, Map<String, TeamLeft>? teams})
+  SyncState({this.cursor = 0, Map<String, NoteMark>? notes, Map<String, FileMark>? files, Map<String, TeamLeft>? teams, Map<String, int>? aside, this.asideRead = true, Set<String>? owed})
       : notes = notes ?? {},
         files = files ?? {},
-        teams = teams ?? {};
+        teams = teams ?? {},
+        aside = aside ?? {},
+        owed = owed ?? {};
 
-  /// A state as kept, forgivingly (`{ ...fallback, ...raw }`): what is not there, or not the shape, is empty.
+  /// A state as kept, forgivingly (`{ ...fallback, ...raw }`): what is not there, or not the shape, is empty. One kept
+  /// by a build that did not keep [aside] says so ([asideRead] false), and its feed is read again from the start once.
   factory SyncState.fromJson(Object? raw) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
-    final cursor = map['cursor'], notes = map['notes'], files = map['files'], teams = map['teams'];
-    final state = SyncState(cursor: cursor is num ? cursor.toInt() : 0);
+    final cursor = map['cursor'], notes = map['notes'], files = map['files'], teams = map['teams'], aside = map['aside'], owed = map['owed'];
+    final state = SyncState(cursor: cursor is num ? cursor.toInt() : 0, asideRead: aside is Map || raw is! Map, owed: {if (owed is List) ...owed.whereType<String>()});
+    if (aside is Map) {
+      for (final entry in aside.entries) {
+        if (entry.key is String && entry.value is num) state.aside[entry.key as String] = (entry.value as num).toInt();
+      }
+    }
     if (teams is Map) {
       for (final entry in teams.entries) {
         final left = TeamLeft.fromJson(entry.value);
@@ -525,15 +585,34 @@ class SyncState {
   /// team's on this device, and for [teamLeftKeptMs].
   final Map<String, TeamLeft> teams;
 
+  /// The live rows of the account's feed passed over because the note was a team's here, by note id, with the
+  /// revision passed over (Matt, 2026-11-01, "Leaving an org"). The cursor goes on past them, so before this a note
+  /// the settings filed in an organization that no device held stayed in the account and on no device once the
+  /// organization went: about a thousand of Matt's on 2026-11-01, which the connector listed loose at the top. A note
+  /// of these that is no team's any more, or that its team has never had, while this device lacks it, has the feed
+  /// read again from its row (`_rewound`), so it is taken then.
+  final Map<String, int> aside;
+
+  /// Whether [aside] covers every row the feed was read past: false for a state kept by a build before it, whose
+  /// feed is read again from the start once to find the rows it passed over (`_rewound`).
+  bool asideRead;
+
+  /// The notes taken from the account's feed for the team they are filed in, which had never had them
+  /// ([SyncContext.teamHolds]): the account's row of each stays until that team holds the note, so it is never on
+  /// this device alone (Matt, 2026-11-01, "Moves between orgs").
+  final Set<String> owed;
+
   /// The same state, with another cursor, notes or files where given.
   SyncState copyWith({int? cursor, Map<String, NoteMark>? notes, Map<String, FileMark>? files}) =>
-      SyncState(cursor: cursor ?? this.cursor, notes: notes ?? {...this.notes}, files: files ?? {...this.files}, teams: {...teams});
+      SyncState(cursor: cursor ?? this.cursor, notes: notes ?? {...this.notes}, files: files ?? {...this.files}, teams: {...teams}, aside: {...aside}, asideRead: asideRead, owed: {...owed});
 
   Map<String, Object?> toJson() => {
         'cursor': cursor,
         'notes': {for (final entry in notes.entries) entry.key: entry.value.toJson()},
         'files': {for (final entry in files.entries) entry.key: entry.value.toJson()},
         if (teams.isNotEmpty) 'teams': {for (final entry in teams.entries) entry.key: entry.value.toJson()},
+        if (asideRead) 'aside': aside,
+        if (owed.isNotEmpty) 'owed': owed.toList()..sort(),
       };
 }
 
@@ -1338,7 +1417,33 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
 
 // --- the two halves --------------------------------------------------------------------------------------------------
 
+/// Where the feed is to be read from this pass: the cursor, or further back for rows passed over that are to be taken
+/// now ([SyncState.aside]; Matt, 2026-11-01, "Leaving an org"). Once from the start for a state kept before [aside]
+/// was, where a team channel is in play; otherwise from the earliest row passed over whose note is no team's here
+/// any more, or one its team has never had, while this device lacks it. Those leave [aside]: passed over again,
+/// they come back. A row taken since ([NoteMark]) is let go of.
+Future<void> _rewound(SyncContext ctx) async {
+  final state = ctx.state;
+  if (!state.asideRead) {
+    state.asideRead = true;
+    if (ctx.teamNote != null && state.cursor > 0) state.cursor = 0;
+    return;
+  }
+  if (state.aside.isEmpty) return;
+  state.aside.removeWhere((id, rev) => (state.notes[id]?.rev ?? -1) >= rev);
+  final here = {for (final note in await ctx.notes.list()) note.id};
+  var from = state.cursor;
+  for (final MapEntry(key: id, value: rev) in state.aside.entries.toList()) {
+    if (here.contains(id) || (ctx._team(id) && !ctx._owedToTeam(id))) continue;
+    state.aside.remove(id);
+    ctx._back.add(id);
+    if (rev - 1 < from) from = rev - 1;
+  }
+  state.cursor = from < 0 ? 0 : from;
+}
+
 Future<void> _pull(SyncContext ctx, Outcome outcome) async {
+  await _rewound(ctx);
   for (;;) {
     final page = await ctx.api.callMap('GET', 'notes?since=${ctx.state.cursor}', token: ctx.token);
     final raw = page['items'];
@@ -1348,13 +1453,30 @@ Future<void> _pull(SyncContext ctx, Outcome outcome) async {
     ];
     if (items.isNotEmpty) {
       final here = {for (final note in await ctx.notes.list()) note.id: note};
+      // A team's note now (docs/SHARED.md, S1): the organization channel has it, and the account's row is stale. Its
+      // row is passed over, and kept aside ([SyncState.aside]) while it is live: unless this device lacks the note
+      // and the team has never had it (a filing made elsewhere that no device put to the team), when it is taken,
+      // and the team's channel puts it from here (Matt, 2026-11-01, "Moves between orgs").
+      bool passed(FeedItem item) {
+        if (!ctx._team(item.id)) return false;
+        if (here[item.id] == null && !item.deleted && ctx._owedToTeam(item.id)) {
+          ctx.state.owed.add(item.id);
+          ctx._back.add(item.id);
+          return false;
+        }
+        if (item.deleted) {
+          ctx.state.aside.remove(item.id);
+        } else if ((ctx.state.notes[item.id]?.rev ?? -1) < item.rev) {
+          ctx.state.aside[item.id] = item.rev;
+        }
+        return true;
+      }
+
       final taken = [
         for (final item in items)
           // A revision already seen is this device's own write coming back.
           if (ctx.state.notes[item.id]?.rev != item.rev &&
-              // A team's note now (docs/SHARED.md, S1): the organization channel has it, and the account's row is
-              // stale.
-              !ctx._team(item.id) &&
+              !passed(item) &&
               // Live with another device right now: its words are arriving a keystroke at a time already, and a merge
               // made mid-sentence would take the few characters still in flight for a conflict. Its revision stays
               // unrecorded, so once the session ends the push meets it as a 409 and finds the same words
@@ -1504,8 +1626,17 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
     final known = ctx.state.notes[note.id];
     // Filed in an organization's workspace, the note is the team's (docs/SHARED.md, S1): the organization channel
     // carries it from here on, and the account's own row goes, so the account's other devices take it from the team.
+    // One taken from the account for a team that never had it ([SyncState.owed]) goes once the team holds it (Matt,
+    // 2026-11-01, "Moves between orgs"): until then its row stays, so the note is never on this device alone, and
+    // what the team's row is to say of the account's words is kept now, as the deletion would keep it ([TeamLeft]).
     if (ctx._team(note.id)) {
-      if (known != null) sends.add((note.id, null));
+      if (known != null && (!ctx.state.owed.contains(note.id) || ctx._teamHas(note.id))) {
+        ctx.state.owed.remove(note.id);
+        sends.add((note.id, null));
+      } else if (known != null) {
+        final agreed = agreedOf(known);
+        if (agreed != null) ctx.state.teams.putIfAbsent(note.id, () => TeamLeft(rev: agreed.rev, words: agreed.words, at: ctx._clock()));
+      }
       continue;
     }
     // The account's own again: the revision it once left for a team is no longer what its words are at.
@@ -1552,7 +1683,13 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
 /// (`syncNotes`).
 Future<Outcome> syncNotes(SyncContext ctx) async {
   final outcome = Outcome();
+  ctx._back.clear();
   await _pull(ctx, outcome);
+  if (ctx._back.isNotEmpty && ctx.refile != null) {
+    final here = {for (final note in await ctx.notes.list()) note.id};
+    final back = [for (final id in ctx._back) if (here.contains(id)) id];
+    if (back.isNotEmpty) ctx.refile!(back);
+  }
   await _push(ctx, outcome);
   await settlePictures(ctx);
   return outcome;

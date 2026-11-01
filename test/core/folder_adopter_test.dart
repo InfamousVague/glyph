@@ -106,4 +106,43 @@ void main() {
       expect(workspaces.value.list.where((w) => w.name.toLowerCase() == 'work').length, 1);
     });
   });
+
+  // Matt, 2026-11-01, "Leaving an org": about a thousand notes left loose at the top when Hello HQ was deleted, their
+  // files still under orgs/Hello HQ/. Once the organizations are known, each goes in a folder of the person's named
+  // after it, its folders kept.
+  group('the notes of an organization that is no longer the person’s', () {
+    test('go in a folder of theirs named after it, the folders under it kept; filed notes, the trash, the inbox and a known organization’s paths are left', () async {
+      final (:core, :library, waits: _, said: _) = libraryOver();
+      core
+        ..seed('spec', '# Spec', path: 'orgs/Hello HQ/Engineering Tasks/Spec.md')
+        ..seed('top', '# Top', path: 'orgs/Hello HQ/Top.md')
+        ..seed('kept', '# Kept', path: 'orgs/Hello HQ/Kept.md')
+        ..seed('binned', '# Binned', path: '.trash/orgs/Hello HQ/Binned.md')
+        ..seed('team', '# Team', path: 'orgs/HelloTrade/Plans/Team.md')
+        ..seed('loose', '# Loose', path: 'Inbox/Loose.md');
+      await library.load();
+      late final WorkspaceStore workspaces;
+      final folders = NoteFolders(library, workspaces: () => workspaces.value.list);
+      workspaces = WorkspaceStore(storage: MemoryWorkspaceStorage(), onFiled: folders.fileNotesInFolder);
+      workspaces.ensureOrgWorkspace(const OrgLike(id: 'trade', name: 'HelloTrade'));
+      final mine = workspaces.addWorkspace('Mine')!;
+      workspaces.fileNote('kept', mine.id);
+      expect(fileFormerOrgNotes(workspaces, library.value), 2);
+      final home = workspaces.value.list.singleWhere((w) => w.name == 'Hello HQ');
+      expect((home.parent, workspaces.orgOf(home.id)), (null, null));
+      final tasks = workspaces.childrenOf(home.id).single;
+      expect(tasks.name, 'Engineering Tasks');
+      expect(workspaces.workspaceOf('spec'), tasks);
+      expect(workspaces.workspaceOf('top'), home);
+      expect(workspaces.workspaceOf('kept'), mine, reason: 'a filing stands');
+      expect(workspaces.workspaceOf('binned'), isNull);
+      expect(workspaces.workspaceOf('team'), isNull, reason: 'HelloTrade is the person’s: its path is its team’s, waiting');
+      expect(workspaces.workspaceOf('loose'), isNull);
+      // The moves asked for, waited on: the folders' queue settled.
+      await folders.fileNotesInFolder(const [], null);
+      expect(core.files, containsAll(['workspaces/Hello HQ/Engineering Tasks/Spec.md', 'workspaces/Hello HQ/Top.md', 'Inbox/Loose.md', 'orgs/HelloTrade/Plans/Team.md']));
+      expect(core.files.where((path) => path.startsWith('orgs/Hello HQ/')), isEmpty);
+      expect(fileFormerOrgNotes(workspaces, library.value), 0, reason: 'a second pass files nothing');
+    });
+  });
 }

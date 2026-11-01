@@ -194,16 +194,17 @@ void main() {
       expect(store.value.list, const [Workspace(id: 'org-abc', name: 'Ghost', hue: 'sea')]);
     });
 
-    test('goes when the person leaves, its notes unfiled and the filter cleared', () {
+    test('goes when the person leaves, its notes kept in a folder of theirs named after it and in its colour, chosen if it was', () {
       store.ensureOrgWorkspace(ghost);
       store.fileNote('n1', 'org-abc');
       store.chooseWorkspace('org-abc');
-      store.dropOrgWorkspace('abc');
-      expect(store.value.list, isEmpty);
-      expect(store.value.of, isEmpty);
-      expect(store.value.current, isNull);
-      store.dropOrgWorkspace('abc');
-      expect(store.value.list, isEmpty);
+      final kept = store.dropOrgWorkspace('abc');
+      expect(store.value.list, [Workspace(id: kept!, name: 'Ghost', hue: 'sea')]);
+      expect(kept, folderIdFor(const [], 'Ghost', null), reason: 'the id its place gives it, the same on every device');
+      expect(store.value.of, {'n1': kept});
+      expect(store.value.current?.id, kept);
+      expect(store.dropOrgWorkspace('abc'), isNull);
+      expect(store.value.list, hasLength(1));
     });
 
     test('may share its name with a personal workspace, which is deduped among the personal ones only', () {

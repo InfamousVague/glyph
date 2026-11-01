@@ -51,6 +51,7 @@ import '../account/crypto_api.dart';
 import '../account/enc_key.dart';
 import '../account/keystore.dart';
 import '../core/background_jobs.dart';
+import '../core/folder_adopter.dart' show fileFormerOrgNotes;
 import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
@@ -215,6 +216,8 @@ class TeamPass {
     required this.saveState,
     required this.isTeamNote,
     this.leftTeam,
+    this.mayLetGo,
+    this.elsewhere,
     this.keptOut,
     this.agreed,
     this.leftAt,
@@ -257,6 +260,13 @@ class TeamPass {
   /// it knows that is not the organization's nor under it. A note unfiled, or in a folder this device cannot place,
   /// has not (lib/team/sync.dart `_push`).
   final bool Function(String noteId)? leftTeam;
+
+  /// Whether the organization may let go of a note that has left it: false while the organization it was filed into
+  /// does not hold its row yet (lib/team/sync.dart `mayLetGo`; Matt, 2026-11-01, "Moves between orgs").
+  final bool Function(String noteId)? mayLetGo;
+
+  /// Whether a note on this device is filed in another organization (lib/team/sync.dart `elsewhere`).
+  final bool Function(String noteId)? elsewhere;
 
   /// Told of a note that stays on this device as its team's row goes (lib/team/sync.dart `keptOut`): the engine
   /// keeps it from an old build's deletion for a while ([LeftTeams]).
@@ -363,6 +373,39 @@ class SyncEngine {
       ..syncing = (() => account.session != null && !prefs.value.localOnly)
       ..teamNote = _inTeam
       ..live = ((id) => sharedLive?.call(id) ?? false);
+  }
+
+  /// Whether organization [orgId]'s channel holds note [id], as it was last read or written here ([TeamHolding]),
+  /// from the channel's state as it is kept.
+  TeamHolding _teamHolding(int accountId, String orgId, String id) => teamHoldingIn(_device.read<Object?>(_stateKey(accountId, 'team-$orgId'), null), id);
+
+  /// Whether the organization note [id] is filed in here holds it; unknown for a note in none.
+  TeamHolding _teamHoldingOf(int accountId, String id) {
+    final space = _workspaces.workspaceOf(id);
+    final org = space == null ? null : _workspaces.orgOf(space.id);
+    return org == null ? TeamHolding.unknown : _teamHolding(accountId, org, id);
+  }
+
+  /// The notes on their way out of organization [orgId] into another that does not hold them yet, as this device
+  /// last synced (Matt, 2026-11-01, "Moves between orgs"): filed in the other one here, still [orgId]'s on the
+  /// service. Deleting [orgId] waits for these (lib/settings/organization_sheet.dart): its rows go with it, and the
+  /// note would be on this device alone. By the other organization's name, how many.
+  Future<Map<String, int>> movesPending(String orgId) async {
+    final session = account.session;
+    if (session == null) return const {};
+    final kept = _device.read<Object?>(_stateKey(session.accountId, 'team-$orgId'), null);
+    final rows = kept is Map && kept['notes'] is Map ? (kept['notes'] as Map).keys.whereType<String>().toSet() : const <String>{};
+    final here = {for (final note in await notes.list()) note.id};
+    final out = <String, int>{};
+    for (final id in rows) {
+      if (!here.contains(id)) continue;
+      final filed = _workspaces.workspaceOf(id);
+      final into = filed == null ? null : _workspaces.orgOf(filed.id);
+      if (into == null || into == orgId || _teamHolding(session.accountId, into, id) == TeamHolding.held) continue;
+      final name = _workspaces.value.list.where((w) => w.id == orgWorkspaceId(into)).firstOrNull?.name ?? 'another organization';
+      out[name] = (out[name] ?? 0) + 1;
+    }
+    return out;
   }
 
   /// Whether a note is filed in an organization's workspace, or a folder under it: the team's (docs/SHARED.md, S1).
@@ -723,6 +766,18 @@ class SyncEngine {
                 final filed = _workspaces.workspaceOf(id);
                 return filed != null && _workspaces.orgOf(filed.id) != row.id;
               },
+              // Into another organization: its row here goes once that one holds it (Matt, 2026-11-01, "Moves between
+              // orgs"). A note filed there whose channel has not put it yet is still this one's on the service.
+              mayLetGo: (id) {
+                final filed = _workspaces.workspaceOf(id);
+                final into = filed == null ? null : _workspaces.orgOf(filed.id);
+                return into == null || into == row.id || _teamHolding(accountId, into, id) == TeamHolding.held;
+              },
+              elsewhere: (id) {
+                final filed = _workspaces.workspaceOf(id);
+                final into = filed == null ? null : _workspaces.orgOf(filed.id);
+                return into != null && into != row.id;
+              },
               keptOut: leftTeams.keep,
               // Read as the note's row lands: the account's step of this pass may have answered a deletion with it.
               agreed: (id) {
@@ -950,12 +1005,27 @@ class SyncEngine {
           teamNote: _inTeam,
           sharedLive: sharedLive,
           leftTeams: leftTeams,
+          // Whether the team a note is filed in holds it: a row of one no device put to its team is taken here for
+          // the team's channel to put, its account row kept until the team holds it (Matt, 2026-11-01). Only where
+          // there is a channel to put it.
+          teamHolds: teamNotes == null ? null : (id) => _teamHoldingOf(accountId, id),
+          refile: _workspaces.refileNotes,
           progress: count,
         )),
       );
       _movedSome(synced?.changed ?? 0);
       if ((synced?.changed ?? 0) > 0) await _changed();
       final outcome = Outcome(conflicts: synced?.conflicts ?? 0, unsent: synced?.unsent ?? 0, reason: synced?.reason);
+      // With the organizations known: a note left at the path of one that is the person's no longer, filed in their
+      // folder named after it (lib/core/folder_adopter.dart `fileFormerOrgNotes`; Matt, 2026-11-01, "Leaving an org").
+      if (list != null) {
+        try {
+          final filed = fileFormerOrgNotes(_workspaces, await notes.list());
+          if (filed > 0) debugPrint('[sync] $filed note${filed == 1 ? '' : 's'} of an organization left, filed in its folder');
+        } catch (failure) {
+          debugPrint('[sync] the notes of an organization left were not filed: $failure');
+        }
+      }
 
       final prefsKey = _stateKey(accountId, 'prefs');
       await step('Preferences', () async {

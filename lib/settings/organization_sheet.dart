@@ -210,6 +210,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
     }
     final open = widget.onOpenLink;
     final owner = role == 'owner';
+    final held = services.workspaces?.orgHoldings(orgId) ?? (folders: 0, notes: 0);
 
     final sections = <SettingsSection>[
       SettingsSection(
@@ -356,7 +357,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
             if (owner)
               PaneSection(
                 title: 'Delete organization',
-                footer: const Text('Every member is told, and their workspace for it goes; the notes filed there stay with each of them, unfiled. Invitations waiting are withdrawn.'),
+                footer: Text(orgGoneWords(name, notes: held.notes, folders: held.folders, deleting: true)),
                 children: [
                   TwiceRow(
                     icon: const AppIcon(Lucide.trash2, size: 20),
@@ -365,6 +366,14 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
                     word: 'Delete',
                     busyWord: 'Deleting',
                     onDo: () async {
+                      // Every note on its way out of it into another organization put there first: its rows go with
+                      // it, and such a note would be on this device alone (Matt, 2026-11-01, "Moves between orgs").
+                      final engine = services.engine;
+                      if (engine != null) {
+                        await engine.syncNow();
+                        final waiting = await engine.movesPending(orgId);
+                        if (waiting.isNotEmpty) throw orgMovesWaitingWords(name, waiting);
+                      }
                       await _orgs.deleteOrg(orgId);
                       close();
                     },
@@ -374,7 +383,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
             else
               PaneSection(
                 title: 'Leave organization',
-                footer: const Text('Your workspace for it goes from your devices; the notes filed there stay yours, unfiled. The others are told.'),
+                footer: Text(orgGoneWords(name, notes: held.notes, folders: held.folders, deleting: false)),
                 children: [
                   TwiceRow(
                     icon: const AppIcon(Lucide.doorOpen, size: 20),
@@ -853,6 +862,32 @@ class _YourColourCardState extends State<YourColourCard> {
 }
 
 // --- Leave or Delete -------------------------------------------------------------------------------------------------
+
+/// What leaving or deleting an organization does, counted, as the Leave or Delete section says it under its row
+/// (Matt, 2026-11-01, "Leaving an org"): the notes and folders filed in its workspace go into a folder of the
+/// person's own named after it, its folders inside, never loose at the top (lib/core/workspaces.dart
+/// `dropOrgWorkspace`). Deleting also says the team's notes go from the service for every member, and that each
+/// member keeps what their devices hold the same way.
+String orgGoneWords(String name, {required int notes, required int folders, required bool deleting}) {
+  String many(int count, String one) => count == 1 ? '1 $one' : '$count ${one}s';
+  final what = notes == 0 && folders == 0
+      ? null
+      : (folders == 0 ? 'Its ${many(notes, 'note')}' : (notes == 0 ? 'Its ${many(folders, 'folder')}' : 'Its ${many(notes, 'note')} and ${many(folders, 'folder')}'));
+  final one = notes + folders == 1;
+  final kept = what == null
+      ? 'Anything filed in it here is kept in a folder of your own called “$name”.'
+      : '$what ${one ? 'is' : 'are'} kept on your devices in a folder of your own called “$name”${folders > 0 ? ', the folders inside it as they were' : ''}: nothing goes loose, and nothing is deleted here.';
+  if (!deleting) return 'Your workspace for it goes from your devices. $kept The others are told.';
+  return 'The team’s notes go from the service for every member, and each is told; each member keeps what their devices hold the same way. $kept Invitations waiting are withdrawn.';
+}
+
+/// Why deleting waits: notes moved out of [name] into another organization that does not hold them yet. Its rows go
+/// with it, and those would be on this device alone (Matt, 2026-11-01, "Moves between orgs").
+String orgMovesWaitingWords(String name, Map<String, int> waiting) {
+  final total = waiting.values.fold(0, (sum, n) => sum + n);
+  final where = waiting.keys.map((each) => '“$each”').join(' and ');
+  return '${total == 1 ? '1 note is' : '$total notes are'} still on the way from “$name” to $where. Sync again once they are there, or move them into a folder of your own, then delete.';
+}
 
 /// A row tapped twice, armed for a few seconds in between, as a reset is (`TwiceRow`; DeveloperPane.tsx
 /// `ResetRow`). What went wrong is said where the hint was.

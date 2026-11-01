@@ -19,7 +19,8 @@
 ///    here are posted to the log; a note new to the team, or one whose particulars changed, or one whose document
 ///    has gone [snapshotEvery] updates past its last snapshot, is put as a row - with its versions file, pictures
 ///    and recording sent first - and a row that lost the race is merged and put again. A note no longer here, or no
-///    longer filed in the organization's workspace or a folder under it, is deleted from the team. A folder
+///    longer filed in the organization's workspace or a folder under it, is deleted from the team: one filed into
+///    another organization once that one holds it ([TeamSyncContext.mayLetGo], 2026-11-01). A folder
 ///    the pass emptied, named by no team note's path any more, is dropped at the end ([TeamFolders.prune]).
 ///
 /// Two members who edited apart merge by the CRDT: nothing here keeps a copy. A note's send that fails is counted
@@ -74,7 +75,7 @@ import '../sync/sync_marks.dart' show noteSyncMarks;
 import 'doc.dart';
 import 'folders.dart';
 
-export '../sync/notes.dart' show KeyTurned;
+export '../sync/notes.dart' show KeyTurned, TeamHolding;
 
 /// How many updates past its last snapshot a document may go before a pass puts a new one and cuts the log
 /// (`SNAPSHOT_EVERY`).
@@ -123,9 +124,10 @@ const int teamReadsNow = 2;
 
 /// What a device remembers of one organization's channel (`TeamSyncState`).
 class TeamSyncState {
-  TeamSyncState({this.cursor = 0, Map<String, TeamMark>? notes, Map<String, FileMark>? files})
+  TeamSyncState({this.cursor = 0, Map<String, TeamMark>? notes, Map<String, FileMark>? files, Set<String>? gone, this.goneRead = false})
       : notes = notes ?? {},
-        files = files ?? {};
+        files = files ?? {},
+        gone = gone ?? {};
 
   /// A state as kept, forgivingly: what is not there, or not the shape, is empty.
   ///
@@ -137,9 +139,10 @@ class TeamSyncState {
   /// pull, and the ones with no mark are taken.
   factory TeamSyncState.fromJson(Object? raw) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
-    final cursor = map['cursor'], notes = map['notes'], files = map['files'], reads = map['reads'];
+    final cursor = map['cursor'], notes = map['notes'], files = map['files'], reads = map['reads'], gone = map['gone'];
     final current = reads is num && reads >= teamReadsNow;
-    final state = TeamSyncState(cursor: current && cursor is num ? cursor.toInt() : 0);
+    final state = TeamSyncState(cursor: current && cursor is num ? cursor.toInt() : 0, goneRead: current && map['goneRead'] == true);
+    if (current && gone is List) state.gone.addAll(gone.whereType<String>());
     if (notes is Map) {
       for (final entry in notes.entries) {
         final mark = TeamMark.fromJson(entry.value);
@@ -164,11 +167,29 @@ class TeamSyncState {
   /// Per file, as the account's sync keeps them ([SyncState.files]).
   final Map<String, FileMark> files;
 
+  /// The notes whose rows the feed says are deleted, by id: what tells a note the team let go of from one it never
+  /// had ([holding]). Gathered as the feed is read, and once from its start ([goneRead]) for the deletions read
+  /// before this was kept.
+  final Set<String> gone;
+
+  /// Whether [gone] covers the whole feed: read from its start once by a build that keeps it ([_readGone]).
+  bool goneRead;
+
+  /// Whether the team holds note [id], as far as this device has read ([TeamHolding]); what lib/sync/notes.dart
+  /// `teamHoldingIn` reads from the state as it is kept.
+  TeamHolding holding(String id) {
+    if (notes.containsKey(id)) return TeamHolding.held;
+    if (gone.contains(id)) return TeamHolding.gone;
+    return goneRead ? TeamHolding.absent : TeamHolding.unknown;
+  }
+
   Map<String, Object?> toJson() => {
         'reads': teamReadsNow,
         'cursor': cursor,
         'notes': {for (final entry in notes.entries) entry.key: entry.value.toJson()},
         'files': {for (final entry in files.entries) entry.key: entry.value.toJson()},
+        if (goneRead) 'goneRead': true,
+        if (gone.isNotEmpty) 'gone': gone.toList()..sort(),
       };
 }
 
@@ -190,6 +211,8 @@ class TeamSyncContext {
     required this.crypto,
     required this.isTeamNote,
     this.leftTeam,
+    this.mayLetGo,
+    this.elsewhere,
     this.keptOut,
     this.agreed,
     this.leftAt,
@@ -227,6 +250,17 @@ class TeamSyncContext {
   /// is still on the device keeps its row: the team's notes are never taken from every member because this device
   /// could not place a folder.
   final bool Function(String id)? leftTeam;
+
+  /// Whether this team may let go of a note that has left it ([leftTeam]) for somewhere that has to take it first:
+  /// false while the organization it was filed into does not hold its row yet (Matt, 2026-11-01, "Moves between
+  /// orgs"). Its row here stays until then, so the note is never only on this device while the settings say another
+  /// team has it: a pass that put it there lets go of it here at the next. None, or true, and it goes at once.
+  final bool Function(String id)? mayLetGo;
+
+  /// Whether a note on this device is filed in another organization: its document is that one's now, which this
+  /// channel neither drops as its row here goes nor moves the place in the log of (Matt, 2026-11-01, "Moves between
+  /// orgs"). One document per note, whichever team has it (lib/team/docs.dart).
+  final bool Function(String id)? elsewhere;
 
   /// Told of a note that stays on this device as its team's row goes: the person moved it out of the organization,
   /// here or on another of their devices. The account's own sync keeps it from an old build's deletion for a while
@@ -523,22 +557,37 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
     } else if (local != null) {
       ctx.keptOut?.call(item.id);
     }
-    await ctx.docs.drop(item.id);
+    if (local == null || !(ctx.elsewhere?.call(item.id) ?? false)) await ctx.docs.drop(item.id);
     ctx.state.notes.remove(item.id);
+    ctx.state.gone.add(item.id);
     _forgetRecording(ctx, item.id);
     return;
   }
+  ctx.state.gone.remove(item.id);
   final (value: payload, :older) = await _opened(ctx, (key) async => _Payload.fromJson(await ctx.crypto.open(key, blob, _noteContext(ctx.orgId, item.id)), item.id));
   final held = await ctx.docs.doc(item.id);
   // Words typed here since the document was last written are a change of this device's, reconciled before the row's
   // state comes in, so the merge is the CRDT's and nothing typed is written over.
   if (held != null && local != null) await held.reconcileKept(local.body);
+  // The place in the log the document is at is one organization's: kept as it is for a note filed in another one
+  // now ([TeamSyncContext.elsewhere]), whose log it reads; and this one's, from its row, for a document this
+  // organization has had no row of here, which came from another's (a note filed straight from one into another:
+  // the other's log numbers are not this one's, and a document still at them read past this one's first updates).
+  final known = ctx.state.notes[item.id];
+  final elsewhere = held != null && local != null && (ctx.elsewhere?.call(item.id) ?? false);
+  final (seqWas, snapshotWas) = (held?.seq, held?.snapshotSeq);
   final doc = await ctx.docs.adopt(item.id, payload.state, payload.seq);
+  if (elsewhere) {
+    doc.seq = seqWas!;
+    doc.snapshotSeq = snapshotWas!;
+  } else if (held != null && known == null) {
+    doc.seq = payload.seq;
+    doc.snapshotSeq = payload.seq;
+  }
   // This device's own words, from before the team had the note: a change for the team, not words to lose. Only what
   // changed here is (Matt's standup, 2026-10-29): see [_ownWords].
   // Which of this account's revisions the team's note left the account at: the row's, where it is this account's,
   // else what an earlier row said (a row put again by a build that does not carry it).
-  final known = ctx.state.notes[item.id];
   final from = (payload.account != null && payload.account == ctx.account ? payload.from : null) ?? known?.from;
   if (held == null && local != null && local.body != doc.words) {
     final words = _ownWords(ctx, item.id, local.body, doc.words, from);
@@ -593,6 +642,8 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
 }
 
 Future<void> _pull(TeamSyncContext ctx, _Tally tally) async {
+  // Read from the start, the feed's every deletion is among what it reads: [TeamSyncState.gone] is whole after it.
+  final fromStart = ctx.state.cursor == 0;
   for (;;) {
     final page = await ctx.api.callMap('GET', ctx._route('notes?since=${ctx.state.cursor}'), token: ctx.token);
     final items = [for (final raw in page['items'] is List ? page['items'] as List : const <Object?>[]) ?_Row.fromJson(raw)];
@@ -610,9 +661,31 @@ Future<void> _pull(TeamSyncContext ctx, _Tally tally) async {
     }
     final rev = _numOf(page, 'rev');
     if (rev > ctx.state.cursor) ctx.state.cursor = rev;
+    if (page['more'] != true && fromStart) ctx.state.goneRead = true;
     ctx.save(ctx.state);
     if (page['more'] != true) return;
   }
+}
+
+/// The feed's deletions read once from its start, for a state kept by a build that did not gather them
+/// ([TeamSyncState.gone]): the rows' ids and nothing else, no note taken or touched. So the account's sync can tell a
+/// note this team let go of, whose leftover row in the account's feed must stay a leftover, from one it never had,
+/// which a device puts to it (lib/sync/notes.dart `SyncContext.teamHolds`; Matt, 2026-11-01, "Moves between orgs").
+Future<void> _readGone(TeamSyncContext ctx) async {
+  if (ctx.state.goneRead || ctx.state.cursor == 0) return;
+  var since = 0;
+  for (;;) {
+    final page = await ctx.api.callMap('GET', ctx._route('notes?since=$since'), token: ctx.token);
+    for (final raw in page['items'] is List ? page['items'] as List : const <Object?>[]) {
+      final row = _Row.fromJson(raw);
+      if (row != null && row.deleted && !ctx.state.notes.containsKey(row.id)) ctx.state.gone.add(row.id);
+    }
+    final rev = _numOf(page, 'rev');
+    if (page['more'] != true || rev <= since) break;
+    since = rev;
+  }
+  ctx.state.goneRead = true;
+  ctx.save(ctx.state);
 }
 
 // --- updates ---------------------------------------------------------------------------------------------------------
@@ -699,8 +772,10 @@ Future<void> _postPending(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally ta
   }
 }
 
-/// The note's row put (`putRow`): a snapshot of the document, its particulars, and its files sent first.
-Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, {bool retry = true}) async {
+/// The note's row put (`putRow`): a snapshot of the document, its particulars, and its files sent first. [base] is
+/// the revision it is put over, where that is not the one this device last read: a row of the note's id deleted
+/// before.
+Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, {bool retry = true, int? base}) async {
   final known = ctx.state.notes[note.id];
   final files = ctx._files;
   final versions = await sendVersionsOf(files, note.id);
@@ -742,8 +817,9 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
   };
   final blob = await ctx.crypto.seal(ctx.key, payload, _noteContext(ctx.orgId, note.id));
   try {
-    final answer = await ctx.api.call('PUT', ctx._route('notes/${Uri.encodeComponent(note.id)}'), token: ctx.token, body: ctx._body({'base': known?.rev ?? 0, 'blob': blob, 'upTo': doc.seq}));
+    final answer = await ctx.api.call('PUT', ctx._route('notes/${Uri.encodeComponent(note.id)}'), token: ctx.token, body: ctx._body({'base': base ?? known?.rev ?? 0, 'blob': blob, 'upTo': doc.seq}));
     ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note), recording: recording, phrases: phrasesMark(whole), from: from);
+    ctx.state.gone.remove(note.id);
     tally.sent += 1;
     doc.snapshotSeq = doc.seq;
     // The snapshot carried the updates pending when it was taken; what was typed since is still pending.
@@ -754,6 +830,14 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     if (turned != null) throw turned;
     final winner = failure is ApiError && failure.status == 409 ? _Row.fromJson(failure.body) : null;
     if (winner == null) rethrow;
+    // A note new to the team here, put over a row of its id the team deleted before: the person filed it in the
+    // organization again (out of it and back, or its way back from another), and it is put over that row. Taken as
+    // the deletion it once was, the note was removed from this device as it went to the team, and with the
+    // account's row already gone for the team's it was nowhere (Matt, 2026-11-01, "Moves between orgs").
+    if (winner.deleted && known == null && base == null) {
+      if (!retry) rethrow;
+      return _putRow(ctx, note, doc, tally, retry: false, base: winner.rev);
+    }
     // Another member put the row first: theirs merged into the document here, and this one put again from their
     // revision.
     final local = await ctx.notes.get(note.id) ?? note;
@@ -805,6 +889,13 @@ Future<void> _pushOne(TeamSyncContext ctx, Note note, _Tally tally) async {
   final doc = (await ctx.docs.doc(note.id, seedWords: note.body))!;
   await doc.reconcileKept(note.body);
   final known = ctx.state.notes[note.id];
+  // New to this team, with a document from another organization's (filed straight from one into another; Matt,
+  // 2026-11-01, "Moves between orgs"): its history goes with it, so a device holding the other's document merges the
+  // row rather than doubling its words, but its place in the log is this team's, which begins again.
+  if (known == null && (doc.seq != 0 || doc.snapshotSeq != 0)) {
+    doc.seq = 0;
+    doc.snapshotSeq = 0;
+  }
   if (known != null) await _postPending(ctx, note, doc, tally);
   final due = known == null ||
       known.mark != particulars(note) ||
@@ -870,6 +961,8 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
   for (final id in ctx.state.notes.keys.toList()) {
     if (present.contains(id)) continue;
     if (onDevice.contains(id) && !(ctx.leftTeam?.call(id) ?? false)) continue;
+    // Moved into another organization that does not hold it yet: kept here until it does ([TeamSyncContext.mayLetGo]).
+    if (onDevice.contains(id) && !(ctx.mayLetGo?.call(id) ?? true)) continue;
     ctx.progress?.found(1);
     await _counted(tally, () async {
       final known = ctx.state.notes[id]!;
@@ -882,8 +975,9 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
         if (!winner.deleted) await ctx.api.call('DELETE', path, token: ctx.token, body: ctx._body({'base': winner.rev}));
       }
       ctx.state.notes.remove(id);
+      ctx.state.gone.add(id);
       _forgetRecording(ctx, id);
-      await ctx.docs.drop(id);
+      if (!onDevice.contains(id) || !(ctx.elsewhere?.call(id) ?? false)) await ctx.docs.drop(id);
       // Still here, the person's own note now: its team's row gone by this device's hand.
       if (onDevice.contains(id)) ctx.keptOut?.call(id);
     });
@@ -947,6 +1041,7 @@ Future<TeamOutcome> resealTeamNotes(TeamSyncContext ctx) async {
 Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
   final tally = _Tally();
   ctx._later.clear();
+  await _readGone(ctx);
   // The folders holding a note as the pass begins: one of them empty at the end was emptied by the team.
   final folders = ctx.folders;
   final filled = folders == null ? const <String>{} : folders.filled(await ctx.notes.list());
@@ -1000,6 +1095,8 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       now: now,
       isTeamNote: pass.isTeamNote,
       leftTeam: pass.leftTeam,
+      mayLetGo: pass.mayLetGo,
+      elsewhere: pass.elsewhere,
       keptOut: pass.keptOut,
       agreed: pass.agreed,
       leftAt: pass.leftAt,

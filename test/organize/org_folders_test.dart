@@ -135,25 +135,50 @@ void main() {
       expect(it.store.value.list.firstWhere((w) => w.id == root).name, 'Ghost.md');
     });
 
-    test('the organization’s workspace gone takes its folders with it, their notes unfiled and the filter cleared', () {
+    // Matt, 2026-11-01, "Leaving an org": deleting Hello HQ left about a thousand of his notes loose at the top. Now
+    // its workspace becomes a folder of his named after it, every folder that was in it inside that one, every note
+    // filed where it was; nothing in the inbox, nothing at the top.
+    test('the organization’s workspace gone leaves its folders and notes in a personal folder named after it, as they were, and the filter on the same folder', () {
       final it = storeOf();
       final clients = it.store.addWorkspace('Clients', 'ink', root)!;
-      final acme = it.store.addWorkspace('Acme', 'ink', clients.id)!;
+      final acme = it.store.addWorkspace('Acme', 'moss', clients.id)!;
       final mine = it.store.addWorkspace('Mine')!;
       it.store.fileNote('n1', root);
       it.store.fileNote('n2', acme.id);
       it.store.fileNote('n3', mine.id);
+      it.store.fileNote('n4', clients.id);
       it.store.chooseWorkspace(acme.id);
       it.filed.clear();
-      it.store.dropOrgWorkspace('abc');
-      expect(it.store.value.list, [mine]);
-      expect(it.store.value.of, {'n3': mine.id});
-      expect(it.store.value.current, isNull);
-      expect(it.filed, ['n1,n2 to Inbox']);
+      expect(it.store.orgHoldings('abc'), (folders: 2, notes: 3));
+      final kept = it.store.dropOrgWorkspace('abc')!;
+      final home = it.store.value.list.firstWhere((w) => w.id == kept);
+      expect((home.name, home.parent, isOrgWorkspace(home.id)), ('Ghost.md', null, false));
+      expect(it.store.value.list.firstWhere((w) => w.id == clients.id).parent, kept);
+      expect(it.store.value.list.firstWhere((w) => w.id == acme.id), acme, reason: 'the same id, name, colour and parent');
+      expect(it.store.value.list.where((w) => it.store.orgOf(w.id) != null), isEmpty);
+      expect(it.store.value.of, {'n1': kept, 'n2': acme.id, 'n3': mine.id, 'n4': clients.id});
+      expect(it.store.value.current?.id, acme.id);
+      expect(it.filed, ['n1 to workspaces/Ghost.md', 'n4 to workspaces/Ghost.md/Clients', 'n2 to workspaces/Ghost.md/Clients/Acme']);
+      expect(it.filed.where((line) => line.contains('Inbox')), isEmpty);
       // Nothing of the organization's left: nothing happens, and nothing is said.
       it.filed.clear();
-      it.store.dropOrgWorkspace('abc');
+      expect(it.store.dropOrgWorkspace('abc'), isNull);
       expect(it.filed, isEmpty);
+    });
+
+    test('the organization’s workspace gone joins a personal folder of its name already there, a folder of the same name inside made one', () {
+      final it = storeOf();
+      final plans = it.store.addWorkspace('Plans', 'ink', root)!;
+      final own = it.store.addWorkspace('Ghost.md', 'rose')!;
+      final ownPlans = it.store.addWorkspace('Plans', 'amber', own.id)!;
+      it.store.fileNote('n1', plans.id);
+      it.store.fileNote('n2', ownPlans.id);
+      it.store.fileNote('n3', root);
+      expect(it.store.dropOrgWorkspace('abc'), own.id);
+      expect(it.store.childrenOf(own.id).map((w) => w.name), ['Plans'], reason: 'one Plans, not two');
+      final one = it.store.childrenOf(own.id).single;
+      expect({it.store.workspaceOf('n1')?.id, it.store.workspaceOf('n2')?.id}, {one.id});
+      expect(it.store.workspaceOf('n3')?.id, own.id);
     });
 
     test('counts the notes in a folder and under it, and finds a folder by name inside its parent only', () {

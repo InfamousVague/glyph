@@ -264,7 +264,7 @@ void main() {
       expect(it.store.workspaceOf('n1'), isNull);
     });
 
-    test('under orgs/ for an organization’s workspace, and out again when the person leaves', () async {
+    test('under orgs/ for an organization’s workspace, and out again when the person leaves, into a folder of theirs named after it', () async {
       final it = await wired();
       final team = it.store.ensureOrgWorkspace(const OrgLike(id: 'abc', name: 'Ghost'));
       it.store.fileNote('n1', team.id);
@@ -275,7 +275,7 @@ void main() {
       expect(it.core.files, ['Inbox/Packing.md', 'orgs/Ghost HQ/Weekend trip.md']);
       it.store.dropOrgWorkspace('abc');
       await settled(it.folders);
-      expect(it.core.files, ['Inbox/Packing.md', 'Inbox/Weekend trip.md']);
+      expect(it.core.files, ['Inbox/Packing.md', 'workspaces/Ghost HQ/Weekend trip.md']);
     });
 
     test('a new note goes where the list is', () async {

@@ -137,8 +137,9 @@ void main() {
       await expectLater(here.orgs.setRole(org.id, 'matt', 'admin', ctx: here.ctx), throwsWords('Hand the organization over first.'));
       here.workspaces.fileNote('n1', 'org-${org.id}');
       await here.orgs.deleteOrg(org.id, ctx: here.ctx);
-      expect(here.workspaces.value.list, isEmpty);
-      expect(here.workspaces.workspaceOf('n1'), isNull);
+      // Its note kept in a folder of the person's named after it (Matt, 2026-11-01, "Leaving an org").
+      expect([for (final w in here.workspaces.value.list) (w.name, isOrgWorkspace(w.id))], [('Boo', false)]);
+      expect(here.workspaces.workspaceOf('n1')?.name, 'Boo');
       expect(here.orgs.orgsState().list, isEmpty);
       // A 404 in the service's words surfaces as one: it is an answer, not a service without the route.
       await expectLater(here.orgs.fetchOrg(org.id, ctx: here.ctx), throwsWords('No such organization.'));
@@ -233,7 +234,7 @@ void main() {
       expect((phone.state.at, phone.state.colour), (99, null));
       expect(phone.state.list.map((r) => (r.id, r.state)), [(ghost.id, 'member'), (invited, 'invited')]);
       expect(here.workspaces.value.list, [Workspace(id: 'org-${ghost.id}', name: 'Ghost', hue: 'moss')]);
-      // Renamed elsewhere: the workspace follows on the next list. Left: it goes, and its notes are unfiled.
+      // Renamed elsewhere: the workspace follows on the next list. Left: it goes, its notes into a folder named after it.
       service.orgs[ghost.id]!.name = 'Spectre';
       here.workspaces.fileNote('n1', 'org-${ghost.id}');
       await phone.sync();
@@ -241,8 +242,8 @@ void main() {
       expect(here.workspaces.workspaceOf('n1')?.id, 'org-${ghost.id}');
       service.orgs.remove(ghost.id);
       await phone.sync();
-      expect(here.ids, isEmpty);
-      expect(here.workspaces.workspaceOf('n1'), isNull);
+      expect(here.ids.where(isOrgWorkspace), isEmpty);
+      expect(here.workspaces.workspaceOf('n1')?.name, 'Spectre', reason: 'kept in a folder of the person’s named after it');
     });
 
     test('changes nothing - no workspace, no kept list - when the list does not arrive', () async {
