@@ -176,8 +176,14 @@ the feed of rows by cursor, then `GET orgs/:id/heads` and the log of each note w
   team's, as in the app, and is put as the note's row.
 - **Filing is sharing.** `file_notes` into an organization puts the note to the team (its pictures first, sealed
   again under the organization key, then its row) and deletes the account's own row, as a device does; out of one,
-  it writes the note to the account and deletes the team's row. `create_note` with an organization's `workspace`
-  makes a note that is the team's from its first word.
+  it writes the note to the account and deletes the team's row. From one organization into another (Matt,
+  2026-11-01, "Moves between orgs") the connector writes the row into the second's store itself (mcp/team.ts
+  `carry`: the note's document whole, its versions file, pictures and recording read from the first's files and
+  sealed again under the second's key, at the second's log's start), reads it back from the second's feed
+  (`confirm`), and only then deletes the first's row; a note the second does not show is left in the first, its
+  filing unchanged, and said in `notFiled`. Every note that changed hands is listed in `handedOver` with where it was,
+  where it is and what was done. That day 26 of Hello HQ's notes filed into HelloTrade were lost when Hello HQ was
+  deleted. `create_note` with an organization's `workspace` makes a note that is the team's from its first word.
 - **What it cannot read, it says.** No wrap for this account yet, no key made yet, a row sealed under a generation
   this account has no wrap at: `notReadable` in the answer counts them by organization and says why, and a note's id
   that is one of them is answered with where it is, never "No note with the id".

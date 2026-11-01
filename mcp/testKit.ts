@@ -154,7 +154,8 @@ export async function playSignInPage(page: SignInPage, { handle, password, round
 }
 
 /** One JSON call to the fake service as a signed-in device of the account. */
-async function asDevice<T>(service: FakeService, method: string, path: string, body?: unknown): Promise<T> {
+/** A call to the service as one of the account's devices makes it. */
+export async function asDevice<T>(service: FakeService, method: string, path: string, body?: unknown): Promise<T> {
   const response = await service.fetcher(`${API}/v1/${path}`, { method, headers: { Authorization: `Bearer ${service.signedIn()}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}: ${await response.text()}`);
   return (await response.json()) as T;

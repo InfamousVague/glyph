@@ -495,16 +495,25 @@ export class GlyphAccount {
    * A note moved to organization `org`, or - null - back to the account's own, as filing it does on a device
    * (docs/SHARED.md, S1; core/sync/notes.ts, core/team/sync.ts): into an organization it is put to the team and its
    * row in the account's feed deleted, so the account's devices take it from the team; out of one it is written to
-   * the account and its row deleted from the team. From one organization to another it goes to the second, then
-   * from the first. Answers the note where it now is, and the pictures that could not be carried to a team. With
-   * `path`, a note going to a team goes at that path: a folder of the organization's (GHST-108).
+   * the account and its row deleted from the team. From one organization to another it is written into the second's
+   * team store here (mcp/team.ts `carry`: its document, its files sealed again under the second's key), read back
+   * from there, and only then taken from the first (Matt, 2026-11-01, "Moves between orgs": 26 of Hello HQ's notes
+   * filed into HelloTrade were gone when Hello HQ was deleted, the settings saying HelloTrade and HelloTrade never
+   * having held them). A note the team it went to does not show when read back is left where it was, and said. Into
+   * a team from the account's own, the same: read back before the account's row goes. Answers the note where it now
+   * is, and what could not be carried to a team. With `path`, a note going to a team goes at that path: a folder of
+   * the organization's (GHST-108).
    */
   async move(id: string, org: string | null, { path }: { path?: string } = {}): Promise<{ record: NoteRecord; left: string[] }> {
     const current = await this.get(id);
     if (!current) throw new GlyphApiError(404, `No note ${id}.`);
     if ((current.org?.id ?? null) === org) return { record: current, left: [] };
     if (org) {
-      const placed = await this.teams.adopt(org, current.note, path);
+      const placed = current.org ? await this.teams.carry(current.org.id, org, id, path) : await this.teams.adopt(org, current.note, path);
+      if (!(await this.teams.confirm(org, id))) {
+        const name = this.organizations().find((each) => each.id === org)?.name ?? 'The organization';
+        throw new Error(`${name} did not show the note when it was read back, so it was left where it was${current.org ? `, in ${current.org.name}` : ''}.`);
+      }
       if (current.org) await this.teams.remove(current.org.id, id);
       const mine = this.cache.get(id);
       if (mine) {

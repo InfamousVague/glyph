@@ -5,7 +5,7 @@ import { fromBase64Url, open, openBytes, seal, sealBytes } from '../tauri/src/ap
 import { forgetTeamDocs } from '../tauri/src/app/core/team/doc.ts';
 import { fakeService, FAST } from '../tauri/src/test/fakeService.ts';
 import { GlyphAccount } from './glyph.ts';
-import { aNote, anOrganization, API, connected, registerPair, teamDevice, WRITTEN } from './testKit.ts';
+import { aNote, anOrganization, API, asDevice, connected, registerPair, teamDevice, WRITTEN } from './testKit.ts';
 
 /**
  * An organization's notes through the connector (mcp/team.ts; docs/SHARED.md): read as a member's device wrote
@@ -367,7 +367,11 @@ describe('filing', () => {
     expect(made.created.workspace).toBeNull();
 
     const filed = JSON.parse((await call('file_notes', { ids: [id], workspace: 'Ghost' })).text);
-    expect(filed).toEqual({ workspace: { id: `org-${org.id}`, name: 'Ghost', organization: true }, filed: [{ id, title: 'Claude Rules' }] });
+    expect(filed).toEqual({
+      workspace: { id: `org-${org.id}`, name: 'Ghost', organization: true },
+      filed: [{ id, title: 'Claude Rules' }],
+      handedOver: [{ id, title: 'Claude Rules', from: 'your own notes', to: 'Ghost', did: 'Written into Ghost’s team notes and read back from there, then your account’s own copy removed.' }],
+    });
     // The team has it, the account's own row is gone as a device's would be, and the settings file it there.
     expect((await rowOf(service, org, id))!.note.body).toBe(made.created.body);
     expect(service.notes.get(id)).toMatchObject({ deleted: true });
@@ -408,7 +412,11 @@ describe('filing', () => {
     await phone.sync();
 
     const unfiled = JSON.parse((await call('file_notes', { ids: ['t1'], workspace: 'Home' })).text);
-    expect(unfiled).toEqual({ workspace: { id: 'w1', name: 'Home', organization: false }, filed: [{ id: 't1', title: 'Plan' }] });
+    expect(unfiled).toEqual({
+      workspace: { id: 'w1', name: 'Home', organization: false },
+      filed: [{ id: 't1', title: 'Plan' }],
+      handedOver: [{ id: 't1', title: 'Plan', from: 'Ghost', to: 'your own notes', did: 'Written back to your own notes, then taken out of Ghost.' }],
+    });
     expect(service.teamNotes(org.id).get('t1')).toMatchObject({ deleted: true });
     expect((await service.stored('t1'))!.note.body).toBe('# Plan\n\nThe team’s words.');
     const read = JSON.parse((await call('read_note', { id: 't1' })).text) as Read;
@@ -420,6 +428,71 @@ describe('filing', () => {
     expect((await rowOf(service, org, 't1'))!.note.body).toContain('Mine for a while.');
     expect(service.notes.get('t1')).toMatchObject({ deleted: true });
     expect((JSON.parse((await call('list_notes', { workspace: 'Ghost' })).text) as Listed).notes.map((n) => n.id)).toEqual(['t1']);
+  });
+
+  // Matt, 2026-11-01, "Moves between orgs": 26 of Hello HQ's notes filed into a folder of HelloTrade's were gone once
+  // Hello HQ was deleted, the settings saying HelloTrade and HelloTrade's team never having held them.
+  it('carries a team note from one organization into another itself: written into the second’s store, read back, and only then taken from the first', async () => {
+    const { service, call, account } = await connected();
+    const hello = await anOrganization(service, 'Hello HQ');
+    const trade = await anOrganization(service, 'HelloTrade');
+    const plans = { id: 'w-plans', name: 'Plans', parent: `org-${trade.id}` };
+    await account.changePrefs(() => ({ workspaces: { list: [{ id: `org-${hello.id}`, name: 'Hello HQ' }, { id: `org-${trade.id}`, name: 'HelloTrade' }, plans], notes: { t1: `org-${hello.id}` } } }));
+    const phone = teamDevice(service, hello);
+    phone.put('t1', '# Spec\n\n![](image/abc.png)\n\nThe team’s words.');
+    // The picture sent with the row by the phone, sealed under Hello HQ's key.
+    const picture = new Uint8Array([9, 8, 7]);
+    phone.pictures.set('abc.png', picture);
+    await phone.sync();
+    expect(service.teamFiles(hello.id).has('i-png-abc')).toBe(true);
+
+    const filed = JSON.parse((await call('file_notes', { ids: ['t1'], workspace: 'HelloTrade › Plans' })).text);
+    expect(filed.handedOver).toEqual([{ id: 't1', title: 'Spec', from: 'Hello HQ', to: 'HelloTrade', did: 'Written into HelloTrade’s team notes and read back from there, then taken out of Hello HQ.' }]);
+    // HelloTrade's store holds it, at the folder's path, with its words and its picture sealed under HelloTrade's key.
+    const row = (await rowOf(service, trade, 't1'))!;
+    expect(row.note.body).toBe('# Spec\n\n![](image/abc.png)\n\nThe team’s words.');
+    expect(row.note.path).toBe('orgs/HelloTrade/Plans/Spec.md');
+    expect(row.seq).toBe(0);
+    expect(await openBytes(trade.key, service.teamFiles(trade.id).get('i-png-abc')!.bytes, 'file:i-png-abc')).toEqual(picture);
+    // Its document is Hello HQ's, history and all: a member's device that held Hello HQ's merges it, words once.
+    expect(fromBase64Url(row.state).length).toBeGreaterThan(0);
+    expect(service.teamNotes(hello.id).get('t1')).toMatchObject({ deleted: true });
+    expect(((await account.readPrefs()).prefs.workspaces as { notes: unknown }).notes).toEqual({ t1: 'w-plans' });
+
+    // Hello HQ deleted now loses nothing: HelloTrade has it.
+    await asDevice(service, 'DELETE', `orgs/${hello.id}`);
+    const atTrade = teamDevice(service, trade);
+    await atTrade.sync();
+    expect(atTrade.notes.get('t1')!.body).toBe('# Spec\n\n![](image/abc.png)\n\nThe team’s words.');
+    expect(atTrade.pictures.get('abc.png')).toEqual(picture);
+  });
+
+  it('leaves a note where it was, and its filing, when the organization it goes to will not show it read back', async () => {
+    // HelloTrade's feed answering without the row, once told to, as a store that did not keep it would.
+    let hide = '';
+    const { service, call, account } = await connected({
+      hooks: {
+        fetcher: (service) => (async (input: RequestInfo | URL, init?: RequestInit) => {
+          const answer = await service.fetcher(input, init);
+          if (!hide || !String(input).includes(`/orgs/${hide}/notes?since=`)) return answer;
+          const body = (await answer.json()) as { items: { id: string }[] };
+          return new Response(JSON.stringify({ ...body, items: body.items.filter((item) => item.id !== 't1') }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }) as typeof fetch,
+      },
+    });
+    const hello = await anOrganization(service, 'Hello HQ');
+    const trade = await anOrganization(service, 'HelloTrade');
+    await account.changePrefs(() => ({ workspaces: { list: [{ id: `org-${hello.id}`, name: 'Hello HQ' }, { id: `org-${trade.id}`, name: 'HelloTrade' }], notes: { t1: `org-${hello.id}` } } }));
+    const phone = teamDevice(service, hello);
+    phone.put('t1', '# Spec');
+    await phone.sync();
+    await call('list_notes');
+    hide = trade.id;
+    const refused = await call('file_notes', { ids: ['t1'], workspace: 'HelloTrade' });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain('HelloTrade did not show the note when it was read back, so it was left where it was, in Hello HQ.');
+    expect(service.teamNotes(hello.id).get('t1')).toMatchObject({ deleted: false });
+    expect(((await account.readPrefs()).prefs.workspaces as { notes: unknown }).notes).toEqual({ t1: `org-${hello.id}` });
   });
 
   it('says why a note was not filed where it cannot write, and leaves it and its filing as they were', async () => {

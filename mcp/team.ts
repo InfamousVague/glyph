@@ -760,6 +760,103 @@ export class TeamNotes {
   }
 
   /**
+   * A team note carried from organization `fromId` into `toId` (Matt, 2026-11-01, "Moves between orgs"): written into
+   * the second's team store by this connector itself, never left for a device. The row is the first's as last read -
+   * its document's whole state, so a member's device that holds the first's document merges it rather than doubling
+   * its words, its versions file, pictures and recording read from the first's files and sealed again under the
+   * second's key - at the log's start, which is the second's own (core/team/sync.ts). With `path`, at that path, a
+   * folder of the second's. The first still holds it: `remove` lets go of it there once `confirm` has read it back
+   * from the second (mcp/glyph.ts `move`). A note the second holds already is left as it has it. Answers what could
+   * not be carried: pictures by name, and the files it links, which a device sends again with its next row.
+   */
+  async carry(fromId: string, toId: string, id: string, path?: string): Promise<{ record: TeamRecord; left: string[] }> {
+    const from = this.org(fromId);
+    const to = this.org(toId);
+    const entry = from.notes.get(id);
+    if (!entry) throw new Error(`${from.row.name} holds no note ${id} this connector can read.`);
+    const has = to.notes.get(id);
+    if (has) return { record: this.record(to, has), left: [] };
+    if (to.unreadable.has(id)) throw new Error(`${to.row.name} holds this note already, and it is not readable by this connector: ${this.why(to)}.`);
+    const key = this.keyOf(to);
+    this.keyOf(from);
+    // One of the first's files, opened under its key and sealed under the second's; one there already is carried.
+    const copy = async (fileId: string): Promise<boolean> => {
+      try {
+        const sealed = await this.service.bytes('GET', this.route(from, `files/${fileId}`));
+        const plain = await this.opened(from, (k) => openBytes(k, sealed, `file:${fileId}`));
+        await this.service.bytes('PUT', this.route(to, `files/${fileId}?base=0&generation=${to.generation}`), await sealBytes(key, plain, `file:${fileId}`));
+        return true;
+      } catch (failure) {
+        return statusOf(failure) === 409 && !turned(failure);
+      }
+    };
+    const left: string[] = [];
+    for (const name of imageNames(entry.note.body)) {
+      const fileId = pictureId(name);
+      if (fileId && !(await copy(fileId)) && !(await this.fromAccount(to, key, fileId))) left.push(name);
+    }
+    const versions = entry.versions && /^[A-Za-z0-9_-]{1,62}$/.test(id) && (await copy(`v-${id}`)) ? entry.versions : undefined;
+    // The files it links and the words read in them are not carried (a device holding them sends them with its next
+    // row); the recording is, where the first has it.
+    const was = entry.rest ?? {};
+    const rest = Object.fromEntries(Object.entries(was).filter(([field]) => field !== 'files' && field !== 'texts' && field !== 'recording'));
+    for (const name of Array.isArray(was.files) ? was.files : []) if (typeof name === 'string') left.push(name);
+    const tape = typeof was.recording === 'string' && was.recording && (await copy(`r-${id}`)) ? was.recording : undefined;
+    const carried: Entry = {
+      rev: 0,
+      note: { ...entry.note, ...(path ? { path } : {}) },
+      state: entry.state,
+      seq: 0,
+      owed: true,
+      ...(versions ? { versions } : {}),
+      ...(Object.keys(rest).length || tape ? { rest: { ...rest, ...(tape ? { recording: tape } : {}) } } : {}),
+    };
+    to.notes.set(id, carried);
+    try {
+      await this.underKey(to, () => this.putRow(to, id, { fresh: true }));
+    } catch (failure) {
+      if (to.notes.get(id)?.rev === 0) to.notes.delete(id);
+      throw failure;
+    }
+    to.unreadable.delete(id);
+    return { record: this.record(to, to.notes.get(id)!), left };
+  }
+
+  /** A picture from the account's own files, sealed again under `to`'s key (as `adopt` carries one); true once there. */
+  private async fromAccount(to: Held, key: CryptoKey, fileId: string): Promise<boolean> {
+    try {
+      const plain = await openBytes(await this.service.accountKey(), await this.service.bytes('GET', `recordings/${fileId}`), `file:${fileId}`);
+      await this.service.bytes('PUT', this.route(to, `files/${fileId}?base=0&generation=${to.generation}`), await sealBytes(key, plain, `file:${fileId}`));
+      return true;
+    } catch (failure) {
+      return statusOf(failure) === 409 && !turned(failure);
+    }
+  }
+
+  /**
+   * Whether organization `orgId` holds note `id`, read back from the service: its feed read again since what was
+   * held, and the row there, live and readable. What a move between organizations waits on before it lets go of the
+   * note where it was (Matt, 2026-11-01, "Moves between orgs"): the settings never say a team holds a note the team's
+   * store does not.
+   */
+  async confirm(orgId: string, id: string): Promise<boolean> {
+    const held = this.org(orgId);
+    const put = held.notes.get(id)?.rev ?? 0;
+    if (!put) return false;
+    // The feed from just before the row's revision: the row, or whatever came after it, as the service holds it.
+    let since = Math.min(held.cursor, put - 1);
+    let live = false;
+    for (;;) {
+      const page = await this.service.call<{ rev: number; items: TeamFeedItem[]; more: boolean }>('GET', this.route(held, `notes?since=${since}`));
+      for (const item of page.items) if (item.id === id) live = !item.deleted && Boolean(item.blob) && item.rev >= put;
+      if (!page.more || page.rev <= since) break;
+      since = page.rev;
+    }
+    if (live) await this.pullRows(held);
+    return live && held.notes.has(id);
+  }
+
+  /**
    * A picture's bytes kept for organization `orgId`, sealed under its key as a member's device seals one, before the
    * note that names it is written: a member who reads the note fetches it then (core/team/sync.ts), and the team has
    * no settling pass that would fetch it later. One there already is left, as a name is never reused.

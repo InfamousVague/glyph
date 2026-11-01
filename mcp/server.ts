@@ -1187,7 +1187,7 @@ export function buildServer(
     {
       title: 'File notes in a workspace',
       description:
-        'Files notes under a workspace or a folder (an organization’s, a folder inside one, or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. Filing a note into an organization’s workspace, or into a folder inside one, shares it: it is put to the team, on every member’s devices, and stays readable and editable here; its file goes into that folder on every member’s device, and only the folder changes - its id, words and file name stay as they are. Taking a note out of an organization, by `unfile` or by filing it in a personal workspace, takes it from the team for every member and back to this account alone. `workspace` is an id, a path ("Ghost.md › Clients") or a name from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one (create_folder does).',
+        'Files notes under a workspace or a folder (an organization’s, a folder inside one, or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. Filing a note into an organization’s workspace, or into a folder inside one, shares it: it is put to the team, on every member’s devices, and stays readable and editable here; its file goes into that folder on every member’s device, and only the folder changes - its id, words and file name stay as they are. Taking a note out of an organization, by `unfile` or by filing it in a personal workspace, takes it from the team for every member and back to this account alone. Filing a team note from one organization into another (or into a folder of another) writes it into the second organization's notes here, reads it back from there, and only then takes it from the first; a note the second does not show is left where it was, in `notFiled`. `handedOver` says, for each note that changed hands, where it was, where it is, and what was done. `workspace` is an id, a path ("Ghost.md › Clients") or a name from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one (create_folder does).',
       inputSchema: {
         ids: z.array(z.string()).min(1).max(500).describe('The notes’ ids, from list_notes or search_notes.'),
         workspace: z.string().optional().describe('The workspace or folder: its id, its path (“Ghost.md › Clients”), or its name (case-insensitive) when only one is called that.'),
@@ -1216,6 +1216,11 @@ export function buildServer(
         const moved: NoteRecord[] = [];
         const notFiled: { id: string; title: string; why: string }[] = [];
         const picturesNotCarried: { id: string; pictures: string[] }[] = [];
+        // What changed hands, in words (Matt, 2026-11-01, "Moves between orgs"): who holds each note now, and that it
+        // was read back from there before it left where it was.
+        const handedOver: { id: string; title: string; from: string; to: string; did: string }[] = [];
+        const orgName = (id: string) => account.organizations().find((each) => each.id === id)?.name ?? 'the organization';
+        const OWN = 'your own notes';
         for (const record of found) {
           try {
             const path = into && org ? teamPath(settings.list, into, record) : undefined;
@@ -1227,6 +1232,13 @@ export function buildServer(
             }
             const { record: now, left } = record.org || org ? await account.move(record.note.id, org, path ? { path } : {}) : { record, left: [] };
             moved.push(now);
+            if (record.org || org) {
+              const from = record.org?.name ?? OWN, to = org ? orgName(org) : OWN;
+              const did = org
+                ? `Written into ${to}’s team notes and read back from there, then ${record.org ? `taken out of ${from}` : 'your account’s own copy removed'}.`
+                : `Written back to your own notes, then taken out of ${from}.`;
+              handedOver.push({ id: record.note.id, title: titled(record), from, to, did });
+            }
             if (left.length) picturesNotCarried.push({ id: record.note.id, pictures: left });
           } catch (failure) {
             if (failure instanceof GlyphApiError && failure.status === 401) throw failure;
@@ -1238,6 +1250,7 @@ export function buildServer(
         return text({
           workspace: into ? spaceInfo(settings, into) : null,
           [into ? 'filed' : 'unfiled']: moved.map((r) => ({ id: r.note.id, title: titled(r) })),
+          ...(handedOver.length ? { handedOver } : {}),
           ...(notFiled.length ? { notFiled } : {}),
           ...(picturesNotCarried.length ? { picturesNotCarried } : {}),
           ...(missing.length ? { missing } : {}),
