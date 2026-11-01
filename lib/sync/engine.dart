@@ -377,7 +377,14 @@ class SyncEngine {
 
   /// Whether organization [orgId]'s channel holds note [id], as it was last read or written here ([TeamHolding]),
   /// from the channel's state as it is kept.
-  TeamHolding _teamHolding(int accountId, String orgId, String id) => teamHoldingIn(_device.read<Object?>(_stateKey(accountId, 'team-$orgId'), null), id);
+  TeamHolding _teamHolding(int accountId, String orgId, String id) {
+    final key = _stateKey(accountId, 'team-$orgId');
+    return (_holdings[key] ??= TeamHoldings.of(_device.read<Object?>(key, null))).of(id);
+  }
+
+  /// Each channel's [TeamHoldings], read from its kept state once and read again when it is saved: the account's
+  /// pass asks per note, and a state is a thousand notes' marks.
+  final Map<String, TeamHoldings> _holdings = {};
 
   /// Whether the organization note [id] is filed in here holds it; unknown for a note in none.
   TeamHolding _teamHoldingOf(int accountId, String id) {
@@ -536,6 +543,7 @@ class SyncEngine {
     // The keys this device took, and the sealed entries in the settings here: the next account never sends them.
     sealedKeys?.forget(accountId);
     // And each organization's channel, kept under `team-<org id>`: read before the organizations go.
+    _holdings.clear();
     for (final row in orgs.orgRowsOf(accountId)) {
       _device.write(_stateKey(accountId, 'team-${row.id}'), null);
     }
@@ -756,7 +764,10 @@ class SyncEngine {
               api: api,
               crypto: crypto,
               loadState: () => _device.read<Object?>(teamKey, null),
-              saveState: (state) => _device.write(teamKey, state),
+              saveState: (state) {
+                _device.write(teamKey, state);
+                _holdings.remove(teamKey);
+              },
               // Filed in the organization's workspace or a folder under it (GHST-107).
               isTeamNote: (id) => _workspaces.orgOf(_workspaces.workspaceOf(id)?.id ?? '') == row.id,
               // Out of the team only where it is filed somewhere this device knows outside the organization: never

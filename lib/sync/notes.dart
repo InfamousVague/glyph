@@ -159,15 +159,36 @@ enum TeamHolding {
   unknown,
 }
 
-/// [TeamHolding] read straight from an organization's channel state as it is kept (`glyph-sync-<account>-team-<org>`,
-/// lib/team/sync.dart `TeamSyncState.toJson`), without opening the rest of it: the engine asks this per note.
-TeamHolding teamHoldingIn(Object? kept, String id) {
-  if (kept is! Map) return TeamHolding.unknown;
-  final notes = kept['notes'], gone = kept['gone'], reads = kept['reads'];
-  if (notes is Map && notes.containsKey(id)) return TeamHolding.held;
-  if (gone is List && gone.contains(id)) return TeamHolding.gone;
-  return kept['goneRead'] == true && reads is num && reads >= 2 ? TeamHolding.absent : TeamHolding.unknown;
+/// What an organization's channel holds, read from its state as it is kept (`glyph-sync-<account>-team-<org>`,
+/// lib/team/sync.dart `TeamSyncState.toJson`) without opening the rest of it, once, for the engine to ask per note
+/// ([TeamHolding]).
+@immutable
+class TeamHoldings {
+  const TeamHoldings._(this._held, this._gone, this._whole);
+
+  factory TeamHoldings.of(Object? kept) {
+    if (kept is! Map) return const TeamHoldings._({}, {}, false);
+    final notes = kept['notes'], gone = kept['gone'], reads = kept['reads'];
+    return TeamHoldings._(
+      {if (notes is Map) ...notes.keys.whereType<String>()},
+      {if (gone is List) ...gone.whereType<String>()},
+      kept['goneRead'] == true && reads is num && reads >= 2,
+    );
+  }
+
+  final Set<String> _held;
+  final Set<String> _gone;
+  final bool _whole;
+
+  TeamHolding of(String id) {
+    if (_held.contains(id)) return TeamHolding.held;
+    if (_gone.contains(id)) return TeamHolding.gone;
+    return _whole ? TeamHolding.absent : TeamHolding.unknown;
+  }
 }
+
+/// [TeamHolding] of one note, read from a channel's state as it is kept ([TeamHoldings]).
+TeamHolding teamHoldingIn(Object? kept, String id) => TeamHoldings.of(kept).of(id);
 
 /// How long a note that left a team is kept from the account's deletions and put again ([LeftTeams]): the days an
 /// old build may sleep through before it next syncs.
