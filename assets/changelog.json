@@ -1,5 +1,16 @@
 [
   {
+    "version": "2.4.2",
+    "date": "2026-11-02",
+    "title": "Everything in a note's ••• menu, and header images that fill",
+    "items": [
+      {"icon": "ellipsis", "words": "A note's ••• menu lists all its More items, grouped, and scrolls, so most things no longer need the More sheet.", "kind": "better"},
+      {"icon": "image", "words": "Right-click or hold a header image to Regenerate it with Lovart or Remove it, with Undo.", "kind": "new"},
+      {"icon": "image", "words": "A new header image fills its space instead of sitting small in a white field.", "kind": "fixed"},
+      {"icon": "list-tree", "words": "On this page, beside a doc page, is a card of its own.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.1",
     "date": "2026-11-02",
     "title": "Figma's own mark, and a colour for each tool",
