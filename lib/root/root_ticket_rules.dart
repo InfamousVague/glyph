@@ -32,6 +32,9 @@ class _RootTicketRules {
       syncNow: () async => await _root._services?.engine?.syncNow(),
       accountHeld: () => _root._services?.engine?.accountPrefs,
       isTrashed: _root._trash.isTrashed,
+      // A notebook's rules run only where Automations is on where it is (docs/PM_PLUGINS.md): its fence, otherwise,
+      // is a code block with a chip under it.
+      canEdit: (notebook) => projectPluginOn(automationsTool, noteId: notebook.id),
     );
     if (library is CoreLibrary) _stopRules = rules!.start(library.savedHere, changes: _library);
     final made = timers = TicketTimers(
@@ -43,7 +46,9 @@ class _RootTicketRules {
       who: () => _root._services?.session?.handle ?? '',
     );
     ticketTimers.value = made;
-    ticketCardTimer = (look, noteId, {required title, ticketKey}) => TicketCardTimer(look: look, timers: made, noteId: noteId, title: title, ticketKey: ticketKey);
+    // A card's timer where Time tracking is on where its ticket is (docs/PM_PLUGINS.md).
+    ticketCardTimer = (look, noteId, {required title, ticketKey}) =>
+        projectPluginOn(timeTrackingTool, noteId: noteId) ? TicketCardTimer(look: look, timers: made, noteId: noteId, title: title, ticketKey: ticketKey) : null;
     // The pull requests, a while after the notes change (a sync brought them) and every ten minutes.
     _library.addListener(_notesChanged);
     _githubEvery = Timer.periodic(const Duration(minutes: 10), (_) => unawaited(_github()));
@@ -111,7 +116,8 @@ class _RootTicketRules {
       noteId: noteId,
       title: entry.title,
       ticketKey: key,
-      timers: timers,
+      // Its timer where Time tracking is on where it is (docs/PM_PLUGINS.md).
+      timers: projectPluginOn(timeTrackingTool, noteId: noteId) ? timers : null,
       pulls: linked ? () => pullLinks.pullsFor(key, repos) : null,
       pullsChanged: linked ? pullLinks : null,
       openUrl: _root.widget.openLink,
@@ -120,10 +126,10 @@ class _RootTicketRules {
     );
   }
 
-  /// The tickets a timer can be started on, newest first, for the palette.
+  /// The tickets a timer can be started on, newest first, for the palette: those where Time tracking is on.
   List<PaletteTicket> get paletteTickets => [
         for (final entry in _root._reads.entries)
-          if (entry.ticket.id case final key? when key.isNotEmpty) (noteId: entry.note.id, key: key, title: entry.title),
+          if (entry.ticket.id case final key? when key.isNotEmpty && projectPluginOn(timeTrackingTool, noteId: entry.note.id)) (noteId: entry.note.id, key: key, title: entry.title),
       ];
 
   PaletteTicket? get timing {
@@ -171,7 +177,8 @@ class _RootTicketRules {
       for (final entry in entries) {
         final book = entry.notebook;
         final key = entry.ticket.id;
-        if (book == null || key == null || _root._trash.isTrashed(entry.note.id)) continue;
+        // A pull request moves a ticket only where Tickets is on where it is (docs/PM_PLUGINS.md).
+        if (book == null || key == null || _root._trash.isTrashed(entry.note.id) || !projectPluginOn(ticketsTool, noteId: entry.note.id)) continue;
         final mine = githubReposOf(book.body);
         if (mine.isEmpty) continue;
         final pulls = pullLinks.pullsFor(key, mine);
