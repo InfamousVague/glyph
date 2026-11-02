@@ -33,6 +33,7 @@ import 'contacts/contacts.dart' show contactsPlugin;
 import 'custom_ai/custom_ai.dart' show customAiPlugin;
 import 'discord/discord.dart' show discordPlugin;
 import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
+import 'figma/figma.dart' show figmaPlugin;
 import 'gemini/gemini.dart' show geminiPlugin;
 import 'git_backup/git_backup.dart' show gitBackupPlugin;
 import 'github/github.dart' show githubPlugin;
@@ -100,6 +101,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // well": Canvas, Meetings, Diagrams and math, Places, Email to a note and Publishing, each off for a new person and on
   // where it was in use (more/more_tools.dart, docs/PM_PLUGINS.md §10).
   ...morePlugins,
+  // Matt, 2026-11-02: "Also add a figma plugin": a Figma frame's link drawn as the frame itself, with the person's own
+  // token, off until added (figma/figma.dart).
+  figmaPlugin,
 ]);
 
 void Function()? _unhear;

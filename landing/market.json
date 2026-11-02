@@ -752,6 +752,48 @@
       "link": "ghostmd://market/plugin/email"
     },
     {
+      "id": "figma",
+      "name": "Figma",
+      "line": "Figma frames shown in your notes",
+      "description": "Shows a Figma frame’s own picture in your note, with its name and its file’s, where its link is alone on its line: read with your own Figma token, from files you can open, private ones too.",
+      "category": "connections",
+      "icon": "shapes",
+      "mark": null,
+      "hue": "purple",
+      "colours": [
+        "#9a45c9",
+        "#c77dff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A Figma frame’s link alone on its line drawn as the frame itself, named, with its file’s name",
+        "A file’s link without a frame drawn as the file’s thumbnail",
+        "Private files you can open in Figma, where Rich embeds shows only shared ones"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Asks Figma, with your own token, for a linked frame’s name, its file’s name and its picture, once Link previews are on, and fetches the picture Figma names. Nothing of your notes goes but the link. It talks to api.figma.com and www.figma.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "api.figma.com",
+        "www.figma.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/figma"
+    },
+    {
       "id": "github",
       "name": "GitHub",
       "line": "Notes linked to repos, their items issues",

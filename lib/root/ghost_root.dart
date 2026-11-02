@@ -43,6 +43,7 @@ import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
 import '../editor/media/clip_refs.dart' show TapeIds;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../editor/media/rich_embeds/oembed.dart' show KeptEmbeds, OEmbedFetch, PictureFetch;
+import '../plugins/figma/frames.dart' show FigmaEmbeds;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/rule_runs.dart' show RuleNotice, RuleWorld, TicketRules;
@@ -1108,6 +1109,10 @@ class _GhostRootState extends State<GhostRoot> {
     allowed: () => preferences.value.linkPreviews && !preferences.value.localOnly,
   );
 
+  /// The same with the Figma plugin in front (lib/plugins/figma/frames.dart): a Figma link drawn as its frame once the
+  /// plugin is on and connected, under the same two switches; every other link the embeds' own.
+  late final FigmaEmbeds _cardEmbeds = FigmaEmbeds(_embeds);
+
   /// Following the links that opened the app, from the notes' first read until the app is gone.
   void Function()? _stopLinks;
 
@@ -1381,7 +1386,7 @@ class _GhostRootState extends State<GhostRoot> {
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
     openLink: widget.openLink,
     previewer: _previews,
-    embeds: _embeds,
+    embeds: _cardEmbeds,
     ai: _aiWorld,
     tapePlayer: widget.tapePlayer,
     clipPlayer: widget.clipPlayer,
@@ -1969,6 +1974,7 @@ class _GhostRootState extends State<GhostRoot> {
     _stopShares?.call();
     _extras?.dispose();
     _previews.dispose();
+    _cardEmbeds.dispose();
     _embeds.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();

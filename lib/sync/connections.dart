@@ -8,7 +8,7 @@
 ///   2026-10-28), and the spending limit's switch, amount and warning ([claudeLimitName]). The secure store's own names; [ClaudeSettings.reload] after each is written. So a key put in
 ///   on the Fold is the Mac's at its next sync, and the summaries' handoff (lib/ai/summary_handoff.dart), which looks
 ///   again when Claude's settings change, sees the Mac able to write a meeting up.
-/// - **The plugins' switches** for the six whose connections travel, Claude, Slack, Discord, GitHub, Lovart and ElevenLabs
+/// - **The plugins' switches** for the ones whose connections travel, Claude, Slack, Discord, GitHub, Lovart, ElevenLabs and Figma
 ///   (`plugin:<id>`, [Registry.setSwitch]): Claude turned on anywhere is on everywhere, and Slack and Discord are on
 ///   wherever their channels are. And the meeting plugins', Google Meet and Zoom (lib/plugins/meetings/; Matt,
 ///   2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins"): which kinds Ghost joins
@@ -24,6 +24,9 @@
 ///   is posted to Discord once stays the synced `discordMeetingPosts`'s.
 /// - **GitHub's token** (lib/plugins/github/repos.dart): a personal access token, which works from any number of
 ///   devices at once.
+/// - **Figma's token** (lib/plugins/figma/manifest.dart; Matt, 2026-11-02: "Also add a figma plugin"): a personal
+///   access token, which works from any number of devices at once, as GitHub's does, and the plugin's switch. What its
+///   cards learnt (`glyph-figma-frames`) stays: each device asks Figma for what it draws.
 /// - **The git backup's token** (lib/plugins/git_backup/manifest.dart): the git host's token, the same kind, so a
 ///   second device can push once it holds the pusher claim. The plugin's settings (`glyph-git-backup`) stay: the
 ///   remote travels in the committed `.glyph/config.json`, and the rest is this device's.
@@ -89,6 +92,7 @@ import '../core/project_tools.dart' show projectTools;
 import '../integrations/webhooks/setup.dart' show WebhookSetup, webhookSecretName, webhookSecretPrefix, webhooksKey;
 import '../plugins/discord/manifest.dart' as discord show discordChannelsKey, discordMeetingsKey, discordWebhookPrefix, host;
 import '../plugins/elevenlabs/manifest.dart' as eleven show apiKeySecret, host, modelKey, voiceKey;
+import '../plugins/figma/manifest.dart' as figma show host, tokenSecret;
 import '../plugins/git_backup/manifest.dart' as git show host, tokenSecret;
 import '../plugins/github/manifest.dart' as github show host, tokenSecret;
 import '../plugins/host.dart' show onPluginStorage;
@@ -105,7 +109,7 @@ const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEf
 /// The plugins whose switch travels: and the project tools', whose personal switches are the person's wherever they
 /// write (docs/PM_PLUGINS.md; an organization's are its home page's, which travels as its notes do), and the more
 /// tools', which are the person's alone (§10).
-const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', ...projectTools, ...moreTools];
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'figma', ...projectTools, ...moreTools];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';
@@ -128,6 +132,7 @@ List<SyncedItem> connectionItems(
   PluginHost? gitHost,
   PluginHost? lovartHost,
   PluginHost? elevenHost,
+  PluginHost? figmaHost,
   Registry Function()? registry,
   TargetPlatform? platform,
   List<AiProviderSettings>? providers,
@@ -184,6 +189,7 @@ List<SyncedItem> connectionItems(
     for (final name in const [lovart.accessKeySecret, lovart.secretKeySecret]) _secretItem(lovartHost ?? lovart.host, name),
     _secretItem(elevenHost ?? eleven.host, eleven.apiKeySecret),
     for (final key in const [eleven.voiceKey, eleven.modelKey]) _storageItem(elevenHost ?? eleven.host, key),
+    _secretItem(figmaHost ?? figma.host, figma.tokenSecret),
     for (final id in syncedSwitches)
       if (reg.byId(id) != null && (slackHere || id != 'slack') && (discordHere || id != 'discord')) _switchItem(reg, id),
   ];

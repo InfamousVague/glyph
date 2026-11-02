@@ -46,6 +46,7 @@ import '../view/lines.dart';
 import 'images.dart' show gutterOf;
 import 'inline_box.dart';
 import '../../plugins/registry.dart' show plugins;
+import '../../plugins/figma/frames.dart' show figmaDraws;
 import '../../plugins/rich_embeds/rich_embeds.dart' show richEmbedsOn;
 import 'rich_embeds/cards.dart';
 import 'rich_embeds/oembed.dart';
@@ -351,7 +352,9 @@ DecorationSet _decorate(EditorState state) {
     final link = line.fact;
     // A link a plugin reads has its own row under the line (editor/linkedRows.ts).
     if (reads != null && reads(line.text, link.url)) continue;
-    final rich = (seams.rich ?? richEmbedsOn)() ? richLinkOf(link.url) : null;
+    // A Figma link the Figma plugin draws is a rich card with Rich embeds off too (lib/plugins/figma/frames.dart).
+    final found = richLinkOf(link.url);
+    final rich = found != null && ((seams.rich ?? richEmbedsOn)() || (seams.rich == null && figmaDraws(found))) ? found : null;
     if (rich != null) {
       builder.add(line.to, line.to, Decoration.widget(widget: RichEmbedWidget(rich, link.words, allowed: on && seams.embeds.allowed), block: true, side: 1));
     } else if (on && link.url.startsWith('http')) {

@@ -120,7 +120,7 @@ void main() {
       // Google Meet and Zoom ship on, and stand on Meetings, which a fresh install has off (docs/PM_PLUGINS.md §10):
       // to discover, until it is added.
       expect(onShelf(tester, 'added'), ['claude', 'github', 'notion', 'marks', 'rich-embeds']);
-      expect(onShelf(tester, 'discover'), ['aster', 'custom-ai', 'elevenlabs', 'gemini', 'lovart', 'openai', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'git-backup', 'discord', 'google-meet', 'slack', 'webhooks', 'zoom', 'keyboard-modes']);
+      expect(onShelf(tester, 'discover'), ['aster', 'custom-ai', 'elevenlabs', 'gemini', 'lovart', 'openai', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'git-backup', 'discord', 'figma', 'google-meet', 'slack', 'webhooks', 'zoom', 'keyboard-modes']);
       expect(find.text('5 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });

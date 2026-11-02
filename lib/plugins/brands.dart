@@ -44,6 +44,7 @@ const Map<String, String> pluginsWithoutMark = {
   'slack': 'Simple Icons no longer carries Slack’s mark, and Slack’s media kit is served from Salesforce’s Widen, not from slack.com.',
   'openai': 'Simple Icons carries no OpenAI mark, and openai.com/brand offers no file to fetch (it asks for leave by mail).',
   'aster': 'Simple Icons carries no Aster Lab mark, and asterlab.ai publishes no press kit or SVG (its header logo is a PNG).',
+  'figma': 'Simple Icons carries Figma’s mark (`figma`), but it was not fetched when the plugin was made (2026-11-02): the kit’s `shapes` until it is added to assets/brands with tool/brands/generate.dart.',
   'zoom': 'Simple Icons’ Zoom mark is its wordmark, which cannot be read at an icon’s size; a video camera instead (Matt, 2026-10-29: “change zoom”).',
 };
 
