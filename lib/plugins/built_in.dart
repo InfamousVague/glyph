@@ -29,6 +29,7 @@ import '../sync/arrived.dart' show onArrived;
 import 'aster/aster.dart' show asterPlugin;
 import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
+import 'cleanup/cleanup.dart' show cleanupPlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
 import 'custom_ai/custom_ai.dart' show customAiPlugin;
 import 'discord/discord.dart' show discordPlugin;
@@ -104,6 +105,11 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-11-02: "Also add a figma plugin": a Figma frame's link drawn as the frame itself, with the person's own
   // token, off until added (figma/figma.dart).
   figmaPlugin,
+  // Matt, 2026-11-02: "spawn a task making a 'cleanup' plugin that allows us to use whatever AI we choose that's
+  // connected to clean up and sort the notes in a given folder": a folder's notes sorted, retitled, merged and tidied
+  // by the AI the person chooses, reviewed before anything changes, off until added (cleanup/cleanup.dart,
+  // docs/CLEANUP.md).
+  cleanupPlugin,
 ]);
 
 void Function()? _unhear;

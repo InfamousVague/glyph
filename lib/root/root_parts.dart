@@ -37,6 +37,8 @@ extension _RootParts on _GhostRootState {
     onNoteMenu: _menu.open,
     // Show in Finder (Explorer, Files) for a folder's directory and a page's file, on a desktop.
     show: _showInFiles,
+    // Clean up with AI… (lib/plugins/cleanup, 2026-11-02): Cleanup's page at the folder, while the plugin is on.
+    onCleanup: _cleanUp,
     child: Stack(
       fit: StackFit.expand,
       children: [

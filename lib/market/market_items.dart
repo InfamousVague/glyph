@@ -73,6 +73,8 @@ const Map<String, String> _ownHues = {
   'time-tracking': 'rose',
   'forms': 'mint',
   'canvas': 'red',
+  // Cleanup (docs/CLEANUP.md): lime, which no other plugin on the AI shelf wears.
+  'cleanup': 'lime',
 };
 const Map<PluginCategory, String> _categoryHues = {
   PluginCategory.ai: 'purple',

@@ -222,6 +222,7 @@ import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/git_backup/git_backup.dart' show GitBackupService, gitBackupSettings;
+import '../plugins/cleanup/cleanup.dart' show CleanupService, cleanupHost;
 import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
 import '../plugins/host.dart' show PluginNotes, onPluginStorage, usePluginNotes;
 import '../plugins/registry.dart' show Registry, plugins;
@@ -796,6 +797,15 @@ class _GhostRootState extends State<GhostRoot> {
   /// The ticket features' wiring (root_ticket_rules.dart): the rules, the timers, the pull requests.
   late final _RootTicketRules _ticketsWired = _RootTicketRules(this);
   late final _RootGitBackup _gitWired = _RootGitBackup(this);
+
+  /// Cleanup's service (lib/plugins/cleanup): made once the library is read.
+  CleanupService? _cleanup;
+
+  /// Clean up with AI… from a folder's menu: Cleanup's page, at [folder].
+  void _cleanUp(Workspace folder) {
+    _cleanup?.choose(folder.id);
+    _openSettingsAt('plugin:cleanup');
+  }
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -2022,6 +2032,8 @@ class _GhostRootState extends State<GhostRoot> {
     _webhooksLife?.dispose();
     _ticketsWired.dispose();
     _gitWired.dispose();
+    if (identical(CleanupService.current, _cleanup)) CleanupService.current = null;
+    _cleanup?.dispose();
     webhooks.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
@@ -2162,6 +2174,17 @@ class _GhostRootState extends State<GhostRoot> {
     _ticketsWired.start();
     // The git backup (root_git_backup.dart; Matt, 2026-10-31): the library's changes committed and pushed.
     unawaited(_gitWired.start());
+    // Cleanup (lib/plugins/cleanup, docs/CLEANUP.md; Matt, 2026-11-02): a folder's notes sorted and tidied by the AI
+    // the person chooses, through the library, the folders and the Trash the app already uses.
+    CleanupService.current = _cleanup = CleanupService(
+      library: _library,
+      workspaces: _workspaces,
+      trash: _trash,
+      choice: appAssistant,
+      storage: cleanupHost.storage,
+      localOnly: () => preferences.value.localOnly,
+      onOpen: () => _openSettingsAt('plugin:cleanup'),
+    );
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

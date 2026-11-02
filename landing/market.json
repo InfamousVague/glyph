@@ -154,6 +154,51 @@
       "link": "ghostmd://market/plugin/claude"
     },
     {
+      "id": "cleanup",
+      "name": "Cleanup",
+      "line": "Sort and tidy a folder with your AI",
+      "description": "Tidies and sorts the notes of a folder with the AI you choose: Claude, OpenAI, Gemini, Aster, your own endpoint or the model on your phone. It suggests sub-folders, better titles, duplicates to merge, broken Markdown to fix, tags, links and stale notes to archive; you review every suggestion, and only what you tick is changed. Nothing is deleted, and a whole run can be undone.",
+      "category": "ai",
+      "icon": "brush-cleaning",
+      "mark": null,
+      "hue": "lime",
+      "colours": [
+        "#5a8a00",
+        "#a3d93f"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Clean up with AI… in a folder’s menu",
+        "A review of every suggestion before anything changes",
+        "Undo for a whole run, now or later"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads the notes of the folder you choose, and moves, retitles, edits, archives or puts in the Trash only the ones you tick on its review.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "ai",
+          "label": "The model on your phone",
+          "why": "Asks the AI you choose on its page: the model on your phone, or a cloud AI you have connected, through that AI’s own plugin and key. Its page says exactly what is sent.",
+          "icon": "sparkles"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/cleanup"
+    },
+    {
       "id": "custom-ai",
       "name": "Custom AI model",
       "line": "Any OpenAI-compatible endpoint, by its address",
@@ -4092,6 +4137,12 @@
       "M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517",
       "M6 18a4 4 0 0 1-2-7.464",
       "M6.003 5.125a4 4 0 0 0-2.526 5.77"
+    ],
+    "brush-cleaning": [
+      "m16 22-1-4",
+      "M19 14a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1",
+      "M19 14H5l-1.973 6.767A1 1 0 0 0 4 22h16a1 1 0 0 0 .973-1.233z",
+      "m8 22 1-4"
     ],
     "calendar-days": [
       "M8 2v3",
