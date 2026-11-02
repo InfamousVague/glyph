@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.3.99",
+    "date": "2026-11-02",
+    "title": "A Trash you can page through, and Back that goes up",
+    "items": [
+      {"icon": "trash-2", "words": "The Trash comes in pages of 50 with Find, Delete forever stays at the top, and emptying runs in the background with a Stop.", "kind": "better"},
+      {"icon": "folder-open", "words": "Back inside a folder goes up one level at a time, from the arrow, the gesture, Escape or Cmd-[, with All notes › Work at the top.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.3.98",
     "date": "2026-11-02",
     "title": "Gantt charts you can read on a phone",

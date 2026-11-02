@@ -244,9 +244,9 @@ void main() {
     });
 
     test('stops a version it has not, saying what to add, and a version that is only a prefix of one', () async {
-      final missing = await check('2.3.99');
+      final missing = await check('9.9.99');
       expect(missing.exitCode, 1);
-      expect(missing.stderr as String, contains('assets/changelog.json has no entry for 2.3.99 (its newest is ${_bundle().newest!.version})'));
+      expect(missing.stderr as String, contains('assets/changelog.json has no entry for 9.9.99 (its newest is ${_bundle().newest!.version})'));
       expect((await check('2.3.8')).exitCode, 1, reason: '2.3.8 is not 2.3.88');
       expect((await check('2x3x88')).exitCode, 1, reason: 'a dot is a dot');
     });
