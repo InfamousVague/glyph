@@ -61,5 +61,5 @@ SwipeAction? itemSend(String noteId, NoteEditing editing, {Registry? registry}) 
 
 /// The quiet words after lines a plugin could act on (suggestions.dart), for the note's words as they are now.
 List<LineSuggestion> lineOffers(String noteId, NoteEditing editing, String text, {Registry? registry}) => <LineSuggestion>[
-  for (final s in (registry ?? plugins).suggestions(noteId, text)) LineSuggestion(line: s.line, label: s.label, busyLabel: s.busyLabel, run: () => s.run(editing)),
+  for (final s in (registry ?? plugins).suggestions(noteId, text)) LineSuggestion(line: s.line, label: s.label, busyLabel: s.busyLabel, run: () => s.run(editing), open: s.open == null ? null : (context) => s.open!(context, editing)),
 ];

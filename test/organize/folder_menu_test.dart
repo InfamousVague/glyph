@@ -45,6 +45,7 @@ void main() {
                 onRename: (w) => did.add('rename ${w.id}'),
                 onDelete: (w) => did.add('delete ${w.id}'),
                 onNoteMenu: (id, _) => did.add('note menu $id'),
+                onKeepIndex: (w) => did.add('index ${w.id}'),
                 child: child,
               )
             : child,
@@ -93,6 +94,16 @@ void main() {
     expect(opened, ['reading']);
     // Nothing was deleted by the menu itself: that is the sheet's to ask.
     expect(store.value.list.map((w) => w.id), containsAll(['work', 'home', 'reading']));
+    await away(tester);
+  });
+
+  testWidgets('Keep an index… opens the folder’s index (docs/AI_INDEXES.md)', (tester) async {
+    final store = storeOf();
+    final did = await pump(tester, store, icons(store));
+    await rightClick(tester, find.byKey(const ValueKey('tile-folder-work')));
+    await tester.tap(find.byKey(const ValueKey('folder-menu-index')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(did, ['index work']);
     await away(tester);
   });
 

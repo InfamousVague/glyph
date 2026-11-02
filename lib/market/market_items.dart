@@ -56,6 +56,8 @@ const Map<String, (Color, Color)> marketHues = {
   'lime': (Color(0xFF5A8A00), Color(0xFFA3D93F)),
   'rose': (Color(0xFFD6336C), Color(0xFFFF7AA8)),
   'magenta': (Color(0xFFB5279F), Color(0xFFF07AE0)),
+  // The contradiction finder's, which no other plugin wears (Matt, 2026-11-02; docs/CONTRADICTIONS.md).
+  'slate': (Color(0xFF4A5A70), Color(0xFF8FA3BF)),
 };
 
 /// The hue of a plugin with no page of its own, by its id, and else by its category's. The project tools and Canvas

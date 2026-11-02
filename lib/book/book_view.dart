@@ -66,6 +66,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../ai/indexes/index_section.dart' show withoutIndexMarkers;
 import '../ai/support/authors.dart' show authorsAcross;
 import '../canvas/json_canvas.dart' show canvasNoteBody, isCanvasBody;
 import '../canvas/json_canvas.dart' as json_canvas show Canvas;
@@ -801,7 +802,7 @@ class _BookWordsState extends State<BookWords> {
     return EditorView(
       wholeDocument: true,
       state: EditorState.create(
-        doc: widget.words,
+        doc: withoutIndexMarkers(widget.words),
         extensions: noteExtensions(
           display: NoteView.formatted,
           readOnly: true,

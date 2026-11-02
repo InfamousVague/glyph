@@ -30,6 +30,7 @@ import 'aster/aster.dart' show asterPlugin;
 import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
+import 'contradictions/contradictions.dart' show contradictionsPlugin;
 import 'custom_ai/custom_ai.dart' show customAiPlugin;
 import 'discord/discord.dart' show discordPlugin;
 import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
@@ -105,6 +106,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-11-02: "Also add a figma plugin": a Figma frame's link drawn as the frame itself, with the person's own
   // token, off until added (figma/figma.dart).
   figmaPlugin,
+  // Matt, 2026-11-02, from a list of AI ideas: "Contradiction finder: spots when a newer note disagrees with an older
+  // one … and flags the stale one inline, 'superseded by …'": off until added (contradictions/, docs/CONTRADICTIONS.md).
+  contradictionsPlugin,
   // Matt, 2026-11-02, from a list of AI ideas: "Note decay alerts: docs and pages that reference things that have since
   // changed (a renamed ticket, a merged PR on GitHub, an old date) get a quiet 'may be out of date' mark with the
   // reason", off until added (note_decay/note_decay.dart, docs/NOTE_DECAY.md).

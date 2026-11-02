@@ -52,6 +52,7 @@ const String settingsCss = '''
 [data-hue='lime']     { --hue: #5a8a00; --hue-dark: #a3d93f; }
 [data-hue='rose']     { --hue: #d6336c; --hue-dark: #ff7aa8; }
 [data-hue='magenta']  { --hue: #b5279f; --hue-dark: #f07ae0; }
+[data-hue='slate']    { --hue: #4a5a70; --hue-dark: #8fa3bf; }
 
 :root[data-theme='dark'] [data-hue] {
   --hue: var(--hue-dark);
