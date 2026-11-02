@@ -60,8 +60,6 @@ List<SettingsFindable> appearanceFindableAdvanced() => [
       const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
-      const SettingsFindable('Code', 'syntax highlighting colours colors palette'),
-      const SettingsFindable('Code colours', 'syntax highlighting palette pastel ink github solarized one dark dracula nord light page dark page'),
       const SettingsFindable('Motion', 'movement animations'),
       const SettingsFindable('Animation speed', 'motion fast slow'),
       // Ghostly typing, Blur at the edges and Ripples while recording until 2026-11-01: still found by their words, and
@@ -112,17 +110,17 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// What differs from the web original:
 /// - The first card, the mode, is the port's own: the web app has no mode.
 /// - Controls whose feature has no Flutter port yet still write their preference and change nothing more: the home
-///   page's layout and the top bar's style until those screens read them, the code colours, and the note's face until
-///   there is a note to set in it.
-///
-/// Matt, 2026-11-01: "see if there are other settings that can be simplified removed or moved to a plugin for extra
-/// configuration, we currently have too many appearance settings". Code's two picks, the light page's and the dark
-/// one's, are one, Code colours: a palette, drawn on each side in its variant there where it has one, Pastel where it
-/// has none. Motion's three switches, Ghostly typing, Blur at the edges and Ripples while recording, are one, Effects.
-/// Touch's Haptics went to Settings › Sounds & haptics (lib/settings/panes/sounds_pane.dart).
+///   page's layout and the top bar's style until those screens read them, and the note's face until there is a note
+///   to set in it.
 /// - The faces Fira Code, Noto and Plex are not shipped yet, so choosing one draws in the fallback face.
 /// - Scale reaches the app as a magnification of the whole window (lib/app/ghost_app.dart), where the page set the
 ///   root's font size; and the pace reaches the kit's duration tokens through the app's theme rather than inline.
+///
+/// Matt, 2026-11-01: "see if there are other settings that can be simplified removed or moved to a plugin for extra
+/// configuration, we currently have too many appearance settings". Motion's three switches, Ghostly typing, Blur at
+/// the edges and Ripples while recording, are one, Effects. Touch's Haptics went to Settings › Sounds & haptics
+/// (lib/settings/panes/sounds_pane.dart). Code, the Diagrams and math plugin's page now, is one palette
+/// ([CodeColoursSection]).
 class AppearancePane extends StatelessWidget {
   const AppearancePane({super.key, this.store});
 
@@ -305,23 +303,6 @@ class AppearancePane extends StatelessWidget {
               ],
             ),
             PaneSection(
-              title: 'Code',
-              description: const Text("Code colours: the colours of code in a code block, one palette on the light page and the dark one. Ink keeps code in the page's own ink."),
-              children: [
-                for (final palette in codeThemes)
-                  SettingRow(
-                    key: ValueKey('code-$palette'),
-                    label: codeWords[palette]!,
-                    hint: Text(isCodeThemeLight(palette) && isCodeThemeDark(palette)
-                        ? 'On the light page and the dark one.'
-                        : isCodeThemeLight(palette)
-                            ? 'On the light page; Pastel on the dark one.'
-                            : 'On the dark page; Pastel on the light one.'),
-                    control: Pick(checked: prefs.code == palette, label: 'Code colours: ${codeWords[palette]}', onPress: () => set((now) => now.copyWith(code: palette))),
-                  ),
-              ],
-            ),
-            PaneSection(
               title: 'Motion',
               description: const Text("Your phone's own reduce motion setting comes first. With it on, Ghost.md holds still whatever is on here."),
               children: [
@@ -345,6 +326,51 @@ class AppearancePane extends StatelessWidget {
             ),
             // Last, so every card above it stays where the web page measured it (appearance_pane_test.dart).
             dock,
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// What the search finds of [CodeColoursSection].
+const SettingsFindable codeColoursFindable = SettingsFindable('Code', 'code colours syntax highlighting colors palette pastel ink github solarized one dark dracula nord light dark page');
+
+/// The colours of code in a code block, on the light page and on the dark: Appearance › Code until 2026-11-01, the
+/// Diagrams and math plugin's page since, with the colouring by a language it is the look of (lib/plugins/diagrams;
+/// docs/PM_PLUGINS.md §10).
+///
+/// One palette for both sides of the page since 2026-11-01 (Matt: "see if there are other settings that can be
+/// simplified"): the light page's pick and the dark page's were one, Code colours (`Preferences.code`), each palette
+/// drawn on a side in its variant there, Pastel on a side it has none for.
+class CodeColoursSection extends StatelessWidget {
+  const CodeColoursSection({super.key, this.store});
+
+  /// The preferences: the app's own unless a test gives its own.
+  final PreferencesStore? store;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = this.store ?? preferences;
+    return ValueListenableBuilder<Preferences>(
+      valueListenable: store,
+      builder: (context, prefs, _) {
+        void set(Preferences Function(Preferences now) change) => store.update(change);
+        return PaneSection(
+          title: 'Code',
+          description: const Text("Code colours: the colours of code in a code block, one palette on the light page and the dark one. Ink keeps code in the page's own ink."),
+          children: [
+            for (final palette in codeThemes)
+              SettingRow(
+                key: ValueKey('code-$palette'),
+                label: codeWords[palette]!,
+                hint: Text(isCodeThemeLight(palette) && isCodeThemeDark(palette)
+                    ? 'On the light page and the dark one.'
+                    : isCodeThemeLight(palette)
+                        ? 'On the light page; Pastel on the dark one.'
+                        : 'On the dark page; Pastel on the light one.'),
+                control: Pick(checked: prefs.code == palette, label: 'Code colours: ${codeWords[palette]}', onPress: () => set((now) => now.copyWith(code: palette))),
+              ),
           ],
         );
       },

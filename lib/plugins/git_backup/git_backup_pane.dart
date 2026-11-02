@@ -22,6 +22,7 @@ import 'backup.dart';
 import 'files.dart';
 import 'git_backup_setup.dart';
 import 'manifest.dart' as git;
+import '../more/more_tools.dart' show moreToolOn, publishingTool;
 import 'place.dart';
 import 'service.dart';
 import 'settings.dart';
@@ -329,7 +330,8 @@ class _GitBackupPaneState extends State<GitBackupPane> {
                     onCheckedChange: (on) => updateGitBackupSettings((s) => s.copyWith(orgsIncluded: on ? {...s.orgsIncluded, org} : ({...s.orgsIncluded}..remove(org)))),
                   ),
                 ),
-              if (isGitHubRemote(settings.remote))
+              // Where the Publishing plugin is on (docs/PM_PLUGINS.md §10).
+              if (isGitHubRemote(settings.remote) && moreToolOn(publishingTool))
                 SettingRow(
                   key: const ValueKey('git-backup-publish'),
                   label: 'Publish as a website',

@@ -32,6 +32,7 @@ import '../../meet/ui/meet_card.dart';
 import '../../meet/ui/meeting_settings.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/settings_host.dart';
+import '../more/more_tools.dart' show emailTool, moreToolOn;
 import '../onboarding/setup_card.dart';
 import 'meeting_setup.dart';
 
@@ -57,7 +58,8 @@ class MeetingPluginPane extends StatelessWidget {
   /// Opens a meeting's note; without it the meetings are not pressed.
   final void Function(String id)? onOpenNote;
 
-  /// Settings › Account, at Email to a note, for an account with no address yet.
+  /// The Email to a note plugin's page, for an account with no address yet (Settings › Account's until 2026-11-01;
+  /// docs/PM_PLUGINS.md §10).
   final VoidCallback? onOpenAccount;
 
   /// Settings › Recording, at the Meetings card every kind shares ([MeetingsGoSection]).
@@ -69,7 +71,8 @@ class MeetingPluginPane extends StatelessWidget {
       services: AccountScope.maybeOf(context),
       kind: kind,
       onOpenNote: host?.onOpenNote,
-      onOpenAccount: host == null ? null : () => host.go('account', setting: 'Email to a note'),
+      // Email to a note's page, where its card is now (docs/PM_PLUGINS.md §10).
+      onOpenAccount: host == null ? null : () => host.go('plugin:email'),
       onOpenRecording: host == null ? null : () => host.go(recordingSectionId, setting: meetingsGoName),
     );
   }
@@ -87,9 +90,11 @@ class MeetingPluginPane extends StatelessWidget {
             MeetInviteCard(services: services, kind: kind)
           else
             SettingsCallout(
-              action: onOpenAccount == null || mail == null || !mailCardShown(mail) ? null : RowAction(onPress: onOpenAccount!, child: const Text('Account')),
+              action: onOpenAccount == null || mail == null || !mailCardShown(mail) || !moreToolOn(emailTool) ? null : RowAction(onPress: onOpenAccount!, child: const Text('Email to a note')),
               child: Text(mail != null && mailCardShown(mail)
-                  ? 'Ghost is invited by your Email to a note address. Turn one on in Settings › Account, then invite Ghost here.'
+                  ? (moreToolOn(emailTool)
+                      ? 'Ghost is invited by your Email to a note address. Turn one on in Settings › Email to a note, then invite Ghost here.'
+                      : 'Ghost is invited by an Email to a note address. Add Email to a note in the Market, turn on an address there, then invite Ghost here.')
                   : 'Ghost is invited by an Email to a note address, which this service does not take yet.'),
             ),
           if (services != null) MeetingsList(services: services, kind: kind, onOpenNote: onOpenNote),

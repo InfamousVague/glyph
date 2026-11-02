@@ -286,7 +286,7 @@ void main() {
       expect(preferences.value.theme, 'dark');
       // The search's list of the page is the page's.
       expect(appearanceFindable(simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Calm']);
-      expect(appearanceFindable().map((f) => f.name), containsAll(['Accent', 'Effects', 'Code colours']));
+      expect(appearanceFindable().map((f) => f.name), containsAll(['Accent', 'Effects']));
       // The footnote that led to the mode's page went with the page: the mode is on this one.
       expect(find.byKey(const ValueKey('appearance-more-looks')), findsNothing);
       expect(find.byType(GoWord), findsNothing);

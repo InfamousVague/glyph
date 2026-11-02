@@ -122,6 +122,7 @@ class AddConfig {
     this.simple = false,
     this.toggles = false,
     this.gantt = false,
+    this.diagrams = true,
     this.queries,
   });
 
@@ -183,6 +184,9 @@ class AddConfig {
 
   /// Whether A Gantt chart is offered: where the editor draws a ```gantt fence (lib/editor/gantt).
   final bool gantt;
+
+  /// Whether A diagram and A formula are offered: where Diagrams and math is on (docs/PM_PLUGINS.md §10).
+  final bool diagrams;
 }
 
 /// Where the card goes ([placeList]): its corner, its width, and how tall its scrolling rows may be (null for as
@@ -464,6 +468,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       simple: config.simple,
       toggles: config.toggles,
       gantt: config.gantt,
+      diagrams: config.diagrams,
       queries: config.queries,
       effects: config.effects,
       inserts: config.inserts,

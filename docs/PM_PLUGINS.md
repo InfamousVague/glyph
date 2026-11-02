@@ -157,3 +157,41 @@ Where each gate is, for whoever moves one:
   which writes `Home.md` there and then; the banner (tool_chip.dart `ToolBanner`) on the teamspace home and at the
   top of an organization's note; Tools (tool_switches.dart) on the teamspace home (behind More in Simple) and as a
   section of the organization's settings sheet.
+
+## 10. More tools (2026-11-01)
+
+Matt, after the project tools became plugins: "think about other things that can be plugins that might be
+overwhelming for a new user as well". He picked six, each a plugin **off for a new person and switched on once where
+it was already in use**. They are the person's alone: no organization lists them, so each is one switch of the
+registry's, synced between the person's devices (`syncedSwitches`), and `moreToolOn(id)` (lib/plugins/more/
+more_tools.dart) is the whole question. The Market shows them together on a **More tools** shelf.
+
+| Plugin | Id | Icon | What it holds | Off |
+| --- | --- | --- | --- | --- |
+| Canvas | `canvas` | `shapes` | a canvas note drawn as its cards (lib/canvas), Canvas in New, A canvas in the + and /, a notebook's Add as a canvas, `![[A canvas]]` drawn in a frame, the canvas mark in the sidebar, Settings › Examples' canvases | the note is listed as a note and opens to a "Turn on Canvas" chip where its cards would be; its JSON is never drawn as words nor written; the core goes on writing its `.canvas` file |
+| Meetings | `meetings` | `audio-lines` | Ghost in meetings (the takes filed, live captions' notes, the service told which kinds are wanted), Meeting in New and Meeting instead in the recorder, the shelf of meetings on home, a meeting's Note and Transcript, Settings › Recording's Meetings card, the walkthrough's meetings page, Discord's calls | the takes wait on the service (none is lost); the service is told no kind is wanted; a meeting's note is its words. Google Meet and Zoom keep their switches but stand on it (`moreToolNeeds`): their pages are not listed, Ghost joins nothing, and their Add in the Market adds Meetings |
+| Diagrams and math | `diagrams` | `sigma` | ```` ```mermaid ```` drawn as its diagram, `$$` and inline maths drawn as maths, a fence's colouring by its language (code_highlight.dart `codeLanguages`), A diagram and A formula in the + and /, Appearance › Code's colours (its page now) | each is plain code, with a "Turn on Diagrams" chip under a mermaid fence, a fence in a language and a `$$` formula; a plain ```` ``` ```` block is built in |
+| Places | `places` | `map-pinned` | `location:` written on a new note and a journal's entries (place_tags.dart `on`), the map at a tagged note's top, Add my location and the Map look in More, a place card in the words, A place in the +, a journal's "With where you are", Settings › Account's Location card (its page now) | no location is asked for or written; `location:` stays as the text it is; a place is its link. Place reminders are their own plugin, as before |
+| Email to a note | `email` | `mail` | the address and its card (Settings › Account's, its page now), the pass that turns mail into notes | the address is not shown, and this device takes no mail off the service: it waits there, sealed (the service keeps up to 200 per account) |
+| Publishing | `publishing` | `globe` | Publish as a site in Share, Settings › Account's Published sites (its page now), the git backup's Publish as a website | Share has its plain links alone; the git backup writes no website; a site published stays on the service |
+
+**Adopting.** `adoptMoreTools` makes each check once on a device and remembers it (`glyph-more-tools-adopted`), so a
+person who starts with none of them and writes a ```` ```dart ```` block next week finds the chip rather than a
+switch moved for them. `Registry.adopt` leaves any switch the person moved. The checks:
+
+- as the root starts, before the git backup's first pass: Meetings where the preferences hold a meeting
+  (`meetings`, `meetingNotes`); Publishing where the git backup publishes a website;
+- as the library is opened, before a new library's first notes are made: from each note's facts (`NoteFacts.more`,
+  core/more_tools.dart `moreToolsUsedIn`): Canvas for a canvas note, Diagrams and math for a mermaid, `$$`, inline
+  maths or a fence in a language, Places for `location:`, `entry-place:` or a place card, Email to a note for a
+  `from:` that is an address, Meetings for a `meeting:` mark;
+- after the first sync pass that goes through: Email to a note where the service has an address, Publishing where it
+  has a site.
+
+Geotagging's own switch was not taken as use: Tag new notes ships on, so it is on for a new person too. A note with a
+place is the use it leaves.
+
+**Tests.** test/flutter_test_config.dart sets `MoreTools.debugAllOn` for every test, so the features' tests go on
+testing them; test/plugins/more/ holds the uses, adopting (exactly where in use, once, none for a fresh library, a moved
+switch kept), the switches travelling, Google Meet and Zoom on Meetings, the + rows, the Market's shelf, and in the app
+each off with its chip and its markdown untouched and on as before.

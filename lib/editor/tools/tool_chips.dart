@@ -8,12 +8,17 @@
 ///
 /// Plugins cannot add to the editor, so the note's screen adds this itself (lib/root/note_desk.dart), in the slot it
 /// reconfigures as the tools are switched, fed through [ToolChipHooks].
+///
+/// And the more tools' (docs/PM_PLUGINS.md §10), the person's own wherever the note is: Diagrams and math's chip under
+/// a ```mermaid fence, a fence in a language and a `$$` formula while it is off, each drawn as plain code then. Inline
+/// maths is its words, with no chip: a chip on every line with a formula in it would be the note's loudest thing.
 library;
 
 import 'package:flutter/widgets.dart' hide Decoration;
 
 import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/front_matter.dart' show frontMatterSpan;
+import '../../core/more_tools.dart' show diagramsTool, fenceUsesDiagrams, isMoreTool, moreTools;
 import '../../core/project_tools.dart';
 import '../../plugins/projects/tool_chip.dart';
 import '../editor.dart';
@@ -41,8 +46,8 @@ class ToolChipHooks {
   static bool _always() => true;
 }
 
-/// A fence's opening line and its word: the tools' fences and a query.
-final RegExp _opening = RegExp(r'^\s*(`{3,}|~{3,})\s*(gantt|board|rules|form|query)\b', caseSensitive: false);
+/// A fence's opening line and its word: the tools' fences, a query, a diagram and a language.
+final RegExp _opening = RegExp(r'^\s*(`{3,}|~{3,})\s*([^\s`{]+)', caseSensitive: false);
 
 final LineFact<({String fence, String word})> _openings = LineFact<({String fence, String word})>((text) {
   if (!text.contains('```') && !text.contains('~~~')) return null;
@@ -77,10 +82,42 @@ final DocMemo<List<_Fence>> _fences = DocMemo<List<_Fence>>((doc) {
       'board' => const {boardsTool},
       'rules' => const {automationsTool},
       'form' => const {formsTool},
-      _ => toolsOfQuery(end > open.number + 1 ? doc.sliceString(open.to + 1, doc.line(end - 1).to) : ''),
+      'query' => toolsOfQuery(end > open.number + 1 ? doc.sliceString(open.to + 1, doc.line(end - 1).to) : ''),
+      // A ```mermaid, ```math or ```dart: Diagrams and math's (more_tools.dart `fenceUsesDiagrams`).
+      final word when fenceUsesDiagrams(word) => const {diagramsTool},
+      _ => const <String>{},
     };
     if (tools.isNotEmpty) found.add((to: end, tools: tools));
     after = end;
+  }
+  return found;
+});
+
+/// A line that opens or closes display maths, `$$`, and whether it closes it too (`$$a + b$$` on its own line).
+final LineFact<bool> _displayMaths = LineFact<bool>((text) {
+  if (!text.contains(r'$$')) return null;
+  final trimmed = text.trimLeft();
+  if (!trimmed.startsWith(r'$$')) return null;
+  return trimmed.substring(2).contains(r'$$');
+});
+
+/// The lines a `$$` formula closes on, for its chip; one never closed has none.
+final DocMemo<List<int>> _formulas = DocMemo<List<int>>((doc) {
+  final edges = _displayMaths.of(doc);
+  if (edges.isEmpty) return const <int>[];
+  final found = <int>[];
+  int? open;
+  for (final edge in edges) {
+    if (open == null) {
+      if (edge.fact) {
+        found.add(edge.number);
+      } else {
+        open = edge.number;
+      }
+    } else {
+      found.add(edge.number);
+      open = null;
+    }
   }
   return found;
 });
@@ -127,9 +164,11 @@ DecorationSet _decorate(EditorState state, ToolChipHooks hooks) {
   // Turning a tool on writes nothing of the note's own, so a chip presses in words drawn read only too.
   final can = hooks.canTurnOn();
   void chip(int line, Set<String> used) {
-    final off = [for (final id in withNeeds(used)) if (!hooks.on(id)) id];
+    final off = [for (final id in [...withNeeds(used), for (final more in moreTools) if (used.contains(more)) more]) if (!hooks.on(id)) id];
     if (off.isEmpty) return;
-    final widget = ToolChipWidget(tools: off, where: hooks.where(), press: can ? () => hooks.turnOn(off) : null);
+    // The more tools are the person's own wherever the note is: their chip says no organization and always presses.
+    final mine = off.every(isMoreTool);
+    final widget = ToolChipWidget(tools: off, where: mine ? '' : hooks.where(), press: can || mine ? () => hooks.turnOn(off) : null);
     // Before the line after, where there is one: the front matter's lines are folded into one block, and a widget at
     // that block's end is drawn by nothing.
     ranges.add(line < doc.lines ? Decoration.widget(widget: widget, block: true, side: -1).range(doc.line(line + 1).from) : Decoration.widget(widget: widget, block: true, side: 1).range(doc.line(line).to));
@@ -138,6 +177,11 @@ DecorationSet _decorate(EditorState state, ToolChipHooks hooks) {
   if (_frontTools(doc) case final front?) chip(front.to, front.tools);
   for (final fence in _fences.of(doc)) {
     chip(fence.to, fence.tools);
+  }
+  if (!hooks.on(diagramsTool)) {
+    for (final line in _formulas.of(doc)) {
+      chip(line, const {diagramsTool});
+    }
   }
   return ranges.isEmpty ? Decoration.none : Decoration.set(ranges, true);
 }

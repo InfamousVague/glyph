@@ -10,6 +10,7 @@ import '../market/market_items.dart' show marketLanding;
 import '../meet/ui/meeting_settings.dart' show meetingsGoSaid, recordingSectionId;
 import '../plugins/catalogue.dart' show catalogueOrder;
 import '../plugins/meetings/meetings.dart' show googleMeetManifest, meetingPluginOffered, zoomManifest;
+import '../plugins/more/more_tools.dart' show moreNeedsMet;
 import '../plugins/registry.dart' show plugins;
 import '../plugins/types.dart' show PluginSettings;
 import 'appearance_pane.dart';
@@ -249,7 +250,8 @@ const String meetingsSectionId = 'meetings';
 /// those cards went; otherwise the Google Meet plugin's page, or Zoom's where only Zoom is on. With neither on there
 /// is no page of meetings, and it lands on the Market's row, where they are added again.
 SettingsTarget meetingsLanding(SettingsTarget target) {
-  bool on(String id) => plugins.byId(id) != null && plugins.isEnabled(id);
+  // Google Meet and Zoom only with Meetings, which they stand on (docs/PM_PLUGINS.md §10).
+  bool on(String id) => plugins.byId(id) != null && plugins.isEnabled(id) && moreNeedsMet(id);
   final page = switch (target.setting) {
     'Post to Slack' when on('slack') => 'slack',
     'Post to Discord' when on('discord') => 'discord',
@@ -283,7 +285,7 @@ SettingsTarget? meetingSettingLanding(SettingsTarget target) {
 /// Whether a meeting plugin's page is on Settings' list in Simple, which brings Recording there too: its Meetings card
 /// is where every meeting goes, and each such page has a row to it.
 bool meetingPagesInSimple(SettingsFacts facts) {
-  bool on(String id) => plugins.byId(id) != null && plugins.isEnabled(id);
+  bool on(String id) => plugins.byId(id) != null && plugins.isEnabled(id) && moreNeedsMet(id);
   return (on(googleMeetManifest.id) || on(zoomManifest.id)) && meetingPluginOffered(facts.services);
 }
 

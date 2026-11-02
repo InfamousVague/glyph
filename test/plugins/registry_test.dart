@@ -125,6 +125,14 @@ void main() {
         ('automations', false),
         ('time-tracking', false),
         ('forms', false),
+        // The more tools (lib/plugins/more/; Matt, 2026-11-01: "think about other things that can be plugins that
+        // might be overwhelming for a new user as well"): off for a new person, on once where they were in use.
+        ('canvas', false),
+        ('meetings', false),
+        ('diagrams', false),
+        ('places', false),
+        ('email', false),
+        ('publishing', false),
       ]);
       for (final plugin in builtIn) {
         if (plugin.manifest.native != null) expect(plugin.manifest.declares(Permission.native), isTrue, reason: plugin.manifest.id);
@@ -138,7 +146,7 @@ void main() {
       final web = webBuiltIn();
       // The page's five, then this app's own, which the page never had.
       expect(ids(builtIn.take(web.length)), ids(web));
-      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms']);
+      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms', 'canvas', 'meetings', 'diagrams', 'places', 'email', 'publishing']);
       for (final (index, plugin) in builtIn.take(web.length).indexed) {
         final (ours, theirs) = (plugin.manifest, web[index].manifest);
         final id = ours.id;
@@ -179,7 +187,7 @@ void main() {
       addTearDown(() => usePlugins(before));
       final registry = installBuiltInPlugins(store: MemorySwitches(), localOnly: () => true);
       expect(identical(plugins, registry), isTrue);
-      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms']);
+      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms', 'canvas', 'meetings', 'diagrams', 'places', 'email', 'publishing']);
       // Local only holds off every one that uses the internet; Place reminders, Contacts and Things, which never
       // leave the phone, are only off until switched on.
       expect(ids(registry.enabled()), ['marks']);

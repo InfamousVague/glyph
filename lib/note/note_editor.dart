@@ -159,9 +159,13 @@ LookEnv noteLookEnv(BuildContext context, {double zoom = 1, String? look, String
 
 /// Makes and keeps the `EditorView` for a note's screen, as `Editor.tsx` makes CodeMirror's, and has it drawn.
 class NoteEditorHost extends StatefulWidget {
-  const NoteEditorHost({super.key, required this.spec, this.draw, this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[], this.onView});
+  const NoteEditorHost({super.key, required this.spec, this.draw, this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[], this.onView, this.maths = true});
 
   final NoteEditorSpec spec;
+
+  /// Whether the base draws maths as its formula (`noteExtensions(maths:)`): false where the pieces draw it themselves,
+  /// as a note's screen does where the Diagrams and math plugin can be switched (lib/root/note_desk.dart).
+  final bool maths;
 
   /// The editor's view, told to whoever wires the host just before the screen is told ([NoteEditorSpec.onView]):
   /// the screen builds itself again when it has the view, and what belongs to the view (who types in it with the
@@ -195,6 +199,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
           extensions: noteExtensions(
             formats: widget.formats,
             readOnly: widget.spec.readOnly,
+            maths: widget.maths,
             more: <Extension>[
               history(),
               // NoteScreen.tsx: `placeholder="Write something."`.

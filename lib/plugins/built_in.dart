@@ -40,6 +40,7 @@ import 'keymaps/keymaps.dart' show keymapsPlugin;
 import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
+import 'more/more_tools.dart' show morePlugins;
 import 'notion/notion.dart' show notionPlugin;
 import 'openai/openai.dart' show openAiPlugin;
 import 'places/places.dart' show placesPlugin;
@@ -95,6 +96,10 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // disabled by default": Tickets, Planning, Gantt and timelines, Boards, Automations, Time tracking and Forms, each
   // off until added, and an organization's own in its home page (projects/suite.dart, docs/PM_PLUGINS.md).
   ...projectPlugins,
+  // Matt, 2026-11-01: "think about other things that can be plugins that might be overwhelming for a new user as
+  // well": Canvas, Meetings, Diagrams and math, Places, Email to a note and Publishing, each off for a new person and on
+  // where it was in use (more/more_tools.dart, docs/PM_PLUGINS.md §10).
+  ...morePlugins,
 ]);
 
 void Function()? _unhear;

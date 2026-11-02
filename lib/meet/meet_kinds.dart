@@ -25,6 +25,7 @@ import 'package:flutter/foundation.dart';
 
 import '../account/api.dart';
 import '../core/stored.dart';
+import '../plugins/more/more_tools.dart' show MoreTools, meetingsTool;
 import '../plugins/registry.dart' show Registry, plugins;
 import 'meet_api.dart' show meetNoRoute;
 
@@ -50,8 +51,12 @@ String meetTurnOnWords(String kind) {
 
 /// Whether Ghost joins [kind] here: its plugin on in [registry] (the app's), Local only included; a kind with no plugin
 /// in the registry (a test's, or before the plugins are put in place) is on, as the service starts it.
+///
+/// And only with the Meetings plugin on, which Google Meet and Zoom stand on (lib/plugins/meetings; docs/PM_PLUGINS.md
+/// §10): a registry without it (a test's) is as though it were on.
 bool meetKindOn(String kind, {Registry? registry}) {
   final reg = registry ?? plugins;
+  if (!MoreTools.debugAllOn && reg.byId(meetingsTool) != null && !reg.isEnabled(meetingsTool)) return false;
   final id = meetKindPlugins[kind];
   if (id == null || reg.byId(id) == null) return true;
   return reg.isEnabled(id);
@@ -59,11 +64,13 @@ bool meetKindOn(String kind, {Registry? registry}) {
 
 /// The kinds as the switches say them, each kind whose plugin is in [registry]: the person's choice, whatever Local
 /// only says ([Registry.switchedOn]), since it is what the account wants on every device.
+/// With Meetings switched off, every kind is off: the service books nothing until it is on again.
 Map<String, bool> meetKindsWanted({Registry? registry}) {
   final reg = registry ?? plugins;
+  final meetings = MoreTools.debugAllOn || reg.byId(meetingsTool) == null || reg.switchedOn(meetingsTool);
   return {
     for (final MapEntry(key: kind, value: id) in meetKindPlugins.entries)
-      if (reg.byId(id) != null) kind: reg.switchedOn(id),
+      if (reg.byId(id) != null) kind: meetings && reg.switchedOn(id),
   };
 }
 

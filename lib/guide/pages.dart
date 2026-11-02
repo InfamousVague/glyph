@@ -11,6 +11,7 @@ library;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
 import '../core/preferences.dart';
+import '../plugins/more/more_tools.dart' show meetingsTool, moreToolOn;
 
 /// One page of the walkthrough (`GuidePage`). Since 2026-10-27 (Matt: "build an onboarding flow with vivid colors
 /// and iconography as well as a friendly elevenlabs v4 voice explaining each section") it walks through what the app
@@ -34,5 +35,6 @@ List<GuidePage> get walkthroughPagesNow => walkthroughPagesFor(ios: kIsWeb || de
 List<GuidePage> walkthroughPagesFor({required bool ios, required Preferences prefs}) =>
     [
       for (final page in walkthroughPages)
-        if (!(ios && (page == GuidePage.speak || page == GuidePage.ai)) && !(page == GuidePage.model && (ios || (prefs.experienceChosen && prefs.simple)))) page,
+        // Ghost in meetings only where Meetings is on (docs/PM_PLUGINS.md §10): a new person's walk promises nothing off.
+        if (!(ios && (page == GuidePage.speak || page == GuidePage.ai)) && !(page == GuidePage.model && (ios || (prefs.experienceChosen && prefs.simple))) && (page != GuidePage.meetings || moreToolOn(meetingsTool))) page,
     ];

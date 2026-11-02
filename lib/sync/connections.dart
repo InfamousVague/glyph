@@ -84,6 +84,7 @@ import '../claude/claude_settings.dart';
 import '../claude/claude_spend.dart' show claudeLimitName;
 import '../core/iphone_app.dart' show notOnIPhone;
 import '../core/preferences.dart' show Preferences, preferences;
+import '../core/more_tools.dart' show moreTools;
 import '../core/project_tools.dart' show projectTools;
 import '../integrations/webhooks/setup.dart' show WebhookSetup, webhookSecretName, webhookSecretPrefix, webhooksKey;
 import '../plugins/discord/manifest.dart' as discord show discordChannelsKey, discordMeetingsKey, discordWebhookPrefix, host;
@@ -102,8 +103,9 @@ import 'sealed_keys.dart';
 const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeMeetingsName, claudeLimitName];
 
 /// The plugins whose switch travels: and the project tools', whose personal switches are the person's wherever they
-/// write (docs/PM_PLUGINS.md; an organization's are its home page's, which travels as its notes do).
-const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', ...projectTools];
+/// write (docs/PM_PLUGINS.md; an organization's are its home page's, which travels as its notes do), and the more
+/// tools', which are the person's alone (§10).
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', ...projectTools, ...moreTools];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';

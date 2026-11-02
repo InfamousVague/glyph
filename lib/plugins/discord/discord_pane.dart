@@ -29,6 +29,7 @@ import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
+import '../more/more_tools.dart' show meetingsTool, moreToolOn;
 import '../onboarding/setup_card.dart';
 import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'calls_section.dart';
@@ -215,8 +216,9 @@ class _DiscordPaneState extends State<DiscordPane> {
       children: [
         PluginSetupCard(setup: _setup),
         if (said != null) SettingsCallout(child: Text(said)),
-        DiscordCallsSection(services: services, onOpenNote: host?.onOpenNote, onOpenLink: host?.onOpenLink),
-        if (services != null && services.signedIn && recordsVoice) MeetingsGoSection(prefs: services.prefs, onOpen: host == null ? null : () => host.go(recordingSectionId, setting: meetingsGoName)),
+        // Ghost in Discord calls, and where its meetings go, where Meetings is on (docs/PM_PLUGINS.md §10).
+        if (moreToolOn(meetingsTool)) DiscordCallsSection(services: services, onOpenNote: host?.onOpenNote, onOpenLink: host?.onOpenLink),
+        if (moreToolOn(meetingsTool) && services != null && services.signedIn && recordsVoice) MeetingsGoSection(prefs: services.prefs, onOpen: host == null ? null : () => host.go(recordingSectionId, setting: meetingsGoName)),
         PaneSection(
           title: 'Channels',
           description: const Text('Each is a Discord channel’s webhook, under a name you give it. The same on each of your devices, end-to-end encrypted, and once kept no page can read the webhook back.'),
@@ -251,7 +253,7 @@ class _DiscordPaneState extends State<DiscordPane> {
         // became the meeting plugins' pages (Matt, 2026-10-26: "I want settings / meetings to be broken up into three
         // plugins"). Asked here as well as in the section, which draws nothing where meetings cannot post: an empty
         // child would still take a gap of the page's.
-        if (list.isNotEmpty && meetingDiscordOffered()) MeetingsDiscordSection(prefs: AccountScope.maybeOf(context)?.prefs ?? preferences),
+        if (list.isNotEmpty && meetingDiscordOffered() && moreToolOn(meetingsTool)) MeetingsDiscordSection(prefs: AccountScope.maybeOf(context)?.prefs ?? preferences),
         const SettingsFootnote(
           child: Text('Nothing goes to a Discord channel unless you post it from a note, or set meetings to go. What is posted leaves Ghost.md’s encryption: Discord, and everyone in the channel, can read it. Nobody is pinged by a post, @everyone included.'),
         ),

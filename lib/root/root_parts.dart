@@ -267,7 +267,7 @@ extension _RootParts on _GhostRootState {
                   noteId: screen.noteId,
                   placing: screen.placing is Placing ? screen.placing as Placing : null,
                   meeting: screen.meeting,
-                  onMeeting: voice.canMeet ? () => unawaited(capture.meeting(false)) : null,
+                  onMeeting: voice.canMeet && moreToolOn(meetingsTool) ? () => unawaited(capture.meeting(false)) : null,
                   onFinish: (note, locked, {review, ask, landing}) => unawaited(capture.finished(note, locked, review: review, ask: ask, landing: landing)),
                 ),
               ),
@@ -770,7 +770,8 @@ extension _RootParts on _GhostRootState {
       simple: simple,
       // The meetings' tapes under the notices (GHST-112), and See all: All notes with its Tapes word on.
       // Read both ways for a release (lib/meet/meeting_mark.dart): the preferences, and the notes that say so.
-      meetings: meetingsOf(preferences.value, _library.value),
+      // The shelf of meetings, where Meetings is on (docs/PM_PLUGINS.md §10).
+      meetings: moreToolOn(meetingsTool) ? meetingsOf(preferences.value, _library.value) : const {},
       onAllTapes: () => shell.showAllNotes(tapes: true),
       // A cassette: the note at its tape, playing, its transcript on the page (Matt, 2026-10-24).
       onOpenTape: (id) => _openTape(shell, id),
@@ -1042,7 +1043,8 @@ extension _RootParts on _GhostRootState {
       }),
       onNote: () => _new(into),
       onTemplate: () => unawaited(_newFromTemplate(into)),
-      onCanvas: () => _newCanvas(into),
+      // A canvas where Canvas is on (docs/PM_PLUGINS.md §10).
+      onCanvas: moreToolOn(canvasTool) ? () => _newCanvas(into) : null,
       onBook: () => _newBook(NewBookKind.notebook, into),
       // Today's note (lib/notes/daily_notes.dart): the account's own, not offered from an organization's +.
       onToday: into != null ? null : () => _organize.today(),
@@ -1051,8 +1053,9 @@ extension _RootParts on _GhostRootState {
       // A shared link's copy is read from the account's service: not offered in a build with none.
       onFromLink: into != null || services?.shares == null ? null : _forkFromLink,
       // A meeting is the account's own too, and is offered only where one can be recorded.
-      onMeeting: into == null && capture != null && (voice?.canMeet ?? false) ? () => unawaited(capture.meeting(false)) : null,
-      sound: into == null && capture != null && (voice?.canMeet ?? false) && (voice?.sound?.supported ?? false)
+      // A meeting recorded here, where Meetings is on (docs/PM_PLUGINS.md §10).
+      onMeeting: into == null && capture != null && (voice?.canMeet ?? false) && moreToolOn(meetingsTool) ? () => unawaited(capture.meeting(false)) : null,
+      sound: into == null && capture != null && (voice?.canMeet ?? false) && moreToolOn(meetingsTool) && (voice?.sound?.supported ?? false)
           ? NewSheetSound(
               // The page's words for it on this platform (`meetingSoundWords`): other apps' sound on
               // Android, the computer's own on a Mac.
@@ -1075,7 +1078,9 @@ extension _RootParts on _GhostRootState {
         onCreate: (title, pages) => _showMade(bookNoteBody(title, pages), into: _bookInto),
         onCreateJournal: (title, template, place) => _showMade(journal.journalNoteBody(title, template, place)),
         onCreateDocs: (title, pages) => _showMade(docsBookBody(title, parts: [DocsPart(docsStarterPart, pages)]), into: _bookInto),
-        // A journal's "With where you are": the prompt from the press that turned it on, and why it cannot.
+        // A journal's "With where you are", where Places is on (docs/PM_PLUGINS.md §10): the prompt from the press that
+        // turned it on, and why it cannot.
+        offersPlace: moreToolOn(placesTool),
         device: _places == null
             ? const EntryPlaceDevice()
             : EntryPlaceDevice(cannot: () => _places.locations.cannotLocate, refused: _places.autoTagRefusal, allowWhere: _places.allowLocationWhere(), ask: _places.askFromPress),

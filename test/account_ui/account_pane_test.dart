@@ -55,14 +55,15 @@ void main() {
   });
 
   group('Signed out', () {
-    testWidgets('opens on the ghost and the way in, then Privacy and Location', (tester) async {
+    // Location was the last card until 2026-11-01: the Places plugin's page now (docs/PM_PLUGINS.md §10).
+    testWidgets('opens on the ghost and the way in, then Privacy', (tester) async {
       final device = await Device.make(signedIn: false);
       await device.pump(tester, AccountPane(services: device.services));
-      expect(titlesOf(tester), ['Sign in', 'Privacy', 'Location']);
+      expect(titlesOf(tester), ['Sign in', 'Privacy']);
       final ghost = find.byWidgetPredicate((widget) => widget is Ghost && widget.scene == GhostScene.signedOut);
       expect(ghost, findsOneWidget);
       expect(tester.getTopLeft(ghost).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('account-submit'))).dy));
-      final places = placesOf(tester, ['SIGN IN', 'Create an account', "Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way.", 'PRIVACY', 'LOCATION']);
+      final places = placesOf(tester, ['SIGN IN', 'Create an account', "Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way.", 'PRIVACY']);
       expect([...places]..sort(), places);
       await endSettings(tester);
     });
@@ -82,11 +83,11 @@ void main() {
   });
 
   group('Signed in', () {
-    testWidgets('has Sync, then Your colour, Privacy and Location, then Delete account', (tester) async {
+    testWidgets('has Sync, then Your colour and Privacy, then Delete account', (tester) async {
       final device = await Device.make();
       await device.pump(tester, AccountPane(services: device.services));
-      expect(titlesOf(tester), ['Sync', 'Your colour', 'Privacy', 'Location']);
-      final places = placesOf(tester, ['Sync now', 'Local only', 'Use OpenStreetMap', 'Delete account']);
+      expect(titlesOf(tester), ['Sync', 'Your colour', 'Privacy']);
+      final places = placesOf(tester, ['Sync now', 'Local only', 'Delete account']);
       expect([...places]..sort(), places);
       await endSettings(tester);
     });
@@ -368,7 +369,7 @@ void main() {
       await settle(tester, 12);
       expect(device.services.signedIn, isFalse);
       expect(await device.keys.accountKey(), isNull);
-      expect(titlesOf(tester), ['Sign in', 'Privacy', 'Location']);
+      expect(titlesOf(tester), ['Sign in', 'Privacy']);
       expect(device.notes.held.keys, ['n1']);
       await endSettings(tester);
     });
@@ -377,7 +378,7 @@ void main() {
   group('Without services', () {
     testWidgets('the page is what it was before there was an account', (tester) async {
       await pumpSettings(tester, const SingleChildScrollView(child: AccountPane()));
-      expect(titlesOf(tester), ['Sign in', 'Privacy', 'Location']);
+      expect(titlesOf(tester), ['Sign in', 'Privacy']);
       expect(pressableOf(tester, 'Sign in').onPressed, isNull);
       await endSettings(tester);
       await pumpSettings(tester, const SingleChildScrollView(child: AccountPane(features: SettingsFeatures(signedIn: true))));

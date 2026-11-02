@@ -51,6 +51,10 @@ String? notOnIPhone(String what, {TargetPlatform? platform}) {
     // there as notes, but the plugins' pages are not drawn (lib/plugins/meetings/; Matt, 2026-10-26).
     'google-meet' => 'Google Meet is not available on iOS yet.',
     'zoom' => 'Zoom is not available on iOS yet.',
+    // Email to a note and published sites are not offered on an iPhone either (`publishingOffered`): their plugins'
+    // pages are not drawn there (docs/PM_PLUGINS.md §10).
+    'email' => 'Email to a note is not available on iOS yet.',
+    'publishing' => 'Publishing is not available on iOS yet.',
     _ => null,
   };
 }

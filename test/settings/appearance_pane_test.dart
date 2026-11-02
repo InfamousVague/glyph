@@ -92,7 +92,7 @@ void main() {
     // Touch's Haptics went to Settings › Sounds & haptics on 2026-11-01.
     testWidgets('holds the look, the type and the motion, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Motion', 'Dock']);
       await endSettings(tester);
     });
 
@@ -208,7 +208,7 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('writes the spacing, the corners, the pace and the colours of code, and the kit’s tokens follow', (tester) async {
+    testWidgets('writes the spacing, the corners and the pace, and the kit’s tokens follow', (tester) async {
       await _open(tester);
       final space = _root(tester).space(3), radius = _root(tester).radius('lg');
       // Spacing: the kit's density picker in Ghost.md's words.
@@ -241,16 +241,32 @@ void main() {
       expect(_root(tester).duration('glacier-duration-fast'), const Duration(milliseconds: 150));
       expect(_root(tester).len('app-motion-scale'), 1);
 
-      // Code colours, one palette for both sides of the page (Matt, 2026-11-01): each side its variant where the palette
-      // has one, Pastel where it has none.
+      await endSettings(tester);
+    });
+
+    // Appearance › Code is the Diagrams and math plugin's page's since 2026-11-01 (docs/PM_PLUGINS.md §10): the same
+    // card, one palette for both sides of the page since that day too (Matt: "see if there are other settings that can
+    // be simplified"), each side its variant where the palette has one, Pastel where it has none.
+    testWidgets('the colours of code are the Diagrams and math page’s card, one palette, and the kit’s tokens follow', (tester) async {
+      await pumpSettings(
+        tester,
+        SettingsScreen(
+          open: true,
+          onClose: () {},
+          sections: [SettingsSection(id: 'plugin:diagrams', label: 'Diagrams and math', icon: const SizedBox.shrink(), group: 0, content: (context) => const PaneBody(children: [CodeColoursSection()]))],
+          goTo: const SettingsTarget('plugin:diagrams', nonce: 1),
+        ),
+        size: _tall,
+      );
+      expect(_titles(tester), ['Code']);
       expect(preferences.value.code, 'pastel');
       await _tap(tester, find.descendant(of: find.byKey(const ValueKey('code-github')), matching: find.byType(Pick)));
       expect((preferences.value.code, preferences.value.codeLight, preferences.value.codeDark), ('github', 'github', 'pastel'));
-      expect(_root(tester).attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'pastel')));
+      expect(tokensAt(tester, find.byType(SettingsScreen)).attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'pastel')));
       await _tap(tester, find.descendant(of: find.byKey(const ValueKey('code-nord')), matching: find.byType(Pick)));
       expect((preferences.value.code, preferences.value.codeLight, preferences.value.codeDark), ('nord', 'pastel', 'nord'));
       await _tap(tester, find.descendant(of: find.byKey(const ValueKey('code-ink')), matching: find.byType(Pick)));
-      expect(_root(tester).attrs, allOf(containsPair('code-light', 'ink'), containsPair('code-dark', 'ink')));
+      expect(tokensAt(tester, find.byType(SettingsScreen)).attrs, allOf(containsPair('code-light', 'ink'), containsPair('code-dark', 'ink')));
       await endSettings(tester);
     });
 
@@ -607,10 +623,10 @@ void main() {
         expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');
         expect(rect.top, closeTo(entry.value.$1 + down + below, 3.5), reason: '${entry.key}’s top');
       }
-      // Code and Motion were the web's cards (4052.14, 269.34 and 4339.33, 523.86) until 2026-11-01, when Code's two
-      // picks became one, a row a palette, and Motion's three switches one, Effects: each still a gap under the last.
-      expect(card('Code').top, closeTo(card('Corners').bottom + gap, 3.5));
-      expect(card('Motion').top, closeTo(card('Code').bottom + gap, 3.5));
+      // Code and Motion were the web's cards (4052.14, 269.34 and 4339.33, 523.86) until 2026-11-01, when Code went to
+      // the Diagrams and math plugin's page (docs/PM_PLUGINS.md §10) and Motion's three switches became one, Effects:
+      // Motion a gap under Corners, and shorter.
+      expect(card('Motion').top, closeTo(card('Corners').bottom + gap, 3.5));
       expect(card('Motion').height, lessThan(523.86));
       // The segmented controls: the kit's small size, on the deeper track a card gives them.
       final size = find.ancestor(of: find.text('Largest'), matching: find.byType(GlacierSegmentedControl));

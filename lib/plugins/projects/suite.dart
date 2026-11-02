@@ -30,6 +30,7 @@ import '../automations/automations.dart' show automationsPlugin;
 import '../boards/boards.dart' show boardsPlugin;
 import '../forms/forms.dart' show formsPlugin;
 import '../gantt/gantt.dart' show ganttPlugin;
+import '../more/more_tools.dart' show isMoreTool, moreToolShortName;
 import '../planning/planning.dart' show planningPlugin;
 import '../registry.dart' show Registry, plugins;
 import '../tickets/tickets.dart' show ticketsPlugin;
@@ -49,9 +50,11 @@ GlyphPlugin? projectPlugin(String id) {
   return null;
 }
 
-/// A tool's name as a chip says it: "Gantt and timelines" is "Gantt".
+/// A tool's name as a chip says it: "Gantt and timelines" is "Gantt". One of the more tools by its own short name
+/// (lib/plugins/more/more_tools.dart), whose chips are these.
 String toolShortName(String id) => switch (id) {
       ganttTool => 'Gantt',
+      _ when isMoreTool(id) => moreToolShortName(id),
       _ => projectPlugin(id)?.manifest.name ?? id,
     };
 

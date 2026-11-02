@@ -5,6 +5,7 @@ import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
+import '../../plugins/more/more_tools.dart' show canvasTool, moreToolOn;
 import '../../plugins/projects/suite.dart' show boardsTool, projectSuite;
 
 /// What Settings' search finds on Examples (`findable`, src/app/settings/ExamplesPane.findable.ts); the example board
@@ -16,10 +17,11 @@ const List<SettingsFindable> examplesFindable = [
   SettingsFindable('Add the “How Ghost.md works” canvas', 'example canvas how it works'),
 ];
 
-/// [examplesFindable] as the page draws it now: the board's row where Boards is on (docs/PM_PLUGINS.md).
+/// [examplesFindable] as the page draws it now: the board's row where Boards is on (docs/PM_PLUGINS.md), the canvases'
+/// where Canvas is (§10).
 List<SettingsFindable> examplesFindableNow() => [
       for (final each in examplesFindable)
-        if (each.name != 'Add the example board' || projectSuite.on(boardsTool)) each,
+        if ((each.name != 'Add the example board' || projectSuite.on(boardsTool)) && (!each.name.endsWith('canvas') || moreToolOn(canvasTool))) each,
     ];
 
 /// Port of `ExamplesPane` (src/app/settings/ExamplesPane.tsx), a page behind About's Help: the notes Ghost.md can add
@@ -53,8 +55,11 @@ class ExamplesPane extends StatelessWidget {
             row(Lucide.fileText, 'Add the sample note', 'Every mark in one note: headings, lists, a table, a picture, a secret in smoke.', onSample),
             // Only where Boards is on for the person (docs/PM_PLUGINS.md): it is a personal note.
             if (projectSuite.on(boardsTool)) row(Lucide.layoutGrid, 'Add the example board', 'Columns, cards and the items they point at, written in markdown.', onBoard),
-            row(Lucide.workflow, 'Add the example canvas', "Cards on a page with lines between them, in Obsidian's canvas file.", onCanvas),
-            row(Lucide.compass, 'Add the “How Ghost.md works” canvas', 'Eight plain cards, in order: ${recordsVoice ? 'say' : 'write'} it, it lands as a note, and where a note can go.', onHowCanvas),
+            // And the canvases where Canvas is on (docs/PM_PLUGINS.md §10).
+            if (moreToolOn(canvasTool)) ...[
+              row(Lucide.workflow, 'Add the example canvas', "Cards on a page with lines between them, in Obsidian's canvas file.", onCanvas),
+              row(Lucide.compass, 'Add the “How Ghost.md works” canvas', 'Eight plain cards, in order: ${recordsVoice ? 'say' : 'write'} it, it lands as a note, and where a note can go.', onHowCanvas),
+            ],
           ],
         ),
       ],

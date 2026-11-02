@@ -605,15 +605,17 @@ void main() {
   });
 
   group('Account, signed out', () {
-    testWidgets('is the ghost, the way in, what a lost password means, then Privacy and Location', (tester) async {
+    // Location was the card after Privacy until 2026-11-01: the Places plugin's page now (docs/PM_PLUGINS.md §10;
+    // test/plugins/more/places_page_test.dart).
+    testWidgets('is the ghost, the way in, what a lost password means, then Privacy', (tester) async {
       await openPane(tester, 'account', size: const Size(390, 2400));
       expect(find.byType(Ghost), findsOneWidget);
       // The last card is Export everything (lib/settings/panes/ghostex_cards.dart).
-      expect(cardTitles(tester), ['Sign in', null, 'Privacy', 'Location', null]);
+      expect(cardTitles(tester), ['Sign in', null, 'Privacy', null]);
       expect(rowLabels(tester).take(2), ['Create an account', 'Lost the password']);
       expect(rowLabels(tester).last, 'Export everything');
       expect(rowLabels(tester, 'Privacy'), ['Local only', 'Link previews', 'Privacy policy']);
-      expect(rowLabels(tester, 'Location'), ['Use OpenStreetMap', 'Tag new notes with my location']);
+      expect(rowCalled('Use OpenStreetMap'), findsNothing);
       // With no account service the button cannot be pressed, whatever is typed.
       await tester.enterText(find.byType(EditableText).at(0), 'sam');
       await tester.enterText(find.byType(EditableText).at(1), 'correct horse');
@@ -676,12 +678,10 @@ void main() {
 
     testWidgets('keeps what leaves the phone as preferences, and Local only holds the rest off and says so', (tester) async {
       final opened = <String>[];
-      var located = 0;
-      await openPane(tester, 'account', size: const Size(390, 2600), onOpenLink: opened.add, features: SettingsFeatures(onLocate: () => located++));
+      await openPane(tester, 'account', size: const Size(390, 2600), onOpenLink: opened.add);
       for (final (row, read) in <(String, bool Function(Preferences))>[
         ('Link previews', (p) => p.linkPreviews),
-        // Map on a tagged note and Place names until 2026-11-01.
-        ('Use OpenStreetMap', (p) => p.openStreetMap && p.mapTiles && p.placeNames),
+        // Look up blanks online is AI's since 2026-11-01, and the map, a place's name and tagging the Places plugin's.
       ]) {
         final was = read(preferences.value);
         await tapOn(tester, inRow(row, find.byType(GlacierSwitch)));
@@ -689,13 +689,7 @@ void main() {
         await tapOn(tester, inRow(row, find.byType(GlacierSwitch)));
         expect(read(preferences.value), was, reason: row);
       }
-      // Tagging asks for a fix once, here, as it is switched on.
-      preferences.update((now) => now.copyWith(tagNewNotes: false));
-      await tester.pump();
-      await tapOn(tester, inRow('Tag new notes with my location', find.byType(GlacierSwitch)));
-      expect((preferences.value.tagNewNotes, located), (true, 1));
-      await tapOn(tester, inRow('Tag new notes with my location', find.byType(GlacierSwitch)));
-      expect((preferences.value.tagNewNotes, located), (false, 1));
+      // The map, a place's name and tagging are the Places plugin's page's (test/plugins/more/places_page_test.dart).
       await tapOn(tester, rowCalled('Privacy policy'));
       expect(opened, [privacyUrl]);
 
@@ -703,8 +697,6 @@ void main() {
       await tapOn(tester, inRow('Local only', find.byType(GlacierSwitch)));
       expect(preferences.value.localOnly, isTrue);
       expect(find.textContaining(' is on, so nothing syncs until it is off.'), findsOneWidget);
-      expect([for (final row in rowLabels(tester, 'Location')) tester.widget<SettingRow>(rowCalled(row)).disabledReason], everyElement('Local only is on.'));
-      expect(find.textContaining('A tagged note shows where it was written and a pin while Local only is on'), findsOneWidget);
       // Link previews stays live under it.
       expect(rowOff(tester, 'Link previews'), isFalse);
       await back(tester);
@@ -724,17 +716,17 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('signed in, says the account’s own page is not ported, and still has Privacy and Location', (tester) async {
+    testWidgets('signed in, says the account’s own page is not ported, and still has Privacy', (tester) async {
       await openPane(tester, 'account', size: const Size(390, 2400), features: const SettingsFeatures(signedIn: true));
       expect(find.text('Not ported yet'), findsOneWidget);
-      expect(cardTitles(tester), ['Privacy', 'Location', null]);
+      expect(cardTitles(tester), ['Privacy', null]);
       expect(rowLabels(tester).last, 'Export everything');
       expect(accountFindable(signedIn: true), isEmpty);
       await endSettings(tester);
     });
 
     testWidgets('is the page’s inside the app, rect for rect', (tester) async {
-      await openPane(tester, 'account', features: const SettingsFeatures(cannotLocate: 'Update Ghost.md to tag notes.'));
+      await openPane(tester, 'account');
       expect(tester.getRect(find.byType(Ghost)), rectNear(22.31, 122.73, 345.38, 306.25, 0.75));
       expect(tester.getRect(find.text('SIGN IN')).topLeft, offsetMoreOrLessEquals(const Offset(31.24, 446.83), epsilon: 0.75));
       expect(tester.getRect(surfaceOf(cardCalled('Sign in'))), rectNear(22.31, 558.98, 345.38, 186.17, 1));
@@ -744,12 +736,7 @@ void main() {
       expect(tester.getRect(find.byKey(const ValueKey('account-submit'))), rectNear(35.7, 678.22, 51.39, 53.55, 1));
       expect(tester.getRect(inRow('Create an account', find.text('Create an account'))).topLeft, offsetMoreOrLessEquals(const Offset(35.7, 776.39), epsilon: 1));
       expect(tester.getRect(find.text('PRIVACY', skipOffstage: false)).top, closeTo(996.03, 1.5));
-      // Less the row Look up blanks online took on Privacy until it went to AI (2026-11-01).
-      const lookUp = 130.34;
-      expect(tester.getRect(find.text('LOCATION', skipOffstage: false)).top, closeTo(1626.89 - lookUp, 3));
-      // And less the row Place names took on Location, one switch with the map's since 2026-11-01.
-      const placeNames = 110.17;
-      expect(tester.getRect(find.text('Update Ghost.md to tag notes.', skipOffstage: false)).top, closeTo(2138.58 - lookUp - placeNames, 4));
+      // The web's Location card under it (1626.89) is the Places plugin's page now (docs/PM_PLUGINS.md §10).
       await endSettings(tester);
     });
   });
@@ -805,7 +792,7 @@ void main() {
       const notDrawn = {
         // The way in the form already is has no row: "I have an account" is drawn once another way is chosen.
         'account': {'I have an account'},
-        'recording': {'Include sound from other apps', 'Live transcript during meetings', 'Tell me when a meeting is written up', 'Write up straight away'},
+        'recording': {'Include sound from other apps', 'Live transcript during meetings', 'Write up straight away'},
         // Library folder draws its cards once it is handed the folder's calls (library_folder_pane_test.dart holds
         // both names to the page there); with none, as here, it is the page of a build that cannot choose.
         'library': {'Where your notes are', 'Good to know'},

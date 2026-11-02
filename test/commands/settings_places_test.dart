@@ -66,7 +66,8 @@ void main() {
     test('finds a sample of settings by name, by their words, without minding case or accents, at the start of a word', () {
       final index = _index(_advanced, _registry({}));
       expect(_found(index, 'dark'), contains('Page · Appearance'));
-      expect(_found(index, 'geotag'), containsAll(['Location · Account', 'Tag new notes with my location · Account']));
+      // A note's place is the Places plugin's page's since 2026-11-01 (docs/PM_PLUGINS.md §10): found there once it is added.
+      expect(_found(_index(_advanced, _registry({'places'})), 'geotag'), containsAll(['Location · Places', 'Tag new notes with my location · Places']));
       expect(_found(index, 'header toolbar'), contains('Top bar · Appearance'));
       expect(_found(index, 'font size'), contains('Text size · Appearance'));
       expect(_found(index, 'sync'), contains(startsWith('Account · ')));
@@ -206,7 +207,7 @@ void main() {
     });
 
     test('is kept by the palette’s own matching for an accent or a hyphen it would not find', () {
-      final index = _index(_advanced, _registry({}));
+      final index = _index(_advanced, _registry({'places'}));
       for (final query in ['thème', 'text-size', 'géotag']) {
         final commands = paletteCommands(world(index), doing(), query);
         final offered = [for (final command in commands) if (command.descriptor.id.startsWith('find:')) command.descriptor.id];

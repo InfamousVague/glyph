@@ -52,6 +52,7 @@ import '../art/art.dart';
 import '../core/back.dart';
 import '../core/preferences.dart';
 import '../plugins/catalogue.dart';
+import '../plugins/more/more_tools.dart' show isMoreTool, moreToolNeeds, moreTools, withMoreNeeds;
 import '../plugins/projects/suite.dart' show dependentsOf, isProjectTool, needTickets, projectTools, ticketsTool, toolShortName, withNeeds;
 import '../plugins/onboarding/setup_flow.dart' show PluginSetup;
 import '../plugins/onboarding/setup_sheet.dart';
@@ -159,8 +160,8 @@ class _MarketScreenState extends State<MarketScreen> {
   /// Adds the plugin [id], then offers its setup where it has one and it is still needed: Lovart with no keys yet.
   void _add(String id) {
     final registry = _registry;
-    // A project tool brings what it stands on: Tickets (docs/PM_PLUGINS.md).
-    for (final each in isProjectTool(id) ? withNeeds([id]) : [id]) {
+    // A project tool brings what it stands on: Tickets (docs/PM_PLUGINS.md); Google Meet and Zoom bring Meetings (§10).
+    for (final each in isProjectTool(id) ? withNeeds([id]) : withMoreNeeds(id)) {
       registry.setEnabled(each, true);
     }
     final make = registry.byId(id)?.setup;
@@ -338,6 +339,13 @@ class _MarketScreenState extends State<MarketScreen> {
     );
   }
 
+  /// Whether [id] is added: switched on, and what it stands on with it. Google Meet and Zoom, which ship on, are not
+  /// added while Meetings is not (docs/PM_PLUGINS.md §10), and their Add adds it.
+  bool _isAdded(String id) {
+    final need = moreToolNeeds[id];
+    return _registry.switchedOn(id) && (need == null || _registry.switchedOn(need));
+  }
+
   /// A plugin's page, switched through the registry.
   Widget _detail(GlyphPlugin plugin, {required bool close}) {
     final registry = _registry;
@@ -346,8 +354,8 @@ class _MarketScreenState extends State<MarketScreen> {
     final settings = widget.onPluginSettings;
     return PluginDetail(
       plugin: plugin,
-      added: registry.switchedOn(id),
-      on: registry.isEnabled(id),
+      added: _isAdded(id),
+      on: registry.isEnabled(id) && (moreToolNeeds[id] == null || registry.isEnabled(moreToolNeeds[id]!)),
       held: held,
       onSwitch: (on) => on ? _add(id) : _remove(id),
       onSettings: settings == null || plugin.settings == null ? null : () => settings(id),
@@ -607,25 +615,27 @@ class _MarketScreenState extends State<MarketScreen> {
   Widget _featured(GlyphPlugin plugin) {
     final id = plugin.manifest.id;
     final held = _prefs.value.localOnly && usesNetwork(plugin.manifest);
-    return FeaturedPluginCard(plugin: plugin, added: _registry.switchedOn(id), held: held, onAdd: held ? null : () => _add(id), onOpen: () => _openPlugin(id));
+    return FeaturedPluginCard(plugin: plugin, added: _isAdded(id), held: held, onAdd: held ? null : () => _add(id), onOpen: () => _openPlugin(id));
   }
 
   /// The plugins: how many are added, Local only's word, the categories on their own shelf, then Added and Discover.
   List<Widget> _plugins(Tokens t, {required List<GlyphPlugin> all, required List<GlyphPlugin> found, required List<PluginCategory> categories, required PluginCategory? category, required bool wide}) {
-    final registry = _registry;
     final localOnly = _prefs.value.localOnly;
-    final count = all.where((p) => registry.switchedOn(p.manifest.id)).length;
-    // The project tools together as one suite, added or not (docs/PM_PLUGINS.md); the rest on Added and Discover.
+    final count = all.where((p) => _isAdded(p.manifest.id)).length;
+    // The project tools together as one suite, added or not (docs/PM_PLUGINS.md), and the more tools together the same
+    // (§10); the rest on Added and Discover.
+    bool shelved(GlyphPlugin plugin) => plugin.manifest.category == PluginCategory.projects || isMoreTool(plugin.manifest.id);
     final suite = [for (final plugin in found) if (plugin.manifest.category == PluginCategory.projects) plugin];
-    final added = [for (final plugin in found) if (plugin.manifest.category != PluginCategory.projects && registry.switchedOn(plugin.manifest.id)) plugin];
-    final discover = [for (final plugin in found) if (plugin.manifest.category != PluginCategory.projects && !registry.switchedOn(plugin.manifest.id)) plugin];
+    final more = [for (final plugin in found) if (isMoreTool(plugin.manifest.id)) plugin]..sort((a, b) => moreTools.indexOf(a.manifest.id).compareTo(moreTools.indexOf(b.manifest.id)));
+    final added = [for (final plugin in found) if (!shelved(plugin) && _isAdded(plugin.manifest.id)) plugin];
+    final discover = [for (final plugin in found) if (!shelved(plugin) && !_isAdded(plugin.manifest.id)) plugin];
 
     Widget card(GlyphPlugin plugin) {
       final id = plugin.manifest.id;
       final held = localOnly && usesNetwork(plugin.manifest);
       return MarketPluginCard(
         plugin: plugin,
-        added: registry.switchedOn(id),
+        added: _isAdded(id),
         held: held,
         wide: wide,
         selected: _open == id,
@@ -696,6 +706,8 @@ class _MarketScreenState extends State<MarketScreen> {
       if (added.isNotEmpty) shelf('Added', added),
       if (suite.isNotEmpty)
         shelf('Project tools', suite, note: 'Tickets, planning, Gantt charts, boards, rules, timers and forms. Added here, they are yours; an organization turns on its own in its Tools.'),
+      if (more.isNotEmpty)
+        shelf('More tools', more, note: 'Canvases, meetings, diagrams and maths, a note’s place, email to a note and published sites. Each is off until you add it, and nothing written with one is lost while it is off.'),
       if (discover.isNotEmpty) shelf('Discover', discover),
       if (found.isEmpty)
         Padding(

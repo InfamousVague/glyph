@@ -7,6 +7,7 @@ import '../../plugins/types.dart';
 import '../kit/settings_kit.dart';
 import 'settings_host.dart';
 import '../../plugins/brands.dart' show pluginGlyph;
+import '../../plugins/more/more_tools.dart' show moreToolNeeds;
 
 /// What is left in Settings of its Plugins (Matt, 2026-10-26: "move the plugins section out of the settings (leaving
 /// plugin specific settings to own their settings) add the plugins setting to the market page"): the catalogue,
@@ -18,7 +19,12 @@ import '../../plugins/brands.dart' show pluginGlyph;
 /// on that row finds, where nothing hands Settings the way out).
 
 /// The Market's row on Settings' list: how many plugins are added (SettingsSheet.tsx said how many were on).
-String pluginsSummary(Registry registry) => '${registry.all().where((p) => registry.switchedOn(p.manifest.id)).length} of ${registry.all().length} plugins added';
+/// A plugin that stands on one of the more tools (Google Meet, Zoom) counts only with it, as the Market counts it
+/// (docs/PM_PLUGINS.md §10).
+String pluginsSummary(Registry registry) {
+  bool added(String id) => registry.switchedOn(id) && (moreToolNeeds[id] == null || registry.switchedOn(moreToolNeeds[id]!));
+  return '${registry.all().where((p) => added(p.manifest.id)).length} of ${registry.all().length} plugins added';
+}
 
 /// The id of a plugin's own page among the sections of Settings, a row of the list of its own while the plugin is
 /// on: `plugin:notion`. Links into Settings land on it by this id (the Claude chat's "Add an API key").

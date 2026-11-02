@@ -31,6 +31,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../more/more_tools.dart' show moreToolOn, publishingTool;
 import '../../core/background_jobs.dart';
 import '../../core/library.dart' show NoteLibrary;
 import '../../core/native/core.dart' show CoreInvoke;
@@ -400,11 +401,13 @@ class GitBackup extends ChangeNotifier {
     _writeIfChanged('$root/.gitignore', gitignoreText(settings, orgs: orgs));
     _writeIfChanged('$root/README.txt', readmeText(madeBy: _who().name));
     writeGitConfig(root, settings, madeBy: _who().name);
-    // Publish as a website (publish.dart): the publisher vendored, the workflow, the site's config.
-    final publishing = settings.publish && isGitHubRemote(settings.remote);
+    // Publish as a website (publish.dart): the publisher vendored, the workflow, the site's config. Only where the
+    // Publishing plugin is on (docs/PM_PLUGINS.md §10); off, the repository has no website, as with its switch off.
+    final allowed = moreToolOn(publishingTool);
+    final publishing = allowed && settings.publish && isGitHubRemote(settings.remote);
     final bundle = publishing ? await _publishBundle() : null;
     final who = _who().name;
-    writePublishing(root, settings, bundle: bundle, title: who == 'Ghost.md' ? 'Notes' : '$who’s notes');
+    writePublishing(root, allowed ? settings : settings.copyWith(publish: false), bundle: bundle, title: who == 'Ghost.md' ? 'Notes' : '$who’s notes');
   }
 
   static void _writeIfChanged(String path, String text) {

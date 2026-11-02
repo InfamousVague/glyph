@@ -100,9 +100,20 @@ class _Shape {
 
 final Expando<_Shape> _shapes = Expando<_Shape>('code shape');
 
+/// The shapes read with the languages off: a fence's code is no language's.
+final Expando<_Shape> _plainShapes = Expando<_Shape>('plain code shape');
+
+/// Whether a fence's code is coloured by its language: on unless an editor says otherwise. The Diagrams and math
+/// plugin's (lib/plugins/diagrams; docs/PM_PLUGINS.md §10): off, a ```dart block is drawn as a block with no language
+/// is, in the code's one ink, and HTML's tags are coloured as ever. The note's screen keeps it in the slot it
+/// reconfigures as the plugin is switched (lib/root/note_desk.dart).
+final Facet<bool, bool> codeLanguages = Facet.define<bool, bool>(combine: (values) => values.every((value) => value));
+
 _Shape _shapeOf(EditorState state, SyntaxNode node) {
   final tree = node.tree;
-  final kept = _shapes[tree];
+  final languages = state.facet(codeLanguages);
+  final shapes = languages ? _shapes : _plainShapes;
+  final kept = shapes[tree];
   if (kept != null) return kept;
   final ranges = <int>[];
   final _Shape shape;
@@ -123,7 +134,7 @@ _Shape _shapeOf(EditorState state, SyntaxNode node) {
         info = state.doc.sliceString(node.from + at, node.from + at + child.length);
       }
     }
-    final name = info == null ? null : languageNameOf(info);
+    final name = info == null || !languages ? null : languageNameOf(info);
     shape = _Shape(ranges, name == null ? null : languageNamed(name), name != null);
   } else {
     // `leftOverSpace`: the node, less the nodes inside it (a quote's marks down the side of an HTML block).
@@ -144,7 +155,7 @@ _Shape _shapeOf(EditorState state, SyntaxNode node) {
     }
     shape = _Shape(ranges, htmlInMarkdown, true);
   }
-  return _shapes[tree] = shape;
+  return shapes[tree] = shape;
 }
 
 /// Whether a node's own words are another language's, so that the note's highlighter gives them no class of its
@@ -200,6 +211,11 @@ bool _sameRanges(List<int> a, List<int> b) {
 
 final Expando<_Block> _blocks = Expando<_Block>('code block');
 
+/// The blocks read with the languages off ([codeLanguages]): HTML's alone.
+final Expando<_Block> _plainBlocks = Expando<_Block>('plain code block');
+
+Expando<_Block> _blocksOf(EditorState state) => state.facet(codeLanguages) ? _blocks : _plainBlocks;
+
 /// The HTML read lately, by its words: a tag in a line is a few letters, and the same few in line after line.
 final Map<String, CodeWork> _htmlRead = <String, CodeWork>{};
 
@@ -229,7 +245,10 @@ class _CodeHighlighter extends PluginValue {
   void update(ViewUpdate update) {
     final more = update.transactions.any((tr) => tr.effects.any((effect) => effect.isOf(_moreRead)));
     final treeMoved = !identical(syntaxTreeOrNull(update.state), syntaxTreeOrNull(update.startState));
-    if (!treeMoved && !update.viewportChanged && !more) return;
+    // The languages switched (the Diagrams and math plugin): every block on screen read again, none kept.
+    final switched = update.state.facet(codeLanguages) != update.startState.facet(codeLanguages);
+    if (switched) _shown = const <_Drawn>[];
+    if (!treeMoved && !update.viewportChanged && !more && !switched) return;
     decorations = _build(update.docChanged ? update.changes : null);
   }
 
@@ -365,7 +384,8 @@ class _CodeHighlighter extends PluginValue {
 
   /// What is read of the fence or the HTML at `node`, reading it if it is new; null where no language reads it.
   _Block? _blockFor(EditorState state, SyntaxNode node, ChangeDesc? changes) {
-    final kept = _blocks[node.tree];
+    final blocks = _blocksOf(state);
+    final kept = blocks[node.tree];
     if (kept != null) return kept;
     final shape = _shapeOf(state, node);
     final language = shape.language;
@@ -395,13 +415,13 @@ class _CodeHighlighter extends PluginValue {
           work = language.resume(drawn.block.work, code);
           // The note's parser read this stretch again and found the same block (a letter typed in the line
           // above it): the block that was drawn is this one still, with the runs it has.
-          if (identical(work, drawn.block.work) && _sameRanges(drawn.block.shape.ranges, ranges)) return _blocks[node.tree] = drawn.block;
+          if (identical(work, drawn.block.work) && _sameRanges(drawn.block.shape.ranges, ranges)) return blocks[node.tree] = drawn.block;
           break;
         }
       }
       work ??= language.start(code);
     }
-    return _blocks[node.tree] = _Block(shape, code, work);
+    return blocks[node.tree] = _Block(shape, code, work);
   }
 
   /// Reads `block`, which starts at `at` in the note, as far as the screen (`from` to `to`) shows it, and works
