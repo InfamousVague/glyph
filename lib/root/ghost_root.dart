@@ -221,6 +221,11 @@ import '../perf/frame_log.dart';
 import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarOn;
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
+import '../plugins/contradictions/contradictions.dart' show ContradictionsNotice, contradictionOpenNote, contradictionRunner;
+import '../plugins/contradictions/manifest.dart' as contradictions show manifest;
+import '../ai/contradictions/ai.dart' show appContradictionAi;
+import '../ai/contradictions/findings.dart' show DiskFindingsFile;
+import '../ai/contradictions/runner.dart' show ContradictionRunner;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../activity/activity_chime.dart' show startActivityChime;
@@ -317,6 +322,7 @@ part 'root_tickets.dart';
 part 'root_voice.dart';
 part 'root_ticket_rules.dart';
 part 'root_git_backup.dart';
+part 'root_contradictions.dart';
 part 'root_teamspaces.dart';
 part 'root_ask.dart';
 part 'root_indexes.dart';
@@ -818,6 +824,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// The ticket features' wiring (root_ticket_rules.dart): the rules, the timers, the pull requests.
   late final _RootTicketRules _ticketsWired = _RootTicketRules(this);
   late final _RootGitBackup _gitWired = _RootGitBackup(this);
+  late final _RootContradictions _contradictionsWired = _RootContradictions(this);
 
   /// Cleanup's service (lib/plugins/cleanup): made once the library is read.
   CleanupService? _cleanup;
@@ -2057,6 +2064,7 @@ class _GhostRootState extends State<GhostRoot> {
     _webhooksLife?.dispose();
     _ticketsWired.dispose();
     _gitWired.dispose();
+    _contradictionsWired.dispose();
     if (identical(CleanupService.current, _cleanup)) CleanupService.current = null;
     _cleanup?.dispose();
     webhooks.stop();
@@ -2201,6 +2209,8 @@ class _GhostRootState extends State<GhostRoot> {
     _ticketsWired.start();
     // The git backup (root_git_backup.dart; Matt, 2026-10-31): the library's changes committed and pushed.
     unawaited(_gitWired.start());
+    // The contradiction finder (root_contradictions.dart; Matt, 2026-11-02): older lines a newer note changes, marked.
+    unawaited(_contradictionsWired.start());
     // Cleanup (lib/plugins/cleanup, docs/CLEANUP.md; Matt, 2026-11-02): a folder's notes sorted and tidied by the AI
     // the person chooses, through the library, the folders and the Trash the app already uses.
     CleanupService.current = _cleanup = CleanupService(

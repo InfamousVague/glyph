@@ -35,13 +35,16 @@ import '../view/line.dart' show EditorRunScope;
 
 /// A word offered on a line (`LineSuggestion`).
 class LineSuggestion {
-  const LineSuggestion({required this.line, required this.label, required this.busyLabel, required this.run});
+  const LineSuggestion({required this.line, required this.label, required this.busyLabel, required this.run, this.open});
 
   /// 1-based line.
   final int line;
   final String label;
   final String busyLabel;
   final Future<void> Function() run;
+
+  /// What a press does in place of [run] where the word opens something in the word's own [BuildContext]: a sheet.
+  final Future<void> Function(BuildContext context)? open;
 }
 
 /// A line's suggestion started or finished running.
@@ -53,7 +56,7 @@ class SuggestWidget extends EditorWidget {
 
   final String label;
   final bool busy;
-  final VoidCallback press;
+  final void Function(BuildContext context) press;
 
   /// Told as a finger goes down on it, so the pill is not taken away before the tap finishes.
   final VoidCallback held;
@@ -133,7 +136,7 @@ class _SuggestWordState extends State<SuggestWord> with SingleTickerProviderStat
       button: true,
       enabled: !word.busy,
       label: word.label,
-      onTap: word.busy ? null : word.press,
+      onTap: word.busy ? null : () => word.press(context),
       child: ExcludeSemantics(
         child: InlineRaise(
           by: size * 0.15,
@@ -148,7 +151,7 @@ class _SuggestWordState extends State<SuggestWord> with SingleTickerProviderStat
                 onTapDown: word.busy ? null : (_) => setState(() => _pressed = true),
                 onTapCancel: word.busy ? null : () => setState(() => _pressed = false),
                 onTapUp: word.busy ? null : (_) => setState(() => _pressed = false),
-                onTap: word.busy ? null : word.press,
+                onTap: word.busy ? null : () => word.press(context),
                 // '@keyframes cm-suggest-in': { from: { opacity: '0', transform: 'translateX(-2px)' } }
                 child: AnimatedBuilder(
                   animation: _enter,
@@ -250,7 +253,7 @@ class _Suggestions extends PluginValue {
       if (suggestion.line < 1 || suggestion.line > doc.lines || (suggestion.line == caret && !held)) continue;
       final line = doc.line(suggestion.line);
       final busy = _busy.contains(suggestion.line);
-      final widget = SuggestWidget(busy ? suggestion.busyLabel : suggestion.label, busy, () => _press(suggestion), () => _held = suggestion.line, () {
+      final widget = SuggestWidget(busy ? suggestion.busyLabel : suggestion.label, busy, (context) => _press(suggestion, context), () => _held = suggestion.line, () {
         if (_held == suggestion.line) _held = null;
       });
       marks.add(Decoration.widget(widget: widget, side: 1).range(line.to));
@@ -258,12 +261,12 @@ class _Suggestions extends PluginValue {
     return Decoration.set(marks, true);
   }
 
-  void _press(LineSuggestion suggestion) {
+  void _press(LineSuggestion suggestion, BuildContext context) {
     if (_busy.contains(suggestion.line) || _gone) return;
     _busy.add(suggestion.line);
     view.dispatch(TransactionSpec(effects: _busyChanged.of((line: suggestion.line, busy: true))));
     unawaited(
-      Future<void>.sync(suggestion.run).catchError((Object _) {}).whenComplete(() {
+      Future<void>.sync(suggestion.open == null ? suggestion.run : () => suggestion.open!(context)).catchError((Object _) {}).whenComplete(() {
         _busy.remove(suggestion.line);
         // The view may be gone by the time a slow send answers.
         if (!_gone) view.dispatch(TransactionSpec(effects: _busyChanged.of((line: suggestion.line, busy: false))));

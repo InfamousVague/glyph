@@ -199,6 +199,52 @@
       "link": "ghostmd://market/plugin/cleanup"
     },
     {
+      "id": "contradictions",
+      "name": "Contradiction finder",
+      "line": "Flags old notes a newer one contradicts",
+      "description": "Notices when a newer note disagrees with an older one (“release is Thursday” in a plan, “release moved to Monday” in a later meeting) and marks the older line as possibly out of date, so old notes stop misleading you or the AI. Checked in the background by whichever AI you have connected, or the model on this device with Local only.",
+      "category": "ai",
+      "icon": "replace",
+      "mark": null,
+      "hue": "slate",
+      "colours": [
+        "#4a5a70",
+        "#8fa3bf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A quiet “Out of date?” at the end of a line a newer note contradicts, with what the newer note says",
+        "Mark superseded, which writes a “> Superseded by [[Newer note]]” line under it",
+        "Not a conflict, remembered so it never comes back",
+        "A list of what may be out of date on its page, and a line on the home page"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads your notes to find pairs that talk about the same thing, and writes a “Superseded by” line under a stale one when you press Mark superseded.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "ai",
+          "label": "The model on your phone",
+          "why": "Asks the AI you have connected (or the model on this device) whether the newer of two notes changes what the older one says. Only the lines with dates, numbers and shared names go.",
+          "icon": "sparkles"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/contradictions"
+    },
+    {
       "id": "custom-ai",
       "name": "Custom AI model",
       "line": "Any OpenAI-compatible endpoint, by its address",
@@ -4264,6 +4310,15 @@
     ],
     "puzzle": [
       "M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"
+    ],
+    "replace": [
+      "M14 4a1 1 0 0 1 1-1",
+      "M15 10a1 1 0 0 1-1-1",
+      "M21 4a1 1 0 0 0-1-1",
+      "M21 9a1 1 0 0 1-1 1",
+      "m3 7 3 3 3-3",
+      "M6 10V5a2 2 0 0 1 2-2h2",
+      "M4 14H9A1 1 0 0 1 10 15V20A1 1 0 0 1 9 21H4A1 1 0 0 1 3 20V15A1 1 0 0 1 4 14Z"
     ],
     "search": [
       "m21 21-4.34-4.34",

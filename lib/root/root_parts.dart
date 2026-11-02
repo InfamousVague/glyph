@@ -1382,6 +1382,8 @@ extension _RootParts on _GhostRootState {
       if (model != null && _voiceModelLine != null)
         ListenableBuilder(listenable: model, builder: (context, _) => notices.VoiceModelStatus(state: _voiceModelState(model), onRetry: model.retry)),
       if (_bannerShown) _bannerNotice(),
+      // What may be out of date (lib/plugins/contradictions/; Matt, 2026-11-02): a quiet line while anything is.
+      ?_contradictionsWired.notice(),
     ];
   }
 

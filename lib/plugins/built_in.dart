@@ -31,6 +31,7 @@ import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'cleanup/cleanup.dart' show cleanupPlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
+import 'contradictions/contradictions.dart' show contradictionsPlugin;
 import 'custom_ai/custom_ai.dart' show customAiPlugin;
 import 'discord/discord.dart' show discordPlugin;
 import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
@@ -105,6 +106,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-11-02: "Also add a figma plugin": a Figma frame's link drawn as the frame itself, with the person's own
   // token, off until added (figma/figma.dart).
   figmaPlugin,
+  // Matt, 2026-11-02, from a list of AI ideas: "Contradiction finder: spots when a newer note disagrees with an older
+  // one … and flags the stale one inline, 'superseded by …'": off until added (contradictions/, docs/CONTRADICTIONS.md).
+  contradictionsPlugin,
   // Matt, 2026-11-02: "spawn a task making a 'cleanup' plugin that allows us to use whatever AI we choose that's
   // connected to clean up and sort the notes in a given folder": a folder's notes sorted, retitled, merged and tidied
   // by the AI the person chooses, reviewed before anything changes, off until added (cleanup/cleanup.dart,
