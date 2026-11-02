@@ -5,6 +5,7 @@
 // (behind More in simple mode), and a member's page from the strip with their open tickets, owned pages and edits.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glacier/glacier.dart' show GlacierSwitch;
 import 'package:ghost_md/book/book_view.dart' show BookWords;
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/page_tree.dart' show DocsMode;
@@ -14,6 +15,10 @@ import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/orgs/ui/member_page.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/orgs/ui/teamspace_home.dart';
+import 'package:ghost_md/plugins/projects/suite.dart';
+import 'package:ghost_md/plugins/projects/tool_chip.dart' show ToolBanner;
+import 'package:ghost_md/plugins/projects/tool_switches.dart';
+import 'package:ghost_md/core/stored.dart' show MemoryStored;
 
 import 'support.dart';
 
@@ -159,5 +164,74 @@ void main() {
     await press(tester, MemberPage.rowKey('owned', 'd1'));
     expect(opened, ['t1', 'd1']);
     await endSettings(tester);
+  });
+
+  group('the team’s tools (docs/PM_PLUGINS.md)', () {
+    /// A suite whose organization [id] lists [listed] and whose notes use [used]; what it writes is kept in [written].
+    ProjectSuite suiteFor(String id, Set<String> listed, Set<String> used, List<Set<String>> written) {
+      var now = listed;
+      return ProjectSuite(
+        orgOfNote: (_) => id,
+        listOf: (org) => org == id ? now : null,
+        orgIds: () => [id],
+        orgName: (_) => 'Ghost',
+        usedIn: (org) => org == id ? used : const {},
+        writeOrg: (org, tools) async {
+          written.add(tools);
+          now = tools;
+          return true;
+        },
+        stored: MemoryStored(),
+      );
+    }
+
+    setUp(() => ProjectSuite.debugAllOn = false);
+    tearDown(() {
+      ProjectSuite.debugAllOn = true;
+      useProjectSuite(ProjectSuite());
+    });
+
+    testWidgets('a banner over the home names what the notes use and the team has not turned on, and turns it on', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      final written = <Set<String>>[];
+      useProjectSuite(suiteFor(id, const {'gantt'}, const {'gantt', 'forms'}, written));
+      await page(tester, device, id, notes: [at('home', 'orgs/Ghost/Home.md', homeBody)]);
+      final banner = tester.widget<ToolBanner>(find.byKey(TeamspaceHome.toolBannerKey));
+      expect(banner.tools, ['tickets', 'forms'], reason: 'Forms brings Tickets');
+      expect(banner.orgName, 'Ghost');
+      await press(tester, const ValueKey('tool-banner-turn-on'));
+      expect(written, [
+        {'tickets', 'gantt', 'forms'},
+      ]);
+      expect(find.byKey(TeamspaceHome.toolBannerKey), findsNothing);
+      await endSettings(tester);
+    });
+
+    testWidgets('Tools lists the suite with a switch each; Tickets off first says what goes with it', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      final written = <Set<String>>[];
+      useProjectSuite(suiteFor(id, const {'tickets', 'planning'}, const {}, written));
+      await page(tester, device, id, notes: [at('home', 'orgs/Ghost/Home.md', homeBody)]);
+      expect(find.byKey(TeamspaceHome.toolsKey), findsOneWidget);
+      for (final tool in projectTools) {
+        expect(find.byKey(ToolSwitches.rowKey(tool)), findsOneWidget, reason: tool);
+      }
+      // Boards on: written with what was there.
+      await bringIntoView(tester, find.byKey(ToolSwitches.rowKey('boards')));
+      await tester.tap(find.descendant(of: find.byKey(ToolSwitches.rowKey('boards')), matching: find.byType(GlacierSwitch)));
+      await settle(tester);
+      expect(written.last, {'tickets', 'planning', 'boards'});
+      // Tickets off: the warning names Planning, and Turn off takes both.
+      await tester.tap(find.descendant(of: find.byKey(ToolSwitches.rowKey('tickets')), matching: find.byType(GlacierSwitch)));
+      await settle(tester);
+      expect(find.byKey(ToolSwitches.warningKey), findsOneWidget);
+      expect(find.textContaining('Planning needs Tickets'), findsOneWidget);
+      expect(written, hasLength(1), reason: 'nothing is written until Turn off');
+      await press(tester, const ValueKey('tool-switch-turn-off'));
+      expect(written.last, {'boards'});
+      await endSettings(tester);
+    });
   });
 }

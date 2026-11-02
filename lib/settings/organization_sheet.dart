@@ -19,6 +19,8 @@ import 'invite_links.dart';
 import 'kit/settings_kit.dart';
 import 'panes/pane_parts.dart';
 import 'settings_screen.dart';
+import '../plugins/projects/suite.dart' show projectSuite;
+import '../plugins/projects/tool_switches.dart' show ToolSwitches;
 
 /// How long a leave, a delete or a hand-over stays armed after its first tap, as a reset does (`ARMED_MS`).
 const Duration organizationArmedFor = armedFor;
@@ -285,6 +287,26 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
           ],
         ),
       ),
+      // The team's project tools (docs/PM_PLUGINS.md; Matt, 2026-11-01): a switch each, kept in its Home.md's
+      // `plugins:`, so every member has the same. Where this device can write that page.
+      if (projectSuite.canTurnOn(orgId: orgId))
+        SettingsSection(
+          id: 'tools',
+          label: 'Tools',
+          icon: const AppIcon(Lucide.puzzle, size: 16),
+          hue: 'mint',
+          group: 1,
+          summary: switch (projectSuite.onIn(orgId: orgId).length) { 0 => 'None on', 1 => '1 on', final n => '$n on' },
+          content: (context) => PaneBody(
+            children: [
+              PaneSection(
+                title: 'For the whole team',
+                footer: const Text('Kept in the space’s Home page, so every member has the same tools. A note that uses one that is off shows its markdown as plain text, with a chip to turn it on.'),
+                children: [ToolSwitches(orgId: orgId, canEdit: row?.state == 'member')],
+              ),
+            ],
+          ),
+        ),
       SettingsSection(
         id: 'notifications',
         label: 'Notifications',

@@ -17,6 +17,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
+import '../core/project_tools.dart' show projectTools;
 import '../art/brand_marks.dart';
 import '../art/lucide.g.dart';
 import 'types.dart';
@@ -46,7 +47,7 @@ const Map<String, String> pluginsWithoutMark = {
 };
 
 /// The app's own plugins, by id: no company's product, so each keeps its glyph.
-const Set<String> ownPlugins = {'marks', 'place-reminders', 'webhooks', 'contacts', 'rich-embeds', 'custom-ai', 'keyboard-modes', 'git-backup'};
+const Set<String> ownPlugins = {'marks', 'place-reminders', 'webhooks', 'contacts', 'rich-embeds', 'custom-ai', 'keyboard-modes', 'git-backup', ...projectTools};
 
 /// The plugins whose mark is drawn in white on their own colour and nowhere else (Matt, 2026-10-29: "set the Google
 /// meets to use Google meets logo in white but show a generic meetings icon for the meetings page"): Google Meet's on
