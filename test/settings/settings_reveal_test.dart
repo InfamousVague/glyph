@@ -59,13 +59,14 @@ void main() {
   setUpAll(loadAppFonts);
 
   group('a setting looked for by name', () {
-    testWidgets('behind Simple’s More on Appearance: More opens in place, and the row is lit', (tester) async {
+    // The typewriter scroll under focus mode was Appearance's row behind Simple's More until both went from Settings
+    // on 2026-11-01; the volume on Sounds is such a row.
+    testWidgets('behind Simple’s More on Sounds, the volume: More opens in place, and the row is lit', (tester) async {
       final settings = _Settings();
       await settings.pump(tester);
-      await settings.go(tester, 'theme', 'Typewriter scroll');
-      expect(display(tester), 'Appearance');
-      expect(rowLabels(tester, 'Focus'), ['Focus mode', 'Typewriter scroll'], reason: 'More opened in place');
-      expect(_lit(tester, 'Typewriter scroll'), isTrue);
+      await settings.go(tester, 'sounds', 'Volume');
+      expect(find.byKey(const ValueKey('sounds-more'), skipOffstage: false), findsNothing, reason: 'More opened in place');
+      expect(_lit(tester, 'Volume'), isTrue);
       await settleSettings(tester);
       await endSettings(tester);
     });
@@ -87,7 +88,7 @@ void main() {
       final settings = _Settings();
       await settings.pump(tester);
       await settings.go(tester, 'theme', 'Text size');
-      expect(rowLabels(tester, 'Focus'), ['Focus mode', 'More']);
+      expect(find.byKey(const ValueKey('dock-more'), skipOffstage: false), findsOneWidget);
       expect(_lit(tester, 'Text size'), isTrue);
       await settleSettings(tester);
       await endSettings(tester);

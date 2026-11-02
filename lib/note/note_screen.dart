@@ -1917,7 +1917,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       meHue: null,
       // Focus mode's typewriter (lib/editor/focus/focus_mode.dart) keeps the caret's line in the middle of the page,
       // the last line's too: half a page under it to come up into, where the page has less.
-      contentBottom: seams.focusMode && prefs.focusMode && prefs.focusTypewriter && !widget.readOnly ? math.max(LookEnv.roomUnder(t), MediaQuery.sizeOf(context).height / 2) : null,
+      contentBottom: seams.focusMode && prefs.focusMode && !widget.readOnly ? math.max(LookEnv.roomUnder(t), MediaQuery.sizeOf(context).height / 2) : null,
       // Behind a canvas, a journal or an index the editor is kept and not drawn: its words are not read there.
       shown: _words,
       extensions: _ownExtensions,

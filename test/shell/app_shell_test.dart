@@ -35,7 +35,6 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(390, 844),
     TopBarStyle topBar = TopBarStyle.classic,
-    SidebarStyle sidebarStyle = SidebarStyle.popover,
     List<String> open = const [],
     TabGroups groups = TabGroups.none,
     bool? mobile,
@@ -59,7 +58,6 @@ void main() {
         notes: library,
         workspaces: spaces,
         topBar: topBar,
-        sidebarStyle: sidebarStyle,
         sidebarShown: sidebarShown,
         openNotes: open,
         tabGroups: groups,
@@ -435,9 +433,9 @@ void main() {
     });
 
     // Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple but just hide it by default".
-    for (final style in SidebarStyle.values) {
-      testWidgets('docks the notes in simple mode\'s column beside the note with ${style.name} chosen, hidden under a finger and a mouse until asked for', (tester) async {
-        final app = await shell(tester, size: const Size(840, 900), sidebarStyle: style);
+    {
+      testWidgets('docks the notes in simple mode\'s column beside the note, hidden under a finger and a mouse until asked for', (tester) async {
+        final app = await shell(tester, size: const Size(840, 900));
         expect(find.byType(PanePlaceholder), findsNothing);
         expect(find.bySemanticsLabel('Your notes'), findsNothing);
         await tester.tap(find.bySemanticsLabel('All your notes'));
@@ -457,12 +455,12 @@ void main() {
         expect(kept, ['sidebar true', 'sidebar false']);
         await away(tester);
         // Under a mouse it starts hidden too, and opens at its widest.
-        await shell(tester, size: const Size(1280, 800), sidebarStyle: style, mobile: false, fine: true);
+        await shell(tester, size: const Size(1280, 800), mobile: false, fine: true);
         expect(find.bySemanticsLabel('Your notes'), findsNothing);
         expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(0, 0, 1280, 800));
         await away(tester);
         // As the device left it, once it has been toggled.
-        await shell(tester, size: const Size(1280, 800), sidebarStyle: style, mobile: false, fine: true, sidebarShown: true);
+        await shell(tester, size: const Size(1280, 800), mobile: false, fine: true, sidebarShown: true);
         expect(tester.getRect(find.bySemanticsLabel('Your notes')), const Rect.fromLTWH(0, 0, 360, 800));
         expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(360, 0, 920, 800));
         await away(tester);
@@ -492,8 +490,8 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('keeps a narrow window\'s card, whichever style is chosen', (tester) async {
-      final app = await shell(tester, size: const Size(600, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true);
+    testWidgets('keeps a narrow window\'s card', (tester) async {
+      final app = await shell(tester, size: const Size(600, 800), mobile: false, fine: true);
       await tester.tap(find.bySemanticsLabel('All your notes'));
       await settle(tester);
       expect(app.drawerOpen, isTrue);
@@ -502,24 +500,14 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('gives the aside a third column beside a docked sidebar, and a toggle only when it has something to hold', (tester) async {
-      final app = await shell(tester, size: const Size(1280, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
-      expect(find.bySemanticsLabel('Side panel'), findsNothing);
-      app.openNote('weekend');
-      await settle(tester);
-      expect(find.text('History'), findsNothing);
-      await pressInBar(tester, 'aside', label: 'Side panel');
-      await settle(tester);
-      // `clamp(240px, 22vw, 320px)` at the far side.
-      final aside = tester.getRect(find.bySemanticsLabel('Side panel').first);
-      expect(aside.right, 1280);
-      expect(aside.width, closeTo(281.6, 0.01));
-      expect(tester.getRect(find.byType(NotePlaceholder)).width, closeTo(1280 - 360 - 281.6, 0.01));
-      await away(tester);
-      // Popover chosen, the sidebar is the same column and the aside a card over the note, as it was.
+    // The aside was a third column with Settings › Appearance › Sidebar's Docked chosen until the choice went on
+    // 2026-11-01 (Matt: "we currently have too many appearance settings"): a card over the note on every window.
+    testWidgets('gives the aside a card over the note beside the sidebar\'s column, and a toggle only when it has something to hold', (tester) async {
       final card = await shell(tester, size: const Size(1280, 800), mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
+      expect(tester.widget<NoteTabs>(find.byType(NoteTabs)).onAside, isNull, reason: 'nothing to hold at home');
       card.openNote('weekend');
       await settle(tester);
+      expect(find.text('History'), findsNothing);
       await pressInBar(tester, 'aside', label: 'Side panel');
       await settle(tester);
       expect(find.text('History'), findsOneWidget);

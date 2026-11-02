@@ -147,9 +147,6 @@ void main() {
       expect(simpleListColumn(704), 300);
       expect(simpleListColumn(1280), 360);
       expect(simpleListColumn(800), closeTo(336, 1e-9));
-      expect(asideColumn(840), 240);
-      expect(asideColumn(1280), closeTo(281.6, 1e-9));
-      expect(asideColumn(2000), 320);
       // Matt, 2026-10-24: "just hide it by default".
       expect(sidebarShownAtFirst, isFalse);
       expect(wideScreen(const Size(600, 800)), isTrue);

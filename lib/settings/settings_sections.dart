@@ -418,7 +418,7 @@ final List<SettingsSectionSpec> _sections = [
     // The mode first, as the page has it, then the looks.
     summary: (facts) => '${experienceSummary(facts.prefs)} · ${appearanceSummary(facts.prefs)}',
     // In Simple the page is the mode, the theme and the text size alone, and so is what the search finds on it.
-    settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics, simple: facts.simple),
+    settings: (facts) => appearanceFindable(haptics: facts.haptics, simple: facts.simple),
     pane: (context) => const AppearancePane(),
   ),
   // What the app sounds like (Matt, 2026-10-27: "build ... the sounds settings"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md):

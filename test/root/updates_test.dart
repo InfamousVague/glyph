@@ -389,12 +389,12 @@ void main() {
       updates.dispose();
     });
 
-    testWidgets('no window carries a card for it, the sidebar nor home, whichever style is chosen', (tester) async {
-      Future<Updates> shown(Size size, String style, {bool docked = false}) async {
+    testWidgets('no window carries a card for it, the sidebar nor home', (tester) async {
+      Future<Updates> shown(Size size, {bool docked = false}) async {
         final updates = make();
         final local = MemoryStored();
         if (docked) writeSidebarShown(true, local);
-        await open(tester, updates, size: size, prefs: Preferences(theme: 'light', sidebarStyle: style), local: local);
+        await open(tester, updates, size: size, prefs: const Preferences(theme: 'light'), local: local);
         await tester.pump(const Duration(seconds: 4));
         await tester.pump(const Duration(milliseconds: 500));
         if (!docked) {
@@ -407,8 +407,8 @@ void main() {
         return updates;
       }
 
-      for (final style in ['docked', 'popover']) {
-        final updates = await shown(const Size(704, 933), style, docked: true);
+      {
+        final updates = await shown(const Size(704, 933), docked: true);
         expect(updates.offer.badge, isTrue);
         expect(tester.widget<SimpleHome>(find.byType(SimpleHome)).notices, isEmpty);
         expect(find.textContaining('0.2.0'), findsNothing);
@@ -417,7 +417,7 @@ void main() {
         updates.dispose();
       }
 
-      final updates = await shown(const Size(390, 844), 'popover');
+      final updates = await shown(const Size(390, 844));
       expect(tester.widget<NotesDrawer>(find.byType(NotesDrawer)).notices, isEmpty);
       expect(find.textContaining('0.2.0'), findsNothing);
       expect(badge(), findsOneWidget);

@@ -145,12 +145,12 @@ void main() {
     expect(service.calls, ['GET prefs', 'GET prefs']);
 
     // One setting changed here, of a kind that has nothing to do with the rest: the whole blob goes again.
-    device.store.update((now) => now.copyWith(assist: false));
+    device.store.update((now) => now.copyWith(canvasSnap: false));
     expect(await device.sync(), isFalse);
     expect(service.calls.last, 'PUT prefs');
     final sent = await held(service);
     // Every key the account held is there, in the account's own words, but for the one this device changed.
-    expect(jsonEncode(sent), jsonEncode({...blob, 'assist': false}));
+    expect(jsonEncode(sent), jsonEncode({...blob, 'canvasSnap': false}));
   });
 
   test('a setting changed here keeps the fields beside it that this build does not model', () async {

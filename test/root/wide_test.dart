@@ -28,8 +28,8 @@ import '../support/header_bar.dart';
 import '../support/render.dart';
 
 /// Stage 10's wide layouts in the app put together (lib/root), at the Fold's unfolded size (704 x 933 at 2.625):
-/// the aside beside a notebook's page, as a card and docked; the docked sidebar; what is kept to the device; and a
-/// phone folded shut and open again with a note on screen.
+/// the aside beside a notebook's page, a card; the docked sidebar; what is kept to the device; and a phone folded shut
+/// and open again with a note on screen.
 void main() {
   setUpAll(() async {
     await loadAppFonts();
@@ -39,13 +39,13 @@ void main() {
   const unfolded = Size(704, 933);
   const cover = Size(475, 751);
 
-  Future<SampleLibrary> open(WidgetTester tester, {Size size = unfolded, String sidebar = 'popover', Stored? stored}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {Size size = unfolded, Stored? stored}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
       size: size,
       ratio: 2.625,
-      prefs: Preferences(theme: 'dark', sidebarStyle: sidebar),
+      prefs: const Preferences(theme: 'dark'),
       home: GhostRoot(launch: false, library: library, stored: stored ?? MemoryStored(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow),
     );
     await tester.pump(const Duration(milliseconds: 100));
@@ -171,18 +171,19 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('docked, the sidebar and the aside are columns beside the note, shown as the device left them', (tester) async {
+  // The aside was a column too with Settings › Appearance › Sidebar's Docked chosen, until the choice went on 2026-11-01
+  // (Matt: "we currently have too many appearance settings"): it is the card over the note on every window.
+  testWidgets('the sidebar is a column beside the note and the aside a card over it, shown as the device left them', (tester) async {
     final local = MemoryStored();
     writeSidebarShown(true, local);
     writeAsideShown(true, local);
-    final library = await open(tester, sidebar: 'docked', stored: local);
+    final library = await open(tester, stored: local);
     // Simple mode's list (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple"), 300 wide on
     // the Fold, with the home page in the rest.
     expect(tester.getSize(find.bySemanticsLabel('Your notes').first).width, 300);
     expect(find.byType(SimpleHome), findsOneWidget);
     expect(find.byType(NoteTree), findsNothing);
-    // A notebook's page, 164px wide between the two: its bar and its foot are cut by the pane, as the page's
-    // are, and nothing gives up.
+    // A notebook's page, beside the column with the aside's card over it: nothing gives up.
     final errors = <String>[];
     final was = FlutterError.onError;
     FlutterError.onError = (details) => errors.add(details.toString().split('\n').take(8).join('\n'));
@@ -190,23 +191,20 @@ void main() {
     await settle(tester);
     FlutterError.onError = was;
     expect(errors, isEmpty);
-    // `clamp(240px, 22vw, 320px)` at the right, and the note what is left between them.
-    final aside = tester.getRect(find.byType(AsidePanel));
-    expect(aside.width, closeTo(240, 1));
-    expect(aside.right, 704);
-    expect(find.byType(AsideCard), findsNothing);
-    expect(tester.getRect(find.byType(NoteScreen)).width, closeTo(704 - 300 - 240, 1));
+    // The aside a card over the note, and the note the rest of the window beside the column.
+    expect(find.byType(AsideCard), findsOneWidget);
+    expect(tester.getRect(find.byType(NoteScreen)).width, closeTo(704 - 300, 1));
     // The bar's icon hides the column, and the device remembers.
     await tester.tap(find.bySemanticsLabel('All your notes'));
     await settle(tester);
     expect(find.byType(SimpleHome), findsNothing);
     expect(readSidebarShown(local), isFalse);
-    expect(tester.getRect(find.byType(NoteScreen)).width, closeTo(704 - 240, 1));
+    expect(tester.getRect(find.byType(NoteScreen)).width, closeTo(704, 1));
     await close(tester);
   });
 
   testWidgets('a phone folded shut and opened again keeps the note it had: the same screen, its scroll and its tab', (tester) async {
-    final library = await open(tester, sidebar: 'docked');
+    final library = await open(tester);
     shellOf(tester).openNote(titled(library, 'Weekend trip').id);
     await settle(tester);
     final before = tester.state<NoteScreenState>(find.byType(NoteScreen));

@@ -43,13 +43,13 @@ void main() {
   const fold = Size(704, 933);
   const phone = Size(390, 844);
 
-  Future<SampleLibrary> open(WidgetTester tester, {required Size size, double ratio = 2, String sidebar = 'popover', String experience = 'advanced', Stored? stored}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {required Size size, double ratio = 2, String experience = 'advanced', Stored? stored}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
       size: size,
       ratio: ratio,
-      prefs: Preferences(theme: 'light', sidebarStyle: sidebar, experience: experience, experienceChosen: true),
+      prefs: Preferences(theme: 'light', experience: experience, experienceChosen: true),
       home: GhostRoot(launch: false, library: library, stored: stored ?? MemoryStored(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow),
     );
     if (size == mac) {
@@ -161,7 +161,7 @@ void main() {
     testWidgets('starts hidden once for whoever had the old tree open', (tester) async {
       onMac();
       final local = MemoryStored()..setItem('glyph-sidebar-shown', '1');
-      await open(tester, size: mac, sidebar: 'docked', stored: local);
+      await open(tester, size: mac, stored: local);
       expect(column(), findsNothing);
       expect(find.byType(NoteTree), findsNothing);
       await tester.tap(bar('All your notes'));
@@ -185,10 +185,11 @@ void main() {
   });
 
   group('on the Fold opened out', () {
-    for (final style in ['popover', 'docked']) {
-      testWidgets('is the same list, hidden until asked for, with $style chosen', (tester) async {
+    // Once with Popover or Docked chosen under Settings › Appearance › Sidebar, which went on 2026-11-01.
+    {
+      testWidgets('is the same list, hidden until asked for', (tester) async {
         final local = MemoryStored();
-        await open(tester, size: fold, ratio: 2.625, sidebar: style, stored: local);
+        await open(tester, size: fold, ratio: 2.625, stored: local);
         expect(column(), findsNothing);
         await tester.tap(bar('All your notes'));
         await settle(tester);

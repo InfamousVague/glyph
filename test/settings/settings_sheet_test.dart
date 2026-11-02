@@ -402,12 +402,12 @@ void main() {
       await settleSettings(tester);
       expect(tester.widget<Text>(display).data, 'Appearance');
       expect(_labels(tester), contains('Account'));
-      // The sidebar's choice is on Appearance here, and the search lists it.
-      expect(find.text('SIDEBAR', skipOffstage: false), findsOneWidget);
+      // The side panel's Popover or Docked was on Appearance here until it went on 2026-11-01; the dock's own card
+      // (lib/settings/dock_editor.dart) is what "dock" finds.
+      expect(find.text('SIDEBAR', skipOffstage: false), findsNothing);
       await tester.enterText(field, 'dock');
       await tester.pump();
-      // And the dock's own card (lib/settings/dock_editor.dart).
-      expect(_labels(tester), ['Sidebar', 'Dock']);
+      expect(_labels(tester), ['Dock']);
       await endSettings(tester);
     });
   });
@@ -452,7 +452,6 @@ void main() {
     expect(scaleWords.keys, uiScales);
     expect(codeLightWords.keys, codeThemesLight);
     expect(codeDarkWords.keys, codeThemesDark);
-    expect(sidebarWords.keys, sidebarStyles);
     // The kit's density stops are the preference's.
     expect([for (final mode in GlacierDensityMode.values) mode.token], densities);
   });

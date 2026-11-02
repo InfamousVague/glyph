@@ -91,7 +91,7 @@ void main() {
   group('the Appearance page', () {
     testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Focus', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch', 'Dock']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch', 'Dock']);
       await endSettings(tester);
     });
 
@@ -110,13 +110,12 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', (tester) async {
+    testWidgets('has no Touch where there is no motor', (tester) async {
       await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Focus', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
       expect(find.text('Haptics'), findsNothing);
-      expect(find.text('Sidebar'), findsNothing);
-      expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Haptics'))));
-      expect(appearanceFindable(wide: true, haptics: true).map((f) => f.name), containsAll(['Sidebar', 'Haptics']));
+      expect(appearanceFindable(haptics: false).map((f) => f.name), isNot(contains('Haptics')));
+      expect(appearanceFindable(haptics: true).map((f) => f.name), contains('Haptics'));
       await endSettings(tester);
     });
 
@@ -149,12 +148,20 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('offers the sidebar’s choice on a window wide enough for the sidebar, and writes it', (tester) async {
-      await _alone(tester, const AppearancePane(wide: true));
-      expect(_titles(tester), contains('Sidebar'));
-      await _tap(tester, find.text('Docked'));
-      expect(preferences.value.sidebarStyle, 'docked');
-      await endSettings(tester);
+    // Matt, 2026-11-01: "we currently have too many appearance settings". The side panel's Popover or Docked and focus
+    // mode's card went: the side panel is the card over the note, and focus mode is the note's ••• and the command
+    // bar's, its typewriter scroll always on with it.
+    testWidgets('has no Sidebar card and no Focus card, in either mode, and the search finds neither', (tester) async {
+      for (final prefs in const [Preferences(theme: 'light'), Preferences(theme: 'light', experience: 'simple', experienceChosen: true)]) {
+        await _open(tester, prefs: prefs);
+        expect(_titles(tester), isNot(anyOf(contains('Sidebar'), contains('Focus'))), reason: prefs.experience);
+        expect(find.text('Typewriter scroll'), findsNothing);
+        expect(find.text('Docked'), findsNothing);
+        await endSettings(tester);
+      }
+      for (final simple in [false, true]) {
+        expect(appearanceFindable(haptics: true, simple: simple).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Focus mode'), contains('Typewriter scroll'))));
+      }
     });
 
     testWidgets('writes each switch to what the app reads', (tester) async {
@@ -307,43 +314,8 @@ void main() {
       expect(_titles(tester), isNot(contains('Icons')));
       // The style chosen still draws Simple's page.
       expect(preferences.value.iconStyle, 'solid');
-      expect(appearanceFindable(wide: false, haptics: false, simple: true).map((f) => f.name), isNot(contains('Icons')));
-      expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), contains('Icons'));
-      await endSettings(tester);
-    });
-  });
-
-  group('focus mode (Matt, 2026-10-27: "build ... focus mode")', () {
-    Finder toggle(String row) => find.descendant(of: find.widgetWithText(SettingRow, row), matching: find.byType(GlacierSwitch));
-
-    testWidgets('is a switch with its typewriter under it, each written to what the editor reads', (tester) async {
-      await _open(tester);
-      expect(_labels(tester, 'Focus'), ['Focus mode', 'Typewriter scroll']);
-      // The typewriter is focus mode's own half: off and not to be pressed while focus mode is off.
-      expect(tester.widget<GlacierSwitch>(toggle('Typewriter scroll')).checked, isFalse);
-      expect(tester.widget<GlacierSwitch>(toggle('Typewriter scroll')).disabled, isTrue);
-      await tester.ensureVisible(toggle('Focus mode'));
-      await _tap(tester, toggle('Focus mode'));
-      expect(preferences.value.focusMode, isTrue);
-      expect(tester.widget<GlacierSwitch>(toggle('Typewriter scroll')).checked, isTrue);
-      await _tap(tester, toggle('Typewriter scroll'));
-      expect(preferences.value.focusTypewriter, isFalse);
-      expect(preferences.value.focusMode, isTrue);
-      await endSettings(tester);
-    });
-
-    testWidgets('in Simple is the switch, with the typewriter behind More, opened in place; and search finds it', (tester) async {
-      await _open(tester, prefs: const Preferences(theme: 'light', experience: 'simple', experienceChosen: true));
-      expect(_titles(tester), contains('Focus'));
-      expect(_labels(tester, 'Focus'), ['Focus mode', 'More']);
-      // Focus's More is the first Show on Simple's page: the dock's own More comes after it.
-      await tester.ensureVisible(find.text('Show').first);
-      await _tap(tester, find.text('Show').first);
-      expect(_labels(tester, 'Focus'), ['Focus mode', 'Typewriter scroll']);
-      final simple = appearanceFindable(wide: false, haptics: false, simple: true);
-      expect(simple.map((f) => f.name), contains('Focus mode'));
-      expect(simple.firstWhere((f) => f.name == 'Focus mode').words, contains('typewriter'));
-      expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), containsAll(['Focus mode', 'Typewriter scroll']));
+      expect(appearanceFindable(haptics: false, simple: true).map((f) => f.name), isNot(contains('Icons')));
+      expect(appearanceFindable(haptics: false).map((f) => f.name), contains('Icons'));
       await endSettings(tester);
     });
   });
@@ -622,17 +594,15 @@ void main() {
       // The icons' style (Matt, 2026-10-27), a card of the port's own after Type: one card and the web's gap between
       // cards (17.84) further down for every card under it.
       const gap = 3646.19 - (2274.83 + 1353.52);
-      // Focus mode's card (Matt, 2026-10-27: "build ... focus mode"), the port's own too, between Type and the icons.
-      final focus = card('Focus');
-      expect(focus.top, closeTo(card('Type').bottom + gap, 3.5));
+      // Focus mode's card stood between Type and the icons from 2026-10-27 to 2026-11-01.
       final icons = card('Icons');
-      expect(icons.top, closeTo(focus.bottom + gap, 3.5));
+      expect(icons.top, closeTo(card('Type').bottom + gap, 3.5));
       const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion'];
       for (final entry in web.entries) {
         final rect = card(entry.key);
         final at = order.indexOf(entry.key);
         final grown = entry.key == 'Page' ? market.page : entry.key == 'Type' ? market.type : 0.0;
-        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type + focus.height + gap + icons.height + gap : 0.0);
+        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type + icons.height + gap : 0.0);
         expect(rect.left, closeTo(22.31, 0.05), reason: entry.key);
         expect(rect.width, closeTo(345.38, 0.05), reason: entry.key);
         expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');

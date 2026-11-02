@@ -77,7 +77,7 @@ void main() {
             tester,
             size: size,
             ratio: ratio,
-            prefs: Preferences(theme: theme, sidebarStyle: 'docked', experience: 'advanced', experienceChosen: true),
+            prefs: Preferences(theme: theme, experience: 'advanced', experienceChosen: true),
             home: Stack(
               children: [
                 GhostRoot(launch: false, library: library, stored: local, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow),

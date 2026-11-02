@@ -50,7 +50,6 @@ const List<String> syncedPrefs = [
   'experienceChosen',
   'topBar',
   'density',
-  'assist',
   'textSize',
   'typeface',
   'noteFace',
@@ -79,9 +78,9 @@ const List<String> syncedPrefs = [
   'ripples',
   // Calm: the running work's colours as ink (docs/ACTIVITY.md), a look that travels as the motion's switches do.
   'calm',
-  // Focus mode and its typewriter scroll: a way of writing, the same on every device.
+  // Focus mode: a way of writing, the same on every device. Its typewriter scroll is always on with it since 2026-11-01,
+  // and `focusTypewriter`, which an older build syncs, is carried for it untouched.
   'focusMode',
-  'focusTypewriter',
   // Settings › Sounds (Matt, 2026-10-27): the pack, whether the app makes sounds, and each event's switch travel, as a
   // look does. The volume does not (`soundVolume`): a phone and a Mac are not equally loud.
   'soundPack',

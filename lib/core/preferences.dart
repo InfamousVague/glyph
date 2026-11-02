@@ -83,11 +83,6 @@ const List<double> uiScales = [0.85, 0.925, 1, 1.1, 1.25];
 
 bool isUiScale(Object? scale) => scale is num && uiScales.contains(scale.toDouble());
 
-/// How the notes sidebar opens on a wide window (`SidebarStyle`).
-const List<String> sidebarStyles = ['popover', 'docked'];
-
-bool isSidebarStyle(Object? style) => style == 'popover' || style == 'docked';
-
 /// How the home page lays out the notebooks and notes (`HOME_LAYOUT_IDS`).
 const List<String> homeLayoutIds = ['spotlight', 'cards', 'timeline', 'list'];
 
@@ -464,7 +459,6 @@ class Preferences {
   const Preferences({
     this.theme = 'dark',
     this.uiScale = 1,
-    this.sidebarStyle = 'popover',
     this.homeLayout = 'spotlight',
     this.homeLayoutChosen = false,
     this.experience = 'advanced',
@@ -473,7 +467,6 @@ class Preferences {
     this.accent = 'ink',
     this.density = 'comfortable',
     this.rounding = 'round',
-    this.assist = true,
     this.textSize = 'large',
     this.typeface = 'inter',
     this.noteFace = 'maple',
@@ -507,7 +500,6 @@ class Preferences {
     this.calm = false,
     this.menuBarAlways = false,
     this.focusMode = false,
-    this.focusTypewriter = true,
     this.soundPack = 'ghostly',
     this.interfaceSounds = true,
     this.soundVolume = 0.75,
@@ -551,7 +543,7 @@ class Preferences {
     final experience = at('experience', d.experience);
     final codeLight = at('codeLight', d.codeLight), codeDark = at('codeDark', d.codeDark);
     final noteView = at('noteView', d.noteView), theme = at('theme', d.theme);
-    final uiScale = at('uiScale', d.uiScale), sidebarStyle = at('sidebarStyle', d.sidebarStyle);
+    final uiScale = at('uiScale', d.uiScale);
     final homeLayout = at('homeLayout', d.homeLayout), topBar = at('topBar', d.topBar);
     final openNotes = map['openNotes'];
     final ids = openNotes is List ? openNotes.whereType<String>().toList() : const <String>[];
@@ -566,7 +558,6 @@ class Preferences {
       theme: isTheme(theme) ? theme as String : d.theme,
       // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
       uiScale: isUiScale(uiScale) ? (uiScale as num).toDouble() : d.uiScale,
-      sidebarStyle: isSidebarStyle(sidebarStyle) ? sidebarStyle as String : d.sidebarStyle,
       homeLayout: isHomeLayout(homeLayout) && homeLayoutChosen ? homeLayout as String : d.homeLayout,
       homeLayoutChosen: homeLayoutChosen,
       // Advanced until it is chosen: an install from before there was a choice is the whole app, as it was.
@@ -577,7 +568,6 @@ class Preferences {
       accent: isAccent(accent) ? accent as String : d.accent,
       density: word('density', d.density),
       rounding: isRounding(rounding) ? rounding as String : d.rounding,
-      assist: flag('assist', d.assist),
       textSize: word('textSize', d.textSize),
       typeface: faces.ui,
       noteFace: faces.note,
@@ -618,7 +608,6 @@ class Preferences {
       calm: flag('calm', d.calm),
       menuBarAlways: flag('menuBarAlways', d.menuBarAlways),
       focusMode: flag('focusMode', d.focusMode),
-      focusTypewriter: flag('focusTypewriter', d.focusTypewriter),
       // A pack from a later build, which this one has no files for, is Ghostly; a volume that is not a step is the
       // default; a switch that is not a yes or a no is left out, and so reads as its event's default.
       soundPack: soundPackChoices.contains(map['soundPack']) ? map['soundPack'] as String : d.soundPack,
@@ -637,7 +626,7 @@ class Preferences {
       snippets: _readSnippets(map['snippets']),
       more: Map.unmodifiable({
         for (final entry in map.entries)
-          if (entry.key is String && !_keys.contains(entry.key)) entry.key as String: entry.value,
+          if (entry.key is String && !_keys.contains(entry.key) && !_retired.contains(entry.key)) entry.key as String: entry.value,
       }),
     );
   }
@@ -647,9 +636,6 @@ class Preferences {
 
   /// Every part of the app scaled together ([uiScales]); 1 is the kit's own size. Kept to this device.
   final double uiScale;
-
-  /// `popover` or `docked`. Kept to this device, since it is about this window's width.
-  final String sidebarStyle;
 
   /// How the home page lays out the notebooks and notes ([homeLayoutIds]).
   final String homeLayout;
@@ -684,9 +670,6 @@ class Preferences {
 
   /// How round the app's corners are ([roundings]).
   final String rounding;
-
-  /// Prose input aids in the editor: autocorrect, autocapitalisation, spellcheck.
-  final bool assist;
 
   /// The reader's dial on the type scale ([textSizes]).
   final String textSize;
@@ -787,10 +770,11 @@ class Preferences {
   /// Focus mode (Matt, 2026-10-27: "build ... focus mode"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md, idea 14: "Dim every
   /// paragraph but the one being written, with a typewriter scroll that keeps the line in the middle"). [focusMode]
   /// is the switch, and dims every block of a note but the caret's while the note is being written in
-  /// (lib/editor/focus/focus_mode.dart); [focusTypewriter], on by default under it, keeps the caret's line in the
-  /// middle of the page as it goes. A way of writing, so it travels with the person (lib/sync/prefs.dart).
+  /// (lib/editor/focus/focus_mode.dart), and keeps the caret's line in the middle of the page as it goes: the
+  /// typewriter scroll, which had a switch of its own under it until 2026-11-01 and is always on with it now. A way of
+  /// writing, so it travels with the person (lib/sync/prefs.dart).
   final bool focusMode;
-  final bool focusTypewriter;
+
   /// Settings › Sounds (lib/settings/panes/sounds_pane.dart): the pack every sound is played from
   /// ([soundPackChoices]), whether sounds inside the app play at all, how loud they are ([soundVolumes]), and each
   /// event's own switch, by its id (lib/sounds/sound_pack.dart `SoundEvent`), only those that were switched: an
@@ -836,18 +820,23 @@ class Preferences {
   final Map<String, Object?> more;
 
   static const Set<String> _keys = {
-    'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
-    'assist', 'textSize', 'typeface', //
+    'theme', 'uiScale', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
+    'textSize', 'typeface', //
     'noteFace', 'iconPack', 'iconStyle', 'dock', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
-    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', 'calm', 'menuBarAlways', 'focusMode', 'focusTypewriter', //
+    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', 'calm', 'menuBarAlways', 'focusMode', //
     'soundPack', 'interfaceSounds', 'soundVolume', 'soundEvents', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications', 'snippets',
   };
 
+  /// Keys an older build kept that nothing reads now (Matt, 2026-11-01: "see if there are other settings that can be
+  /// simplified removed or moved to a plugin"): read past and left out, never kept in [more] and written back. The
+  /// side panel's `sidebarStyle` (always the card over the note), `assist` (the editor's aids always on, as nothing
+  /// ever wrote it off) and `focusTypewriter` (always on with focus mode).
+  static const Set<String> _retired = {'sidebarStyle', 'assist', 'focusTypewriter'};
+
   Preferences copyWith({
     String? theme,
     double? uiScale,
-    String? sidebarStyle,
     String? homeLayout,
     bool? homeLayoutChosen,
     String? experience,
@@ -856,7 +845,6 @@ class Preferences {
     String? accent,
     String? density,
     String? rounding,
-    bool? assist,
     String? textSize,
     String? typeface,
     String? noteFace,
@@ -890,7 +878,6 @@ class Preferences {
     bool? calm,
     bool? menuBarAlways,
     bool? focusMode,
-    bool? focusTypewriter,
     String? soundPack,
     bool? interfaceSounds,
     double? soundVolume,
@@ -910,7 +897,6 @@ class Preferences {
       Preferences(
         theme: theme ?? this.theme,
         uiScale: uiScale ?? this.uiScale,
-        sidebarStyle: sidebarStyle ?? this.sidebarStyle,
         homeLayout: homeLayout ?? this.homeLayout,
         homeLayoutChosen: homeLayoutChosen ?? this.homeLayoutChosen,
         experience: experience ?? this.experience,
@@ -919,7 +905,6 @@ class Preferences {
         accent: accent ?? this.accent,
         density: density ?? this.density,
         rounding: rounding ?? this.rounding,
-        assist: assist ?? this.assist,
         textSize: textSize ?? this.textSize,
         typeface: typeface ?? this.typeface,
         noteFace: noteFace ?? this.noteFace,
@@ -953,7 +938,6 @@ class Preferences {
         calm: calm ?? this.calm,
         menuBarAlways: menuBarAlways ?? this.menuBarAlways,
         focusMode: focusMode ?? this.focusMode,
-        focusTypewriter: focusTypewriter ?? this.focusTypewriter,
         soundPack: soundPack ?? this.soundPack,
         interfaceSounds: interfaceSounds ?? this.interfaceSounds,
         soundVolume: soundVolume ?? this.soundVolume,
@@ -976,7 +960,6 @@ class Preferences {
         ...more,
         'theme': theme,
         'uiScale': _number(uiScale),
-        'sidebarStyle': sidebarStyle,
         'homeLayout': homeLayout,
         'homeLayoutChosen': homeLayoutChosen,
         'experience': experience,
@@ -985,7 +968,6 @@ class Preferences {
         'accent': accent,
         'density': density,
         'rounding': rounding,
-        'assist': assist,
         'textSize': textSize,
         'typeface': typeface,
         'noteFace': noteFace,
@@ -1019,7 +1001,6 @@ class Preferences {
         if (calm) 'calm': true,
         if (menuBarAlways) 'menuBarAlways': true,
         'focusMode': focusMode,
-        'focusTypewriter': focusTypewriter,
         'soundPack': soundPack,
         'interfaceSounds': interfaceSounds,
         'soundVolume': _number(soundVolume),

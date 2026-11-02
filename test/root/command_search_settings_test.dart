@@ -154,15 +154,15 @@ void main() {
 
     testWidgets('in Simple on a $at: a row behind More is found, and More opens in place for it', (tester) async {
       await launch(tester, size: size, experience: 'simple');
-      await search(tester, 'typewriter', pill: false);
-      expect(row('Typewriter scroll'), findsWidgets);
-      await tester.tap(row('Typewriter scroll').last);
+      await search(tester, 'volume', pill: false);
+      expect(row('Volume'), findsWidgets);
+      await tester.tap(row('Volume').last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 16));
       await tester.pump(const Duration(milliseconds: 16));
-      expect(shownPage(tester), 'theme');
-      expect(find.byWidgetPredicate((w) => w is SettingRow && w.label == 'Typewriter scroll', skipOffstage: false), findsOneWidget);
-      expect(lit(tester, 'Typewriter scroll'), isTrue);
+      expect(shownPage(tester), 'sounds');
+      expect(find.byWidgetPredicate((w) => w is SettingRow && w.label == 'Volume', skipOffstage: false), findsOneWidget);
+      expect(lit(tester, 'Volume'), isTrue);
       await pump(tester, 20);
       tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.onClose();
       await pump(tester);

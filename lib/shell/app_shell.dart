@@ -27,14 +27,6 @@ import 'visible_notes.dart';
 import 'visited.dart';
 import 'wide_screen.dart';
 
-/// How the side panel (the aside) opens on a wide window (`SidebarStyle`, core/preferences.ts): a card over the note,
-/// which is the default everywhere, or a column docked beside it.
-///
-/// It chose the notes' sidebar's shell too until 2026-10-24, when the sidebar on a wide window became simple mode's
-/// list, a column whichever is chosen (Matt: "make the sidebar on advanced mode the same as simple but just hide it by
-/// default"; [AppShellState._panes]). The card of the tree is a narrow window's now, where it always was.
-enum SidebarStyle { popover, docked }
-
 /// Builds one of the shell's screens. [shell] is the way to everything the screen may ask of it.
 typedef ShellBuilder = Widget Function(BuildContext context, AppShellState shell);
 
@@ -103,7 +95,6 @@ class AppShell extends StatefulWidget {
     this.trash = const {},
     this.drafts = const {},
     this.topBar = TopBarStyle.classic,
-    this.sidebarStyle = SidebarStyle.popover,
     this.workspaces = const Workspaces(),
     this.organizations = const [],
     this.unread = false,
@@ -171,8 +162,6 @@ class AppShell extends StatefulWidget {
 
   /// How the top bar is laid out (Settings › Appearance).
   final TopBarStyle topBar;
-
-  final SidebarStyle sidebarStyle;
 
   /// The workspaces, for the pill a filed note's tab wears.
   final Workspaces workspaces;
@@ -812,12 +801,13 @@ class AppShellState extends State<AppShell> {
     required bool sidebarShown,
     required bool quietBar,
   }) {
-    // The aside is a column with Docked chosen, else a card: the style it shared with the sidebar until the sidebar
-    // became a column on every wide window (2026-10-24), and kept for the aside so nobody's side panel moved. Simple
-    // mode has none: the note's screen keeps its history and links in More.
+    // The aside is a card over the note on every window. It was a column beside it with Settings › Appearance ›
+    // Sidebar's Docked chosen, the style it shared with the sidebar until the sidebar became a column on every wide
+    // window (2026-10-24); the choice went on 2026-11-01 (Matt: "we currently have too many appearance settings"), and
+    // a device that had chosen Docked has the card. Simple mode has none: the note's screen keeps its history and
+    // links in More.
     final aside = tabBar && !widget.simple ? widget.asideBuilder?.call(context, this) : null;
     final asideHolds = aside != null;
-    final asideDocked = docked && widget.sidebarStyle == SidebarStyle.docked && _asideShown && asideHolds;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -829,7 +819,7 @@ class AppShellState extends State<AppShell> {
           // One window or two panes, the place is the same child of the same row: a phone folded open or
           // shut keeps the screen it had - its scroll, its caret, what was typed - where the page made
           // the note again in another part of the tree.
-          _panes(context, split: split, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
+          _panes(context, split: split, dockShown: split && dockShown),
         if (tabBar) _bar(context, docked: docked, sidebarShown: sidebarShown, quietBar: quietBar, asideHolds: asideHolds),
         if (widget.banner case final banner?)
           Positioned(
@@ -855,8 +845,8 @@ class AppShellState extends State<AppShell> {
             child: widget.notificationsBuilder?.call(context, this, closeNotifications) ??
                 CardPlaceholder(what: 'notifications', atEnd: true, wide: true, onClose: closeNotifications),
           ),
-        // With the sidebar a floating card, the aside is the same card at the right.
-        if (_asideShown && !asideDocked && asideHolds)
+        // The aside, a card at the right.
+        if (_asideShown && asideHolds)
           OnBack(
             key: const ValueKey('back:aside'),
             onBack: _toggleAside,
@@ -962,7 +952,7 @@ class AppShellState extends State<AppShell> {
   ///
   /// The panes wear the page's class while the window is split, for the rules that ask for it: an editor's room
   /// under its last line is `.app-split`'s (editor/looks/look.dart `LookEnv.splitRoom`).
-  Widget _panes(BuildContext context, {required bool split, required bool dockShown, required Widget? aside}) {
+  Widget _panes(BuildContext context, {required bool split, required bool dockShown}) {
     final t = context.tokens;
     final window = MediaQuery.sizeOf(context).width;
     final rule = BorderSide(color: t.color('glacier-border-subtle'));
@@ -984,13 +974,6 @@ class AppShellState extends State<AppShell> {
               ),
             ),
           Expanded(key: const ValueKey('pane:place'), child: ClipRect(child: _place(context))),
-          if (aside != null)
-            Semantics(
-              container: true,
-              explicitChildNodes: true,
-              label: 'Side panel',
-              child: Container(width: asideColumn(window), decoration: BoxDecoration(border: Border(left: rule)), child: ClipRect(child: aside)),
-            ),
         ],
       ),
     );

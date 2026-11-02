@@ -926,9 +926,9 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// Every piece's extensions, once: another list would be another editor (lib/note/note_editor.dart).
   late final List<Extension> _extensions = <Extension>[
-    // NoteScreen.tsx `assist={prefs.assist}`: the keyboard's aids and the spell checker, on unless the preference
-    // says otherwise, read as the editor is made.
-    editorInput(assist: _prefs.value.assist),
+    // NoteScreen.tsx `assist={prefs.assist}`: the keyboard's aids and the spell checker, always on. The preference
+    // that could turn them off had nothing that wrote it, and went on 2026-11-01.
+    editorInput(),
     // `;sig` and a space becomes the snippet (Settings › Snippets; lib/editor/input/snippets.dart): the list asked as
     // a trigger is typed, so one added in Settings works in a note already open.
     if (!widget.readOnly) snippetExpansion(_snippetsNow),
@@ -942,11 +942,13 @@ class NoteDeskState extends State<NoteDesk> {
     wispStill.of(_still),
     wispPace.of(_pace),
     // Focus mode (Matt, 2026-10-27: "build ... focus mode"): every block but the caret's dimmed while the note is
-    // written in, and the caret's line kept in the middle. Its switches are asked as they are used, so turning it on
-    // in the More sheet, the palette or Settings changes the note already open.
+    // written in, and the caret's line kept in the middle. Its switch is asked as it is used, so turning it on in the
+    // More sheet or the palette changes the note already open.
     focusMode(FocusModeHooks(
       dim: () => _prefs.value.focusMode,
-      typewriter: () => _prefs.value.focusTypewriter,
+      // On whenever focus mode is: its switch in Settings went on 2026-11-01 (Matt: "we currently have too many
+      // appearance settings").
+      typewriter: () => true,
       changes: _prefs,
       still: _still,
       pace: _pace,

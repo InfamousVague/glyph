@@ -142,7 +142,6 @@ extension _RootParts on _GhostRootState {
       _shellDraws,
       _drafts,
       prefs.topBar,
-      prefs.sidebarStyle,
       // Simple or advanced (GHST-103): the bar's icons and the tabs' groups.
       prefs.simple,
       _workspaces.value,
@@ -200,7 +199,6 @@ extension _RootParts on _GhostRootState {
       // A note with no words yet is its own screen's alone, as on the page, whose list never holds it.
       drafts: _drafts,
       topBar: TopBarStyle.parse(prefs.topBar),
-      sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
       // Simple mode (GHST-103, then GHST-105): the shell draws the places plain, with no bar, no sidebar and no
       // aside, and on a wide window the list beside the note with this pane while none is open.
       simple: prefs.simple,

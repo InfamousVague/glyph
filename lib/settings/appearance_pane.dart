@@ -6,13 +6,11 @@ import '../core/preferences.dart';
 import '../market/market_icons.dart' show IconStyleChooser;
 import 'accent_swatch.dart';
 import 'dock_editor.dart';
-import 'focus_section.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'layout_cards.dart';
 import 'mode_cards.dart';
 import 'scale_cards.dart';
-import 'settings_screen.dart' show settingsSplitFits;
 import 'settings_search.dart';
 import 'theme_cards.dart';
 import 'top_bar_cards.dart';
@@ -27,13 +25,15 @@ import '../core/mac_app.dart' show runsAsMacApp;
 /// 2026-10-24, and its card is first here now in either mode ([experienceFindable]): "mode", "simple" and "advanced"
 /// land on it.
 ///
-/// Two rows are drawn only where they do something, and listed only there: the sidebar's choice on a window wide
-/// enough for the sidebar, and the haptics where there is a motor. In Simple ([Preferences.simple]) the page is the
-/// theme and the text size and nothing else, so that is all the search finds on it: "accent" typed in Simple finds
-/// nothing, rather than a card that is not there. A row Simple keeps behind More is found (the typewriter scroll),
-/// since More opens in place for it (Matt, 2026-10-29: "Add the ability to search settings and plugins from the
-/// command search").
-List<SettingsFindable> appearanceFindable({required bool wide, required bool haptics, bool simple = false}) => [
+/// A row drawn only where it does something is listed only there: the haptics where there is a motor. In Simple
+/// ([Preferences.simple]) the page is the theme and the text size and nothing else, so that is all the search finds on
+/// it: "accent" typed in Simple finds nothing, rather than a card that is not there.
+///
+/// Focus mode and its typewriter scroll were a card here from 2026-10-27, and the side panel's Popover or Docked one
+/// for a wide window; they went on 2026-11-01 (Matt: "we currently have too many appearance settings for different
+/// title bar layouts and stuff"). Focus mode is the note's ••• and the command bar's, the typewriter scroll always on
+/// with it, and the side panel is the card over the note on every window.
+List<SettingsFindable> appearanceFindable({required bool haptics, bool simple = false}) => [
       ...experienceFindable,
       const SettingsFindable('Page', 'theme light dark system dawn boreal ember'),
       if (simple) ...[
@@ -41,17 +41,14 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
         const SettingsFindable('Text size', 'font bigger smaller larger'),
         // The dock's buttons, in either mode: Simple's pages have a dock too.
         dockFindable,
-        const SettingsFindable('Focus mode', _focusWords),
-        // Behind Simple's More, which opens for it when it is looked for (focus_section.dart).
-        const SettingsFindable('Typewriter scroll', 'focus centre center middle line caret scroll'),
-      ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
+      ] else ...appearanceFindableAdvanced(haptics: haptics),
       // In both modes (docs/ACTIVITY.md, Simple mode: the ring, the tray and the chips all show there).
       calmFindable,
       if (runsAsMacApp) menuBarFindable,
     ];
 
 /// What Advanced's page has after the theme: everything.
-List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required bool haptics}) => [
+List<SettingsFindable> appearanceFindableAdvanced({required bool haptics}) => [
       const SettingsFindable('Home page', 'dashboard layout home cards list timeline spotlight grid'),
       const SettingsFindable('Top bar', 'header toolbar tabs bar ledger strip masthead islands thumb classic capsules'),
       const SettingsFindable('Accent', 'colour color highlight'),
@@ -60,13 +57,10 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       const SettingsFindable('Interface font', 'font typeface ui app tabs menus inter noto plex'),
       const SettingsFindable('Text size', 'font bigger smaller larger'),
       const SettingsFindable('Scale', 'size zoom interface ui bigger smaller'),
-      const SettingsFindable('Focus mode', _focusWords),
-      const SettingsFindable('Typewriter scroll', 'focus centre center middle line caret scroll'),
       const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
       const SettingsFindable('Code', 'syntax highlighting colours colors'),
-      if (wide) const SettingsFindable('Sidebar', 'dock column popover notes list'),
       const SettingsFindable('Motion', 'movement animations'),
       const SettingsFindable('Animation speed', 'motion fast slow'),
       const SettingsFindable('Ghostly typing', 'wisp letters blur'),
@@ -87,9 +81,6 @@ const SettingsFindable menuBarFindable = SettingsFindable('Always show in the me
 @visibleForTesting
 bool showMenuBarRow = false;
 
-/// What finds focus mode (lib/settings/focus_section.dart), besides its name.
-const String _focusWords = 'focus dim fade typewriter zen distraction free writing concentrate paragraph';
-
 /// A map of a preference's words as the options a segmented control takes, in the map's own order (`optionsOf`).
 List<GlacierSegmentedOption> _options(Map<String, String> words) => [
       for (final entry in words.entries) GlacierSegmentedOption(value: entry.key, label: Text(entry.value)),
@@ -101,8 +92,7 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// itself and how round its corners are, then the colours of code, then how it moves and how it answers a touch.
 ///
 /// Every control writes the app's preferences ([store], the app's own unless a test brings one), and the app's theme
-/// is built from them, so each choice is seen at once. The sidebar's choice is drawn only on a window wide enough
-/// for the sidebar, and Touch only where there is a motor.
+/// is built from them, so each choice is seen at once. Touch is drawn only where there is a motor.
 ///
 /// The icons' style (Matt, 2026-10-27: "add three icon styles (outline, solid and filled)") is a card of its own after
 /// the type: Outline, Solid or Filled, with twelve of the app's icons drawn in the chosen one under it, in the pack in
@@ -123,22 +113,19 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// What differs from the web original:
 /// - The first card, the mode, is the port's own: the web app has no mode.
 /// - Controls whose feature has no Flutter port yet still write their preference and change nothing more: the home
-///   page's layout and the top bar's style until those screens read them, the code colours, the sidebar's style,
-///   the three Motion switches, and the note's face until there is a note to set in it.
+///   page's layout and the top bar's style until those screens read them, the code colours, the three Motion
+///   switches, and the note's face until there is a note to set in it.
 /// - The faces Fira Code, Noto and Plex are not shipped yet, so choosing one draws in the fallback face.
 /// - Scale reaches the app as a magnification of the whole window (lib/app/ghost_app.dart), where the page set the
 ///   root's font size; and the pace reaches the kit's duration tokens through the app's theme rather than inline.
 class AppearancePane extends StatelessWidget {
-  const AppearancePane({super.key, this.store, this.haptics, this.wide, this.hasMotor});
+  const AppearancePane({super.key, this.store, this.haptics, this.hasMotor});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
 
   /// The haptics switch's flag; the app's own when null.
   final DeviceFlag? haptics;
-
-  /// Whether the window has room for the sidebar; asked of the window when null.
-  final bool? wide;
 
   /// Whether this device has a motor; asked of the platform when null.
   final bool? hasMotor;
@@ -147,7 +134,6 @@ class AppearancePane extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = this.store ?? preferences;
     final haptics = this.haptics ?? hapticsPref;
-    final wide = this.wide ?? settingsSplitFits(context);
     return ListenableBuilder(
       listenable: Listenable.merge([store, haptics]),
       builder: (context, _) {
@@ -222,10 +208,7 @@ class AppearancePane extends StatelessWidget {
         // The dock's buttons (Matt, 2026-10-27: "build the dock editor"): in either mode, since Simple's pages have a
         // dock too; Simple's lists Simple's buttons, with the wide window's own dock behind More.
         final dock = DockEditor(store: store);
-        // Focus mode, in both modes, after the type it dims (Matt, 2026-10-27: "build ... focus mode").
-        final focus = FocusSection(store: store);
-
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), activity, focus, dock]);
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), activity, dock]);
 
         return PaneBody(
           children: [
@@ -279,7 +262,6 @@ class AppearancePane extends StatelessWidget {
                 ),
               ],
             ),
-            focus,
             // How the icons are drawn: the style, seen in the pack in use as it is chosen.
             PaneSection(
               title: 'Icons',
@@ -340,23 +322,6 @@ class AppearancePane extends StatelessWidget {
                 ),
               ],
             ),
-            if (wide)
-              PaneSection(
-                title: 'Sidebar',
-                children: [
-                  SettingRow(
-                    label: 'Sidebar',
-                    // Since 2026-10-24 the notes' sidebar on a wide window is simple mode's list, a column beside the
-                    // note whichever is chosen (Matt: "make the sidebar on advanced mode the same as simple but just
-                    // hide it by default"); what is left to choose is the side panel's shell.
-                    hint: const Text('The side panel over the note, or docked as a column beside it. Your notes open beside the note either way.'),
-                    layout: SettingRowLayout.stacked,
-                    control: segments('Sidebar', sidebarWords, prefs.sidebarStyle, (value) {
-                      if (isSidebarStyle(value)) set((now) => now.copyWith(sidebarStyle: value));
-                    }),
-                  ),
-                ],
-              ),
             PaneSection(
               title: 'Motion',
               description: const Text("Your phone's own reduce motion setting comes first. With it on, Ghost.md holds still whatever is on here."),

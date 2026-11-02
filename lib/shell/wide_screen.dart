@@ -53,9 +53,8 @@ bool get mobileDevice => !mousePointer;
 /// on home, with the list a press of the bar's panel icon away, and once pressed the device keeps what was chosen.
 const bool sidebarShownAtFirst = false;
 
-/// The split window's columns: the notes' list beside the note, simple mode's (GHST-105) and since 2026-10-24
+/// The split window's column: the notes' list beside the note, simple mode's (GHST-105) and since 2026-10-24
 /// advanced mode's too, about 360px, a little narrower on a window where the note would otherwise be a strip (the
-/// Fold opened out is 704 wide); the aside `clamp(240px, 22vw, 320px)` (app.css `.app-split`); the note the rest.
-/// The tree's own column, `clamp(300px, 30vw, 380px)`, went with the tree.
+/// Fold opened out is 704 wide); the note the rest. The tree's own column, `clamp(300px, 30vw, 380px)`, went with the
+/// tree, and the docked aside's, `clamp(240px, 22vw, 320px)`, with Settings › Appearance › Sidebar (2026-11-01).
 double simpleListColumn(double window) => (window * 0.42).clamp(300.0, 360.0);
-double asideColumn(double window) => (window * 0.22).clamp(240.0, 320.0);

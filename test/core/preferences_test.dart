@@ -16,9 +16,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// (`focusMode`, `focusTypewriter`; Matt, 2026-10-27: "build ... focus mode") and Settings › Sounds' four (`soundPack`,
 /// `interfaceSounds`, `soundVolume`, `soundEvents`; Matt, 2026-10-27) are the port's own, and were laid into each read by
 /// hand at their defaults, as the meeting switches before them were.
+///
+/// Since 2026-11-01 (Matt: "see if there are other settings that can be simplified removed or moved to a plugin") this
+/// build writes fewer keys than the web did: [thisBuild] is the web's shape as this build writes it, its retired keys
+/// left out.
 void main() {
   final web = jsonDecode(_web) as Map<String, dynamic>;
   final cases = (web['cases'] as Map<String, dynamic>).cast<String, Map<String, dynamic>>();
+
+  /// The web's stored shape as this build writes it, in the same order: the keys nothing reads now left out.
+  Map<String, dynamic> thisBuild(Map<String, dynamic> shape) => {
+        for (final entry in shape.entries)
+          if (!const {'sidebarStyle', 'assist', 'focusTypewriter'}.contains(entry.key)) entry.key: entry.value,
+      };
 
   /// The preferences as a launch reads [stored] laid over the defaults (`launchWith`).
   Preferences launchWith(Map<String, Object?> stored) => Preferences.fromJson(jsonDecode(jsonEncode({...Preferences.defaults.toJson(), ...stored})));
@@ -159,13 +169,13 @@ void main() {
 
   group('the web app’s own answers', () {
     test('the defaults are the web’s, written as the web writes them', () {
-      expect(jsonEncode(Preferences.defaults.toJson()), web['defaults']);
+      expect(jsonEncode(Preferences.defaults.toJson()), jsonEncode(thisBuild(jsonDecode(web['defaults'] as String) as Map<String, dynamic>)));
     });
 
     for (final name in cases.keys) {
       test('reads the stored shape “$name” as the web app does, and stamps the page as it does', () {
         final read = Preferences.fromJson(cases[name]!['stored']);
-        expect(jsonDecode(jsonEncode(read.toJson())), cases[name]!['read'], reason: 'settle');
+        expect(jsonDecode(jsonEncode(read.toJson())), thisBuild(cases[name]!['read'] as Map<String, dynamic>), reason: 'settle');
         expect(read.attrs, cases[name]!['attrs'], reason: 'the attributes applyPreferences stamps');
         expect(read.rootStyle(), cases[name]!['style'], reason: 'the inline styles applyPreferences writes');
         // What is written is read back as itself: a round trip changes nothing.
@@ -290,10 +300,11 @@ void main() {
       });
     });
 
-    test('reads a pace, a theme, a size or a sidebar this build does not have as its own', () {
+    test('reads a pace, a theme or a size this build does not have as its own, and a sidebar not at all', () {
       const d = Preferences.defaults;
       final read = launchWith({'motionSpeed': 'ludicrous', 'theme': 'neon', 'uiScale': 3, 'sidebarStyle': 'floating', 'noteView': 'hologram'});
-      expect((read.motionSpeed, read.theme, read.uiScale, read.sidebarStyle, read.noteView), (d.motionSpeed, d.theme, d.uiScale, d.sidebarStyle, d.noteView));
+      expect((read.motionSpeed, read.theme, read.uiScale, read.noteView), (d.motionSpeed, d.theme, d.uiScale, d.noteView));
+      expect(read.more.containsKey('sidebarStyle'), isFalse);
     });
 
     test('keeps code colours only once they have been chosen', () {
@@ -340,8 +351,8 @@ void main() {
 
     test('reads a switch that is not a yes or a no as its default, where the page kept the odd value', () {
       // The one place the typed port settles more than the page does (lib/core/preferences.dart).
-      final read = launchWith({'assist': 'on', 'wisp': 0, 'linkPreviews': null});
-      expect((read.assist, read.wisp, read.linkPreviews), (true, true, true));
+      final read = launchWith({'canvasSnap': 'on', 'wisp': 0, 'linkPreviews': null});
+      expect((read.canvasSnap, read.wisp, read.linkPreviews), (true, true, true));
     });
 
     test('keeps what a newer build stored under keys this one does not know, and writes it back', () {
@@ -375,7 +386,7 @@ void main() {
       expect(told, 1);
       preferences.flush();
       final kept = (await SharedPreferences.getInstance()).getString('glyph-preferences')!;
-      expect(jsonDecode(kept), {...(jsonDecode(web['defaults'] as String) as Map<String, dynamic>), 'accent': 'teal', 'uiScale': 1.1});
+      expect(jsonDecode(kept), {...thisBuild(jsonDecode(web['defaults'] as String) as Map<String, dynamic>), 'accent': 'teal', 'uiScale': 1.1});
       // A fresh read of the store is what a launch does.
       preferences.value = preferences.value.copyWith(accent: 'ink');
       expect(preferences.value.accent, 'ink');
@@ -530,25 +541,34 @@ void main() {
     });
   });
 
-  test("focus mode's two switches are kept, read back and travel (Matt, 2026-10-27: \"build ... focus mode\")", () {
+  test("focus mode's switch is kept, read back and travels (Matt, 2026-10-27: \"build ... focus mode\")", () {
     expect(Preferences.defaults.focusMode, isFalse);
-    expect(Preferences.defaults.focusTypewriter, isTrue);
-    final chosen = Preferences.defaults.copyWith(focusMode: true, focusTypewriter: false);
+    final chosen = Preferences.defaults.copyWith(focusMode: true);
     final json = chosen.toJson();
     expect(json['focusMode'], isTrue);
-    expect(json['focusTypewriter'], isFalse);
     final read = Preferences.fromJson(jsonDecode(jsonEncode(json)));
     expect(read.focusMode, isTrue);
-    expect(read.focusTypewriter, isFalse);
     expect(read, chosen);
     // Not a key kept as something it does not know; and a way of writing, so it travels.
     expect(read.more, isEmpty);
-    expect(syncedPrefs, containsAll(['focusMode', 'focusTypewriter']));
-    expect(pickSynced(json), allOf(containsPair('focusMode', true), containsPair('focusTypewriter', false)));
+    expect(syncedPrefs, contains('focusMode'));
+    expect(pickSynced(json), containsPair('focusMode', true));
     // Anything but a switch is the default.
-    final odd = Preferences.fromJson({'focusMode': 'yes', 'focusTypewriter': 0});
-    expect(odd.focusMode, isFalse);
-    expect(odd.focusTypewriter, isTrue);
+    expect(Preferences.fromJson({'focusMode': 'yes'}).focusMode, isFalse);
+  });
+
+  // Matt, 2026-11-01: "see if there are other settings that can be simplified removed or moved to a plugin". The
+  // typewriter scroll's switch (always on with focus mode now), the side panel's Popover or Docked (always the card)
+  // and the editor's aids (always on: nothing wrote them off) went; what an older build kept of them is read past.
+  test('the retired switches an older build kept are read past, never kept, and written by nothing', () {
+    final read = Preferences.fromJson({'focusMode': true, 'focusTypewriter': false, 'sidebarStyle': 'docked', 'assist': false, 'somethingNew': 1});
+    expect(read.focusMode, isTrue);
+    expect(read.more, {'somethingNew': 1});
+    final json = read.toJson();
+    for (final key in ['focusTypewriter', 'sidebarStyle', 'assist']) {
+      expect(json.containsKey(key), isFalse, reason: key);
+      expect(syncedPrefs, isNot(contains(key)), reason: key);
+    }
   });
 }
 

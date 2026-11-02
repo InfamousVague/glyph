@@ -62,7 +62,6 @@ const Map<String, String> codeLightWords = {'pastel': 'Pastel', 'ink': 'Ink', 'g
 const Map<String, String> codeDarkWords = {'pastel': 'Pastel', 'ink': 'Ink', 'one-dark': 'One Dark', 'dracula': 'Dracula', 'nord': 'Nord'};
 
 /// How the sidebar opens, in words (`SIDEBAR_MODES`, AppearancePane.tsx).
-const Map<String, String> sidebarWords = {'popover': 'Popover', 'docked': 'Docked'};
 
 /// Appearance's row in the list (SettingsSheet.tsx): the page and the note's face, then anything else that has been
 /// moved off its default.
