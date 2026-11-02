@@ -213,6 +213,11 @@ import '../perf/frame_log.dart';
 import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarOn;
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
+import '../plugins/contradictions/contradictions.dart' show ContradictionsNotice, contradictionOpenNote, contradictionRunner;
+import '../plugins/contradictions/manifest.dart' as contradictions show manifest;
+import '../ai/contradictions/ai.dart' show appContradictionAi;
+import '../ai/contradictions/findings.dart' show DiskFindingsFile;
+import '../ai/contradictions/runner.dart' show ContradictionRunner;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../activity/activity_chime.dart' show startActivityChime;
@@ -308,6 +313,7 @@ part 'root_tickets.dart';
 part 'root_voice.dart';
 part 'root_ticket_rules.dart';
 part 'root_git_backup.dart';
+part 'root_contradictions.dart';
 part 'root_teamspaces.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
@@ -796,6 +802,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// The ticket features' wiring (root_ticket_rules.dart): the rules, the timers, the pull requests.
   late final _RootTicketRules _ticketsWired = _RootTicketRules(this);
   late final _RootGitBackup _gitWired = _RootGitBackup(this);
+  late final _RootContradictions _contradictionsWired = _RootContradictions(this);
   late final Listenable _libraryChanges = Listenable.merge([_library, _trash]);
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
@@ -2022,6 +2029,7 @@ class _GhostRootState extends State<GhostRoot> {
     _webhooksLife?.dispose();
     _ticketsWired.dispose();
     _gitWired.dispose();
+    _contradictionsWired.dispose();
     webhooks.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
@@ -2162,6 +2170,8 @@ class _GhostRootState extends State<GhostRoot> {
     _ticketsWired.start();
     // The git backup (root_git_backup.dart; Matt, 2026-10-31): the library's changes committed and pushed.
     unawaited(_gitWired.start());
+    // The contradiction finder (root_contradictions.dart; Matt, 2026-11-02): older lines a newer note changes, marked.
+    unawaited(_contradictionsWired.start());
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

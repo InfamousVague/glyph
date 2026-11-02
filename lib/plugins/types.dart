@@ -325,7 +325,7 @@ class FormatContext {
 /// A quiet word at the end of a line of the note: what a plugin could do with that line, tapped to do it. "Notion"
 /// after a to-do that could be a task (lib/editor/items/suggestions.dart draws them).
 class Suggestion {
-  const Suggestion({required this.line, required this.label, required this.busyLabel, required this.run});
+  const Suggestion({required this.line, required this.label, required this.busyLabel, required this.run, this.open});
 
   /// 1-based line in the note.
   final int line;
@@ -334,6 +334,10 @@ class Suggestion {
   /// The word while it runs: "Sending".
   final String busyLabel;
   final Future<void> Function(NoteEditing editing) run;
+
+  /// What a press does in place of [run] where the word opens something of its own, a sheet in [context] (the
+  /// contradiction finder's "Out of date?", lib/plugins/contradictions/). Null runs [run].
+  final Future<void> Function(BuildContext context, NoteEditing editing)? open;
 }
 
 /// An inline formatting a plugin adds to the Markdown of notes (`InlineFormat`): marks.dart's own class.

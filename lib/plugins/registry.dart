@@ -162,6 +162,10 @@ class Registry extends ChangeNotifier {
   /// this when the preferences change.
   void preferencesChanged() => _told();
 
+  /// What a plugin offers on a note changed without a switch moving (the contradiction finder's marks, once a run found
+  /// some or one was dismissed): the open note asks for its line words again (lib/root/note_desk.dart).
+  void offersChanged() => _told();
+
   void _told() {
     _enabled = null;
     notifyListeners();

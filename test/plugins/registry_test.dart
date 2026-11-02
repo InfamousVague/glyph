@@ -136,6 +136,9 @@ void main() {
         // A Figma frame's link drawn as the frame, with the person's own token (lib/plugins/figma/; Matt, 2026-11-02):
         // off until added.
         ('figma', false),
+        // Older lines a newer note changes, marked "Out of date?" (lib/plugins/contradictions/; Matt, 2026-11-02): off
+        // until added.
+        ('contradictions', false),
       ]);
       for (final plugin in builtIn) {
         if (plugin.manifest.native != null) expect(plugin.manifest.declares(Permission.native), isTrue, reason: plugin.manifest.id);
@@ -149,7 +152,7 @@ void main() {
       final web = webBuiltIn();
       // The page's five, then this app's own, which the page never had.
       expect(ids(builtIn.take(web.length)), ids(web));
-      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms', 'canvas', 'meetings', 'diagrams', 'places', 'email', 'publishing', 'figma']);
+      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms', 'canvas', 'meetings', 'diagrams', 'places', 'email', 'publishing', 'figma', 'contradictions']);
       for (final (index, plugin) in builtIn.take(web.length).indexed) {
         final (ours, theirs) = (plugin.manifest, web[index].manifest);
         final id = ours.id;
@@ -190,7 +193,7 @@ void main() {
       addTearDown(() => usePlugins(before));
       final registry = installBuiltInPlugins(store: MemorySwitches(), localOnly: () => true);
       expect(identical(plugins, registry), isTrue);
-      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms', 'canvas', 'meetings', 'diagrams', 'places', 'email', 'publishing', 'figma']);
+      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'webhooks', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs', 'openai', 'gemini', 'custom-ai', 'aster', 'keyboard-modes', 'git-backup', 'tickets', 'planning', 'gantt', 'boards', 'automations', 'time-tracking', 'forms', 'canvas', 'meetings', 'diagrams', 'places', 'email', 'publishing', 'figma', 'contradictions']);
       // Local only holds off every one that uses the internet; Place reminders, Contacts and Things, which never
       // leave the phone, are only off until switched on.
       expect(ids(registry.enabled()), ['marks']);

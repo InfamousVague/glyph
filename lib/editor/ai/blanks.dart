@@ -869,7 +869,7 @@ class FillPill extends StatelessWidget {
     label: aria,
     onTap: busy ? null : onPress,
     child: ExcludeSemantics(
-      child: KeyedSubtree(key: const ValueKey<String>('cm-fillPill'), child: SuggestWord(SuggestWidget(label, busy, onPress ?? _nothing, _nothing, _nothing))),
+      child: KeyedSubtree(key: const ValueKey<String>('cm-fillPill'), child: SuggestWord(SuggestWidget(label, busy, (_) => (onPress ?? _nothing)(), _nothing, _nothing))),
     ),
   );
 }
