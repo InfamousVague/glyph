@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.3",
+    "date": "2026-11-02",
+    "title": "Lovart's blurred stand-in is back",
+    "items": [
+      {"icon": "image", "words": "While Lovart makes a header image or a moodboard, a blurred stand-in with Lovart's mark and a turning ring waits where it goes.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.2",
     "date": "2026-11-02",
     "title": "Everything in a note's ••• menu, and header images that fill",
