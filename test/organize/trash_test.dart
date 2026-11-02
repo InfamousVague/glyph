@@ -94,7 +94,7 @@ void main() {
                   open: open,
                   onRestore: (n) => did.add('restore ${n.id}'),
                   onDestroy: (n) => did.add('destroy ${n.id}'),
-                  onEmpty: () => did.add('empty'),
+                  onEmpty: (notes) => did.add('empty ${notes.length}'),
                   onClose: () {
                     did.add('closed');
                     setState(() => up = false);
@@ -122,7 +122,8 @@ void main() {
       await show(tester);
       expect(find.text('Trash'), findsOneWidget);
       final titles = [for (final each in tester.widgetList<SheetRow>(find.byType(SheetRow))) each.key];
-      expect(titles, [const ValueKey('trash-note-draft'), const ValueKey('trash-note-receipt'), const ValueKey('trash-note-plan'), const ValueKey('trash-note-minutes'), const ValueKey('trash-empty')]);
+      // Delete forever first, pinned at the top (Matt, 2026-11-02), then the notes.
+      expect(titles, [const ValueKey('trash-empty'), const ValueKey('trash-note-draft'), const ValueKey('trash-note-receipt'), const ValueKey('trash-note-plan'), const ValueKey('trash-note-minutes')]);
       expect(find.text('Deleted 3 hr ago · deleted for good in 30 days'), findsOneWidget);
       expect(find.text('Notes are deleted for good 30 days after they go in the Trash.'), findsOneWidget);
       await away(tester);
@@ -137,19 +138,19 @@ void main() {
       await tester.pump();
       expect(did, ['restore receipt']);
       // Back on the list.
-      expect(row('Empty Trash'), findsOneWidget);
+      expect(find.byKey(const ValueKey('trash-empty')), findsOneWidget);
       await away(tester);
     });
 
-    testWidgets('Delete for good asks once, then deletes', (tester) async {
+    testWidgets('Delete forever asks once, then deletes', (tester) async {
       final did = await show(tester, open: 'plan');
-      await tester.tap(row('Delete for good'));
+      await tester.tap(row('Delete forever'));
       await tester.pump();
-      expect(find.text('Delete “Old plan” for good?'), findsOneWidget);
+      expect(find.text('Delete “Old plan” forever?'), findsOneWidget);
       expect(did, isEmpty);
       await tester.tap(row('Cancel'));
       await tester.pump();
-      await tester.tap(row('Delete for good'));
+      await tester.tap(row('Delete forever'));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('trash-destroy-yes')));
       await tester.pump();
@@ -157,23 +158,25 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('Empty Trash asks once, then empties and shuts', (tester) async {
+    testWidgets('Delete forever at the top asks once, on the row itself, then empties and shuts', (tester) async {
       final did = await show(tester);
-      await tester.tap(row('Empty Trash'));
+      await tester.tap(find.byKey(const ValueKey('trash-empty')));
       await tester.pump();
-      expect(find.text('Delete 4 for good?'), findsOneWidget);
+      expect(find.text('Delete 4 notes forever?'), findsOneWidget);
+      expect(find.text('This can’t be undone.'), findsOneWidget);
+      expect(did, isEmpty);
       await tester.tap(find.byKey(const ValueKey('trash-empty-yes')));
       await tester.pump();
-      expect(did, ['empty', 'closed']);
+      expect(did, ['empty 4', 'closed']);
       await away(tester);
     });
 
-    testWidgets('simple mode keeps Delete for good behind More, opened in place', (tester) async {
+    testWidgets('simple mode keeps Delete forever behind More, opened in place', (tester) async {
       final did = await show(tester, simple: true, open: 'plan');
-      expect(row('Delete for good'), findsNothing);
+      expect(row('Delete forever'), findsNothing);
       await tester.tap(row('More'));
       await tester.pump();
-      await tester.tap(row('Delete for good'));
+      await tester.tap(row('Delete forever'));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('trash-destroy-yes')));
       await tester.pump();
@@ -320,7 +323,7 @@ Future<void> show2(WidgetTester tester, {required Size size, required String the
           open: open,
           onRestore: (_) {},
           onDestroy: (_) {},
-          onEmpty: () {},
+          onEmpty: (_) {},
           onClose: () {},
           teamNote: (id) => id == 'minutes',
           placeOf: (id) => id == 'receipt' ? 'Home › Travel' : null,

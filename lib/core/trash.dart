@@ -111,3 +111,14 @@ int trashDaysLeft(int at, int now) {
   if (left <= 0) return 0;
   return (left / Duration.millisecondsPerDay).ceil();
 }
+
+/// A count as the Trash says it, its thousands set apart (Matt, 2026-11-02, with some 1,300 notes in his): "1,312".
+String groupedCount(int count) {
+  final digits = count.abs().toString();
+  final grouped = StringBuffer();
+  for (var at = 0; at < digits.length; at += 1) {
+    if (at > 0 && (digits.length - at) % 3 == 0) grouped.write(',');
+    grouped.write(digits[at]);
+  }
+  return count < 0 ? '-$grouped' : grouped.toString();
+}

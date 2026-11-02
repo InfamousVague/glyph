@@ -18,6 +18,7 @@ import '../core/search_query.dart' show parseSearch;
 import '../core/smart_notebooks.dart';
 import '../core/stored.dart';
 import '../core/tag_index.dart' show tagIndex;
+import '../core/trash.dart' show groupedCount;
 import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces, orgOfWorkspace;
 import '../perf/frame_log.dart';
 import '../sheet/css.dart';
@@ -30,6 +31,7 @@ import 'folder_menu.dart';
 import 'note_menu.dart' show showInFilesRows;
 import 'note_peek.dart';
 import 'org_mark.dart';
+import 'trash_sheet.dart' show trashPageSize;
 import 'tree.dart';
 import 'space_pages.dart';
 import 'workspace_sheet.dart';
@@ -654,7 +656,9 @@ class _NoteTreeState extends State<NoteTree> {
             ),
             if (_trashOpen)
               inside([
-                for (final note in trashed)
+                // Where the Trash has a sheet of its own, the newest page of it here and the rest there (Matt,
+                // 2026-11-02, with some 1,300 notes in his: "paginate the trash"); the whole of it where it has none.
+                for (final note in widget.onOpenTrash == null || trashed.length <= trashPageSize ? trashed : trashed.take(trashPageSize))
                   () {
                     final title = NoteFacts.of(note).title;
                     final said = title.isEmpty ? 'Untitled' : title;
@@ -709,7 +713,7 @@ class _NoteTreeState extends State<NoteTree> {
                         padding: EdgeInsets.fromLTRB(0.6 * look.em, 0.35 * look.em, 0.4 * look.em, 0.35 * look.em),
                         child: ExcludeSemantics(
                           child: cssLines(
-                            'Open the Trash',
+                            trashed.length > trashPageSize ? 'Open the Trash · ${groupedCount(trashed.length - trashPageSize)} more' : 'Open the Trash',
                             look.rowTitle(untitled: false, weight: 'medium', color: state.hovered ? t.color('app-ink-2') : t.color('app-ink-3')),
                             maxLines: 1,
                             softWrap: false,
@@ -1371,7 +1375,7 @@ class _EmptyTrash extends StatelessWidget {
             // `padding: 0.25em 0.6em; border-radius: var(--glacier-radius-sm)`
             padding: EdgeInsets.symmetric(vertical: 0.25 * size, horizontal: 0.6 * size),
             decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(t.radius('sm'))),
-            child: Text(asking ? 'Delete $count for good?' : 'Empty', style: pageText(t, size, color: color)),
+            child: Text(asking ? 'Delete ${groupedCount(count)} for good?' : 'Empty', style: pageText(t, size, color: color)),
           ),
         );
       },
