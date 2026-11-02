@@ -720,10 +720,10 @@
       ],
       "platforms": {
         "android": true,
-        "iphone": true,
+        "iphone": false,
         "mac": true
       },
-      "reach": "Mobile · Desktop",
+      "reach": "Android · Desktop",
       "adds": [
         "Your Email to a note address, its name and a new one, on this page",
         "Each mail to it filed as a note in your Inbox"
@@ -967,10 +967,10 @@
       ],
       "platforms": {
         "android": true,
-        "iphone": true,
+        "iphone": false,
         "mac": true
       },
-      "reach": "Mobile · Desktop",
+      "reach": "Android · Desktop",
       "adds": [
         "Publish as a site in a note’s Share, and Publish again and Unpublish",
         "Your published sites on this page",
