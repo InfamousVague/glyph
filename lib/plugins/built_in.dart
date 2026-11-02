@@ -43,6 +43,7 @@ import 'meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
 import 'notion/notion.dart' show notionPlugin;
 import 'openai/openai.dart' show openAiPlugin;
 import 'places/places.dart' show placesPlugin;
+import 'projects/suite.dart' show projectPlugins;
 import 'registry.dart';
 import 'rich_embeds/rich_embeds.dart' show richEmbedsPlugin;
 import 'slack/slack.dart' show slackPlugin;
@@ -90,6 +91,10 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-10-31: "add a plugin to backup on git": the Library folder committed and pushed to a repository the
   // person owns (git_backup/git_backup.dart, docs/GIT_BACKUP.md).
   gitBackupPlugin,
+  // Matt, 2026-11-01: "move the project managment stuff like gantts and stuff into a suite of plugins that are
+  // disabled by default": Tickets, Planning, Gantt and timelines, Boards, Automations, Time tracking and Forms, each
+  // off until added, and an organization's own in its home page (projects/suite.dart, docs/PM_PLUGINS.md).
+  ...projectPlugins,
 ]);
 
 void Function()? _unhear;

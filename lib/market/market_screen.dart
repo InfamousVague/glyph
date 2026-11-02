@@ -52,6 +52,7 @@ import '../art/art.dart';
 import '../core/back.dart';
 import '../core/preferences.dart';
 import '../plugins/catalogue.dart';
+import '../plugins/projects/suite.dart' show dependentsOf, isProjectTool, needTickets, projectTools, ticketsTool, toolShortName, withNeeds;
 import '../plugins/onboarding/setup_flow.dart' show PluginSetup;
 import '../plugins/onboarding/setup_sheet.dart';
 import '../plugins/reach.dart';
@@ -158,7 +159,10 @@ class _MarketScreenState extends State<MarketScreen> {
   /// Adds the plugin [id], then offers its setup where it has one and it is still needed: Lovart with no keys yet.
   void _add(String id) {
     final registry = _registry;
-    registry.setEnabled(id, true);
+    // A project tool brings what it stands on: Tickets (docs/PM_PLUGINS.md).
+    for (final each in isProjectTool(id) ? withNeeds([id]) : [id]) {
+      registry.setEnabled(each, true);
+    }
     final make = registry.byId(id)?.setup;
     if (!widget.offerSetup || make == null || !registry.isEnabled(id)) return;
     final setup = make();
@@ -173,6 +177,34 @@ class _MarketScreenState extends State<MarketScreen> {
       // The keys are read first, so a plugin whose keys arrived from another device is not set up twice.
       prepare().then((_) => offer(), onError: (Object _) => offer());
     }
+  }
+
+  /// The tool whose Remove was pressed once, while the tools that stand on it are on: its page says which go with it.
+  String? _warned;
+
+  /// What removing [id] would take with it, in words: the tools on that need Tickets. Null for nothing.
+  String? _goingWith(String id) {
+    if (id != ticketsTool) return null;
+    final going = [for (final each in dependentsOf([for (final tool in projectTools) if (_registry.switchedOn(tool)) tool])) toolShortName(each)];
+    if (going.isEmpty) return null;
+    final names = going.length == 1 ? going.single : '${going.take(going.length - 1).join(', ')} and ${going.last}';
+    return '$names ${going.length == 1 ? 'needs' : 'need'} Tickets, and ${going.length == 1 ? 'goes' : 'go'} off with it. Press Remove again to turn them off too.';
+  }
+
+  /// Removes [id]: Tickets, while tools that need it are on, only at the second press, and they go with it.
+  void _remove(String id) {
+    final registry = _registry;
+    if (_goingWith(id) != null && _warned != id) {
+      setState(() => _warned = id);
+      return;
+    }
+    setState(() => _warned = null);
+    if (id == ticketsTool) {
+      for (final each in needTickets) {
+        registry.setEnabled(each, false);
+      }
+    }
+    registry.setEnabled(id, false);
   }
 
   void _openIcons(String id) => setState(() {
@@ -317,10 +349,11 @@ class _MarketScreenState extends State<MarketScreen> {
       added: registry.switchedOn(id),
       on: registry.isEnabled(id),
       held: held,
-      onSwitch: (on) => on ? _add(id) : registry.setEnabled(id, false),
+      onSwitch: (on) => on ? _add(id) : _remove(id),
       onSettings: settings == null || plugin.settings == null ? null : () => settings(id),
       onLocalOnly: widget.onLocalOnly,
       onClose: close ? _close : null,
+      warning: _warned == id ? _goingWith(id) : null,
     );
   }
 
@@ -582,8 +615,10 @@ class _MarketScreenState extends State<MarketScreen> {
     final registry = _registry;
     final localOnly = _prefs.value.localOnly;
     final count = all.where((p) => registry.switchedOn(p.manifest.id)).length;
-    final added = [for (final plugin in found) if (registry.switchedOn(plugin.manifest.id)) plugin];
-    final discover = [for (final plugin in found) if (!registry.switchedOn(plugin.manifest.id)) plugin];
+    // The project tools together as one suite, added or not (docs/PM_PLUGINS.md); the rest on Added and Discover.
+    final suite = [for (final plugin in found) if (plugin.manifest.category == PluginCategory.projects) plugin];
+    final added = [for (final plugin in found) if (plugin.manifest.category != PluginCategory.projects && registry.switchedOn(plugin.manifest.id)) plugin];
+    final discover = [for (final plugin in found) if (plugin.manifest.category != PluginCategory.projects && !registry.switchedOn(plugin.manifest.id)) plugin];
 
     Widget card(GlyphPlugin plugin) {
       final id = plugin.manifest.id;
@@ -599,7 +634,7 @@ class _MarketScreenState extends State<MarketScreen> {
       );
     }
 
-    Widget shelf(String title, List<GlyphPlugin> list) {
+    Widget shelf(String title, List<GlyphPlugin> list, {String? note}) {
       final size = t.lenOf('0.72rem');
       return Column(
         key: ValueKey('shelf ${title.toLowerCase()}'),
@@ -613,6 +648,7 @@ class _MarketScreenState extends State<MarketScreen> {
               child: ExcludeSemantics(child: Text(title.toUpperCase(), style: pageText(t, size, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size)))),
             ),
           ),
+          if (note != null) Padding(padding: EdgeInsets.only(bottom: t.space(2)), child: Text(note, style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-3')))),
           if (wide)
             MarketGrid(minWidth: t.lenOf('14rem'), most: 4, children: [for (final plugin in list) card(plugin)])
           else
@@ -658,6 +694,8 @@ class _MarketScreenState extends State<MarketScreen> {
         ),
       ],
       if (added.isNotEmpty) shelf('Added', added),
+      if (suite.isNotEmpty)
+        shelf('Project tools', suite, note: 'Tickets, planning, Gantt charts, boards, rules, timers and forms. Added here, they are yours; an organization turns on its own in its Tools.'),
       if (discover.isNotEmpty) shelf('Discover', discover),
       if (found.isEmpty)
         Padding(

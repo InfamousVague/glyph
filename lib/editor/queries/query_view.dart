@@ -128,7 +128,14 @@ class QueryView extends StatefulWidget {
     this.planning = false,
     this.bulk,
     this.labelColours,
+    this.offers,
+    this.lists,
   }) : linesEditable = linesEditable ?? editable;
+
+  /// Whether the switcher and the builder offer a way of showing, and the builder a kind (queries.dart
+  /// `QueryOptions.offers`): a project tool's only where it is on. Absent, every one.
+  final bool Function(ShowAs view)? offers;
+  final bool Function(QueryKind kind)? lists;
 
   /// Whether a ticket's planning is drawn on its card and its row (plan_marks.dart): the host's to say.
   final bool planning;
@@ -377,6 +384,7 @@ class QueryViewState extends State<QueryView> {
         show: result.show,
         onShow: onBody == null ? null : (way) => onBody(withShow(widget.lines, way)),
         onBuild: onBody == null ? null : () => setState(() => _building = true),
+        offers: widget.offers,
       ),
       for (final (index, warning) in result.warnings.indexed) _quiet('warning', warning, first: index == 0),
       if ((result.carry, widget.editable ? widget.onCarry : null) case (final offer?, final carry?)) CarryBar(look: look, offer: offer, onCarry: carry),
@@ -417,6 +425,8 @@ class QueryViewState extends State<QueryView> {
       if (_building && onBody != null)
         QueryBuilder(
           body: widget.lines,
+          offers: widget.offers,
+          lists: widget.lists,
           onBody: onBody,
           onLines: () {
             setState(() => _building = false);
@@ -501,7 +511,10 @@ class _RoundButton extends StatelessWidget {
 /// lines (`Head`). The switcher writes only the `show:` line, so a list becomes a board or a table with its `from:`
 /// and `where:` kept, the way a database's view tabs do; it is there only where the lines can be edited.
 class QueryHead extends StatelessWidget {
-  const QueryHead({super.key, required this.look, required this.title, required this.count, required this.editable, required this.onEdit, this.show, this.onShow, this.onBuild});
+  const QueryHead({super.key, required this.look, required this.title, required this.count, required this.editable, required this.onEdit, this.show, this.onShow, this.onBuild, this.offers});
+
+  /// Whether the switcher offers a way of showing (queries.dart `QueryOptions.offers`); absent, every one.
+  final bool Function(ShowAs view)? offers;
 
   final QueryLook look;
   final String title;
@@ -594,7 +607,7 @@ class QueryHead extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          for (final (index, way) in switcherViews(show, wide: constraints.maxWidth >= wideHead).indexed) ...<Widget>[if (index > 0) const SizedBox(width: 1), view(way)],
+                          for (final (index, way) in switcherViews(show, wide: constraints.maxWidth >= wideHead).where((way) => way == show || (offers?.call(way) ?? true)).indexed) ...<Widget>[if (index > 0) const SizedBox(width: 1), view(way)],
                         ],
                       ),
                     ),

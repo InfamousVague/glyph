@@ -316,9 +316,13 @@ class FeaturedPluginCard extends StatelessWidget {
 ///
 /// Removing a plugin keeps its data, as the registry does: added again, it is as it was.
 class PluginDetail extends StatelessWidget {
-  const PluginDetail({super.key, required this.plugin, required this.added, required this.on, required this.held, required this.onSwitch, this.onSettings, this.onLocalOnly, this.onClose});
+  const PluginDetail({super.key, required this.plugin, required this.added, required this.on, required this.held, required this.onSwitch, this.onSettings, this.onLocalOnly, this.onClose, this.warning});
 
   final GlyphPlugin plugin;
+
+  /// What removing it would take with it, said under Remove before the second press does it: Tickets' and the tools
+  /// that stand on it (docs/PM_PLUGINS.md). Null for nothing to say.
+  final String? warning;
 
   /// Switched on here, held off or not.
   final bool added;
@@ -490,6 +494,7 @@ class PluginDetail extends StatelessWidget {
           key: const ValueKey('market-detail-hint'),
           style: quiet,
         ),
+        if (warning != null) Padding(padding: EdgeInsets.only(top: t.space(1)), child: Text(warning!, key: const ValueKey('market-detail-warning'), style: quiet.copyWith(color: t.color('app-ink')))),
         if (held && onLocalOnly != null) Padding(padding: EdgeInsets.only(top: t.space(1)), child: Align(alignment: AlignmentDirectional.centerStart, child: MarketWord(word: 'Local only', onPress: onLocalOnly!))),
         section('Works on', [
           Wrap(

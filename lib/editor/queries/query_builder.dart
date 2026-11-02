@@ -153,7 +153,12 @@ Widget _mark(LucideIcon icon) => AppIcon(icon, size: 18);
 bool _same(String? a, String? b) => (a ?? '').trim().toLowerCase() == (b ?? '').trim().toLowerCase();
 
 class QueryBuilder extends StatefulWidget {
-  const QueryBuilder({super.key, required this.body, required this.onBody, required this.onLines, required this.onClose, this.simple});
+  const QueryBuilder({super.key, required this.body, required this.onBody, required this.onLines, required this.onClose, this.simple, this.offers, this.lists});
+
+  /// Whether a way of showing, and a kind to list, is offered: a project tool's only where it is on
+  /// (docs/PM_PLUGINS.md). Absent, every one.
+  final bool Function(ShowAs view)? offers;
+  final bool Function(QueryKind kind)? lists;
 
   /// The current fence body, the lines between the fences.
   final String body;
@@ -230,7 +235,7 @@ class _QueryBuilderState extends State<QueryBuilder> {
         const SheetHeading('List'),
         SheetGroup(
           children: <Widget>[
-            for (final each in builderKinds) SheetRow(key: ValueKey<String>('kind:${each.word}'), icon: _mark(each.icon), label: each.label, chosen: kind == each.kind, onPress: () => chooseKind(each.word)),
+            for (final each in builderKinds.where((each) => each.kind == kind || (widget.lists?.call(each.kind) ?? true))) SheetRow(key: ValueKey<String>('kind:${each.word}'), icon: _mark(each.icon), label: each.label, chosen: kind == each.kind, onPress: () => chooseKind(each.word)),
           ],
         ),
         const SheetHeading('Only'),
@@ -264,7 +269,7 @@ class _QueryBuilderState extends State<QueryBuilder> {
         const SheetHeading('Show'),
         SheetGroup(
           children: <Widget>[
-            for (final view in builderViews)
+            for (final view in builderViews.where((view) => view == shown || (widget.offers?.call(view) ?? true)))
               SheetRow(
                 key: ValueKey<String>('show:${view.name}'),
                 icon: _mark(queryViews[view]!.icon),

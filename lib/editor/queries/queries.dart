@@ -90,7 +90,22 @@ typedef NoteChange = String? Function(String body);
 
 /// What the screen hands the editor for its queries: the library, and how to reach and write what a query lists.
 class QueryOptions {
-  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks, this.history, this.bulk, this.labelColours});
+  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events, this.listedWritable, this.ticketMarks, this.history, this.bulk, this.labelColours, this.held, this.offers, this.lists, this.planned});
+
+  /// Whether a ticket's planning (its cycle, estimate and the carry of a cycle's unfinished tickets) is drawn: the
+  /// Planning tool on where the note is (docs/PM_PLUGINS.md). Absent, it is wherever [history] is given.
+  final bool Function()? planned;
+
+  /// Whether a query of these lines is left as its lines: one whose source or view needs a project tool that is off
+  /// where the note is (docs/PM_PLUGINS.md: `from: tickets`, `show: board`, `gantt`, `timeline`, `burndown`,
+  /// `velocity`, `roadmap`), whose chip under it (lib/editor/tools/tool_chips.dart) says what to turn on. Asked as
+  /// each query is drawn; absent, every query is drawn.
+  final bool Function(String body)? held;
+
+  /// Whether the switcher and the builder offer a way of showing, and the builder a kind to list: a project tool's
+  /// view or tickets only where the tool is on. Absent, every one.
+  final bool Function(ShowAs view)? offers;
+  final bool Function(QueryKind kind)? lists;
 
   /// Every note a query reads: the library a screen shows, without the Trash, the archive, the Guide or templates'
   /// pages.
@@ -509,10 +524,12 @@ class DrawnQuery extends StatelessWidget {
       ticketMarks: options?.ticketMarks,
       bulk: writable ? options?.bulk : null,
       labelColours: switch (options?.labelColours) { final colours? => (row) => colours(row.noteId), null => null },
-      planning: options?.history != null,
+      planning: options?.history != null && (options?.planned?.call() ?? true),
+      offers: options?.offers,
+      lists: options?.lists,
       // A cycle's unfinished tickets, each moved to the next cycle (lib/core/query/planning.dart), and said, with an
       // Undo that puts each back.
-      onCarry: !writable || options?.history == null
+      onCarry: !writable || options?.history == null || !(options?.planned?.call() ?? true)
           ? null
           : (offer) {
               fireMotor(HapticKind.selection);
@@ -581,6 +598,8 @@ DecorationSet _decorate(EditorState state, int stamp, String today, QueryOptions
     final to = state.doc.line(fence.to).to;
     // The caret in the fence: the lines themselves, to edit. Elsewhere, and in a view with no caret, the answer.
     if (editable && caretIn(state, from, to)) continue;
+    // One that needs a project tool that is off here: its lines, and the chip under them.
+    if (options()?.held?.call(fence.body) ?? false) continue;
     final at = state.doc.line(fence.from + 1 < fence.to ? fence.from + 1 : fence.to).from;
     ranges.add(
       Decoration.replace(

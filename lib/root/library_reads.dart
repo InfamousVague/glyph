@@ -33,7 +33,12 @@ import '../perf/frame_log.dart';
 import '../tickets/labels.dart' show labelColoursOf, labelsIn;
 
 class LibraryReads {
-  LibraryReads({required this.shown, required this.all, this.history, String Function()? today}) : _today = today ?? (() => isoDay(DateTime.now()));
+  LibraryReads({required this.shown, required this.all, this.history, this.ticketsOn, String Function()? today}) : _today = today ?? (() => isoDay(DateTime.now()));
+
+  /// Whether a note may be a ticket at all: the Tickets tool on where it is (docs/PM_PLUGINS.md). A ticket where it is
+  /// off is no ticket to My tickets, Triage, the digest, the palette or a `[[KEY-12]]`: its front matter is plain
+  /// front matter. Absent, every ticket is one. The root reads everything again ([changed]) as the tools are switched.
+  final bool Function(String noteId)? ticketsOn;
 
   /// The notes every screen shows: none in the Trash, none a pending delete is holding back.
   final List<Note> Function() shown;
@@ -101,7 +106,7 @@ class LibraryReads {
 
   /// Every ticket in the library, each in its notebook's workflow. A ticket's template page makes tickets and is
   /// not one.
-  List<TicketEntry> get entries => _entries ??= ticketsIn(notes, (note) => NoteFacts.of(note).isTemplatePage);
+  List<TicketEntry> get entries => _entries ??= ticketsIn(notes, (note) => NoteFacts.of(note).isTemplatePage || !(ticketsOn?.call(note.id) ?? true));
 
   /// The ticket a key or a title names.
   TicketEntry? ticket(String target) => (_find ??= ticketFinder(entries))(target);
@@ -210,7 +215,7 @@ class LibraryReads {
   ///
   /// And its sub-tickets, Add sub-ticket ([addSub], the root's), and the rings a Blocked by or a Parent would make,
   /// refused (lib/book/ticket_links.dart).
-  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub, TicketFollow? follow, void Function(String label, String? hue)? labelColour, TicketWorkOptions? work}) {
+  TicketOptions ticketOptions(String noteId, {required void Function(String target) open, void Function(String parentId, String title)? addSub, TicketFollow? follow, void Function(String label, String? hue)? labelColour, TicketWorkOptions? work, bool planned = true}) {
     TicketEntry? self() => entries.where((entry) => entry.note.id == noteId).firstOrNull;
     Note? notebook() {
       for (final note in notes) {
@@ -249,7 +254,8 @@ class LibraryReads {
       // Its time and its pull requests (lib/editor/tickets/ticket_work.dart).
       work: work,
       // Its cycle, its age, its epic's progress, the milestones (lib/core/query/planning.dart).
-      planning: () => ticketPlanningOf(plan, noteId),
+      // Only where Planning is on where the ticket is (docs/PM_PLUGINS.md): its cycle and milestone rows go with it.
+      planning: planned ? () => ticketPlanningOf(plan, noteId) : null,
       problem: (key, value) {
         final entry = self();
         if (entry == null) return null;

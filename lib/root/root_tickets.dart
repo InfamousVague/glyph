@@ -172,7 +172,8 @@ extension _RootTickets on _GhostRootState {
   /// ever having said it was syncing, or went at once where the launch pass had no answer to give (2026-10-31,
   /// test/root/launch_lines_test.dart).
   void _digestLook() {
-    if (_launchUp) return;
+    // No digest where Tickets is on for nobody: not the person, not a team of theirs (docs/PM_PLUGINS.md).
+    if (_launchUp || !projectSuite.anywhere(ticketsTool)) return;
     unawaited(_digest?.look());
   }
 

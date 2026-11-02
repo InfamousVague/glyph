@@ -87,7 +87,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier, listEquals;
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier, listEquals, setEquals;
 import 'package:glacier/glacier.dart';
 import '../account/ui_state.dart';
 import '../ai/available.dart' show AvailabilityController;
@@ -136,6 +136,7 @@ import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSp
 import '../core/place_refs.dart' as place_refs;
 import '../core/video_refs.dart' show videoMarkdown;
 import '../core/note.dart';
+import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_text.dart';
 import '../core/planning/history.dart' show StatusPast;
 import '../core/preferences.dart';
@@ -207,6 +208,9 @@ import '../note/note_screen.dart';
 import '../plugins/keymaps/keymaps.dart' show KeymapBadge, KeymapHooks, keyboardMode, keyboardModes, vimJk, vimStartsNormal;
 import '../plugins/link_marks.dart';
 import '../plugins/lovart/lovart.dart' show lovartBannerMaking, lovartCuesOn, lovartIsMaking, lovartMaking, makeCue;
+import '../plugins/projects/suite.dart';
+import '../plugins/projects/tool_chip.dart' show ToolBanner;
+import '../editor/tools/tool_chips.dart' show ToolChipHooks, toolChips;
 import '../note/note_banner.dart';
 import '../note/note_settings.dart' show NotePlugins;
 import '../plugins/registry.dart' show plugins;
@@ -845,6 +849,81 @@ class NoteDeskState extends State<NoteDesk> {
   /// made, as the page's is (a plugin switched on or off is in the next note opened).
   late final List<GlyphFormat> _formats = noteFormats();
 
+  // ---- the project tools (docs/PM_PLUGINS.md) -----------------------------------------------------------------------
+
+  /// The project tools on where this note is (lib/plugins/projects/suite.dart: its organization's list, or the
+  /// person's own switches), as its editor was last given them.
+  late Set<String> _tools = projectSuite.onIn(noteId: widget.noteId);
+
+  /// The suite this desk listens to: the app's as the desk was made.
+  late final ProjectSuite _toolsFrom = projectSuite;
+
+  bool _tool(String id) => _tools.contains(id);
+
+  /// The tools' part of the editor, in a slot of its own so a tool switched on or off is drawn in the note already open.
+  final Compartment _toolSlot = Compartment();
+
+  Extension _toolPart() => Extension.list(<Extension>[
+        // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
+        if (_tool(boardsTool)) drawnBoards(),
+        // A ```gantt fence drawn as a Gantt chart to drag, its [[tickets]] read from the library the queries read
+        // (lib/editor/gantt; Matt, 2026-10-31).
+        if (_tool(ganttTool)) drawnGantt(() => _queries),
+        // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title.
+        if (_world.tickets != null && _tool(ticketsTool)) tickets(() => _world.tickets?.call(widget.noteId)),
+        // And where one is off, its words as written with a chip under them that turns it on.
+        toolChips(ToolChipHooks(
+          on: _tool,
+          turnOn: (ids) => unawaited(projectSuite.turnOn(ids, noteId: widget.noteId)),
+          where: () => projectSuite.whereWords(noteId: widget.noteId),
+          canTurnOn: () => projectSuite.canTurnOn(noteId: widget.noteId),
+        )),
+      ]);
+
+  /// A query that needs a tool off here is left as its lines, with its chip.
+  bool _queryHeld(String body) => !toolsOfQuery(body).every(_tool);
+
+  /// The switcher's and the builder's ways and kinds: a tool's only where it is on.
+  bool _offersView(ShowAs view) => switch (view) {
+        ShowAs.board => _tool(boardsTool),
+        ShowAs.gantt || ShowAs.timeline => _tool(ganttTool),
+        _ => true,
+      };
+
+  bool _listsKind(QueryKind kind) => kind != QueryKind.tickets || _tool(ticketsTool);
+
+  /// A tool was switched somewhere: where this note's answer moved, its editor and its screen are given the new one.
+  void _toolsHeard() {
+    final now = projectSuite.onIn(noteId: widget.noteId);
+    if (setEquals(now, _tools) || !mounted) {
+      if (mounted) setState(() {});
+      return;
+    }
+    _tools = now;
+    _view?.dispatch(TransactionSpec(effects: _toolSlot.reconfigure(_toolPart())));
+    setState(() {});
+  }
+
+  /// The banner at the top of an organization's note that uses a tool its team has not turned on; null for none.
+  Widget? _toolBanner() {
+    final org = projectSuite.orgFor(noteId: widget.noteId);
+    final note = _world.noteById?.call(widget.noteId);
+    if (org == null || note == null) return null;
+    final missing = projectSuite.missingFor(widget.noteId, NoteFacts.of(note).tools);
+    if (missing.isEmpty || projectSuite.bannerPutAway(org, missing)) return null;
+    final name = projectSuite.orgName?.call(org) ?? 'the team';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ToolBanner(
+        tools: missing,
+        orgName: name,
+        simple: _prefs.value.simple,
+        onTurnOn: projectSuite.canTurnOn(orgId: org) ? () => unawaited(projectSuite.turnOn(missing, orgId: org)) : null,
+        onPutAway: () => projectSuite.putAwayBanner(org, missing),
+      ),
+    );
+  }
+
   /// Every piece's extensions, once: another list would be another editor (lib/note/note_editor.dart).
   late final List<Extension> _extensions = <Extension>[
     // NoteScreen.tsx `assist={prefs.assist}`: the keyboard's aids and the spell checker, on unless the preference
@@ -898,15 +977,11 @@ class NoteDeskState extends State<NoteDesk> {
     personPicker.of(PersonPicking(offered: () => phoneContacts.ready && !widget.readOnly, pick: (_) => _pickPerson())),
     // Remind me at a place, where the phone watches places (lib/reminders/place_sheet.dart).
     if (phonePlaces.value != null) placePicker.of(_askPlace),
-    // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
-    drawnBoards(),
     // A ```mermaid fence drawn as its diagram (Editor.tsx `drawnMermaid()`).
     drawnMermaid(),
-    // A ```gantt fence drawn as a Gantt chart to drag, its [[tickets]] read from the library the queries read
-    // (lib/editor/gantt; Matt, 2026-10-31).
-    drawnGantt(() => _queries),
-    // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title.
-    if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
+    // The project tools' drawings where each is on where this note is, and their chips where it is off: a board, a
+    // Gantt chart, a ticket's panel (docs/PM_PLUGINS.md). Reconfigured as the tools are switched.
+    _toolSlot.of(_toolPart()),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.
     if (_world.queryNotes != null) queries(() => _queries),
     // `[Move to done](ghost:set?status=Done)` drawn as a button that does it (lib/editor/buttons).
@@ -1003,9 +1078,16 @@ class NoteDeskState extends State<NoteDesk> {
       itemExtensions(wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _openWithin(title), body: (title) => _world.bodyOf?.call(title))),
       drawnTables(),
       if (_world.openTag != null) tagOpener.of(_world.openTag!),
-      drawnBoards(),
+      // The tools as they are on where the notebook is, as its words are first drawn (docs/PM_PLUGINS.md).
+      if (_tool(boardsTool)) drawnBoards(),
       drawnMermaid(),
-      drawnGantt(() => _bookQueries),
+      if (_tool(ganttTool)) drawnGantt(() => _bookQueries),
+      toolChips(ToolChipHooks(
+        on: _tool,
+        turnOn: (ids) => unawaited(projectSuite.turnOn(ids, noteId: widget.noteId)),
+        where: () => projectSuite.whereWords(noteId: widget.noteId),
+        canTurnOn: () => projectSuite.canTurnOn(noteId: widget.noteId),
+      )),
       if (_world.queryNotes != null) queries(() => _bookQueries),
       if (_world.bodyOf != null)
         canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _openWithin(title))),
@@ -1076,6 +1158,10 @@ class NoteDeskState extends State<NoteDesk> {
           bulk: _world.bulk,
           labelColours: _world.labelColours,
           history: _world.ticketHistory,
+          held: _queryHeld,
+          offers: _offersView,
+          lists: _listsKind,
+          planned: () => _tool(planningTool),
         );
 
   /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
@@ -1105,6 +1191,10 @@ class NoteDeskState extends State<NoteDesk> {
           labelColours: _world.labelColours,
           history: _world.ticketHistory,
           listedWritable: () => !widget.readOnly && _world.write != null,
+          held: _queryHeld,
+          offers: _offersView,
+          lists: _listsKind,
+          planned: () => _tool(planningTool),
         );
 
   @override
@@ -1115,6 +1205,8 @@ class NoteDeskState extends State<NoteDesk> {
     _unhearRecording = _world.onRecordingChanged?.call(_recordingHeard);
     _world.eventsChanged?.addListener(_eventsChanged);
     plugins.addListener(_pluginsChanged);
+    // The project tools switched, here or on another device, or for the team (docs/PM_PLUGINS.md).
+    _toolsFrom.addListener(_toolsHeard);
     liveTranscripts.addListener(_liveChanged);
     // While the note is open the better words wait to write it: the editor is its one writer.
     _world.holdNote?.call(widget.noteId, true);
@@ -1535,7 +1627,7 @@ class NoteDeskState extends State<NoteDesk> {
         _clips?.stop();
       }
       final queried = _world.queryNotes != null && queryFencesOf(view.state.doc).isNotEmpty;
-      final ticketed = _world.tickets != null && readsTickets(view.state);
+      final ticketed = _world.tickets != null && _tool(ticketsTool) && readsTickets(view.state);
       // A canvas framed in this note may have been drawn on: its frame is looked at again.
       final framed = _world.bodyOf != null && hasFrames(view.state.doc);
       final moved = (queried || ticketed || framed) && _libraryMoved(ownTimes: queried);
@@ -1741,6 +1833,7 @@ class NoteDeskState extends State<NoteDesk> {
     _world.notesSynced?.removeListener(_phrasesMayHaveMoved);
     _unhearRecording?.call();
     plugins.removeListener(_pluginsChanged);
+    _toolsFrom.removeListener(_toolsHeard);
     liveTranscripts.removeListener(_liveChanged);
     _bookmark?.dispose();
     _stripRoom.dispose();
@@ -1964,9 +2057,12 @@ class NoteDeskState extends State<NoteDesk> {
           inserts: <PlusInsert>[...plusInserts(), ...snippetInserts(_snippetsNow(), DateTime.now())],
           // Every canvas among the notes, for the +'s A canvas: a frame of it drawn in the words.
           canvases: _world.bodyOf == null ? null : () => <String>[for (final title in _world.titles()) if (isCanvasBody(_world.bodyOf!(title) ?? '')) title],
-          boards: true,
+          // A board, Make this a ticket, a Gantt chart and the ready-made databases that need a tool: where each is on
+          // where this note is (docs/PM_PLUGINS.md).
+          boards: _tool(boardsTool),
           databases: _world.queryNotes != null,
-          tickets: _world.tickets != null,
+          tickets: _world.tickets != null && _tool(ticketsTool),
+          queries: (lines) => !_queryHeld(lines),
           // A question for the AI where its answer belongs: writing one needs no model, so the row is always there,
           // and under a table with an empty cell, a blank in every one (editor/addRows.ts).
           blanks: true,
@@ -1975,7 +2071,7 @@ class NoteDeskState extends State<NoteDesk> {
           // A `<details>` toggle, in More and the `/` palette (lib/editor/view/section_folds.dart).
           toggles: true,
           // A ```gantt fence, a project to drag (lib/editor/gantt; Matt, 2026-10-31).
-          gantt: true,
+          gantt: _tool(ganttTool),
           // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
           onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
@@ -2008,7 +2104,7 @@ class NoteDeskState extends State<NoteDesk> {
           // The phone's own reader, which copies a picture out of the clipboard for the note to adopt.
           clipboard: _clipboard,
           onPasteImage: _pictures?.pasteImage,
-          boards: true,
+          boards: _tool(boardsTool),
           // The comment glyph beside a line, in its gutter (Matt, 2026-10-30: "When hovering a line show the comment
           // icon in the gutter"): over the page as the + is, on the note's words while they are what is shown.
           child: CommentGutter(
@@ -2323,10 +2419,11 @@ class NoteDeskState extends State<NoteDesk> {
         open: _openWithin,
         openCanvas: widget.readOnly ? null : _world.openCanvas,
         openNew: widget.readOnly ? null : _world.openPage,
-        openTicket: widget.readOnly || _world.openTicket == null ? null : (title, template) => _world.openTicket!(title, body, template),
-        ticketTemplates: _world.ticketTemplates?.call() ?? const <NoteTemplate>[],
-        // New form… (docs/FORMS.md): a form whose answers become this notebook's tickets.
-        offersForms: !widget.readOnly,
+        // New ticket and its templates where Tickets is on where the notebook is (docs/PM_PLUGINS.md).
+        openTicket: widget.readOnly || _world.openTicket == null || !_tool(ticketsTool) ? null : (title, template) => _world.openTicket!(title, body, template),
+        ticketTemplates: _tool(ticketsTool) ? _world.ticketTemplates?.call() ?? const <NoteTemplate>[] : const <NoteTemplate>[],
+        // New form… (docs/FORMS.md): a form whose answers become this notebook's tickets, where Forms is on.
+        offersForms: !widget.readOnly && _tool(formsTool),
         titles: _world.pageTitles ?? _world.titles,
         bodyOf: _world.bodyOf,
         spot: widget.noteId,
@@ -2517,6 +2614,9 @@ class NoteDeskState extends State<NoteDesk> {
           // And while it is going on, the Note view's small way to its live words.
           if (transcriptView && !_reading && _liveNow) LiveTranscriptPill(onPressed: () => _choose(true), simple: _prefs.value.simple),
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
+          // An organization's note that uses a project tool the team has not turned on: the banner asking for it
+          // (docs/PM_PLUGINS.md §6), unless this device put it away.
+          ?_toolBanner(),
           // A verified page's badge (lib/verified/verified_badge.dart): pressed, the More sheet with Verify….
           ?_verify.badgeOf(_view, saved: () => _world.noteById?.call(widget.noteId)?.body, openVerify: widget.readOnly ? null : openSettings),
         ];

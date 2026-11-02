@@ -43,6 +43,10 @@
     {
       "id": "editor",
       "label": "Editor"
+    },
+    {
+      "id": "projects",
+      "label": "Project tools"
     }
   ],
   "featured": [
@@ -1104,6 +1108,227 @@
       "author": "Ghost.md",
       "version": "1.0.0",
       "link": "ghostmd://market/plugin/rich-embeds"
+    },
+    {
+      "id": "automations",
+      "name": "Automations",
+      "line": "Rules that move tickets for you",
+      "description": "Rules for a ticket notebook, a sentence a line in its ```rules fence: when a ticket moves to a status, is assigned or is due, set a field, assign someone, post to a channel or make another ticket. Needs Tickets.",
+      "category": "projects",
+      "icon": "workflow",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A notebook’s ```rules fence run as tickets change",
+        "Rules and GitHub… on a ticket notebook’s settings"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/automations"
+    },
+    {
+      "id": "boards",
+      "name": "Boards",
+      "line": "Kanban boards of a note’s items",
+      "description": "A ```board fence drawn as lanes of cards, each card one of the note’s own items, to drag from lane to lane. And a query shown as a board.",
+      "category": "projects",
+      "icon": "square-kanban",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A ```board fence drawn as its lanes, and a board in the + and the / palette",
+        "`show: board` in a query"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/boards"
+    },
+    {
+      "id": "forms",
+      "name": "Forms",
+      "line": "Forms anyone can fill, filed as tickets",
+      "description": "A note with a ```form fence is a form: share its link, anyone can fill it in, and each answer comes back sealed and is filed as a ticket in the notebook the form names. Needs Tickets.",
+      "category": "projects",
+      "icon": "text-cursor-input",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Share a form’s link from its note’s settings",
+        "Each answer filed as a ticket, read from the form inbox"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/forms"
+    },
+    {
+      "id": "gantt",
+      "name": "Gantt and timelines",
+      "line": "Gantt charts and timelines to drag",
+      "description": "A ```gantt fence drawn as a Gantt chart you drag: tasks, their days, who has them, what waits on what, and milestones, every change written back into the fence. And a query shown as a gantt or a timeline.",
+      "category": "projects",
+      "icon": "chart-gantt",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A ```gantt fence drawn as its chart, and a Gantt chart in the + and the / palette",
+        "`show: gantt` and `show: timeline` in a query"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/gantt"
+    },
+    {
+      "id": "planning",
+      "name": "Planning",
+      "line": "Cycles, estimates, burndown and the roadmap",
+      "description": "Plan tickets in cycles and sprints: estimates in points or hours, a cycle’s burndown and the cycles’ velocity as charts, epics and milestones, and the roadmap of them. Needs Tickets.",
+      "category": "projects",
+      "icon": "calendar-days",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A ticket’s cycle, estimate, epic and milestone in its panel",
+        "`show: burndown`, `show: velocity` and `show: roadmap` in a query",
+        "Carry a cycle’s unfinished tickets on to the next"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/planning"
+    },
+    {
+      "id": "tickets",
+      "name": "Tickets",
+      "line": "Tickets, notebooks of them, My tickets and Triage",
+      "description": "Notes that are tickets: a status, an assignee, a priority and a due day in their front matter, drawn as a panel. Ticket notebooks with their own key and workflow, [[KEY-12]] links, My tickets and Triage, labels, sub-tickets and blockers, watchers and history, a morning digest, duplicates and merge, ticket templates, and queries of tickets.",
+      "category": "projects",
+      "icon": "ticket",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A ticket’s front matter drawn as its properties, and [[KEY-12]] drawn with the ticket’s title",
+        "Ticket notebooks: a key, a workflow and New ticket",
+        "My tickets and Triage in the sidebar, and the digest in Settings › Notifications",
+        "Labels, sub-tickets, blockers, watchers, history, duplicates and merge",
+        "The Bug report and Feature templates, and `from: tickets` in a query"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/tickets"
+    },
+    {
+      "id": "time-tracking",
+      "name": "Time tracking",
+      "line": "Timers and time logs on tickets",
+      "description": "A timer on a ticket, started from its panel or the palette and shown on the activity tray while it runs, and the time logged under the ticket’s Time heading, totalled in its `spent:` for a query to add up. Needs Tickets.",
+      "category": "projects",
+      "icon": "hourglass",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Start and stop a timer on a ticket, from its panel or Start timer on… in the palette",
+        "A ticket’s time log and its `spent:` total"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/time-tracking"
     }
   ],
   "themes": [
@@ -3601,6 +3826,12 @@
       "M12 17h.01",
       "M16 17h.01"
     ],
+    "chart-gantt": [
+      "M10 6h8",
+      "M12 16h6",
+      "M3 3v16a2 2 0 0 0 2 2h16",
+      "M8 11h7"
+    ],
     "check": [
       "M20 6 9 17l-5-5"
     ],
@@ -3642,6 +3873,12 @@
     "highlighter": [
       "m9 11-6 6v3h9l3-3",
       "m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"
+    ],
+    "hourglass": [
+      "M5 22h14",
+      "M5 2h14",
+      "M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22",
+      "M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"
     ],
     "laptop": [
       "M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z",
@@ -3741,6 +3978,19 @@
       "M12 19h8",
       "m4 17 6-6-6-6"
     ],
+    "text-cursor-input": [
+      "M12 20h-1a2 2 0 0 1-2-2 2 2 0 0 1-2 2H6",
+      "M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7",
+      "M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1",
+      "M6 4h1a2 2 0 0 1 2 2 2 2 0 0 1 2-2h1",
+      "M9 6v12"
+    ],
+    "ticket": [
+      "M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z",
+      "M13 5v2",
+      "M13 17v2",
+      "M13 11v2"
+    ],
     "type": [
       "M12 4v16",
       "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2",
@@ -3765,6 +4015,11 @@
       "M7 8H3",
       "M21 16h-4",
       "M11 3H9"
+    ],
+    "workflow": [
+      "M5 3H9A2 2 0 0 1 11 5V9A2 2 0 0 1 9 11H5A2 2 0 0 1 3 9V5A2 2 0 0 1 5 3Z",
+      "M7 11v4a2 2 0 0 0 2 2h4",
+      "M15 13H19A2 2 0 0 1 21 15V19A2 2 0 0 1 19 21H15A2 2 0 0 1 13 19V15A2 2 0 0 1 15 13Z"
     ],
     "x": [
       "M18 6 6 18",

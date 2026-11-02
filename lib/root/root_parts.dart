@@ -52,10 +52,10 @@ extension _RootParts on _GhostRootState {
         }, _atWorkPart),
         // Settings is handed what its pages read whether it is open or shut (the models, the tapes' room, the
         // updates), so it is built again as those change; never for a runner's turn or the home page's news.
-        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, _voice == null || _read, preferences.value.formatModel, _builtReport.value, _claudeOn), _settingsPart),
+        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, _voice == null || _read, preferences.value.formatModel, _builtReport.value, _claudeOn, _toolsAt), _settingsPart),
         // The palette's commands and a note's menu are made from the notes while each is open; shut, neither
         // draws anything, and each is built with the notes as they are the moment it opens.
-        _part('commands', () => ((_commands.currentState?.isOpen ?? false) ? _library.value : null, _workspaces.value, _prefsAt, _capture != null), _commandsPart),
+        _part('commands', () => ((_commands.currentState?.isOpen ?? false) ? _library.value : null, _workspaces.value, _prefsAt, _capture != null, _toolsAt), _commandsPart),
         _part('noteMenu', () => _menu.value == null ? null : (_shown, _claudeOn), _noteMenuPart),
         // What the + makes (notes/NewSheet.tsx). The rows read where to make it as they are pressed, since the
         // sheet closes first.
@@ -75,7 +75,7 @@ extension _RootParts on _GhostRootState {
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
         OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
-          _part('organization', () => (_organization, _accountAt, _syncAt, _organization == null ? 0 : _presenceAt), (context) => _organizationSheetPart(services)),
+          _part('organization', () => (_organization, _accountAt, _syncAt, _organization == null ? 0 : _presenceAt, _toolsAt), (context) => _organizationSheetPart(services)),
           _part('newOrganization', () => (_newOrganization, _accountAt, _syncAt), (context) => _newOrganizationPart(services)),
           // The way in, the first thing on screen once, on an open that is signed out. Never over a recorder
           // (App.tsx: `accountGate.open && !isRecording(screen)`): it waits under one.
@@ -158,6 +158,8 @@ extension _RootParts on _GhostRootState {
       _unread,
       // The app's Claude's bar under the top bar and the docks' Claude (the Claude plugin's switch, and a key).
       _claudeShown,
+      // The project tools switched: My tickets and Triage (lib/plugins/projects/suite.dart).
+      _toolsAt,
     );
   }
 
@@ -576,7 +578,7 @@ extension _RootParts on _GhostRootState {
 
   /// What the wide window's sidebar reads ([_listColumn]): the notes, whether they are read yet, the microphone
   /// and whose it is, which list it is on, the update it carries, and whether there is a folder to browse.
-  Object _listReads(AppShellState shell) => (shell.notes, !_read, _capture != null, _canTalk, _simpleTab, _updatesAt, _bannerShown, _canBrowse, preferences.value.simple);
+  Object _listReads(AppShellState shell) => (shell.notes, !_read, _capture != null, _canTalk, _simpleTab, _updatesAt, _bannerShown, _canBrowse, preferences.value.simple, _toolsAt);
 
   /// Advanced mode's sidebar on a wide window (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple
   /// but just hide it by default"): simple mode's list itself ([_simpleHome] as a column), under the bar. What
@@ -659,6 +661,8 @@ extension _RootParts on _GhostRootState {
           _presenceAt,
           // Claude on the dock, or not (the Claude plugin's switch, and an API key entered).
           _claudeShown,
+          // The project tools switched (lib/plugins/projects/suite.dart).
+          _toolsAt,
           // Simple or advanced (GHST-103).
           preferences.value.simple,
           // Which notes are meetings, for the shelf of their tapes (GHST-112).
@@ -977,7 +981,7 @@ extension _RootParts on _GhostRootState {
         openSmart: _organize.showSmart,
         settingsAt: _openSettingsAt,
         marketPlugin: (id) => _showMarket(plugin: id),
-        startTimer: _ticketsWired.timers == null ? null : _ticketsWired.startTimer,
+        startTimer: _ticketsWired.timers == null || !projectSuite.anywhere(timeTrackingTool) ? null : _ticketsWired.startTimer,
         stopTimer: _ticketsWired.timers == null ? null : _ticketsWired.stopTimer,
         backUpNow: _gitWired.backUpNow,
       ),
@@ -1161,6 +1165,8 @@ extension _RootParts on _GhostRootState {
         services: services,
         open: _newOrganization,
         onClose: () => _told(() => _newOrganization = false),
+        // Its home page there and then, with the tools chosen in its second step as its `plugins:` (docs/PM_PLUGINS.md).
+        onTools: (id, tools) => _createHome(id, plugins: tools),
         onMade: (id) {
           _told(() => _newOrganization = false);
           _shell.currentState?.openOrganization(id);

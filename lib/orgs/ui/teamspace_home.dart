@@ -33,6 +33,9 @@ import '../../home/home_organizations.dart' show OrgPresence;
 import '../../mentions/mention_syntax.dart' show handleKey;
 import '../../sheet/css.dart';
 import '../orgs.dart' show Member;
+import '../../plugins/projects/suite.dart' show projectSuite;
+import '../../plugins/projects/tool_chip.dart' show ToolBanner;
+import '../../plugins/projects/tool_switches.dart' show ToolSwitches;
 
 /// The home page's words as the dashboard draws them: no front matter, and no first heading where it is the page's
 /// first line (the hero says the space's name).
@@ -116,6 +119,7 @@ class TeamspaceHome extends StatefulWidget {
 
   static const Key stripKey = ValueKey<String>('members-strip'), pinsKey = ValueKey<String>('pinned-pages'), pageKey = ValueKey<String>('home-page');
   static const Key createKey = ValueKey<String>('home-create'), editKey = ValueKey<String>('home-edit'), docsKey = ValueKey<String>('home-docs'), moreKey = ValueKey<String>('home-more');
+  static const Key toolsKey = ValueKey<String>('home-tools'), toolBannerKey = ValueKey<String>('home-tool-banner');
 
   /// A member's round on the strip, and its dot while they are here.
   static Key memberKey(String handle) => ValueKey<String>('strip-member:${handleKey(handle)}');
@@ -165,7 +169,28 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
           ],
         );
 
+    final orgId = widget.space?.orgId;
     final children = <Widget>[
+      // The tools the space's notes use and the team has not turned on (docs/PM_PLUGINS.md §6).
+      if (orgId != null)
+        ListenableBuilder(
+          listenable: projectSuite,
+          builder: (context, _) {
+            final missing = projectSuite.missingIn(orgId);
+            if (missing.isEmpty || projectSuite.bannerPutAway(orgId, missing)) return const SizedBox.shrink();
+            return Padding(
+              padding: EdgeInsets.only(bottom: t.space(6)),
+              child: ToolBanner(
+                key: TeamspaceHome.toolBannerKey,
+                tools: missing,
+                orgName: widget.space!.name,
+                simple: widget.simple,
+                onTurnOn: projectSuite.canTurnOn(orgId: orgId) ? () => unawaited(projectSuite.turnOn(missing, orgId: orgId)) : null,
+                onPutAway: () => projectSuite.putAwayBanner(orgId, missing),
+              ),
+            );
+          },
+        ),
       _MembersStrip(key: TeamspaceHome.stripKey, members: widget.members, seen: widget.seen, me: widget.me, onMember: widget.onMember),
       if (pins.isNotEmpty) ...[
         SizedBox(height: t.space(6)),
@@ -198,6 +223,14 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
             )
           else
             _DocsChoice(key: TeamspaceHome.docsKey, mode: settings.docs, onChoose: (mode) => unawaited(widget.onSetDocs!(mode))),
+        ],
+        // The team's project tools, a switch each, written into the home page's `plugins:` (docs/PM_PLUGINS.md); in
+        // simple mode behind More with the docs setting.
+        if (orgId != null && projectSuite.canTurnOn(orgId: orgId) && (!widget.simple || _more)) ...[
+          SizedBox(height: t.space(6)),
+          heading(Lucide.puzzle, 'Tools'),
+          SizedBox(height: t.space(2)),
+          ToolSwitches(key: TeamspaceHome.toolsKey, orgId: orgId),
         ],
       ],
     ];

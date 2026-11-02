@@ -63,7 +63,12 @@ enum PluginCategory {
   calendar('Calendar & tasks'),
   imports('Import'),
   connections('Connections'),
-  editor('Editor');
+  editor('Editor'),
+
+  /// The project tools, off until added, which the Market shows together as one suite (docs/PM_PLUGINS.md; Matt,
+  /// 2026-11-01: "move the project managment stuff like gantts and stuff into a suite of plugins that are disabled by
+  /// default").
+  projects('Project tools');
 
   const PluginCategory(this.label);
 
