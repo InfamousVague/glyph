@@ -89,16 +89,20 @@ void main() {
     });
 
     test('the developer’s settings only while the developer’s pages are shown', () {
-      expect(_found(_index(_advanced, _registry({})), 'header toolbar'), isNot(contains('Header toolbar · Developer')));
-      expect(_found(_index(_advanced, _registry({}), developer: true), 'header toolbar'), contains('Header toolbar · Developer'));
-      expect(_found(_index(_simple, _registry({}), developer: true), 'header toolbar'), contains('Header toolbar · Developer'));
+      // Header toolbar was the developer's until its picker went (2026-11-01): Reset local data is.
+      expect(_found(_index(_advanced, _registry({})), 'reset local'), isNot(contains('Reset local data · Developer')));
+      expect(_found(_index(_advanced, _registry({}), developer: true), 'reset local'), contains('Reset local data · Developer'));
+      expect(_found(_index(_simple, _registry({}), developer: true), 'reset local'), contains('Reset local data · Developer'));
+      expect(_found(_index(_advanced, _registry({}), developer: true), 'header toolbar'), isNot(contains('Header toolbar · Developer')));
     });
 
     test('in Simple: the rows Simple keeps behind More, and nothing of the pages Simple puts away', () {
       final index = _index(_simple, _registry({'notion'}));
       // Behind More on Simple's pages, and found.
-      expect(_found(index, 'typewriter'), contains('Typewriter scroll · Appearance'));
-      expect(_found(index, 'volume'), contains('Volume · Sounds'));
+      expect(_found(index, 'volume'), contains('Volume · Sounds & haptics'));
+      // The typewriter scroll left Settings on 2026-11-01, and each sound's own switch is Advanced's.
+      expect(_found(index, 'typewriter'), isEmpty);
+      expect(_found(index, 'to-do ticked'), isEmpty);
       // Advanced's cards and pages are not Simple's.
       expect(_found(index, 'accent'), isEmpty);
       expect(_found(index, 'snippets'), isEmpty);

@@ -9,6 +9,7 @@ import 'package:ghost_md/core/notifications.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/notes/notifications_drawer.dart';
 import 'package:ghost_md/notes/ticket_digest_sheet.dart';
+import 'package:ghost_md/settings/panes/morning_section.dart';
 import 'package:ghost_md/settings/panes/ticket_digest_section.dart';
 import 'package:glacier/glacier.dart';
 
@@ -102,14 +103,18 @@ void main() {
     await away(tester);
   });
 
-  testWidgets('Settings › Notifications › Ticket digest: on at 8:30, a time picked, and its note', (tester) async {
+  // Its time is the morning time since 2026-11-01 (Matt: "see if there are other settings that can be simplified"),
+  // the reminders' nine o'clock until chosen, picked on the Morning card over it.
+  testWidgets('Settings › Notifications › Ticket digest: on at the morning time, a time picked, and its note', (tester) async {
     final store = PreferencesStore(keepAfter: Duration.zero);
-    await pumpPage(tester, PageUnder(children: [TicketDigestSection(store: store)]));
+    await pumpPage(tester, PageUnder(children: [TicketDigestSection(store: store), MorningSection(store: store)]));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('8:30'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('digest-time')));
+    expect(find.text('9:00'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('morning-time')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('morning-time')), matching: find.text('9:00')));
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byKey(const ValueKey('digest-time:7:0')));
+    await tester.tap(find.byKey(const ValueKey('morning-time:7:0')));
     await tester.pump(const Duration(milliseconds: 500));
     expect((digestSettingsOf(store.value).hour, digestSettingsOf(store.value).minute), (7, 0));
     await tester.tap(find.descendant(of: find.byKey(const ValueKey('digest-note')), matching: find.byType(GlacierSwitch)));
