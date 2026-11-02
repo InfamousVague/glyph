@@ -81,6 +81,7 @@ class TeamspaceHome extends StatefulWidget {
     this.onMember,
     this.onCreateHome,
     this.onSetDocs,
+    this.onAsk,
     this.simple = false,
   });
 
@@ -114,9 +115,14 @@ class TeamspaceHome extends StatefulWidget {
   /// Writes the home page's `docs:` (making the home page first where there is none); absent, no setting.
   final Future<void> Function(DocsMode mode)? onSetDocs;
 
+  /// Ask the space's notes, with receipts (docs/ASK_THE_ORG.md; Matt, 2026-11-02: "'Ask the org' with receipts"):
+  /// a line of its own over the members; absent, none.
+  final VoidCallback? onAsk;
+
   /// Simple mode: the setting behind More.
   final bool simple;
 
+  static const Key askKey = ValueKey<String>('teamspace-ask');
   static const Key stripKey = ValueKey<String>('members-strip'), pinsKey = ValueKey<String>('pinned-pages'), pageKey = ValueKey<String>('home-page');
   static const Key createKey = ValueKey<String>('home-create'), editKey = ValueKey<String>('home-edit'), docsKey = ValueKey<String>('home-docs'), moreKey = ValueKey<String>('home-more');
   static const Key toolsKey = ValueKey<String>('home-tools'), toolBannerKey = ValueKey<String>('home-tool-banner');
@@ -191,6 +197,10 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
             );
           },
         ),
+      if (widget.onAsk != null) ...[
+        _AskLine(key: TeamspaceHome.askKey, name: widget.space?.name, onPressed: widget.onAsk!),
+        SizedBox(height: t.space(6)),
+      ],
       _MembersStrip(key: TeamspaceHome.stripKey, members: widget.members, seen: widget.seen, me: widget.me, onMember: widget.onMember),
       if (pins.isNotEmpty) ...[
         SizedBox(height: t.space(6)),
@@ -438,6 +448,46 @@ class _DocsChoice extends StatelessWidget {
         SizedBox(width: t.space(1)),
         pill(DocsMode.edit, 'Edit'),
       ],
+    );
+  }
+}
+
+/// Ask the space's notes: a line that looks like a box to type in, opening the Ask sheet on the organization.
+class _AskLine extends StatelessWidget {
+  const _AskLine({super.key, required this.name, required this.onPressed});
+  final String? name;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final md = t.fontSize('md');
+    final words = name == null ? 'Ask the team’s notes' : 'Ask $name';
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: '$words, answered from its notes with receipts',
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        radius: t.radius('md'),
+        child: Container(
+          constraints: BoxConstraints(minHeight: t.space(10)),
+          padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+          decoration: BoxDecoration(
+            color: state.pressed || state.hovered ? t.color('app-wash') : null,
+            border: Border.all(color: t.color('app-ink-3').withValues(alpha: 0.4)),
+            borderRadius: BorderRadius.circular(t.radius('md')),
+          ),
+          child: ExcludeSemantics(
+            child: Row(
+              children: [
+                AppIcon(Lucide.messageCircleQuestionMark, size: 16, color: t.color('app-ink-3')),
+                SizedBox(width: t.space(2)),
+                Expanded(child: Text('$words…', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, md, color: t.color('glacier-text-subtle')))),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

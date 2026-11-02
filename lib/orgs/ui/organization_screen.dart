@@ -120,6 +120,7 @@ class OrganizationScreen extends StatefulWidget {
     this.onMember,
     this.onCreateHome,
     this.onSetDocs,
+    this.onAsk,
   });
 
   /// The marks and blocks the teamspace's home page draws (its queries, its links), the root's; null draws its words
@@ -134,6 +135,9 @@ class OrganizationScreen extends StatefulWidget {
 
   /// Writes the home page's `docs:`, making the home page first where there is none; absent, no setting.
   final Future<void> Function(DocsMode mode)? onSetDocs;
+
+  /// Ask the organization's notes (docs/ASK_THE_ORG.md); absent, no Ask on its home.
+  final VoidCallback? onAsk;
 
   final AccountServices? services;
   final String orgId;
@@ -615,6 +619,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             onMember: widget.onMember,
             onCreateHome: widget.onCreateHome,
             onSetDocs: widget.onSetDocs,
+            onAsk: widget.onAsk,
             simple: _prefs.value.simple,
           ),
           SizedBox(height: t.space(8)),

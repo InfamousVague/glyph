@@ -189,6 +189,11 @@ import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../home/home_organizations.dart' show OrgPresence;
+import '../ask/ask.dart' show AskResult;
+import '../ask/ask_model.dart' show AskModel, askModelFor;
+import '../ask/ask_note.dart' show askNoteBody, askNoteTitle;
+import '../ask/ask_scope.dart';
+import '../ask/ask_sheet.dart' show AskSheet;
 import '../assistant/app_assistant.dart' show appAssistant;
 import '../claude/claude_chat.dart';
 import '../claude/claude_books.dart' show ClaudeBookProblem, ClaudeBooks, ClaudeShelf;
@@ -309,6 +314,7 @@ part 'root_voice.dart';
 part 'root_ticket_rules.dart';
 part 'root_git_backup.dart';
 part 'root_teamspaces.dart';
+part 'root_ask.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -1155,6 +1161,9 @@ class _GhostRootState extends State<GhostRoot> {
   /// The chat with Claude is up (lib/root/root_claude.dart), the agent it was opened for, if any, and the words its
   /// field starts with: what the page whose dock opened it is about.
   bool _askClaude = false;
+
+  /// The Ask sheet is up, on its scope (lib/root/root_ask.dart, docs/ASK_THE_ORG.md).
+  ({AskScope scope})? _askSheet;
   String? _chatAgent;
   String? _chatInitial;
 
