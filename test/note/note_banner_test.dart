@@ -3,11 +3,13 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryMouseButton;
 import 'package:flutter/rendering.dart' show debugDisableShadows;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/banner.dart';
 import 'package:ghost_md/app/preferences.dart' show AppPreferences;
+import 'package:ghost_md/art/art.dart' show Lucide;
 import 'package:glacier/glacier.dart';
 import 'package:ghost_md/core/images.dart';
 import 'package:ghost_md/core/note.dart';
@@ -15,6 +17,7 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/media/lovart_badge.dart' show LovartBadge;
 import 'package:ghost_md/note/note_banner.dart';
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 
 import '../support/render.dart';
 import 'support.dart';
@@ -210,5 +213,166 @@ void main() {
     // A drawing as wide as a strip is held to the widest; one as tall as the picture to the tallest.
     expect(const BannerLook(colour: false, aspect: 1, drawn: Rect.fromLTRB(0, 0.45, 1, 0.5)).shape, bannerWidest);
     expect(const BannerLook(colour: false, aspect: 1, drawn: Rect.fromLTRB(0, 0, 1, 1)).shape, bannerTallest);
+  });
+
+  group('a banner made again after one was taken off (Matt, 2026-11-02: "If I remove a header image and make a new one it\'s not filling the space")', () {
+    // As the prompt asks since 2026-10-26: the drawing in the right two-thirds of a middle band, the rest white.
+    Future<Uint8List> asked(int w, int h, Rect drawn) async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()), Paint()..color = const Color(0xFFFFFFFF));
+      canvas.drawRect(Rect.fromLTRB(drawn.left * w, drawn.top * h, drawn.right * w, drawn.bottom * h), Paint()..color = const Color(0xFFD9482B));
+      final image = await recorder.endRecording().toImage(w, h);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      return data!.buffer.asUint8List();
+    }
+
+    for (final (w, h) in [(1920, 1080), (1024, 1024)]) {
+      testWidgets('fills the banner with its drawing, $w×$h', (tester) async {
+        forgetBannerColours();
+        const drawing = Rect.fromLTRB(0.34, 0.25, 0.96, 0.75);
+        final store = MemoryPictureStore({'lovart-old.png': File('test/note/fixtures/banner-sample.png').readAsBytesSync()});
+        final now = ValueNotifier<(String?, bool)>(('lovart-old.png', false));
+        await pumpApp(
+          tester,
+          size: const Size(900, 700),
+          home: Align(alignment: Alignment.topCenter, child: ValueListenableBuilder<(String?, bool)>(valueListenable: now, builder: (context, at, _) => NoteBannerView(name: at.$1, store: store, making: at.$2))),
+        );
+        Future<void> settle() async {
+          for (var i = 0; i < 6; i++) {
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+        }
+
+        await settle();
+        // Taken off (banner: none names none), then Header image: Lovart at work, and the new one lands.
+        now.value = (null, false);
+        await settle();
+        now.value = (null, true);
+        await settle();
+        final bytes = (await tester.runAsync(() => asked(w, h, drawing)))!;
+        await tester.runAsync(() => store.keep('lovart-new.png', bytes));
+        now.value = ('lovart-new.png', false);
+        await settle();
+        final box = tester.getRect(find.byKey(const ValueKey('note-banner-lovart-new.png')));
+        final picture = tester.getRect(find.descendant(of: find.byKey(const ValueKey('note-banner-lovart-new.png')), matching: find.byType(RawImage)));
+        final drawn = Rect.fromLTRB(picture.left + drawing.left * picture.width, picture.top + drawing.top * picture.height, picture.left + drawing.right * picture.width, picture.top + drawing.bottom * picture.height);
+        expect(box.width, closeTo(900 - 2 * (box.left), 0.5), reason: 'the banner across the page');
+        // Within a pixel of the small copy the drawing is found on (readBannerLook, 96 across).
+        final slack = picture.width / 96;
+        expect(drawn.left, lessThanOrEqualTo(box.left + slack), reason: 'no white third beside the drawing');
+        expect(drawn.right, greaterThanOrEqualTo(box.right - slack));
+        expect(drawn.top, lessThanOrEqualTo(box.top + slack), reason: 'no white band over it');
+        expect(drawn.bottom, greaterThanOrEqualTo(box.bottom - slack));
+        expect(picture.left, lessThanOrEqualTo(box.left), reason: 'the picture covers the banner, never short of it');
+        expect(picture.right, greaterThanOrEqualTo(box.right));
+        expect(picture.top, lessThanOrEqualTo(box.top));
+        expect(picture.bottom, greaterThanOrEqualTo(box.bottom));
+        debugDisableShadows = true;
+      });
+    }
+
+    test('the drawing covers the banner, whole where it has the banner\'s shape, and the picture never leaves it bare', () {
+      const look = BannerLook(colour: true, aspect: 16 / 9, drawn: Rect.fromLTRB(0.34, 0.25, 0.96, 0.75));
+      final box = Size(800, 800 / look.shape);
+      final at = look.placeIn(box);
+      final drawn = Rect.fromLTRB(at.left + 0.34 * at.width, at.top + 0.25 * at.height, at.left + 0.96 * at.width, at.top + 0.75 * at.height);
+      expect(drawn.left, closeTo(0, 0.001));
+      expect(drawn.right, closeTo(box.width, 0.001));
+      expect(drawn.top, closeTo(0, 0.001), reason: 'the drawing whole: the banner is its shape');
+      expect(drawn.bottom, closeTo(box.height, 0.001));
+      // A whole drawing, a picture of the banner's shape: drawn as it is.
+      expect(const BannerLook(colour: true, aspect: 2, drawn: Rect.fromLTWH(0, 0, 1, 1)).placeIn(const Size(400, 200)), const Rect.fromLTWH(0, 0, 400, 200));
+      // A drawing taller than the tallest banner fills its width and loses its top and bottom; the picture covers.
+      const tall = BannerLook(colour: true, aspect: 1, drawn: Rect.fromLTRB(0.4, 0.1, 0.6, 0.9));
+      final narrow = tall.placeIn(const Size(400, 225));
+      expect(narrow.left + 0.4 * narrow.width, closeTo(0, 0.001));
+      expect(narrow.left + 0.6 * narrow.width, closeTo(400, 0.001));
+      expect(narrow.top, lessThanOrEqualTo(0));
+      expect(narrow.bottom, greaterThanOrEqualTo(225));
+    });
+  });
+
+  group('the header image\'s menu (Matt, 2026-11-02: "regenerating header images by right clicking and removing them should be a thing")', () {
+    Future<List<String>> pumpWith(WidgetTester tester, {String? why}) async {
+      final chose = <String>[];
+      final store = MemoryPictureStore({'lovart-a.png': File('test/note/fixtures/banner-sample.png').readAsBytesSync()});
+      await pumpApp(
+        tester,
+        size: const Size(700, 600),
+        home: Align(
+          alignment: Alignment.topCenter,
+          child: NoteBannerView(
+            name: 'lovart-a.png',
+            store: store,
+            menu: () => [
+              BannerMenuRow(id: 'regenerate', label: 'Regenerate', icon: Lucide.refreshCw, why: why, onSelect: why == null ? () => chose.add('regenerate') : null),
+              BannerMenuRow(id: 'remove', label: 'Remove', icon: Lucide.trash2, onSelect: () => chose.add('remove')),
+            ],
+          ),
+        ),
+      );
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+        await tester.pump();
+      }
+      return chose;
+    }
+
+    testWidgets('opens on a right-click, at the pointer, and Remove and Regenerate do theirs', (tester) async {
+      final chose = await pumpWith(tester);
+      final banner = find.byKey(const ValueKey('note-banner-lovart-a.png'));
+      expect(find.byKey(const ValueKey('banner-menu-remove')), findsNothing);
+      await tester.tap(banner, buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(find.text('Regenerate'), findsOneWidget);
+      final at = tester.getCenter(banner);
+      expect((tester.getTopLeft(find.byKey(const ValueKey('banner-menu-regenerate'))) - at).distance, lessThan(80), reason: 'hung from where the pointer was');
+      await tester.tap(find.byKey(const ValueKey('banner-menu-remove')));
+      await tester.pumpAndSettle();
+      expect(chose, ['remove']);
+      expect(find.byKey(const ValueKey('banner-menu-remove')), findsNothing, reason: 'shut once chosen');
+      await tester.tap(banner, buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('banner-menu-regenerate')));
+      await tester.pumpAndSettle();
+      expect(chose, ['remove', 'regenerate']);
+      debugDisableShadows = true;
+    });
+
+    testWidgets('opens on a finger\'s press held; a plain tap or a mouse\'s left press opens nothing', (tester) async {
+      await pumpWith(tester);
+      final banner = find.byKey(const ValueKey('note-banner-lovart-a.png'));
+      await tester.tap(banner);
+      await tester.tap(banner, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('banner-menu-remove')), findsNothing);
+      await tester.longPress(banner);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('banner-menu-remove')), findsOneWidget);
+      debugDisableShadows = true;
+    });
+
+    testWidgets('says why Regenerate cannot be chosen here, and choosing it does nothing', (tester) async {
+      final chose = await pumpWith(tester, why: 'Local only is on.');
+      await tester.tap(find.byKey(const ValueKey('note-banner-lovart-a.png')), buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(find.text('Local only is on.'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('banner-menu-regenerate')), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(chose, isEmpty);
+      debugDisableShadows = true;
+    });
+
+    testWidgets('a banner with no menu answers a right-click with nothing', (tester) async {
+      final store = MemoryPictureStore({'lovart-a.png': _png});
+      await pumpApp(tester, size: const Size(700, 600), home: Align(alignment: Alignment.topCenter, child: NoteBannerView(name: 'lovart-a.png', store: store)));
+      await tester.tap(find.byKey(const ValueKey('note-banner-lovart-a.png')), buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(find.byType(PopMenu), findsNothing);
+      debugDisableShadows = true;
+    });
   });
 }

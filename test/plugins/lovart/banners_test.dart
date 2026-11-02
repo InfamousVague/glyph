@@ -18,6 +18,7 @@ import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/lovart/lovart.dart';
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart;
 import 'package:ghost_md/plugins/registry.dart';
+import 'package:ghost_md/root/note_desk.dart' show headerImageMenu;
 import 'package:glacier/glacier.dart' show GlacierSwitch;
 
 import '../github/support.dart';
@@ -1007,6 +1008,42 @@ void main() {
       expect(bannerOf(notes['mine']!.body), isNull, reason: 'the account\'s own Chapter 1 is not the team\'s page');
       expect(notes.containsKey('book'), isTrue, reason: 'nothing is deleted');
       expect(notes['book']!.body, contains('book: true'), reason: 'the index is still a notebook, its banner beside');
+    });
+  });
+
+  group('the header image\'s own menu (Matt, 2026-11-02: "regenerating header images by right clicking and removing them should be a thing")', () {
+    test('Regenerate is the cog\'s Header image where Lovart can make one, and says why where it cannot; Remove always', () async {
+      final ran = <String>[];
+      List<(String, String?, bool)> rows({bool localOnly = false}) => [
+        for (final row in headerImageMenu(noteId: 'n', localOnly: localOnly, regenerate: () => ran.add('regenerate'), remove: () => ran.add('remove'))) (row.id, row.why, row.onSelect != null),
+      ];
+      expect(rows(), [('regenerate', 'Add your Lovart keys in Settings › Lovart first.', false), ('remove', null, true)]);
+      await keys();
+      expect(rows(), [('regenerate', null, true), ('remove', null, true)]);
+      expect(rows(localOnly: true).first, ('regenerate', 'Local only is on.', false));
+      lovartBannerMaking.value = const {'n'};
+      expect(rows().map((row) => row.$3), [false, false], reason: 'Lovart at work on this one: nothing until it lands');
+      lovartBannerMaking.value = const {};
+      final registry = createRegistry([lovartPlugin], store: MemorySwitches());
+      usePlugins(registry);
+      expect(rows().first, ('regenerate', 'Add Lovart from the Market first.', false));
+      registry.setEnabled('lovart', true);
+      for (final row in headerImageMenu(noteId: 'n', localOnly: false, regenerate: () => ran.add('regenerate'), remove: () => ran.add('remove'))) {
+        row.onSelect!();
+      }
+      expect(ran, ['regenerate', 'remove']);
+    });
+
+    test('Regenerate puts the new one where the old one was, and Remove leaves banner: none, as the cog\'s do', () async {
+      await keys();
+      final open = TestNote(withBanner('# Trip\n\n$_words', 'lovart-old.png'));
+      await makeBanner(open);
+      final made = pictures.kept.keys.single;
+      expect(bannerOf(open.body()), made);
+      await removeBanner(open);
+      expect(bannerDeclined(open.body()), isTrue);
+      final edit = bannerEdit(open.body(), made);
+      expect(edit.next('banner: none'), 'banner: "![](image/$made)"', reason: 'Undo puts the same picture back on the same line');
     });
   });
 

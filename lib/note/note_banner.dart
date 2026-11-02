@@ -15,15 +15,19 @@ import 'dart:math' as math;
 import 'dart:typed_data' show Uint8List;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryMouseButton;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../art/art.dart' show AppIcon, LucideIcon;
 import '../core/banner.dart' show bannerAspect;
 import '../core/images.dart' show PictureStore;
 import '../editor/media/images.dart' show KeptPicture;
 import '../editor/media/lovart_badge.dart' show LovartBadged;
 import '../activity/activity_look.dart' show activityMoves;
 import '../activity/banner_shimmer.dart';
+import '../notes/note_menu.dart' show byMouse;
+import '../shell/pop_menu.dart';
 
 /// The tallest a banner is drawn, past which a wide window's banner keeps this height and is cropped to its middle.
 const double noteBannerMaxHeight = 420;
@@ -83,6 +87,24 @@ class BannerLook {
     // Covering: a box wider than the picture shows all its width and [aspect]/[box] of its height; a narrower one
     // all its height and [box]/[aspect] of its width.
     return box >= aspect ? Alignment(0, along(drawn.center.dy, aspect / box)) : Alignment(along(drawn.center.dx, box / aspect), 0);
+  }
+
+  /// Where the whole picture lies as it is drawn into a banner of [box], in the banner's own coordinates: near
+  /// enough that its drawing covers the banner, the drawing's middle on the banner's, held so the picture's own edge
+  /// never shows (Matt, 2026-11-02: "If I remove a header image and make a new one it's not filling the space").
+  /// Covering with the picture alone, as [alignmentIn] does, showed the white ground the drawing is on: since
+  /// 2026-10-26 the prompt asks for the drawing in the right two-thirds of a middle band, the left third white, and a
+  /// banner in colour is drawn in its own colours, so a new one was a white third and white bands round a drawing in
+  /// the rest. The banner already has the drawing's shape ([shape]), so only a drawing taller than [bannerTallest]
+  /// loses anything, its top and bottom.
+  Rect placeIn(Size box) {
+    final w = box.width, h = box.height;
+    if (w <= 0 || h <= 0 || aspect <= 0) return Offset.zero & box;
+    var width = math.max(w, h * aspect);
+    if (drawn.width > 0 && drawn.height > 0) width = math.max(width, math.max(w / drawn.width, h * aspect / drawn.height));
+    final height = width / aspect;
+    double at(double room, double size, double centre) => (room / 2 - centre * size).clamp(room - size, 0.0);
+    return Rect.fromLTWH(at(w, width, drawn.center.dx), at(h, height, drawn.center.dy), width, height);
   }
 }
 
@@ -165,8 +187,16 @@ void forgetBannerColours() {
 /// banner_shimmer.dart; docs/ACTIVITY.md, In place: Lovart's blurred stand-in was here before), at the shape the
 /// banner it replaces is drawn at or, with none, the shape a banner is drawn at before it is read, the picture fading in
 /// over it as it lands; with neither, nothing.
+///
+/// With [menu], the picture has a menu of its own (Matt, 2026-11-02: "regenerating header images by right clicking and
+/// removing them should be a thing"): a mouse's right-click, or a finger's press held, opens it at that point, in the
+/// app's menu (lib/shell/pop_menu.dart) as a note's right-click does (lib/notes/note_menu.dart). Its rows are asked
+/// for as it opens, so they say what is true then.
 class NoteBannerView extends StatelessWidget {
-  const NoteBannerView({super.key, required this.name, required this.store, this.making = false, this.prompt = '', this.start});
+  const NoteBannerView({super.key, required this.name, required this.store, this.making = false, this.prompt = '', this.start, this.menu});
+
+  /// The rows of the picture's menu; null for none.
+  final List<BannerMenuRow> Function()? menu;
 
   final String? name;
   final PictureStore? store;
@@ -200,7 +230,7 @@ class NoteBannerView extends StatelessWidget {
               height: height,
               child: BannerShimmer(width: width, height: height, radius: radius),
             ),
-            picture: name == null ? null : _BannerPicture(name: name, store: store, width: width, radius: radius),
+            picture: name == null ? null : _BannerMenuArea(rows: menu, child: _BannerPicture(name: name, store: store, width: width, radius: radius)),
           );
         },
       ),
@@ -308,12 +338,12 @@ class _BannerPictureState extends State<_BannerPicture> {
     final t = context.tokens;
     final name = widget.name, store = widget.store, width = widget.width;
     final height = math.min(width / _look.shape, noteBannerMaxHeight);
-    Widget picture = FittedBox(
-      fit: BoxFit.cover,
-      alignment: _look.alignmentIn(width / height),
-      clipBehavior: Clip.hardEdge,
-      child: KeptPicture(name: name, store: store, badge: false, waiting: SizedBox(width: width, height: height)),
-    );
+    final kept = KeptPicture(name: name, store: store, badge: false, waiting: SizedBox(width: width, height: height));
+    // Before it is read its shape is a guess: covered, its middle on the banner's. Once read, laid where [placeIn]
+    // puts it (still covered within that place, so a guess that was wrong never stretches it).
+    Widget picture = identical(_look, BannerLook.unread)
+        ? FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: kept)
+        : ClipRect(child: Stack(children: [Positioned.fromRect(rect: _look.placeIn(Size(width, height)), child: FittedBox(fit: BoxFit.cover, child: kept))]));
     if (!_look.colour) picture = ColorFiltered(colorFilter: inkOnPaper(t.color('app-ink'), t.color('app-paper')), child: picture);
     return Semantics(
       label: 'Header image',
@@ -322,6 +352,106 @@ class _BannerPictureState extends State<_BannerPicture> {
         key: ValueKey<String>('note-banner-$name'),
         borderRadius: BorderRadius.circular(widget.radius),
         child: SizedBox(width: width, height: height, child: LovartBadged(name: name, child: picture)),
+      ),
+    );
+  }
+}
+
+/// A row of a banner's menu ([NoteBannerView.menu]): [onSelect] null and [why] said where it cannot be done here.
+@immutable
+class BannerMenuRow {
+  const BannerMenuRow({required this.id, required this.label, required this.icon, this.onSelect, this.why, this.danger = false});
+
+  final String id;
+  final String label;
+  final LucideIcon icon;
+  final VoidCallback? onSelect;
+
+  /// Why it cannot be chosen now, under its label: "Add your Lovart keys in Settings › Lovart first."
+  final String? why;
+
+  /// In the one red the app has, as a note's Delete is.
+  final bool danger;
+}
+
+/// The banner's picture, answering a mouse's right-click and a finger's press held with its menu at that point.
+class _BannerMenuArea extends StatefulWidget {
+  const _BannerMenuArea({required this.rows, required this.child});
+
+  final List<BannerMenuRow> Function()? rows;
+  final Widget child;
+
+  @override
+  State<_BannerMenuArea> createState() => _BannerMenuAreaState();
+}
+
+class _BannerMenuAreaState extends State<_BannerMenuArea> {
+  /// Where the menu is open, in the window; null while it is shut.
+  Offset? _at;
+  bool _coarse = false;
+
+  void _open(Offset at, {required bool coarse}) => setState(() {
+        _at = at;
+        _coarse = coarse;
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = widget.rows;
+    if (rows == null) return widget.child;
+    final at = _at;
+    final t = context.tokens;
+    final em = _coarse ? t.fontSize('md') : t.fontSize('sm');
+    return Listener(
+      onPointerDown: (event) {
+        if (byMouse(event.kind) && event.buttons == kSecondaryMouseButton) _open(event.position, coarse: false);
+      },
+      child: GestureDetector(
+        // A finger's (a mouse's press held is a press); the page under it scrolls as before until it is held.
+        supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown},
+        onLongPressStart: (details) => _open(details.globalPosition, coarse: true),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            widget.child,
+            if (at != null)
+              Positioned(
+                left: 0,
+                top: 0,
+                child: PopMenu(
+                  key: ValueKey<Offset>(at),
+                  anchor: GlacierAnchor.point(at),
+                  onDismiss: () {
+                    if (mounted && _at == at) setState(() => _at = null);
+                  },
+                  ariaLabel: 'Header image',
+                  coarse: _coarse,
+                  children: [
+                    for (final row in rows())
+                      GlacierMenuItem(
+                        key: ValueKey<String>('banner-menu-${row.id}'),
+                        icon: AppIcon(row.icon, size: em),
+                        danger: row.danger,
+                        style: row.danger ? dangerRowStyle(t) : null,
+                        disabled: row.onSelect == null,
+                        onSelect: row.onSelect,
+                        ariaLabel: row.why == null ? null : '${row.label}. ${row.why}',
+                        child: row.why == null
+                            ? Text(row.label)
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(row.label),
+                                  Text(row.why!, style: TextStyle(fontSize: t.fontSize('xs'), color: t.color('app-ink-3'))),
+                                ],
+                              ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

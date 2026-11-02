@@ -118,6 +118,7 @@ import '../capture/landing.dart';
 import '../comments/ui/note_colours.dart';
 import '../comments/ui/note_comments.dart';
 import '../core/background_jobs.dart' show activity;
+import '../core/banner.dart' show bannerDeclined;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show CommandUndoResult;
@@ -209,7 +210,7 @@ import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
 import '../plugins/keymaps/keymaps.dart' show KeymapBadge, KeymapHooks, keyboardMode, keyboardModes, vimJk, vimStartsNormal;
 import '../plugins/link_marks.dart';
-import '../plugins/lovart/lovart.dart' show lovartBannerMaking, lovartCuesOn, lovartIsMaking, lovartMaking, makeCue;
+import '../plugins/lovart/lovart.dart' show bannerEdit, bannerUnready, lovartBannerMaking, lovartCuesOn, lovartIsMaking, lovartMaking, makeBanner, makeCue, removeBanner;
 import '../plugins/more/tool_off.dart' show MoreToolOff;
 import '../plugins/more/more_tools.dart' show canvasTool, diagramsTool, isMoreTool, meetingsTool, moreToolOn, moreTools, placesTool;
 import '../plugins/projects/suite.dart';
@@ -304,6 +305,17 @@ final band.BandFields bandFields = band.BandFields(
     ];
   },
 );
+
+/// The rows of a note's header image menu ([NoteDeskState] `_bannerMenu`): Regenerate, or why Lovart cannot make one
+/// here, and Remove; neither while Lovart is at work on this note's.
+List<BannerMenuRow> headerImageMenu({required String noteId, required bool localOnly, required VoidCallback regenerate, required VoidCallback remove}) {
+  final why = localOnly ? 'Local only is on.' : (!lovartCuesOn() ? 'Add Lovart from the Market first.' : bannerUnready());
+  final making = lovartBannerMaking.value.contains(noteId);
+  return [
+    BannerMenuRow(id: 'regenerate', label: 'Regenerate', icon: Lucide.refreshCw, why: why, onSelect: why != null || making ? null : regenerate),
+    BannerMenuRow(id: 'remove', label: 'Remove', icon: Lucide.trash2, onSelect: making ? null : remove),
+  ];
+}
 
 /// What a desk asks of the app: the notes by their titles, and what the build can do.
 @immutable
@@ -1183,6 +1195,41 @@ class NoteDeskState extends State<NoteDesk> {
       endNext -= 1;
     }
     view.dispatch(TransactionSpec(changes: ChangeSpec(from: start, to: endNow, insert: next.substring(start, endNext)), userEvent: 'input.tape'));
+  }
+
+  /// The header image's own menu, on its right-click or a finger's hold (lib/note/note_banner.dart; Matt, 2026-11-02:
+  /// "regenerating header images by right clicking and removing them should be a thing"). Regenerate is the note's
+  /// Header image (lib/plugins/lovart/banners.dart `makeBanner`): Lovart at work over the banner, the new one in its
+  /// place as it lands; where Lovart cannot make one here (not added, Local only, no keys) it says why and does
+  /// nothing. Remove is Remove header image, `banner: none` so nothing puts one back by itself, with an Undo.
+  List<BannerMenuRow> _bannerMenu(String name) => headerImageMenu(
+        noteId: widget.noteId,
+        localOnly: _prefs.value.localOnly,
+        regenerate: () => unawaited(makeBanner(_editing)),
+        remove: () => _removeBanner(name),
+      );
+
+  /// The header image [name] taken off, as the note's Remove header image takes it off (`removeBanner`), said in a
+  /// toast with an Undo that puts the same picture back, unless the note has another by then.
+  void _removeBanner(String name) {
+    final view = _view;
+    if (view == null) return;
+    unawaited(removeBanner(noteEditing(widget.noteId, view, () => view.state.doc.toString(), (_) {})));
+    _toasts?.toast(
+      message: const Text('Header image removed.'),
+      duration: const Duration(seconds: 5),
+      action: GlacierToastAction(
+        label: 'Undo',
+        onPress: () {
+          if (!mounted) return;
+          final editing = _editing;
+          final body = editing.body();
+          if (!bannerDeclined(body)) return;
+          final edit = bannerEdit(body, name);
+          editing.replaceLine((text, line) => line == edit.line, edit.next);
+        },
+      ),
+    );
   }
 
   /// The note as a plugin changes it: through the editor, so each change is one undo and saves like typing.
@@ -2611,6 +2658,7 @@ class NoteDeskState extends State<NoteDesk> {
           store: _world.pictures,
           making: lovartBannerMaking.value.contains(noteId) || (activity['banner:$noteId']?.state.live ?? false),
           prompt: noteId,
+          menu: widget.readOnly || name == null ? null : () => _bannerMenu(name),
         ),
       ),
       // What the note is linked to, at its top; pressed, the note's More sheet, where a link is changed.
