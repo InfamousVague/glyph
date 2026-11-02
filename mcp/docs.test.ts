@@ -4,7 +4,7 @@ import { chaptersOf } from '../tauri/src/app/book/book.ts';
 import type { Note } from '../tauri/src/app/core/store.ts';
 import { open } from '../tauri/src/app/core/sync/crypto.ts';
 import { forgetTeamDocs } from '../tauri/src/app/core/team/doc.ts';
-import { DOCS_GUIDE, DOCS_INSTRUCTIONS, docsBookBody, docsPageBody, docsParts, docsTitleProblem, isDocsBody, withDocsPage } from './docs.ts';
+import { DOCS_GUIDE, DOCS_INSTRUCTIONS, FIGMA_INSTRUCTIONS, docsBookBody, docsPageBody, docsParts, docsTitleProblem, isDocsBody, withDocsPage } from './docs.ts';
 import { DOCS_GUIDE_URI } from './prompts.ts';
 import { rulesInstructions } from './server.ts';
 import { aNote, anOrganization, connected, teamDevice } from './testKit.ts';
@@ -169,6 +169,10 @@ describe('what Claude is told', () => {
   it('says how to write docs in the instructions, and offers the guide as a prompt and a resource', async () => {
     const said = rulesInstructions('# Claude rules\n');
     expect(said).toContain(DOCS_INSTRUCTIONS);
+    // Figma frames linked by their node-id, a link to a line, so the app draws the frame's picture (2026-11-02).
+    expect(said).toContain(FIGMA_INSTRUCTIONS);
+    expect(FIGMA_INSTRUCTIONS).toContain('node-id');
+    expect(FIGMA_INSTRUCTIONS).toContain('line of its own');
     expect(DOCS_INSTRUCTIONS).toContain('create_docs');
     expect(DOCS_INSTRUCTIONS).toContain('add_doc_page');
     const { client } = await connected();

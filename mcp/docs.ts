@@ -170,6 +170,15 @@ export function titlesClash(titles: readonly string[]): string | null {
 export const DOCS_INSTRUCTIONS =
   'Writing docs on Ghost.md: when the person asks for docs, a guide, a handbook, a manual or a wiki, make them with create_docs — a notebook marked as docs whose index is parts (`## ` headings) of numbered pages, each page a note of its own. One topic a page; parts group the pages a reader takes together; page titles short and unique in the account, since they are what [[links]] name. Open each page with a line saying what it is for, use `## ` headings inside it for its outline, and link the other pages as [[Their title]]. Grow docs with add_doc_page. Never hand-write `book:` or `type: docs` front matter with create_note, nor add a page by editing the index. Docs for a team go in the organization’s workspace or a folder in it (`workspace`). The fuller guide, with the markdown that works well in docs, is the ghost-docs-guide prompt and the ghost://guide/docs resource.';
 
+/**
+ * The paragraph of the server's instructions on Figma (Matt, 2026-11-02: "add a instruction to the Claude connector to
+ * try to link figma frames with previews where possible"). A figma.com link alone on its line, or a list line that is
+ * only the link, is drawn in the app as a card with its picture (lib/editor/media/link_cards.dart, the Rich embeds
+ * and Figma plugins); with `node-id` it is the frame's own picture once the Figma plugin is connected.
+ */
+export const FIGMA_INSTRUCTIONS =
+  'Figma frames: whenever a note is about a screen, a component, a flow or any design that lives in Figma, link the frame itself so Ghost.md shows its preview. Use the frame’s own address, https://www.figma.com/design/<file key>/<file name>?node-id=<node id> (the node-id names the frame; write it with a hyphen, 12-34, as Figma’s links do), rather than the whole file’s, and put each link on a line of its own — a bare link, or a list line that is only `- [Frame name](link)` — never in the middle of a sentence, since only a line that is just the link is drawn as a card with the picture. Say in a word above it what the frame is. Where Figma tools are connected, find the real node id of the frame you mean (from the file’s metadata or the link the person gave) instead of guessing; never make up a node-id or a file key, and when you know only the file, link the file. Several frames are several such lines, one frame each.';
+
 /** The fuller guide: the `ghost-docs-guide` prompt and the `ghost://guide/docs` resource. */
 export const DOCS_GUIDE = `# Writing docs on Ghost.md
 

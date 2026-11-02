@@ -23,7 +23,7 @@ import { suggestBody } from './suggest.ts';
 import { commentOn, replyTo, resolve, stampOf, threadsIn, type Written } from './comments.ts';
 import { enableSubscriptions, registerNoteResources } from './resources.ts';
 import { registerPrompts } from './prompts.ts';
-import { DOCS_INSTRUCTIONS, docsBookBody, docsPageBody, docsTitleProblem, isDocsBody, titlesClash, withDocsPage } from './docs.ts';
+import { DOCS_INSTRUCTIONS, FIGMA_INSTRUCTIONS, docsBookBody, docsPageBody, docsTitleProblem, isDocsBody, titlesClash, withDocsPage } from './docs.ts';
 
 /**
  * The MCP server: Glyph's notes as tools for Claude (docs/MCP.md). Matt: "make an MCP plugin for Claude so I can use
@@ -207,6 +207,8 @@ export function rulesInstructions(rulesBody: string): string {
     `This account keeps a “${RULES_TITLE}” note: the person’s standing instructions for you here. Follow them in everything you do, and re-read them any time with get_rules. When the person asks you to always, again, or from now on do something — a repeated or standing request — record it with add_rule so it is not lost.`,
     '',
     DOCS_INSTRUCTIONS,
+    '',
+    FIGMA_INSTRUCTIONS,
     '',
     'Their rules right now:',
     '',
