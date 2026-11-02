@@ -329,7 +329,7 @@
         {
           "kind": "network",
           "label": "The internet",
-          "why": "Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there. It talks to lovart.ai and nowhere else.",
+          "why": "Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there, and the pictures of the Figma frames it links to where you switch that on. It talks to lovart.ai and nowhere else.",
           "icon": "globe"
         }
       ],

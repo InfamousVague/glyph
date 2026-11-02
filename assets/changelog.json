@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.4",
+    "date": "2026-11-02",
+    "title": "Lovart can start from your Figma frames",
+    "items": [
+      {"icon": "shapes", "words": "Turn on Use linked Figma frames on Lovart's page, and a note's header image and inspiration start from the Figma frames it links to.", "kind": "new"},
+      {"icon": "users", "words": "A notebook's authors line up with its words instead of sitting a step in.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.4.3",
     "date": "2026-11-02",
     "title": "Lovart's blurred stand-in is back, and On this page clear of the scrollbar",
