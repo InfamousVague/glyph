@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.1",
+    "date": "2026-11-02",
+    "title": "Figma's own mark, and a colour for each tool",
+    "items": [
+      {"icon": "shapes", "words": "The Figma plugin wears Figma's own mark.", "kind": "better"},
+      {"icon": "palette", "words": "Tickets, Planning, Gantt, Boards, Automations, Time tracking, Forms and Canvas each have a colour of their own in the Market.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.0",
     "date": "2026-11-02",
     "title": "Ghost Academy by feature, and Figma frames in your notes",
