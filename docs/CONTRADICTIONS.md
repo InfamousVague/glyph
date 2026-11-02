@@ -92,8 +92,9 @@ A run is made of *scopes*, and a prompt never holds notes of two scopes:
 
 - **Personal**: every note not under `orgs/`. Under More, "Within each folder only" narrows it to notes in the same
   top folder (`workspaces/Work/…` against `workspaces/Work/…`).
-- **Each organization**: the notes under `orgs/<Org>/`, checked against the same organization's notes only. Off until
-  "Organization notes" is turned on (under More in Simple), since it sends a team's words to the person's AI. There is
+- **Each organization**: the notes under `orgs/<Org>/`, checked against the same organization's notes only. On by
+  default (Matt, 2026-11-02: "Turn them on"); "Organization notes" under More turns it off, which keeps a team's words
+  from the person's AI. There is
   no organization-level AI policy in the app today; when one comes (Home.md front matter, as the project tools'
   `plugins:` are), the runner's `orgAllowed` is where it is asked.
 
@@ -167,8 +168,8 @@ Kept small, so the sessions working beside it meet as little as possible:
 
 ## Open questions for Matt
 
-1. Organization notes are off by default (a team's words go to the person's AI). On by default, or a team-wide switch
-   in the organization's Home.md?
+1. Answered 2026-11-02: organization notes are checked by default. Still open: a team-wide switch in the
+   organization's Home.md, so a team can keep its notes from members' AIs?
 2. Nightly by default once added and run once, or When a note is saved?
 3. The mark's word: "Out of date?" (now), "Superseded?", or "Newer note"?
 4. Should findings and dismissals follow the account (synced settings) as well as live in the Library's file?
