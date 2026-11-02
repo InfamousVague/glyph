@@ -82,15 +82,47 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   final more = parts.more;
   // Each row's glyph in its own hue, as Command centre's menu has them.
   Widget hue(HeaderAct act) => menuHueGlyph(context, act);
+  final menu = parts.menu;
+  final noted = menu != null && more != null;
+  final go = <HeaderMenuEntry>[const HeaderMenuLabel('Go'), for (final act in putAway) HeaderMenuAct(act, icon: hue(act))];
   final entries = <HeaderMenuEntry>[
     // What the bar keeps under ••• first (Matt, 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
     ...keptEntries(parts, more: rest.isNotEmpty || more != null || putAway.isNotEmpty, icon: hue),
-    for (final act in rest) HeaderMenuAct(act, icon: hue(act)),
-    if (more != null) HeaderMenuAct(more, icon: hue(more)),
-    if (putAway.isNotEmpty) ...[
-      if (rest.isNotEmpty || more != null) const HeaderMenuRule(),
-      const HeaderMenuLabel('Go'),
-      for (final act in putAway) HeaderMenuAct(act, icon: hue(act)),
+    // A note's More sheet, row by row, made as the menu opens (Matt, 2026-11-02: "Show more items in the more dropdown
+    // we should be able to scroll on it instead of needing to open a new modal"): the way around first, then the
+    // actions the sheet has no row for (Share), its groups, All settings… for the sheet itself, and Move to Trash. A
+    // row the bar has an action for (Links with its count, History, Pin…) is that action, under its key; what the pill
+    // shows is not listed again.
+    if (noted) ...[
+      if (putAway.isNotEmpty) ...[...go, const HeaderMenuRule()],
+      HeaderMenuLater((context) {
+        final groups = menu();
+        final ids = {for (final group in groups) for (final item in group.items) item.id};
+        final own = <String, HeaderAct>{};
+        final extra = <HeaderAct>[];
+        for (final act in rest) {
+          if (ids.contains(act.id)) {
+            own[act.id] = act;
+          } else if (act.id == 'history' && ids.contains('keep-history')) {
+            // History where the note keeps none yet: the sheet's Keep version history is its row.
+            own['keep-history'] = act;
+          } else {
+            extra.add(act);
+          }
+        }
+        return [
+          for (final act in extra) HeaderMenuAct(act, icon: hue(act)),
+          if (extra.isNotEmpty) const HeaderMenuRule(),
+          ...noteMenuEntries(context, groups, more: allSettingsAct(more.onPress ?? () {}), leave: {for (final act in shown) act.id}, own: own, hued: true),
+        ];
+      }),
+    ] else ...[
+      for (final act in rest) HeaderMenuAct(act, icon: hue(act)),
+      if (more != null) HeaderMenuAct(more, icon: hue(more)),
+      if (putAway.isNotEmpty) ...[
+        if (rest.isNotEmpty || more != null) const HeaderMenuRule(),
+        ...go,
+      ],
     ],
   ];
   final overflow = entries.isEmpty

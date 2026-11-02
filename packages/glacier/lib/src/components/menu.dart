@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -247,6 +248,23 @@ class _MenuPanelState extends State<_MenuPanel> {
     position.ensureVisible(row, alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart);
   }
 
+  /// A thin bar at the panel's edge under a finger, where the platform's behaviour draws none (a desktop's draws its
+  /// own): shown while the rows run past the panel, so a long menu says it scrolls. New to the port; the page left it
+  /// to the browser.
+  Widget _touchBar(Widget scroller) => switch (defaultTargetPlatform) {
+        TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.fuchsia => RawScrollbar(
+            controller: _scroll,
+            thumbVisibility: true,
+            thickness: 3,
+            radius: const Radius.circular(1.5),
+            thumbColor: GlacierTheme.of(context).color('glacier-text-subtle').withValues(alpha: 0.5),
+            mainAxisMargin: 4,
+            crossAxisMargin: 1,
+            child: scroller,
+          ),
+        _ => scroller,
+      };
+
   @override
   Widget build(BuildContext context) {
     final t = GlacierTheme.of(context);
@@ -256,7 +274,7 @@ class _MenuPanelState extends State<_MenuPanel> {
     if (style?.maxHeight != null) {
       rows = ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-        child: SingleChildScrollView(controller: _scroll, child: rows),
+        child: _touchBar(SingleChildScrollView(controller: _scroll, child: rows)),
       );
     }
     Widget panel = _MenuGlass(
@@ -827,6 +845,7 @@ class GlacierMenuItem extends StatelessWidget {
     this.disabled = false,
     this.ariaLabel,
     this.style,
+    this.closes = true,
     required this.child,
   });
 
@@ -839,8 +858,12 @@ class GlacierMenuItem extends StatelessWidget {
   /// Paints the row in the danger tone.
   final bool danger;
 
-  /// Called when the item is chosen; the menu then closes.
+  /// Called when the item is chosen; the menu then closes, unless [closes] is false.
   final VoidCallback? onSelect;
+
+  /// Whether choosing it closes the menu: false for a row that shows more rows in place in the same panel. New to
+  /// the port; every row of the React's closed it.
+  final bool closes;
 
   /// Dims the row, takes it out of the arrow keys' round, and makes choosing it do nothing.
   final bool disabled;
@@ -865,7 +888,7 @@ class GlacierMenuItem extends StatelessWidget {
       style: style,
       onPressed: () {
         onSelect?.call();
-        context.getInheritedWidgetOfExactType<_MenuScope>()?.close();
+        if (closes) context.getInheritedWidgetOfExactType<_MenuScope>()?.close();
       },
     );
   }

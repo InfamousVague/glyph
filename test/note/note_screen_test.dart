@@ -44,7 +44,11 @@ void main() {
         for (final sent in world.core.sent)
           if (sent.command == 'update_note') sent.args['body']! as String,
       ];
-  List<String> labels(WidgetTester tester) => [for (final tool in tester.widgetList<NoteToolButton>(find.byType(NoteToolButton))) tool.label];
+  // The rings in the note's own header, in order: More is a menu's trigger now, not a ring of its own kind.
+  List<String> labels(WidgetTester tester) => [
+        for (final tool in tester.widgetList(find.byWidgetPredicate((widget) => widget is NoteToolButton || (widget is NoteMore && widget.menu != null))))
+          tool is NoteToolButton ? tool.label : 'More for this note',
+      ];
 
   // What the bar is handed to draw, as the same words: the spare actions, the view switch and More.
   List<String> barLabels(WidgetTester tester) {

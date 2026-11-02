@@ -616,7 +616,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   late final ValueNotifier<NoteToolsModel> _toolsModel = ValueNotifier(_model());
   late final Widget _tools = NoteTools(model: _toolsModel);
-  late final Widget _more = NoteMore(onMore: _openMore);
+  late final Widget _more = NoteMore(onMore: _openMore, menu: _menu);
 
   /// The rings a canvas, a notebook's index or a journal offers the dock (lib/shell/page_dock.dart): the screen is
   /// built again when what they look like changes, which is seldom (a notebook read straight through, a canvas
@@ -1646,7 +1646,39 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     ];
   }
 
-  NoteToolsModel _model({bool more = true}) => NoteToolsModel(kind: _kind, page: _onPage, switchable: _raw, onSwitch: _switchView, onMore: _openMore, more: more, actions: _actions());
+  NoteToolsModel _model({bool more = true}) => NoteToolsModel(kind: _kind, page: _onPage, switchable: _raw, onSwitch: _switchView, onMore: _openMore, more: more, actions: _actions(), menu: _menu);
+
+  /// The More sheet's rows for the note's ••• to list (Matt, 2026-11-02: "Show more items in the more dropdown we should
+  /// be able to scroll on it instead of needing to open a new modal"): the sheet's own, from the sheet as it would open
+  /// now ([noteSheetGroups]), so the two never differ. A row that is a page of the sheet opens the sheet at that page.
+  List<NoteMenuGroup> _menu() {
+    if (!mounted) return const [];
+    final sheet = _settings(context, rowsOnly: true);
+    final groups = noteSheetGroups(sheet, simple: _simple, body: sheet.plugins?.editing.body() ?? '');
+    NoteMenuItem item(NoteSheetEntry entry) {
+      final drawn = entry.drawn, mark = entry.mark;
+      final press = entry.opens
+          ? () {
+              entry.onPress?.call();
+              _openSettings(entry.page, entry.item);
+            }
+          : entry.onPress;
+      return NoteMenuItem(
+        id: entry.id,
+        label: entry.label,
+        icon: entry.lucide,
+        glyph: drawn != null ? (context, size, color) => DrawnIconView(drawn, size: size, color: color) : (mark == null ? null : (context, size, _) => mark(context, size)),
+        onPress: entry.disabled ? null : press,
+        on: entry.on ?? false,
+        checked: entry.checked,
+        danger: entry.danger,
+      );
+    }
+
+    return [
+      for (final group in groups) NoteMenuGroup(id: group.id, heading: group.heading, fancy: group.fancy, items: [for (final entry in group.entries) item(entry)]),
+    ];
+  }
 
   /// The tools follow the screen: handed a new model after the frame, when what they draw has changed.
   void _syncTools({required bool more}) {
@@ -2169,7 +2201,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                 child: prefs.simple
                     // Simple mode's own header (GHST-105): ‹ Notes, ⋯ and Done; the shell's plain path draws no bar.
                     // Back only where the shell asks for it (a phone, one window): beside the list there is none.
-                    ? NoteSimpleHeader(backLabel: widget.back ? widget.backLabel : null, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null, presence: PresenceAvatars(noteId: _id, end: t.space(2)))
+                    ? NoteSimpleHeader(backLabel: widget.back ? widget.backLabel : null, onBack: _back, onMore: _openMore, menu: _menu, onDone: keyboardUp || _focused ? _done : null, presence: PresenceAvatars(noteId: _id, end: t.space(2)))
                     : LayoutBuilder(
                   builder: (context, box) => widget.back
                       // Simple mode's plain shell (GHST-105) has no bar and so no Home: the note's own Back at the
@@ -2278,7 +2310,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _settings(BuildContext context) {
+  /// The More sheet as it would open now; [rowsOnly] for the ••• that lists its rows, which leaves out the rows other
+  /// pieces draw as widgets (sharing's, what it is linked to), which the menu has no use for.
+  NoteSettings _settings(BuildContext context, {bool rowsOnly = false}) {
     final seams = widget.seams;
     final view = _view;
     final versions = widget.versions;
@@ -2345,9 +2379,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       onComment: seams.onComment == null || view == null || _typed || !_raw ? null : () => seams.onComment!(view),
       commentsSummary: _raw ? seams.commentsSummary?.call() : null,
       onCommentsList: _raw ? seams.onCommentsList : null,
-      sharing: seams.sharing?.call(context),
-      sharingSection: seams.sharingSection?.call(context),
-      linked: seams.linked?.call(context),
+      sharing: rowsOnly ? null : seams.sharing?.call(context),
+      sharingSection: rowsOnly ? null : seams.sharingSection?.call(context),
+      linked: rowsOnly ? null : seams.linked?.call(context),
       plugins: view == null || widget.readOnly ? null : seams.plugins?.call(view),
       location: seams.places ? seams.location?.call(_tag) ?? _location(_prefs.value) : null,
       history: versions != null && !_isCanvas && !widget.readOnly && _raw

@@ -112,6 +112,7 @@ class HeaderParts {
     this.view,
     this.actions = const [],
     this.more,
+    this.menu,
     this.search,
     this.newNote,
     this.allNotes,
@@ -143,6 +144,9 @@ class HeaderParts {
   final HeaderAct? view;
   final List<HeaderAct> actions;
   final HeaderAct? more;
+
+  /// The More sheet's rows, for ••• to list in place of More alone (NoteToolsModel.menu); null where no note is up.
+  final List<NoteMenuGroup> Function()? menu;
 
   /// What the home page asks of a bar that has room for it: the command palette, a new note, every note.
   final HeaderAct? search, newNote, allNotes;

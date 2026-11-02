@@ -23,6 +23,7 @@ import '../../art/lucide.g.dart';
 import '../../core/workspaces.dart' show OrgLike;
 import '../../market/market_items.dart' show marketHues;
 import '../../notes/floating_card.dart' show FloatingCardToggle, cardOpenedFrom;
+import '../../note/note_tools.dart' show NoteMenuGroup, NoteMenuItem;
 import '../../notes/tabs/bar_parts.dart' show HueDot;
 import '../header_toolbar.dart';
 import '../pop_menu.dart';
@@ -256,12 +257,30 @@ class HeaderMenuRule extends HeaderMenuEntry {
   const HeaderMenuRule();
 }
 
-/// A control as a row: its glyph ([icon], else its own in the menu's ink), its word, and [badge] at the end.
+/// A control as a row: its glyph ([icon], else its own in the menu's ink), its word, and [badge] at the end; a tick
+/// at the end where it is the one [checked] of several, and the app's red where it is [danger] (Move to Trash).
 class HeaderMenuAct extends HeaderMenuEntry {
-  const HeaderMenuAct(this.act, {this.icon, this.badge});
+  const HeaderMenuAct(this.act, {this.icon, this.badge, this.checked = false, this.danger = false});
   final HeaderAct act;
   final Widget? icon;
   final String? badge;
+  final bool checked;
+  final bool danger;
+}
+
+/// Rows made as the menu is drawn, not before: a note's More sheet's, some of which are read from the note as it is
+/// when the menu opens (note_settings.dart `noteSheetGroups`).
+class HeaderMenuLater extends HeaderMenuEntry {
+  const HeaderMenuLater(this.build);
+  final List<HeaderMenuEntry> Function(BuildContext context) build;
+}
+
+/// Simple mode's More… inside a menu (GHST-103: the "fancy" things behind a More row that opens in place): a row
+/// that shows [entries] under it in the same panel, the menu kept open, and hides them again as Less.
+class HeaderMenuMore extends HeaderMenuEntry {
+  const HeaderMenuMore(this.entries, {this.id = 'note-more'});
+  final String id;
+  final List<HeaderMenuEntry> entries;
 }
 
 /// One of the organizations you belong to, its colour's dot beside its name: a pick opens its dashboard.
@@ -320,20 +339,47 @@ class _HeaderMenuButtonState extends State<HeaderMenuButton> {
   bool _open = false;
   final GlobalKey _anchor = GlobalKey(debugLabel: 'header-menu');
 
+  /// Simple's More… opened in place, while the menu is up.
+  bool _moreShown = false;
+
+  /// The rows as drawn: what is made later made now, and what More… holds under it while it is open.
+  List<HeaderMenuEntry> _flat(BuildContext context, List<HeaderMenuEntry> entries) => [
+        for (final entry in entries)
+          ...switch (entry) {
+            HeaderMenuLater(:final build) => _flat(context, build(context)),
+            HeaderMenuMore(:final entries) => [entry, if (_moreShown) ..._flat(context, entries)],
+            _ => [entry],
+          },
+      ];
+
   Widget _row(BuildContext context, HeaderMenuEntry entry) {
     final t = context.tokens;
     switch (entry) {
+      case HeaderMenuLater():
+        return const SizedBox.shrink();
+      case HeaderMenuMore(:final id):
+        // The menu stays up: what it holds comes in under it, as the sheet's More… opens in place.
+        return GlacierMenuItem(
+          key: HeaderAct.keyOf(id),
+          closes: false,
+          onSelect: () => setState(() => _moreShown = !_moreShown),
+          ariaLabel: _moreShown ? 'Less: back to the short list' : 'More: its name, bookmarks, links, comments, the AI, sharing and filing',
+          icon: AppIcon(_moreShown ? Lucide.chevronUp : Lucide.ellipsis, size: 16, strokeWidth: 2.2, color: widget.glyphInk ?? t.color('glacier-text-muted')),
+          child: Text(_moreShown ? 'Less' : 'More…'),
+        );
       case HeaderMenuLabel(:final words):
         return GlacierMenuLabel(child: Text(words));
       case HeaderMenuRule():
         return const GlacierMenuSeparator();
       case HeaderMenuOrg(:final org, :final onPick):
         return GlacierMenuItem(key: HeaderAct.keyOf('org:${org.id}'), onSelect: () => onPick(org.id), icon: HueDot(org.hue), child: Text(org.name));
-      case HeaderMenuAct(:final act, :final icon, :final badge):
+      case HeaderMenuAct(:final act, :final icon, :final badge, :final checked, :final danger):
         // A row that opens a floating card is the card's own press, as its ring would be: choosing Notifications
         // with the card open closes it, rather than the press closing it and the row opening it again.
         final row = GlacierMenuItem(
           key: act.key,
+          danger: danger,
+          style: danger ? dangerRowStyle(t) : null,
           // A card the row opens hangs under the button the menu hangs from.
           onSelect: act.onPress == null
               ? null
@@ -343,8 +389,10 @@ class _HeaderMenuButtonState extends State<HeaderMenuButton> {
                 },
           disabled: act.onPress == null,
           ariaLabel: act.label,
-          icon: icon ?? HeaderGlyph(act, size: 16, color: widget.glyphInk ?? t.color('glacier-text-muted')),
-          shortcut: badge == null
+          icon: icon ?? HeaderGlyph(act, size: 16, color: danger ? t.color('glacier-red-11') : widget.glyphInk ?? t.color('glacier-text-muted')),
+          shortcut: checked
+              ? AppIcon(Lucide.check, size: 14, strokeWidth: 2.4, color: t.color('glacier-text'))
+              : badge == null
               ? null
               : Container(
                   padding: EdgeInsets.symmetric(horizontal: t.space(1) * 1.5, vertical: 1),
@@ -379,6 +427,7 @@ class _HeaderMenuButtonState extends State<HeaderMenuButton> {
       face: (context, state) => widget.face(context, state, _open),
     );
     if (!_open) return _theirs(trigger);
+    final rows = _flat(context, widget.entries);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -390,9 +439,14 @@ class _HeaderMenuButtonState extends State<HeaderMenuButton> {
           ariaLabel: widget.menuLabel ?? widget.act.label,
           coarse: !widget.fine,
           onDismiss: () {
-            if (mounted) setState(() => _open = false);
+            if (mounted) {
+              setState(() {
+                _open = false;
+                _moreShown = false;
+              });
+            }
           },
-          children: [for (final entry in widget.entries) _row(context, entry)],
+          children: [for (final entry in rows) _row(context, entry)],
         ),
       ],
     );
@@ -424,3 +478,89 @@ List<HeaderMenuEntry> keptEntries(HeaderParts parts, {bool more = true, Widget? 
 
 /// The menu of more's own act.
 HeaderAct moreAct({String label = 'More'}) => HeaderAct(id: 'overflow', label: label, word: 'More', hue: 'indigo', icon: Lucide.ellipsis, onPress: () {});
+
+// ---- a note's More sheet as rows of its ••• ------------------------------------------------------------------------
+
+/// The hue each of the sheet's groups wears in a menu of •••, by the group's id, and a row's own where it has one
+/// (the note's actions', as the bar's pill has them).
+const Map<String, String> _noteGroupHues = {
+  'speak': 'red',
+  'names': 'indigo',
+  'page': 'blue',
+  'reading': 'amber',
+  'reading-more': 'amber',
+  'around': 'cyan',
+  'comments': 'coral',
+  'ai': 'purple',
+  'sits': 'rose',
+  'filing': 'orange',
+  'verify': 'green',
+  'linked': 'mint',
+  'help': 'lime',
+};
+const Map<String, String> _noteItemHues = {'pin': 'rose', 'archive': 'orange', 'comment': 'coral', 'bookmark': 'yellow', 'speak': 'red', 'history': 'purple', 'links': 'mint'};
+
+/// The act a sheet's row is in the menu: keyed `header:note:<id>`.
+HeaderAct noteMenuAct(NoteMenuGroup group, NoteMenuItem item) => HeaderAct(
+      id: 'note:${item.id}',
+      label: item.label,
+      word: item.label,
+      hue: _noteItemHues[item.id] ?? _noteGroupHues[group.id] ?? 'indigo',
+      icon: item.icon,
+      onPress: item.onPress,
+      on: item.on,
+    );
+
+/// A note's More sheet as rows of its ••• (Matt, 2026-11-02: "Show more items in the more dropdown we should be able
+/// to scroll on it instead of needing to open a new modal"): each of the sheet's groups under its heading, a rule
+/// between, then [more] (the whole sheet, for what is not a row: the name, the AI's Ask, sharing), then Move to Trash
+/// apart at the foot. Rows whose ids are in [leave] are left out (the bar's pill has them). In simple mode the groups
+/// the sheet keeps behind its More… are behind one here, opened in place ([HeaderMenuMore]). A row the bar has an
+/// action of its own for is drawn as that action ([own], by the row's id). [hued] draws each
+/// glyph in its group's hue, as Grouped command's menu draws its rows; otherwise in the menu's ink.
+List<HeaderMenuEntry> noteMenuEntries(BuildContext context, List<NoteMenuGroup> groups, {HeaderAct? more, Set<String> leave = const {}, Map<String, HeaderAct> own = const {}, bool hued = false}) {
+  final t = context.tokens;
+  Widget? glyphOf(NoteMenuGroup group, NoteMenuItem item, HeaderAct act) {
+    final ink = item.danger ? t.color('glacier-red-11') : (hued ? hueInk(t, act.hue) : t.color('glacier-text-muted'));
+    if (item.glyph case final drawn?) return drawn(context, 16, ink);
+    return hued || item.danger ? HeaderGlyph(act, size: 16, color: ink, strokeWidth: 2) : null;
+  }
+
+  List<HeaderMenuEntry> rowsOf(List<NoteMenuGroup> list, {required bool ruleFirst}) {
+    final rows = <HeaderMenuEntry>[];
+    for (final group in list) {
+      final items = [for (final item in group.items) if (!leave.contains(item.id)) item];
+      if (items.isEmpty) continue;
+      if (rows.isNotEmpty || ruleFirst) rows.add(const HeaderMenuRule());
+      if (group.heading case final heading?) rows.add(HeaderMenuLabel(heading));
+      for (final item in items) {
+        // The bar's own action for this row, where it has one ([own]): its words, its count and its key.
+        if (own[item.id] case final mine?) {
+          rows.add(HeaderMenuAct(mine, icon: hued ? HeaderGlyph(mine, size: 16, color: hueInk(t, mine.hue), strokeWidth: 2) : null));
+          continue;
+        }
+        final act = noteMenuAct(group, item);
+        rows.add(HeaderMenuAct(act, icon: glyphOf(group, item, act), checked: item.checked, danger: item.danger));
+      }
+    }
+    return rows;
+  }
+
+  final trash = [for (final group in groups) if (group.id == 'trash') group];
+  final plain = [for (final group in groups) if (group.id != 'trash' && !group.fancy) group];
+  final fancy = [for (final group in groups) if (group.id != 'trash' && group.fancy) group];
+  // Simple's More… sits after the short list's groups and before Help, where the sheet has it.
+  final help = [for (final group in plain) if (group.id == 'help') group];
+  final first = [for (final group in plain) if (group.id != 'help') group];
+  final rows = rowsOf(first, ruleFirst: false);
+  final hidden = rowsOf(fancy, ruleFirst: true);
+  if (hidden.isNotEmpty) rows.addAll([if (rows.isNotEmpty) const HeaderMenuRule(), HeaderMenuMore(hidden)]);
+  rows.addAll(rowsOf(help, ruleFirst: rows.isNotEmpty));
+  if (more != null) rows.addAll([if (rows.isNotEmpty) const HeaderMenuRule(), HeaderMenuAct(more, icon: hued ? HeaderGlyph(more, size: 16, color: hueInk(t, more.hue), strokeWidth: 2) : null)]);
+  rows.addAll(rowsOf(trash, ruleFirst: rows.isNotEmpty));
+  return rows;
+}
+
+/// The ••• row that opens the whole More sheet, as the ring did: kept under the `more` id the bar has always given it.
+HeaderAct allSettingsAct(VoidCallback onMore) =>
+    HeaderAct(id: 'more', label: 'All settings for this note', word: 'All settings…', hue: 'indigo', icon: Lucide.slidersHorizontal, onPress: onMore);

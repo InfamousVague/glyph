@@ -289,6 +289,308 @@ class NoteSheetItem {
 /// Another piece's rows, under their own heading.
 typedef NoteSheetSection = ({String heading, List<NoteSheetItem> items});
 
+/// One of the sheet's rows as words (Matt, 2026-11-02: "Show more items in the more dropdown we should be able to
+/// scroll on it instead of needing to open a new modal"): the sheet draws each as its row, and the note's ••• lists the
+/// same ([noteSheetGroups]), so the two cannot drift.
+///
+/// A press does [onPress]; first closing the sheet where [closes] (the sheet's `widget.onClose(); …`). A row that
+/// [opens] a page of the sheet ([page], or another piece's page or a plugin's by [item], as [NoteSettings.startAt]
+/// and [NoteSettings.startAtItem] take them) does [onPress] and then opens it: the ••• opens the sheet there.
+@immutable
+class NoteSheetEntry {
+  const NoteSheetEntry({
+    required this.id,
+    required this.label,
+    this.key,
+    this.lucide,
+    this.stroke = 2,
+    this.drawn,
+    this.mark,
+    this.hint,
+    this.on,
+    this.checked = false,
+    this.danger = false,
+    this.disabled = false,
+    this.onPress,
+    this.closes = false,
+    this.page,
+    this.item,
+  });
+
+  final String id;
+  final String label;
+
+  /// The sheet's row's key, where it had one.
+  final Key? key;
+
+  /// The glyph: by Lucide's name at [stroke], one of the app's drawn ones, or a plugin's own [mark] at a size.
+  final LucideIcon? lucide;
+  final double stroke;
+  final DrawnIcon? drawn;
+  final Widget Function(BuildContext context, double size)? mark;
+  final String? hint;
+
+  /// [SheetRow.on]: a run that is on now, focus mode.
+  final bool? on;
+
+  /// The one chosen of several (the note's look): the ••• ticks it; the sheet draws its look as a row of words.
+  final bool checked;
+  final bool danger, disabled;
+  final VoidCallback? onPress;
+  final bool closes;
+  final NoteSettingsPage? page;
+  final String? item;
+
+  bool get opens => page != null || item != null;
+}
+
+/// One of the sheet's groups: its heading, its rows, and whether simple mode keeps it behind More… ([fancy]).
+@immutable
+class NoteSheetGroup {
+  const NoteSheetGroup({required this.id, this.heading, required this.entries, this.fancy = false});
+  final String id;
+  final String? heading;
+  final List<NoteSheetEntry> entries;
+  final bool fancy;
+}
+
+/// The note's looks, in the order the sheet offers them (`.viewChoice`): Plain, Reading, and its map where it has one.
+List<(Look?, String)> lookOptions(NoteLook look) => [(null, 'Plain'), (Look.reading, 'Reading'), if (look.canMap) (Look.map, 'Map')];
+
+/// The sheet's rows that are presses, in its groups and its order, for [sheet] in [simple] mode or advanced; [body] is
+/// the note's words as a plugin's action reads them, [unavailable] why a plugin's link cannot be used. The sheet draws
+/// its rows from these (and its fields, the Ask and the sharing rows itself); a note's ••• lists them.
+List<NoteSheetGroup> noteSheetGroups(NoteSettings sheet, {required bool simple, String body = '', Map<String, String?> unavailable = const {}}) {
+  final w = sheet;
+  final name = w.name, journal = w.journal, look = w.look, focus = w.focus, history = w.history, location = w.location, plugins = w.plugins;
+  final filed = w.workspaces.workspaceOf(w.noteId);
+  NoteSheetEntry another(NoteSheetItem each, String prefix, {bool presses = true}) => NoteSheetEntry(
+        id: each.id,
+        key: ValueKey('$prefix:${each.id}'),
+        label: each.label,
+        lucide: each.icon,
+        stroke: 2.1,
+        hint: each.hint,
+        item: each.page != null ? each.id : null,
+        onPress: each.page != null || !presses ? null : each.onPress,
+        closes: true,
+      );
+
+  final switchRow = !simple || w.viewSwitch == null
+      ? null
+      : () {
+          final it = w.viewSwitch!;
+          final words = viewSwitchRow(it.kind, page: it.page);
+          return NoteSheetEntry(id: 'view-switch', key: const ValueKey<String>('note-view-switch'), lucide: it.page ? Lucide.code : Lucide.bookOpen, stroke: 2.1, label: words.label, hint: words.hint, onPress: it.onSwitch, closes: true);
+        }();
+  final focusRow = focus == null
+      ? null
+      : NoteSheetEntry(
+          id: 'focus',
+          key: const ValueKey<String>('note-focus-mode'),
+          lucide: Lucide.scanText,
+          stroke: 2.1,
+          label: focus.on ? 'Leave focus mode' : 'Focus mode',
+          hint: focus.on ? 'Every paragraph drawn whole again.' : 'Dims every paragraph but the one you are writing.',
+          on: focus.on,
+          onPress: focus.onToggle,
+          closes: true,
+        );
+  final bookmarkRow = w.onBookmark == null
+      ? null
+      : NoteSheetEntry(
+          id: 'bookmark',
+          lucide: Lucide.bookmark,
+          stroke: 2.2,
+          label: w.marked ? 'Move or remove the bookmark' : 'Bookmark this line',
+          hint: w.marked ? 'Moves it to the line the caret is on, or takes it off when it is already there.' : 'Marks the line the caret is on, to come back to.',
+          onPress: w.onBookmark,
+        );
+  final findRow = w.onFind == null ? null : NoteSheetEntry(id: 'find', lucide: Lucide.textSearch, stroke: 2.2, label: 'Find and replace', onPress: w.onFind);
+  // A list laid out as columns, in the note's own words (docs/BOARDS.md).
+  final boardRow = w.onMakeBoard == null ? null : NoteSheetEntry(id: 'board', drawn: AppIcons.board, label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: w.onMakeBoard);
+
+  final filing = <NoteSheetEntry>[
+    NoteSheetEntry(
+      id: 'workspace',
+      drawn: AppIcons.workspace,
+      label: 'Workspace',
+      hint: filed != null ? filed.name : (w.workspaces.value.list.isNotEmpty ? 'Not in one' : 'None yet. Make one to sort your notes.'),
+      page: NoteSettingsPage.workspace,
+    ),
+    // Every version kept, to go back to (Matt: "allow versioning on personal notes by enabling it under the more menu").
+    if (history != null)
+      if (history.keeps)
+        NoteSheetEntry(
+          id: 'history',
+          lucide: Lucide.history,
+          label: 'Version history',
+          hint: history.record.versionsByDefault(w.noteId) ? 'Kept for an organization’s notes. Go back to any version.' : 'Every version kept. Go back to any of them.',
+          page: NoteSettingsPage.history,
+        )
+      else
+        NoteSheetEntry(
+          id: 'keep-history',
+          lucide: Lucide.history,
+          label: 'Keep version history',
+          hint: 'Saves a version as you write, to go back to like git. Kept beside the note as a .versions file.',
+          onPress: () => history.record.setKeepsVersions(w.noteId, true),
+          page: NoteSettingsPage.history,
+        ),
+    // Where it was written, last of where it sits: the tag added or taken off, and why it can't be here.
+    if (location != null)
+      if (location.tag != null)
+        NoteSheetEntry(id: 'location', drawn: AppIcons.locate, label: 'Remove location', hint: tagLabel(location.tag!), onPress: location.onRemove)
+      else
+        NoteSheetEntry(id: 'location', drawn: AppIcons.locate, label: 'Add my location', hint: locationHint(location), onPress: location.cannot == null ? location.onAdd : null),
+  ];
+
+  final linked = <NoteSheetEntry>[
+    if (plugins != null) ...[
+      for (final each in plugins.links)
+        NoteSheetEntry(
+          id: 'link:${each.id}',
+          key: ValueKey('link:${each.id}'),
+          mark: each.icon,
+          label: each.label,
+          hint: unavailable[each.id] ?? each.hint(w.noteId),
+          item: 'link:${each.id}',
+          disabled: unavailable[each.id] != null,
+        ),
+      for (final action in plugins.actionsFor(w.noteId, body))
+        () {
+          // An action with several places to go opens their page; otherwise it runs on the note, the sheet closed
+          // first (`runAction`).
+          final choices = action.choices?.call(w.noteId) ?? const <ActionChoice>[];
+          return NoteSheetEntry(
+            id: 'action:${action.id}',
+            key: ValueKey('action:${action.id}'),
+            mark: action.icon,
+            label: action.label,
+            hint: action.hint(w.noteId, body),
+            disabled: !action.enabled(w.noteId, body),
+            item: choices.length > 1 ? 'choose:${action.id}' : null,
+            onPress: choices.length > 1
+                ? null
+                : () => unawaited((choices.length == 1 ? action.run(plugins.editing, choices.first.id) : action.run(plugins.editing)).then<void>((_) {}, onError: (Object _) {})),
+            closes: true,
+          );
+        }(),
+    ],
+  ];
+
+  return [
+    // The mic, from the top bar: the first thing here, as it was the first thing a thumb reached there.
+    if (w.onSpeak != null) NoteSheetGroup(id: 'speak', entries: [NoteSheetEntry(id: 'speak', lucide: Lucide.mic, label: w.speakLabel, onPress: w.onSpeak, closes: true)]),
+    if (name != null)
+      NoteSheetGroup(
+        id: 'names',
+        fancy: simple,
+        entries: [
+          // A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it.
+          if (journal != null)
+            if (journal.on)
+              NoteSheetEntry(id: 'journal', lucide: Lucide.feather, stroke: 2.2, label: 'Journal', hint: '${templateSentence(journal.template)}${journal.place ? ' $placeSentence' : ''}', page: NoteSettingsPage.journal)
+            else
+              NoteSheetEntry(id: 'journal', lucide: Lucide.feather, stroke: 2.2, label: 'Keep it as a journal', hint: 'New pages start dated, from a template.', page: NoteSettingsPage.journal),
+          if (w.ticketRules case final rules?)
+            NoteSheetEntry(id: 'ticket-rules', key: const ValueKey('note-ticket-rules'), lucide: Lucide.workflow, stroke: 2.1, label: 'Rules and GitHub…', hint: rules.summary, onPress: rules.onOpen, closes: true),
+          if (w.pageTemplate case final template?)
+            NoteSheetEntry(
+              id: 'page-template',
+              key: const ValueKey('note-page-template'),
+              lucide: Lucide.copyPlus,
+              stroke: 2.1,
+              label: 'Set template…',
+              hint: switch (template.name) { final named? => 'New pages start from $named.', null => 'New pages start with their title alone.' },
+              onPress: template.onChoose,
+              closes: true,
+            ),
+        ],
+      ),
+    // The doc page's rows: its icon, its cover, its outline, when it was edited.
+    if (w.page case final section? when section.items.isNotEmpty) NoteSheetGroup(id: 'page', heading: section.heading, fancy: simple, entries: [for (final each in section.items) another(each, 'page')]),
+    // Reading it: the look and Find in both modes; the bookmark and the board are simple's "fancy", behind More….
+    // Simple's first row is the view switch, which the advanced header carries as a ring (GHST-105).
+    if (look != null)
+      NoteSheetGroup(
+        id: 'look',
+        heading: 'Look',
+        entries: [
+          for (final (value, label) in lookOptions(look))
+            NoteSheetEntry(
+              id: 'look:$label',
+              label: label,
+              lucide: switch (value) { null => Lucide.text, Look.reading => Lucide.bookOpenText, _ => Lucide.mapPin },
+              checked: look.value == value,
+              onPress: () => look.onChange(value),
+            ),
+        ],
+      ),
+    NoteSheetGroup(id: 'reading', heading: 'Reading it', entries: [?switchRow, ?focusRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow]),
+    if (simple) NoteSheetGroup(id: 'reading-more', heading: 'More ways to read it', fancy: true, entries: [?bookmarkRow, ?boardRow]),
+    // Another piece's rows: the links between notes, the outline, the line's link.
+    if (w.around case final around? when around.items.isNotEmpty) NoteSheetGroup(id: 'around', heading: around.heading, fancy: simple, entries: [for (final each in around.items) another(each, 'around')]),
+    // Comment, near the top where a thumb is quick to it.
+    if (w.onComment != null)
+      NoteSheetGroup(
+        id: 'comments',
+        heading: 'Comments',
+        fancy: simple,
+        entries: [
+          NoteSheetEntry(id: 'comment', lucide: Lucide.messageSquarePlus, stroke: 2.2, label: 'Comment', hint: 'On the words selected, or on the line the caret is on.', onPress: w.onComment, closes: true),
+          if (w.commentsSummary != null)
+            NoteSheetEntry(id: 'comments', lucide: Lucide.messageSquare, stroke: 2.2, label: w.commentsSummary!, hint: 'Read them, reply, or resolve them.', onPress: () => w.onCommentsList?.call(), closes: true),
+        ],
+      ),
+    if (w.onAi case final onAi?)
+      NoteSheetGroup(
+        id: 'ai',
+        heading: 'AI',
+        fancy: simple,
+        entries: [
+          for (final kind in [...aiKinds, if (w.blanks.count > 0) fillKind])
+            NoteSheetEntry(
+              id: 'ai:${kind.id}',
+              key: ValueKey('ai:${kind.id}'),
+              lucide: kind.icon,
+              stroke: 2.1,
+              label: kind.label,
+              hint: identical(kind, fillKind) ? fillHint(w.blanks) : kind.hint,
+              // Pressed, with a dot at its end, while that run is on.
+              on: w.running == kind.id,
+              onPress: () => onAi(kind.id),
+              closes: true,
+            ),
+        ],
+      ),
+    // Where it sits: Pin and Archive in both modes; filing it, its versions and its place are simple's "fancy".
+    NoteSheetGroup(
+      id: 'sits',
+      heading: 'Where it sits',
+      entries: [
+        NoteSheetEntry(id: 'pin', drawn: AppIcons.pin, label: w.pinned ? 'Unpin' : 'Pin to the top', onPress: w.onPin),
+        NoteSheetEntry(id: 'archive', drawn: AppIcons.archiveBox, label: 'Archive', onPress: w.onArchive),
+        if (!simple) ...filing,
+      ],
+    ),
+    if (simple) NoteSheetGroup(id: 'filing', heading: 'Filing it', fancy: true, entries: filing),
+    // Verify…: a row of its own, its page inside the sheet.
+    if (w.verify case final verify?) NoteSheetGroup(id: 'verify', heading: 'Verified', fancy: simple, entries: [another(verify, 'around', presses: false)]),
+    if (linked.isNotEmpty) NoteSheetGroup(id: 'linked', heading: 'Linked to', fancy: simple, entries: linked),
+    if (w.cheatSheet != null)
+      NoteSheetGroup(
+        id: 'help',
+        heading: 'Help',
+        entries: [
+          NoteSheetEntry(id: 'cheatsheet', lucide: Lucide.listChecks, stroke: 2.2, label: 'Formatting cheat sheet', hint: 'Every mark you can type, and what it looks like, on one page.', page: NoteSettingsPage.cheatsheet),
+        ],
+      ),
+    // Into the trash, from where it is brought back or deleted for good (core/trash.ts).
+    NoteSheetGroup(id: 'trash', entries: [NoteSheetEntry(id: 'trash', drawn: AppIcons.bin, label: 'Move to Trash', onPress: w.onDelete, danger: true)]),
+  ];
+}
+
 class NoteSettings extends StatefulWidget {
   const NoteSettings({
     super.key,
@@ -465,14 +767,65 @@ class _NoteSettingsState extends State<NoteSettings> {
   String _template = defaultTemplate;
   bool _place = false;
 
-  void _openJournal() {
+  void _journalUp() {
     final journal = widget.journal!;
-    setState(() {
-      _template = journal.on ? journal.template : defaultTemplate;
-      _place = journal.on ? journal.place : journal.placeDefault;
-      _page = NoteSettingsPage.journal;
-    });
+    _template = journal.on ? journal.template : defaultTemplate;
+    _place = journal.on ? journal.place : journal.placeDefault;
+    _page = NoteSettingsPage.journal;
   }
+
+  /// A page of the sheet up: one of its own, or another piece's or a plugin's by [item] (`link:<id>` a link's
+  /// picker, `choose:<id>` an action's places, else [NoteSettings._itemById]'s).
+  void _openAt(NoteSettingsPage? page, String? item) {
+    switch (page) {
+      case NoteSettingsPage.journal when widget.journal != null:
+        _journalUp();
+      case NoteSettingsPage.history when widget.history != null:
+        _page = page;
+      case NoteSettingsPage.cheatsheet when widget.cheatSheet != null:
+        _page = page;
+      case NoteSettingsPage.workspace:
+        _page = page;
+      default:
+    }
+    if (item == null) return;
+    final plugins = widget.plugins;
+    if (item.startsWith('link:')) {
+      _link = plugins?.links.where((each) => 'link:${each.id}' == item).firstOrNull;
+    } else if (item.startsWith('choose:')) {
+      _choosing = plugins?.actions.where((each) => 'choose:${each.id}' == item).firstOrNull;
+    } else {
+      _item = switch (widget._itemById(item)) { final found? when found.page != null => found, _ => null };
+    }
+  }
+
+  /// The press of one of the sheet's rows ([NoteSheetEntry]).
+  VoidCallback? _pressOf(NoteSheetEntry entry) {
+    if (entry.opens) {
+      return () {
+        entry.onPress?.call();
+        setState(() => _openAt(entry.page, entry.item));
+      };
+    }
+    final run = entry.onPress;
+    if (run == null) return null;
+    return entry.closes
+        ? () {
+            widget.onClose();
+            run();
+          }
+        : run;
+  }
+
+  Widget _iconOf(NoteSheetEntry entry) => switch (entry) {
+        NoteSheetEntry(lucide: final icon?) => _lucide(icon, entry.stroke),
+        NoteSheetEntry(drawn: final icon?) => _drawn(icon),
+        NoteSheetEntry(mark: final mark?) => Builder(builder: (context) => mark(context, 18)),
+        _ => const SizedBox.shrink(),
+      };
+
+  Widget _rowOf(NoteSheetEntry entry) =>
+      SheetRow(key: entry.key, icon: _iconOf(entry), label: entry.label, hint: entry.hint, on: entry.on, danger: entry.danger, disabled: entry.disabled, onPress: _pressOf(entry));
 
   /// The ticket key as it is being typed, which is not always a key yet.
   late String _keyTyped = widget.ticketKey?.value ?? '';
@@ -491,9 +844,8 @@ class _NoteSettingsState extends State<NoteSettings> {
     widget.workspaces.addListener(_changed);
     // The mode can change under an open sheet (Settings on a Mac beside it).
     if (widget.simple == null) preferences.addListener(_changed);
-    if (widget.startAt == NoteSettingsPage.history && widget.history != null) _page = NoteSettingsPage.history;
-    final item = widget.startAtItem;
-    if (item != null) _item = switch (widget._itemById(item)) { final found? when found.page != null => found, _ => null };
+    // Opened at a page: from a button in the bar, or a row of the note's ••• that is a page here.
+    _openAt(widget.startAt, widget.startAtItem);
     for (final link in widget.plugins?.links ?? const <NoteLink>[]) {
       final asked = link.unavailable?.call();
       if (asked == null) continue;
@@ -501,16 +853,6 @@ class _NoteSettingsState extends State<NoteSettings> {
         if (mounted) setState(() => _unavailable[link.id] = why);
       }, onError: (Object _) {}));
     }
-  }
-
-  /// An action run on the note, the sheet closed first; with several places to go, their page opens instead
-  /// (`runAction`).
-  void _runAction(NoteAction action) {
-    final editing = widget.plugins!.editing;
-    final choices = action.choices?.call(widget.noteId) ?? const <ActionChoice>[];
-    if (choices.length > 1) return setState(() => _choosing = action);
-    widget.onClose();
-    unawaited((choices.length == 1 ? action.run(editing, choices.first.id) : action.run(editing)).then<void>((_) {}, onError: (Object _) {}));
   }
 
   @override
@@ -683,25 +1025,21 @@ class _NoteSettingsState extends State<NoteSettings> {
 
     final name = widget.name;
     final look = widget.look;
-    final location = widget.location;
-    final filed = widget.workspaces.workspaceOf(widget.noteId);
     final simple = _simple;
+    // The rows that are presses, from the one list the note's ••• lists too (noteSheetGroups).
+    final groups = noteSheetGroups(widget, simple: simple, body: _body, unavailable: _unavailable);
+    final entries = {for (final group in groups) for (final entry in group.entries) entry.id: entry};
+    Widget? row(String id) => switch (entries[id]) { final entry? => _rowOf(entry), null => null };
+    List<Widget> rowsOf(String group) => [for (final each in groups) if (each.id == group) for (final entry in each.entries) _rowOf(entry)];
+    NoteSheetGroup? groupOf(String id) => groups.where((each) => each.id == id).firstOrNull;
+    List<Widget> section(String id) => switch (groupOf(id)) {
+          final group? when group.entries.isNotEmpty => [if (group.heading case final heading?) SheetHeading(heading), SheetGroup(children: rowsOf(id))],
+          _ => const [],
+        };
 
     // The mic, from the top bar: the first thing here, as it was the first thing a thumb reached there.
     final speak = <Widget>[
-      if (widget.onSpeak != null)
-        SheetGroup(
-          children: [
-            SheetRow(
-              icon: _lucide(Lucide.mic),
-              label: widget.speakLabel,
-              onPress: () {
-                widget.onClose();
-                widget.onSpeak!();
-              },
-            ),
-          ],
-        ),
+      if (row('speak') case final speaking?) SheetGroup(children: [speaking]),
     ];
 
     final names = <Widget>[
@@ -709,12 +1047,7 @@ class _NoteSettingsState extends State<NoteSettings> {
         SheetGroup(
           children: [
             SheetField(label: 'Name', value: name.value, onChange: name.onChange, placeholder: 'What this ${name.kind} is called', autoCorrect: false),
-            // A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it.
-            if (journal != null)
-              if (journal.on)
-                SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Journal', hint: '${templateSentence(journal.template)}${journal.place ? ' $placeSentence' : ''}', onPress: _openJournal)
-              else
-                SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Keep it as a journal', hint: 'New pages start dated, from a template.', onPress: _openJournal),
+            ?row('journal'),
           ],
         ),
       // A notebook's ticket key, typed (`TicketKeyField`): written whenever what is typed is a key or nothing, which
@@ -743,209 +1076,38 @@ class _NoteSettingsState extends State<NoteSettings> {
                   : 'Give it a key, and New ticket numbers its tickets, like a Jira project.'),
         ),
       ],
-      if (name != null && widget.ticketRules != null)
-        SheetGroup(
-          children: [
-            SheetRow(
-              key: const ValueKey('note-ticket-rules'),
-              icon: _lucide(Lucide.workflow, 2.1),
-              label: 'Rules and GitHub…',
-              hint: widget.ticketRules!.summary,
-              onPress: () {
-                final open = widget.ticketRules!.onOpen;
-                widget.onClose();
-                open();
-              },
-            ),
-          ],
-        ),
-      if (name != null && widget.pageTemplate != null)
-        SheetGroup(
-          children: [
-            SheetRow(
-              key: const ValueKey('note-page-template'),
-              icon: _lucide(Lucide.copyPlus, 2.1),
-              label: 'Set template…',
-              hint: switch (widget.pageTemplate!.name) { final named? => 'New pages start from $named.', null => 'New pages start with their title alone.' },
-              onPress: () {
-                final choose = widget.pageTemplate!.onChoose;
-                widget.onClose();
-                choose();
-              },
-            ),
-          ],
-        ),
+      if (row('ticket-rules') case final rules?) SheetGroup(children: [rules]),
+      if (row('page-template') case final template?) SheetGroup(children: [template]),
     ];
 
     // Reading it: the look and Find in both modes; the bookmark and the board are simple's "fancy", behind More….
-    // Simple's first row is the view switch, which the advanced header carries as a ring (GHST-105).
-    final Widget? switchRow = !simple || widget.viewSwitch == null
-        ? null
-        : Builder(
-            builder: (context) {
-              final it = widget.viewSwitch!;
-              final words = viewSwitchRow(it.kind, page: it.page);
-              return SheetRow(
-                key: const ValueKey<String>('note-view-switch'),
-                icon: _lucide(it.page ? Lucide.code : Lucide.bookOpen, 2.1),
-                label: words.label,
-                hint: words.hint,
-                onPress: () {
-                  widget.onClose();
-                  it.onSwitch();
-                },
-              );
-            },
-          );
-    final Widget? lookRow = look != null ? LookChoice(look: look) : null;
-    final Widget? bookmarkRow = widget.onBookmark == null
-        ? null
-        : SheetRow(
-            icon: _lucide(Lucide.bookmark, 2.2),
-            label: widget.marked ? 'Move or remove the bookmark' : 'Bookmark this line',
-            hint: widget.marked ? 'Moves it to the line the caret is on, or takes it off when it is already there.' : 'Marks the line the caret is on, to come back to.',
-            onPress: widget.onBookmark,
-          );
-    final Widget? findRow = widget.onFind == null ? null : SheetRow(icon: _lucide(Lucide.textSearch, 2.2), label: 'Find and replace', onPress: widget.onFind);
-    // A list laid out as columns, in the note's own words (docs/BOARDS.md).
-    final Widget? boardRow = widget.onMakeBoard == null ? null : SheetRow(icon: _drawn(AppIcons.board), label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: widget.onMakeBoard);
-    final focus = widget.focus;
-    final Widget? focusRow = focus == null
-        ? null
-        : SheetRow(
-            key: const ValueKey<String>('note-focus-mode'),
-            icon: _lucide(Lucide.scanText, 2.1),
-            label: focus.on ? 'Leave focus mode' : 'Focus mode',
-            hint: focus.on ? 'Every paragraph drawn whole again.' : 'Dims every paragraph but the one you are writing.',
-            on: focus.on,
-            onPress: () {
-              widget.onClose();
-              focus.onToggle();
-            },
-          );
-    final readingFirst = <Widget>[?switchRow, ?lookRow, ?focusRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow];
-    final readingMore = <Widget>[if (simple) ?bookmarkRow, if (simple) ?boardRow];
+    // Simple's first row is the view switch, which the advanced header carries as a ring (GHST-105). The look is a row
+    // of words here, after the switch.
+    final readingRows = rowsOf('reading');
+    final readingFirst = <Widget>[
+      if (look != null) ...[
+        if (entries.containsKey('view-switch')) ...[readingRows.first, LookChoice(look: look), ...readingRows.skip(1)] else ...[LookChoice(look: look), ...readingRows],
+      ] else
+        ...readingRows,
+    ];
     final reading = <Widget>[if (readingFirst.isNotEmpty) ...[const SheetHeading('Reading it'), SheetGroup(children: readingFirst)]];
-    final readingRest = <Widget>[if (readingMore.isNotEmpty) ...[const SheetHeading('More ways to read it'), SheetGroup(children: readingMore)]];
+    final readingRest = section('reading-more');
 
-    // Another piece's rows: the links between notes, the outline, the line's link.
-    final around = <Widget>[
-      if (widget.around case final around? when around.items.isNotEmpty) ...[
-        SheetHeading(around.heading),
-        SheetGroup(
-          children: [
-            for (final each in around.items)
-              SheetRow(
-                key: ValueKey('around:${each.id}'),
-                icon: _lucide(each.icon, 2.1),
-                label: each.label,
-                hint: each.hint,
-                onPress: each.page != null
-                    ? () => setState(() => _item = each)
-                    : each.onPress == null
-                        ? null
-                        : () {
-                            widget.onClose();
-                            each.onPress!();
-                          },
-              ),
-          ],
-        ),
-      ],
-    ];
-
-    // The doc page's rows: its icon, its cover, its outline, when it was edited.
-    final pageRows = <Widget>[
-      if (widget.page case final section? when section.items.isNotEmpty) ...[
-        SheetHeading(section.heading),
-        SheetGroup(
-          children: [
-            for (final each in section.items)
-              SheetRow(
-                key: ValueKey('page:${each.id}'),
-                icon: _lucide(each.icon, 2.1),
-                label: each.label,
-                hint: each.hint,
-                onPress: each.page != null
-                    ? () => setState(() => _item = each)
-                    : each.onPress == null
-                        ? null
-                        : () {
-                            widget.onClose();
-                            each.onPress!();
-                          },
-              ),
-          ],
-        ),
-      ],
-    ];
-
-    // Verify…: a row of its own, its page inside the sheet.
-    final verifying = <Widget>[
-      if (widget.verify case final verify?) ...[
-        const SheetHeading('Verified'),
-        SheetGroup(
-          children: [
-            SheetRow(
-              key: ValueKey('around:${verify.id}'),
-              icon: _lucide(verify.icon, 2.1),
-              label: verify.label,
-              hint: verify.hint,
-              onPress: verify.page != null ? () => setState(() => _item = verify) : null,
-            ),
-          ],
-        ),
-      ],
-    ];
+    // Another piece's rows: the links between notes, the outline, the line's link. The doc page's rows: its icon, its
+    // cover, its outline, when it was edited. Verify…: a row of its own, its page inside the sheet.
+    final around = section('around');
+    final pageRows = section('page');
+    final verifying = section('verify');
 
     // Comment, near the top where a thumb is quick to it.
-    final comments = <Widget>[
-      if (widget.onComment != null) ...[
-        const SheetHeading('Comments'),
-        SheetGroup(
-          children: [
-            SheetRow(
-              icon: _lucide(Lucide.messageSquarePlus, 2.2),
-              label: 'Comment',
-              hint: 'On the words selected, or on the line the caret is on.',
-              onPress: () {
-                widget.onClose();
-                widget.onComment!();
-              },
-            ),
-            if (widget.commentsSummary != null)
-              SheetRow(
-                icon: _lucide(Lucide.messageSquare, 2.2),
-                label: widget.commentsSummary!,
-                hint: 'Read them, reply, or resolve them.',
-                onPress: () {
-                  widget.onClose();
-                  widget.onCommentsList?.call();
-                },
-              ),
-          ],
-        ),
-      ],
-    ];
+    final comments = section('comments');
 
     final ai = <Widget>[
-      if (widget.onAi != null) ...[
+      if (groupOf('ai') != null) ...[
         const SheetHeading('AI'),
         SheetGroup(
           children: [
-            for (final kind in [...aiKinds, if (widget.blanks.count > 0) fillKind])
-              SheetRow(
-                key: ValueKey('ai:${kind.id}'),
-                icon: _lucide(kind.icon, 2.1),
-                label: kind.label,
-                hint: identical(kind, fillKind) ? fillHint(widget.blanks) : kind.hint,
-                // Pressed, with a dot at its end, while that run is on.
-                on: widget.running == kind.id,
-                onPress: () {
-                  widget.onClose();
-                  widget.onAi!(kind.id);
-                },
-              ),
+            ...rowsOf('ai'),
             AskField(
               onAsk: (instruction) {
                 widget.onClose();
@@ -964,96 +1126,18 @@ class _NoteSettingsState extends State<NoteSettings> {
     ];
 
     // Where it sits: Pin and Archive in both modes; filing it, its versions and its place are simple's "fancy".
-    final pinRow = SheetRow(icon: _drawn(AppIcons.pin), label: widget.pinned ? 'Unpin' : 'Pin to the top', onPress: widget.onPin);
-    final archiveRow = SheetRow(icon: _drawn(AppIcons.archiveBox), label: 'Archive', onPress: widget.onArchive);
-    final filing = <Widget>[
-      SheetRow(
-        icon: _drawn(AppIcons.workspace),
-        label: 'Workspace',
-        hint: filed != null ? filed.name : (widget.workspaces.value.list.isNotEmpty ? 'Not in one' : 'None yet. Make one to sort your notes.'),
-        onPress: () => setState(() => _page = NoteSettingsPage.workspace),
-      ),
-      // Every version kept, to go back to (Matt: "allow versioning on personal notes by enabling it under the more menu").
-      if (history != null)
-        if (history.keeps)
-          SheetRow(
-            icon: _lucide(Lucide.history),
-            label: 'Version history',
-            hint: history.record.versionsByDefault(widget.noteId) ? 'Kept for an organization’s notes. Go back to any version.' : 'Every version kept. Go back to any of them.',
-            onPress: () => setState(() => _page = NoteSettingsPage.history),
-          )
-        else
-          SheetRow(
-            icon: _lucide(Lucide.history),
-            label: 'Keep version history',
-            hint: 'Saves a version as you write, to go back to like git. Kept beside the note as a .versions file.',
-            onPress: () {
-              history.record.setKeepsVersions(widget.noteId, true);
-              setState(() => _page = NoteSettingsPage.history);
-            },
-          ),
-      // Where it was written, last of where it sits: the tag added or taken off, and why it can't be here.
-      if (location != null)
-        if (location.tag != null)
-          SheetRow(icon: _drawn(AppIcons.locate), label: 'Remove location', hint: tagLabel(location.tag!), onPress: location.onRemove)
-        else
-          SheetRow(icon: _drawn(AppIcons.locate), label: 'Add my location', hint: locationHint(location), onPress: location.cannot == null ? location.onAdd : null),
-    ];
-    final sits = <Widget>[
-      const SheetHeading('Where it sits'),
-      SheetGroup(children: [pinRow, archiveRow, if (!simple) ...filing]),
-    ];
-    final filingRest = <Widget>[if (simple) ...[const SheetHeading('Filing it'), SheetGroup(children: filing)]];
+    final sits = section('sits');
+    final filingRest = section('filing');
 
     final linkedTo = <Widget>[
       if (widget.linked != null && widget.linked!.isNotEmpty) ...[const SheetHeading('Linked to'), SheetGroup(children: widget.linked!)],
-      if (plugins != null && (plugins.links.isNotEmpty || plugins.actionsFor(widget.noteId, _body).isNotEmpty)) ...[
-        const SheetHeading('Linked to'),
-        SheetGroup(
-          children: [
-            for (final each in plugins.links)
-              SheetRow(
-                key: ValueKey('link:${each.id}'),
-                icon: Builder(builder: (context) => each.icon(context, 18)),
-                label: each.label,
-                hint: _unavailable[each.id] ?? each.hint(widget.noteId),
-                onPress: () => setState(() => _link = each),
-                disabled: _unavailable[each.id] != null,
-              ),
-            for (final action in plugins.actionsFor(widget.noteId, _body))
-              SheetRow(
-                key: ValueKey('action:${action.id}'),
-                icon: Builder(builder: (context) => action.icon(context, 18)),
-                label: action.label,
-                hint: action.hint(widget.noteId, _body),
-                onPress: () => _runAction(action),
-                disabled: !action.enabled(widget.noteId, _body),
-              ),
-          ],
-        ),
-      ],
+      ...section('linked'),
     ];
 
-    final help = <Widget>[
-      if (widget.cheatSheet != null) ...[
-        const SheetHeading('Help'),
-        SheetGroup(
-          children: [
-            SheetRow(
-              icon: _lucide(Lucide.listChecks, 2.2),
-              label: 'Formatting cheat sheet',
-              hint: 'Every mark you can type, and what it looks like, on one page.',
-              onPress: () => setState(() => _page = NoteSettingsPage.cheatsheet),
-            ),
-          ],
-        ),
-      ],
-    ];
+    final help = section('help');
 
     // Into the trash, from where it is brought back or deleted for good (core/trash.ts).
-    final trash = SheetGroup(
-      children: [SheetRow(icon: _drawn(AppIcons.bin), label: 'Move to Trash', onPress: widget.onDelete, danger: true)],
-    );
+    final trash = SheetGroup(children: rowsOf('trash'));
 
     final List<Widget> body;
     if (!simple) {
@@ -1100,7 +1184,7 @@ class LookChoice extends StatelessWidget implements SheetRuled {
     final t = context.tokens;
     final md = t.fontSize('md'), sm = t.fontSize('sm');
     final ink = t.color('glacier-text');
-    final options = <(Look?, String)>[(null, 'Plain'), (Look.reading, 'Reading'), if (look.canMap) (Look.map, 'Map')];
+    final options = lookOptions(look);
     return ConstrainedBox(
       constraints: BoxConstraints(minHeight: t.space(12)),
       child: Padding(

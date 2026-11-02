@@ -12,6 +12,7 @@ import 'package:ghost_md/note/note_tools.dart';
 import 'package:ghost_md/shell/page_dock.dart';
 
 import '../shell/dock_support.dart';
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -46,7 +47,8 @@ void main() {
     expect(find.bySemanticsLabel('More for this note'), findsOneWidget);
     expect(find.byKey(NoteSimpleHeader.doneKey), findsNothing, reason: 'the keyboard is down and nothing is focused');
     // No tool rings at all: not the view switch, not Pin, not Archive, not the mic.
-    expect(find.descendant(of: header, matching: find.byType(NoteToolButton)), findsNWidgets(1), reason: 'only ⋯ is a ring');
+    expect(find.descendant(of: header, matching: find.byType(NoteToolButton)), findsNothing, reason: 'only ⋯ is a ring, and it is a menu’s');
+    expect(find.descendant(of: header, matching: find.byType(NoteMore)), findsOneWidget);
     expect(find.bySemanticsLabel('Pin to the top'), findsNothing);
     expect(find.bySemanticsLabel('Archive'), findsNothing);
     expect(find.bySemanticsLabel('Showing the formatted note. Show the marks.'), findsNothing);
@@ -115,9 +117,7 @@ void main() {
     await pumpNote(tester, world, await seeded(tester, world, '# Day\n\nWords.'), bar: false);
     await settle(tester);
     expect(world.prefs.value.noteView, 'formatted', reason: 'simple opens on the formatted note');
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await pressInBar(tester, 'more', label: 'More for this note');
     expect(find.byType(NoteSettings), findsOneWidget);
     final row = find.byKey(const ValueKey<String>('note-view-switch'));
     expect(row, findsOneWidget);
@@ -130,9 +130,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(NoteSettings), findsNothing, reason: 'the sheet closes on the switch');
     expect(world.prefs.value.noteView, 'mixed');
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await pressInBar(tester, 'more', label: 'More for this note');
     expect(find.text('Show the formatted note'), findsOneWidget);
     expect(find.text('Pin to the top'), findsOneWidget);
     expect(find.text('Archive'), findsOneWidget);
@@ -145,9 +143,7 @@ void main() {
     await settle(tester);
     expect(find.byType(NoteSimpleHeader), findsNothing);
     expect(find.bySemanticsLabel('Showing the marks. Show the formatted note.'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await pressInBar(tester, 'more', label: 'More for this note');
     expect(find.byKey(const ValueKey<String>('note-view-switch')), findsNothing);
     await closeNote(tester);
     await done(tester);

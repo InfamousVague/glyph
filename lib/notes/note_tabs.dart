@@ -477,6 +477,7 @@ class _NoteTabsState extends State<NoteTabs> {
       view: note?.view,
       actions: note?.actions ?? const [],
       more: note?.more,
+      menu: model?.menu,
       search: w.onSearch == null ? null : HeaderAct(id: 'search', label: 'Search or run a command', word: 'Search', hue: 'blue', icon: Lucide.search, onPress: w.onSearch),
       newNote: w.onNew == null ? null : HeaderAct(id: 'new', label: 'New note', word: 'New note', hue: 'green', icon: Lucide.plus, onPress: w.onNew),
       allNotes: w.onAllNotes == null ? null : HeaderAct(id: 'all', label: 'Every note', word: 'Browse', hue: 'indigo', icon: Lucide.layoutGrid, onPress: w.onAllNotes),

@@ -7,6 +7,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/note/note_screen.dart' show NoteSeams;
 import 'package:ghost_md/note/note_settings.dart';
 
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -16,11 +17,8 @@ void main() {
   var made = 0;
   Future<Note> seeded(WidgetTester tester, NoteWorld world, String body) async => (await tester.runAsync(() => seedNote(world, 'focus${made += 1}', body)))!;
 
-  Future<void> more(WidgetTester tester) async {
-    await tester.tap(find.bySemanticsLabel('More for this note'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
+  // The sheet itself: ⋯ is a menu of its rows, All settings… the sheet.
+  Future<void> more(WidgetTester tester) => pressInBar(tester, 'more', label: 'More for this note');
 
   const row = ValueKey<String>('note-focus-mode');
 

@@ -38,6 +38,7 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 
 import '../plugins/support.dart';
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 const String noteId = 'lovart-examples';
@@ -201,7 +202,8 @@ void main() {
     testWidgets('menu, $theme', (tester) async {
       if (!autoUpdateGoldenFiles) return;
       await open(tester, theme, body);
-      await tester.tap(find.bySemanticsLabel('More for this note'));
+      // The sheet itself: ⋯ is a menu of its rows, All settings… the sheet.
+      await pressInBar(tester, 'more', label: 'More for this note');
       await settle(tester, 4);
       await Scrollable.ensureVisible(tester.element(find.text('Inspiration images')), alignment: 0.6);
       await settle(tester, 3);

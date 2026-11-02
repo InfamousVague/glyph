@@ -102,13 +102,18 @@ class PopMenu extends StatefulWidget {
 
   /// The panel's look for [reach] (PopMenu.module.css `.pop.down`, `.pop.either`, `.pop.creased`, and the rows'
   /// size under a finger).
-  static GlacierMenuStyle styleOf(Tokens t, PopReach reach, {required bool coarse, bool creased = false}) {
-    final maxHeight = switch (reach) {
+  ///
+  /// [room] is what the window has under the anchor, where that is known: a menu that hangs from a note's own header
+  /// on a phone (no bar under it) or above the keyboard is no taller than that, and its rows scroll inside it (Matt,
+  /// 2026-11-02: "we should be able to scroll on it instead of needing to open a new modal").
+  static GlacierMenuStyle styleOf(Tokens t, PopReach reach, {required bool coarse, bool creased = false, double? room}) {
+    final asked = switch (reach) {
       // The room under the bar, less the kit's 8px offset from its anchor and its 8px edge.
       PopReach.down => t.lenOf('calc(100vh - var(--app-inset-top) - var(--app-tabs) - 16px)'),
       // Half the room, so whichever side the kit turns it to holds it whole.
       PopReach.either => t.lenOf('calc((100vh - var(--app-inset-top)) / 2 - 32px)'),
     };
+    final maxHeight = room == null ? asked : math.min(asked, room);
     final size = coarse ? t.fontSize('md') : t.fontSize('sm');
     return GlacierMenuStyle(
       maxHeight: math.max(0, maxHeight),
@@ -194,6 +199,16 @@ class _PopMenuState extends State<PopMenu> {
     SchedulerBinding.instance.addPostFrameCallback(_look);
   }
 
+  /// The room under the anchor of a menu that hangs down from it: the window less the keyboard and the safe area at
+  /// the foot, less the kit's 8px from the anchor and its 8px edge. Null for one that may open either way.
+  double? _roomBelow() {
+    if (widget.reach != PopReach.down) return null;
+    final box = widget.anchor.rect();
+    if (box == null) return null;
+    final foot = MediaQuery.viewInsetsOf(context).bottom + MediaQuery.paddingOf(context).bottom;
+    return math.max(0, MediaQuery.sizeOf(context).height - foot - box.bottom - 2 * _edge);
+  }
+
   @override
   void dispose() {
     _looking = false;
@@ -213,7 +228,7 @@ class _PopMenuState extends State<PopMenu> {
       anchor: widget.anchor,
       placement: side.placement,
       ariaLabel: widget.ariaLabel,
-      style: PopMenu.styleOf(t, widget.reach, coarse: _coarse, creased: side.creased),
+      style: PopMenu.styleOf(t, widget.reach, coarse: _coarse, creased: side.creased, room: _roomBelow()),
       children: widget.children,
     );
   }

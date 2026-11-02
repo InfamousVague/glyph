@@ -26,6 +26,9 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../shell/header/header_kit.dart' show HeaderMenuButton, HeaderMenuLater, allSettingsAct, noteMenuEntries;
+import '../shell/header_toolbar.dart' show HeaderAct;
+import '../shell/pop_menu.dart' show coarsePointer;
 
 /// One of the note's actions that comes out of More into the bar when there is room for it, in this order: Share,
 /// History, Comment, Bookmark, Pin/Unpin, Archive, Speak (`ToolAction`). Each stays in More as well.
@@ -43,6 +46,41 @@ class ToolAction {
 
   /// A number worn on the ring, small at its corner: how many notes link here (lib/links). Null or 0 for none.
   final int? count;
+}
+
+/// One of the More sheet's rows as a row of the note's ••• (Matt, 2026-11-02: "Show more items in the more dropdown we
+/// should be able to scroll on it instead of needing to open a new modal"): made from the sheet's own rows
+/// (note_settings.dart `noteSheetGroups`), so the two cannot drift. A row that is a page of the sheet (the Workspace,
+/// the version history, the cheat sheet) opens the sheet at that page; the rest do what the sheet's row does.
+@immutable
+class NoteMenuItem {
+  const NoteMenuItem({required this.id, required this.label, this.icon, this.glyph, this.onPress, this.on = false, this.checked = false, this.danger = false});
+
+  /// The sheet's row's id: `pin`, `ai:format`, `look:Reading` … Its row is keyed `header:note:<id>`.
+  final String id;
+  final String label;
+
+  /// The glyph by Lucide's name; or [glyph], a drawn one or a plugin's own mark, at a size in an ink.
+  final LucideIcon? icon;
+  final Widget Function(BuildContext context, double size, Color color)? glyph;
+
+  /// Null draws it dead, as the sheet's row is (a location this device cannot fix, a plugin's action that cannot run).
+  final VoidCallback? onPress;
+
+  /// On now: a run of the AI's, focus mode. [checked]: the one chosen of several, the note's look.
+  final bool on, checked;
+  final bool danger;
+}
+
+/// One of the sheet's groups in the note's •••: its heading, its rows, and whether simple mode keeps it behind More…
+/// ([fancy]), as the sheet does.
+@immutable
+class NoteMenuGroup {
+  const NoteMenuGroup({required this.id, this.heading, required this.items, this.fancy = false});
+  final String id;
+  final String? heading;
+  final List<NoteMenuItem> items;
+  final bool fancy;
 }
 
 /// What the note is drawn as when it is not its source (`NoteKind`).
@@ -66,7 +104,7 @@ enum NoteKind { canvas, book, words }
 /// `NoteTools`'s props.
 @immutable
 class NoteToolsModel {
-  const NoteToolsModel({required this.kind, required this.page, required this.switchable, required this.onSwitch, required this.onMore, this.more = true, this.actions = const []});
+  const NoteToolsModel({required this.kind, required this.page, required this.switchable, required this.onSwitch, required this.onMore, this.more = true, this.actions = const [], this.menu});
 
   final NoteKind kind;
 
@@ -83,6 +121,10 @@ class NoteToolsModel {
 
   /// The actions to bring out of More while there is room, first first.
   final List<ToolAction> actions;
+
+  /// The More sheet's rows, for the note's ••• to list: asked for as the menu opens, since some are read from the
+  /// note as it is then (Fill the blanks, a plugin's actions). Null lists only [actions] and More, as before.
+  final List<NoteMenuGroup> Function()? menu;
 }
 
 /// How many of [spare] buttons fit in [room] beside [always] that are always drawn, each [ring] wide and [gap]
@@ -190,12 +232,44 @@ class _Counted extends StatelessWidget {
 
 /// More for this note: the view's look, the bookmark, the mic, the AI's runs, pin, archive, links, delete
 /// (`NoteMore`).
+///
+/// Given [menu], a press opens the sheet's rows as a menu hung from it rather than the sheet (Matt, 2026-11-02: "Show
+/// more items in the more dropdown we should be able to scroll on it instead of needing to open a new modal"): a phone's
+/// note, whose ••• is its own, lists them as the bar's ••• does, All settings… for the sheet itself.
 class NoteMore extends StatelessWidget {
-  const NoteMore({super.key, required this.onMore});
+  const NoteMore({super.key, required this.onMore, this.menu});
   final VoidCallback onMore;
+  final List<NoteMenuGroup> Function()? menu;
+
+  static const HeaderAct _act = HeaderAct(id: 'note-ring', label: 'More for this note', word: 'More', hue: 'indigo', icon: Lucide.ellipsisVertical, onPress: null);
 
   @override
-  Widget build(BuildContext context) => NoteToolButton(icon: Lucide.ellipsisVertical, strokeWidth: 2.6, label: 'More for this note', onPressed: onMore, turns: false);
+  Widget build(BuildContext context) {
+    final menu = this.menu;
+    if (menu == null) return NoteToolButton(icon: Lucide.ellipsisVertical, strokeWidth: 2.6, label: 'More for this note', onPressed: onMore, turns: false);
+    final t = context.tokens;
+    final ring = t.len('app-bar-ring');
+    return HeaderMenuButton(
+      act: _act,
+      fine: !coarsePointer,
+      radius: t.radius('md'),
+      menuLabel: 'More for this note',
+      entries: [HeaderMenuLater((context) => noteMenuEntries(context, menu(), more: allSettingsAct(onMore)))],
+      // The ring as [NoteToolButton] draws it: `.more:active svg { transform: scale(0.9) }`.
+      face: (context, state, open) => SizedBox(
+        width: ring,
+        height: ring,
+        child: Center(
+          child: AnimatedScale(
+            duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 420),
+            curve: const Cubic(0.3, 1.4, 0.5, 1),
+            scale: state.pressed ? 0.9 : 1,
+            child: AppIcon(Lucide.ellipsisVertical, size: 20, strokeWidth: 2.6, color: t.color('glacier-text')),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class NoteTools extends StatefulWidget {
@@ -272,7 +346,7 @@ class _NoteToolsState extends State<NoteTools> {
         for (final action in out) NoteToolButton(key: ValueKey('tool:${action.id}'), icon: action.icon, label: action.label, onPressed: action.onPress, on: action.on, tool: action.id, count: action.count),
         // One ring like the others: the glyph is the view you are in, and the label says what a press does.
         NoteToolButton(key: const ValueKey('tool-switch'), icon: model.page ? Lucide.bookOpen : Lucide.code, label: words.label, onPressed: model.switchable ? model.onSwitch : null),
-        if (model.more) NoteMore(onMore: model.onMore),
+        if (model.more) NoteMore(onMore: model.onMore, menu: model.menu),
       ],
     );
   }
@@ -285,13 +359,16 @@ class _NoteToolsState extends State<NoteTools> {
 /// The row is the bar's ring high, as the advanced header's row of tools is, so the header's glass is the same
 /// height in both modes and the page starts under it where it did.
 class NoteSimpleHeader extends StatelessWidget {
-  const NoteSimpleHeader({super.key, required this.backLabel, required this.onBack, required this.onMore, this.onDone, this.presence});
+  const NoteSimpleHeader({super.key, required this.backLabel, required this.onBack, required this.onMore, this.menu, this.onDone, this.presence});
 
   /// The word the way back wears: where the note was opened from. "Notes", or "To-dos" for the to-do list. Null
   /// draws no Back: on a wide window the list stays beside the note, so there is nowhere to go back to.
   final String? backLabel;
   final VoidCallback onBack;
   final VoidCallback onMore;
+
+  /// The sheet's rows, for ⋯ to list as a menu ([NoteMore.menu]); null opens the sheet.
+  final List<NoteMenuGroup> Function()? menu;
 
   /// Done pressed; null draws no Done.
   final VoidCallback? onDone;
@@ -312,7 +389,7 @@ class NoteSimpleHeader extends StatelessWidget {
         if (backLabel case final back?) NoteHeaderWord(key: backKey, label: back, semanticLabel: 'Back to $back', chevron: true, onPressed: onBack),
         const Spacer(),
         ?presence,
-        NoteMore(onMore: onMore),
+        NoteMore(onMore: onMore, menu: menu),
         if (onDone != null) ...[
           SizedBox(width: t.space(2)),
           // Done is the one word that is not muted: it is the thing to press to be done with the keyboard.
