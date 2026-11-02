@@ -98,11 +98,13 @@ class NoteDecay extends ChangeNotifier {
 
   /// Called when the plugin's settings or the AI's change: everything is read again.
   void settingsChanged() {
+    if (_gone) return;
     _library = null;
     notifyListeners();
   }
 
   void _libraryChanged() {
+    if (_gone) return;
     final notes = _notes();
     final renamed = <String, String>{};
     final next = <String, String>{};
@@ -184,7 +186,7 @@ class NoteDecay extends ChangeNotifier {
   /// Asks GitHub and Figma about [noteId]'s links, then the AI where its switch is on and the page was flagged or is a
   /// docs page older than [aiAfterDays]. What they say is kept for the page as it reads now.
   Future<void> look(String noteId, {int aiAfterDays = 30}) async {
-    if (!on || !_asking.add(noteId)) return;
+    if (_gone || !on || !_asking.add(noteId)) return;
     notifyListeners();
     try {
       final note = decayNoteOf(noteId);
@@ -204,7 +206,7 @@ class NoteDecay extends ChangeNotifier {
       }
     } finally {
       _asking.remove(noteId);
-      notifyListeners();
+      if (!_gone) notifyListeners();
     }
   }
 
@@ -248,13 +250,18 @@ class NoteDecay extends ChangeNotifier {
 
   /// Forgets what GitHub, Figma and the AI said: Check now.
   void forget() {
+    if (_gone) return;
     _remote.clear();
     _ai.clear();
     notifyListeners();
   }
 
+  /// Disposed: a notice still on its way is let go.
+  bool _gone = false;
+
   @override
   void dispose() {
+    _gone = true;
     changes?.removeListener(_libraryChanged);
     super.dispose();
   }

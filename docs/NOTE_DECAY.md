@@ -101,10 +101,12 @@ the plugin being added), and the list; GitHub/Figma lookups and the months are b
 
 ## 5. Shared with the contradiction finder
 
-Contradictions compare notes with each other; decay compares a note with the world and its sources. Both want a quiet
-mark on a line with a reason and two actions. The mark here (`marks.dart`) is written to take any `kind` and reason,
-so the contradiction finder can draw its own through it if it lands after; if it lands first with its own, this one
-moves onto that.
+Contradictions compare notes with each other; decay compares a note with the world and its sources. The two were
+built the same day in parallel, and the Contradiction finder (docs/CONTRADICTIONS.md, lib/plugins/contradictions/)
+landed first with its own mark: an "Out of date?" word on the stale line through the registry's `suggest`, its sheet
+opened by `Suggestion.open`. This plugin's mark is an editor decoration (`marks.dart`: a wash and a chip, and a block
+at the page's head, which a line's word cannot be), written to take any kind and reason. A line both mark shows both.
+Whether to fold them into one look is question 4 below.
 
 ## 6. Status
 
@@ -136,3 +138,5 @@ build/feature-shots/note-decay/.
 2. Renames: keep them on the device as now, or write the old title into the renamed note (`was: [Spec]`) so every
    device and a git restore know it? That writes into a note on rename.
 3. Should Still right on a team page be the team's (written in the page, as now) or each person's own?
+4. The Contradiction finder's "Out of date?" word and this plugin's "May be out of date" chip mean nearly the same
+   to a reader. Fold them into one mark (one look, one sheet listing reasons from both), or keep them apart?

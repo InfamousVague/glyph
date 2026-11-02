@@ -177,11 +177,12 @@ NoteDecay startNoteDecay({required List<Note> Function() notes, Listenable? chan
   }
 
   final stopStorage = onPluginStorage(heard);
-  plugins.addListener(heard);
+  // The registry heard now, held: a test's root puts another in place, and the one heard is the one let go.
+  final registry = plugins..addListener(heard);
   preferences.addListener(heard);
   _unhear = () {
     stopStorage();
-    plugins.removeListener(heard);
+    registry.removeListener(heard);
     preferences.removeListener(heard);
   };
   return decay;
