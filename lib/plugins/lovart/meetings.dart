@@ -23,6 +23,7 @@ import '../../core/summary_text.dart' show summarySection;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'client.dart';
+import 'figma_refs.dart';
 import 'banners.dart' show lovartExtra, withLovartExtra;
 import 'inspiration.dart';
 import 'keep.dart';
@@ -77,7 +78,10 @@ class LovartMeetings {
     // The app's own job, not asked for: in the ring while Lovart draws, and a chip as the moodboard lands.
     final job = lovartPictureJob('lovart-inspiration:$id', noteId: id, title: 'Inspiration for ${noteTitle(body)}', person: false);
     try {
-      images = await lovart.generate(withLovartExtra(inspirationPrompt(body), lovartExtra()));
+      // The Figma frames the meeting links to, where that is switched on (figma_refs.dart).
+      final references = await figmaRefsFor(body, via: _host);
+      images = await lovart.generate(withLovartExtra(withFigmaRefs(inspirationPrompt(body), references.length, banner: false), lovartExtra()), references: references);
+      if (lovart.dropped.isNotEmpty) warn?.call('[lovart] ${figmaRefsDroppedWords(lovart.dropped)}');
     } on LovartFailure catch (failure) {
       warn?.call('[lovart] no inspiration for the meeting: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
       lovartPictureEnded(job, noteId: id);

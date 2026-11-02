@@ -36,12 +36,12 @@ Base `https://lgw.lovart.ai`; every path begins `/v1/openapi`.
 | `POST /mode/query` | `{}` | the account's mode and models; changes nothing, so the plugin uses it to **check keys** |
 | `POST /project/save` | `{"project_id":"","canvas":"","project_cover_list":[],"pic_count":0,"project_type":3}` | `project_id` of a new project |
 | `GET /project/validate` | `?project_id=` | `valid`, `project_name` |
-| `POST /chat` | `{"prompt","project_id","thread_id"?,"mode"?}` (the plugin sends `"mode":"fast"`) | `thread_id` |
+| `POST /chat` | `{"prompt","project_id","thread_id"?,"mode"?,"attachments"?}` (the plugin sends `"mode":"fast"`; `attachments`, image URLs, for Figma frames) | `thread_id` |
 | `GET /chat/status` | `?thread_id=` | `status`: `running`, `done` or `abort` |
 | `GET /chat/result` | `?thread_id=` | `items[]`, `failures[]`, maybe `pending_confirmation` |
 | `POST /chat/confirm` | `{"thread_id"}` | approves a costly step. **The plugin never calls it.** |
 
-Other calls the skill has and the plugin does not use yet: `/mode/set` (fast vs unlimited queue), file upload,
+Other calls the skill has and the plugin does not use yet: `/mode/set` (fast vs unlimited queue), file upload (`POST /file/upload`, multipart `file`, answers `data.url`),
 model preferences (`tool_config.include_tools` / `prefer_tool_categories`; SKILL.md lists the tool names, e.g.
 `generate_image_midjourney`, `generate_image_nano_banana_pro`), brand kits and subjects, project rename.
 
@@ -171,6 +171,22 @@ line, with what is left to make in credits (lib/plugins/lovart/lovart_queue.dart
 (`lovartMaking`) and moodboards (`lovartInspiring`, lib/plugins/lovart/making.dart); a run on another device is one
 line, its notes being that device's to list. Twenty waiting are listed, the rest counted.
 
+**Figma frames as references** (switch "Use linked Figma frames" on the plugin's page, **off** by default; Matt,
+2026-11-02: "when we have figma plugin connected would it be possible to feed figma designs into the lovart inspo
+generator or header generator?", then "build it and deploy the update"; lib/plugins/lovart/figma_refs.dart). With it on
+and the Figma plugin connected with its token, a note's **Header image** (made as the note is left, from the cog, or in a
+run), its **Inspiration images** and a design meeting's inspiration send the Figma frames the note links to as the
+chat's `attachments`: every figma.com address in the note that names a file, each once, in order, at most three; a
+frame's own render where the link has a `node-id`, the file's thumbnail where it has none, asked fresh of Figma's API
+with the person's token (lib/plugins/figma/client.dart `FigmaClient.frame`). They go as Figma's picture addresses,
+which Lovart fetches and reviews itself (the skill's SKILL.md: "`--attachments` takes any image URL"), so no picture
+passes through the device; a frame Figma will not say is left out and the image is made from the words as before. The
+prompt gains a line saying what they are: for a banner, the palette, shapes and subject to draw in the house's style,
+not a copy; for a moodboard, four directions that build on the design. Lovart may drop a reference that fails its
+review and still finish: the result's `failures` (`LovartClient.failuresOf`, kept as `dropped`) are said on the note
+("Lovart left out a Figma frame: …") for the cog's actions, and logged for the jobs nobody asked for. Off by default
+because it sends the person's designs, which may be a client's, where until now only words went.
+
 **The badge.** A picture whose name begins `lovart-` carries Lovart's mark at its bottom right (20 px on a dark rounded
 ground, inset 8 px, "Made with Lovart" to a screen reader) wherever it is drawn: the editor's figures, an embedded
 note, a canvas picture card, on every device, plugin on or not (lib/editor/media/lovart_badge.dart).
@@ -190,6 +206,7 @@ never in the store listing or its screenshots. The catalogue card uses the Lucid
   unlimited mode (`/mode/set`).
 - Approving a pending costly step from the app (a confirm button that names the cost), and resuming a thread that timed
   out (`/chat/result` again later).
-- Attachments: sending a note's own pictures as references (`/upload`).
+- Attachments: a note's own pictures as references (`/file/upload`, then the address it answers as an attachment).
+  Figma frames go already, as addresses (above).
 - A link to the Lovart canvas (`https://www.lovart.ai/canvas?projectId=…`) on each picture.
 - A cue said aloud while recording ("Ghost, image of …").

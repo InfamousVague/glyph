@@ -60,7 +60,7 @@ class Waiting extends LovartClient {
   Waiting() : super(accessKey: 'ak', secretKey: 'sk');
 
   @override
-  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) => Completer<List<Uint8List>>().future;
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout, List<String> references = const []}) => Completer<List<Uint8List>>().future;
 }
 
 /// The pictures Lovart made on Matt's account, for `done` and `inspiration`: the folder's in name order.

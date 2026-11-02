@@ -300,10 +300,11 @@ class LovartClient {
     return id;
   }
 
-  /// Starts a chat with [prompt] and answers its thread.
-  Future<String> start(String prompt, {String? project}) async {
+  /// Starts a chat with [prompt] and answers its thread. [references] are image addresses Lovart fetches and reviews
+  /// itself, sent as the chat's `attachments` (the skill's `send`; lovart/figma_refs.dart).
+  Future<String> start(String prompt, {String? project, List<String> references = const []}) async {
     final id = project ?? await ensureProject();
-    final sent = await _call('POST', '/chat', body: {'prompt': prompt, 'project_id': id, 'mode': 'fast'});
+    final sent = await _call('POST', '/chat', body: {'prompt': prompt, 'project_id': id, 'mode': 'fast', if (references.isNotEmpty) 'attachments': references});
     final thread = sent['thread_id'];
     if (thread is! String || thread.isEmpty) throw const LovartFailure('Lovart didn’t start on that.');
     return thread;
@@ -387,6 +388,21 @@ class LovartClient {
     return out;
   }
 
+  /// What Lovart refused or left out on the way, in its words: the result's `failures`, each its `message` (or its
+  /// `reason`, or the entry itself where it is words). Lovart's agent may drop a reference that fails its review, or
+  /// switch models, and still finish (the skill's SKILL.md: "Never report a clean success while `failures` is
+  /// non-empty").
+  static List<String> failuresOf(Map<String, Object?> result) {
+    final failures = result['failures'];
+    if (failures is! List) return const [];
+    final out = <String>[];
+    for (final failure in failures) {
+      final words = failure is String ? failure : (failure is Map ? (failure['message'] ?? failure['reason'] ?? failure['error']) : null);
+      out.add(words is String ? words.trim() : '');
+    }
+    return out;
+  }
+
   /// What the agent said in words: its `assistant` items' text, together.
   static String wordsOf(Map<String, Object?> result) {
     final items = result['items'];
@@ -404,12 +420,19 @@ class LovartClient {
     return pictureExtension(answer.bytes) == null ? null : answer.bytes;
   }
 
+  /// What the last [generate] with references was told Lovart refused or left out ([failuresOf]); empty when it
+  /// took them all, or was sent none.
+  List<String> dropped = const [];
+
   /// Asks for [prompt], waits, and answers the images' bytes, PNG, JPEG or WebP. Throws a [LovartFailure]:
   /// [LovartRefused] where the agent made none, [LovartNeedsConfirmation] where it waits for the person's yes.
-  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+  /// [references] go with it as image addresses ([start]); what Lovart left out of them is [dropped].
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout, List<String> references = const []}) async {
     _on.need(Permission.network);
-    final thread = await start(prompt);
+    dropped = const [];
+    final thread = await start(prompt, references: references);
     final result = await finish(thread, timeout: timeout);
+    if (references.isNotEmpty) dropped = failuresOf(result);
     final urls = imagesOf(result);
     if (urls.isEmpty) throw LovartRefused(wordsOf(result));
     final images = <Uint8List>[];

@@ -184,6 +184,25 @@ void main() {
     expect(download.headers.containsKey('X-Access-Key'), isFalse, reason: 'the keys go to the API alone');
   });
 
+  test('reference images go as the chat’s attachments, and what Lovart left out of them is said as dropped', () async {
+    final asking = client();
+    server.result = {...server.images, 'failures': [
+      {'message': '1 reference asset(s) failed content moderation.'},
+    ]};
+    expect(await asking.generate('a banner', references: ['https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/a.png']), [png, jpeg]);
+    final chat = ground.asked.firstWhere((asked) => asked.url.path == '/v1/openapi/chat');
+    final sent = jsonDecode(utf8.decode(chat.body!)) as Map;
+    expect(sent['attachments'], ['https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/a.png']);
+    expect(asking.dropped, ['1 reference asset(s) failed content moderation.']);
+
+    // None sent: no attachments, and nothing is dropped, whatever Lovart lists.
+    server.runs = 0;
+    await asking.generate('a banner');
+    final plain = ground.asked.lastWhere((asked) => asked.url.path == '/v1/openapi/chat');
+    expect((jsonDecode(utf8.decode(plain.body!)) as Map).containsKey('attachments'), isFalse);
+    expect(asking.dropped, isEmpty);
+  });
+
   test('done with no image is the agent’s refusal, in its words', () async {
     server.result = {
       'items': [

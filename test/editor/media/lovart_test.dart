@@ -50,7 +50,7 @@ class FakeClient extends LovartClient {
   final List<String> asked = [];
 
   @override
-  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout, List<String> references = const []}) async {
     asked.add(prompt);
     return [bytes];
   }

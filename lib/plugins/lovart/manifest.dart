@@ -42,6 +42,10 @@ const String bannerPromptKey = 'glyph-lovart-banner-prompt';
 /// Words added to every image this app asks Lovart for (banners.dart `lovartExtra`).
 const String lovartExtraKey = 'glyph-lovart-extra';
 
+/// Whether a note's linked Figma frames go to Lovart as references for its header image and inspiration
+/// (figma_refs.dart), on this device.
+const String figmaRefsKey = 'glyph-lovart-figma-refs';
+
 const PluginManifest manifest = PluginManifest(
   id: 'lovart',
   name: 'Lovart',
@@ -60,10 +64,10 @@ const PluginManifest manifest = PluginManifest(
   standard: false,
   permissions: [
     PluginPermission(Permission.notes, 'Writes the images it makes into your notes.'),
-    PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there.'),
+    PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there, and the pictures of the Figma frames it links to where you switch that on.'),
   ],
   hosts: ['lovart.ai'],
-  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannerRunKey, bannerPromptKey, lovartExtraKey],
+  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannerRunKey, bannerPromptKey, lovartExtraKey, figmaRefsKey],
   secrets: [accessKeySecret, secretKeySecret],
 );
 

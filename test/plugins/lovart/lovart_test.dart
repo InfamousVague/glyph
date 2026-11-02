@@ -27,12 +27,18 @@ class FakeClient extends LovartClient {
   LovartFailure? fails;
   final List<String> asked = [];
 
+  /// The references sent with each prompt, and what Lovart is to say it left out of them.
+  final List<List<String>> referenced = [];
+  List<String> drops = const [];
+
   /// Run as each prompt is asked, before the answer: a note changing while Lovart works.
   void Function()? onAsk;
 
   @override
-  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout, List<String> references = const []}) async {
     asked.add(prompt);
+    referenced.add(references);
+    dropped = references.isEmpty ? const [] : drops;
     onAsk?.call();
     if (fails != null) throw fails!;
     return [for (var i = 0; i < count; i++) png];

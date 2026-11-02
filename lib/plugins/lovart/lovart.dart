@@ -35,6 +35,7 @@ import 'banner_run.dart';
 import 'banners.dart';
 import 'client.dart';
 import 'cues.dart';
+import 'figma_refs.dart';
 import 'inspiration.dart';
 import 'keep.dart';
 import 'making.dart';
@@ -166,11 +167,15 @@ Future<void> makeInspiration(NoteEditing editing) async {
   var made = 0;
   String? failed;
   try {
-    final names = await keepLovartImages(await lovart.generate(withLovartExtra(inspirationPrompt(editing.body()), lovartExtra())));
+    // The Figma frames the note links to, where that is switched on (figma_refs.dart).
+    final references = await figmaRefsFor(editing.body());
+    final prompt = withLovartExtra(withFigmaRefs(inspirationPrompt(editing.body()), references.length, banner: false), lovartExtra());
+    final names = await keepLovartImages(await lovart.generate(prompt, references: references));
     if (names.isEmpty) return;
     final at = inspirationInsert(editing.body(), names);
     editing.replaceLine((text, line) => line == at.line, (text) => '$text${at.add}');
     editing.say(names.length == 1 ? 'Added 1 inspiration image.' : 'Added ${names.length} inspiration images.');
+    if (lovart.dropped.isNotEmpty) editing.say(figmaRefsDroppedWords(lovart.dropped));
     made = names.length;
   } on LovartFailure catch (failure) {
     editing.say(lovartSaid(failure));

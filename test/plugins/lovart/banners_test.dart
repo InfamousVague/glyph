@@ -32,7 +32,7 @@ class _OneAtATime extends FakeClient {
   int running = 0, most = 0, refused = 0;
 
   @override
-  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout, List<String> references = const []}) async {
     if (running > 0) {
       refused += 1;
       throw const LovartFailure('Concurrent job limit reached.', code: 2011);
@@ -1126,7 +1126,7 @@ class GatedClient extends FakeClient {
   }
 
   @override
-  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout, List<String> references = const []}) async {
     if (!open) {
       final gate = Completer<void>();
       _held.add(gate);

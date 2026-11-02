@@ -33,7 +33,9 @@ import 'banner_run.dart' show BannerRun, bannerCandidates, bannerRunEstimate, ba
 import 'banners.dart' show bannerNoteSlot, bannerStyleDefault, bannerTemplate, bannersOn, lovartExtra, setBannerTemplate, setBanners, setLovartExtra;
 import 'lovart_queue.dart';
 import 'lovart_setup.dart';
+import 'figma_refs.dart' show figmaRefsOn, setFigmaRefs;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
+import '../figma/frames.dart' show figmaFramesOn;
 
 /// What Settings' search finds on the page.
 const List<SettingsFindable> lovartFindable = [
@@ -43,6 +45,7 @@ const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
+  SettingsFindable('Use linked Figma frames', 'figma frames designs reference attachments header inspiration moodboard'),
 ];
 
 /// What the run over the recent notes says: what it does, before one; how far it is while it runs, here or on
@@ -356,7 +359,21 @@ class _LovartPaneState extends State<LovartPane> {
             ),
           ],
         ),
-        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, or a note’s title, sections and opening for its header image go to Lovart, with your prompt’s words. Lovart’s agent may search the web for what they name. Write {image: a prompt} anywhere in a note to make a picture there.')),
+        // A note's Figma frames as references (figma_refs.dart): off until switched on, since the designs go to Lovart.
+        PaneSection(
+          title: 'Figma',
+          children: [
+            SettingRow(
+              key: const ValueKey('lovart-figma-refs'),
+              label: 'Use linked Figma frames',
+              hint: Text(figmaFramesOn()
+                  ? 'A note’s header image and its inspiration start from the Figma frames it links to: up to three are sent to Lovart as references, their palette and subject drawn in the image. Their pictures go to Lovart, so leave this off for designs that must stay private.'
+                  : 'Needs the Figma plugin, added in the Market and connected with your Figma token. Then a note’s header image and its inspiration start from the Figma frames it links to.'),
+              control: GlacierSwitch(ariaLabel: 'Use linked Figma frames', checked: figmaRefsOn(), onCheckedChange: (on) => setState(() => setFigmaRefs(on))),
+            ),
+          ],
+        ),
+        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, or a note’s title, sections and opening for its header image go to Lovart, with your prompt’s words, and the pictures of a note’s Figma frames where Use linked Figma frames is on. Lovart’s agent may search the web for what they name. Write {image: a prompt} anywhere in a note to make a picture there.')),
       ],
     );
   }

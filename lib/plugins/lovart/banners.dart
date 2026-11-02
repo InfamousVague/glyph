@@ -40,6 +40,7 @@ import '../../meet/meet_note.dart' show ghostLineStart;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'client.dart';
+import 'figma_refs.dart';
 import 'keep.dart';
 import 'making.dart' show lovartPictureEnded, lovartPictureJob;
 import 'manifest.dart';
@@ -303,7 +304,10 @@ class LovartBanners {
     try {
       final List<Uint8List> images;
       try {
-        images = await lovart.generate(bannerPrompt(note.body, template: bannerTemplate(), extra: lovartExtra()));
+        // The Figma frames the note links to, where that is switched on (figma_refs.dart).
+        final references = await figmaRefsFor(note.body, via: _host);
+        images = await lovart.generate(withFigmaRefs(bannerPrompt(note.body, template: bannerTemplate(), extra: lovartExtra()), references.length, banner: true), references: references);
+        if (lovart.dropped.isNotEmpty) warn?.call('[lovart] ${figmaRefsDroppedWords(lovart.dropped)}');
       } on LovartFailure catch (failure) {
         refused?.call(failure);
         if (rethrowStopping && failure is! LovartRefused) {
@@ -402,11 +406,15 @@ Future<void> makeBanner(NoteEditing editing) async {
   var made = 0;
   String? failed;
   try {
-    final names = await keepLovartImages((await lovart.generate(bannerPrompt(editing.body(), template: bannerTemplate(), extra: lovartExtra()))).take(1).toList());
+    // The Figma frames the note links to, where that is switched on (figma_refs.dart).
+    final references = await figmaRefsFor(editing.body());
+    final prompt = withFigmaRefs(bannerPrompt(editing.body(), template: bannerTemplate(), extra: lovartExtra()), references.length, banner: true);
+    final names = await keepLovartImages((await lovart.generate(prompt, references: references)).take(1).toList());
     if (names.isEmpty) return;
     final edit = bannerEdit(editing.body(), names.first);
     editing.replaceLine((text, line) => line == edit.line, edit.next);
     made = 1;
+    if (lovart.dropped.isNotEmpty) editing.say(figmaRefsDroppedWords(lovart.dropped));
   } on LovartFailure catch (failure) {
     editing.say(failure is LovartNeedsConfirmation ? failure.said : failure.message);
     if (!failure.passing && failure is! LovartRefused) failed = failure is LovartNeedsConfirmation ? failure.said : failure.message;
