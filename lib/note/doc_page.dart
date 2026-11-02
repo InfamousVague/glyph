@@ -502,17 +502,37 @@ class _DocOutlineRailState extends State<DocOutlineRail> {
   Widget build(BuildContext context) {
     if (!_any) return const SizedBox.shrink();
     final t = context.tokens;
-    return Column(
+    final muted = t.color('glacier-text-muted');
+    // A card of its own (Matt, 2026-11-02: "redo the \"on this page\" section to be in a card"): the hairline and
+    // the round the page's other cards wear ([DocPages]), a faint wash of the ink, and its heading with the list's
+    // mark, so the outline reads as one thing beside the words rather than loose lines in the margin.
+    return DecoratedBox(
       key: const ValueKey('doc-outline'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: 0.6 * t.fontSize('sm'), bottom: t.space(1)),
-          child: Text('On this page', style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('glacier-text-muted'))),
+      decoration: BoxDecoration(
+        color: _wash(t, 0.03),
+        border: Border.all(color: t.color('glacier-border-subtle'), width: snapBorder(context, 1)),
+        borderRadius: BorderRadius.circular(t.radius('lg')),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(t.space(2), t.space(3), t.space(2), t.space(2)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(left: 0.6 * t.fontSize('sm'), right: 0.6 * t.fontSize('sm'), bottom: t.space(2)),
+              child: Row(
+                spacing: t.space(1) * 1.5,
+                children: [
+                  lucide(Lucide.listTree, size: 14, color: muted),
+                  Expanded(child: Text('On this page', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: muted))),
+                ],
+              ),
+            ),
+            LiveOutline(view: widget.view, page: widget.page, compact: true, quiet: true),
+          ],
         ),
-        LiveOutline(view: widget.view, page: widget.page, compact: true, quiet: true),
-      ],
+      ),
     );
   }
 }
