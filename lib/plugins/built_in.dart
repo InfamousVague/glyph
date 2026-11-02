@@ -42,6 +42,7 @@ import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
 import 'more/more_tools.dart' show morePlugins;
+import 'note_decay/note_decay.dart' show noteDecayPlugin;
 import 'notion/notion.dart' show notionPlugin;
 import 'openai/openai.dart' show openAiPlugin;
 import 'places/places.dart' show placesPlugin;
@@ -104,6 +105,10 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // Matt, 2026-11-02: "Also add a figma plugin": a Figma frame's link drawn as the frame itself, with the person's own
   // token, off until added (figma/figma.dart).
   figmaPlugin,
+  // Matt, 2026-11-02, from a list of AI ideas: "Note decay alerts: docs and pages that reference things that have since
+  // changed (a renamed ticket, a merged PR on GitHub, an old date) get a quiet 'may be out of date' mark with the
+  // reason", off until added (note_decay/note_decay.dart, docs/NOTE_DECAY.md).
+  noteDecayPlugin,
 ]);
 
 void Function()? _unhear;

@@ -78,6 +78,7 @@ import '../core/docs_book.dart' show docsPartHeads, isDocsBody;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/library.dart';
 import '../core/note.dart';
+import '../plugins/note_decay/decay_list.dart' show DecayPagesSection;
 import '../core/note_text.dart' show noteTitle, sameTitle, titleKey, withoutFrontMatter;
 import '../core/properties.dart' show Ticket, notebookKey, statusesOf, ticketOf, withStatus;
 import '../core/properties.dart' as properties show isTicket;
@@ -1855,6 +1856,12 @@ class BookViewState extends State<BookView> {
             ),
           ),
         ),
+      // A docs notebook's pages that may be out of date, where Note decay alerts is on and any is (lib/plugins/note_decay).
+      if (parts != null && chapters.isNotEmpty)
+        () {
+          final pages = {for (final chapter in chapters) chapter.title.trim().toLowerCase()};
+          return DecayPagesSection(key: const ValueKey('book-decay'), where: (note) => pages.contains(noteTitle(note.body).trim().toLowerCase()), onOpen: (note) => widget.open(noteTitle(note.body)), top: t.space(4), most: 5);
+        }(),
       if (words.after.isNotEmpty) BookWords(key: const ValueKey('book-words-after'), words: words.after, known: widget.known, open: widget.open, drawing: widget.drawing),
       CssFlow.block(
         key: const ValueKey('book-adds'),

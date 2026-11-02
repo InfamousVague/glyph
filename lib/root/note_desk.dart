@@ -212,6 +212,9 @@ import '../plugins/keymaps/keymaps.dart' show KeymapBadge, KeymapHooks, keyboard
 import '../plugins/link_marks.dart';
 import '../plugins/lovart/lovart.dart' show bannerEdit, bannerUnready, lovartBannerMaking, lovartCuesOn, lovartInspiring, lovartIsMaking, lovartMaking, makeBanner, makeCue, removeBanner;
 import '../plugins/more/tool_off.dart' show MoreToolOff;
+import '../plugins/note_decay/decay.dart' show noteDecay;
+import '../plugins/note_decay/marks.dart' show DecayMarkHooks, noteDecayMarks;
+import '../plugins/note_decay/sheets.dart' show openDecay;
 import '../plugins/more/more_tools.dart' show canvasTool, diagramsTool, isMoreTool, meetingsTool, moreToolOn, moreTools, placesTool;
 import '../plugins/projects/suite.dart';
 import '../plugins/projects/tool_chip.dart' show ToolBanner;
@@ -1069,6 +1072,18 @@ class NoteDeskState extends State<NoteDesk> {
         inspiring: () => lovartInspiring.value.contains(widget.noteId),
         changes: Listenable.merge(<Listenable>[lovartMaking, lovartInspiring, plugins]),
       )),
+    // A line that may be out of date, quietly marked with its reason while Note decay alerts is on (lib/plugins/note_decay,
+    // docs/NOTE_DECAY.md): drawn from what the plugin knows of the page as it reads, never written into the note.
+    if (!widget.readOnly && noteDecay != null)
+      noteDecayMarks(DecayMarkHooks(
+        signals: (body) => noteDecay?.signalsFor(widget.noteId, body: body) ?? const [],
+        active: () => noteDecay?.on ?? false,
+        press: (signals, view, context) {
+          final decay = noteDecay;
+          if (decay != null) unawaited(openDecay(context, decay: decay, noteId: widget.noteId, signals: signals, view: view));
+        },
+        changes: noteDecay,
+      )),
     // A meeting's summary being written, drawn where it will land, its words streaming in, until the section lands
     // (lib/editor/ai/summary_writing.dart; docs/ACTIVITY.md, In place): read from the record, never written into the note.
     summaryWriting(SummaryWritingHooks(jobId: () => summaryJobId(widget.noteId))),
@@ -1293,6 +1308,8 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   void initState() {
     super.initState();
+    // GitHub's, Figma's and the AI's word on the page, asked once as it opens where Note decay alerts is on.
+    if (!widget.readOnly && (noteDecay?.on ?? false)) unawaited(noteDecay!.look(widget.noteId));
     _world.changes?.addListener(_libraryChanged);
     _world.notesSynced?.addListener(_phrasesMayHaveMoved);
     _unhearRecording = _world.onRecordingChanged?.call(_recordingHeard);
