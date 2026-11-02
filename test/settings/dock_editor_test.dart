@@ -132,13 +132,13 @@ void main() {
     await endSettings(tester);
   });
 
-  testWidgets('in Simple, lists Simple’s four buttons and keeps the wide dock behind More, opened in place', (tester) async {
+  // The wide window's own dock was behind Simple's More until 2026-11-01, Advanced's alone since (Matt: "see if there
+  // are other settings that can be simplified"); one chosen in Advanced is kept.
+  testWidgets('in Simple, lists Simple’s four buttons, with no wide dock to choose and no More', (tester) async {
     await show(tester, prefs: const Preferences(theme: 'light', experience: 'simple', experienceChosen: true));
     expect(listed(tester), ['search', 'add', 'speak', 'settings']);
     expect(find.byKey(const ValueKey('dock-wide-own')), findsNothing);
-    await tester.tap(find.descendant(of: find.byKey(const ValueKey('dock-more')), matching: find.byType(RowAction)));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const ValueKey('dock-wide-own')), findsOneWidget);
+    expect(find.byKey(const ValueKey('dock-editing')), findsNothing);
     expect(find.byKey(const ValueKey('dock-more')), findsNothing);
     await endSettings(tester);
   });

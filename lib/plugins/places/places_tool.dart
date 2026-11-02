@@ -10,6 +10,7 @@
 library;
 
 import '../../core/more_tools.dart' show placesTool;
+import '../../core/preferences.dart' show preferences;
 import '../../settings/panes/account_pane.dart' show locationFindable;
 import '../types.dart';
 import 'places_tool_pane.dart';
@@ -47,5 +48,8 @@ final GlyphPlugin placesToolPlugin = GlyphPlugin(
     hue: 'green',
     simple: true,
     settings: locationFindable,
+    // Tag new notes with my location is Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that
+    // can be simplified"), and not found in Simple, where it is not drawn.
+    findable: (_) => [for (final each in locationFindable) if (!preferences.value.simple || each.name != 'Tag new notes with my location') each],
   ),
 );

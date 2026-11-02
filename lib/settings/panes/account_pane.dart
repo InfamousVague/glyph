@@ -48,13 +48,16 @@ const List<SettingsFindable> locationFindable = [
 /// the names the page draws: signed in the page is the account's, signed out it is the ways in, and the Privacy and
 /// Location cards are on it either way. [ported] false is a build with no account to hand the page: its signed-in
 /// page is the card that says so, and nothing of the account's own is listed.
-List<SettingsFindable> accountFindable({required bool signedIn, bool ported = false, bool shared = false}) => signedIn
+List<SettingsFindable> accountFindable({required bool signedIn, bool ported = false, bool shared = false, bool simple = false}) => signedIn
     ? (ported
         ? [
             const SettingsFindable('Sync now', 'devices'),
             // Sync meeting recordings is Settings › Recording's, on its Meetings card (lib/meet/ui/meeting_settings.dart).
-            const SettingsFindable('Live typing', 'realtime collaborate claude'),
-            const SettingsFindable(keysInSyncLabel, 'claude api key token slack discord github webhook secrets devices'),
+            // Live typing and the keys' switch are Advanced's alone since 2026-11-01.
+            if (!simple) ...[
+              const SettingsFindable('Live typing', 'realtime collaborate claude'),
+              const SettingsFindable(keysInSyncLabel, 'claude api key token slack discord github webhook secrets devices'),
+            ],
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
             // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
@@ -433,15 +436,17 @@ class _AccountPaneState extends State<AccountPane> {
             ),
             children: [
               SettingRow(icon: const AppIcon(Lucide.refreshCw, size: 20), label: 'Sync now', onPress: () => unawaited(services.syncNow()), disabled: status.phase == 'syncing'),
-              // Live sync (docs/LIVE.md), on unless turned off here (docs/CLAUDE_LIVE.md).
-              SettingRow(
+              // Live sync (docs/LIVE.md), on unless turned off here (docs/CLAUDE_LIVE.md). It and the keys' switch are
+              // Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be simplified"): Simple
+              // keeps what was chosen.
+              if (!prefs.simple) SettingRow(
                 label: 'Live typing',
                 hint: const Text('A note open on two of your devices, or one Claude is writing in, shows the words as they are typed, end to end encrypted like everything else. Starts with the next note you open.'),
                 control: GlacierSwitch(ariaLabel: 'Live typing', checked: services.liveTyping.value, onCheckedChange: (on) => services.liveTyping.value = on),
               ),
               // The keys and connections that follow the account (lib/sync/sealed_keys.dart), on unless turned off here
               // (Matt, 2026-10-26).
-              SettingRow(
+              if (!prefs.simple) SettingRow(
                 label: keysInSyncLabel,
                 hint: const Text('Your Claude key, Slack and Discord channels and GitHub token on each device you sign in to. End-to-end encrypted: the server can’t read them.'),
                 control: ValueListenableBuilder<bool>(
@@ -851,7 +856,9 @@ class LocationCard extends StatelessWidget {
               control: GlacierSwitch(ariaLabel: 'Use OpenStreetMap', checked: prefs.openStreetMap, onCheckedChange: (on) => store.update((now) => now.copyWith(openStreetMap: on))),
               disabledReason: localOnly,
             ),
-            SettingRow(
+            // Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be simplified"): Simple
+            // keeps what was chosen.
+            if (!prefs.simple) SettingRow(
               label: 'Tag new notes with my location',
               hint: Text('Every note you make here starts with where you were${recordsVoice ? ', typed or spoken' : ''}. Off, you add a location by hand from More on a note. This switch stays on this device.'),
               control: GlacierSwitch(

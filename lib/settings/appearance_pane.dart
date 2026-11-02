@@ -41,10 +41,13 @@ List<SettingsFindable> appearanceFindable({bool simple = false}) => [
         const SettingsFindable('Text size', 'font bigger smaller larger'),
         // The dock's buttons, in either mode: Simple's pages have a dock too.
         dockFindable,
-      ] else ...appearanceFindableAdvanced(),
-      // In both modes (docs/ACTIVITY.md, Simple mode: the ring, the tray and the chips all show there).
-      calmFindable,
-      if (runsAsMacApp) menuBarFindable,
+      ] else ...[
+        ...appearanceFindableAdvanced(),
+        // Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be simplified"); Simple
+        // keeps what was chosen.
+        calmFindable,
+        if (runsAsMacApp) menuBarFindable,
+      ],
     ];
 
 /// What Advanced's page has after the theme: everything.
@@ -181,7 +184,8 @@ class AppearancePane extends StatelessWidget {
 
         // The colours of the app's running work - the ring in the header, the tray, the result chips - or ink (Matt,
         // 2026-10-29, docs/ACTIVITY.md: "A Calm setting (Settings › Appearance) turns the colours to ink and keeps the
-        // motion"). In both modes, since simple mode shows the ring too.
+        // motion"). Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be
+        // simplified"), with the Mac's menu bar row: Simple draws the ring as chosen, and the card is not there.
         final activity = PaneSection(
           title: 'Activity',
           description: const Text('While Ghost.md works on its own, a ring in the header shows it in colour: blue for sync, violet for writing, rose for pictures, teal for audio, orange for meetings, green for downloads.'),
@@ -204,7 +208,7 @@ class AppearancePane extends StatelessWidget {
         // The dock's buttons (Matt, 2026-10-27: "build the dock editor"): in either mode, since Simple's pages have a
         // dock too; Simple's lists Simple's buttons, with the wide window's own dock behind More.
         final dock = DockEditor(store: store);
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), activity, dock]);
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), dock]);
 
         return PaneBody(
           children: [
@@ -324,6 +328,8 @@ class AppearancePane extends StatelessWidget {
                 ),
               ],
             ),
+            // Calm, and the Mac's menu bar row: Simple's card until 2026-11-01, Advanced's since (it had none before).
+            activity,
             // Last, so every card above it stays where the web page measured it (appearance_pane_test.dart).
             dock,
           ],

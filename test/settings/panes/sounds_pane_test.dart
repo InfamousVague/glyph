@@ -97,13 +97,20 @@ void main() {
     await endSettings(tester);
   });
 
-  testWidgets('in Simple the pick comes first, and the rest opens in place from More', (tester) async {
-    await open(tester, prefs: const Preferences(theme: 'light').choosing('simple'));
+  // Each sound's own switch is Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be
+  // simplified"): Simple's More is the volume, and each sound plays as it was set.
+  testWidgets('in Simple the pick comes first, the volume opens in place from More, and each sound’s switch is Advanced’s', (tester) async {
+    await open(tester, prefs: const Preferences(theme: 'light', soundEvents: {'all-ticked': true}).choosing('simple'));
     expect(cardTitles(tester), ['Sounds', 'Touch', null]);
     expect(rowLabels(tester, 'Sounds'), ['Sounds']);
     await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('sounds-more')), matching: find.text('Show')));
-    expect(cardTitles(tester), ['Sounds', 'Each sound', 'Touch']);
+    expect(cardTitles(tester), ['Sounds', 'Touch']);
     expect(rowLabels(tester, 'Sounds'), ['Sounds', 'Volume']);
+    expect(find.byKey(const ValueKey('sound-all-ticked'), skipOffstage: false), findsNothing);
+    expect(preferences.value.soundEvents, {'all-ticked': true}, reason: 'kept as chosen');
+    final spec = settingsSections.firstWhere((each) => each.id == 'sounds');
+    final simple = [for (final found in spec.settings!(facts(preferences.value))) found.name];
+    expect(simple, isNot(contains('To-do ticked')));
     await endSettings(tester);
   });
 

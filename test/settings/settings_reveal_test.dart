@@ -71,15 +71,15 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('behind Simple’s More on Sounds: the rest of the page is there, and the sound lit', (tester) async {
+    // Each sound's own switch was behind Simple's More on Sounds until 2026-11-01, Advanced's alone since (Matt: "see if
+    // there are other settings that can be simplified"): looked for in Simple, there is no row, and More stays shut.
+    testWidgets('in Simple, a sound’s own switch is not on Sounds: More stays shut, and nothing is lit', (tester) async {
       final settings = _Settings();
       await settings.pump(tester);
-      await settings.go(tester, 'sounds', 'Sounds');
-      // The card that is behind More in Simple is not looked for by its rows' names here: one of them is.
       final event = SoundEvent.values.first.label;
       await settings.go(tester, 'sounds', event);
-      expect(find.byKey(const ValueKey('sounds-more'), skipOffstage: false), findsNothing);
-      expect(_lit(tester, event), isTrue);
+      expect(find.byKey(const ValueKey('sounds-more'), skipOffstage: false), findsOneWidget);
+      expect(find.widgetWithText(SettingRow, event, skipOffstage: false), findsNothing);
       await settleSettings(tester);
       await endSettings(tester);
     });
@@ -87,9 +87,9 @@ void main() {
     testWidgets('a page opened plainly in Simple keeps its More shut', (tester) async {
       final settings = _Settings();
       await settings.pump(tester);
-      await settings.go(tester, 'theme', 'Text size');
-      expect(find.byKey(const ValueKey('dock-more'), skipOffstage: false), findsOneWidget);
-      expect(_lit(tester, 'Text size'), isTrue);
+      await settings.go(tester, 'sounds', 'Sounds');
+      expect(find.byKey(const ValueKey('sounds-more'), skipOffstage: false), findsOneWidget);
+      expect(_lit(tester, 'Sounds'), isTrue);
       await settleSettings(tester);
       await endSettings(tester);
     });

@@ -60,6 +60,18 @@ void main() {
     await endSettings(tester);
   });
 
+  // Matt, 2026-11-01: "see if there are other settings that can be simplified". Tagging new notes is Advanced's alone:
+  // Simple keeps what was chosen, and the search does not find it there.
+  testWidgets('in Simple has no Tag new notes with my location, kept as it was', (tester) async {
+    await openPlaces(tester, prefs: const Preferences(theme: 'light', tagNewNotes: false).choosing('simple'));
+    expect(rowLabels(tester, 'Location'), ['Use OpenStreetMap']);
+    expect(preferences.value.tagNewNotes, isFalse);
+    expect([for (final each in placesToolPlugin.settings!.findable!(null)) each.name], isNot(contains('Tag new notes with my location')));
+    await endSettings(tester);
+    preferences.value = preferences.value.choosing('advanced');
+    expect([for (final each in placesToolPlugin.settings!.findable!(null)) each.name], contains('Tag new notes with my location'));
+  });
+
   test('is found by what the card was found by, and kept in Simple', () {
     final page = placesToolPlugin.settings!;
     expect([for (final each in page.settings) each.name], ['Location', 'Use OpenStreetMap', 'Tag new notes with my location']);

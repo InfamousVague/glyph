@@ -92,6 +92,27 @@ void main() {
       await endSettings(tester);
     });
 
+    // Matt, 2026-11-01: "see if there are other settings that can be simplified". Live typing and the keys' switch are
+    // Advanced's alone: Simple keeps what was chosen, and the search does not find them there.
+    testWidgets('in Simple has no Live typing and no keys’ switch, each kept as it was', (tester) async {
+      final device = await Device.make();
+      device.services.prefs.update((now) => now.choosing('simple'));
+      device.services.liveTyping.value = false;
+      await device.pump(tester, AccountPane(services: device.services));
+      expect(find.text('Sync now'), findsOneWidget);
+      expect(find.text('Live typing'), findsNothing);
+      expect(find.text(keysInSyncLabel), findsNothing);
+      expect(device.services.liveTyping.value, isFalse);
+      expect(accountFindable(signedIn: true, ported: true, simple: true).map((f) => f.name), isNot(anyOf(contains('Live typing'), contains(keysInSyncLabel))));
+      await endSettings(tester);
+      device.services.prefs.update((now) => now.choosing('advanced'));
+      await device.pump(tester, AccountPane(services: device.services));
+      expect(find.text('Live typing'), findsOneWidget);
+      expect(find.text(keysInSyncLabel), findsOneWidget);
+      expect(accountFindable(signedIn: true, ported: true).map((f) => f.name), containsAll(['Live typing', keysInSyncLabel]));
+      await endSettings(tester);
+    });
+
     testWidgets('picks your colour from the seven, ink being none, and sends it to the service', (tester) async {
       final device = await Device.make();
       await device.orgs.setAccountColour('sea');

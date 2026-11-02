@@ -92,7 +92,8 @@ void main() {
     // Touch's Haptics went to Settings › Sounds & haptics on 2026-11-01.
     testWidgets('holds the look, the type and the motion, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Motion', 'Dock']);
+      // Activity (Calm) Advanced's since 2026-11-01, where it was Simple's alone.
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Motion', 'Activity', 'Dock']);
       await endSettings(tester);
     });
 

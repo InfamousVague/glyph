@@ -344,7 +344,7 @@ final List<SettingsSectionSpec> _sections = [
     webFile: 'settings/AccountPane.tsx',
     // Local only holds the sync off, so the line says it is on.
     summary: (facts) => accountSummary(facts.prefs, facts.services),
-    settings: (facts) => accountFindable(signedIn: facts.signedIn, ported: facts.services != null, shared: facts.sharedLinks),
+    settings: (facts) => accountFindable(signedIn: facts.signedIn, ported: facts.services != null, shared: facts.sharedLinks, simple: facts.simple),
     pane: AccountPane.hosted,
   ),
   // The teams the account is in: its own row under Account; one sentence signed out.
@@ -402,7 +402,7 @@ final List<SettingsSectionSpec> _sections = [
     group: 0,
     webFile: 'settings/NotificationsPane.tsx',
     summary: (facts) => notificationsSummary(facts.prefs.notifications),
-    settings: (facts) => notificationsFindable(orgs: facts.services != null ? facts.services!.joined.isNotEmpty : facts.features.orgs.isNotEmpty),
+    settings: (facts) => notificationsFindable(orgs: facts.services != null ? facts.services!.joined.isNotEmpty : facts.features.orgs.isNotEmpty, simple: facts.simple),
     pane: NotificationsPane.hosted,
   ),
   // How much of the app there is and how it looks, moves and feels: on a card of its own under Account's (Matt,
@@ -436,7 +436,7 @@ final List<SettingsSectionSpec> _sections = [
     // The port's own (2026-10-27): the web app has no Sounds page, so its file is Appearance's, the card it is on.
     webFile: 'settings/AppearancePane.tsx',
     summary: (facts) => soundsSummary(facts.prefs),
-    settings: (facts) => soundsFindable(haptics: facts.haptics),
+    settings: (facts) => soundsFindable(haptics: facts.haptics, simple: facts.simple),
     pane: SoundsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in

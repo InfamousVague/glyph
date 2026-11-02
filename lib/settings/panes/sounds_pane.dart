@@ -14,10 +14,12 @@ import '../settings_search.dart';
 /// haptics where there is a motor. In Simple the volume and the events are behind More, and are found all the same:
 /// the search opens the page, and More is a tap. Sound pack and Interface sounds, the two the Sounds row was until
 /// 2026-11-01, are found by their words.
-List<SettingsFindable> soundsFindable({bool haptics = false}) => [
+List<SettingsFindable> soundsFindable({bool haptics = false, bool simple = false}) => [
       const SettingsFindable('Sounds', 'sound pack ghostly interface sounds in the app all notifications only off quiet silent mute audio chime tick tap'),
       const SettingsFindable('Volume', 'loud quiet sound level'),
-      for (final event in SoundEvent.values) SettingsFindable(event.label, 'sound ${event.hint}'),
+      // Each sound's own switch is Advanced's alone since 2026-11-01.
+      if (!simple)
+        for (final event in SoundEvent.values) SettingsFindable(event.label, 'sound ${event.hint}'),
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
     ];
 
@@ -53,8 +55,9 @@ String _percent(double volume) => '${(volume * 100).round()}%';
 /// person asked to hear it. Only the recorder's start and stop and the to-do's tick are on until they are switched
 /// (`SoundEvent.on`). **Haptics** came here from Settings › Appearance › Touch that day, where there is a motor.
 ///
-/// In Simple (GHST-103) the page is the pick and the haptics, and the rest behind a More row that opens in place, as
-/// Recording's is.
+/// In Simple (GHST-103) the page is the pick and the haptics, and the volume behind a More row that opens in place, as
+/// Recording's is. Each sound's own switch is Advanced's alone since 2026-11-01 (Matt: "see if there are other settings
+/// that can be simplified"), where it was behind that More too: Simple plays each as it was set.
 class SoundsPane extends StatefulWidget {
   const SoundsPane({super.key, this.store, this.sounds, this.haptics, this.hasMotor});
 
@@ -94,7 +97,7 @@ class _SoundsPaneState extends State<SoundsPane> {
         final pack = soundPackOf(prefs.soundPack);
         // Simple's page is the pack and the switch until More is pressed, or one of the rest is looked for by name;
         // Advanced's is all of it.
-        if (!_more && settingsSought(context, ['Volume', for (final event in SoundEvent.values) event.label])) _more = true;
+        if (!_more && settingsSought(context, const ['Volume'])) _more = true;
         final full = !prefs.simple || _more;
 
         final sounds = PaneSection(
@@ -199,7 +202,7 @@ class _SoundsPaneState extends State<SoundsPane> {
                   SettingRow(
                     key: const ValueKey('sounds-more'),
                     label: 'More',
-                    hint: const Text('The volume and each sound on its own.'),
+                    hint: const Text('The volume of the sounds inside the app.'),
                     control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
                   ),
                 ],
@@ -207,7 +210,9 @@ class _SoundsPaneState extends State<SoundsPane> {
             ],
           );
         }
-        return PaneBody(children: [sounds, events, ?touch]);
+        // Each sound's own switch is Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be
+        // simplified"): in Simple each plays as it was set, and Simple's More is the volume.
+        return PaneBody(children: [sounds, if (!prefs.simple) events, ?touch]);
       },
     );
   }

@@ -41,7 +41,8 @@ const Set<String> _simpleButtons = {'search', 'add', 'speak', 'settings'};
 ///
 /// The phone and a wide window (the Fold opened, a tablet, a desktop) can each have their own dock: "Its own dock
 /// when wide" copies the phone's to start from, and Phone or Wide chooses which is being edited. In Simple (GHST-103)
-/// the list is Simple's four buttons and that choice is behind More, opened in place, as Recording's rest is.
+/// the list is Simple's four buttons, and that choice is Advanced's alone since 2026-11-01 (Matt: "see if there are
+/// other settings that can be simplified"), where it was behind a More row; a wide dock chosen in Advanced is kept.
 ///
 /// Every change is the preferences' at once (`Preferences.dock`), so the app's own dock behind Settings, and the
 /// picture here, change as the switch is touched.
@@ -58,9 +59,6 @@ class DockEditor extends StatefulWidget {
 class _DockEditorState extends State<DockEditor> {
   /// Whether the wide window's dock is the one being edited, where it has its own.
   bool _editingWide = false;
-
-  /// Simple's More, opened.
-  bool _more = false;
 
   late final RowDrag _drag = RowDrag((from, to) => _move(from, to));
 
@@ -111,7 +109,8 @@ class _DockEditorState extends State<DockEditor> {
         final layout = _layout;
         final listed = _listed;
         final wideOwn = dock.wide != null;
-        final more = !simple || _more;
+        // The wide window's own dock, Advanced's alone.
+        final more = !simple;
 
         final rows = <Widget>[
           if (more)
@@ -169,13 +168,6 @@ class _DockEditorState extends State<DockEditor> {
             hint: Text(_wide ? 'The wide dock as it came: every button, in its first order.' : 'Every button, in the order the dock came in.'),
             control: RowAction(onPress: () => _set(DockLayout.defaults), disabled: layout.isDefault, child: const Text('Reset')),
           ),
-          if (!more)
-            SettingRow(
-              key: const ValueKey('dock-more'),
-              label: 'More',
-              hint: const Text('A different dock on the Fold opened, a tablet or a desktop.'),
-              control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
-            ),
         ];
         return PaneSection(
           title: 'Dock',

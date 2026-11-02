@@ -20,18 +20,19 @@ import '../../plugins/projects/suite.dart' show projectSuite, ticketsTool;
 
 /// What Settings' search finds on Notifications (`findable`, src/app/settings/NotificationsPane.findable.ts): the four
 /// switches, and the card of organizations to mute once there is one to draw it for.
-List<SettingsFindable> notificationsFindable({required bool orgs}) => [
+List<SettingsFindable> notificationsFindable({required bool orgs, bool simple = false}) => [
       // Reminders, where the phone reminds (reminders_section.dart), and the morning time they share with the digest.
       if (phoneReminders.value != null) ...remindersFindable,
-      if (phoneReminders.value != null || projectSuite.anywhere(ticketsTool)) morningFindable,
+      if (phoneReminders.value != null || (!simple && projectSuite.anywhere(ticketsTool))) morningFindable,
       const SettingsFindable('Team', 'organization members joined left removed renamed invitation accepted declined'),
       const SettingsFindable('Claude', 'mcp ai note created edited appended journal rule'),
       const SettingsFindable('Summaries', 'meeting written up summary recording'),
       const SettingsFindable('Conflicts', 'sync kept twice both devices'),
       if (orgs) const SettingsFindable('Mute an organization', 'silence quiet team news'),
       // The morning's ticket digest (ticket_digest_section.dart).
-      // Where Tickets is on for the person or a team of theirs (docs/PM_PLUGINS.md).
-      if (projectSuite.anywhere(ticketsTool)) ...ticketDigestFindable,
+      // Where Tickets is on for the person or a team of theirs (docs/PM_PLUGINS.md), and Advanced's alone since
+      // 2026-11-01 (Matt: "see if there are other settings that can be simplified").
+      if (!simple && projectSuite.anywhere(ticketsTool)) ...ticketDigestFindable,
     ];
 
 /// Notifications' row in the list: how many of the four switches are on.
@@ -241,8 +242,10 @@ class _NotificationsPaneState extends State<NotificationsPane> {
             // The morning's ticket digest (lib/book/ticket_digest.dart; Matt, 2026-10-31): the account's choices, on
             // every device, under what the bell takes in.
             // Where Tickets is on for the person or a team of theirs (docs/PM_PLUGINS.md).
-            if (reminders == null && projectSuite.anywhere(ticketsTool)) MorningSection(store: store),
-            if (projectSuite.anywhere(ticketsTool)) TicketDigestSection(store: store, reminders: reminders),
+            // The digest Advanced's alone since 2026-11-01 (Matt: "see if there are other settings that can be
+            // simplified"): in Simple it comes as chosen, and its card is not there.
+            if (reminders == null && !prefs.simple && projectSuite.anywhere(ticketsTool)) MorningSection(store: store),
+            if (!prefs.simple && projectSuite.anywhere(ticketsTool)) TicketDigestSection(store: store, reminders: reminders),
             if (phone != null && state != null)
               PaneSection(
                 title: 'On this phone',

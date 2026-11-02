@@ -13,6 +13,7 @@ import 'package:ghost_md/notes/workspace_sheet.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/about_pane.dart';
 import 'package:ghost_md/settings/panes/account_pane.dart';
+import 'package:ghost_md/settings/panes/notifications_pane.dart' show notificationsFindable;
 import 'package:ghost_md/settings/panes/ai_pane.dart';
 import 'package:ghost_md/settings/panes/examples_pane.dart';
 import 'package:ghost_md/settings/panes/pane_parts.dart';
@@ -157,6 +158,17 @@ void main() {
   });
 
   group('Notifications', () {
+    // Matt, 2026-11-01: "see if there are other settings that can be simplified". The ticket digest is Advanced's
+    // alone: in Simple it comes as chosen and its card, with the morning time where the phone does not remind, is not
+    // there, nor found.
+    testWidgets('in Simple has no ticket digest, kept as chosen, and the search does not find it', (tester) async {
+      await openPane(tester, 'notifications', prefs: const Preferences(theme: 'light').choosing('simple'));
+      expect(cardTitles(tester), ['What reaches you']);
+      expect(notificationsFindable(orgs: false, simple: true).map((f) => f.name), isNot(anyOf(contains('Ticket digest'), contains('Write a digest note'), contains('Morning time'))));
+      expect(notificationsFindable(orgs: false).map((f) => f.name), containsAll(['Ticket digest', 'Write a digest note', 'Morning time']));
+      await endSettings(tester);
+    });
+
     testWidgets('has a switch for each category, each a synced preference the row in the list counts', (tester) async {
       await openPane(tester, 'notifications');
       // The morning's ticket digest under them (lib/settings/panes/ticket_digest_section.dart; Matt, 2026-10-31).
