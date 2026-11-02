@@ -1820,7 +1820,8 @@ class BookViewState extends State<BookView> {
     final parts = isDocsBody(body) ? docsPartHeads(body, chapters) : null;
 
     final blocks = <Widget>[
-      if (authors.isNotEmpty) NoteByline(authors: authors),
+      // Flush with the index's own words: the column is padded by the gutter already.
+      if (authors.isNotEmpty) NoteByline(authors: authors, start: 0, end: 0),
       if (words.before.isNotEmpty) BookWords(key: const ValueKey('book-words-before'), words: words.before, known: widget.known, open: widget.open, drawing: widget.drawing),
       if (chapters.isEmpty)
         CssFlow.block(

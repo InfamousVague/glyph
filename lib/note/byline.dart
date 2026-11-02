@@ -50,12 +50,18 @@ String spokenNames(List<String> names) {
 }
 
 class NoteByline extends StatelessWidget {
-  const NoteByline({super.key, required this.authors, this.start});
+  const NoteByline({super.key, required this.authors, this.start, this.end});
 
   final List<String> authors;
 
-  /// The column's own left edge, where it is not the page's gutter (a page to read, from 600px).
+  /// The column's own left edge, where it is not the page's gutter (a page to read, from 600px). 0 where what holds
+  /// it is padded already: a notebook's index, whose column has the gutter on both sides (Matt, 2026-11-02, on the
+  /// Fold: "The authors at the top of the note on mobile are inset slightly and should be flush against the left
+  /// padding": it was the gutter twice).
   final double? start;
+
+  /// The right edge's padding, the gutter where null; 0 with [start] 0.
+  final double? end;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +75,7 @@ class NoteByline extends StatelessWidget {
     final shown = authors.take(4).toList();
     return Padding(
       // `.byline { padding-inline: var(--app-gutter); margin-block: var(--glacier-space-2) 0 }`
-      padding: EdgeInsets.only(left: start ?? gutter, right: gutter, top: t.space(2)),
+      padding: EdgeInsets.only(left: start ?? gutter, right: end ?? gutter, top: t.space(2)),
       child: Semantics(
         label: 'Written by ${spokenNames(authors)}',
         child: ExcludeSemantics(

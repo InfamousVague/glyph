@@ -139,6 +139,17 @@ void main() {
       );
 
   group('the index view', () {
+    // Flush with the index's words (Matt, 2026-11-02, on the Fold: "The authors at the top of the note on mobile are
+    // inset slightly and should be flush against the left padding"): the index's column is padded by the gutter
+    // already, and the byline added the gutter again.
+    testWidgets('its byline stands flush with its words', (tester) async {
+      await show(tester, body: '---\ntitle: "Baby on the way"\nbook: true\nauthors: mattmattmattmatt, Claude\n---\n# Baby on the way\n\nA page for each week of the pregnancy.\n\n1. [[Week 8]]\n');
+      final mark = tester.getRect(find.byKey(const ValueKey('author:mattmattmattmatt')));
+      final words = tester.getRect(find.byKey(const ValueKey('book-words-before')));
+      expect(mark.left, closeTo(words.left, 0.5));
+      await away(tester);
+    });
+
     // Docs (lib/core/docs_book.dart; Matt, 2026-10-31: "a specific type of notebook for docs").
     testWidgets('draws docs’ parts over the pages each opens, and no heading over a plain notebook’s', (tester) async {
       const docs = '---\ntitle: "Field guide"\nbook: true\ntype: docs\n---\n# Field guide\n\nHow it works.\n\n## Getting started\n\n1. [[Introduction]]\n2. [[Trees]]\n\n## Further on\n\n3. [[Birds]]\n';
