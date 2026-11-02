@@ -5,8 +5,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/academy/courses.dart';
 import 'package:ghost_md/academy/lessons.dart';
-import 'package:ghost_md/academy/looks.dart';
 import 'package:ghost_md/academy/voice.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/guide/narrator.dart';
@@ -15,9 +15,9 @@ import 'support.dart';
 
 /// The Academy read aloud and in colour (Matt, 2026-10-28: "Add the voiceover to the academy sections and spice up
 /// the academy with more colors and iconography"): every clip made from the words voice.dart has now, as the
-/// walkthrough's test holds its own (test/guide/narration_test.dart); a welcome on the contents, a chapter's hello
-/// then the lesson as a chapter is begun, the lesson alone after that, quiet on the contents and a chapter's end, the
-/// walkthrough's speaker and its remembered switch; every chapter a colour and a sign; and Simple's More.
+/// walkthrough's test holds its own (test/guide/narration_test.dart); a welcome on the catalog, a course's hello
+/// then the lesson as a course is begun, the lesson alone after that, quiet on the catalog and a course's page, the
+/// walkthrough's speaker and its remembered switch; every course a colour and a sign; and Simple's More.
 class FakeVoice implements NarrationOutput {
   final List<String> calls = [];
 
@@ -76,10 +76,12 @@ void main() {
       expect(total, lessThan(6 * 1024 * 1024));
     });
 
-    test('give each chapter a colour and a sign of its own', () {
-      expect(chapterLooks.keys.toList(), chapters);
-      expect(chapterLooks.values.map((look) => look.hues.first).toSet(), hasLength(chapters.length));
-      expect(chapterLooks.values.map((look) => look.icon).toSet(), hasLength(chapters.length));
+    test('give each course a sign of its own, and each course on a shelf a colour of its own', () {
+      expect(courses.map((course) => course.look.icon).toSet(), hasLength(courses.length));
+      for (final shelf in CourseShelf.values) {
+        final on = courses.where((course) => course.shelf == shelf);
+        expect(on.map((course) => course.look.hues.first).toSet(), hasLength(on.length), reason: shelf.name);
+      }
     });
   });
 
@@ -100,7 +102,7 @@ void main() {
 
     List<String> said(FakeVoice fake) => fake.calls.where((call) => call.startsWith('narrate')).toList();
 
-    testWidgets('welcomes on the contents, then says a chapter’s hello and its lesson, and the lesson alone after that', (tester) async {
+    testWidgets('welcomes on the catalog, then says a course’s hello and its lesson, and the lesson alone after that', (tester) async {
       final (fake, _) = await open(tester);
       expect(said(fake), ['narrate welcome.mp3']);
       fake.calls.clear();
@@ -117,15 +119,16 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('stops a lesson’s hello and what follows when the page turns, and is quiet on the contents', (tester) async {
+    testWidgets('stops a lesson’s hello and what follows when the page turns, and is quiet on a course’s page and the catalog', (tester) async {
       final (fake, _) = await open(tester);
       await press(tester, key('academy-go'));
       fake.calls.clear();
-      await press(tester, find.bySemanticsLabel('The Academy’s chapters'));
+      await press(tester, find.bySemanticsLabel('The course’s lessons'));
       expect(fake.calls, ['hush']);
+      await press(tester, find.bySemanticsLabel('All courses'));
       await tester.pump(const Duration(seconds: 30));
       expect(said(fake), isEmpty);
-      // Begun again from the contents, the chapter says hello again.
+      // Begun again from the catalog, the course says hello again.
       await press(tester, key('academy-go'));
       expect(said(fake), ['narrate chapter-basics.mp3']);
       await away(tester);
@@ -166,17 +169,34 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('in Simple, shows the Markdown chapters and opens the rest in place behind More', (tester) async {
+    testWidgets('in Simple, shows the Markdown courses and opens the rest in place behind More', (tester) async {
       freshDevice();
-      await showAcademy(tester, simple: true, size: const Size(390, 1400));
-      expect(key('chapter:Markdown basics'), findsOneWidget);
-      expect(key('chapter:More Markdown'), findsOneWidget);
-      expect(key('chapter:Marks and effects'), findsNothing);
-      await press(tester, key('academy-more-chapters'));
-      for (final chapter in chapters) {
-        expect(key('chapter:$chapter'), findsOneWidget, reason: chapter);
+      await showAcademy(tester, simple: true, size: const Size(390, 6000));
+      expect(key('course:basics'), findsOneWidget);
+      expect(key('course:more'), findsOneWidget);
+      expect(key('course:marks'), findsNothing);
+      await press(tester, key('academy-more-courses'));
+      for (final course in courses) {
+        expect(key('course:${course.id}'), findsOneWidget, reason: course.id);
       }
-      expect(key('academy-more-chapters'), findsNothing);
+      expect(key('academy-more-courses'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('says nothing for a lesson that has no clip yet, and its course no hello', (tester) async {
+      freshDevice();
+      await tester.runAsync(academyVoiceLengths);
+      final fake = FakeVoice();
+      final voice = VoiceOver(output: fake, load: (_) async => ByteData(8));
+      addTearDown(voice.dispose);
+      await showAcademy(tester, voice: voice);
+      await settle(tester, 2);
+      expect(academyVoice.containsKey('gantt'), isFalse);
+      fake.calls.clear();
+      await press(tester, key('course:gantt'));
+      await press(tester, key('academy-course-start'));
+      await tester.pump(const Duration(seconds: 10));
+      expect(fake.calls.where((call) => call.startsWith('narrate')), isEmpty);
       await away(tester);
     });
   });

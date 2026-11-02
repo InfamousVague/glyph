@@ -51,11 +51,12 @@ GlyphPlugin? projectPlugin(String id) {
 }
 
 /// A tool's name as a chip says it: "Gantt and timelines" is "Gantt". One of the more tools by its own short name
-/// (lib/plugins/more/more_tools.dart), whose chips are these.
+/// (lib/plugins/more/more_tools.dart), whose chips are these; any other plugin by its name, as the Academy's chip for
+/// the Marks plugin says it (lib/academy/courses.dart).
 String toolShortName(String id) => switch (id) {
       ganttTool => 'Gantt',
       _ when isMoreTool(id) => moreToolShortName(id),
-      _ => projectPlugin(id)?.manifest.name ?? id,
+      _ => projectPlugin(id)?.manifest.name ?? plugins.byId(id)?.manifest.name ?? id,
     };
 
 /// Where this device keeps the banners put away (docs/PM_PLUGINS.md §6): organization to the tools it named.

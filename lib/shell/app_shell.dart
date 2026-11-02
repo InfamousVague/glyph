@@ -1073,6 +1073,9 @@ class AppShellState extends State<AppShell> {
                     _notificationsOpen = !_notificationsOpen;
                   }),
           onSettings: quietBar ? null : openSettings,
+          // Ghost Academy, left of the button for you (Matt, 2026-11-02: "add the academy to the top bar to the left of
+          // profile"), wherever the bar has Settings and the app has an Academy to show.
+          onAcademy: quietBar || widget.academyBuilder == null ? null : () => show(const Screen.academy()),
           onOrganizations: quietBar || simple ? null : openOrganizations,
           // The people icon's picker: the ones you belong to, a pick straight to its dashboard.
           organizations: widget.organizations,

@@ -108,6 +108,7 @@ class NoteTabs extends StatefulWidget {
     this.onOrganization,
     this.onNotifications,
     this.onSettings,
+    this.onAcademy,
     this.unread = false,
     this.atNotifications = false,
     this.onRename,
@@ -203,6 +204,9 @@ class NoteTabs extends StatefulWidget {
 
   /// Opens Settings, from the cog after the bell; absent, and there is no cog.
   final VoidCallback? onSettings;
+
+  /// Opens Ghost Academy, from the mortarboard just before the button for you; absent, and there is none.
+  final VoidCallback? onAcademy;
 
   /// Whether something unread and wanted has arrived: the bell wears its ring and a dot.
   final bool unread;
@@ -496,6 +500,7 @@ class _NoteTabsState extends State<NoteTabs> {
               toggle: notificationsToggle,
             ),
       settings: w.onSettings == null ? null : HeaderAct(id: 'settings', label: 'Settings', word: 'Settings', hue: 'lime', icon: Lucide.settings, onPress: w.onSettings),
+      academy: w.onAcademy == null ? null : HeaderAct(id: 'academy', label: 'Academy', word: 'Academy', hue: 'purple', icon: Lucide.graduationCap, onPress: w.onAcademy),
       aside: w.onAside == null
           ? null
           : HeaderAct(id: 'aside', label: 'Side panel', word: 'Side panel', hue: 'mint', icon: Lucide.panelLeft, mirrored: true, onPress: w.onAside, on: w.asideOpen, expanded: w.asideOpen, toggle: asideToggle),

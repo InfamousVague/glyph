@@ -1,12 +1,13 @@
 /// The Academy's colours and signs (Matt, 2026-10-28: "spice up the academy with more colors and iconography"): each
-/// of the seven chapters a hue of its own, worn by its row on the contents, by the band at the head of its lessons,
-/// by the bars that count them, and by the page that sees it off.
+/// course a hue of its own (courses.dart `Course.look`; until 2026-11-02 each of the web page's seven chapters), worn by
+/// its card in the catalog, by the band at the head of its page and its lessons, by the bars that count them, and by
+/// the page that sees it off.
 ///
 /// The colours are the walkthrough's and the Market's (`marketHues`, the settings' own): a wash from one deep shade to
-/// the next, white marks on it, the same in light and dark, as lib/guide/pages/band.dart has them. Where a chapter's
+/// the next, white marks on it, the same in light and dark, as lib/guide/pages/band.dart has them. Where a course's
 /// colour is ink on the page itself (a bar, a count, the words above a lesson's title) it takes the hue's deep shade
 /// on a light page and its bright one on a dark page, so it reads on either. The signs are the app's icons, drawn by
-/// `AppIcon` in the person's icon pack: something of what each chapter teaches.
+/// `AppIcon` in the person's icon pack: something of what each course teaches.
 library;
 
 import 'dart:math' as math;
@@ -22,15 +23,15 @@ import '../market/market_items.dart' show marketHues;
 
 const Color _white = Color(0xFFFFFFFF);
 
-/// How a chapter looks: its wash, its sign, and the icons floating round it.
+/// How a course looks: its wash, its sign, and the icons floating round it.
 @immutable
 class ChapterLook {
   const ChapterLook({required this.hues, required this.icon, required this.tiles});
 
-  /// The wash, by the names `marketHues` keeps; the first is the chapter's own colour.
+  /// The wash, by the names `marketHues` keeps; the first is the course's own colour.
   final List<String> hues;
 
-  /// The chapter's sign: on its row, and in the middle of its bands.
+  /// The course's sign: on its card, and in the middle of its bands.
   final LucideIcon icon;
 
   /// The small tiles round a band's sign.
@@ -39,34 +40,20 @@ class ChapterLook {
   /// The wash's colours: each hue's deep shade, which white reads on in either theme.
   List<Color> get colours => [for (final hue in hues) marketHues[hue]!.$1];
 
-  /// The chapter's colour as ink on the page: deep on a light page, bright on a dark one.
+  /// The course's colour as ink on the page: deep on a light page, bright on a dark one.
   Color ink(Tokens t) => t.isDark ? marketHues[hues.first]!.$2 : marketHues[hues.first]!.$1;
 
-  /// A faint wash of [ink] behind something of the chapter's: a row, an example.
+  /// A faint wash of [ink] behind something of the course's: a row, an example.
   Color wash(Tokens t, {double light = 0.08, double dark = 0.16}) => ink(t).withValues(alpha: t.isDark ? dark : light);
 }
 
-/// Each chapter's look, by its name in `chapters`.
-const Map<String, ChapterLook> chapterLooks = {
-  'Markdown basics': ChapterLook(hues: ['indigo', 'blue'], icon: Lucide.heading, tiles: [Lucide.bold, Lucide.italic, Lucide.listChecks, Lucide.link]),
-  'More Markdown': ChapterLook(hues: ['magenta', 'rose'], icon: Lucide.table, tiles: [Lucide.image, Lucide.sigma, Lucide.superscript, Lucide.workflow]),
-  'Lines that do more': ChapterLook(hues: ['mint', 'cyan'], icon: Lucide.tag, tiles: [Lucide.calculator, Lucide.circleDot, Lucide.messageSquare, Lucide.hash]),
-  'Links and places': ChapterLook(hues: ['red', 'coral'], icon: Lucide.mapPin, tiles: [Lucide.link2, Lucide.bookmark, Lucide.compass, Lucide.globe]),
-  'Boards and to-dos': ChapterLook(hues: ['lime', 'green'], icon: Lucide.squareKanban, tiles: [Lucide.squareCheckBig, Lucide.calendarDays, Lucide.userRound, Lucide.anchor]),
-  'Tickets and queries': ChapterLook(hues: ['purple', 'indigo'], icon: Lucide.ticket, tiles: [Lucide.search, Lucide.listFilter, Lucide.database, Lucide.chartNoAxesCombined]),
-  'Marks and effects': ChapterLook(hues: ['amber', 'orange'], icon: Lucide.highlighter, tiles: [Lucide.sparkles, Lucide.flame, Lucide.snowflake, Lucide.waves]),
-};
-
-/// The whole Academy's look, on its contents: every chapter's colour in one wash, under a mortarboard.
+/// The whole Academy's look, on its catalog: the courses' colours in one wash, under a mortarboard.
 const ChapterLook academyLook = ChapterLook(hues: ['indigo', 'purple', 'rose', 'orange'], icon: Lucide.graduationCap, tiles: [Lucide.heading, Lucide.table, Lucide.tag, Lucide.squareKanban]);
-
-/// [chapter]'s look; the Academy's own for a chapter it does not know.
-ChapterLook lookOf(String chapter) => chapterLooks[chapter] ?? academyLook;
 
 /// How tall a band is across [width]: a band, not a poster, on a phone and on a wide window alike.
 double bandHeight(double width, {double share = 0.34, double least = 120, double most = 190}) => (width * share).clamp(least, most);
 
-/// The band at the head of the contents: the Academy's wash, its mortarboard, and the first chapters' signs.
+/// The band at the head of the catalog: the Academy's wash, its mortarboard, and the first courses' signs.
 class AcademyHero extends StatelessWidget {
   const AcademyHero({super.key});
 
@@ -82,17 +69,33 @@ class AcademyHero extends StatelessWidget {
   );
 }
 
-/// The band at the head of a lesson: its chapter's wash and signs, and the lesson's own mark in the middle, as it is
+/// The band at the head of a course's page: its wash, its signs, and its own sign in the middle.
+class CourseBand extends StatelessWidget {
+  const CourseBand({super.key, required this.look});
+  final ChapterLook look;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) => HueBand(
+      key: const ValueKey('academy-band'),
+      colours: look.colours,
+      height: bandHeight(box.maxWidth, share: 0.3, least: 120, most: 170),
+      tiles: [for (final icon in look.tiles) bandIcon(icon)],
+      sign: (height, width) => bandDisc(look.icon, height: height, width: width),
+    ),
+  );
+}
+
+/// The band at the head of a lesson: its course's wash and signs, and the lesson's own mark in the middle, as it is
 /// typed (`**`, `- [ ]`).
 class LessonBand extends StatelessWidget {
-  const LessonBand({super.key, required this.chapter, required this.symbol});
-  final String chapter;
+  const LessonBand({super.key, required this.look, required this.symbol});
+  final ChapterLook look;
   final String symbol;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final look = lookOf(chapter);
     return LayoutBuilder(
       builder: (context, box) => HueBand(
         key: const ValueKey('academy-band'),
@@ -126,16 +129,15 @@ class LessonBand extends StatelessWidget {
   }
 }
 
-/// The band that sees a chapter off: its wash, the ghost with every box ticked once all of it is learned (its
+/// The band that sees a course off: its wash, the ghost with every box ticked once all of it is learned (its
 /// sign until then), and a little celebration floating round.
-class ChapterEndBand extends StatelessWidget {
-  const ChapterEndBand({super.key, required this.chapter, required this.learned});
-  final String chapter;
+class CourseEndBand extends StatelessWidget {
+  const CourseEndBand({super.key, required this.look, required this.learned});
+  final ChapterLook look;
   final bool learned;
 
   @override
   Widget build(BuildContext context) {
-    final look = lookOf(chapter);
     return LayoutBuilder(
       builder: (context, box) => HueBand(
         key: const ValueKey('academy-band'),
@@ -153,19 +155,18 @@ class ChapterEndBand extends StatelessWidget {
   }
 }
 
-/// A chapter's sign on its row: a small tile of its wash with its icon, or a tick once all of it is learned.
-class ChapterTile extends StatelessWidget {
-  const ChapterTile({super.key, required this.chapter, required this.learned, this.size = 40, this.icon});
-  final String chapter;
+/// A course's sign: a small tile of its wash with its icon, or a tick once all of it is learned.
+class CourseTile extends StatelessWidget {
+  const CourseTile({super.key, required this.look, required this.learned, this.size = 40, this.icon});
+  final ChapterLook look;
   final bool learned;
   final double size;
 
-  /// Another sign on the chapter's wash: Simple's More row wears the Academy's wash with a grid on it.
+  /// Another sign on the wash: Simple's More row wears the Academy's wash with a grid on it.
   final LucideIcon? icon;
 
   @override
   Widget build(BuildContext context) {
-    final look = lookOf(chapter);
     final colours = look.colours;
     return Container(
       width: size,

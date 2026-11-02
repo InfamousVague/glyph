@@ -17,6 +17,11 @@
 /// plugin's mark ([Lesson.needs]) is offered only while that mark is switched on, as the cheat sheet shows its row
 /// only then.
 ///
+/// Past the page's sixty-one, the app has lessons of its own (lessons_more.dart) for the plugins with something to type
+/// that had none: a Gantt chart, a task after another, a query as a chart, an estimate, time on a ticket, a rule and a
+/// form (Matt, 2026-11-02: "make it easier to browse the academy lessons sort by plugins features like gantts etc").
+/// The Academy files every lesson by course (courses.dart), not by the page's chapter, which stays here as data.
+///
 /// What differs:
 /// - The words (every lesson's title, teaching, example, task, praise and hint, the chapters and what each is about)
 ///   are lessons.g.dart, read off the web app's own running page and not retyped; the checks are here, one for each
@@ -57,8 +62,16 @@ import '../editor/syntax/markdown.dart' show MarkdownParser;
 import '../editor/view/extended.dart' show calloutKind;
 import '../plugins/registry.dart' show plugins;
 import '../core/iphone_app.dart' show recordsVoice;
+import '../book/rules.dart' show rulesIn;
+import '../book/time_log.dart' show timeLogOf;
+import '../core/durations.dart' show spentMinutes;
+import '../core/front_matter.dart' show frontMatterValue;
+import '../core/gantt/format.dart' show GanttTaskLine, readGantt;
+import '../core/planning/planning.dart' show estimateOf;
+import '../forms/form_def.dart' show formOf;
 
 part 'lessons.g.dart';
+part 'lessons_more.dart';
 
 /// One lesson: one mark (`Lesson`).
 class Lesson {
@@ -268,7 +281,36 @@ final Map<String, _Check> _checks = <String, _Check>{
   'wave': _parsed('Wave'),
   'shimmer': _parsed('Shimmer'),
   'haunt': _parsed('Haunt'),
+  // ---- The app's own, past the page's (lessons_more.dart) ------------------------------------------------------------
+  'gantt': (text) => _ganttTasks(text).any((task) => task.dates != null),
+  'ganttAfter': (text) => _ganttTasks(text).any((task) => task.after.isNotEmpty),
+  'ganttQuery': (text) => _queriesIn(text).any((query) => query.show == ShowAs.gantt || query.show == ShowAs.timeline),
+  'estimate': (text) => ticketOf(text) != null && estimateOf(frontMatterValue(text, 'estimate')) != null,
+  'timeLog': (text) => timeLogOf(text).isNotEmpty || (spentMinutes(frontMatterValue(text, 'spent')) ?? 0) > 0,
+  'rules': (text) => rulesIn(text).rules.isNotEmpty,
+  'form': (text) => (formOf(text)?.fields ?? const []).isNotEmpty,
 };
+
+final RegExp _ganttOpening = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*gantt\b[^\n]*$', caseSensitive: false);
+
+/// Every task of every closed ```gantt fence in what was typed, read as a chart reads them (core/gantt/format.dart).
+Iterable<GanttTaskLine> _ganttTasks(String text) sync* {
+  if (!text.contains('gantt')) return;
+  final lines = text.split('\n');
+  for (var at = 0; at < lines.length; at += 1) {
+    final opened = _ganttOpening.firstMatch(lines[at]);
+    if (opened == null) continue;
+    final mark = opened.group(1)!;
+    for (var end = at + 1; end < lines.length; end += 1) {
+      final line = lines[end].trim();
+      if (line.length >= mark.length && line.replaceAll(mark[0], '').isEmpty) {
+        yield* readGantt(lines.sublist(at + 1, end).join('\n')).tasks;
+        at = end;
+        break;
+      }
+    }
+  }
+}
 
 /// What a lesson teaches, as this device words it. The words are the web app's (lessons.g.dart), and one of them
 /// names another platform and a + an iPhone does not have ("on Android, the + beside an empty line writes it when
@@ -281,12 +323,18 @@ String teachOf(Lesson lesson, {bool? voice}) => lesson.id == 'video' && !(voice 
 /// What a lesson asks for, as this device words it ([teachOf]).
 String taskOf(Lesson lesson, {bool? voice}) => lesson.id == 'video' && !(voice ?? recordsVoice) ? 'Write a video’s line.' : lesson.task;
 
+/// Every lesson the Academy has: the page's, then the app's own (lessons_more.dart).
+final List<Lesson> academyLessons = List<Lesson>.unmodifiable(<Lesson>[...lessons, ...moreLessons]);
+
+/// The lesson of [id], of all of them; null for none.
+Lesson? lessonById(String id) => academyLessons.where((lesson) => lesson.id == id).firstOrNull;
+
 /// The lessons on offer now: every one whose plugin mark, where it needs one, is switched on; and without standard
-/// Markdown, for a person who knows it already ([readSkipStandard]).
-List<Lesson> lessonsNow([bool skipStandard = false]) {
+/// Markdown, for a person who knows it already ([readSkipStandard]). Of the page's lessons unless [from] says.
+List<Lesson> lessonsNow([bool skipStandard = false, List<Lesson>? from]) {
   final on = <String>{for (final format in plugins.formats()) format.name};
   return <Lesson>[
-    for (final lesson in lessons)
+    for (final lesson in from ?? lessons)
       if ((lesson.needs == null || on.contains(lesson.needs)) && !(skipStandard && lesson.standard)) lesson,
   ];
 }

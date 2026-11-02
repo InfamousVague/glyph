@@ -16,7 +16,7 @@ import 'package:ghost_md/shell/header/header_kit.dart' show HeaderGlyph;
 import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/shell/page_dock.dart' show dockScrolledScale;
 import 'package:ghost_md/shell/placeholders.dart';
-import 'package:ghost_md/shell/screen.dart' show ScreenNotes;
+import 'package:ghost_md/shell/screen.dart' show ScreenAcademy, ScreenNotes;
 import 'package:glacier/glacier.dart' show GlacierPressable, GlacierTheme;
 import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 import 'package:ghost_md/shell/top_bar.dart';
@@ -94,6 +94,7 @@ void main() {
           child: HomePlaceholder(notes: shell.notes, onOpen: shell.openNote, onAllNotes: shell.showAllNotes),
         ),
         asideBuilder: (context, shell) => const SizedBox.shrink(),
+        academyBuilder: (context, shell) => const SizedBox.shrink(),
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
@@ -158,7 +159,7 @@ void main() {
 
   const noteTools = {'view', 'share', 'history', 'links', 'comment', 'bookmark', 'pin', 'archive', 'speak', 'more'};
   const way = {'home', 'sidebar', 'folders', 'back', 'forward', 'aside'};
-  const yours = {'organizations', 'org:o1', 'bell', 'settings'};
+  const yours = {'organizations', 'org:o1', 'bell', 'settings', 'academy'};
 
   group('every style', () {
     for (final window in windows) {
@@ -296,6 +297,45 @@ void main() {
         expect(home.intersection(noteTools), isEmpty);
       });
     }
+
+    // Matt, 2026-11-02: "Also add the academy to the top bar to the left of profile".
+    const phone412 = (name: 'a 412 phone', size: Size(412, 915), mobile: true, fine: false);
+    for (final window in [phone412, unfolded, mac]) {
+      barTest('${window.name}: the Academy is the circle just before the button for you, and opens the Academy', (tester) async {
+        await pumpShell(tester, window: window, note: false);
+        final academy = find.byKey(HeaderAct.keyOf('academy'));
+        expect(academy, findsOneWidget);
+        final at = tester.getRect(academy), you = tester.getRect(find.byKey(HeaderAct.keyOf('you')));
+        expect((at.width - at.height).abs(), lessThan(0.5), reason: 'a circle, $at');
+        expect(at.right, lessThan(you.left));
+        expect(you.left - at.right, lessThan(16), reason: 'right beside it');
+        // Nothing of the bar's between the two.
+        for (final id in drawn(tester).difference({'academy', 'you'})) {
+          final rect = tester.getRect(find.byKey(HeaderAct.keyOf(id)).first);
+          expect(rect.left >= you.left || rect.right <= at.left, isTrue, reason: '$id at $rect');
+        }
+        expect(find.bySemanticsLabel('Academy'), findsWidgets);
+        await tester.tap(academy);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.state<AppShellState>(find.byType(AppShell)).screen, isA<ScreenAcademy>());
+      });
+    }
+
+    // Narrower, the circle would cut the title pill to "Se…": the Academy is one press away under •••.
+    for (final window in [folded, (name: 'the Fold 8’s cover screen', size: const Size(344, 882), mobile: true, fine: false)]) {
+      barTest('${window.name}: the Academy waits under •••, and still opens', (tester) async {
+        await pumpShell(tester, window: window, note: false);
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(HeaderAct.keyOf('academy')), findsNothing);
+        await press(tester, 'academy');
+        expect(tester.state<AppShellState>(find.byType(AppShell)).screen, isA<ScreenAcademy>());
+      });
+    }
+
+    barTest('no Academy on a phone reading a note, whose bar has no Settings either', (tester) async {
+      await pumpShell(tester, window: folded);
+      expect((await reachable(tester)).contains('academy'), isFalse);
+    });
 
     // Matt, 2026-10-30: "The colors for the dropdown more menu are missing on general deployments though I see the
     // colored icons on my end": he was on Command centre, whose ••• wore each row's hue; the default's was grey.

@@ -58,6 +58,11 @@ double dockGlyph(Tokens t) => t.lenOf('1.15rem') * dockScrolledScale;
 /// slightly larger on mobile"; the rings with it, app.css `[data-header='phone']`).
 double groupedCommandGlyph(BuildContext context) => dockGlyph(context.tokens) + (headerOnPhone(context) ? phoneGlyphStep : 0);
 
+/// How wide the row must be for the Academy's circle to stand in it: the opened Fold, the Mac and a phone 412 points
+/// across, where the title pill keeps its word. On a narrower phone (390, and the Fold 8's cover screen at about 344)
+/// the circle would cut the pill to "Se…", so the Academy is under ••• there, one press away.
+const double academyRowRoom = 370;
+
 HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   final glyph = groupedCommandGlyph(context);
   Widget solid(Widget child) => styled(context, IconStyle.solid, child);
@@ -68,7 +73,10 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
   // seldom anywhere to go, is put away with Forward before the pill is squeezed; Filters and Home never are.
   final squeezed = !wide && parts.filters != null;
   final way = [for (final act in parts.way) if (wide || (act.id != 'forward' && !(squeezed && act.id == 'back'))) act];
-  final putAway = [...notShown(parts.way, way), ?parts.aside];
+  // The Academy's circle, just before the button for you, where the row has room for one more ([academyRowRoom]); a
+  // narrower phone gives the title pill its room and keeps the Academy under •••.
+  final academy = parts.academy != null && parts.room >= academyRowRoom ? parts.academy : null;
+  final putAway = [...notShown(parts.way, way), ?parts.aside, if (academy == null) ?parts.academy];
   final shown = parts.actions.take(wide ? 2 : 0).toList();
   final rest = notShown(parts.actions, shown);
   final more = parts.more;
@@ -120,6 +128,8 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
         if (overflow != null) solid(GroupedPill(children: [overflow])),
       ],
       ?parts.activity,
+      // Ghost Academy, immediately left of the button for you (Matt, 2026-11-02): a pill of one, the bar's glass.
+      if (academy != null) solid(GroupedPill(children: [GroupedSegment(act: academy, fine: parts.fine, glyph: glyph)])),
       if (parts.you.isNotEmpty) solid(GroupedYou(parts: parts, glyph: glyph)),
     ],
   );
@@ -289,7 +299,7 @@ class GroupedSegmentFace extends StatelessWidget {
   }
 }
 
-const Map<String, String> _hues = {'folders': 'amber', 'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'aside': 'mint', 'search': 'blue', 'new': 'green', 'all': 'indigo', 'more': 'indigo'};
+const Map<String, String> _hues = {'folders': 'amber', 'home': 'blue', 'sidebar': 'indigo', 'back': 'cyan', 'forward': 'cyan', 'bell': 'amber', 'organizations': 'magenta', 'settings': 'lime', 'academy': 'purple', 'aside': 'mint', 'search': 'blue', 'new': 'green', 'all': 'indigo', 'more': 'indigo'};
 
 String _hueOf(HeaderAct act) => _hues[act.id] ?? act.hue;
 

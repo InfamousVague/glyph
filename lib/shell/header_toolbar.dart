@@ -120,6 +120,7 @@ class HeaderParts {
     this.onOrganization,
     this.bell,
     this.settings,
+    this.academy,
     this.aside,
     this.presence,
     this.activity,
@@ -152,6 +153,10 @@ class HeaderParts {
   final List<OrgLike> orgs;
   final ValueChanged<String>? onOrganization;
   final HeaderAct? bell, settings, aside;
+
+  /// Ghost Academy (Matt, 2026-11-02: "add the academy to the top bar to the left of profile"): a circle of its own
+  /// just before the button for you where the row has room, under ••• where it has not.
+  final HeaderAct? academy;
 
   /// Who else is here: the Claude chip, drawn as it comes.
   final Widget? presence;

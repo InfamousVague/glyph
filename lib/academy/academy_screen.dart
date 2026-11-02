@@ -9,45 +9,50 @@
 /// it. **Show me** writes the example into the field for anyone who would rather start from something that works,
 /// and a lesson can always be skipped.
 ///
-/// It opens on its contents (Matt: "Rework the ghost.md academy so that there is the option to skip default markdown
-/// if the user doesn't want to learn that ... Make chapters in the lesson as well"): the chapters, each with what it
-/// covers and how much of it is learned, a way to carry on where you left off, and a switch for a person who knows
-/// Markdown already, which leaves out every lesson any Markdown app reads and keeps Ghost.md's own. A chapter can be
-/// started from the contents, and its end is a page of its own: what it taught, any lesson to take again, and the
-/// next chapter. Nothing typed here is saved as a note: it is a page to play on.
+/// **It opens on a catalog of courses** (Matt, 2026-11-02: "make it easier to browse the academy lessons sort by
+/// plugins features like gantts etc redo the academy homepage to be easier to browse like codecademy lessons"): the
+/// lessons filed by the feature they teach (courses.dart), where they were the web page's seven chapters. At the top,
+/// the course in progress with its bar and Resume (Start before anything is learned); then the switch for a person
+/// who knows Markdown already (Matt, earlier: "the option to skip default markdown if the user doesn't want to learn
+/// that"), chips for the shelves (All, Markdown, Ghost, Plugins), and each shelf's courses as cards, one across on a
+/// phone and two or three on the opened Fold and the Mac: the course's colour and sign, what it is about, its level,
+/// its lessons and minutes, and its bar or a tick. A card opens the course's page: what it is, its lessons with their
+/// ticks, and Start or Resume into the lesson playground; the end of a course is a page of its own, with any lesson to
+/// take again and the next course. Back goes up a level: a lesson to its course, a course to the catalog, the catalog
+/// out. Nothing typed here is saved as a note: it is a page to play on.
 ///
-/// A lesson for a plugin's mark is on offer only while that mark is switched on, so the Academy never teaches what
-/// the note would not draw. The bars along the top are the chapter being taken, and the count beside the title is
-/// all of it.
+/// **A course on a plugin that is off** (Gantt and timelines, Tickets, Diagrams and math …) is on its shelf all the
+/// same, saying it needs the plugin, with the app's chip to turn it on (lib/plugins/projects/tool_chip.dart); its
+/// lessons are on offer once it is on, as a plugin mark's lesson always was only while the mark is switched on. The
+/// bars along the top are the course being taken, and the count beside the title is every lesson on offer.
 ///
 /// It is read aloud and it is in colour (Matt, 2026-10-28: "Add the voiceover to the academy sections and spice up
 /// the academy with more colors and iconography"), the way the walkthrough is:
 /// - **The voice** (voice.dart, said by [VoiceOver], lib/guide/narrator.dart) welcomes a person as the Academy opens
-///   on its chapters, says a chapter's hello as it is begun and then the lesson's teaching, and each lesson's teaching
-///   as it opens. It stops as the page goes (back, Next, Skip, out of the Academy) and as the app leaves the screen.
-///   The speaker in the top bar is the walkthrough's, and so is the switch it remembers: one "rather read" for both.
-/// - **The colour** (looks.dart): each chapter has a hue of its own, the Market's and the walkthrough's. The contents
-///   open under a band in every chapter's colour, each chapter's row wears its colour and its sign, a lesson opens
-///   under a band of its chapter's with its mark in the middle, the bars along the top and the words over the title
-///   are the chapter's colour, and the end of a chapter is a page in its colour, the ghost ticking every box once all
-///   of it is learned. The bands stand still under Reduce motion (lib/guide/pages/band.dart [HueBand]).
-/// - **Simple** (`Preferences.simple`, GHST-103): the contents show the two Markdown chapters, and the five chapters of
-///   Ghost's own marks wait behind a More row that opens in place.
+///   on its catalog, says a course's hello as it is begun where it has one (Markdown basics, whose hello was the first
+///   chapter's), and each lesson's teaching as it opens where it has a clip (the lessons past the web page's have none
+///   yet). It stops as the page goes (back, Next, Skip, out of the Academy) and as the app leaves the screen. The
+///   speaker in the top bar is the walkthrough's, and so is the switch it remembers: one "rather read" for both.
+/// - **The colour** (looks.dart): each course has a hue of its own, the Market's and the walkthrough's. The catalog
+///   opens under a band in the Academy's colours, each card wears its course's, a course's page and its lessons open
+///   under a band of its colour with its sign or the lesson's mark in the middle, the bars along the top and the words
+///   over the title are the course's colour, and the end of a course is a page in its colour, the ghost ticking every
+///   box once all of it is learned. The bands stand still under Reduce motion (lib/guide/pages/band.dart [HueBand]).
+/// - **Simple** (`Preferences.simple`, GHST-103): the catalog shows the Markdown shelf, and the rest waits behind a
+///   More row that opens in place; no chips.
 ///
-/// What differs:
-/// - **The rows of the chapters and of a chapter's end are in the app's own face.** On the page they are `<button>`s
-///   whose CSS never says `font: inherit`, so a browser draws them in its own button face at 13.333px (Arial on a
-///   Mac, Roboto in the phone's WebView). Here they keep that size and that face's line, in Inter. A test that holds
-///   the rows to the page Chromium drew sets [academyButtonFace] to the browser's face.
+/// What differs from the page:
+/// - **The rows of a course's lessons are in the app's own face.** On the page they are `<button>`s whose CSS never
+///   says `font: inherit`, so a browser draws them in its own button face at 13.333px (Arial on a Mac, Roboto in the
+///   phone's WebView). Here they keep that size and that face's line, in Inter. A test that holds a lesson to the page
+///   Chromium drew sets [academyButtonFace] to the browser's face.
 /// - The buttons are `.app-pill` and `.app-word` written here (`_Pill`, `_Word`) and not lib/app/widgets.dart's:
 ///   in a foot too narrow for both, the page's buttons shrink and their words wrap (`_Foot` is that rule of flex),
 ///   which those two cannot do.
-/// - The row of a chapter and of a lesson to take again is lit while pressed as well as under a pointer; the page's
-///   was `:hover` alone.
-/// - The plugins are listened to (`plugins`, a `ChangeNotifier`) where the page called `usePlugins()`.
-/// - The page had no colour but its accent, no bands, no voice and no speaker: the chapters' rows were a number in a
-///   grey circle, the bars ink. Everything else is laid out as the page laid it out, under the bands
-///   (test/academy/reference_test.dart holds it to the page from below each band).
+/// - The plugins are listened to (`plugins` and the project tools' `projectSuite`, both `ChangeNotifier`s) where the
+///   page called `usePlugins()`.
+/// - The page had no catalog, no colour but its accent, no bands, no voice and no speaker. A lesson is laid out as the
+///   page laid it out, under its band (test/academy/reference_test.dart holds it to the page from below the band).
 library;
 
 import 'dart:async';
@@ -65,7 +70,10 @@ import '../editor/state/state.dart' show Extension;
 import '../guide/narrator.dart';
 import '../guide/voice_button.dart';
 import '../home/home_parts.dart' show CssLines;
+import '../plugins/projects/suite.dart' show ProjectSuite, projectSuite;
+import '../plugins/projects/tool_chip.dart' show ToolChip;
 import '../plugins/registry.dart';
+import 'courses.dart';
 import 'lessons.dart';
 import 'looks.dart';
 import 'playground.dart';
@@ -75,13 +83,18 @@ import 'voice.dart';
 @visibleForTesting
 String? academyButtonFace;
 
-/// Where the Academy is: its contents, a lesson, or the end of a chapter (`Place`).
+/// Where the Academy is: its catalog, a course's page, a lesson, or the end of a course (`Place`).
 sealed class _Place {
   const _Place();
 }
 
-class _AtContents extends _Place {
-  const _AtContents();
+class _AtCatalog extends _Place {
+  const _AtCatalog();
+}
+
+class _AtCourse extends _Place {
+  const _AtCourse(this.course);
+  final String course;
 }
 
 class _AtLesson extends _Place {
@@ -89,18 +102,18 @@ class _AtLesson extends _Place {
   final String id;
 }
 
-class _AtChapterEnd extends _Place {
-  const _AtChapterEnd(this.chapter);
-  final String chapter;
+class _AtCourseEnd extends _Place {
+  const _AtCourseEnd(this.course);
+  final String course;
 }
 
 class AcademyScreen extends StatefulWidget {
   const AcademyScreen({super.key, required this.onDone, required this.onCheatSheet, this.extensions = const <Extension>[], this.voice, this.simple});
 
-  /// Out of the Academy: its arrow, or back, from the contents.
+  /// Out of the Academy: its arrow, or back, from the catalog.
   final VoidCallback onDone;
 
-  /// The cheat sheet, asked for from the contents.
+  /// The cheat sheet, asked for from the catalog.
   final VoidCallback onCheatSheet;
 
   /// More of the editor's pieces for the note a lesson shows (playground.dart `Playground.extensions`).
@@ -109,7 +122,7 @@ class AcademyScreen extends StatefulWidget {
   /// What reads the Academy aloud; one of its own, let go with the screen, unless given (a test's, which counts).
   final VoiceOver? voice;
 
-  /// Simple's contents, or Advanced's; the person's own mode ([Preferences.simple]) unless told.
+  /// Simple's catalog, or Advanced's; the person's own mode ([Preferences.simple]) unless told.
   final bool? simple;
 
   @override
@@ -123,42 +136,55 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
   /// Where the Academy is, held until Next is pressed. A lesson cannot be worked out from what has been learned:
   /// passing it would then move the page on the instant the mark was typed, and the whole point is to stay and
   /// watch it format.
-  _Place _place = const _AtContents();
+  _Place _place = const _AtCatalog();
   String _typed = '';
   bool _hinting = false;
   Registry? _registry;
+  ProjectSuite? _suite;
 
-  /// Simple's More on the contents, pressed: every chapter shown.
-  bool _moreChapters = false;
+  /// Simple's More on the catalog, pressed: every shelf shown.
+  bool _moreCourses = false;
+
+  /// The shelf chosen by its chip; every shelf while null.
+  CourseShelf? _shelf;
+
+  /// The page's scroll: a new one for each place, so a course opened from a card far down the catalog opens at its
+  /// top, and the catalog, gone back to, where it was left.
+  ScrollController _scroll = ScrollController();
+  int _page = 0;
+  double _catalogAt = 0;
 
   late final VoiceOver _voice = widget.voice ?? VoiceOver();
 
-  /// The chapter whose hello has been said since the contents were left: begun again from the contents, it says
-  /// hello again; Next from one of its lessons to the next does not.
+  /// The course whose hello has been said since the catalog was left: begun again from the catalog, it says hello
+  /// again; Next from one of its lessons to the next does not.
   String? _greeted;
 
   @override
   void initState() {
     super.initState();
-    // Drawn again when a plugin is switched, so its lessons come and go with its marks.
+    // Drawn again when a plugin is switched, so its course opens and its lessons come and go with its marks.
     _registry = plugins..addListener(_switched);
+    _suite = projectSuite..addListener(_switched);
     preferences.addListener(_switched);
     _voice.addListener(_switched);
     WidgetsBinding.instance.addObserver(this);
-    // Read once for the app (voice.dart), so a chapter begun can say its hello before its first lesson.
+    // Read once for the app (voice.dart), so a course begun can say its hello before its first lesson.
     unawaited(academyVoiceLengths());
-    // The welcome, once, as the Academy opens on its contents.
+    // The welcome, once, as the Academy opens on its catalog.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _place is _AtContents) _voice.say([(asset: academyVoiceAsset('welcome'), length: null)]);
+      if (mounted && _place is _AtCatalog) _voice.say([(asset: academyVoiceAsset('welcome'), length: null)]);
     });
   }
 
   @override
   void dispose() {
     _registry?.removeListener(_switched);
+    _suite?.removeListener(_switched);
     preferences.removeListener(_switched);
     _voice.removeListener(_switched);
     WidgetsBinding.instance.removeObserver(this);
+    _scroll.dispose();
     // Out of the Academy: so is its voice.
     if (widget.voice == null) {
       _voice.dispose();
@@ -180,10 +206,17 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
   }
 
   /// Another place. A new lesson starts on a clean page, with its hint put away, and is said aloud: after its
-  /// chapter's hello where the chapter is being begun. The contents and a chapter's end are quiet.
+  /// course's hello where the course is being begun. The catalog, a course's page and its end are quiet.
   void _go(_Place place) {
     final was = _place;
     final same = was is _AtLesson && place is _AtLesson && was.id == place.id;
+    if (!same) {
+      if (was is _AtCatalog && _scroll.hasClients) _catalogAt = _scroll.offset;
+      final old = _scroll;
+      _scroll = ScrollController(initialScrollOffset: place is _AtCatalog ? _catalogAt : 0);
+      _page += 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+    }
     setState(() {
       _place = place;
       if (!same) {
@@ -193,18 +226,20 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
     });
     if (same) return;
     if (place is _AtLesson) {
-      final lesson = lessons.where((one) => one.id == place.id).firstOrNull;
+      final lesson = lessonById(place.id);
       if (lesson == null) return;
-      final hello = chapterVoice(lesson.chapter);
-      final length = academyVoiceLengthsRead[hello];
-      final greet = _greeted != lesson.chapter && length != null;
-      _greeted = lesson.chapter;
+      final course = courseOf(lesson);
+      final hello = course.hello;
+      final length = hello == null ? null : academyVoiceLengthsRead[hello];
+      final greet = _greeted != course.id && hello != null && length != null;
+      _greeted = course.id;
       _voice.say([
         if (greet) (asset: academyVoiceAsset(hello), length: length),
-        (asset: academyVoiceAsset(lesson.id), length: null),
+        // A lesson past the web page's has no clip yet (voice.dart): said as nothing rather than as a missing file.
+        if (academyVoice.containsKey(lesson.id)) (asset: academyVoiceAsset(lesson.id), length: null),
       ]);
     } else {
-      if (place is _AtContents) _greeted = null;
+      if (place is _AtCatalog) _greeted = null;
       // Nothing to say, and nothing to say again if the speaker is switched on here.
       _voice.say(const []);
     }
@@ -228,35 +263,54 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final all = lessonsNow(_skipStandard);
-    final place = _place;
-    final lesson = place is _AtLesson ? all.where((one) => one.id == place.id).firstOrNull : null;
+    final all = courseLessonsNow(_skipStandard);
+    // A lesson no longer on offer (its plugin switched off while it was open) is its course's page.
+    var place = _place;
+    if (place is _AtLesson) {
+      final id = place.id;
+      if (!all.any((one) => one.id == id)) {
+        final gone = lessonById(id);
+        place = gone == null ? const _AtCatalog() : _AtCourse(courseOf(gone).id);
+      }
+    }
+    final lesson = place is _AtLesson ? lessonById(place.id) : null;
+    final Course? course;
+    if (lesson != null) {
+      course = courseOf(lesson);
+    } else if (place is _AtCourse) {
+      course = courseById(place.course);
+    } else if (place is _AtCourseEnd) {
+      course = courseById(place.course);
+    } else {
+      course = null;
+    }
     final passed = lesson != null && lesson.passes(_typed);
     final learned = all.where((one) => _done.contains(one.id)).length;
-    final chapter = lesson?.chapter ?? (place is _AtChapterEnd ? place.chapter : null);
-    final bars = chapter == null ? const <Lesson>[] : lessonsIn(chapter, all);
-    final atContents = place is _AtContents;
-    final look = chapter == null ? academyLook : lookOf(chapter);
+    final run = course == null ? const <Lesson>[] : course.among(all);
+    final bars = place is _AtLesson || place is _AtCourseEnd ? run : const <Lesson>[];
+    final atCatalog = place is _AtCatalog || course == null;
+    final look = course?.look ?? academyLook;
 
-    /// The lesson after this one; at the end of its chapter, that chapter's end page.
+    /// The lesson after this one in its course; after its last, the course's end page.
     void next(Lesson from) {
-      final at = all.indexOf(from) + 1;
-      final following = at < all.length ? all[at] : null;
-      _go(following != null && following.chapter == from.chapter ? _AtLesson(following.id) : _AtChapterEnd(from.chapter));
+      final its = courseOf(from).among(all);
+      final at = its.indexOf(from) + 1;
+      _go(at < its.length ? _AtLesson(its[at].id) : _AtCourseEnd(courseOf(from).id));
     }
 
-    /// A chapter, from its first lesson not learned yet, or its first if all are.
-    void startChapter(String name) {
-      final its = lessonsIn(name, all);
+    /// A course, from its first lesson not learned yet, or its first if all are; its page where none is on offer.
+    void startCourse(Course which) {
+      final its = which.among(all);
       final first = its.where((one) => !_done.contains(one.id)).firstOrNull ?? its.firstOrNull;
-      if (first != null) _go(_AtLesson(first.id));
+      _go(first != null ? _AtLesson(first.id) : _AtCourse(which.id));
     }
 
     final Widget card;
-    if (lesson != null) {
+    if (lesson != null && course != null) {
       card = _LessonCard(
         lesson: lesson,
-        chapter: lessonsIn(lesson.chapter, all),
+        course: course,
+        run: run,
         typed: _typed,
         onTyped: (text) => _setTyped(lesson, text),
         passed: passed,
@@ -266,10 +320,14 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
         onNext: () => next(lesson),
         extensions: widget.extensions,
       );
-    } else if (place is _AtChapterEnd) {
-      card = _ChapterEnd(chapter: place.chapter, lessons: all, done: _done, onAgain: (id) => _go(_AtLesson(id)), onNextChapter: startChapter, onContents: () => _go(const _AtContents()));
+    } else if (place is _AtCourseEnd && course != null) {
+      card = _CourseEnd(course: course, lessons: all, done: _done, onAgain: (id) => _go(_AtLesson(id)), onNextCourse: startCourse, onCatalog: () => _go(const _AtCatalog()));
+    } else if (place is _AtCourse && course != null) {
+      final shown = course;
+      card = _CoursePage(course: shown, lessons: all, done: _done, skipStandard: _skipStandard, onLesson: (id) => _go(_AtLesson(id)), onStart: () => startCourse(shown), onTurnOn: () => turnOnAcademyTool(shown.tool!));
     } else {
-      card = _Contents(
+      final simpleMode = widget.simple ?? preferences.value.simple;
+      card = _Catalog(
         lessons: all,
         done: _done,
         skipStandard: _skipStandard,
@@ -278,7 +336,8 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
           writeSkipStandard(skip);
         },
         onLesson: (id) => _go(_AtLesson(id)),
-        onChapter: startChapter,
+        onCourse: (id) => _go(_AtCourse(id)),
+        onTurnOn: turnOnAcademyTool,
         onStartOver: () {
           setState(() => _done = <String>{});
           writeProgress(const <String>{});
@@ -286,14 +345,26 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
           if (first != null) _go(_AtLesson(first.id));
         },
         onCheatSheet: widget.onCheatSheet,
-        simple: (widget.simple ?? preferences.value.simple) && !_moreChapters,
-        onMore: () => setState(() => _moreChapters = true),
+        shelf: _shelf,
+        onShelf: (shelf) => setState(() => _shelf = shelf),
+        chips: !simpleMode,
+        simple: simpleMode && !_moreCourses,
+        onMore: () => setState(() => _moreCourses = true),
       );
     }
 
     final ink = t.color('app-ink');
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
-    void back() => atContents ? widget.onDone() : _go(const _AtContents());
+    // Back goes up a level: a lesson and a course's end to the course, a course to the catalog, the catalog out.
+    void back() {
+      if (atCatalog) {
+        widget.onDone();
+      } else if (place is _AtCourse) {
+        _go(const _AtCatalog());
+      } else {
+        _go(_AtCourse(course!.id));
+      }
+    }
 
     // `.top`
     final top = Padding(
@@ -305,7 +376,11 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
           GlacierPressable(
             key: const ValueKey('academy-back'),
             onPressed: back,
-            semanticLabel: atContents ? 'Close the Academy' : 'The Academy’s chapters',
+            semanticLabel: atCatalog
+                ? 'Close the Academy'
+                : place is _AtCourse
+                ? 'All courses'
+                : 'The course’s lessons',
             builder: (context, state) => GlacierFocusRing(
               visible: state.focused,
               radius: t.radius('full'),
@@ -321,7 +396,7 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
                 // `.heading { gap: var(--glacier-space-2) }`
                 spacing: t.space(2),
                 children: [
-                  // The mortarboard in the colour of the chapter being taken, or the Academy's own on its contents.
+                  // The mortarboard in the colour of the course being taken, or the Academy's own on its catalog.
                   ExcludeSemantics(child: AppIcon(Lucide.graduationCap, size: 18, color: look.ink(t))),
                   Flexible(child: Text('Ghost Academy', style: t.textAt(t.fontSize('md'), weight: 'semibold', color: ink))),
                 ],
@@ -342,12 +417,14 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
     );
 
     return OnBack(
-      // Back from a lesson or a chapter's end is the contents; from the contents, out of the Academy.
+      // Back goes up a level, and out of the Academy from its catalog.
       onBack: back,
       child: ColoredBox(
         color: t.color('glacier-bg'),
         child: LayoutBuilder(
           builder: (context, box) => SingleChildScrollView(
+            key: ValueKey('academy-page:$_page'),
+            controller: _scroll,
             child: ConstrainedBox(
               // `.screen { min-block-size: 100dvh }`
               constraints: BoxConstraints(minHeight: box.maxHeight.isFinite ? box.maxHeight : 0),
@@ -355,7 +432,7 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   top,
-                  // A bar for every lesson of the chapter: faint to come, ink for learned, lit for the one being taken.
+                  // A bar for every lesson of the course: faint to come, its colour for learned, lit for the one being taken.
                   if (bars.isNotEmpty)
                     ExcludeSemantics(
                       child: Padding(
@@ -373,10 +450,10 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
                   // `.page`
                   Padding(
                     padding: EdgeInsets.only(left: gutterStart, right: gutterEnd, top: t.space(4), bottom: t.len('app-safe-bottom') + t.space(8)),
-                    // `.card { max-inline-size: 42rem; margin-inline: auto }`
+                    // `.card { max-inline-size: 42rem; margin-inline: auto }`; the catalog wider, for its grid.
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: t.lenOf('42rem')),
+                        constraints: BoxConstraints(maxWidth: t.lenOf(atCatalog ? '72rem' : '42rem')),
                         child: KeyedSubtree(key: const ValueKey('academy-card'), child: card),
                       ),
                     ),
@@ -410,7 +487,7 @@ TextStyle _buttonText(Tokens t, double px, {String weight = 'regular', Color? co
   return tabular ? _tabular(style) : style;
 }
 
-/// `.bar`: one lesson of the chapter being taken, in the chapter's colour ([hue]): the one in hand full, the learned
+/// `.bar`: one lesson of the course being taken, in the course's colour ([hue]): the one in hand full, the learned
 /// ones a little lighter, the ones to come the page's faint rule.
 class _Bar extends StatelessWidget {
   const _Bar({required this.done, required this.now, required this.hue});
@@ -455,7 +532,7 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, spacing: context.tokens.space(3), children: children);
 }
 
-/// `.chapter`: where this is, in small spaced capitals, in the chapter's colour ([look]).
+/// `.chapter`: where this is, in small spaced capitals, in the course's colour ([look]).
 Widget _eyebrow(Tokens t, String words, ChapterLook look) {
   final xs = t.fontSize('xs');
   return Text(words.toUpperCase(), key: const ValueKey('academy-chapter'), style: t.textAt(xs, weight: 'semibold', color: look.ink(t), tracking: t.len('app-tracking-caps', em: xs)));
@@ -478,7 +555,8 @@ Widget _lined(Tokens t, String words, double px, double leading, TextStyle style
 class _LessonCard extends StatelessWidget {
   const _LessonCard({
     required this.lesson,
-    required this.chapter,
+    required this.course,
+    required this.run,
     required this.typed,
     required this.onTyped,
     required this.passed,
@@ -490,9 +568,10 @@ class _LessonCard extends StatelessWidget {
   });
 
   final Lesson lesson;
+  final Course course;
 
-  /// The lessons of its chapter, for where it is among them.
-  final List<Lesson> chapter;
+  /// The lessons of its course on offer, for where it is among them.
+  final List<Lesson> run;
   final String typed;
   final ValueChanged<String> onTyped;
   final bool passed;
@@ -506,8 +585,8 @@ class _LessonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final ink = t.color('app-ink');
-    final look = lookOf(lesson.chapter);
-    final at = chapter.indexOf(lesson) + 1;
+    final look = course.look;
+    final at = run.indexOf(lesson) + 1;
     final Widget said;
     if (passed) {
       // `.praise`
@@ -528,14 +607,14 @@ class _LessonCard extends StatelessWidget {
     }
     return _Card(
       children: [
-        LessonBand(chapter: lesson.chapter, symbol: lesson.symbol),
-        _eyebrow(t, 'Chapter ${chapters.indexOf(lesson.chapter) + 1} · ${lesson.chapter} · $at of ${chapter.length}', look),
+        LessonBand(look: look, symbol: lesson.symbol),
+        _eyebrow(t, '${course.title} · $at of ${run.length}', look),
         _title(t, lesson.title),
         _teach(t, teachOf(lesson)),
         // `.example`: the line to look at, in the typewriter face, with a way to have it written for you.
         DecoratedBox(
           key: const ValueKey('academy-example'),
-          // A wash of the chapter's colour, where the page's was the ink's.
+          // A wash of the course's colour, where the page's was the ink's.
           decoration: BoxDecoration(color: look.wash(t), borderRadius: BorderRadius.circular(t.radius('md'))),
           child: Padding(
             padding: EdgeInsets.all(t.space(3)),
@@ -565,35 +644,68 @@ class _LessonCard extends StatelessWidget {
   }
 }
 
-/// The contents, where the Academy opens: a way on from where it was left, the switch for a person who knows
-/// Markdown already, and the chapters, each with what it covers and how much of it is learned. Once everything is
-/// learned it is also the summary, with every chapter to take again (`Contents`).
-class _Contents extends StatelessWidget {
-  const _Contents({
+/// What a shelf is, said under its name in the catalog.
+String _shelfAbout(CourseShelf shelf) => switch (shelf) {
+  CourseShelf.markdown => 'What any Markdown app reads the same way.',
+  CourseShelf.ghost => 'What Ghost draws of its own, built in.',
+  CourseShelf.plugins => 'A course for each plugin with something to type. One that is off can be turned on from its card.',
+};
+
+/// How much of [course] is learned, of what is on offer of it ([lessons]): its lessons there, those learned, whether
+/// it is open (its plugin on), and whether every lesson of it is left out as standard Markdown.
+({List<Lesson> its, int learned, bool open, bool skipped, int total}) _standing(Course course, List<Lesson> lessons, Set<String> done, bool skipStandard) {
+  final open = courseOpen(course);
+  final its = course.among(lessons);
+  final skipped = skipStandard && course.all.every((lesson) => lesson.standard);
+  // Off, a course counts what it would teach once on.
+  final total = open ? its.length : course.all.where((lesson) => !(skipStandard && lesson.standard)).length;
+  return (its: its, learned: its.where((lesson) => done.contains(lesson.id)).length, open: open, skipped: skipped, total: total);
+}
+
+/// `3 lessons · 6 min`.
+String _lessonsWords(Course course, int total) => '$total ${total == 1 ? 'lesson' : 'lessons'} · ${course.minutesFor(total)} min';
+
+/// The catalog, where the Academy opens (`Contents` on the page, which was a list of seven chapters): the course in
+/// progress with its way on, the switch for a person who knows Markdown already, chips for the shelves, and each
+/// shelf's courses as cards. Once everything is learned it is also the summary, with every course to take again.
+class _Catalog extends StatelessWidget {
+  const _Catalog({
     required this.lessons,
     required this.done,
     required this.skipStandard,
     required this.onSkipStandard,
     required this.onLesson,
-    required this.onChapter,
+    required this.onCourse,
+    required this.onTurnOn,
     required this.onStartOver,
     required this.onCheatSheet,
+    required this.shelf,
+    required this.onShelf,
+    this.chips = true,
     this.simple = false,
     this.onMore,
   });
 
   final List<Lesson> lessons;
   final Set<String> done;
-
-  /// Simple's contents, More not yet pressed: the two Markdown chapters, and a row for the rest.
-  final bool simple;
-  final VoidCallback? onMore;
   final bool skipStandard;
   final ValueChanged<bool> onSkipStandard;
   final ValueChanged<String> onLesson;
-  final ValueChanged<String> onChapter;
+  final ValueChanged<String> onCourse;
+  final ValueChanged<String> onTurnOn;
   final VoidCallback onStartOver;
   final VoidCallback onCheatSheet;
+
+  /// The shelf its chip chose; every shelf while null.
+  final CourseShelf? shelf;
+  final ValueChanged<CourseShelf?> onShelf;
+
+  /// Whether the shelves have chips: not in Simple.
+  final bool chips;
+
+  /// Simple's catalog, More not yet pressed: the Markdown shelf, and a row for the rest.
+  final bool simple;
+  final VoidCallback? onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -602,8 +714,8 @@ class _Contents extends StatelessWidget {
     final left = lessons.where((lesson) => !done.contains(lesson.id)).firstOrNull;
     final begun = lessons.any((lesson) => done.contains(lesson.id));
     final sm = t.fontSize('sm');
-    // In Simple the chapters of Ghost's own marks wait behind More, which opens in place.
-    final shown = simple ? chapters.take(_simpleChapters).toList() : chapters;
+    final shelves = simple ? const [CourseShelf.markdown] : (chips && shelf != null ? [shelf!] : CourseShelf.values);
+    final hidden = simple ? courses.where((course) => course.shelf != CourseShelf.markdown).length : 0;
     return _Card(
       children: [
         const AcademyHero(),
@@ -618,15 +730,10 @@ class _Contents extends StatelessWidget {
         _teach(
           t,
           left != null
-              ? 'A mark at a time: what it does, an example, and a line of your own to write, drawn as the note draws it while you type.'
-              : 'Every mark a note can carry is one you can now write by hand. The Markdown ones read the same in any app that knows Markdown, and Ghost’s own read as plain words there. Take any chapter again below.',
+              ? 'Courses of short lessons, a mark at a time: what it does, an example, and a line of your own to write, drawn as the note draws it while you type.'
+              : 'Every mark a note can carry is one you can now write by hand. The Markdown ones read the same in any app that knows Markdown, and Ghost’s own read as plain words there. Take any course again below.',
         ),
-        if (left != null)
-          // `.go { justify-self: start }`
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _Pill(key: const ValueKey('academy-go'), onPressed: () => onLesson(left.id), label: begun ? 'Continue: ${left.title}' : 'Start', after: Lucide.arrowRight),
-          ),
+        if (left != null) _ContinueCard(course: courseOf(left), next: left, lessons: lessons, done: done, begun: begun, onGo: () => onLesson(left.id)),
         // `.skip`: the switch for a person who knows Markdown already, its words, and Glacier's switch at the end.
         MergeSemantics(
           child: GestureDetector(
@@ -666,19 +773,45 @@ class _Contents extends StatelessWidget {
             ),
           ),
         ),
-        // `.chapters { gap: 1px }`, a little more between rows that each wear a colour.
+        if (chips) _ShelfChips(shelf: shelf, onShelf: onShelf),
         Semantics(
-          label: 'Chapters',
+          label: 'Courses',
           container: true,
           explicitChildNodes: true,
           child: Column(
-            key: const ValueKey('academy-chapters'),
+            key: const ValueKey('academy-courses'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            spacing: t.space(2),
+            spacing: t.space(6),
             children: [
-              for (final (index, chapter) in shown.indexed) _chapterRow(context, index, chapter),
-              if (shown.length < chapters.length) _moreRow(context, chapters.length - shown.length),
+              for (final each in shelves)
+                Column(
+                  key: ValueKey('shelf-courses:${each.name}'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: t.space(3),
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 2,
+                        children: [
+                          Text(each.label, style: t.textAt(t.fontSize('lg'), weight: 'semibold', color: ink)),
+                          Text(_shelfAbout(each), style: t.textAt(sm, color: quiet)),
+                        ],
+                      ),
+                    ),
+                    _CourseGrid(
+                      children: [
+                        for (final course in courses.where((one) => one.shelf == each))
+                          _CourseCard(course: course, lessons: lessons, done: done, skipStandard: skipStandard, onOpen: () => onCourse(course.id), onTurnOn: () => onTurnOn(course.tool!)),
+                      ],
+                    ),
+                  ],
+                ),
+              if (hidden > 0) _moreRow(context, hidden),
             ],
           ),
         ),
@@ -691,66 +824,14 @@ class _Contents extends StatelessWidget {
     );
   }
 
-  /// `.chapterRow`, in the chapter's colour: its sign on a tile of its wash (a tick once all of it is learned), a
-  /// faint wash of the colour behind the row, and its count in the colour.
-  Widget _chapterRow(BuildContext context, int index, String chapter) {
-    final t = context.tokens;
-    final ink = t.color('app-ink'), quiet = t.color('app-ink-3');
-    final look = lookOf(chapter);
-    final its = lessonsIn(chapter, lessons);
-    final learned = its.where((lesson) => done.contains(lesson.id)).length;
-    final skipped = its.isEmpty;
-    final all = its.isNotEmpty && learned == its.length;
-    final sm = t.fontSize('sm');
-    return GlacierPressable(
-      key: ValueKey('chapter:$chapter'),
-      onPressed: skipped ? null : () => onChapter(chapter),
-      semanticLabel: 'Chapter ${index + 1}, $chapter',
-      builder: (context, state) => GlacierFocusRing(
-        visible: state.focused,
-        radius: t.radius('lg'),
-        // `.chapterRow:disabled { opacity: 0.45 }`
-        child: Opacity(
-          opacity: skipped ? 0.45 : 1,
-          // The row is named by its chapter (`aria-label`), not by everything written in it.
-          child: _Named(
-            constraints: BoxConstraints(minHeight: t.space(12)),
-            padding: EdgeInsets.symmetric(vertical: t.space(3), horizontal: t.space(3)),
-            // Deeper while pressed or under a pointer, as the page's row was lit then.
-            decoration: BoxDecoration(color: look.wash(t, light: !skipped && (state.hovered || state.pressed) ? 0.14 : 0.07, dark: !skipped && (state.hovered || state.pressed) ? 0.24 : 0.14), borderRadius: BorderRadius.circular(t.radius('lg'))),
-            child: Row(
-              spacing: t.space(3),
-              children: [
-                ChapterTile(key: ValueKey('chapter-number:$chapter'), chapter: chapter, learned: all),
-                Expanded(
-                  child: Column(
-                    key: ValueKey('chapter-words:$chapter'),
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 2,
-                    children: [
-                      Text(chapter, key: ValueKey('chapter-title:$chapter'), style: _buttonText(t, _buttonSize, weight: 'semibold', color: ink)),
-                      _lined(t, chapterAbout[chapter]!, sm, t.len('glacier-leading-md'), _buttonText(t, sm, color: quiet, height: t.len('glacier-leading-md')), key: ValueKey('chapter-about:$chapter')),
-                    ],
-                  ),
-                ),
-                Text(skipped ? 'Skipped' : '$learned/${its.length}', key: ValueKey('chapter-count:$chapter'), style: _buttonText(t, t.fontSize('xs'), weight: 'semibold', color: skipped ? quiet : look.ink(t), tabular: true)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Simple's More: the chapters still to come, opened where they are (GHST-103).
+  /// Simple's More: the shelves still to come, opened where they are (GHST-103).
   Widget _moreRow(BuildContext context, int more) {
     final t = context.tokens;
     final quiet = t.color('app-ink-3');
     return GlacierPressable(
-      key: const ValueKey('academy-more-chapters'),
+      key: const ValueKey('academy-more-courses'),
       onPressed: onMore,
-      semanticLabel: 'More chapters',
+      semanticLabel: 'More courses',
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         radius: t.radius('lg'),
@@ -765,8 +846,8 @@ class _Contents extends StatelessWidget {
           child: Row(
             spacing: t.space(3),
             children: [
-              // The Academy's own wash, for the chapters still behind it.
-              const ChapterTile(chapter: '', learned: false, icon: Lucide.layoutGrid),
+              // The Academy's own wash, for the courses still behind it.
+              const CourseTile(look: academyLook, learned: false, icon: Lucide.layoutGrid),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -774,7 +855,7 @@ class _Contents extends StatelessWidget {
                   spacing: 2,
                   children: [
                     Text('More', style: _buttonText(t, _buttonSize, weight: 'semibold', color: t.color('app-ink'))),
-                    Text('$more more chapters on what only Ghost draws: tags, boards, tickets, effects.', style: _buttonText(t, t.fontSize('sm'), color: quiet, height: t.len('glacier-leading-md'))),
+                    Text('$more more courses on what only Ghost draws: smart lines, queries, and one for each plugin, Gantt charts among them.', style: _buttonText(t, t.fontSize('sm'), color: quiet, height: t.len('glacier-leading-md'))),
                   ],
                 ),
               ),
@@ -787,8 +868,510 @@ class _Contents extends StatelessWidget {
   }
 }
 
-/// How many chapters Simple's contents show before More: the two of Markdown any app reads.
-const int _simpleChapters = 2;
+/// The course in progress, at the top of the catalog: its colour and sign, its name, the lesson next, its bar, and
+/// the way on, Resume (Start before anything of it is learned, and Up next once the course before it is done).
+class _ContinueCard extends StatelessWidget {
+  const _ContinueCard({required this.course, required this.next, required this.lessons, required this.done, required this.begun, required this.onGo});
+
+  final Course course;
+  final Lesson next;
+  final List<Lesson> lessons;
+  final Set<String> done;
+  final bool begun;
+  final VoidCallback onGo;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final look = course.look;
+    final its = course.among(lessons);
+    final learned = its.where((lesson) => done.contains(lesson.id)).length;
+    final xs = t.fontSize('xs');
+    return Container(
+      key: const ValueKey('academy-continue'),
+      padding: EdgeInsets.all(t.space(4)),
+      decoration: BoxDecoration(color: look.wash(t, light: 0.07, dark: 0.14), border: Border.all(color: look.ink(t).withValues(alpha: 0.25)), borderRadius: BorderRadius.circular(t.radius('lg'))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: t.space(3),
+        children: [
+          Row(
+            spacing: t.space(3),
+            children: [
+              ExcludeSemantics(child: CourseTile(look: look, learned: false, size: 48)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 2,
+                  children: [
+                    Text((learned > 0 ? 'Continue learning' : begun ? 'Up next' : 'Start here').toUpperCase(), style: t.textAt(xs, weight: 'semibold', color: look.ink(t), tracking: t.len('app-tracking-caps', em: xs))),
+                    Text(course.title, key: const ValueKey('academy-continue-course'), style: t.textAt(t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink'))),
+                    Text('Next: ${next.title}', key: const ValueKey('academy-continue-next'), style: t.textAt(t.fontSize('sm'), color: t.color('app-ink-3'))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Row(
+            spacing: t.space(3),
+            children: [
+              Expanded(child: _Progress(of: its.isEmpty ? 0 : learned / its.length, hue: look.ink(t))),
+              Text('$learned of ${its.length}', style: _tabular(t.textAt(xs, weight: 'semibold', color: look.ink(t)))),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _Pill(key: const ValueKey('academy-go'), onPressed: onGo, label: learned > 0 ? 'Resume' : 'Start', after: Lucide.arrowRight, colours: look.colours),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The shelves' chips across the catalog: All, then each shelf with how many courses it has; the one chosen inked.
+class _ShelfChips extends StatelessWidget {
+  const _ShelfChips({required this.shelf, required this.onShelf});
+  final CourseShelf? shelf;
+  final ValueChanged<CourseShelf?> onShelf;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    Widget chip(CourseShelf? which, String label) {
+      final on = which == shelf;
+      return GlacierPressable(
+        key: ValueKey('shelf:${which?.name ?? 'all'}'),
+        onPressed: () => onShelf(which),
+        semanticLabel: label,
+        builder: (context, state) => GlacierFocusRing(
+          visible: state.focused,
+          radius: t.radius('full'),
+          child: Semantics(
+            selected: on,
+            child: Container(
+              height: t.space(10),
+              padding: EdgeInsets.symmetric(horizontal: t.space(4)),
+              decoration: BoxDecoration(
+                color: on ? t.color('app-ink') : (state.hovered || state.pressed ? t.color('app-ink').withValues(alpha: 0.06) : null),
+                border: Border.all(color: on ? t.color('app-ink') : t.color('app-rule')),
+                borderRadius: BorderRadius.circular(t.radius('full')),
+              ),
+              child: Center(widthFactor: 1, child: Text(label, style: t.textAt(t.fontSize('sm'), weight: 'medium', color: on ? t.color('app-paper') : t.color('app-ink-2')))),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // One line, scrolling sideways where a narrow phone has no room for all four.
+    return SingleChildScrollView(
+      key: const ValueKey('academy-shelves'),
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        spacing: t.space(2),
+        children: [
+          chip(null, 'All'),
+          for (final each in CourseShelf.values) chip(each, '${each.label} · ${courses.where((course) => course.shelf == each).length}'),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cards in rows: one across on a phone, two on the opened Fold and a tablet, three on a wide window; each row as tall
+/// as its tallest card.
+class _CourseGrid extends StatelessWidget {
+  const _CourseGrid({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = context.tokens.space(3);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final across = box.maxWidth >= 900
+            ? 3
+            : box.maxWidth >= 540
+            ? 2
+            : 1;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          spacing: gap,
+          children: [
+            for (var at = 0; at < children.length; at += across)
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: gap,
+                  children: [
+                    for (var n = at; n < at + across; n += 1) Expanded(child: n < children.length ? children[n] : const SizedBox.shrink()),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A course on its shelf: a band of its colour with its sign, its name and what it is about, its level, lessons and
+/// minutes, and its bar, a tick once it is learned. A course whose plugin is off says so, with the chip to turn it
+/// on under it; one of standard Markdown alone, for a person who knows it, is skipped.
+class _CourseCard extends StatelessWidget {
+  const _CourseCard({required this.course, required this.lessons, required this.done, required this.skipStandard, required this.onOpen, required this.onTurnOn});
+
+  final Course course;
+  final List<Lesson> lessons;
+  final Set<String> done;
+  final bool skipStandard;
+  final VoidCallback onOpen;
+  final VoidCallback onTurnOn;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final look = course.look;
+    final ink = t.color('app-ink'), quiet = t.color('app-ink-3');
+    final standing = _standing(course, lessons, done, skipStandard);
+    final complete = standing.open && standing.its.isNotEmpty && standing.learned == standing.its.length;
+    final tool = course.tool;
+    final sm = t.fontSize('sm'), xs = t.fontSize('xs');
+    final label = [
+      course.title,
+      course.level.label,
+      _lessonsWords(course, standing.total).replaceAll(' · ', ', ').replaceAll(' min', ' minutes'),
+      if (!standing.open && tool != null) 'needs ${academyToolName(tool)}',
+      if (standing.skipped) 'skipped',
+      if (complete) 'completed' else if (standing.open && !standing.skipped) '${standing.learned} of ${standing.total} learned',
+    ].join(', ');
+    final Widget foot;
+    if (standing.skipped) {
+      foot = Text('Skipped', key: ValueKey('course-count:${course.id}'), style: t.textAt(xs, weight: 'semibold', color: quiet));
+    } else if (complete) {
+      foot = Row(
+        key: ValueKey('course-count:${course.id}'),
+        spacing: t.space(2),
+        children: [
+          AppIcon(Lucide.circleCheck, size: 16, strokeWidth: 2.4, color: look.ink(t)),
+          Text('Completed', style: t.textAt(xs, weight: 'semibold', color: look.ink(t))),
+        ],
+      );
+    } else if (standing.open) {
+      foot = Row(
+        spacing: t.space(3),
+        children: [
+          Expanded(child: _Progress(of: standing.total == 0 ? 0 : standing.learned / standing.total, hue: look.ink(t))),
+          Text('${standing.learned}/${standing.total}', key: ValueKey('course-count:${course.id}'), style: _tabular(t.textAt(xs, weight: 'semibold', color: look.ink(t)))),
+        ],
+      );
+    } else {
+      foot = Row(
+        key: ValueKey('course-count:${course.id}'),
+        spacing: t.space(2),
+        children: [
+          AppIcon(academyToolIcon(tool!), size: 14, color: quiet),
+          Flexible(child: Text('Needs ${academyToolName(tool)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textAt(xs, weight: 'semibold', color: quiet))),
+        ],
+      );
+    }
+    final body = GlacierPressable(
+      key: ValueKey('course:${course.id}'),
+      onPressed: standing.skipped ? null : onOpen,
+      semanticLabel: label,
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        radius: t.radius('lg'),
+        child: Opacity(
+          opacity: standing.skipped ? 0.45 : 1,
+          child: _Named(
+            constraints: const BoxConstraints(),
+            padding: EdgeInsets.zero,
+            decoration: BoxDecoration(color: !standing.skipped && (state.hovered || state.pressed) ? look.wash(t, light: 0.08, dark: 0.16) : null),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CourseStrip(look: look, complete: complete),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(t.space(4)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: t.space(2),
+                      children: [
+                        Text(course.title, key: ValueKey('course-title:${course.id}'), style: t.textAt(t.fontSize('md'), weight: 'semibold', color: ink)),
+                        Text(course.about, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.textAt(sm, color: quiet, height: t.len('glacier-leading-md'))),
+                        Wrap(
+                          spacing: t.space(2),
+                          runSpacing: t.space(1),
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _Tag(words: course.level.label, hue: look.ink(t)),
+                            Text(_lessonsWords(course, standing.total), style: t.textAt(xs, color: quiet)),
+                          ],
+                        ),
+                        const Spacer(),
+                        foot,
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(color: t.color('glacier-bg'), border: Border.all(color: t.color('app-rule')), borderRadius: BorderRadius.circular(t.radius('lg'))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: body),
+          // The app's own chip, as a fence of a plugin that is off has under it (docs/PM_PLUGINS.md §5).
+          if (!standing.open && tool != null)
+            Padding(
+              padding: EdgeInsets.only(left: t.space(4), right: t.space(4), bottom: t.space(4)),
+              child: KeyedSubtree(key: ValueKey('course-turn-on:${course.id}'), child: ToolChip(tools: [tool], onPress: onTurnOn)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The band across the top of a course's card: its wash, its sign on a tile of glass, a few of its icons faint at the
+/// far end, and a tick there once it is learned.
+class _CourseStrip extends StatelessWidget {
+  const _CourseStrip({required this.look, required this.complete});
+  final ChapterLook look;
+  final bool complete;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final colours = look.colours;
+    const white = Color(0xFFFFFFFF);
+    return Container(
+      height: 76,
+      padding: EdgeInsets.symmetric(horizontal: t.space(4)),
+      decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colours.length > 1 ? colours : [colours.first, colours.first])),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0x59FFFFFF), width: 1.5)),
+            child: AppIcon(look.icon, size: 24, strokeWidth: 2.2, color: white),
+          ),
+          const Spacer(),
+          if (complete)
+            const AppIcon(Lucide.circleCheck, size: 22, strokeWidth: 2.4, color: white)
+          else
+            for (final (index, icon) in look.tiles.take(3).indexed) Padding(padding: EdgeInsets.only(left: index == 0 ? 0 : t.space(2)), child: AppIcon(icon, size: 16, strokeWidth: 2, color: white.withValues(alpha: 0.6))),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small tag of words in a hue: a course's level.
+class _Tag extends StatelessWidget {
+  const _Tag({required this.words, required this.hue});
+  final String words;
+  final Color hue;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
+      decoration: BoxDecoration(color: hue.withValues(alpha: t.isDark ? 0.18 : 0.1), borderRadius: BorderRadius.circular(t.radius('full'))),
+      child: Text(words, style: t.textAt(t.fontSize('xs'), weight: 'semibold', color: hue)),
+    );
+  }
+}
+
+/// A bar of how much is learned, [of] from 0 to 1, in [hue] on a faint wash of it.
+class _Progress extends StatelessWidget {
+  const _Progress({required this.of, required this.hue});
+  final double of;
+  final Color hue;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ExcludeSemantics(
+      child: Container(
+        height: 6,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(color: hue.withValues(alpha: t.isDark ? 0.22 : 0.14), borderRadius: BorderRadius.circular(t.radius('full'))),
+        child: FractionallySizedBox(
+          alignment: Alignment.centerLeft,
+          widthFactor: of.clamp(0, 1).toDouble(),
+          child: DecoratedBox(decoration: BoxDecoration(color: hue, borderRadius: BorderRadius.circular(t.radius('full')))),
+        ),
+      ),
+    );
+  }
+}
+
+/// A row for one lesson of a course (`.again` on the page's chapter end): a tick once it is learned, its name, and
+/// its mark; pressed, the lesson. Dimmed, and pressing nothing, where it is not on offer, with why at its end.
+Widget _lessonRow(BuildContext context, Lesson lesson, {required ChapterLook look, required bool learned, required VoidCallback? onPressed, String? why}) {
+  final t = context.tokens;
+  final ink = t.color('app-ink');
+  return GlacierPressable(
+    key: ValueKey('again:${lesson.id}'),
+    onPressed: onPressed,
+    semanticLabel: [lesson.title, if (learned) 'learned', ?why].join(', '),
+    builder: (context, state) => GlacierFocusRing(
+      visible: state.focused,
+      radius: t.radius('md'),
+      child: Opacity(
+        opacity: onPressed == null ? 0.45 : 1,
+        child: _Named(
+          constraints: BoxConstraints(minHeight: t.space(10)),
+          // A button's own `padding-block: 1px`, which the rule leaves as it is.
+          padding: EdgeInsets.symmetric(vertical: 1, horizontal: t.space(3)),
+          decoration: BoxDecoration(color: onPressed != null && (state.hovered || state.pressed) ? ink.withValues(alpha: 0.06) : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+          child: Row(
+            spacing: t.space(3),
+            children: [
+              // `.againTick { inline-size: 1.4em; block-size: 1.4em }`, of the button's own size.
+              Container(
+                key: ValueKey('again-tick:${lesson.id}'),
+                width: 1.4 * _buttonSize,
+                height: 1.4 * _buttonSize,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: learned ? look.colours.first : look.wash(t, light: 0.14, dark: 0.24), shape: BoxShape.circle),
+                child: learned ? const AppIcon(Lucide.check, size: 14, strokeWidth: 2.6, color: Color(0xFFFFFFFF)) : null,
+              ),
+              Expanded(child: Text(lesson.title, key: ValueKey('again-name:${lesson.id}'), style: _buttonText(t, _buttonSize, color: ink))),
+              // `.againMark { max-inline-size: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }`
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 0.45 * (MediaQuery.sizeOf(context).width - t.len('app-gutter-start') - t.len('app-gutter-end') - 2 * t.space(3))),
+                child: Text(
+                  why ?? lesson.symbol,
+                  key: ValueKey('again-mark:${lesson.id}'),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: why != null ? t.textAt(t.fontSize('xs'), color: t.color('app-ink-3')) : t.textAt(t.fontSize('xs'), mono: true, color: t.color('app-ink-3')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// A course's page: its band, what it is, how far through it is, the way in (or the chip that turns its plugin on),
+/// and every lesson of it with its tick.
+class _CoursePage extends StatelessWidget {
+  const _CoursePage({required this.course, required this.lessons, required this.done, required this.skipStandard, required this.onLesson, required this.onStart, required this.onTurnOn});
+
+  final Course course;
+  final List<Lesson> lessons;
+  final Set<String> done;
+  final bool skipStandard;
+  final ValueChanged<String> onLesson;
+  final VoidCallback onStart;
+  final VoidCallback onTurnOn;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final look = course.look;
+    final standing = _standing(course, lessons, done, skipStandard);
+    final complete = standing.open && standing.its.isNotEmpty && standing.learned == standing.its.length;
+    final tool = course.tool;
+    final sm = t.fontSize('sm');
+    return _Card(
+      children: [
+        CourseBand(look: look),
+        _eyebrow(t, '${course.shelf.label} · ${course.level.label}', look),
+        _title(t, course.title),
+        _teach(t, course.about),
+        Text(
+          [_lessonsWords(course, standing.total), if (standing.open && standing.learned > 0) '${standing.learned} learned'].join(' · '),
+          key: const ValueKey('academy-course-meta'),
+          style: t.textAt(sm, color: t.color('app-ink-3')),
+        ),
+        if (standing.open && standing.its.isNotEmpty) ...[
+          _Progress(of: standing.learned / standing.its.length, hue: look.ink(t)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _Pill(
+              key: const ValueKey('academy-course-start'),
+              onPressed: onStart,
+              label: complete
+                  ? 'Take it again'
+                  : standing.learned > 0
+                  ? 'Resume'
+                  : 'Start',
+              after: Lucide.arrowRight,
+              colours: look.colours,
+            ),
+          ),
+        ],
+        if (!standing.open && tool != null)
+          Container(
+            key: const ValueKey('academy-needs'),
+            padding: EdgeInsets.all(t.space(3)),
+            decoration: BoxDecoration(color: look.wash(t), borderRadius: BorderRadius.circular(t.radius('md'))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              spacing: t.space(3),
+              children: [
+                _lined(
+                  t,
+                  'This course is taught with the ${academyToolName(tool)} plugin, which is off. Turn it on to take the course; its lessons are below.',
+                  sm,
+                  t.len('glacier-leading-md'),
+                  t.textAt(sm, color: t.color('app-ink-2'), height: t.len('glacier-leading-md')),
+                ),
+                KeyedSubtree(key: const ValueKey('academy-turn-on'), child: ToolChip(tools: [tool], onPress: onTurnOn)),
+              ],
+            ),
+          ),
+        // `.list { gap: 1px }`
+        Column(
+          key: const ValueKey('academy-list'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          spacing: 1,
+          children: [
+            for (final lesson in course.all)
+              _lessonRow(
+                context,
+                lesson,
+                look: look,
+                learned: done.contains(lesson.id),
+                onPressed: standing.its.contains(lesson) ? () => onLesson(lesson.id) : null,
+                why: standing.its.contains(lesson)
+                    ? null
+                    : !standing.open
+                    ? 'Off'
+                    : skipStandard && lesson.standard
+                    ? 'Skipped'
+                    : 'Its mark is off',
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
 
 /// A box whose own name stands for what is in it: a `Container` under `ExcludeSemantics`.
 class _Named extends StatelessWidget {
@@ -806,32 +1389,32 @@ class _Named extends StatelessWidget {
 /// A browser's own size for a button's words, where no rule gives one: `13.3333px`.
 const double _buttonSize = 40 / 3;
 
-/// The end of a chapter: what it taught, any lesson to take again, and the chapter after it (`ChapterEnd`).
-class _ChapterEnd extends StatelessWidget {
-  const _ChapterEnd({required this.chapter, required this.lessons, required this.done, required this.onAgain, required this.onNextChapter, required this.onContents});
+/// The end of a course: what it taught, any lesson to take again, and the course after it (`ChapterEnd` on the page).
+class _CourseEnd extends StatelessWidget {
+  const _CourseEnd({required this.course, required this.lessons, required this.done, required this.onAgain, required this.onNextCourse, required this.onCatalog});
 
-  final String chapter;
+  final Course course;
   final List<Lesson> lessons;
   final Set<String> done;
   final ValueChanged<String> onAgain;
-  final ValueChanged<String> onNextChapter;
-  final VoidCallback onContents;
+  final ValueChanged<Course> onNextCourse;
+  final VoidCallback onCatalog;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final ink = t.color('app-ink');
-    final look = lookOf(chapter);
-    final its = lessonsIn(chapter, lessons);
+    final look = course.look;
+    final its = course.among(lessons);
     final all = its.every((lesson) => done.contains(lesson.id));
-    final following = chapters.skip(chapters.indexOf(chapter) + 1).where((name) => lessonsIn(name, lessons).isNotEmpty).firstOrNull;
+    // The next course with something on offer, in the catalog's order.
+    final following = courses.skip(courses.indexOf(course) + 1).where((one) => one.among(lessons).isNotEmpty).firstOrNull;
     return _Card(
       children: [
-        // The chapter seen off in its colour: the ghost ticking every box once all of it is learned.
-        ChapterEndBand(chapter: chapter, learned: all),
-        _eyebrow(t, 'Chapter ${chapters.indexOf(chapter) + 1} · $chapter', look),
-        _title(t, all ? 'Chapter learned.' : 'The end of the chapter.'),
-        _teach(t, all ? 'Every mark in $chapter is one you can write by hand now.' : 'You can come back to the ones you skipped whenever you like: tap one to take it.'),
+        // The course seen off in its colour: the ghost ticking every box once all of it is learned.
+        CourseEndBand(look: look, learned: all),
+        _eyebrow(t, course.title, look),
+        _title(t, all ? 'Course learned.' : 'The end of the course.'),
+        _teach(t, all ? 'Every mark in ${course.title} is one you can write by hand now.' : 'You can come back to the ones you skipped whenever you like: tap one to take it.'),
         // `.list { gap: 1px }`
         Column(
           key: const ValueKey('academy-list'),
@@ -839,59 +1422,15 @@ class _ChapterEnd extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           spacing: 1,
           children: [
-            for (final lesson in its)
-              // `.again`
-              GlacierPressable(
-                key: ValueKey('again:${lesson.id}'),
-                onPressed: () => onAgain(lesson.id),
-                builder: (context, state) => GlacierFocusRing(
-                  visible: state.focused,
-                  radius: t.radius('md'),
-                  child: Container(
-                    constraints: BoxConstraints(minHeight: t.space(10)),
-                    // A button's own `padding-block: 1px`, which the rule leaves as it is.
-                    padding: EdgeInsets.symmetric(vertical: 1, horizontal: t.space(3)),
-                    decoration: BoxDecoration(color: state.hovered || state.pressed ? ink.withValues(alpha: 0.06) : null, borderRadius: BorderRadius.circular(t.radius('md'))),
-                    child: Row(
-                      spacing: t.space(3),
-                      children: [
-                        // `.againTick { inline-size: 1.4em; block-size: 1.4em }`, of the button's own size.
-                        ExcludeSemantics(
-                          child: Container(
-                            key: ValueKey('again-tick:${lesson.id}'),
-                            width: 1.4 * _buttonSize,
-                            height: 1.4 * _buttonSize,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(color: done.contains(lesson.id) ? look.colours.first : look.wash(t, light: 0.14, dark: 0.24), shape: BoxShape.circle),
-                            child: done.contains(lesson.id) ? const AppIcon(Lucide.check, size: 14, strokeWidth: 2.6, color: Color(0xFFFFFFFF)) : null,
-                          ),
-                        ),
-                        Expanded(child: Text(lesson.title, key: ValueKey('again-name:${lesson.id}'), style: _buttonText(t, _buttonSize, color: ink))),
-                        // `.againMark { max-inline-size: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }`
-                        ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: 0.45 * (MediaQuery.sizeOf(context).width - t.len('app-gutter-start') - t.len('app-gutter-end') - 2 * t.space(3))),
-                          child: Text(
-                            lesson.symbol,
-                            key: ValueKey('again-mark:${lesson.id}'),
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.textAt(t.fontSize('xs'), mono: true, color: t.color('app-ink-3')),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            for (final lesson in its) _lessonRow(context, lesson, look: look, learned: done.contains(lesson.id), onPressed: () => onAgain(lesson.id)),
           ],
         ),
         _Foot(
-          start: _Word(key: const ValueKey('academy-all-chapters'), onPressed: onContents, label: 'All chapters'),
+          start: _Word(key: const ValueKey('academy-all-courses'), onPressed: onCatalog, label: 'All courses'),
           end: following != null
-              // Onward in the next chapter's colour.
-              ? _Pill(key: const ValueKey('academy-next-chapter'), onPressed: () => onNextChapter(following), label: 'Next: $following', after: Lucide.arrowRight, colours: lookOf(following).colours)
-              : _Pill(key: const ValueKey('academy-next-chapter'), onPressed: onContents, label: 'Done', colours: look.colours),
+              // Onward in the next course's colour.
+              ? _Pill(key: const ValueKey('academy-next-course'), onPressed: () => onNextCourse(following), label: 'Next: ${following.title}', after: Lucide.arrowRight, colours: following.look.colours)
+              : _Pill(key: const ValueKey('academy-next-course'), onPressed: onCatalog, label: 'Done', colours: look.colours),
         ),
       ],
     );
