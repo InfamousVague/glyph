@@ -91,7 +91,7 @@ void main() {
   group('the Appearance page', () {
     testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Focus', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch', 'Dock']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Focus', 'Icons', 'Spacing', 'Corners', 'Motion', 'Touch', 'Dock']);
       await endSettings(tester);
     });
 
@@ -112,7 +112,7 @@ void main() {
 
     testWidgets('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', (tester) async {
       await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Focus', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Focus', 'Icons', 'Spacing', 'Corners', 'Motion', 'Dock']);
       expect(find.text('Haptics'), findsNothing);
       expect(find.text('Sidebar'), findsNothing);
       expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Haptics'))));
@@ -205,7 +205,7 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('writes the spacing, the corners, the pace and the colours of code, and the kit’s tokens follow', (tester) async {
+    testWidgets('writes the spacing, the corners and the pace, and the kit’s tokens follow', (tester) async {
       await _open(tester);
       final space = _root(tester).space(3), radius = _root(tester).radius('lg');
       // Spacing: the kit's density picker in Ghost.md's words.
@@ -238,11 +238,28 @@ void main() {
       expect(_root(tester).duration('glacier-duration-fast'), const Duration(milliseconds: 150));
       expect(_root(tester).len('app-motion-scale'), 1);
 
+      await endSettings(tester);
+    });
+
+    // Appearance › Code is the Diagrams and math plugin's page's since 2026-11-01 (docs/PM_PLUGINS.md §10): the same
+    // card, writing the same preferences.
+    testWidgets('the colours of code are the Diagrams and math page’s card, and the kit’s tokens follow', (tester) async {
+      await pumpSettings(
+        tester,
+        SettingsScreen(
+          open: true,
+          onClose: () {},
+          sections: [SettingsSection(id: 'plugin:diagrams', label: 'Diagrams and math', icon: const SizedBox.shrink(), group: 0, content: (context) => const PaneBody(children: [CodeColoursSection()]))],
+          goTo: const SettingsTarget('plugin:diagrams', nonce: 1),
+        ),
+        size: _tall,
+      );
+      expect(_titles(tester), ['Code']);
       expect(preferences.value.codeChosen, isFalse);
       await _tap(tester, find.text('GitHub'));
       await _tap(tester, find.text('Nord'));
       expect((preferences.value.codeLight, preferences.value.codeDark, preferences.value.codeChosen), ('github', 'nord', true));
-      expect(_root(tester).attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'nord')));
+      expect(tokensAt(tester, find.byType(SettingsScreen)).attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'nord')));
       await endSettings(tester);
     });
 
@@ -611,9 +628,11 @@ void main() {
         'Type': (2274.83, 1353.52),
         'Spacing': (3646.19, 226.7),
         'Corners': (3890.73, 143.56),
-        'Code': (4052.14, 269.34),
         'Motion': (4339.33, 523.86),
       };
+      // The web's Code card (4052.14, 269.34) is the Diagrams and math plugin's page's since 2026-11-01
+      // (docs/PM_PLUGINS.md §10): every card under it that card and the gap after it further up.
+      const code = 4339.33 - 4052.14;
       // The Market's themes and faces, which the web's page did not have then: Page and Type that many rows taller,
       // and every card under each that much further down.
       final market = _marketRows(tester);
@@ -627,12 +646,12 @@ void main() {
       expect(focus.top, closeTo(card('Type').bottom + gap, 3.5));
       final icons = card('Icons');
       expect(icons.top, closeTo(focus.bottom + gap, 3.5));
-      const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion'];
+      const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Motion'];
       for (final entry in web.entries) {
         final rect = card(entry.key);
         final at = order.indexOf(entry.key);
         final grown = entry.key == 'Page' ? market.page : entry.key == 'Type' ? market.type : 0.0;
-        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type + focus.height + gap + icons.height + gap : 0.0);
+        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type + focus.height + gap + icons.height + gap : 0.0) - (at > order.indexOf('Corners') ? code : 0.0);
         expect(rect.left, closeTo(22.31, 0.05), reason: entry.key);
         expect(rect.width, closeTo(345.38, 0.05), reason: entry.key);
         expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');

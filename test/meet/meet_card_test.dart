@@ -20,6 +20,7 @@ import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/meet_kinds.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
 import 'package:ghost_md/plugins/built_in.dart' show builtIn;
+import 'package:ghost_md/plugins/email/email.dart' show EmailPane;
 import 'package:ghost_md/plugins/meetings/meetings.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -112,9 +113,9 @@ void main() {
     await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet', onOpenAccount: () => opened++));
     await settle(tester, 10);
     expect(find.byType(MeetInviteCard), findsNothing);
-    expect(find.text('Ghost is invited by your Email to a note address. Turn one on in Settings › Account, then invite Ghost here.'), findsOneWidget);
-    expect(find.byType(MailCard), findsNothing, reason: 'Email to a note is Account’s card again');
-    await press(tester, 'Account');
+    expect(find.text('Ghost is invited by your Email to a note address. Turn one on in Settings › Email to a note, then invite Ghost here.'), findsOneWidget);
+    expect(find.byType(MailCard), findsNothing, reason: 'Email to a note is its plugin’s page');
+    await press(tester, 'Email to a note');
     expect(opened, 1);
     await d.device.mailIn!.newAddress();
     await settle(tester, 10);
@@ -126,21 +127,27 @@ void main() {
     await endSettings(tester);
   });
 
-  testWidgets('Account draws Email to a note whole again, and nothing of meetings', (tester) async {
+  // Email to a note was Account's card until 2026-11-01, and is the Email to a note plugin's page since
+  // (docs/PM_PLUGINS.md §10): drawn there whole, and nothing of meetings on either.
+  testWidgets('Email to a note’s page draws its card whole, and Account nothing of meetings', (tester) async {
     final d = await made();
     expect(meetingPluginOffered(d.device.services), isTrue);
-    await d.device.pump(tester, AccountPane(services: d.device.services));
+    await d.device.pump(tester, EmailPane(services: d.device.services));
     await settle(tester, 10);
     expect(find.byType(MeetInviteCard), findsNothing);
     expect(find.byType(MailCard), findsOneWidget);
     expect(find.text(d.device.service.mailAddress!.replaceFirst('@', '@​')), findsOneWidget, reason: 'the address, on Email to a note');
+    await endSettings(tester);
+    await d.device.pump(tester, AccountPane(services: d.device.services));
+    await settle(tester, 10);
+    expect(find.byType(MailCard), findsNothing);
     expect(titlesOf(tester), isNot(contains('Ghost in Google Meet')));
     expect(find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Sync meeting recordings'), findsNothing);
     expect(find.textContaining('stayed on this phone'), findsNothing);
     expect(find.byKey(const ValueKey('account-mail-moved')), findsNothing);
     final names = accountFindable(signedIn: true, ported: true).map((found) => found.name);
     expect(names, isNot(contains('Sync meeting recordings')));
-    expect(names, contains('Email to a note'));
+    expect(names, isNot(contains('Email to a note')));
     await endSettings(tester);
   });
 
@@ -561,7 +568,7 @@ void main() {
     await d.device.pump(tester, page(d));
     await settle(tester, 10);
     expect(find.byType(MeetInviteCard), findsNothing);
-    await d.device.pump(tester, AccountPane(services: d.device.services));
+    await d.device.pump(tester, EmailPane(services: d.device.services));
     await settle(tester, 10);
     expect(find.byType(MailCard), findsOneWidget);
     await endSettings(tester);

@@ -65,7 +65,6 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
-      const SettingsFindable('Code', 'syntax highlighting colours colors'),
       if (wide) const SettingsFindable('Sidebar', 'dock column popover notes list'),
       const SettingsFindable('Motion', 'movement animations'),
       const SettingsFindable('Animation speed', 'motion fast slow'),
@@ -324,22 +323,6 @@ class AppearancePane extends StatelessWidget {
                 ),
               ],
             ),
-            PaneSection(
-              title: 'Code',
-              description: const Text("The colours of code in a code block. Ink keeps code in the page's own ink."),
-              children: [
-                SettingRow(
-                  label: 'On the light page',
-                  layout: SettingRowLayout.stacked,
-                  control: segments('Code colours on the light page', codeLightWords, prefs.codeLight, (value) => set((now) => now.copyWith(codeLight: value, codeChosen: true))),
-                ),
-                SettingRow(
-                  label: 'On the dark page',
-                  layout: SettingRowLayout.stacked,
-                  control: segments('Code colours on the dark page', codeDarkWords, prefs.codeDark, (value) => set((now) => now.copyWith(codeDark: value, codeChosen: true))),
-                ),
-              ],
-            ),
             if (wide)
               PaneSection(
                 title: 'Sidebar',
@@ -400,6 +383,54 @@ class AppearancePane extends StatelessWidget {
               ),
             // Last, so every card above it stays where the web page measured it (appearance_pane_test.dart).
             dock,
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// What the search finds of [CodeColoursSection].
+const SettingsFindable codeColoursFindable = SettingsFindable('Code', 'syntax highlighting colours colors light dark page');
+
+/// The colours of code in a code block, on the light page and on the dark: Appearance › Code until 2026-11-01, the
+/// Diagrams and math plugin's page since, with the colouring by a language it is the look of (lib/plugins/diagrams;
+/// docs/PM_PLUGINS.md §10).
+class CodeColoursSection extends StatelessWidget {
+  const CodeColoursSection({super.key, this.store});
+
+  /// The preferences: the app's own unless a test gives its own.
+  final PreferencesStore? store;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = this.store ?? preferences;
+    return ValueListenableBuilder<Preferences>(
+      valueListenable: store,
+      builder: (context, prefs, _) {
+        void set(Preferences Function(Preferences now) change) => store.update(change);
+        Widget segments(String label, Map<String, String> words, String value, ValueChanged<String> onChange) => GlacierSegmentedControl(
+              ariaLabel: label,
+              fullWidth: true,
+              size: GlacierSegmentedSize.sm,
+              options: _options(words),
+              value: value,
+              onValueChange: onChange,
+            );
+        return PaneSection(
+          title: 'Code',
+          description: const Text("The colours of code in a code block. Ink keeps code in the page's own ink."),
+          children: [
+            SettingRow(
+              label: 'On the light page',
+              layout: SettingRowLayout.stacked,
+              control: segments('Code colours on the light page', codeLightWords, prefs.codeLight, (value) => set((now) => now.copyWith(codeLight: value, codeChosen: true))),
+            ),
+            SettingRow(
+              label: 'On the dark page',
+              layout: SettingRowLayout.stacked,
+              control: segments('Code colours on the dark page', codeDarkWords, prefs.codeDark, (value) => set((now) => now.copyWith(codeDark: value, codeChosen: true))),
+            ),
           ],
         );
       },

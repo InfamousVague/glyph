@@ -46,6 +46,7 @@ import '../../sheet/sheet.dart';
 import '../../forms/ui/form_rows.dart';
 import '../share.dart';
 import 'site_rows.dart';
+import '../../plugins/more/more_tools.dart' show moreToolOn, publishingTool;
 import '../../plugins/projects/suite.dart' show formsTool, projectPluginOn;
 
 /// What the link carries of where its pages were written and of the places in their words, in one sentence for
@@ -368,8 +369,9 @@ class _ShareRowsState extends State<ShareRows> {
         // A form's own rows (lib/forms/ui/form_rows.dart): whether its link takes answers, and how many came.
         // Where Forms is on where the note is (docs/PM_PLUGINS.md).
         if (widget.kind == ShareKind.note && projectPluginOn(formsTool, noteId: id)) FormRows(services: widget.services, noteId: id),
-        // Publishing it as a site (site_rows.dart): a journal has none, and neither does a build that offers none.
-        if (widget.kind != ShareKind.journal) SiteRows(services: widget.services, noteId: id, notebook: widget.kind == ShareKind.notebook),
+        // Publishing it as a site (site_rows.dart): a journal has none, and neither does a build that offers none, nor
+        // one where the Publishing plugin is off (docs/PM_PLUGINS.md §10). The plain links above are built in.
+        if (widget.kind != ShareKind.journal && moreToolOn(publishingTool)) SiteRows(services: widget.services, noteId: id, notebook: widget.kind == ShareKind.notebook),
       ],
     );
   }

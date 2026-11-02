@@ -706,6 +706,52 @@
       "link": "ghostmd://market/plugin/discord"
     },
     {
+      "id": "email",
+      "name": "Email to a note",
+      "line": "Mail sent to your address becomes a note",
+      "description": "An address of your own: mail sent to it is kept sealed to your account on Ghost.md’s server until your device turns it into a note in your Inbox, its pictures and files with it.",
+      "category": "connections",
+      "icon": "mail",
+      "mark": null,
+      "hue": "blue",
+      "colours": [
+        "#0a6fe0",
+        "#4ea1ff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Your Email to a note address, its name and a new one, on this page",
+        "Each mail to it filed as a note in your Inbox"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Files each mail sent to your address as a note in your Inbox.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Ghost.md’s server takes the mail for your address and keeps it sealed to your account until one of your devices reads it. It talks to ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "ghostmarkdown.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/email"
+    },
+    {
       "id": "github",
       "name": "GitHub",
       "line": "Notes linked to repos, their items issues",
@@ -806,6 +852,53 @@
       "link": "ghostmd://market/plugin/google-meet"
     },
     {
+      "id": "meetings",
+      "name": "Meetings",
+      "line": "Ghost takes notes in your meetings",
+      "description": "Ghost in your meetings: it joins your Google Meet, Zoom and Discord calls where you add those, or you record a meeting on this device, and each is filed as a note written up on your device, with its Note and its Transcript, who said what, and a live transcript while it runs. The meetings are on a shelf of their tapes on the home page.",
+      "category": "connections",
+      "icon": "audio-lines",
+      "mark": null,
+      "hue": "orange",
+      "colours": [
+        "#d9600d",
+        "#ff9a4d"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Meeting in New, and Meeting instead in the recorder",
+        "A meeting’s Note and Transcript, and its live transcript",
+        "The shelf of meetings on the home page",
+        "Where meetings go, their recordings, sound from other apps and when they are written up, on this page",
+        "Google Meet and Zoom, which need it"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Files each meeting as a note, and marks it a meeting in its front matter.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "native",
+          "label": "Your phone",
+          "why": "Records a meeting on this device, with the sound of the call where you allow it, and writes it up here.",
+          "icon": "smartphone"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/meetings"
+    },
+    {
       "id": "notion",
       "name": "Notion",
       "line": "List items as tasks on your Notion boards",
@@ -858,6 +951,47 @@
       "author": "Ghost.md",
       "version": "1.0.0",
       "link": "ghostmd://market/plugin/notion"
+    },
+    {
+      "id": "publishing",
+      "name": "Publishing",
+      "line": "Publish a note or a notebook as a website",
+      "description": "A note or a notebook published as a website of its own, at an address on ghostmarkdown.com, and published again as you change it. With the git backup, the repository published as a website by GitHub Pages.",
+      "category": "connections",
+      "icon": "globe",
+      "mark": null,
+      "hue": "cyan",
+      "colours": [
+        "#0a86a8",
+        "#4cc9f0"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Publish as a site in a note’s Share, and Publish again and Unpublish",
+        "Your published sites on this page",
+        "Publish as a website on the git backup’s page"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Ghost.md’s server keeps the pages you publish and shows them at their address, to anyone with it. It talks to ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "ghostmarkdown.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/publishing"
     },
     {
       "id": "slack",
@@ -1005,6 +1139,70 @@
       "link": "ghostmd://market/plugin/zoom"
     },
     {
+      "id": "canvas",
+      "name": "Canvas",
+      "line": "Cards on a page with lines between them",
+      "description": "Notes that are canvases: cards of words, notes, pictures and links on a page you pan and zoom, lines between them, groups, and your workspaces’ colours. Kept as JSON Canvas 1.0, the file Obsidian reads.",
+      "category": "editor",
+      "icon": "shapes",
+      "mark": null,
+      "hue": "amber",
+      "colours": [
+        "#c27c00",
+        "#ffb84d"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A canvas in New and in the + and the / palette",
+        "A canvas note drawn as its cards, and ![[A canvas]] drawn in a frame",
+        "Add as a canvas in a notebook, and the example canvases in Settings › Examples"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/canvas"
+    },
+    {
+      "id": "diagrams",
+      "name": "Diagrams and math",
+      "line": "Mermaid diagrams, formulas and coloured code",
+      "description": "A ```mermaid fence drawn as its diagram, $$ formulas and inline maths drawn as maths, and code coloured by its language: Dart, Python, JavaScript and 140 more.",
+      "category": "editor",
+      "icon": "sigma",
+      "mark": null,
+      "hue": "purple",
+      "colours": [
+        "#9a45c9",
+        "#c77dff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A ```mermaid fence drawn as its diagram, and A diagram in the + and the / palette",
+        "$$ formulas and $x^2$ drawn as maths, and A formula in the + and the / palette",
+        "A ```dart, ```python or any language’s block coloured by its language, and the colours of code on its page"
+      ],
+      "settings": true,
+      "permissions": [],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/diagrams"
+    },
+    {
       "id": "keyboard-modes",
       "name": "Keyboard modes",
       "line": "Vim or Emacs keys in your notes",
@@ -1066,6 +1264,45 @@
       "author": "Ghost.md",
       "version": "1.0.0",
       "link": "ghostmd://market/plugin/marks"
+    },
+    {
+      "id": "places",
+      "name": "Places",
+      "line": "A note’s place, its map, and place cards",
+      "description": "Where a note was made, written into it as you make it, and its map at the note’s top. A place in your words drawn as its card with its map, and A place in the +. Where you are never leaves your phone through Ghost.md; a place’s name and map are asked of OpenStreetMap, where you allow it.",
+      "category": "editor",
+      "icon": "map-pinned",
+      "mark": null,
+      "hue": "green",
+      "colours": [
+        "#2a9d4b",
+        "#4cd571"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Tag new notes with my location, and Add my location in a note’s More",
+        "The map at a tagged note’s top, and a journal entry’s place",
+        "A place in your words drawn as its card, and A place in the +"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Writes where a note was made into its front matter, as location: and place:.",
+          "icon": "file-text"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/places"
     },
     {
       "id": "rich-embeds",
@@ -3895,9 +4132,18 @@
       "m3 17 2 2 4-4",
       "m3 7 2 2 4-4"
     ],
+    "mail": [
+      "m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7",
+      "M4 4H20A2 2 0 0 1 22 6V18A2 2 0 0 1 20 20H4A2 2 0 0 1 2 18V6A2 2 0 0 1 4 4Z"
+    ],
     "map-pin": [
       "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
       "M9 10A3 3 0 1 0 15 10A3 3 0 1 0 9 10Z"
+    ],
+    "map-pinned": [
+      "M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 0 1-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0 1 12 0",
+      "M10 8A2 2 0 1 0 14 8A2 2 0 1 0 10 8Z",
+      "M8.714 14h-3.71a1 1 0 0 0-.948.683l-2.004 6A1 1 0 0 0 3 22h18a1 1 0 0 0 .948-1.316l-2-6a1 1 0 0 0-.949-.684h-3.712"
     ],
     "message-square": [
       "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
@@ -3942,6 +4188,9 @@
     "shield-check": [
       "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
       "m9 12 2 2 4-4"
+    ],
+    "sigma": [
+      "M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"
     ],
     "smartphone": [
       "M7 2H17A2 2 0 0 1 19 4V20A2 2 0 0 1 17 22H7A2 2 0 0 1 5 20V4A2 2 0 0 1 7 2Z",

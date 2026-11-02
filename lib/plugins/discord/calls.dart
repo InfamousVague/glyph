@@ -35,6 +35,7 @@ import '../../account/session.dart';
 import '../../core/stored.dart';
 import '../../meet/gmt.dart' show MeetService;
 import '../../meet/meet_api.dart' show MeetBooking;
+import '../more/more_tools.dart' show meetingsTool, moreToolOn;
 import '../registry.dart' show pluginOn;
 import 'manifest.dart';
 
@@ -234,7 +235,8 @@ const String discordCallsToldOffKey = 'glyph-discord-calls-told-off';
 /// Discord calls" off on the service; with it on, the memory cleared, so it is told again if it goes off. Quiet: a
 /// service without the routes, an account with no link (404) and a failure are all let be, the first two remembered.
 Future<void> discordCallsFollowPlugin({required Api api, required String token, required Stored kept, bool Function()? on}) async {
-  final pluginIsOn = (on ?? () => pluginOn(manifest))();
+  // Ghost in Discord calls stands on Meetings too (docs/PM_PLUGINS.md §10): either off, the service is told.
+  final pluginIsOn = (on ?? () => pluginOn(manifest) && moreToolOn(meetingsTool))();
   final told = kept.read<bool>(discordCallsToldOffKey, false, (raw) => raw == true);
   if (pluginIsOn) {
     if (told) kept.write(discordCallsToldOffKey, false);

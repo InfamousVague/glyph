@@ -14,10 +14,11 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
+import '../more/more_tools.dart' show moreToolPlugin;
 import 'suite.dart';
 
-/// A tool's mark, by its plugin's icon name.
-LucideIcon toolIcon(String id) => Lucide.all[projectPlugin(id)?.icon ?? ''] ?? Lucide.puzzle;
+/// A tool's mark, by its plugin's icon name: a project tool's, or one of the more tools' (docs/PM_PLUGINS.md §10).
+LucideIcon toolIcon(String id) => Lucide.all[(projectPlugin(id) ?? moreToolPlugin(id))?.icon ?? ''] ?? Lucide.puzzle;
 
 /// A chip asking for [tools] to be turned on [where] (" for HelloTrade", or nothing for the person's own); quiet and
 /// pressing nothing where [onPress] is null (an organization this device cannot write to).

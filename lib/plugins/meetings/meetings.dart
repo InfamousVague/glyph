@@ -32,25 +32,39 @@
 ///
 /// Not on an iPhone, where Ghost in meetings is not offered (lib/share/sites.dart `publishingOffered`): the page is not
 /// listed there ([PluginSettings.offered]).
+///
+/// **Meetings** ([meetingsPlugin], 2026-11-01), one of the more tools (docs/PM_PLUGINS.md §10; Matt: "think about other
+/// things that can be plugins that might be overwhelming for a new user as well"), is what the two stand on: Ghost in
+/// meetings at all, a meeting recorded on the device, live transcripts, the shelf of tapes on the home page, a
+/// meeting's Note and Transcript, the meeting settings that were Settings › Recording's (its page now,
+/// meetings_settings_pane.dart), and a meeting's notifications and sounds. Off for a new person, as the project tools
+/// are, and on for one who had a meeting before it was a plugin (lib/plugins/more/more_tools.dart `adoptMoreTools`).
+/// Google Meet and Zoom keep their switches, which ship on: with Meetings off they do nothing (`meetKindOn`, and the
+/// service is told no kind is wanted), their pages are not listed, and adding either in the Market adds Meetings.
+/// A voice note, its recorder, its memos and its summary are not meetings, and stay built in.
 library;
 
 import '../../account/ui_state.dart';
+import '../../core/more_tools.dart' show meetingsTool;
 import '../../meet/meet_api.dart' show MeetBooking;
 import '../../meet/meet_kinds.dart';
 import '../../meet/ui/meet_card.dart' show meetCardShown;
 import '../../meet/ui/meeting_settings.dart' show meetingsGoName;
 import '../../settings/settings_search.dart' show SettingsFindable;
+import '../more/more_tools.dart' show moreToolOn;
 import '../types.dart';
 import 'meeting_pane.dart';
 import 'meeting_setup.dart';
+import 'meetings_tool_pane.dart';
 
 export 'meeting_pane.dart';
 export 'meeting_setup.dart';
+export 'meetings_tool_pane.dart';
 
 /// Whether a meeting plugin's page is listed: an account whose service has Ghost in meetings (docs/MEET.md). Without
 /// an Email to a note address the page is there all the same and says where one is turned on, since that address is
 /// what Ghost is invited by. What Settings › Meetings' `meetingsOffered` was.
-bool meetingPluginOffered(AccountServices? services) => services != null && services.signedIn && (services.meetIn?.available ?? false);
+bool meetingPluginOffered(AccountServices? services) => moreToolOn(meetingsTool) && services != null && services.signedIn && (services.meetIn?.available ?? false);
 
 /// The page's row: how many meetings of [kind] Ghost is booked for or in, or what the page is for.
 String meetingPluginSummary(String kind, AccountServices? services) {
@@ -137,3 +151,43 @@ PluginSettings _settingsFor(String kind, String hue) => PluginSettings(
 final GlyphPlugin googleMeetPlugin = GlyphPlugin(manifest: googleMeetManifest, icon: 'users', settings: _settingsFor('meet', 'orange'), setup: googleMeetSetup);
 
 final GlyphPlugin zoomPlugin = GlyphPlugin(manifest: zoomManifest, icon: 'video', settings: _settingsFor('zoom', 'mint'), setup: zoomSetup);
+
+/// The Meetings plugin's manifest: what Google Meet and Zoom stand on (see the header).
+const PluginManifest meetingsManifest = PluginManifest(
+  id: meetingsTool,
+  name: 'Meetings',
+  description:
+      'Ghost in your meetings: it joins your Google Meet, Zoom and Discord calls where you add those, or you record a meeting on this device, and each is filed as a note written up on your device, with its Note and its Transcript, who said what, and a live transcript while it runs. The meetings are on a shelf of their tapes on the home page.',
+  version: '1.0.0',
+  author: 'Ghost.md',
+  category: PluginCategory.connections,
+  tagline: 'Ghost takes notes in your meetings',
+  adds: [
+    'Meeting in New, and Meeting instead in the recorder',
+    'A meeting’s Note and Transcript, and its live transcript',
+    'The shelf of meetings on the home page',
+    'Where meetings go, their recordings, sound from other apps and when they are written up, on this page',
+    'Google Meet and Zoom, which need it',
+  ],
+  standard: false,
+  permissions: [
+    PluginPermission(Permission.notes, 'Files each meeting as a note, and marks it a meeting in its front matter.'),
+    PluginPermission(Permission.native, 'Records a meeting on this device, with the sound of the call where you allow it, and writes it up here.'),
+  ],
+  // No network of its own, so a meeting recorded on this device is still one under Local only: Ghost joining calls
+  // is Google Meet's, Zoom's and Discord's, which reach the service and declare it.
+  storage: [],
+);
+
+/// Its page, kept in Simple as the meeting plugins' are (meetings_tool_pane.dart).
+final GlyphPlugin meetingsPlugin = GlyphPlugin(
+  manifest: meetingsManifest,
+  icon: 'audio-lines',
+  settings: PluginSettings(
+    pane: MeetingsToolPane.hosted,
+    summary: () => 'Where meetings go, and Ghost in your calls',
+    hue: 'orange',
+    simple: true,
+    settings: const [SettingsFindable(meetingsGoName, 'meetings recordings sort sorting folder workspace inbox filed summaries transcript live')],
+  ),
+);

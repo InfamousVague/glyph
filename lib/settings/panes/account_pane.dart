@@ -17,7 +17,6 @@ import '../colour_card.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../privacy_card.dart';
-import '../published_sites.dart';
 import '../settings_search.dart';
 import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
 import '../shared_links.dart';
@@ -37,7 +36,8 @@ const List<SettingsFindable> privacyFindable = [
   SettingsFindable('Privacy policy', 'data privacy personal information policy'),
 ];
 
-/// The Location card's names (AccountPane.findable.ts `LOCATION`).
+/// The Location card's names (AccountPane.findable.ts `LOCATION`): the Places plugin's page's now (lib/plugins/places/
+/// places_tool_pane.dart; docs/PM_PLUGINS.md §10), where the card went.
 const List<SettingsFindable> locationFindable = [
   SettingsFindable('Location', 'map place where geotag gps'),
   SettingsFindable('Map on a tagged note', 'openstreetmap tiles'),
@@ -60,9 +60,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
             const SettingsFindable('Sign out', 'log out logout'),
             // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
             if (shared) const SettingsFindable('Shared links', 'share publish read'),
-            const SettingsFindable('Email to a note', 'mail inbox address turn off meeting invite ghost'),
             ...privacyFindable,
-            ...locationFindable,
             ghostexExportFindable,
             const SettingsFindable('Delete account', 'remove close erase data'),
           ]
@@ -72,7 +70,6 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
         SettingsFindable('Create an account', 'sign up register'),
         SettingsFindable('Lost the password', 'forgot recovery code reset'),
         ...privacyFindable,
-        ...locationFindable,
         ghostexExportFindable,
       ];
 
@@ -95,9 +92,10 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///
 /// **Signed in**: the hero (the handle, "End-to-end encrypted", where the sync stands), what the last sync kept
 /// twice or could not send, the Sync card (Sync now, Live typing, Password and recovery codes, Sign out), then Your
-/// colour ([ColourCard]), Shared links ([SharedLinks]), Published sites, Email to a note, Privacy, Location, and Delete
-/// account. Password and recovery codes, and Delete account, each put a form where the Sync card
-/// was and take the cards after it off the page until it is done or cancelled.
+/// colour ([ColourCard]), Shared links ([SharedLinks]), Privacy, and Delete account. Published sites, Email to a note
+/// and Location were here until 2026-11-01, when each went to its plugin's page with its feature (Publishing, Email to
+/// a note, Places; docs/PM_PLUGINS.md §10). Password and recovery codes, and Delete account, each put a form where
+/// the Sync card was and take the cards after it off the page until it is done or cancelled.
 ///
 /// **Nothing of meetings** (Matt, 2026-10-24: "remove the meetings stuff from the account page the account settings
 /// page is overwhelming move all google meet related stuff to under the meet section"): Sync meeting recordings and
@@ -107,7 +105,8 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 /// Ghost's invite too, but once Meetings became a plugin for each service (Matt, 2026-10-26: "I want settings /
 /// meetings to be broken up into three plugins"), the address belongs to no one of them, and with every meeting
 /// plugin off it is still mail's. The Google Meet and Zoom pages show the same address on their invite cards, with Copy, a name and a
-/// new one; this card is what mail to it becomes, and off.
+/// new one; this card is what mail to it becomes, and off. Since 2026-11-01 the card is the Email to a note plugin's
+/// page (lib/plugins/email/email_pane.dart), as mail is a plugin.
 ///
 /// While Local only holds the sync off, a callout says so, signed in or out, and its "Local only" is a word that
 /// brings the card into view: a plain word while a form has the card off the page.
@@ -336,18 +335,17 @@ class _AccountPaneState extends State<AccountPane> {
         valueListenable: store,
         builder: (context, prefs, _) {
           final privacy = PrivacyCard(store: store, onOpenLink: widget.onOpenLink);
-          final location = LocationCard(store: store, onLocate: features.onLocate, cannot: features.cannotLocate, places: features.places);
           if (services == null && features.signedIn) {
-            return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs), GhostexExportCard(ghostex: features.ghostex)]);
+            return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, GhostexExportCard(ghostex: features.ghostex)]);
           }
-          if (services == null || !services.signedIn) return _signedOut(prefs, privacy, location);
-          return _signedIn(services, store, prefs, privacy, location);
+          if (services == null || !services.signedIn) return _signedOut(prefs, privacy);
+          return _signedIn(services, store, prefs, privacy);
         },
       ),
     );
   }
 
-  Widget _signedOut(Preferences prefs, Widget privacy, LocationCard location) => ListenableBuilder(
+  Widget _signedOut(Preferences prefs, Widget privacy) => ListenableBuilder(
         listenable: _form,
         builder: (context, _) {
           final mode = _form.mode;
@@ -373,14 +371,13 @@ class _AccountPaneState extends State<AccountPane> {
                 child: Text("Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way."),
               ),
               privacy,
-              ...location.parts(prefs),
               GhostexExportCard(ghostex: widget.features.ghostex),
             ],
           );
         },
       );
 
-  Widget _signedIn(AccountServices services, PreferencesStore store, Preferences prefs, Widget privacy, LocationCard location) {
+  Widget _signedIn(AccountServices services, PreferencesStore store, Preferences prefs, Widget privacy) {
     final status = services.status;
     final lastAt = status.lastAt;
     final statusText = status.phase == 'syncing'
@@ -394,10 +391,6 @@ class _AccountPaneState extends State<AccountPane> {
                     : 'Sign in again to sync';
     final form = _editing || _deleting;
     final shared = _shared;
-    // The account's published sites and its mail address are the service's to say (docs/SITES.md, docs/MAIL.md).
-    services.sites?.readSoon();
-    services.mailIn?.readSoon();
-    final sites = services.sites, mail = services.mailIn;
     return PaneBody(
       children: [
         PaneSection(
@@ -464,10 +457,7 @@ class _AccountPaneState extends State<AccountPane> {
         if (!form) ...[
           ColourCard(services: services),
           if (shared != null && shared.any) SharedLinks(services: services, model: shared),
-          if (sites != null && publishedSitesShown(sites)) PublishedSites(services: services),
-          if (mail != null && mailCardShown(mail)) MailCard(services: services),
           privacy,
-          ...location.parts(prefs),
           GhostexExportCard(ghostex: widget.features.ghostex),
           PaneSection(
             children: [

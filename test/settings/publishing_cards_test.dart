@@ -1,10 +1,13 @@
-// Settings › Account's two cards for what the account publishes and takes in (lib/settings/published_sites.dart,
+// The two cards for what the account publishes and takes in (lib/settings/published_sites.dart,
 // lib/mail/ui/mail_card.dart): every published site with its link and Unpublish, and the private mail address with
 // Copy, a new one and off, saying plainly that the server reads each mail as it arrives. Each is drawn only when it
-// has something to say, on the Account page itself.
+// has something to say. Settings › Account's until 2026-11-01, and the Publishing and Email to a note plugins' pages
+// since (docs/PM_PLUGINS.md §10): the Account page has neither now.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/mail/ui/mail_card.dart';
+import 'package:ghost_md/plugins/email/email.dart' show EmailPane;
+import 'package:ghost_md/plugins/publishing/publishing.dart' show PublishingPane;
 import 'package:ghost_md/settings/panes/account_pane.dart';
 import 'package:ghost_md/settings/published_sites.dart';
 
@@ -13,15 +16,15 @@ import '../account_ui/support.dart';
 void main() {
   setUpAll(loadAppFonts);
 
-  testWidgets('the Account page lists the published sites, copies a link and unpublishes one', (tester) async {
+  testWidgets('the Publishing page lists the published sites, copies a link and unpublishes one', (tester) async {
     final device = await Device.make(publishing: true);
     final copied = Clipped(tester);
     final walk = await device.sites!.publish(device.keep('n', '# Walk'), device.notes.held.values.toList());
     await device.sites!.publish(device.keep('b', '---\nbook: true\n---\n# Field guide\n'), device.notes.held.values.toList());
     device.sites!.forget();
-    await device.pump(tester, AccountPane(services: device.services));
+    await device.pump(tester, PublishingPane(services: device.services));
     await settle(tester, 10);
-    expect(titlesOf(tester), containsAllInOrder(['Published sites', 'Email to a note']));
+    expect(titlesOf(tester), ['Published sites']);
     expect(find.text('Walk'), findsOneWidget);
     expect(find.text('A notebook. Published just\u00A0now.'), findsOneWidget);
     await bringIntoView(tester, find.byKey(ValueKey('site:${walk.id}')));
@@ -39,6 +42,19 @@ void main() {
     final service = await FakeService.start(seed: seeded);
     service.takesMail = false;
     final device = await Device.make(service: service, publishing: true);
+    await device.pump(tester, PublishingPane(services: device.services));
+    await settle(tester, 10);
+    expect(find.byType(PublishedSites), findsNothing);
+    await endSettings(tester);
+    await device.pump(tester, EmailPane(services: device.services));
+    await settle(tester, 10);
+    expect(find.byType(MailCard), findsNothing);
+    await endSettings(tester);
+  });
+
+  testWidgets('the Account page has neither card, with a site published and mail taken', (tester) async {
+    final device = await Device.make(publishing: true);
+    await device.sites!.publish(device.keep('n', '# Walk'), device.notes.held.values.toList());
     await device.pump(tester, AccountPane(services: device.services));
     await settle(tester, 10);
     expect(titlesOf(tester), isNot(contains('Published sites')));
@@ -51,7 +67,7 @@ void main() {
   testWidgets('email to a note says what the server sees, turns on an address, copies it, makes a new one and turns it off', (tester) async {
     final device = await Device.make(publishing: true);
     final copied = Clipped(tester);
-    await device.pump(tester, AccountPane(services: device.services));
+    await device.pump(tester, EmailPane(services: device.services));
     await settle(tester, 10);
     expect(find.text(mailCardFooter), findsOneWidget);
     expect(mailCardFooter, contains('The server reads each mail as it arrives'));

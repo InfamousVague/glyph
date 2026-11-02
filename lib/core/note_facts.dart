@@ -34,6 +34,7 @@ import 'front_matter.dart';
 import 'note.dart';
 import 'note_text.dart' show noteTitleIn, peekMarkdown;
 import 'note_text.dart' as words show firstLine;
+import 'more_tools.dart' show canvasTool, moreToolsUsedIn;
 import 'project_tools.dart' show toolsUsedIn;
 import 'properties.dart' show StatusCategory, Ticket, isTicketType, statusCategory, statusesOf, ticketOf;
 import 'short_url.dart' show shortenUrls;
@@ -170,6 +171,10 @@ class NoteFacts {
   /// ```board, ```rules or ```form fence, a query that needs one. What an organization's banner asks of every note
   /// (docs/PM_PLUGINS.md). Not to be changed.
   late final Set<String> tools = _worked(Set<String>.unmodifiable(toolsUsedIn(_body, front)));
+
+  /// Which of the more tools its words use (more_tools.dart `moreToolsUsedIn`), Canvas where it is one: what the
+  /// one-time adoption asks of every note (docs/PM_PLUGINS.md §10). Not to be changed.
+  late final Set<String> more = _worked(Set<String>.unmodifiable({...moreToolsUsedIn(_body, front), if (isCanvas) canvasTool}));
 
   // ---- a notebook's --------------------------------------------------------------------------------------------------
 

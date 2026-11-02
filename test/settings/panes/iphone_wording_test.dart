@@ -10,6 +10,8 @@ import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/guide/pages.dart';
 import 'package:ghost_md/guide/too_soon.dart';
+import 'package:ghost_md/plugins/places/places_tool.dart' show PlacesToolPane;
+import 'package:ghost_md/settings/kit/settings_kit.dart' show PaneBody;
 import 'package:ghost_md/settings/panes/about_pane.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 
@@ -151,6 +153,10 @@ void main() {
       await openPane(tester, 'account', size: const Size(390, 2400));
       final account = _shown(tester);
       await endSettings(tester);
+      // The Location card, the Places plugin's page's since 2026-11-01 (docs/PM_PLUGINS.md §10).
+      await pumpSettings(tester, const PaneBody(children: [PlacesToolPane()]), size: const Size(390, 1600));
+      final places = _shown(tester);
+      await endSettings(tester);
       await openPane(tester, 'theme', size: const Size(390, 3600));
       final appearance = rowLabels(tester);
       await endSettings(tester);
@@ -162,8 +168,9 @@ void main() {
       expect(examples, contains('Eight plain cards, in order: write it, it lands as a note, and where a note can go.'));
       expect(account, contains('Keep your notes and settings the same on your phone and computer.'));
       expect(account, contains('Your notes and pictures stay on this device. Signed in, they sync encrypted on the device first'));
-      expect(account, contains('Every note you make here starts with where you were. Off,'));
+      expect(places, contains('Every note you make here starts with where you were. Off,'));
       expect(account, isNot(matches(RegExp(r'recording|voice|spoken|the model|microphone', caseSensitive: false))));
+      expect(places, isNot(matches(RegExp(r'recording|voice|spoken|the model|microphone', caseSensitive: false))));
       expect(appearance, contains('Blur at the edges'));
       expect(appearance, isNot(contains('Ripples while recording')));
       expect(notifications, contains('A meeting written up on another of your devices.'));
@@ -172,6 +179,8 @@ void main() {
       await openPane(tester, 'account', size: const Size(390, 2400));
       expect(_shown(tester), contains('Keep your notes, recordings and settings the same on your phone and computer.'));
       expect(_shown(tester), contains('and your voice is turned into text here.'));
+      await endSettings(tester);
+      await pumpSettings(tester, const PaneBody(children: [PlacesToolPane()]), size: const Size(390, 1600));
       expect(_shown(tester), contains('where you were, typed or spoken. Off,'));
       await endSettings(tester);
       await openPane(tester, 'theme', size: const Size(390, 3600));

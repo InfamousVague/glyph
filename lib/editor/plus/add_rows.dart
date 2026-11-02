@@ -180,6 +180,7 @@ class AddGates {
     this.simple = false,
     this.toggles = false,
     this.gantt = false,
+    this.diagrams = true,
     this.queries,
   });
 
@@ -230,6 +231,10 @@ class AddGates {
 
   /// The editor draws a ```gantt fence (lib/editor/gantt): A Gantt chart, in More.
   final bool gantt;
+
+  /// The editor draws a ```mermaid fence and `$$` maths, where Diagrams and math is on (docs/PM_PLUGINS.md §10): A
+  /// diagram and A formula, in More. A block of code is offered either way.
+  final bool diagrams;
 }
 
 /// The gates, for a screen that can do these (a picture picker, a video, a place, a note to link, a canvas to
@@ -253,6 +258,7 @@ AddGates readGates({
   bool simple = false,
   bool toggles = false,
   bool gantt = false,
+  bool diagrams = true,
   bool Function(String lines)? queries,
   List<PlusEffect> effects = const <PlusEffect>[],
   List<PlusInsert> inserts = const <PlusInsert>[],
@@ -276,6 +282,7 @@ AddGates readGates({
   simple: simple,
   toggles: toggles,
   gantt: gantt,
+  diagrams: diagrams,
   queries: queries,
 );
 
@@ -410,10 +417,10 @@ List<AddRow> _fullMoreRows(AddGates gates) => <AddRow>[
   const AddRow(id: 'divider', words: 'A divider'),
   // A note that is not a ticket yet, and not a notebook, can be made one: its front matter written for it (§160).
   if (gates.ticket) const AddRow(id: 'ticket', words: 'Make this a ticket'),
-  const AddRow(id: 'chart', words: 'A diagram'),
+  if (gates.diagrams) const AddRow(id: 'chart', words: 'A diagram'),
   // A ```gantt fence (docs/GANTT.md; Matt, 2026-10-31): a project's tasks as a list, drawn as a chart to drag.
   if (gates.gantt) const AddRow(id: 'gantt', words: 'A Gantt chart'),
-  const AddRow(id: 'formula', words: 'A formula'),
+  if (gates.diagrams) const AddRow(id: 'formula', words: 'A formula'),
   if (gates.canvas) const AddRow(id: 'canvas', words: 'A canvas', step: AddStep.canvas),
   const AddRow(id: 'footnote', words: 'A footnote'),
   const AddRow(id: 'tag', words: 'A tag'),

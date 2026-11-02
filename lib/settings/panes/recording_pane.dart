@@ -13,6 +13,7 @@ import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart';
 import '../../meet/ui/meeting_settings.dart';
 import '../../plugins/claude/claude.dart' show claudeInApp;
+import '../../plugins/more/more_tools.dart' show meetingsTool, moreToolOn;
 import '../../watch/watch_link.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -37,16 +38,19 @@ List<SettingsFindable> recordingFindable({required bool android, bool signedIn =
         SettingsFindable('Better words', 'refine clean up transcript'),
         SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
       ],
-      const SettingsFindable('Live transcript during meetings', 'real time live words captions meeting transcript as they speak battery charging'),
-      if (android) ...const [
-        SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
-        SettingsFindable('Tell me when a meeting is written up', 'notification notify alert written up'),
-        SettingsFindable('Write up straight away', 'meeting battery charging background'),
+      // The Meetings card's, where Meetings is on (docs/PM_PLUGINS.md §10).
+      if (moreToolOn(meetingsTool)) ...[
+        const SettingsFindable('Live transcript during meetings', 'real time live words captions meeting transcript as they speak battery charging'),
+        if (android) ...const [
+          SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
+          SettingsFindable('Tell me when a meeting is written up', 'notification notify alert written up'),
+          SettingsFindable('Write up straight away', 'meeting battery charging background'),
+        ],
+        // The desktop's own Meetings card: one switch, for the computer's sound.
+        if (!android) const SettingsFindable("Record the computer's sound too", 'system audio meeting call both sides zoom'),
+        if (signedIn && recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
+        if (signedIn || !android) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox google meet zoom discord'),
       ],
-      // The desktop's own Meetings card: one switch, for the computer's sound.
-      if (!android) const SettingsFindable("Record the computer's sound too", 'system audio meeting call both sides zoom'),
-      if (signedIn && recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
-      if (signedIn || !android) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox google meet zoom discord'),
       ...const [
         SettingsFindable('Tapes', 'your tapes storage audio remove space'),
         SettingsFindable('Remove audio older than a month', 'storage space delete recordings audio'),
@@ -325,9 +329,9 @@ class _RecordingPaneState extends State<RecordingPane> {
           if (!android) ...[sound, words],
         ];
         // Every meeting's settings, one card for every kind (meeting_settings.dart): drawn where there is a meeting
-        // to have them, a recorder's or the account's.
+        // to have them, a recorder's or the account's, and only where Meetings is on (docs/PM_PLUGINS.md §10).
         final signedIn = widget.services?.signedIn ?? features.signedIn;
-        final Widget? meetings = deviceRows.isEmpty && !signedIn
+        final Widget? meetings = !moreToolOn(meetingsTool) || (deviceRows.isEmpty && !signedIn)
             ? null
             : MeetingsCard(store: store, services: widget.services, before: deviceRows, signedIn: signedIn, records: recordsVoice);
 
