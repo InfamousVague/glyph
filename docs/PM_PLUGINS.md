@@ -122,3 +122,38 @@ Tickets; the scope (an organization's list, the person's switches); the new orga
 the banner for a missing plugin and its button writing the list; the switches travelling. The existing tests build
 their worlds with the suite on (`ProjectSuite.debugAllOn`, set for every test in test/flutter_test_config.dart), so
 they go on testing the features; a test of the off state sets it back.
+
+## 9. As built (2026-11-01)
+
+Where each gate is, for whoever moves one:
+
+- **The question**: lib/plugins/projects/suite.dart `projectPluginOn` / `ProjectSuite`; the root's suite is made in
+  lib/root/ghost_root.dart (`_suite`) from lib/root/root_teamspaces.dart (a note's organization, a home page's list,
+  writing it). What a note uses: lib/core/project_tools.dart `toolsUsedIn`, kept as `NoteFacts.tools`. A ticket whose
+  front matter says `estimate:`, `cycle:`, `epic:` or `milestone:` uses Planning too, so its chip says "Turn on Tickets
+  and Planning".
+- **The editor** (lib/root/note_desk.dart): the board, the Gantt chart and the ticket panel are in a compartment
+  (`_toolSlot`) reconfigured as the suite says the note's answer moved; the chips are lib/editor/tools/tool_chips.dart,
+  drawn under a fence's closing run and before the line after a ticket's front matter. A query that needs an off tool
+  is left as its lines (queries.dart `QueryOptions.held`); its switcher and builder offer only the views and kinds that
+  are on (`offers`, `lists`), and a ticket's planning on a card and the cycle carry only with Planning (`planned`).
+- **The + and /**: Make this a ticket, A board, A Gantt chart and the ready-made databases that need a tool
+  (add_rows.dart `databaseRows`, `boardRows`, `AddConfig.queries`); the band's board actions; a notebook's New ticket,
+  its ticket templates and New form; the blank page's Bug report and Feature cards (note_screen.dart).
+- **Tickets everywhere else**: lib/root/library_reads.dart `ticketsOn` makes a ticket where Tickets is off no ticket
+  at all, so My tickets, Triage, the palette's entries, `[[KEY-12]]`, the digest's words and the pull requests' moves
+  read none; the digest's runner and Settings › Notifications' digest are there only where Tickets is on anywhere; a
+  notebook's Ticket key and Rules and GitHub… rows (note_screen.dart).
+- **Automations**: a notebook's rules run only where it is on (root_ticket_rules.dart, through `TicketRules.canEdit`).
+- **Time tracking**: a ticket's timer in its panel and on a card, and the palette's Start timer on…; a timer already
+  running can still be stopped.
+- **Forms**: the share sheet's form rows (share_rows.dart); the form inbox is not read while Forms is off for
+  everyone, so answers wait on the service and nothing is lost (account_wiring.dart).
+- **The in-app AI**: create_ticket where Tickets is off makes nothing and says so, offering to turn it on; with the
+  person's yes it is called again with `turn_on_tickets: true`. create_notebook with a key says Tickets is off.
+- **The Market**: the seven on a shelf of their own, "Project tools"; adding one adds Tickets where it needs it;
+  removing Tickets while tools that need it are on says which at the first press and takes them at the second.
+- **Organizations**: the new organization's second step (new_organization_sheet.dart) hands the tools to the root,
+  which writes `Home.md` there and then; the banner (tool_chip.dart `ToolBanner`) on the teamspace home and at the
+  top of an organization's note; Tools (tool_switches.dart) on the teamspace home (behind More in Simple) and as a
+  section of the organization's settings sheet.
