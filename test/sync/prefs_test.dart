@@ -129,14 +129,15 @@ void main() {
       expect((desk.prefs['theme'], desk.prefs['formatModel'], desk.prefs['localOnly']), ('ember', Preferences.defaults.formatModel, false));
     });
 
-    test('carry the map and the place names, and leave tagging new notes with the device that asks for its position', () async {
+    // Use OpenStreetMap: the map and the place names, one switch since 2026-11-01 (`mapTiles` and `placeNames` until then).
+    test('carry Use OpenStreetMap and the morning time, and leave tagging new notes with the device that asks for its position', () async {
       final service = await FakeService.start(seed: testAccount);
       final phone = PrefsDevice(service);
-      phone.set({'mapTiles': false, 'placeNames': false, 'tagNewNotes': false});
+      phone.set({'openStreetMap': false, 'morningTime': '07:30', 'tagNewNotes': false});
       await phone.sync();
       final desk = PrefsDevice(service);
       await desk.sync();
-      expect((desk.prefs['mapTiles'], desk.prefs['placeNames'], desk.prefs['tagNewNotes']), (false, false, Preferences.defaults.tagNewNotes));
+      expect((desk.prefs['openStreetMap'], desk.prefs['morningTime'], desk.prefs['tagNewNotes']), (false, '07:30', Preferences.defaults.tagNewNotes));
     });
 
     test('carry which notes are in the trash and which are meetings, so the shelf on a second device knows them', () async {

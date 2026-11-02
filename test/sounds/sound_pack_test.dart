@@ -56,9 +56,10 @@ void main() {
     });
 
     test('go to JSON and back as they were', () {
-      final chosen = Preferences.defaults.copyWith(soundPack: 'off', interfaceSounds: false, soundVolume: 0.25, soundEvents: {'all-ticked': true, 'todo-ticked': false});
+      final chosen = Preferences.defaults.copyWith(sounds: 'off', soundVolume: 0.25, soundEvents: {'all-ticked': true, 'todo-ticked': false});
       final json = chosen.toJson();
-      expect((json['soundPack'], json['interfaceSounds'], json['soundVolume']), ('off', false, 0.25));
+      expect((json['sounds'], json['soundVolume']), ('off', 0.25));
+      expect(json.containsKey('soundPack') || json.containsKey('interfaceSounds'), isFalse);
       expect(json['soundEvents'], {'all-ticked': true, 'todo-ticked': false});
       final back = Preferences.fromJson(json);
       expect(back, chosen);
@@ -76,7 +77,7 @@ void main() {
     });
 
     test('the pack, the switch and each event travel; the volume stays on this device', () {
-      expect(syncedPrefs, containsAll(['soundPack', 'interfaceSounds', 'soundEvents']));
+      expect(syncedPrefs, containsAll(['sounds', 'soundEvents']));
       expect(syncedPrefs, isNot(contains('soundVolume')));
     });
   });
@@ -84,9 +85,9 @@ void main() {
   test('Android’s notifications take the pack’s sound for the notification events switched on, whatever the interface switch says', () {
     expect(notificationSounds(Preferences.defaults).pack, 'ghostly');
     expect(notificationSounds(Preferences.defaults).events, isEmpty);
-    final on = Preferences.defaults.copyWith(interfaceSounds: false, soundEvents: {'writeup-ready': true, 'reminder-due': true, 'todo-ticked': true});
+    final on = Preferences.defaults.copyWith(sounds: 'notifications', soundEvents: {'writeup-ready': true, 'reminder-due': true, 'todo-ticked': true});
     expect(notificationSounds(on).events, ['writeup-ready', 'reminder-due']);
-    expect(notificationSounds(on.copyWith(soundPack: 'off')).events, isEmpty);
+    expect(notificationSounds(on.copyWith(sounds: 'off')).events, isEmpty);
   });
 
   group('a sound is heard', () {
@@ -116,9 +117,9 @@ void main() {
       made.play(SoundEvent.allTicked);
       prefs.update((now) => now.copyWith(soundEvents: {'todo-ticked': false}));
       made.play(SoundEvent.todoTicked);
-      prefs.update((now) => now.copyWith(soundEvents: const {}, interfaceSounds: false));
+      prefs.update((now) => now.copyWith(soundEvents: const {}, sounds: 'notifications'));
       made.play(SoundEvent.todoTicked);
-      prefs.update((now) => now.copyWith(interfaceSounds: true, soundPack: 'off'));
+      prefs.update((now) => now.copyWith(sounds: 'off'));
       made.play(SoundEvent.recordStart);
       await turns();
       expect(output.played, isEmpty);
@@ -138,7 +139,7 @@ void main() {
     });
 
     test('in a preview whatever its switch says, in the pack asked for', () async {
-      prefs.update((now) => now.copyWith(interfaceSounds: false, soundEvents: {'saved': false}));
+      prefs.update((now) => now.copyWith(sounds: 'notifications', soundEvents: {'saved': false}));
       made.preview(SoundEvent.saved);
       made.preview(SoundEvent.saved, pack: 'off');
       await turns();
