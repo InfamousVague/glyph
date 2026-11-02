@@ -75,6 +75,10 @@ String? withSection(String body, String section) {
   return '$trimmed${trimmed.isEmpty ? '' : '\n\n'}$section\n';
 }
 
+/// [words] with the section's two marker lines taken out, for a page drawn to be read (lib/book/book_view.dart
+/// `BookWords`): a reader sees the index, never the comments that fence it. The words between are kept.
+String withoutIndexMarkers(String words) => words.contains('ghost:index') ? words.replaceAll(RegExp(r'^[ \t]*<!--\s*/?ghost:index\b[^\n]*-->[ \t]*\n?', multiLine: true), '') : words;
+
 /// [body] with its section taken out, the person's words round it kept.
 String withoutSection(String body) {
   final span = readSection(body).span;

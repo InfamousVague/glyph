@@ -43,7 +43,8 @@ Two or three sentences on what the folder is for.
 ```
 
 - HTML comments, because every markdown reader (GitHub, Obsidian, a text editor) hides or tolerates them, and the
-  app's editor reads them as comments. A ```` ```ghost-index ```` fence would draw as a code block anywhere but here.
+  app's editor reads them as comments. A page drawn to be read (lib/book/book_view.dart `BookWords`: a teamspace's home, a doc page
+  in Read) leaves the two marker lines out, so a reader sees the index and never the comments. A ```` ```ghost-index ```` fence would draw as a code block anywhere but here.
 - A page without the markers gets the section appended at its end (after the person's words); a page with them has
   only what is between them replaced. A page with an opening marker and no closing one is left alone and the run
   fails ("The index's end marker is missing"), so a half-deleted section never eats the person's words.
