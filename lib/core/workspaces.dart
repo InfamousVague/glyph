@@ -893,6 +893,17 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     _write(WorkspaceSheet(list: sheet.list, notes: {...sheet.notes}..remove(noteId), current: sheet.current));
   }
 
+  /// [forgetNote] for many at once, in one write: a batch of the Trash emptied (lib/notes/note_actions.dart
+  /// `emptyTrash`), where a write a note was a thousand of them.
+  void forgetNotes(Iterable<String> noteIds) {
+    final sheet = _current;
+    final gone = [for (final id in noteIds) if (sheet.notes.containsKey(id)) id];
+    if (gone.isEmpty) return;
+    final notes = {...sheet.notes};
+    gone.forEach(notes.remove);
+    _write(WorkspaceSheet(list: sheet.list, notes: notes, current: sheet.current));
+  }
+
   /// The list's filter.
   void chooseWorkspace(String? id) {
     final sheet = _current;

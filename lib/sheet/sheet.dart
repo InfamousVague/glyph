@@ -36,8 +36,11 @@ import 'sheet_drag.dart';
 /// - `className` (the panel's own look, on top of the sheet's) is not taken; nothing built so far asks for it.
 /// - `--sheet-ground` and `--sheet-inset-top`, which a pinned strip inside a sheet reads, are not published.
 /// - A screen reader is given a way to dismiss it (`onDismiss`), where the page's scrim was a bare `div`.
+/// - [pinned] blocks stay at the panel's top while [children] scroll under them: the port's own, for the Trash's
+///   Delete forever (Matt, 2026-11-02: "add a 'delete forever' button at the top of the trash modal so we don't have
+///   to scroll all the way down"). A sheet with none is drawn as it always was.
 class Sheet extends StatefulWidget {
-  const Sheet({super.key, required this.label, required this.onClose, this.onBack, this.onScrimPointerDown, this.centred, required this.children});
+  const Sheet({super.key, required this.label, required this.onClose, this.onBack, this.onScrimPointerDown, this.centred, this.pinned = const [], this.controller, required this.children});
 
   /// How many sheets are up now, anywhere in the app: what waits for every other sheet to be put away before it comes
   /// (the What's new card, lib/changelog/whats_new.dart, never over a plugin's setup or any other question). Told a
@@ -71,6 +74,12 @@ class Sheet extends StatefulWidget {
 
   /// The sheet's blocks, top to bottom, under the grip.
   final List<Widget> children;
+
+  /// Blocks over [children] that never scroll away (with the grip, on a phone); none for a sheet that scrolls whole.
+  final List<Widget> pinned;
+
+  /// The scroll of [children], for a sheet that puts it back at the top (the Trash's next page).
+  final ScrollController? controller;
 
   @override
   State<Sheet> createState() => _SheetState();
@@ -214,10 +223,28 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
     // `--sheet-ground: var(--app-paper-2); background: var(--sheet-ground)`
     final ground = t.color('app-paper-2');
 
+    final pinned = widget.pinned;
+    final TextStyle text = pageText(t, 16, color: t.color('glacier-text'));
     final Widget blocks = DefaultTextStyle(
-      style: pageText(t, 16, color: t.color('glacier-text')),
-      child: CssFlow(children: [if (!desktop) _grip(t), ...widget.children]),
+      style: text,
+      child: CssFlow(children: [if (!desktop && pinned.isEmpty) _grip(t), ...widget.children]),
     );
+    // The blocks that stay, over the ones that scroll: the scroll's own padding at the top is theirs.
+    Widget scrolled(EdgeInsetsGeometry padding) {
+      if (pinned.isEmpty) return SingleChildScrollView(controller: widget.controller, padding: padding, child: blocks);
+      final at = padding.resolve(Directionality.of(overlayContext));
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(at.left, at.top, at.right, 0),
+            child: DefaultTextStyle(style: text, child: CssFlow(children: [if (!desktop) _grip(t), ...pinned])),
+          ),
+          Flexible(child: SingleChildScrollView(controller: widget.controller, padding: EdgeInsets.fromLTRB(at.left, 0, at.right, at.bottom), child: blocks)),
+        ],
+      );
+    }
 
     final Widget panel;
     if (desktop) {
@@ -233,7 +260,7 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
             child: DecoratedBox(
               position: DecorationPosition.foreground,
               decoration: BoxDecoration(border: Border.all(color: edge, width: line), borderRadius: BorderRadius.all(radius)),
-              child: SingleChildScrollView(padding: EdgeInsets.all(line + t.space(5)), child: blocks),
+              child: scrolled(EdgeInsets.all(line + t.space(5))),
             ),
           ),
         ),
@@ -253,14 +280,13 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
               color: ground,
               child: SizedBox(
                 width: double.infinity,
-                child: SingleChildScrollView(
-                  padding: EdgeInsetsDirectional.fromSTEB(
+                child: scrolled(
+                  EdgeInsetsDirectional.fromSTEB(
                     t.len('app-gutter-start'),
                     line + t.space(2),
                     t.len('app-gutter-end'),
                     t.len('app-safe-bottom') + t.space(5),
                   ),
-                  child: blocks,
                 ),
               ),
             ),

@@ -1130,7 +1130,9 @@ extension _RootParts on _GhostRootState {
       open: sheet.note,
       onRestore: _actions.restore,
       onDestroy: _actions.destroy,
-      onEmpty: () => _actions.emptyTrash([for (final note in _trashed) if (!hidden.contains(note.id)) note]),
+      // The notes the sheet lists (all, or what its Find found): in batches, on the Activity tray.
+      onEmpty: _actions.emptyTrash,
+      onRestoreAll: _actions.restoreAll,
       onClose: () => _told(() => _trashSheet = null),
       teamNote: _isTeamNote,
       placeOf: (id) {

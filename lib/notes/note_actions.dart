@@ -5,6 +5,12 @@
 /// can empty it to perma delete notes or restore notes"), which is a flag and so undone by clearing it. Only the
 /// trash deletes for good: one note from it ([NoteActions.destroy]), or all of it ([NoteActions.emptyTrash]).
 ///
+/// EMPTYING A FULL TRASH IS A JOB (Matt, 2026-11-02, with some 1,300 notes in his after a cleanup: "paginate the trash
+/// and add a 'delete forever' button at the top"): the notes go [NoteActions.emptyBatch] at a time, the frame given a
+/// turn between batches, their filing and the trash's record let go once a batch rather than once a note, and the
+/// run is on the Activity tray's record (lib/core/background_jobs.dart, [NoteActions.emptyJobId]) with how far it is
+/// and a Stop, which leaves the rest in the Trash.
+///
 /// DELETING FOR GOOD IS DEFERRED, not done and then undone. Undoing a real delete would mean saving the note again,
 /// which gives it a new `createdAt` and loses its pin; so a deleted note is hidden at once and removed from the
 /// library only when its Undo runs out. The removal is also forced the moment anything could outlive the toast: a
@@ -36,10 +42,12 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/background_jobs.dart';
 import '../core/note.dart';
 import '../core/note_folders.dart' show folderFor;
 import '../core/note_text.dart';
@@ -318,25 +326,88 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
     say(NoteToast('${_capitalise(noteLabel(note))} is back in your notes.', duration: noteUndo));
   }
 
-  /// Every note given, deleted for good now: the trash emptied, once the person has said so.
-  Future<void> emptyTrash(List<Note> notes) async {
-    unawaited(_commit());
-    for (final note in notes) {
-      try {
-        await library.destroy(note.id);
-        _forgetKept(note.id);
-      } catch (error) {
-        debugPrint('[glyph] delete failed: $error');
-      }
-    }
+  /// Every note given out of the trash at once, each back where it was: the Trash's Restore all, once asked.
+  void restoreAll(List<Note> notes) {
+    if (notes.isEmpty) return;
     trash?.forget([for (final note in notes) note.id]);
+    for (final note in notes) {
+      onRestored?.call(note);
+    }
+    haptic?.call(HapticKind.success);
+    say(NoteToast(notes.length == 1 ? '${_capitalise(noteLabel(notes.single))} is back in your notes.' : '${groupedCount(notes.length)} notes are back in your notes.', duration: noteUndo));
+  }
+
+  /// How many notes the Trash is emptied by at a time ([emptyTrash]).
+  static const int emptyBatch = 50;
+
+  /// The job a Trash emptied over more than one batch is on the record as.
+  static const String emptyJobId = 'trash-empty';
+
+  /// The emptying under way, and how many are asked for: a second Empty waits for the first.
+  Future<void> _emptying = Future<void>.value();
+  int _empties = 0;
+
+  /// Every note given, deleted for good now: the trash emptied, once the person has said so. [emptyBatch] at a time,
+  /// with the frame given a turn between batches, and on the Activity tray's record when it takes more than one (see
+  /// the library doc). A note brought out of the Trash while it runs (Restore, or another device's) is left alone.
+  Future<void> emptyTrash(List<Note> notes) {
+    // In the Trash as it is asked: one that has left it by the time its batch comes stays.
+    final held = {
+      for (final note in notes)
+        if (trash?.isTrashed(note.id) ?? false) note.id,
+    };
+    final waits = _empties > 0;
+    _empties += 1;
+    final run = (waits ? _emptying.then((_) => _empty(notes, held)) : _empty(notes, held)).whenComplete(() => _empties -= 1);
+    _emptying = run.catchError((Object _) {});
+    return run;
+  }
+
+  Future<void> _empty(List<Note> notes, Set<String> held) async {
+    unawaited(_commit());
+    final bin = trash;
+    final total = notes.length;
+    var stop = false;
+    String steps(int done) => '${groupedCount(done)} of ${groupedCount(total)} notes';
+    final job = total > emptyBatch
+        ? activity.begin(emptyJobId, kind: JobKind.sync, title: 'Emptying the Trash', line: 'Deleting notes forever', steps: steps(0), fraction: 0, personStarted: true, onStop: () => stop = true)
+        : null;
+    var gone = 0, done = 0;
+    for (var start = 0; start < total && !stop && !_gone; start += emptyBatch) {
+      final went = <String>[];
+      for (final note in notes.sublist(start, math.min(start + emptyBatch, total))) {
+        done += 1;
+        if (held.contains(note.id) && !(bin?.isTrashed(note.id) ?? false)) continue;
+        try {
+          await library.destroy(note.id);
+          onForget?.call(note.id);
+          went.add(note.id);
+        } catch (error) {
+          debugPrint('[glyph] delete failed: $error');
+        }
+      }
+      // Once a batch: the filing and the trash's record are each a write of the whole map.
+      workspaces.forgetNotes(went);
+      bin?.forget(went);
+      gone += went.length;
+      job?.progress(done: done, total: total, steps: steps(done));
+      if (done < total) await Future<void>.delayed(Duration.zero);
+    }
     try {
       await library.refresh();
     } catch (error) {
       debugPrint('[glyph] refresh after delete failed: $error');
     }
+    final tally = JobTally('note deleted for good', 'notes deleted for good', gone);
+    if (done < total) {
+      job?.stopped(tally: tally);
+      if (_gone) return;
+      say(NoteToast('Deleted ${groupedCount(gone)} of ${groupedCount(total)} notes for good. The rest are still in the Trash.'));
+      return;
+    }
+    job?.done(tally: tally);
     haptic?.call(HapticKind.warning);
-    say(NoteToast(notes.length == 1 ? 'Deleted 1 note for good.' : 'Deleted ${notes.length} notes for good.'));
+    say(NoteToast(gone == 1 ? 'Deleted 1 note for good.' : 'Deleted ${groupedCount(gone)} notes for good.'));
   }
 
   /// The notes whose thirty days in the trash are up, deleted for good as Empty Trash deletes them, without a word:
