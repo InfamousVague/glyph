@@ -1,5 +1,18 @@
 [
   {
+    "version": "2.4.0",
+    "date": "2026-11-02",
+    "title": "Ghost Academy by feature, and Figma frames in your notes",
+    "items": [
+      {"icon": "graduation-cap", "words": "Ghost Academy is a catalog of courses by feature, Gantt and Boards to Tickets and Forms, with Continue learning at the top.", "kind": "new"},
+      {"icon": "graduation-cap", "words": "The Academy is in the top bar beside your profile, and a course for a plugin that is off can turn it on.", "kind": "new"},
+      {"icon": "shapes", "words": "The Figma plugin: connect your Figma account and a frame's link shows that frame's own picture, private files too.", "kind": "new"},
+      {"icon": "palette", "words": "Lovart looks up what a note is about before drawing its header, leaves the ghost out, and its prompt is yours to edit.", "kind": "better"},
+      {"icon": "users", "words": "A meeting's note ends with its date, so each week's standup is a note of its own and a link opens the right one.", "kind": "fixed"},
+      {"icon": "sun", "words": "In light mode the header is frosted white glass, not grey.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.3.99",
     "date": "2026-11-02",
     "title": "A Trash you can page through, and Back that goes up",
