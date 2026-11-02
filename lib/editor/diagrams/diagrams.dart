@@ -37,6 +37,15 @@
 ///   picture to be read back, is its remembered height of nothing rather than its words.
 /// - `ignoreEvent` left everything but a press to the picture (a wide diagram scrolled sideways); a picture here is
 ///   never wider than its block, and the block takes its taps.
+/// - **A gantt is the app's own chart, read only** (Matt, 2026-11-02, from the Fold's cover screen: "Clean up the
+///   gantt chart viewing experience to be scrolling on mobile and bigger right now it's very cluttered and impossible
+///   to parse"). Mermaid fits a gantt to the page's width, its names beside its bars in the typewriter face, and on a
+///   phone the names ran over the bars, each other and the edge, its sections over its rows, and its dates went under
+///   the page's blur at its foot. Read into the chart a ```gantt fence draws (lib/editor/gantt; core/gantt/mermaid.dart
+///   [mermaidGanttModel]), its names are in a column that stays while the days scroll sideways under them, at the
+///   note's size on two lines at most, its sections head their rows, and its days are along the top, kept in sight as
+///   the page scrolls. Its pencil opens the fence, its Full screen is the chart's own. The words are untouched: only
+///   the drawing changed. One with no task the chart can draw is still Mermaid's picture.
 library;
 
 import 'dart:async';
@@ -46,12 +55,18 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
-import '../../core/gantt/mermaid.dart' show isMermaidGantt, mermaidToGantt;
+import '../../core/gantt/gantt.dart' show GanttModel, isMermaidGantt, mermaidGanttModel, mermaidToGantt;
+import '../../core/preferences.dart' show preferences;
 import '../../sheet/ask_first.dart';
 import '../editor.dart';
+import '../gantt/gantt_chart.dart' show GanttActions, GanttChart, ganttDaysHead, ganttHead, ganttRow;
+import '../gantt/gantt_full_screen.dart';
+import '../items/field_menu.dart' show todayIs;
+import '../items/task_fields.dart' show fieldsToday;
 import '../looks/look.dart';
 import '../looks/note_face.dart';
 import '../media/inline_box.dart' show InlineWords;
+import '../queries/query_look.dart';
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
@@ -84,14 +99,75 @@ class MermaidWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlo
   bool eq(MermaidWidget other) => other.code == code && other.from == from;
 
   @override
-  double get estimatedHeight => guessDiagramHeight(code);
+  double get estimatedHeight {
+    if (!isMermaidGantt(code)) return guessDiagramHeight(code);
+    // The app's chart (DrawnMermaidGantt): its title and bar, the days' head, a row a task and a head a section.
+    final lines = code.split('\n').map((line) => line.trim());
+    final sections = lines.where((line) => line.toLowerCase().startsWith('section ')).length;
+    final tasks = lines.where((line) => line.contains(':') && !line.startsWith('%%')).length;
+    return 120 + ganttDaysHead + (ganttRow + 4) * tasks + ganttHead * sections;
+  }
 
   /// A tap is the block's, to open the fence for editing.
   @override
   bool takesPointer(PointerEvent event) => true;
 
   @override
-  Widget build(BuildContext context) => DrawnDiagram(code: code, from: from);
+  Widget build(BuildContext context) {
+    if (isMermaidGantt(code)) {
+      final view = EditorViewScope.maybeOf(context);
+      final today = view?.state.facet(fieldsToday)?.call() ?? todayIs();
+      final model = mermaidGanttModel(code, today: today);
+      if (model != null) return DrawnMermaidGantt(code: code, from: from, model: model);
+    }
+    return DrawnDiagram(code: code, from: from);
+  }
+}
+
+/// A Mermaid gantt drawn as the app's own chart, read only: its pencil opens the fence, its Full screen shows it on
+/// the whole screen, and under it the Convert that makes it a ```gantt fence to drag.
+class DrawnMermaidGantt extends StatelessWidget {
+  const DrawnMermaidGantt({super.key, required this.code, required this.from, required this.model});
+
+  final String code;
+  final int from;
+  final GanttModel model;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final view = EditorViewScope.maybeOf(context);
+    final look = QueryLook.of(context, view is EditorView ? view.look : null);
+    final editable = view != null && view.state.facet(EditorViewLike.editable);
+    final label = model.title == null || model.title!.isEmpty ? 'Gantt chart' : 'Gantt chart: ${model.title}';
+    final simple = preferences.value.simple;
+    final chart = Padding(
+      padding: EdgeInsets.symmetric(horizontal: look.bleed, vertical: look.blockEnds),
+      child: GanttChart(
+        key: const ValueKey<String>('cm-mermaidGantt'),
+        look: look,
+        model: model,
+        actions: GanttActions(onText: editable ? () => openOnPress(view, from) : null),
+        simple: simple,
+        label: label,
+        onFullScreen: () => openGanttFullScreen(context, look: look, model: model, simple: simple, label: label),
+      ),
+    );
+    if (!editable || !diagramConvertButtons) return chart;
+    final em = look.note;
+    final gutter = layoutUnitFloor(view is EditorView ? view.look?.env.gutter ?? t.len('app-gutter') : t.len('app-gutter'));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        chart,
+        Padding(
+          padding: EdgeInsets.fromLTRB(gutter, layoutUnitFloor(0.3 * em), gutter, layoutUnitFloor(0.3 * em)),
+          child: Align(alignment: Alignment.centerLeft, child: ConvertGanttButton(onPressed: () => convertMermaidGantt(context, view, from))),
+        ),
+      ],
+    );
+  }
 }
 
 /// A font-family as a stylesheet writes it, from the faces the app ships and the system's own after them.

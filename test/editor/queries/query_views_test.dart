@@ -464,6 +464,9 @@ void main() {
       final (_, asked) = await open(tester, 'from: tickets\nshow: gantt\nzoom: month\nsort: start', screen: 1000, notes: notes);
       expect(parts('ganttName'), findsNWidgets(1000));
       final first = ganttChart(tester).widget.model.items.first;
+      // A chart opens with today in sight (Matt, 2026-11-02); the first bar is scrolled to.
+      ganttChart(tester).scrollTo(first.start, animate: false);
+      await tester.pump();
       final mouse = await tester.startGesture(barAt(tester, first.key, where: 'end'), kind: PointerDeviceKind.mouse);
       await mouse.moveBy(const Offset(20, 0));
       await tester.pump();

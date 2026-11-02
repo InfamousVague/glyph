@@ -15,10 +15,12 @@ import 'support.dart';
 
 late HeldBridge bridge;
 
-const String _gantt = 'gantt\n  dateFormat YYYY-MM-DD\n  section Tests\n  Anatomy scan :2026-12-14, 2027-01-18';
+// A flowchart: a Mermaid gantt is the app's own chart since 2026-11-02, with a full screen of its own
+// (test/gantt/mermaid_chart_test.dart).
+const String _flow = 'flowchart LR\n  A[Book the scan] --> B[Anatomy scan] --> C[Results]';
 
 Future<void> open(WidgetTester tester) async {
-  await pumpNote(tester, 'Before\n\n```mermaid\n$_gantt\n```\n\nAfter', more: <Extension>[drawnMermaid()]);
+  await pumpNote(tester, 'Before\n\n```mermaid\n$_flow\n```\n\nAfter', more: <Extension>[drawnMermaid()]);
   await tester.pump();
   bridge.finish(0, block: const Size(390, 120), at: const Rect.fromLTWH(10, 10, 370, 100));
   await tester.pump();
@@ -39,7 +41,7 @@ void main() {
   });
 
   testWidgets('a drawn diagram has a full-screen button, and an undrawn one none', (tester) async {
-    await pumpNote(tester, 'Before\n\n```mermaid\n$_gantt\n```\n\nAfter', more: <Extension>[drawnMermaid()]);
+    await pumpNote(tester, 'Before\n\n```mermaid\n$_flow\n```\n\nAfter', more: <Extension>[drawnMermaid()]);
     await tester.pump();
     expect(_button, findsNothing, reason: 'its words, while it is being drawn, have nothing to show larger');
     bridge.finish(0, block: const Size(390, 120), at: const Rect.fromLTWH(10, 10, 370, 100));
@@ -58,7 +60,7 @@ void main() {
     expect(bridge.asked, hasLength(2));
     final wide = bridge.asked.last;
     // A screen 390 across: the page the full-screen picture is drawn on is the least, not the screen.
-    expect((wide.room, wide.viewport, wide.code), (fullScreenLeast, fullScreenLeast, _gantt));
+    expect((wide.room, wide.viewport, wide.code), (fullScreenLeast, fullScreenLeast, _flow));
     bridge.finish(1, block: const Size(760, 300), at: const Rect.fromLTWH(16, 10, 728, 280));
     await tester.pump();
     await tester.pump();

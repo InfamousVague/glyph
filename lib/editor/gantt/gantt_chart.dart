@@ -43,18 +43,32 @@ import 'package:glacier/glacier.dart';
 
 import '../../activity/job_mark.dart' show activityCalm;
 import '../../art/app_icon.dart';
+import '../../art/blur_edge.dart' show BlurEdgeClear;
 import '../../art/lucide.g.dart';
 import '../../core/days.dart' show dateOfDay, daysBetween, isoDayAfter;
 import '../../core/gantt/gantt.dart';
 import '../../core/hold_drag.dart' show holdTime;
-import '../queries/query_layout.dart' show Part, PageWords;
+import '../queries/query_layout.dart' show Part, PageWords, pageLine;
 import '../queries/query_look.dart';
 import 'gantt_panel.dart';
 
-/// How tall a task's row is, a section's head, and the days' head.
-const double ganttRow = 32;
-const double ganttHead = 28;
-const double ganttDaysHead = 40;
+/// The least a task's row is, a section's head, and how tall the days' head is (Matt, 2026-11-02, from the Fold's cover
+/// screen: "Clean up the gantt chart viewing experience to be scrolling on mobile and bigger right now it's very
+/// cluttered and impossible to parse"): a row a finger can take, its name at the note's own size on two lines at most
+/// ([GanttChartState.rowHeight]), and a head with room for a month over its days.
+const double ganttRow = 40;
+const double ganttHead = 32;
+const double ganttDaysHead = 44;
+
+/// How tall a bar is, and a milestone's diamond, across.
+const double ganttBar = 22;
+const double ganttDiamond = 18;
+
+/// The narrowest a day opens where the chart fits its bars in: a week 35 pixels across on a phone, room for each
+/// Monday's date, where the days scroll sideways under the names; and 21 on a wider screen, where a project of months
+/// fits whole.
+const double ganttFitNarrow = 5;
+const double ganttFitWide = 3;
 
 /// How wide a day is at each zoom, and the narrowest and widest a pinch makes one.
 double ganttDayWidth(GanttZoom zoom) => switch (zoom) {
@@ -136,7 +150,7 @@ class _Line {
 
 /// Where each row is, from the top of the rows.
 class GanttRows {
-  GanttRows(this.model) {
+  GanttRows(this.model, {this.row = ganttRow, this.head = ganttHead}) {
     final heads = model.groups.length > 1 || model.groups.any((group) => group.name.isNotEmpty);
     var y = 0.0;
     for (var index = 0; index < model.groups.length; index += 1) {
@@ -144,19 +158,23 @@ class GanttRows {
       if (heads) {
         _lines.add(_Line.head(index));
         _tops.add(y);
-        y += ganttHead;
+        y += head;
       }
       for (final item in group.items) {
         _index[item.key] = _lines.length;
         _lines.add(_Line.item(index, item));
         _tops.add(y);
-        y += ganttRow;
+        y += row;
       }
     }
     height = y;
   }
 
   final GanttModel model;
+
+  /// How tall a task's row is here, and a section's head.
+  final double row;
+  final double head;
   final List<_Line> _lines = <_Line>[];
   final List<double> _tops = <double>[];
   final Map<String, int> _index = <String, int>{};
@@ -164,7 +182,7 @@ class GanttRows {
 
   int get length => _lines.length;
   double top(int index) => _tops[index];
-  double heightOf(int index) => _lines[index].item == null ? ganttHead : ganttRow;
+  double heightOf(int index) => _lines[index].item == null ? head : row;
   GanttItem? itemAt(int index) => _lines[index].item;
   int groupAt(int index) => _lines[index].group;
   int? indexOf(String key) => _index[key];
@@ -172,7 +190,7 @@ class GanttRows {
   /// The middle of [key]'s row.
   double? middleOf(String key) {
     final index = _index[key];
-    return index == null ? null : _tops[index] + ganttRow / 2;
+    return index == null ? null : _tops[index] + row / 2;
   }
 
   /// The row at [y], by halving: rows are in order.
@@ -231,11 +249,14 @@ class GanttFrame {
     final span = model.span;
     final low = model.today.compareTo(span.first) < 0 ? model.today : span.first;
     final high = model.today.compareTo(span.last) > 0 ? model.today : span.last;
-    final pad = math.max(7, (room / wide / 4).ceil());
+    // A week either side at least, and up to a quarter of the room, no more than a fortnight; a week alone with days too
+    // narrow to date, so a project of months that fits its bars in is not scrolled for the sake of its margins.
+    final pad = wide < 5 ? 7 : math.max(7, math.min(room / wide / 4, 14).ceil());
     var first = isoDayAfter(low, -pad)!;
     final at = dateOfDay(first)!;
     first = isoDayAfter(first, -(at.weekday - 1))!;
-    final days = math.max((daysBetween(first, high) ?? 0) + 1 + pad, (room / wide).ceil() + 1);
+    // As wide as the room at least, to a whole day under it: a chart that fits is not scrolled by a part of a day.
+    final days = math.max((daysBetween(first, high) ?? 0) + 1 + pad, (room / wide).floor());
     return GanttFrame(first: first, count: days, wide: wide);
   }
 }
@@ -275,7 +296,7 @@ class GanttDrag {
 }
 
 class GanttChart extends StatefulWidget {
-  const GanttChart({super.key, required this.look, required this.model, this.actions = const GanttActions(), this.simple = false, this.label = 'Gantt chart', this.titled = true});
+  const GanttChart({super.key, required this.look, required this.model, this.actions = const GanttActions(), this.simple = false, this.label = 'Gantt chart', this.titled = true, this.onFullScreen});
 
   final QueryLook look;
   final GanttModel model;
@@ -288,6 +309,10 @@ class GanttChart extends StatefulWidget {
   /// Whether the chart says its title over its bar (a fence's `title:`).
   final bool titled;
 
+  /// Shows the chart full screen (gantt_full_screen.dart): a Mermaid gantt's, read as it is. Null, and the bar has no
+  /// button for it.
+  final VoidCallback? onFullScreen;
+
   @override
   State<GanttChart> createState() => GanttChartState();
 }
@@ -298,13 +323,18 @@ class GanttChartState extends State<GanttChart> {
   double get _dayWide => _wide ?? ganttDayWidth(widget.model.zoom ?? GanttZoom.month);
   set _dayWide(double value) => _wide = value;
 
-  /// The day's width that fits every bar into [room], a little either side, no wider than a week's zoom.
-  double _fit(double room) {
+  /// The day's width that fits every bar into [room] with the frame's margins either side, no wider than a week's
+  /// zoom and no narrower than [ganttFitNarrow] on a phone ([narrow]) or [ganttFitWide] wider: a project of months
+  /// fits a desktop's note whole, and on a phone its days scroll sideways at a size that can be read.
+  double _fit(double room, {required bool narrow}) {
     final zoom = widget.model.zoom;
     if (zoom != null) return ganttDayWidth(zoom);
     final span = widget.model.span;
-    final days = (daysBetween(span.first, span.last) ?? 0) + 1 + 4;
-    return (room / days).clamp(ganttDayWidth(GanttZoom.quarter), ganttDayWidth(GanttZoom.week)).floorToDouble();
+    // A little either side; for a project of months, the frame's week either side and the days back to a Monday.
+    final length = (daysBetween(span.first, span.last) ?? 0) + 1;
+    final days = length + (length > 60 ? 2 * 7 + 6 : 4);
+    final fitted = (room / days).clamp(narrow ? ganttFitNarrow : ganttFitWide, ganttDayWidth(GanttZoom.week));
+    return (fitted * 4).floorToDouble() / 4;
   }
   final ScrollController _across = ScrollController();
   final ValueNotifier<GanttDrag?> _drag = ValueNotifier<GanttDrag?>(null);
@@ -314,6 +344,16 @@ class GanttChartState extends State<GanttChart> {
   final LayerLink _anchor = LayerLink();
   bool _placed = false;
   double _room = 0;
+
+  /// How far the days' head is let down from the top of the rows, to stay in sight while the page (or the full-screen
+  /// layer) scrolls the rows up under it: from nothing, with the chart's top in view, to its last row.
+  final ValueNotifier<double> _lift = ValueNotifier<double>(0);
+  final GlobalKey _rowsKey = GlobalKey(debugLabel: 'gantt rows');
+  ScrollPosition? _page;
+  double _clear = 0;
+
+  /// How far the head is let down now.
+  double get lift => _lift.value;
 
   /// The task chosen, and the one whose panel is open.
   String? _selected;
@@ -339,10 +379,18 @@ class GanttChartState extends State<GanttChart> {
   GanttRows? _rows;
   GanttModel? _rowsFor;
 
-  /// The rows, made again only when the model is.
+  /// A task's name is set at the note's own size, on two lines at most: its line, and the row that holds two.
+  double get nameLine => pageLine(widget.look.note, 1.25);
+  double get rowHeight => math.max(ganttRow, (2 * nameLine + 6).ceilToDouble());
+
+  /// A section's head, its name at the card's size.
+  double get headHeight => math.max(ganttHead, (pageLine(widget.look.em, 1.25) + 14).ceilToDouble());
+
+  /// The rows, made again only when the model is, or the note's size.
   GanttRows get rows {
-    if (_rows == null || !identical(_rowsFor, widget.model)) {
-      _rows = GanttRows(widget.model);
+    final row = rowHeight, head = headHeight;
+    if (_rows == null || !identical(_rowsFor, widget.model) || _rows!.row != row || _rows!.head != head) {
+      _rows = GanttRows(widget.model, row: row, head: head);
       _rowsFor = widget.model;
     }
     return _rows!;
@@ -369,6 +417,67 @@ class GanttChartState extends State<GanttChart> {
   double _frameRoom = -1;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The page that scrolls the chart up and down, and how far below its top the view is clear of the header and its
+    // blur (lib/art/blur_edge.dart): the head stays there.
+    _clear = BlurEdgeClear.topOf(context);
+    final page = Scrollable.maybeOf(context, axis: Axis.vertical)?.position;
+    if (!identical(page, _page)) {
+      _page?.removeListener(_follow);
+      _page = page?..addListener(_follow);
+    }
+  }
+
+  /// Where the rows' top was in the page's view when last measured, and how far the page was scrolled then.
+  double? _measuredTop;
+  double _measuredAt = 0;
+  bool _measuring = false;
+
+  /// The page scrolled: the head let down at once by how far it went since the rows were last measured (the page's
+  /// own layout of the note comes after this, in the frame), and measured again once the frame is laid out, for
+  /// where the page settled (a scroll past its end held back to it, a note grown above).
+  void _follow() {
+    if (!mounted) return;
+    final page = _page;
+    final top = _measuredTop;
+    if (page != null && top != null && page.hasPixels) _lean(top - (page.pixels - _measuredAt));
+    if (_measuring) return;
+    _measuring = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measuring = false;
+      _measure();
+    });
+  }
+
+  /// Measures where the rows' top is in the page's view, and lets the head down to match.
+  void _measure() {
+    if (!mounted) return;
+    final rows = _rowsKey.currentContext?.findRenderObject();
+    final page = _page;
+    final viewport = page == null ? null : Scrollable.maybeOf(context, axis: Axis.vertical)?.context.findRenderObject();
+    if (rows is! RenderBox || !rows.attached || !rows.hasSize || viewport is! RenderBox || !viewport.attached || !page!.hasPixels) {
+      _measuredTop = null;
+      _lift.value = 0;
+      return;
+    }
+    final top = rows.localToGlobal(Offset.zero, ancestor: viewport).dy;
+    // Measured with the head where it was: the rows' own box is not moved by it.
+    _measuredTop = top;
+    _measuredAt = page.pixels;
+    _lean(top);
+  }
+
+  /// The head let down as far as the rows' top, at [top] in the page's view, is above the clear line, and no further
+  /// than the last row.
+  void _lean(double top) {
+    final rows = _rowsKey.currentContext?.findRenderObject();
+    if (rows is! RenderBox || !rows.hasSize) return;
+    final most = math.max(0.0, rows.size.height - ganttDaysHead - this.rows.row);
+    _lift.value = (_clear - top).clamp(0.0, most).toDouble();
+  }
+
+  @override
   void didUpdateWidget(GanttChart oldWidget) {
     super.didUpdateWidget(oldWidget);
     // A chosen task that is gone is let go of.
@@ -380,6 +489,8 @@ class GanttChartState extends State<GanttChart> {
   @override
   void dispose() {
     _saying?.cancel();
+    _page?.removeListener(_follow);
+    _lift.dispose();
     _across.dispose();
     _drag.dispose();
     _hover.dispose();
@@ -412,7 +523,7 @@ class GanttChartState extends State<GanttChart> {
     final view = _across.position.viewportDimension;
     // A day's place a quarter of the way in, or, for the chart's first bar as it opens, two days from the edge.
     final to = (frame.x(day) - (edge ? 2 * _dayWide : view / 4)).clamp(0.0, _across.position.maxScrollExtent);
-    if (animate) {
+    if (animate && !widget.look.t.reducedMotion) {
       _across.animateTo(to, duration: const Duration(milliseconds: 240), curve: Curves.easeOutCubic);
     } else {
       _across.jumpTo(to);
@@ -461,12 +572,14 @@ class GanttChartState extends State<GanttChart> {
     final start = days?.start ?? item.start;
     final end = days?.end ?? item.end;
     final left = frame.x(start);
+    final row = rows.row;
     if (item.milestone) {
       final middle = left + frame.wide / 2;
-      return Rect.fromCenter(center: Offset(middle, top + ganttRow / 2), width: 16, height: 16);
+      return Rect.fromCenter(center: Offset(middle, top + row / 2), width: ganttDiamond, height: ganttDiamond);
     }
     final right = frame.x(end) + frame.wide;
-    return Rect.fromLTRB(left + 1, top + 7, math.max(left + 6, right - 1), top + ganttRow - 7);
+    final inset = (row - ganttBar) / 2;
+    return Rect.fromLTRB(left + 1, top + inset, math.max(left + 6, right - 1), top + row - inset);
   }
 
   /// The round at a bar's end that a wait is drawn from.
@@ -542,7 +655,8 @@ class GanttChartState extends State<GanttChart> {
   _Hit _hit(Offset at, {bool touch = false}) {
     final frame = this.frame;
     final rows = this.rows;
-    if (at.dy < ganttDaysHead) return const _Hit();
+    // The days' head, at the top or let down over the rows: nothing to take.
+    if (at.dy < ganttDaysHead || (at.dy >= _lift.value && at.dy < _lift.value + ganttDaysHead)) return const _Hit();
     final index = rows.at(at.dy - ganttDaysHead);
     final item = index == null ? null : rows.itemAt(index);
     _Hit? onBar(double reach) {
@@ -853,17 +967,28 @@ class GanttChartState extends State<GanttChart> {
       _placed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final first = model.span.first;
-        final lead = model.today.compareTo(first) < 0 || model.items.isEmpty;
-        scrollTo(lead ? model.today : first, animate: false, edge: !lead);
+        // At its first bar where today is in sight from there, else today a quarter of the way in where the chart has
+        // it or comes before it; a chart all in the past opens at its first bar.
+        final span = model.span;
+        var today = model.items.isEmpty || model.today.compareTo(span.last) <= 0;
+        if (today && _across.hasClients && model.today.compareTo(span.first) >= 0) {
+          final frame = this.frame;
+          final along = frame.x(model.today) - (frame.x(span.first) - 2 * _dayWide);
+          if (along < _across.position.viewportDimension * 0.75) today = false;
+        }
+        scrollTo(today ? model.today : span.first, animate: false, edge: !today);
       });
     }
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 560;
-        final names = wide ? 220.0 : 124.0;
+        // The names' column: two fifths of a phone's chart, so a name has room for two lines at the note's size, and a
+        // quarter of a wider one.
+        final names = (wide ? (constraints.maxWidth * 0.25).clamp(240.0, 320.0) : (constraints.maxWidth * 0.4).clamp(128.0, 200.0)).floorToDouble();
         _room = math.max(0, constraints.maxWidth - names - look.hair);
-        _wide ??= _fit(_room);
+        _wide ??= _fit(_room, narrow: !wide);
+        // Where the head belongs once this layout is done.
+        WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
         final frame = this.frame;
         final height = ganttDaysHead + math.max(rows.height, ganttRow);
         final colours = GanttColours.of(look, model);
@@ -976,7 +1101,21 @@ class GanttChartState extends State<GanttChart> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
-                    RepaintBoundary(child: CustomPaint(key: const ValueKey<String>('gantt-days'), size: Size(frame.width, height), painter: painter)),
+                    // The room filled, to the part of a day the frame's last whole day falls short of it.
+                    RepaintBoundary(child: CustomPaint(key: const ValueKey<String>('gantt-days'), size: Size(math.max(frame.width, _room), height), painter: painter)),
+                    // The days' head over them, let down to stay in sight as the rows scroll up.
+                    ValueListenableBuilder<double>(
+                      valueListenable: _lift,
+                      builder: (context, lift, child) => Positioned(left: 0, top: lift, width: math.max(frame.width, _room), height: ganttDaysHead, child: child!),
+                      child: IgnorePointer(
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            key: const ValueKey<String>('gantt-head'),
+                            painter: GanttHeadPainter(frame: frame, look: look, today: model.today, calm: colours.calm, across: _across, lift: _lift),
+                          ),
+                        ),
+                      ),
+                    ),
                     if (editing != null && wide) ..._popover(editing, frame, rows),
                   ],
                 ),
@@ -988,16 +1127,34 @@ class GanttChartState extends State<GanttChart> {
         final chart = Part(
           'ganttRows',
           child: DecoratedBox(
+            key: _rowsKey,
             decoration: BoxDecoration(color: look.paper, borderRadius: BorderRadius.circular(look.t.radius('md'))),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(look.t.radius('md')),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
                 children: <Widget>[
-                  names0,
-                  Container(width: look.hair, height: height, color: look.rule),
-                  Expanded(
-                    child: SingleChildScrollView(key: const ValueKey<String>('gantt-scroll'), controller: _across, scrollDirection: Axis.horizontal, child: days),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      names0,
+                      Container(width: look.hair, height: height, color: look.rule),
+                      Expanded(
+                        child: SingleChildScrollView(key: const ValueKey<String>('gantt-scroll'), controller: _across, scrollDirection: Axis.horizontal, child: days),
+                      ),
+                    ],
+                  ),
+                  // The names' corner of the head, let down with the days'.
+                  ValueListenableBuilder<double>(
+                    valueListenable: _lift,
+                    builder: (context, lift, child) => Positioned(left: 0, top: lift - 2, width: names, height: ganttDaysHead + 2, child: child!),
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: look.paper,
+                          border: Border(bottom: BorderSide(color: look.rule, width: look.hair), right: BorderSide(color: look.rule, width: look.hair)),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1005,6 +1162,8 @@ class GanttChartState extends State<GanttChart> {
           ),
         );
         final title = widget.titled ? model.title : null;
+        // The title in the bar only where the bar has room for it whole beside the zoom; over it otherwise.
+        final roomy = constraints.maxWidth >= 1000;
         return Focus(
           focusNode: _focus,
           onKeyEvent: _key,
@@ -1017,12 +1176,12 @@ class GanttChartState extends State<GanttChart> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  if (!wide && title != null && title.isNotEmpty)
+                  if (!roomy && title != null && title.isNotEmpty)
                     Padding(
                       padding: EdgeInsets.only(bottom: look.space(1)),
                       child: PageWords(title, look.sans(look.em, weight: 'semibold', color: look.ink), line: look.line, maxLines: 2, overflow: TextOverflow.ellipsis),
                     ),
-                  _bar(look, wide ? title : null, wide),
+                  _bar(look, roomy ? title : null, wide),
                   SizedBox(height: look.space(2)),
                   chart,
                   if (_said != null)
@@ -1164,6 +1323,7 @@ class GanttChartState extends State<GanttChart> {
                 ],
               ),
             ),
+          if (widget.onFullScreen != null) button('', 'Full screen', widget.onFullScreen!, icon: Lucide.maximize, key: const ValueKey<String>('gantt-full')),
         ],
       ),
     );
@@ -1265,8 +1425,10 @@ class _Names extends StatelessWidget {
     final item = rows.itemAt(index);
     if (item == null) {
       final group = model.groups[rows.groupAt(index)];
+      // A section's name at the card's size, over its rows: a group's head, as a timeline's are.
+      final line = pageLine(look.em, 1.25);
       return SizedBox(
-        height: ganttHead,
+        height: rows.head,
         child: Container(
           color: QueryLook.mix(look.ink, 0.03),
           padding: EdgeInsets.symmetric(horizontal: look.space(2)),
@@ -1274,9 +1436,9 @@ class _Names extends StatelessWidget {
             children: <Widget>[
               Container(width: 8, height: 8, decoration: BoxDecoration(color: colours.group(rows.groupAt(index)), shape: BoxShape.circle)),
               SizedBox(width: look.space(1)),
-              Flexible(child: Part('ganttSection', child: PageWords(group.name.isEmpty ? 'Tasks' : group.name, look.sans(look.xs, weight: 'semibold', color: look.ink2), line: look.lineXs, maxLines: 1, overflow: TextOverflow.ellipsis))),
+              Flexible(child: Part('ganttSection', child: PageWords(group.name.isEmpty ? 'Tasks' : group.name, look.sans(look.em, weight: 'semibold', color: look.ink2), line: line, maxLines: 1, overflow: TextOverflow.ellipsis))),
               SizedBox(width: look.space(1)),
-              PageWords('${group.items.length}', look.sans(look.xs, color: look.ink3, tabular: true), line: look.lineXs, softWrap: false),
+              PageWords('${group.items.length}', look.sans(look.em, color: look.ink3, tabular: true), line: line, softWrap: false),
             ],
           ),
         ),
@@ -1297,7 +1459,7 @@ class _Names extends StatelessWidget {
         child: Part(
           'ganttName',
           child: Container(
-            height: ganttRow,
+            height: rows.row,
             padding: EdgeInsets.symmetric(horizontal: look.space(2)),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
@@ -1306,10 +1468,11 @@ class _Names extends StatelessWidget {
             ),
             child: Row(
               children: <Widget>[
-                if (item.milestone) Padding(padding: EdgeInsets.only(right: look.space(1)), child: Transform.rotate(angle: math.pi / 4, child: Container(width: 7, height: 7, color: colours.of(item)))),
+                if (item.milestone) Padding(padding: EdgeInsets.only(right: look.space(1)), child: Transform.rotate(angle: math.pi / 4, child: Container(width: 8, height: 8, color: colours.of(item)))),
                 if (item.label != null) Padding(padding: EdgeInsets.only(right: look.space(1)), child: PageWords(item.label!, look.mono(look.xs * 0.92, color: look.ink3), line: look.lineXs, softWrap: false)),
+                // The name at the note's own size, in the app's face, on two lines at most: never over the days.
                 Flexible(
-                  child: PageWords(item.name, look.sans(look.xs, color: item.done ? look.ink3 : look.ink, struck: item.done, strike: look.ink4), line: look.lineXs, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: PageWords(item.name, look.sans(look.note, color: item.done ? look.ink3 : look.ink, struck: item.done, strike: look.ink4), line: state.nameLine, maxLines: 2, overflow: TextOverflow.ellipsis),
                 ),
               ],
             ),
@@ -1414,7 +1577,7 @@ class _GapPainter extends CustomPainter {
       ..color = look.ink
       ..strokeWidth = 2);
     final from = rows.indexOf(now.key);
-    if (from != null) canvas.drawRect(Rect.fromLTWH(0, ganttDaysHead + rows.top(from), size.width, ganttRow), Paint()..color = QueryLook.mix(look.ink, 0.08));
+    if (from != null) canvas.drawRect(Rect.fromLTWH(0, ganttDaysHead + rows.top(from), size.width, rows.row), Paint()..color = QueryLook.mix(look.ink, 0.08));
   }
 
   @override
@@ -1488,9 +1651,9 @@ class GanttPainter extends CustomPainter {
     }
     // The sections' heads, a band across.
     for (var index = 0; index < rows.length; index += 1) {
-      if (rows.itemAt(index) == null) canvas.drawRect(Rect.fromLTWH(0, ganttDaysHead + rows.top(index), size.width, ganttHead), Paint()..color = QueryLook.mix(look.ink, 0.03));
+      if (rows.itemAt(index) == null) canvas.drawRect(Rect.fromLTWH(0, ganttDaysHead + rows.top(index), size.width, rows.head), Paint()..color = QueryLook.mix(look.ink, 0.03));
     }
-    _head(canvas, size, first, rule, strong);
+    _grid(canvas, size, first, rule, strong);
     // Each row's rule.
     for (var index = 0; index < rows.length; index += 1) {
       final top = ganttDaysHead + rows.top(index);
@@ -1601,14 +1764,14 @@ class GanttPainter extends CustomPainter {
     if (today != null && today >= 0 && today < frame.count) {
       final x = (today + 0.5) * wide;
       final red = colours.calm ? look.ink : look.t.color('glacier-red-9');
+      // Its round is the head's (GanttHeadPainter).
       canvas.drawLine(
-        Offset(x, ganttDaysHead - 4),
+        Offset(x, ganttDaysHead),
         Offset(x, size.height),
         Paint()
           ..color = red
           ..strokeWidth = 1.5,
       );
-      canvas.drawCircle(Offset(x, ganttDaysHead - 4), 3, Paint()..color = red);
     }
   }
 
@@ -1638,10 +1801,7 @@ class GanttPainter extends CustomPainter {
             ..color = look.ink,
         );
       }
-      if (!ghost) {
-        final words = _text(item.name, look.sans(look.xs, color: look.ink2), 'name:${item.key}:${item.name}');
-        words.paint(canvas, Offset(rect.right + _clear(item), rect.center.dy - words.height / 2));
-      }
+      // Its name is in the names' column, as every bar's is: words beside it ran over the days and off the chart.
       return;
     }
     final shape = RRect.fromRectAndRadius(rect, const Radius.circular(5));
@@ -1680,8 +1840,8 @@ class GanttPainter extends CustomPainter {
       );
     }
     if (ghost) return;
-    if (rect.width >= 16 && !item.undated) {
-      // The ends' grips, a notch each.
+    if (rect.width >= 16 && !item.undated && state.widget.actions.editable) {
+      // The ends' grips, a notch each, where a bar can be carried.
       final grip = Paint()..color = QueryLook.mix(look.paper, 0.7);
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(rect.left + 3, rect.center.dy - 4, 2, 8), const Radius.circular(1)), grip);
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(rect.right - 5, rect.center.dy - 4, 2, 8), const Radius.circular(1)), grip);
@@ -1693,43 +1853,21 @@ class GanttPainter extends CustomPainter {
     }
   }
 
-  void _head(Canvas canvas, Size size, DateTime first, Paint rule, Paint strong) {
+  /// The lines down the rows: a strong one where each month (or year, zoomed far out) starts, and one at each week's
+  /// Monday (or month's first, zoomed far out). The head over them is [GanttHeadPainter]'s.
+  void _grid(Canvas canvas, Size size, DateTime first, Paint rule, Paint strong) {
     final wide = frame.wide;
-    const split = 18.0;
-    final small = look.sans(look.xs * 0.92, color: look.ink3, tabular: true);
-    final bold = look.sans(look.xs * 0.92, weight: 'semibold', color: look.ink2, tabular: true);
-    for (var n = 0; n < frame.count; n += 1) {
+    final quarterly = wide < 5;
+    for (var n = 1; n < frame.count; n += 1) {
       final date = DateTime(first.year, first.month, first.day + n);
       final x = n * wide;
-      final monday = date.weekday == DateTime.monday;
-      // The top row: a month's name where it starts (or a year's, zoomed far out), and at the very left.
-      final quarterly = wide < 5;
-      final topStarts = quarterly ? (date.day == 1 && date.month == 1) || n == 0 : date.day == 1 || n == 0;
-      if (topStarts) {
-        if (n > 0) canvas.drawLine(Offset(x, 0), Offset(x, size.height), strong);
-        final words = quarterly ? '${date.year}' : '${_months[date.month - 1]} ${date.year}';
-        _text(words, bold, 'top:$words').paint(canvas, Offset(x + 4, (split - 14) / 2));
-      }
-      // The bottom row: each day, each week's Monday, or each month, as there is room.
-      if (wide >= 18) {
-        if (n > 0) canvas.drawLine(Offset(x, split), Offset(x, ganttDaysHead), rule);
-        final words = wide >= 30 ? '${_weekdays[date.weekday - 1]} ${date.day}' : '${date.day}';
-        final painter = _text(words, monday ? bold : small, 'day:$words:$monday');
-        painter.paint(canvas, Offset(x + (wide - painter.width) / 2, split + (ganttDaysHead - split - painter.height) / 2));
-        if (monday && n > 0) canvas.drawLine(Offset(x, ganttDaysHead), Offset(x, size.height), rule);
-      } else if (wide >= 5) {
-        if (monday) {
-          canvas.drawLine(Offset(x, split), Offset(x, size.height), rule);
-          final painter = _text('${date.day}', small, 'week:${date.day}');
-          painter.paint(canvas, Offset(x + 3, split + (ganttDaysHead - split - painter.height) / 2));
-        }
-      } else if (date.day == 1) {
-        canvas.drawLine(Offset(x, split), Offset(x, size.height), rule);
-        final painter = _text(_months[date.month - 1], small, 'month:${date.month}');
-        painter.paint(canvas, Offset(x + 3, split + (ganttDaysHead - split - painter.height) / 2));
+      final starts = quarterly ? date.day == 1 && date.month == 1 : date.day == 1;
+      if (starts) {
+        canvas.drawLine(Offset(x, ganttDaysHead), Offset(x, size.height), strong);
+      } else if (wide >= 5 ? date.weekday == DateTime.monday : date.day == 1) {
+        canvas.drawLine(Offset(x, ganttDaysHead), Offset(x, size.height), rule);
       }
     }
-    canvas.drawLine(Offset(0, ganttDaysHead), Offset(size.width, ganttDaysHead), strong);
   }
 
   @override
@@ -1753,4 +1891,122 @@ class GanttPainter extends CustomPainter {
 
   @override
   bool shouldRebuildSemantics(GanttPainter oldDelegate) => shouldRepaint(oldDelegate);
+}
+
+/// The days' head: months (or years, zoomed far out) over days, weeks' Mondays or months, on the chart's paper, and
+/// today's round. Its own layer over the days, so it can be let down to stay in sight while the rows scroll up under
+/// it, and repainted alone as the days scroll sideways: the name of the month the left edge is in stays at the left
+/// edge while it has room there.
+class GanttHeadPainter extends CustomPainter {
+  GanttHeadPainter({required this.frame, required this.look, required this.today, required this.calm, required this.across, required this.lift})
+    : super(repaint: Listenable.merge(<Listenable>[across, lift]));
+
+  final GanttFrame frame;
+  final QueryLook look;
+  final String today;
+  final bool calm;
+  final ScrollController across;
+  final ValueListenable<double> lift;
+
+  final Map<String, TextPainter> _words = <String, TextPainter>{};
+
+  TextPainter _text(String words, TextStyle style, String key) => _words[key] ??= (TextPainter(text: TextSpan(text: words, style: style), textDirection: TextDirection.ltr, maxLines: 1)..layout());
+
+  /// Where the head's two rows meet.
+  static const double split = 22;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final wide = frame.wide;
+    final first = dateOfDay(frame.first)!;
+    final rule = Paint()
+      ..color = QueryLook.mix(look.rule, 0.6)
+      ..strokeWidth = look.hair;
+    final strong = Paint()
+      ..color = look.rule
+      ..strokeWidth = look.hair;
+    // The paper reaches a little above the head, so a row let under it never shows a sliver at its edge.
+    canvas.drawRect(Rect.fromLTWH(0, -2, size.width, size.height + 2), Paint()..color = look.paper);
+    // Only the days in sight, and a day either side.
+    final offset = across.hasClients ? across.offset : 0.0;
+    final view = across.hasClients && across.position.hasViewportDimension ? across.position.viewportDimension : size.width;
+    final low = math.max(0, (offset / wide).floor() - 1);
+    final high = math.min(frame.count, ((offset + view) / wide).ceil() + 1);
+    final quarterly = wide < 5;
+    final top = look.sans(look.em * 0.92, weight: 'semibold', color: look.ink2, tabular: true);
+    final small = look.sans(look.xs, color: look.ink3, tabular: true);
+    final bold = look.sans(look.xs, weight: 'semibold', color: look.ink2, tabular: true);
+    final utcFirst = DateTime.utc(first.year, first.month, first.day);
+    int dayOf(DateTime date) => DateTime.utc(date.year, date.month, date.day).difference(utcFirst).inDays;
+    // Whether words from [x], [width] across, are in sight whole at the right edge: a date half under the edge is
+    // left out until it scrolls in.
+    bool whole(double x, double width) => x + width <= offset + view + 0.5;
+    // The top row: each month's name (each year's, zoomed far out) from where it starts, the one the left edge is in
+    // held at the edge.
+    final from = DateTime(first.year, first.month, first.day + low);
+    var at = quarterly ? DateTime(from.year) : DateTime(from.year, from.month);
+    while (true) {
+      final start = dayOf(at);
+      if (start > high) break;
+      final next = quarterly ? DateTime(at.year + 1) : DateTime(at.year, at.month + 1);
+      final end = dayOf(next);
+      final x = start * wide;
+      if (start > 0) canvas.drawLine(Offset(x, 0), Offset(x, size.height), strong);
+      final words = quarterly ? '${at.year}' : '${_months[at.month - 1]} ${at.year}';
+      final painter = _text(words, top, 'top:$words');
+      // Held at the left edge while its month is in sight there; a name with no room left in sight is not drawn, never
+      // a piece of one.
+      final left = math.max(x + 6, offset + 6);
+      if (left + painter.width + 8 <= end * wide && whole(left, painter.width)) painter.paint(canvas, Offset(left, (split - painter.height) / 2 + 1));
+      at = next;
+    }
+    // The bottom row: each day, each week's Monday, or each month, as there is room.
+    for (var n = low; n < high; n += 1) {
+      final date = DateTime(first.year, first.month, first.day + n);
+      final x = n * wide;
+      final monday = date.weekday == DateTime.monday;
+      if (wide >= 18) {
+        if (n > 0) canvas.drawLine(Offset(x, split), Offset(x, ganttDaysHead), rule);
+        final words = wide >= 30 ? '${_weekdays[date.weekday - 1]} ${date.day}' : '${date.day}';
+        final painter = _text(words, monday ? bold : small, 'day:$words:$monday');
+        if (whole(x + (wide - painter.width) / 2, painter.width)) painter.paint(canvas, Offset(x + (wide - painter.width) / 2, split + (ganttDaysHead - split - painter.height) / 2));
+      } else if (wide >= 5) {
+        if (monday) {
+          if (n > 0) canvas.drawLine(Offset(x, split), Offset(x, ganttDaysHead), rule);
+          final painter = _text('${date.day}', small, 'week:${date.day}');
+          if (whole(x + 3, painter.width)) painter.paint(canvas, Offset(x + 3, split + (ganttDaysHead - split - painter.height) / 2));
+        }
+      } else if (date.day == 1) {
+        if (n > 0) canvas.drawLine(Offset(x, split), Offset(x, ganttDaysHead), rule);
+        final painter = _text(_months[date.month - 1], small, 'month:${date.month}');
+        if (whole(x + 3, painter.width)) painter.paint(canvas, Offset(x + 3, split + (ganttDaysHead - split - painter.height) / 2));
+      }
+    }
+    canvas.drawLine(Offset(0, ganttDaysHead - look.hair / 2), Offset(size.width, ganttDaysHead - look.hair / 2), strong);
+    // Today's round, at the head's foot, over the line down the rows.
+    final day = daysBetween(frame.first, today);
+    if (day != null && day >= 0 && day < frame.count) {
+      final x = (day + 0.5) * wide;
+      final red = calm ? look.ink : look.t.color('glacier-red-9');
+      canvas.drawLine(
+        Offset(x, ganttDaysHead - 4),
+        Offset(x, ganttDaysHead),
+        Paint()
+          ..color = red
+          ..strokeWidth = 1.5,
+      );
+      canvas.drawCircle(Offset(x, ganttDaysHead - 4), 3, Paint()..color = red);
+    }
+  }
+
+  @override
+  bool shouldRepaint(GanttHeadPainter oldDelegate) =>
+      oldDelegate.frame.wide != frame.wide ||
+      oldDelegate.frame.first != frame.first ||
+      oldDelegate.frame.count != frame.count ||
+      oldDelegate.today != today ||
+      oldDelegate.calm != calm ||
+      oldDelegate.look.ink != look.ink ||
+      oldDelegate.look.paper != look.paper ||
+      !identical(oldDelegate.across, across);
 }

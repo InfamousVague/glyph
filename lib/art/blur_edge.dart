@@ -64,6 +64,20 @@ bool footBlurs(bool wanted) => wanted;
 
 // ---- the view ------------------------------------------------------------------------------------------------------
 
+/// How far below the top of a [BlurEdge]'s view the page is clear of its header and the blur under it, for what
+/// keeps itself in sight as the view scrolls (a Gantt chart's days' head, lib/editor/gantt/gantt_chart.dart; Matt,
+/// 2026-11-02: the chart's dates were "blurred out" under the page's edge). Nothing where no [BlurEdge] is over.
+class BlurEdgeClear extends InheritedWidget {
+  const BlurEdgeClear({super.key, required this.top, required super.child});
+
+  final double top;
+
+  static double topOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<BlurEdgeClear>()?.top ?? 0;
+
+  @override
+  bool updateShouldNotify(BlurEdgeClear oldWidget) => oldWidget.top != top;
+}
+
 /// The app's standard soft edge for anything that scrolls under a header, and its foot: a gradient blur, where the
 /// wisp's smoke was (Matt, 2026-10-24: "replace the smoke effect with a gradient blur on all places that use the
 /// wisp smoke", and then "remove the smoke on mac too so all versions get blur"). Content slipping up behind the
@@ -261,6 +275,12 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
     return strips;
   }
 
+  /// How far down the view is clear of the header and the blur under it ([BlurEdgeClear]).
+  double get _clearTop {
+    final depth = !_wanted ? 0.0 : (ghostPlain ? plainShadeDepth : blurEdgeDepth);
+    return widget.under > 0 ? widget.under + depth : _safeTop + (_wanted ? 8 + depth : 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return NotificationListener<ScrollMetricsNotification>(
@@ -269,7 +289,7 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
         onNotification: (notification) => notification.depth == 0 && _metrics(notification.metrics),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return widget.child;
+            if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return BlurEdgeClear(top: _clearTop, child: widget.child);
             final size = constraints.biggest;
             return ListenableBuilder(
               listenable: _turn,
@@ -312,7 +332,7 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
               },
               // Where there is a mouse, a view under a header wears the page's own scrollbar, from the header's
               // foot down (app.css `[data-under-header]`); nothing on a phone.
-              child: widget.scrollbar ? DesktopScrollbar(under: widget.under, child: widget.child) : widget.child,
+              child: BlurEdgeClear(top: _clearTop, child: widget.scrollbar ? DesktopScrollbar(under: widget.under, child: widget.child) : widget.child),
             );
           },
         ),

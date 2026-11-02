@@ -34,6 +34,7 @@ import '../view/line_facts.dart' show bareFenceFacts;
 import 'gantt_chart.dart';
 
 export 'gantt_chart.dart';
+export 'gantt_full_screen.dart';
 export 'gantt_panel.dart';
 
 /// What a change a chart makes to its fence is called in the note's history.

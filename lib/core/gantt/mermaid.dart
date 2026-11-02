@@ -18,16 +18,45 @@ library;
 
 import '../days.dart' show isIsoDay, isoDayAfter;
 import '../item_syntax.dart' show jsTrim;
+import 'format.dart' show readGantt;
+import 'plan.dart';
 
 /// A Mermaid gantt as a fence's body, and what could not come with it.
 class MermaidGantt {
-  const MermaidGantt({required this.body, required this.notes});
+  const MermaidGantt({required this.body, required this.notes, this.names = const <int, String>{}});
 
   /// What goes between the ```gantt lines.
   final String body;
 
   /// What Mermaid said that the fence does not, a sentence each; empty where nothing was lost.
   final List<String> notes;
+
+  /// Each task's name as Mermaid has it, by its line in [body] (from 0): the fence's name has a comma made a space,
+  /// which a chart drawing the Mermaid gantt as it is (lib/editor/diagrams/diagrams.dart) gives back.
+  final Map<int, String> names;
+}
+
+/// The chart a Mermaid gantt draws, on [today], as the app draws a ```gantt fence: its tasks named as Mermaid names
+/// them. Null where it has no task to draw, for Mermaid's own picture to say what it can.
+GanttModel? mermaidGanttModel(String code, {required String today}) {
+  final converted = mermaidToGantt(code);
+  final model = ganttModelOf(readGantt(converted.body), today: today);
+  if (model.items.isEmpty) return null;
+  GanttItem named(GanttItem item) {
+    final name = item.line == null ? null : converted.names[item.line!];
+    return name == null || name == item.name ? item : item.named(name);
+  }
+
+  return GanttModel(
+    groups: <GanttGroup>[for (final group in model.groups) GanttGroup(name: group.name, items: <GanttItem>[for (final item in group.items) named(item)], line: group.line)],
+    today: model.today,
+    title: model.title,
+    workdays: model.workdays,
+    follow: model.follow,
+    zoom: model.zoom,
+    colourBy: model.colourBy,
+    problems: model.problems,
+  );
 }
 
 /// Whether [code], a ```mermaid fence's, is a gantt: its first line that is not a comment or a directive says so.
@@ -300,6 +329,8 @@ MermaidGantt mermaidToGantt(String code) {
     if (zoom != null) 'zoom: $zoom',
   ];
   String nameOf(_Task task) => task.name.replaceAll(',', ' ');
+  // Each task's line in [out], and its own name.
+  final names = <int, String>{};
   String? lastSection;
   for (var index = 0; index < tasks.length; index += 1) {
     final task = tasks[index];
@@ -337,6 +368,7 @@ MermaidGantt mermaidToGantt(String code) {
     if (waits.isNotEmpty) marks.add('after: ${waits.join(', ')}');
     if (task.done) marks.add('100%');
     if (task.name.contains(',')) say('“${task.name}” has a comma in its name, which after: can’t name: it is a space.');
+    names[out.length] = task.name;
     out.add('- ${milestone ? '◆ ' : ''}${nameOf(task)}${marks.isEmpty ? '' : ' ${marks.join(' ')}'}');
   }
   if (sections.isNotEmpty && tasks.isEmpty) {
@@ -345,8 +377,10 @@ MermaidGantt mermaidToGantt(String code) {
     }
   }
   if (kept.isNotEmpty) out.addAll(<String>['', ...kept]);
+  var trimmed = 0;
   while (out.isNotEmpty && out.first.isEmpty) {
     out.removeAt(0);
+    trimmed += 1;
   }
-  return MermaidGantt(body: out.join('\n'), notes: notes);
+  return MermaidGantt(body: out.join('\n'), notes: notes, names: <int, String>{for (final entry in names.entries) entry.key - trimmed: entry.value});
 }

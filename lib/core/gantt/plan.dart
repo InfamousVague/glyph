@@ -96,6 +96,28 @@ class GanttItem {
   /// How many days it spans, both ends in.
   int get days => (daysBetween(start, end) ?? 0) + 1;
 
+  /// The same bar called [name]: a Mermaid gantt's task, named as Mermaid has it (mermaid.dart).
+  GanttItem named(String name) => GanttItem(
+    key: key,
+    name: name,
+    start: start,
+    end: end,
+    group: group,
+    label: label,
+    milestone: milestone,
+    undated: undated,
+    done: done,
+    late: late,
+    progress: progress,
+    person: person,
+    colour: colour,
+    after: after,
+    derivedStart: derivedStart,
+    ticket: ticket,
+    line: line,
+    tags: tags,
+  );
+
   GanttItem withDays(String start, String end) => GanttItem(
     key: key,
     name: name,

@@ -21,6 +21,7 @@ import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/fields/field_picker.dart';
+import 'package:ghost_md/editor/gantt/gantt_chart.dart' show GanttChart;
 import 'package:ghost_md/editor/items/items.dart' show itemExtensions;
 import 'package:ghost_md/editor/items/wiki_links.dart' show WikiOptions;
 import 'package:ghost_md/editor/markdown_view.dart';
@@ -284,8 +285,8 @@ void main() {
         ),
       );
       await tester.pump();
-      bridge.finish(0, block: const Size(390, 120), at: const Rect.fromLTWH(10, 10, 370, 100));
-      await tester.pump();
+      // Its gantt is the app's own chart (lib/editor/diagrams/diagrams.dart, 2026-11-02): Mermaid is asked for nothing.
+      expect(bridge.asked, isEmpty);
       await tester.pump();
       final mouse = TestPointer(1, PointerDeviceKind.mouse);
       final preface = tester.getRect(find.byKey(const ValueKey('book-words-before')));
@@ -319,7 +320,7 @@ void main() {
       expect(scroll.offset, greaterThan(0), reason: 'two fingers on a trackpad over the words scroll the page');
       // And over each block the words draw: two fingers anywhere on the page move it.
       for (final block in <Finder>[
-        find.byType(DrawnDiagram),
+        find.byType(GanttChart),
         find.byType(DrawnTable),
         find.text('to-dos').first,
         find.text('Read it').first,
