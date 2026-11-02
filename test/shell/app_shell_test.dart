@@ -11,7 +11,7 @@ import 'package:ghost_md/notes/tabs/tab_parts.dart';
 import 'package:ghost_md/notes/tabs/tab_row.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart';
-import 'package:ghost_md/shell/header_toolbar.dart' show HeaderToolbarVersion;
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderAct;
 import 'package:ghost_md/shell/placeholders.dart';
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/shell/top_bar.dart';
@@ -19,6 +19,7 @@ import 'package:ghost_md/shell/top_bar_tools.dart';
 import 'package:glacier/glacier.dart';
 
 import '../notes/bar_support.dart';
+import '../support/header_bar.dart';
 import '../support/render.dart';
 
 /// The frame of App.tsx: which screen is up, the bar where the web draws it, the tabs and the trail it holds, the
@@ -29,16 +30,6 @@ void main() {
   /// What the shell handed to whoever keeps the preferences, and what it asked of the app.
   final kept = <String>[];
   setUp(kept.clear);
-
-  // The bar's version for the test under way, where it is about today's bar's own rings (the bell, the people icon,
-  // Forward, Settings, the side panel's toggle) as they stand in its row: today's, since Grouped command became the
-  // default (Matt, 2026-10-29: "make the grouped command the default header layout"), which keeps these behind its
-  // round button and •••. Null is the device's choice, the default.
-  HeaderToolbarVersion? version;
-  void onTodaysBar() {
-    version = HeaderToolbarVersion.today;
-    addTearDown(() => version = null);
-  }
 
   Future<AppShellState> shell(
     WidgetTester tester, {
@@ -68,7 +59,6 @@ void main() {
         notes: library,
         workspaces: spaces,
         topBar: topBar,
-        headerToolbar: version,
         sidebarStyle: sidebarStyle,
         sidebarShown: sidebarShown,
         openNotes: open,
@@ -105,7 +95,6 @@ void main() {
 
   group('the screen that is up', () {
     testWidgets('is the home page as the app opens, under a bar one line tall, with the row as it was left', (tester) async {
-      onTodaysBar();
       final app = await shell(tester, open: ['weekend', 'gone', 'groceries']);
       expect(app.screen, const Screen.list());
       expect(find.byType(HomePlaceholder), findsOneWidget);
@@ -115,10 +104,12 @@ void main() {
       expect(stamps(tester)['tabs'], 'rows');
       expect(stamps(tester).containsKey('split'), isFalse);
       expect(stamps(tester).containsKey('topbar'), isFalse);
-      // On the home page a phone's bar has its people icon, its bell and its cog.
+      // On the home page a phone's bar has its people icon, its bell and its cog, behind the button for you.
+      await openBarMenu(tester, 'you');
       for (final label in ['Organizations', 'Notifications', 'Settings']) {
         expect(find.bySemanticsLabel(label), findsOneWidget);
       }
+      await openBarMenu(tester, 'you');
       await away(tester);
       await shell(tester);
       expect(stamps(tester)['tabs'], 'on');
@@ -127,7 +118,6 @@ void main() {
     });
 
     testWidgets('becomes a note when one is opened, which takes a tab; a phone’s bar goes quiet while it is read', (tester) async {
-      onTodaysBar();
       final app = await shell(tester);
       await tester.tap(find.bySemanticsLabel('Weekend trip'));
       await settle(tester);
@@ -136,15 +126,13 @@ void main() {
       expect(find.byType(NoteTab), findsOneWidget);
       expect(stamps(tester)['tabs'], 'rows');
       expect(kept, ['open [weekend]']);
-      // The bar holds the note's own tools, so the people icon, the bell and the cog step out of it.
-      for (final label in ['Organizations', 'Notifications', 'Settings']) {
-        expect(find.bySemanticsLabel(label), findsNothing);
-      }
+      // The bar holds the note's own tools, so the people icon, the bell and the cog step out of it: no button for you.
+      expect(find.byKey(HeaderAct.keyOf('you')), findsNothing);
       // Home is the way back, and they are there again.
       await tester.tap(find.bySemanticsLabel('Home'));
       await settle(tester);
       expect(app.screen, const Screen.list());
-      expect(find.bySemanticsLabel('Notifications'), findsOneWidget);
+      expect(find.byKey(HeaderAct.keyOf('you')), findsOneWidget);
       expect(find.byType(NoteTab), findsOneWidget);
       await away(tester);
     });
@@ -172,7 +160,6 @@ void main() {
     });
 
     testWidgets('is walked back and forward by the arrows, over the places and not the captures', (tester) async {
-      onTodaysBar();
       final app = await shell(tester, mobile: false);
       app.openNote('weekend');
       await settle(tester);
@@ -185,14 +172,15 @@ void main() {
       app.show(const Screen.list());
       await settle(tester);
       expect(app.trail.trail.places, ['list', 'note:weekend', 'notes', 'list']);
-      await tester.tap(find.bySemanticsLabel('Back to where you were'));
+      await pressInBar(tester, 'back', label: 'Back to where you were');
       await settle(tester);
       expect(app.screen, const Screen.notes());
       expect(find.byType(AllNotesPlaceholder), findsOneWidget);
-      await tester.tap(find.bySemanticsLabel('Back to where you were'));
+      await pressInBar(tester, 'back', label: 'Back to where you were');
       await settle(tester);
       expect(app.shown, 'weekend');
-      await tester.tap(find.bySemanticsLabel('Forward again'));
+      // On a phone's width Forward is under the line's •••.
+      await pressInBar(tester, 'forward', label: 'Forward again');
       await settle(tester);
       expect(app.screen, const Screen.notes());
       // A step is not somewhere new.
@@ -201,10 +189,9 @@ void main() {
     });
 
     testWidgets('is an organization’s dashboard from the people icon’s picker, a place with the bar and off the trail', (tester) async {
-      onTodaysBar();
       final app = await shell(tester, organizations: const [OrgLike(id: 'o1', name: 'Attic Press', hue: 'moss')]);
-      await tester.tap(find.bySemanticsLabel('Organizations'));
-      await settle(tester);
+      // The picker is the button for you's menu, the organizations one by one.
+      await openBarMenu(tester, 'you');
       await tester.tap(find.text('Attic Press'));
       await settle(tester);
       expect(app.screen, const Screen.organization('o1'));
@@ -287,7 +274,6 @@ void main() {
 
   group('what the bar asks of the shell', () {
     testWidgets('opens the notes’ card and the notifications, lit while they are open, and one closes the other', (tester) async {
-      onTodaysBar();
       final handle = tester.ensureSemantics();
       final app = await shell(tester);
       await tester.tap(find.bySemanticsLabel('All your notes'));
@@ -295,12 +281,12 @@ void main() {
       expect(app.drawerOpen, isTrue);
       expect(find.bySemanticsLabel('all your notes'), findsOneWidget);
       expect(tester.getSemantics(find.bySemanticsLabel('All your notes')).getSemanticsData().flagsCollection.isExpanded.name, 'isTrue');
-      await tester.tap(find.bySemanticsLabel('Notifications'));
+      await pressInBar(tester, 'bell', label: 'Notifications');
       await settle(tester);
       expect(app.drawerOpen, isFalse);
       expect(app.notificationsOpen, isTrue);
       // The bell again closes them.
-      await tester.tap(find.bySemanticsLabel('Notifications'));
+      await pressInBar(tester, 'bell', label: 'Notifications');
       await settle(tester);
       expect(app.notificationsOpen, isFalse);
       // A note opened from the notes' card closes the card.
@@ -314,24 +300,21 @@ void main() {
     });
 
     testWidgets('asks for Settings and a new note, and stands in for Settings where nobody answers', (tester) async {
-      onTodaysBar();
       var asked = 0;
       await shell(tester, open: ['weekend'], onSettings: () => asked += 1);
-      await tester.tap(find.bySemanticsLabel('Settings'));
-      // A new note is under today's ••• now, not a + after the tabs (Matt, 2026-10-29: "Put the all files folder icon
-      // under the more menu as well as the + button in the header").
+      await pressInBar(tester, 'settings', label: 'Settings');
+      // A new note is under the line's ••• now, not a + after the tabs (Matt, 2026-10-29: "Put the all files folder
+      // icon under the more menu as well as the + button in the header").
       expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
-      await tester.tap(find.bySemanticsLabel('More: all notes by folder, a new note'));
-      await settle(tester);
-      await tester.tap(find.text('New note'));
+      await pressInBar(tester, 'new', label: 'New note');
       await settle(tester);
       expect(asked, 1);
       expect(kept, ['new']);
       await away(tester);
       await shell(tester);
-      await tester.tap(find.bySemanticsLabel('Settings'));
+      await pressInBar(tester, 'settings', label: 'Settings');
       await settle(tester);
-      expect(find.bySemanticsLabel('Settings').evaluate().length, greaterThan(1));
+      expect(find.bySemanticsLabel('Settings').evaluate(), isNotEmpty);
       expect(find.textContaining('PLACEHOLDER · Settings'), findsOneWidget);
       await away(tester);
     });
@@ -425,7 +408,6 @@ void main() {
 
   group('a window wide enough for two panes', () {
     testWidgets('says so on the root, and keeps a phone’s quiet bar on the opened Fold', (tester) async {
-      onTodaysBar();
       final app = await shell(tester, size: const Size(840, 900), open: ['weekend']);
       expect(stamps(tester)['split'], 'on');
       // The bar reaches the window's top, glass across it.
@@ -433,7 +415,7 @@ void main() {
       app.openNote('weekend');
       await settle(tester);
       // `isMobile` is the device, not the window's width: a Fold opened wide does without.
-      expect(find.bySemanticsLabel('Notifications'), findsNothing);
+      expect(find.byKey(HeaderAct.keyOf('you')), findsNothing);
       // A capture takes the whole window, and the window is in two panes all the same.
       app.show(ScreenCapture.fresh(false, now: 1));
       await settle(tester);
@@ -441,11 +423,13 @@ void main() {
       expect(stamps(tester, find.byType(WholeScreenPlaceholder))['split'], 'on');
       expect(stamps(tester, find.byType(WholeScreenPlaceholder)).containsKey('tabs'), isFalse);
       await away(tester);
-      // A desktop's narrow window keeps the bell.
+      // A desktop's narrow window keeps the bell, behind the button for you.
       final desk = await shell(tester, size: const Size(600, 800), mobile: false, fine: true);
       desk.openNote('weekend');
       await settle(tester);
+      await openBarMenu(tester, 'you');
       expect(find.bySemanticsLabel('Notifications'), findsOneWidget);
+      await openBarMenu(tester, 'you');
       expect(stamps(tester).containsKey('split'), isFalse);
       await away(tester);
     });
@@ -486,13 +470,12 @@ void main() {
     }
 
     testWidgets('opens the column without moving the bar, its controls, or the note, which is the same screen beside it', (tester) async {
-      onTodaysBar();
       final app = await shell(tester, size: const Size(1280, 800), mobile: false, fine: true);
       app.openNote('weekend');
       await settle(tester);
       final note = tester.element(find.byType(NotePlaceholder));
       final barRect = tester.getRect(find.byType(AppTabBar));
-      final controls = {for (final label in ['All your notes', 'Home', 'Settings']) label: tester.getRect(bar(label))};
+      final controls = {for (final label in ['All your notes', 'Home', 'You: notifications, organizations and Settings']) label: tester.getRect(bar(label))};
       await tester.tap(bar('All your notes'));
       await settle(tester);
       expect(find.bySemanticsLabel('Your notes'), findsOneWidget);
@@ -520,13 +503,12 @@ void main() {
     });
 
     testWidgets('gives the aside a third column beside a docked sidebar, and a toggle only when it has something to hold', (tester) async {
-      onTodaysBar();
       final app = await shell(tester, size: const Size(1280, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
       expect(find.bySemanticsLabel('Side panel'), findsNothing);
       app.openNote('weekend');
       await settle(tester);
       expect(find.text('History'), findsNothing);
-      await tester.tap(bar('Side panel'));
+      await pressInBar(tester, 'aside', label: 'Side panel');
       await settle(tester);
       // `clamp(240px, 22vw, 320px)` at the far side.
       final aside = tester.getRect(find.bySemanticsLabel('Side panel').first);
@@ -538,7 +520,7 @@ void main() {
       final card = await shell(tester, size: const Size(1280, 800), mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
       card.openNote('weekend');
       await settle(tester);
-      await tester.tap(bar('Side panel'));
+      await pressInBar(tester, 'aside', label: 'Side panel');
       await settle(tester);
       expect(find.text('History'), findsOneWidget);
       expect(tester.getRect(find.byType(NotePlaceholder)).width, closeTo(1280 - 360, 0.01));

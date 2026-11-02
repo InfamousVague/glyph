@@ -20,6 +20,7 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/note/version_history.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/root/ghost_root.dart';
+import 'package:ghost_md/notes/note_tabs.dart' show NoteTabs;
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/simple/simple_home.dart';
 
@@ -77,16 +78,17 @@ void main() {
     await settle(tester, 4);
   }
 
+  // Whether the bar was given the side panel's toggle: the header toolbar keeps it under its ••• at any width.
+  bool asideOffered(WidgetTester tester) => find.byType(NoteTabs).evaluate().isNotEmpty && tester.widget<NoteTabs>(find.byType(NoteTabs)).onAside != null;
+
   testWidgets('a notebook’s page has the side panel’s icon, and its card is the notebook’s index with the page marked', (tester) async {
-    // The side panel's ring in today's bar; Grouped command keeps it under •••.
-    pinTodaysBar();
     final local = MemoryStored();
     final library = await open(tester, stored: local);
-    expect(find.bySemanticsLabel('Side panel'), findsNothing, reason: 'the home page has no use for an aside');
+    expect(asideOffered(tester), isFalse, reason: 'the home page has no use for an aside');
     shellOf(tester).openNote(titled(library, 'Lisbon, the first three days').id);
     await settle(tester);
     expect(find.byType(AsideCard), findsNothing, reason: 'hidden until it has been opened once');
-    await tester.tap(find.bySemanticsLabel('Side panel'));
+    await pressInBar(tester, 'aside', label: 'Side panel');
     await settle(tester);
     expect(find.byType(AsideCard), findsOneWidget);
     expect(readAsideShown(local), isTrue);
@@ -101,7 +103,7 @@ void main() {
     // and no index.
     shellOf(tester).openNote(titled(library, 'Groceries').id);
     await settle(tester);
-    await tester.tap(find.bySemanticsLabel('Side panel'));
+    await pressInBar(tester, 'aside', label: 'Side panel');
     await settle(tester);
     expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Links')), findsWidgets);
     expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Index')), findsNothing);
@@ -112,8 +114,6 @@ void main() {
   // in no notebook had no side panel at all and the bar's History opened More's page (App.tsx `asideHistory`,
   // `openHistoryAside`; aside/AsideHistory.tsx).
   testWidgets('on a desktop a note has its version history in the side panel, which the bar\'s History opens at it', (tester) async {
-    // The side panel's ring in today's bar; Grouped command keeps it under •••.
-    pinTodaysBar();
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     try {
       final local = MemoryStored();
@@ -122,7 +122,7 @@ void main() {
       shellOf(tester).openNote(note.id);
       await settle(tester);
       // A note in no notebook has a side panel all the same: its history. Hidden until it is asked for.
-      expect(find.bySemanticsLabel('Side panel'), findsOneWidget);
+      expect(asideOffered(tester), isTrue);
       expect(find.byType(AsideHistory), findsNothing);
       final screen = tester.widget<NoteScreen>(find.byType(NoteScreen));
       expect(screen.onHistory, isNotNull, reason: 'the bar\'s History goes to the side panel');
@@ -149,7 +149,7 @@ void main() {
       // A canvas has no history worth reading, and the home page no side panel.
       shellOf(tester).backToList();
       await settle(tester);
-      expect(find.bySemanticsLabel('Side panel'), findsNothing);
+      expect(asideOffered(tester), isFalse);
       await close(tester);
     } finally {
       debugDefaultTargetPlatformOverride = null;
@@ -157,19 +157,17 @@ void main() {
   });
 
   testWidgets('a phone opened out keeps a note\'s history in its More sheet: its side panel has the note\'s links and outline, not its history', (tester) async {
-    // The side panel's ring in today's bar; Grouped command keeps it under •••.
-    pinTodaysBar();
     final library = await open(tester);
     shellOf(tester).openNote(titled(library, 'Groceries').id);
     await settle(tester);
     expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).onHistory, isNull);
-    await tester.tap(find.bySemanticsLabel('Side panel'));
+    await pressInBar(tester, 'aside', label: 'Side panel');
     await settle(tester);
     expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Outline')), findsWidgets);
     expect(find.byType(AsideHistory), findsNothing);
     // Folded shut, the cover screen has no room for one: no side panel, and no icon for it.
     await resize(tester, cover);
-    expect(find.bySemanticsLabel('Side panel'), findsNothing);
+    expect(asideOffered(tester), isFalse);
     await close(tester);
   });
 

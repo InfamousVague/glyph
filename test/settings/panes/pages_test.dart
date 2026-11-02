@@ -21,7 +21,6 @@ import 'package:ghost_md/settings/panes/spec_pane.dart';
 import 'package:ghost_md/settings/panes/specification.g.dart';
 import 'package:ghost_md/settings/panes/test_results_pane.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:glacier/glacier.dart';
 
 import 'support.dart';
@@ -304,7 +303,7 @@ void main() {
     testWidgets('says what the window is, marks the bench that waits, and hides itself by its switch', (tester) async {
       await openPane(tester, 'developer', developer: true, size: const Size(390, 1800));
       // No Smoke card: the smoke went, and its bench with it (2026-10-24).
-      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Onboarding', 'Work in progress', 'Header toolbar']);
+      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Onboarding', 'Work in progress']);
       expect(rowLabels(tester, 'Window'), ['Top inset', 'Page', 'Screen', 'Engine']);
       final facts = windowFacts(tester.element(find.byType(DeveloperPane)));
       expect((facts.inset, facts.page, facts.engine), ('0px', '390 × 1800 @2', 'Flutter on android'));
@@ -322,30 +321,13 @@ void main() {
       await endSettings(tester);
     });
 
-    // Matt, 2026-10-28: "add a developer setting to switch between 5 versions" (lib/shell/header_toolbar.dart).
-    // Grouped command the default and first since Matt's "make the grouped command the default header layout"
-    // (2026-10-29), today's bar still there to go back to.
-    testWidgets('Header toolbar offers the six versions, Grouped command first and chosen, and a pick is this device’s and kept', (tester) async {
-      addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.fallback.id));
+    // Matt, 2026-10-28: "add a developer setting to switch between 5 versions"; and 2026-11-01, of the settings: "we
+    // currently have too many appearance settings for different title bar layouts and stuff". The contact sheet ended
+    // with Grouped command, and its picker went with the other five (lib/shell/header_toolbar.dart).
+    testWidgets('Developer has no header toolbar picker: Grouped command is the only line', (tester) async {
       await openPane(tester, 'developer', developer: true, size: const Size(390, 2600));
-      expect(rowLabels(tester, 'Header toolbar'), ['6. Grouped command (default)', '1. Today’s bar (the old one)', '2. Grouped', '3. Vibrant tiles', '4. Command centre', '5. Labelled']);
-      bool picked(String id) => tester.widget<Pick>(find.descendant(of: find.byKey(ValueKey('developer-header-$id')), matching: find.byType(Pick))).checked;
-      expect(picked('groupedCommand'), isTrue);
-      expect(picked('today'), isFalse);
-      expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand);
-      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('developer-header-command')), matching: find.byType(Pick)));
-      expect(headerToolbarVersion, HeaderToolbarVersion.command);
-      expect(picked('command'), isTrue);
-      expect(picked('groupedCommand'), isFalse);
-      // Today's bar, the old one, is still a choice.
-      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('developer-header-today')), matching: find.byType(Pick)));
-      expect(headerToolbarVersion, HeaderToolbarVersion.today);
-      expect(picked('today'), isTrue);
-      // Matt, 2026-10-28: "Make a version that combines the command center and grouped sections".
-      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('developer-header-groupedCommand')), matching: find.byType(Pick)));
-      expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand);
-      expect(picked('groupedCommand'), isTrue);
-      expect(picked('today'), isFalse);
+      expect(find.text('Header toolbar'), findsNothing);
+      expect(find.byKey(const ValueKey('developer-header-groupedCommand')), findsNothing);
       await endSettings(tester);
     });
 

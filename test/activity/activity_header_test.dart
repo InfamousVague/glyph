@@ -1,5 +1,5 @@
-// The ring of running work in the header (lib/activity/activity_ring.dart; docs/ACTIVITY.md, Ring): in every version
-// of the header toolbar and every top bar style, on a phone, the opened Fold and the Mac, beside the button for you;
+// The ring of running work in the header (lib/activity/activity_ring.dart; docs/ACTIVITY.md, Ring): in the header
+// toolbar in every top bar style, on a phone, the opened Fold and the Mac, beside the button for you;
 // one arc for each job in its colour, the other devices' dimmed; a quiet grey ring while idle, still a button that opens
 // the tray (Matt, 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing is
 // happening"); one bloom when all finish, then grey again; a still red dot when something needs you; the tray it opens,
@@ -21,7 +21,7 @@ import 'package:ghost_md/note/note_tools.dart';
 import 'package:ghost_md/notes/floating_card.dart' show FloatingCard;
 import 'package:ghost_md/sheet/sheet.dart' show Sheet;
 import 'package:ghost_md/shell/app_shell.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderAct;
 import 'package:ghost_md/shell/placeholders.dart';
 import 'package:ghost_md/shell/top_bar.dart';
 import 'package:ghost_md/shell/top_bar_tools.dart';
@@ -40,10 +40,7 @@ void main() {
     record = Activity(clock: () => now, store: () => MemoryStored());
     useActivity(record);
   });
-  tearDown(() {
-    useActivity(Activity());
-    headerToolbarChoice.set(HeaderToolbarVersion.today.id);
-  });
+  tearDown(() => useActivity(Activity()));
 
   void barTest(String description, Future<void> Function(WidgetTester tester) body, {bool skip = false}) => testWidgets(description, skip: skip, (tester) async {
         await body(tester);
@@ -60,7 +57,7 @@ void main() {
   const narrowMac = (name: 'mac-narrow', size: Size(390, 700), mobile: false, fine: true);
   const everyWidth = [phone, folded, unfolded, mac, narrowMac];
 
-  Future<void> pumpShell(WidgetTester tester, {HeaderToolbarVersion? version, required ({String name, Size size, bool mobile, bool fine}) window, TopBarStyle style = TopBarStyle.classic, bool note = true, String theme = 'light', bool calm = false}) async {
+  Future<void> pumpShell(WidgetTester tester, {required ({String name, Size size, bool mobile, bool fine}) window, TopBarStyle style = TopBarStyle.classic, bool note = true, String theme = 'light', bool calm = false}) async {
     final sheet = await appSheet(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 100));
@@ -73,7 +70,6 @@ void main() {
         notes: library,
         workspaces: spaces,
         topBar: style,
-        headerToolbar: version,
         openNotes: const ['weekend', 'groceries', 'standup'],
         unread: true,
         mobile: window.mobile,
@@ -108,29 +104,24 @@ void main() {
 
   ActivityRingPainter painter(WidgetTester tester) => tester.widget<CustomPaint>(find.byKey(const ValueKey('activity-ring:arcs'))).painter! as ActivityRingPainter;
 
-  group('fits every version, every style, every window, idle and busy', () {
-    for (final version in HeaderToolbarVersion.values) {
+  group('fits every style, every window, idle and busy', () {
       for (final window in everyWidth) {
         for (final style in TopBarStyle.values) {
-          // On a narrowed Mac, today's Islands reading a note ran over before the ring was always there (by 14, its
-          // window buttons, two capsules and ten rings in 390) and still do, and today's Masthead runs its words past the
-          // line's end as the page does (lib/notes/tabs/bar_parts.dart ToolRow), the ring with them; every other row fits.
-          final over = version == HeaderToolbarVersion.today && (style == TopBarStyle.islands || style == TopBarStyle.masthead) && window == narrowMac;
-          barTest('${version.number} ${version.label}, ${style.label}, ${window.name}', skip: over, (tester) async {
+          barTest('${style.label}, ${window.name}', (tester) async {
             if (window == narrowMac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
             addTearDown(() => debugDefaultTargetPlatformOverride = null);
             // The idle ring keeps its room as the busy one does: the row is the same either way.
             for (final busy in [false, true]) {
               if (busy) threeJobs();
               for (final note in [true, false]) {
-                await pumpShell(tester, version: version, window: window, style: style, note: note);
+                await pumpShell(tester, window: window, style: style, note: note);
                 final where = '${busy ? 'busy' : 'idle'}, on ${note ? 'a note' : 'home'}';
                 expect(tester.takeException(), isNull, reason: 'nothing ran over, $where');
                 expect(ring(), findsOneWidget, reason: 'the ring, $where');
                 expect(painter(tester).arcs, busy ? hasLength(3) : isEmpty, reason: where);
                 final at = tester.getRect(ring());
                 expect(at.left >= -0.5 && at.right <= window.size.width + 0.5 && at.top >= 0 && at.bottom < 160, isTrue, reason: 'the ring at $at');
-                // Beside the button for you, where the version has one in the row.
+                // Beside the button for you, where the row has it.
                 final you = find.byKey(HeaderAct.keyOf('you'));
                 if (you.evaluate().isNotEmpty) {
                   final rect = tester.getRect(you.first);
@@ -148,7 +139,6 @@ void main() {
           });
         }
       }
-    }
   });
 
   /// The idle ring: no arcs and no job's glyph, the track alone in the muted ink with a check in the same grey (Matt,
@@ -166,11 +156,10 @@ void main() {
   }
 
   for (final window in windows) {
-    barTest('idle, a quiet grey ring on every version, a button that opens the tray, ${window.name}', (tester) async {
-      for (final version in HeaderToolbarVersion.values) {
+    barTest('idle, a quiet grey ring, a button that opens the tray, ${window.name}', (tester) async {
         for (final note in [true, false]) {
-          final reason = '${version.label} on ${note ? 'a note' : 'home'}';
-          await pumpShell(tester, version: version, window: window, note: note);
+          final reason = 'on ${note ? 'a note' : 'home'}';
+          await pumpShell(tester, window: window, note: note);
           expectIdle(tester, reason: reason);
           final spin = painter(tester).spin;
           await tester.pump(const Duration(milliseconds: 400));
@@ -188,7 +177,6 @@ void main() {
           await tester.pump();
           expect(find.byKey(const ValueKey('activity-tray:past-none')), findsOneWidget, reason: 'Past 7 days, $reason');
         }
-      }
     });
   }
 

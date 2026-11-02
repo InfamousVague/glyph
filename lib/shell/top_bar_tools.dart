@@ -26,11 +26,10 @@ typedef BarButton = Widget Function(BarButtonFace face);
 /// screen's state through whatever they close over or listen to. A change of widgets reaches the bar a frame after
 /// the screen builds it, so what changes often should listen for itself rather than be handed over anew.
 ///
-/// **The tools as words too** ([model]): the header toolbar's other versions (lib/shell/header_toolbar.dart; Matt,
-/// 2026-10-28: "right now it's just a huge list of icons and is quite hard to work with") do not draw the note's
-/// widgets as they come but sort the note's actions into pills, tiles and menus of their own, so a screen that has
-/// its tools as a model hands that over beside the widgets. Version 1, today's bar, draws [tools] and [tail] as
-/// ever; a screen with no model is drawn from its widgets in every version.
+/// **The tools as words too** ([model]): the header toolbar (lib/shell/header_toolbar.dart; Matt, 2026-10-28: "right
+/// now it's just a huge list of icons and is quite hard to work with") does not draw the note's widgets as they come
+/// but sorts the note's actions into its pills and its menu, so a screen that has its tools as a model hands that over
+/// beside the widgets. A screen with no model is drawn from its widgets ([tools] and [tail]), as they come.
 class TopBarTools extends ChangeNotifier {
   Object? _owner;
   Widget? _tools;
@@ -59,9 +58,8 @@ class TopBarTools extends ChangeNotifier {
   /// a screen that handed widgets alone.
   ValueListenable<NoteToolsModel>? get model => _model;
 
-  /// The home page's Filters, for a version that holds them in the bar (Grouped command; Matt, 2026-10-29: "when on
-  /// the homepage add it next to the command search bar in the top bar"). Today's bar and the rest draw nothing for
-  /// it: the home page keeps its own button under them.
+  /// The home page's Filters, which the bar holds beside its title pill (Matt, 2026-10-29: "when on the homepage add it
+  /// next to the command search bar in the top bar").
   BarButton? get filters => _filters;
 
   void _set(Object owner, Widget? tools, Widget? tail, ValueListenable<NoteToolsModel>? model, BarButton? filters) {

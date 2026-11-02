@@ -21,7 +21,6 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/root/ghost_root.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:glacier/glacier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,7 +53,6 @@ void main() {
   Future<void> launch(WidgetTester tester, {required Size size, required bool mac, required String theme, required String lastSeen}) async {
     SharedPreferences.setMockInitialValues({
       PreferencesStore.storageKey: jsonEncode({'theme': theme, 'experience': 'advanced', 'experienceChosen': true}),
-      'glyph-header-toolbar': HeaderToolbarVersion.groupedCommand.id,
     });
     addTearDown(() => SharedPreferences.setMockInitialValues({}));
     preferences.forget();
@@ -87,7 +85,6 @@ void main() {
   }
 
   Future<void> close(WidgetTester tester) async {
-    headerToolbarChoice.set(HeaderToolbarVersion.fallback.id);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));
     debugDefaultTargetPlatformOverride = null;

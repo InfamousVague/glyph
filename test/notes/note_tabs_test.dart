@@ -14,11 +14,15 @@ import 'package:ghost_md/notes/tabs/bar_parts.dart';
 import 'package:ghost_md/notes/tabs/tab_parts.dart';
 import 'package:ghost_md/notes/tabs/tab_row.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart';
+import 'package:ghost_md/shell/header/header_kit.dart' show HeaderDot;
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderAct;
+import 'package:ghost_md/shell/pop_menu.dart' show PopMenu;
 import 'package:ghost_md/shell/top_bar.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
 import '../support/edges.dart';
+import '../support/header_bar.dart';
 import '../support/render.dart';
 import 'bar_support.dart';
 
@@ -34,6 +38,11 @@ import 'bar_support.dart';
 /// capsule is its rings and their gaps. In two panes the same at 1280 (10.54 to 5.27, 38.98 to 35.83: 8.43) and 840
 /// (9.74 to 4.87, 36.03 to 33.12: 7.79); the Islands' one line there is the tab capsule's height, centred, so it
 /// goes up by 5.27 + 3.16 / 2, and the tabs' capsule stays centred between the two that shrank.
+///
+/// The line of controls is the header toolbar's, Grouped command, since 2026-11-01 (lib/shell/header_toolbar.dart;
+/// test/shell/header_toolbar_test.dart holds it): the page's own line, every control its own ring, went with the
+/// contact sheet's other versions, so where the page's rings stood is not held here any more. The tabs, the bar's
+/// heights and the capsules' ends still are.
 void main() {
   setUpAll(loadAppFonts);
 
@@ -41,6 +50,8 @@ void main() {
   const trip = TabGroups(list: [TabGroup(id: 'g', name: 'Trip', hue: 'sea')], of: {'groceries': 'g', 'standup': 'g'});
 
   Rect tab(WidgetTester tester, int at) => tester.getRect(find.byType(NoteTab).at(at));
+  // A corner the page measured, moved down by the notch as [boxAt]'s boxes are.
+  Matcher offsetNear(double x, double y) => within(distance: 0.5, from: Offset(x, y + notch));
   Tokens tokens(WidgetTester tester) => tester.element(find.byType(NoteTabs)).tokens;
 
   group('the top bar', () {
@@ -55,28 +66,29 @@ void main() {
       await pumpBar(tester, atHome: true);
       expect(find.byType(TabRow), findsNothing);
       expect(AppTabBar.heightOf(tokens(tester)), closeTo(39.28, 0.05));
-      expect(named(tester, 'Home'), boxAt(13.39, 6.7, 30.35, 30.35));
-      expect(named(tester, 'All your notes'), boxAt(48.2, 6.7, 30.35, 30.35));
-      expect(named(tester, 'Back to where you were'), boxAt(83.02, 6.7, 30.35, 30.35));
-      expect(named(tester, 'Forward again'), boxAt(117.83, 6.7, 30.35, 30.35));
-      expect(named(tester, 'Organizations'), boxAt(267.71, 6.7, 30.35, 30.35));
-      expect(named(tester, 'Notifications'), boxAt(302.53, 6.7, 30.35, 30.35));
-      expect(named(tester, 'Settings'), boxAt(337.34, 6.7, 30.35, 30.35));
+      // The line under the notch: Home first, the button for you last, on the same line.
+      final home = tester.getRect(find.byKey(HeaderAct.keyOf('home')));
+      final you = tester.getRect(find.byKey(HeaderAct.keyOf('you')));
+      // The pill of the way around begins at the bar's gutter, Home's circle inside it.
+      expect(home.left, inInclusiveRange(13.39, 13.39 + 4));
+      expect(you.right, lessThanOrEqualTo(390 - 13.39 + 0.5));
+      expect(home.center.dy, closeTo(you.center.dy, 0.5));
+      expect(home.top, greaterThan(notch));
       await away(tester);
     });
 
     testWidgets('answers each control with its own doing, and leaves a dead arrow dead', (tester) async {
       final log = await pumpBar(tester, open: const ['weekend'], canGoBack: true, aside: true, kept: true);
-      for (final label in ['Home', 'All your notes', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications', 'Settings', 'Side panel']) {
-        await tester.tap(find.bySemanticsLabel(label), warnIfMissed: false);
-        await tester.pump();
+      // In the row, or in the menu that holds it: the button for you's, or the line's •••, where a new note is too (Matt,
+      // 2026-10-29: "Put the all files folder icon under the more menu as well as the + button in the header").
+      for (final (id, label) in [('home', 'Home'), ('sidebar', 'All your notes'), ('back', 'Back to where you were'), ('forward', 'Forward again'), ('organizations', 'Organizations'), ('bell', 'Notifications'), ('settings', 'Settings'), ('aside', 'Side panel'), ('new', 'New note')]) {
+        await pressInBar(tester, id, label: label);
+        // A dead row leaves its menu open: shut it for the next.
+        if (find.byType(PopMenu).evaluate().isNotEmpty) {
+          await tester.binding.handlePopRoute();
+          await tester.pump(const Duration(milliseconds: 300));
+        }
       }
-      // A new note under the ••• after the sidebar's icon (Matt, 2026-10-29: "Put the all files folder icon under the
-      // more menu as well as the + button in the header").
-      await tester.tap(find.bySemanticsLabel('More: all notes by folder, a new note'));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('New note'));
-      await tester.pump();
       // Nowhere forward to go: still there, so the row never changes width, but plainly dead.
       expect(log.said, ['home', 'sidebar', 'back', 'organizations', 'notifications', 'settings', 'aside', 'new']);
       await away(tester);
@@ -102,13 +114,16 @@ void main() {
 
     testWidgets('rings a bell that says when something is new, with a gold dot at its shoulder', (tester) async {
       await pumpBar(tester, open: three, unread: true);
+      // The button for you wears the bell's dot, and says so; the bell's row in its menu says it too.
+      expect(find.bySemanticsLabel('You: notifications, organizations and Settings, something new'), findsOneWidget);
+      expect(find.descendant(of: find.byKey(HeaderAct.keyOf('you')), matching: find.byType(HeaderDot)), findsOneWidget);
+      await openBarMenu(tester, 'you');
       expect(find.bySemanticsLabel('Notifications, something new'), findsOneWidget);
-      final bell = named(tester, 'Notifications, something new');
-      // `.bell[data-unread]::after`: 6px, six in from the top and the end.
-      final dot = find.descendant(of: find.bySemanticsLabel('Notifications, something new'), matching: find.byWidgetPredicate((w) => w is Container && w.constraints?.maxWidth == 6));
-      expect(tester.getRect(dot), Rect.fromLTWH(bell.right - 12, bell.top + 6, 6, 6));
       await away(tester);
       await pumpBar(tester, open: three);
+      expect(find.bySemanticsLabel('You: notifications, organizations and Settings'), findsOneWidget);
+      expect(find.descendant(of: find.byKey(HeaderAct.keyOf('you')), matching: find.byType(HeaderDot)), findsNothing);
+      await openBarMenu(tester, 'you');
       expect(find.bySemanticsLabel('Notifications'), findsOneWidget);
       expect(find.bySemanticsLabel('Notifications, something new'), findsNothing);
       await away(tester);
@@ -116,9 +131,7 @@ void main() {
 
     testWidgets('steps the people icon, the bell and the cog out when it is told to be quiet, a phone reading a note', (tester) async {
       await pumpBar(tester, open: three, active: 'weekend', quiet: true);
-      for (final label in ['Organizations', 'Notifications', 'Settings']) {
-        expect(find.bySemanticsLabel(label), findsNothing);
-      }
+      expect(find.byKey(HeaderAct.keyOf('you')), findsNothing, reason: 'no button for you, and nothing under it');
       expect(find.bySemanticsLabel('Home'), findsOneWidget);
       await away(tester);
     });
@@ -126,17 +139,15 @@ void main() {
     testWidgets('opens a picker of your organizations from the people icon, a pick going straight to its dashboard', (tester) async {
       const orgs = [OrgLike(id: 'o1', name: 'Attic Press', hue: 'moss'), OrgLike(id: 'o2', name: 'Field notes')];
       final log = await pumpBar(tester, open: three, organizations: orgs);
-      await tester.tap(find.bySemanticsLabel('Organizations'));
-      await tester.pump(const Duration(milliseconds: 300));
+      // Under the button for you, each one by name.
+      await openBarMenu(tester, 'you');
       expect(find.text('ORGANIZATIONS'), findsOneWidget);
-      expect(find.bySemanticsLabel('Choose an organization'), findsOneWidget);
       await tester.tap(find.text('Attic Press'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(log.said, ['organization o1']);
       expect(find.text('Field notes'), findsNothing);
-      // The last row is the whole list in Settings.
-      await tester.tap(find.bySemanticsLabel('Organizations'));
-      await tester.pump(const Duration(milliseconds: 300));
+      // The last of them is the whole list in Settings.
+      await openBarMenu(tester, 'you');
       await tester.tap(find.text('All organizations…'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(log.said, ['organization o1', 'organizations']);
@@ -147,7 +158,7 @@ void main() {
       const orgs = [OrgLike(id: 'o1', name: 'Attic Press', hue: 'moss')];
       final log = await pumpBar(tester, open: three, organizations: orgs);
       Future<void> open() async {
-        await tester.tap(find.bySemanticsLabel('Organizations').first);
+        await tester.tap(find.byKey(HeaderAct.keyOf('you')));
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.text('Attic Press'), findsOneWidget);
       }
@@ -164,7 +175,7 @@ void main() {
       // The gesture was the picker's alone: nothing else is on the stack.
       expect(backStack.depth, 0);
       await open();
-      await tester.tap(find.bySemanticsLabel('Organizations').first);
+      await tester.tap(find.byKey(HeaderAct.keyOf('you')));
       await gone();
       await open();
       await tester.tapAt(const Offset(60, 600));
@@ -175,8 +186,7 @@ void main() {
 
     testWidgets('goes to Settings from the people icon when you belong to no organization yet', (tester) async {
       final log = await pumpBar(tester, open: three);
-      await tester.tap(find.bySemanticsLabel('Organizations'));
-      await tester.pump();
+      await pressInBar(tester, 'organizations', label: 'Organizations');
       expect(log.said, ['organizations']);
       await away(tester);
     });
@@ -205,18 +215,18 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('holds the screen’s own controls in its slot, pushed to the far end, and its More after the cog', (tester) async {
+    testWidgets('holds the screen’s own controls, handed as widgets, at its end, before the button for you', (tester) async {
       await pumpBar(
         tester,
         open: three,
         tools: const SizedBox(key: ValueKey('tools'), width: 65.16, height: 30.35),
         tail: const SizedBox(key: ValueKey('more'), width: 30.35, height: 30.35),
       );
-      // Measured with a note's two tools in the slot and its More in the tail: the people icon, the bell and the cog
-      // sit between them.
-      expect(tester.getRect(find.byKey(const ValueKey('more'))), boxAt(337.34, 4.46, 30.35, 30.35));
-      expect(named(tester, 'Settings').left, closeTo(302.53, 0.5));
-      expect(tester.getRect(find.byKey(const ValueKey('tools'))).right, closeTo(named(tester, 'Organizations').left - tokens(tester).space(1), 0.01));
+      // A screen with no model is drawn from its widgets as they come: its tools, then its More, then the line's own.
+      final tools = tester.getRect(find.byKey(const ValueKey('tools'))), more = tester.getRect(find.byKey(const ValueKey('more')));
+      expect(tools.right, lessThanOrEqualTo(more.left + 0.5));
+      expect(more.right, lessThan(tester.getRect(find.byKey(HeaderAct.keyOf('you'))).left));
+      expect(more.top, closeTo(tester.getRect(find.byKey(HeaderAct.keyOf('home'))).center.dy - 30.35 / 2, 0.5));
       await away(tester);
     });
   });
@@ -246,9 +256,6 @@ void main() {
     testWidgets('is Classic unless told otherwise: the controls, then the tabs standing on the bar’s foot, every tab with its cross', (tester) async {
       await pumpBar(tester, open: three, atHome: true);
       expect(AppTabBar.heightOf(tokens(tester)), closeTo(84.67, 0.05));
-      expect(named(tester, 'Home'), boxAt(13.39, 4.46, 30.35, 30.35));
-      expect(named(tester, 'Organizations'), boxAt(267.71, 4.46, 30.35, 30.35));
-      expect(named(tester, 'Settings'), boxAt(337.34, 4.46, 30.35, 30.35));
       expect(tester.getRect(find.byType(TabRow)), boxAt(0, 42.78, 390, 41.89));
       expect(tab(tester, 0), boxAt(13.39, 43.75, 151, 40.92));
       expect(tab(tester, 1), boxAt(166.39, 42.78, 194.23, 41.89));
@@ -273,10 +280,6 @@ void main() {
       expect(tab(tester, 0), boxAt(56.31, 4.21, 119.78, 40.92));
       // A tab that wears a pill is a pixel taller than the row is made, and stands on the row's line.
       expect(tab(tester, 1), boxAt(178.09, 3.24, 163.02, 41.89));
-      expect(named(tester, 'All your notes'), boxAt(13.39, 51.59, 30.35, 30.35));
-      expect(named(tester, 'Back to where you were'), boxAt(48.2, 51.59, 30.35, 30.35));
-      expect(named(tester, 'Organizations'), boxAt(267.71, 51.59, 30.35, 30.35));
-      expect(named(tester, 'Settings'), boxAt(337.34, 51.59, 30.35, 30.35));
       // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
       expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       // The cross is the open tab's alone.
@@ -295,18 +298,8 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('as the Masthead says Home, Notes and Back as words, and draws the tabs as an index line', (tester) async {
+    testWidgets('as the Masthead draws the tabs as an index line', (tester) async {
       await pumpBar(tester, style: TopBarStyle.masthead, open: three, atHome: true);
-      expect(named(tester, 'Home'), boxAt(13.39, 4.46, 63.05, 30.35));
-      expect(named(tester, 'All your notes'), boxAt(80.89, 4.46, 62.88, 30.35));
-      expect(named(tester, 'Back to where you were'), boxAt(148.22, 4.46, 76.08, 30.35));
-      expect(named(tester, 'Organizations'), boxAt(233.2, 4.46, 68.41, 30.35));
-      // The words come to more than a narrow phone's line: the last rings run past its end rather than shrinking.
-      expect(named(tester, 'Notifications'), boxAt(306.06, 4.46, 30.35, 30.35));
-      expect(named(tester, 'Settings'), boxAt(340.87, 4.46, 30.35, 30.35));
-      expect(find.text('Teams'), findsOneWidget);
-      // Forward only when there is somewhere forward to go.
-      expect(find.bySemanticsLabel('Forward again'), findsNothing);
       expect(tester.getRect(find.byType(TabRow)), boxAt(0, 43.75, 390, 40.92));
       expect(tab(tester, 0), boxAt(13.39, 43.75, 103.94, 40.92));
       expect(tab(tester, 1), boxAt(135.17, 43.75, 147.17, 40.92));
@@ -315,7 +308,7 @@ void main() {
       expect(find.bySemanticsLabel('New note in a new tab'), findsNothing);
       await away(tester);
       final log = await pumpBar(tester, style: TopBarStyle.masthead, open: three, active: 'groceries', canGoOn: true, canGoBack: true);
-      await tester.tap(find.bySemanticsLabel('Forward again'));
+      await pressInBar(tester, 'forward', label: 'Forward again');
       expect(log.said, ['on']);
       expect(tab(tester, 1), boxAt(135.17, 43.75, 178.39, 40.92));
       await away(tester);
@@ -325,12 +318,13 @@ void main() {
       await pumpBar(tester, style: TopBarStyle.islands, open: three, atHome: true);
       expect(AppTabBar.heightOf(tokens(tester)), closeTo(100.67, 0.05));
       final capsules = find.byType(BarCapsule);
-      expect(tester.getRect(capsules.at(0)), boxAt(13.39, 6.48, 135.39, 38.35));
-      expect(tester.getRect(capsules.at(1)), boxAt(262.65, 6.48, 105.04, 38.35));
-      expect(named(tester, 'Home'), boxAt(17.39, 10.48, 30.35, 30.35));
-      expect(named(tester, 'Forward again'), boxAt(114.43, 10.48, 30.35, 30.35));
-      expect(named(tester, 'Organizations'), boxAt(268.65, 10.48, 30.35, 30.35));
-      expect(named(tester, 'Settings'), boxAt(333.34, 10.48, 30.35, 30.35));
+      // The way around's capsule at the start, the screen's own at the end, the line's height.
+      for (final (at, rect) in [(0, tester.getRect(capsules.at(0))), (1, tester.getRect(capsules.at(1)))]) {
+        expect(rect.top, closeTo(6.48 + notch, 0.5), reason: 'capsule $at');
+        expect(rect.height, closeTo(38.35, 0.5), reason: 'capsule $at');
+      }
+      expect(tester.getRect(capsules.at(0)).left, closeTo(13.39, 0.5));
+      expect(tester.getRect(capsules.at(1)).right, closeTo(367.69, 0.5));
       // The tabs' capsule on a line of its own on a phone.
       expect(tester.getRect(find.byType(TabRow)), boxAt(13.39, 53.74, 354.3, 44.92));
       expect(tab(tester, 0), boxAt(23.31, 57.74, 117.78, 36.92));
@@ -342,22 +336,18 @@ void main() {
       // With nothing open the bar is one line.
       await pumpBar(tester, style: TopBarStyle.islands, atHome: true);
       expect(AppTabBar.heightOf(tokens(tester)), closeTo(47.27, 0.05));
-      expect(tester.getRect(find.byType(BarCapsule).at(0)), boxAt(13.39, 6.7, 135.39, 38.35));
-      expect(tester.getRect(find.byType(BarCapsule).at(1)), boxAt(262.65, 6.7, 105.04, 38.35));
+      expect(tester.getRect(find.byType(BarCapsule).at(0)).topLeft, offsetNear(13.39, 6.7));
+      expect(tester.getRect(find.byType(BarCapsule).at(1)).topRight, offsetNear(367.69, 6.7));
       await away(tester);
     });
   });
 
   group('on a window in two panes', () {
-    testWidgets('the Classic bar is glass from the window’s top edge, its rings a size up, the tabs its bottom edge', (tester) async {
+    testWidgets('the Classic bar is glass from the window’s top edge, the tabs its bottom edge', (tester) async {
       await pumpBar(tester, open: three, groups: trip, atHome: true, size: const Size(1280, 800), split: true, fine: true);
       final t = tokens(tester);
       expect(AppTabBar.heightOf(t) - notch, closeTo(96.24, 0.05));
       expect(tester.getTopLeft(find.byType(AppTabBar)).dy, 0);
-      expect(named(tester, 'Home'), boxAt(15.8, 5.27, 35.83, 35.83));
-      expect(named(tester, 'All your notes'), boxAt(62.16, 5.27, 35.83, 35.83));
-      expect(named(tester, 'Organizations'), boxAt(1125.12, 5.27, 35.83, 35.83));
-      expect(named(tester, 'Settings'), boxAt(1217.85, 5.27, 35.83, 35.83));
       expect(tab(tester, 0), boxAt(15.8, 50.63, 168.22, 44.61));
       expect(tester.getRect(find.byType(GroupChip)), boxAt(188.02, 59.7, 61.47, 25.5));
       expect(tab(tester, 1), boxAt(253.48, 49.66, 214.2, 45.58));
@@ -376,8 +366,6 @@ void main() {
     testWidgets('the opened Fold’s bar is the same bar at its own size', (tester) async {
       await pumpBar(tester, open: three, active: 'groceries', quiet: true, canGoBack: true, size: const Size(840, 900), split: true);
       expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(90.52, 0.05));
-      expect(named(tester, 'Home'), boxAt(14.61, 4.86, 33.12, 33.12));
-      expect(named(tester, 'All your notes'), boxAt(57.47, 4.86, 33.12, 33.12));
       expect(tab(tester, 0), boxAt(14.61, 46.74, 159.73, 42.78));
       expect(tab(tester, 1), boxAt(176.34, 45.76, 204.36, 43.77));
       // No + after the tabs: a new note is under the bar's ••• (Matt, 2026-10-29).
@@ -388,11 +376,12 @@ void main() {
     testWidgets('the Islands’ three capsules share one line, the tabs between the other two', (tester) async {
       await pumpBar(tester, style: TopBarStyle.islands, open: three, groups: trip, atHome: true, size: const Size(1280, 800), split: true, fine: true);
       expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(64.9, 0.05));
-      expect(tester.getRect(find.byType(BarCapsule).at(0)), boxAt(15.8, 5.01, 157.32, 43.82));
-      expect(tester.getRect(find.byType(TabRow)), boxAt(300.65, 5.01, 704, 48.61));
-      expect(tester.getRect(find.byType(BarCapsule).at(1)), boxAt(1132.18, 5.01, 121.49, 43.82));
-      expect(tab(tester, 0), boxAt(312.19, 9.01, 129.34, 40.61));
-      expect(tester.getRect(find.byType(GroupChip)), boxAt(448.8, 16.56, 61.47, 25.5));
+      expect(tester.getRect(find.byType(BarCapsule).at(0)).topLeft, offsetNear(15.8, 5.01));
+      // The tabs' capsule between the way around and the title pill, which stands before the screen's own.
+      expect(tester.getRect(find.byType(TabRow)), boxAt(205.74, 5.01, 704, 48.61));
+      expect(tester.getRect(find.byType(BarCapsule).at(1)).topRight, offsetNear(1253.67, 5.01));
+      expect(tab(tester, 0), boxAt(312.19 - 94.91, 9.01, 129.34, 40.61));
+      expect(tester.getRect(find.byType(GroupChip)), boxAt(448.8 - 94.91, 16.56, 61.47, 25.5));
       await away(tester);
       // More tabs than fit, on the opened Fold: still one line, the tabs' capsule taking the room there is. (The
       // page's own line broke here, its third capsule wrapping under the first.)

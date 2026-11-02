@@ -23,7 +23,6 @@ import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart;
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
 
 import '../plugins/github/support.dart' show useGround;
 import '../plugins/lovart/banners_test.dart' show GatedClient;
@@ -183,17 +182,14 @@ void main() {
   // The result chips never over the page's own controls (2026-10-29, on Grouped command becoming the default: "the
   // result chips must never cover a page's own controls"). The run stopped for credits gives both the home page's
   // line, with Hide, and a chip saying the same, hung under the header at the end; with no search field on the page
-  // the line stands at its top, where the chip hung over its Hide. Now the chip stands under the line, in every
-  // version of the bar, on a phone, the opened Fold and the Mac, and Hide takes the press.
+  // the line stands at its top, where the chip hung over its Hide. Now the chip stands under the line, on a phone, the
+  // opened Fold and the Mac, and Hide takes the press.
   const windows = [(name: 'phone', size: Size(390, 844), mac: false), (name: 'unfolded', size: Size(880, 1000), mac: false), (name: 'mac', size: Size(1280, 800), mac: true)];
-  for (final version in HeaderToolbarVersion.offered) {
     for (final window in windows) {
-      testWidgets('${version.number} ${version.label}, ${window.name}: the chip stands clear of the line, and Hide takes the press', (tester) async {
+      testWidgets('${window.name}: the chip stands clear of the line, and Hide takes the press', (tester) async {
         if (window.mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-        addTearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.fallback.id));
         library.create('# Trip\n\n$_words');
         await pumpRoot(tester, size: window.size);
-        headerToolbarChoice.set(version.id);
         await settle(tester, 2);
         gated
           ..open = true
@@ -208,7 +204,7 @@ void main() {
         final chip = tester.getRect(chips), words = tester.getRect(find.descendant(of: line, matching: find.byType(RichText)).first);
         expect(chip.overlaps(words), isFalse, reason: 'the chip at $chip, the line at $words');
         expect(tester.getRect(find.byKey(const ValueKey('job-notice-action'))).overlaps(chip), isFalse);
-        if (version == HeaderToolbarVersion.fallback && Platform.environment.containsKey('FEATURE_SHOTS')) {
+        if (Platform.environment.containsKey('FEATURE_SHOTS')) {
           await expectLater(find.byType(GhostApp), matchesGoldenFile('../../build/feature-shots/header-default/chip-clear-of-job-notice-${window.name}.png'));
         }
         // A press on Hide is Hide's, not the chip's.
@@ -223,7 +219,6 @@ void main() {
         debugDefaultTargetPlatformOverride = null;
       });
     }
-  }
 
   testWidgets('the chip goes back up as the line scrolls away under the header, and down again as it comes back', (tester) async {
     for (var i = 0; i < 8; i += 1) {

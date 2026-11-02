@@ -15,13 +15,12 @@ import '../core/tabs.dart';
 import '../core/workspaces.dart';
 import '../note/note_tools.dart' show NoteToolsModel;
 import '../shell/desktop/mac_lights.dart';
+import '../shell/header/grouped_command_row.dart' show groupedCommandRow;
 import '../shell/header_toolbar.dart';
 import '../shell/top_bar_tools.dart' show BarButton;
-import '../shell/pop_menu.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart';
 import 'floating_card.dart';
-import 'tabs/bar_icon.dart';
 import 'tabs/bar_parts.dart';
 import 'tabs/tab_parts.dart';
 import 'tabs/tab_row.dart';
@@ -50,11 +49,13 @@ import 'tabs/tab_row.dart';
 ///
 /// In every way but Classic the cross is drawn on the open tab alone: the rest close from their menu, or once opened.
 ///
-/// **And six versions of the line of controls** ([version]; lib/shell/header_toolbar.dart, Settings › Developer ›
-/// Header toolbar): today's, drawn here as it always was, or one of five that redraw the controls' line - grouped
-/// into pills, as tiles of colour, as a command centre, labelled, or grouped around a command pill, the default - in
-/// whichever of the four ways the bar is laid out. A version is handed the controls as words ([HeaderParts]) and the note's tools as their model
-/// ([toolsModel]), and answers the line ([HeaderRow]); the tabs are the style's as ever.
+/// **The line of controls is Grouped command's** (lib/shell/header_toolbar.dart, header/grouped_command_row.dart) in
+/// whichever of the four ways the bar is laid out: the way around in two pills, the note's name in a pill that opens
+/// the command palette, the note's own in a pill with •••, and the round button for you. It is handed the controls as
+/// words ([HeaderParts]) and the note's tools as their model ([toolsModel]), and answers the line ([HeaderRow]); the
+/// tabs are the style's as ever. Until 2026-11-01 it was one of six versions, picked under Settings › Developer, and
+/// today's bar, every control its own ring, was drawn here; the contact sheet ended with Grouped command (Matt: "we
+/// currently have too many appearance settings for different title bar layouts and stuff").
 ///
 /// The bar is the app's, not any screen's: shell/app_shell.dart draws it once, in shell/app_tab_bar.dart's box, which
 /// is the web's `.app-tabBar`. It fills the box it is given, across the whole window: the bar's own gutters
@@ -118,7 +119,6 @@ class NoteTabs extends StatefulWidget {
     this.activity,
     this.finePointer,
     this.grouping = true,
-    this.version = HeaderToolbarVersion.today,
     this.toolsModel,
     this.onSearch,
     this.onAllNotes,
@@ -127,22 +127,19 @@ class NoteTabs extends StatefulWidget {
     this.atFolders = false,
   });
 
-  /// Every note by folder, All notes in its icon view (Matt, 2026-10-29: "add a folder icon to the top near home and sidebar to show all notes in the folder / icon view"): a ring after the sidebar's in
-  /// every version, and whether that page is the one showing.
+  /// Every note by folder, All notes in its icon view (Matt, 2026-10-29: "add a folder icon to the top near home and
+  /// sidebar to show all notes in the folder / icon view"): a row of the line's •••, and whether that page is the one
+  /// showing.
   final VoidCallback? onFolders;
   final bool atFolders;
 
-  /// The home page's Filters, for a version that holds them in the bar ([HeaderParts.filters]).
+  /// The home page's Filters, a circle of the bar's after the title pill ([HeaderParts.filters]).
   final BarButton? filters;
 
-  /// Which of the header toolbar's six versions draws the line of controls. The shell always names one, this
-  /// device's choice (Grouped command unless Developer says); today's where a test draws the row alone and names none.
-  final HeaderToolbarVersion version;
-
-  /// What the screen's [tools] are, as the actions they draw, for a version other than today's.
+  /// What the screen's [tools] are, as the actions they draw.
   final ValueListenable<NoteToolsModel>? toolsModel;
 
-  /// The command palette, and every note: what a version may offer at home.
+  /// The command palette, which the title pill opens, and every note.
   final VoidCallback? onSearch;
   final VoidCallback? onAllNotes;
 
@@ -267,14 +264,6 @@ class _NoteTabsState extends State<NoteTabs> {
   /// The menu a group's chip or a tab has open.
   ({bool group, String id})? _menu;
 
-  /// The organizations' picker, open, and the icon it hangs from.
-  bool _pickingOrg = false;
-  final GlobalKey _orgsKey = GlobalKey(debugLabel: 'organizations');
-
-  /// The menu of what the bar keeps under its •••, open, and the ring it hangs from.
-  bool _keeping = false;
-  final GlobalKey _keptKey = GlobalKey(debugLabel: 'kept');
-
   /// The chip being renamed, and the tab whose name is open as a field.
   String? _renaming;
   String? _naming;
@@ -307,165 +296,6 @@ class _NoteTabsState extends State<NoteTabs> {
     final kept = words.trim();
     setState(() => _naming = null);
     if (keep && kept.isNotEmpty && kept != was) widget.onRename?.call(id, kept);
-  }
-
-  // ---- the pieces, each once, placed by the style below ------------------------------------------------------------
-
-  Widget? _homeRing() => widget.onHome == null
-      ? null
-      : BarRing(glyph: BarGlyph.house, iconSize: 20, label: 'Home', onPressed: widget.onHome, on: widget.atHome, current: widget.atHome);
-
-  Widget? _homeWord() => widget.onHome == null ? null : BarWord(word: 'Home', onPressed: widget.onHome, on: widget.atHome, current: widget.atHome);
-
-  Widget? _sidebarRing() => widget.onSidebar == null
-      ? null
-      // `data-sidebar-toggle`: a press on it is the icon's own to answer, not a press outside its card.
-      : FloatingCardToggle(
-          toggle: sidebarToggle,
-          child: BarRing(glyph: BarGlyph.panelLeft, iconSize: 20, label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen),
-        );
-
-  Widget? _sidebarWord() =>
-      widget.onSidebar == null
-          ? null
-          : FloatingCardToggle(
-              toggle: sidebarToggle,
-              child: BarWord(word: 'Notes', label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen),
-            );
-
-  /// Today's •••, after the sidebar's icon, where every note by folder and a new note are (Matt, 2026-10-29: "Put the
-  /// all files folder icon under the more menu as well as the + button in the header"): the folder had been a ring of
-  /// its own there (2026-10-29: "add a folder icon to the top near home and sidebar"), and the + the last of the tabs.
-  /// Today's bar had no ••• of its own (a note's More is the note's sheet), so it has one now; the Masthead's is the
-  /// word More.
-  ///
-  /// [back] and [forward]: the arrows the Islands put under it where their capsules have no room for them.
-  Widget? _kept({required bool asWord, bool back = false, bool forward = false}) {
-    final folders = widget.onFolders, make = widget.onNew;
-    final goBack = back ? widget.onGoBack : null, goOn = forward ? widget.onGoOn : null;
-    if (folders == null && make == null && goBack == null && goOn == null) return null;
-    void toggle() => setState(() => _keeping = !_keeping);
-    final trigger = asWord
-        ? BarWord(word: 'More', label: 'More: all notes by folder, a new note', onPressed: toggle, expanded: _keeping, on: widget.atFolders, anchorKey: _keptKey)
-        : BarRing(glyph: BarGlyph.more, iconSize: 19, label: 'More: all notes by folder, a new note', onPressed: toggle, expanded: _keeping, on: widget.atFolders, anchorKey: _keptKey);
-    if (!_keeping) return trigger;
-    final t = context.tokens;
-    Widget glyph(BarGlyph glyph) => BarIcon(glyph, size: 16, color: t.color('glacier-text'));
-    void pick(VoidCallback act) {
-      setState(() => _keeping = false);
-      act();
-    }
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        trigger,
-        PopMenu(
-          anchor: GlacierAnchor.key(_keptKey),
-          placement: Placement.bottomStart,
-          reach: PopReach.down,
-          ariaLabel: 'More',
-          coarse: !_fine,
-          onDismiss: () => setState(() => _keeping = false),
-          children: [
-            if (folders != null) GlacierMenuItem(key: HeaderAct.keyOf('folders'), onSelect: () => pick(folders), icon: glyph(BarGlyph.folder), child: const Text('All notes, by folder')),
-            if (make != null) GlacierMenuItem(key: HeaderAct.keyOf('new'), onSelect: () => pick(make), icon: glyph(BarGlyph.plus), child: const Text('New note')),
-            if (goBack != null || goOn != null) const GlacierMenuSeparator(),
-            if (goBack != null) GlacierMenuItem(key: HeaderAct.keyOf('back'), onSelect: widget.canGoBack ? () => pick(goBack) : null, icon: glyph(BarGlyph.arrowLeft), child: const Text('Back')),
-            if (goOn != null) GlacierMenuItem(key: HeaderAct.keyOf('forward'), onSelect: widget.canGoOn ? () => pick(goOn) : null, icon: glyph(BarGlyph.arrowRight), child: const Text('Forward')),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button.
-  List<Widget> _arrows({bool back = true, bool forward = true}) => [
-        if (back && widget.onGoBack != null) BarRing(glyph: BarGlyph.arrowLeft, iconSize: 19, label: 'Back to where you were', onPressed: widget.canGoBack ? widget.onGoBack : null),
-        if (forward && widget.onGoOn != null) BarRing(glyph: BarGlyph.arrowRight, iconSize: 19, label: 'Forward again', onPressed: widget.canGoOn ? widget.onGoOn : null),
-      ];
-
-  /// The Masthead's: Back as a word, and Forward only when there is somewhere forward to go, since it seldom is.
-  List<Widget> _arrowWords() => [
-        if (widget.onGoBack != null) BarWord(word: 'Back', label: 'Back to where you were', leading: BarGlyph.arrowLeft, onPressed: widget.canGoBack ? widget.onGoBack : null),
-        if (widget.onGoOn != null && widget.canGoOn) BarWord(word: 'Forward', label: 'Forward again', trailing: BarGlyph.arrowRight, onPressed: widget.onGoOn),
-      ];
-
-  /// Organizations: with a picker, the icon opens it and a second press closes it again; without, it goes to Settings.
-  Widget? _orgs({required bool asWord}) {
-    final all = widget.onOrganizations;
-    if (all == null) return null;
-    final pick = widget.onOrganization;
-    final picks = widget.organizations.isNotEmpty && pick != null;
-    final press = picks ? () => setState(() => _pickingOrg = !_pickingOrg) : all;
-    final expanded = picks ? _pickingOrg : null;
-    final trigger = asWord
-        ? BarWord(word: 'Teams', label: 'Organizations', onPressed: press, expanded: expanded, anchorKey: _orgsKey)
-        : BarRing(glyph: BarGlyph.people, iconSize: 19, label: 'Organizations', onPressed: press, expanded: expanded, anchorKey: _orgsKey);
-    if (!picks || !_pickingOrg) return trigger;
-    // A picker of the organizations you belong to, hung from the icon: a pick goes straight to that one's dashboard;
-    // the last row is the whole list in Settings, where one is made or an invitation answered.
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        trigger,
-        PopMenu(
-          anchor: GlacierAnchor.key(_orgsKey),
-          placement: Placement.bottomEnd,
-          reach: PopReach.down,
-          ariaLabel: 'Choose an organization',
-          coarse: !_fine,
-          onDismiss: () => setState(() => _pickingOrg = false),
-          children: [
-            const GlacierMenuLabel(child: Text('Organizations')),
-            for (final org in widget.organizations) GlacierMenuItem(onSelect: () => pick(org.id), icon: HueDot(org.hue), child: Text(org.name)),
-            const GlacierMenuSeparator(),
-            GlacierMenuItem(onSelect: all, child: const Text('All organizations…')),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// The bell, on while something unread waits: a dot, no number.
-  Widget? _bell() => widget.onNotifications == null
-      ? null
-      // `data-notifications-toggle`
-      : FloatingCardToggle(
-          toggle: notificationsToggle,
-          child: BarRing(
-            glyph: BarGlyph.bell,
-            iconSize: 19,
-            label: widget.unread ? 'Notifications, something new' : 'Notifications',
-            onPressed: widget.onNotifications,
-            on: widget.unread || widget.atNotifications,
-            expanded: widget.atNotifications,
-            dot: widget.unread,
-          ),
-        );
-
-  Widget? _cog() => widget.onSettings == null ? null : BarRing(glyph: BarGlyph.settings, iconSize: 19, label: 'Settings', onPressed: widget.onSettings);
-
-  /// The aside's toggle, last of all: the sidebar's icon reversed.
-  Widget? _asideRing() => widget.onAside == null
-      ? null
-      // `data-aside-toggle`
-      : FloatingCardToggle(
-          toggle: asideToggle,
-          child: BarRing(glyph: BarGlyph.panelLeft, iconSize: 20, label: 'Side panel', onPressed: widget.onAside, on: widget.asideOpen, expanded: widget.asideOpen, mirrored: true),
-        );
-
-  /// `.top`: the way to the notes and back at one end, whatever the screen puts in the slot pushed to the other.
-  Widget _toolRow(double gap, double endInset, List<Widget?> before, List<Widget?> after) {
-    final tools = widget.tools;
-    return ToolRow(
-      gap: gap,
-      endInset: endInset,
-      before: before.nonNulls.toList(),
-      // `.slot { overflow-x: auto }`: if the screen's own controls ever run out of room, they scroll rather than
-      // the last of them being cut off.
-      slot: tools == null ? const SizedBox.shrink() : SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: tools),
-      after: after.nonNulls.toList(),
-    );
   }
 
   /// The tabs, and no line at all when nothing is open; the Ledger keeps the row whatever is open, since Home is
@@ -620,9 +450,9 @@ class _NoteTabsState extends State<NoteTabs> {
     return (row: row, pills: pills);
   }
 
-  // ---- a version's line --------------------------------------------------------------------------------------------
+  // ---- the line of controls --------------------------------------------------------------------------------------------
 
-  /// The controls as words, for a version to draw: each with today's label, so a screen reader hears the same bar.
+  /// The controls as words, for the line to draw: each with the old bar's label, so a screen reader hears the same bar.
   HeaderParts _parts(double room) {
     final w = widget;
     final model = w.toolsModel?.value;
@@ -683,7 +513,7 @@ class _NoteTabsState extends State<NoteTabs> {
     );
   }
 
-  /// A version's line, laid out on one line: the start, the middle taking what is left, the end.
+  /// The line, laid out on one line: the start, the middle taking what is left, the end.
   Widget _versionLine(HeaderRow row, double gap) => Row(
         spacing: gap,
         children: [
@@ -698,7 +528,7 @@ class _NoteTabsState extends State<NoteTabs> {
     if (widget.onSidebar == null && widget.onGoBack == null && widget.tabs.isEmpty) return const SizedBox.shrink();
     final model = widget.toolsModel;
     return ListenableBuilder(
-      listenable: model == null || widget.version == HeaderToolbarVersion.today ? _live : Listenable.merge([_live, model]),
+      listenable: model == null ? _live : Listenable.merge([_live, model]),
       builder: (context, _) => LayoutBuilder(builder: (context, constraints) => _bar(context, constraints)),
     );
   }
@@ -717,10 +547,9 @@ class _NoteTabsState extends State<NoteTabs> {
     final gap = MediaQuery.sizeOf(context).width <= 440 ? t.space(1) : t.space(2);
     final hairline = t.len('glacier-hairline');
     final tabRow = _tabRow(t, shape);
-    // A version other than today's draws the line of controls; today's is the code below, as it always was.
-    final build = headerRowFor(widget.version);
+    // Grouped command draws the line of controls (lib/shell/header/grouped_command_row.dart).
     final room = constraints.maxWidth - start - end - trafficLightsRoom(t);
-    final version = build == null ? null : build(context, _parts(room));
+    final version = groupedCommandRow(context, _parts(room));
 
     if (style == TopBarStyle.islands) return _islands(t, constraints, tabRow?.row, split: split, version: version);
 
@@ -736,19 +565,13 @@ class _NoteTabsState extends State<NoteTabs> {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: t.color('glacier-border-subtle'), width: hairline)),
         ),
-        child: version != null
-            ? _versionLine(version, gap)
-            : _toolRow(gap, 0, [_sidebarRing(), _kept(asWord: false), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
+        child: _versionLine(version, gap),
       );
     } else {
       // The Mac's three window buttons sit at this row's start: the first control begins after their room.
       final lights = trafficLightsRoom(t);
       topH = ring;
-      final controls = version != null
-          ? Padding(padding: EdgeInsets.only(right: end), child: _versionLine(version, gap))
-          : style == TopBarStyle.masthead
-          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), _kept(asWord: true), ..._arrowWords()], [widget.presence, widget.activity, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
-          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), _kept(asWord: false), ..._arrows()], [widget.presence, widget.activity, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
+      final controls = Padding(padding: EdgeInsets.only(right: end), child: _versionLine(version, gap));
       top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
     }
 
@@ -793,7 +616,7 @@ class _NoteTabsState extends State<NoteTabs> {
 
   /// The Islands: three capsules of glass over the page - the way around at the start, the screen's own at the end,
   /// and the tabs between them on a window in two panes, on a line of their own on a phone.
-  Widget _islands(Tokens t, BoxConstraints constraints, Widget? tabRow, {required bool split, HeaderRow? version}) {
+  Widget _islands(Tokens t, BoxConstraints constraints, Widget? tabRow, {required bool split, required HeaderRow version}) {
     final ring = t.len('app-bar-ring');
     final hairline = t.len('glacier-hairline');
     final start = t.len('app-bar-start'), end = t.len('app-bar-end');
@@ -802,25 +625,11 @@ class _NoteTabsState extends State<NoteTabs> {
     // A capsule's height with its padding and hairline round it, so a folded group's chip does not move.
     final rowH = t.len('app-tab-h') - 4 + 6 + 2 * hairline;
 
-    // A version's line in the Islands: its start in the first capsule, its end in the last, its middle between them.
-    // Today's two capsules, with the activity ring always in the second (Matt, 2026-10-29: "Keep the activity
-    // indicator always showing"), have no room for both arrows on a 360 phone: Forward is under •••, and Back with it
-    // on a Mac's window at a phone's width, whose window buttons take the start.
-    final room = constraints.maxWidth - start - end - trafficLightsRoom(t);
-    final forward = room >= snugRoom, back = room >= crampedRoom;
-    final Widget capsule = version != null
-        ? BarCapsule(children: version.lead)
-        : BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ?_kept(asWord: false, back: !back, forward: !forward), ..._arrows(back: back, forward: forward)]);
+    // The line in the Islands: its start in the first capsule, its end in the last, its middle between them.
+    final Widget capsule = BarCapsule(children: version.lead);
     final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
-    final own = <Widget>[?widget.presence, ?widget.activity, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
-    final tools = widget.tools;
-    // The slot is a place in the capsule's row whether or not the screen has put anything in it.
-    final ownCapsule = version != null
-        ? (version.trail.isEmpty ? null : BarCapsule(children: version.trail))
-        : own.isEmpty && tools == null
-            ? null
-            : BarCapsule(children: [tools ?? const SizedBox.shrink(), ...own]);
-    final middle = version?.centre;
+    final ownCapsule = version.trail.isEmpty ? null : BarCapsule(children: version.trail);
+    final middle = version.centre;
     final tabs = tabRow == null ? null : SizedBox(height: rowH, child: tabRow);
 
     final Widget body;

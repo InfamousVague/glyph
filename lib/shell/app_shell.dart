@@ -103,7 +103,6 @@ class AppShell extends StatefulWidget {
     this.trash = const {},
     this.drafts = const {},
     this.topBar = TopBarStyle.classic,
-    this.headerToolbar,
     this.sidebarStyle = SidebarStyle.popover,
     this.workspaces = const Workspaces(),
     this.organizations = const [],
@@ -173,10 +172,6 @@ class AppShell extends StatefulWidget {
   /// How the top bar is laid out (Settings › Appearance).
   final TopBarStyle topBar;
 
-  /// Which of the header toolbar's six versions draws the bar's line of controls (lib/shell/header_toolbar.dart).
-  /// Null is this device's own choice, Settings › Developer › Header toolbar, heard as it changes, and Grouped command
-  /// while it has chosen nothing; a test names one.
-  final HeaderToolbarVersion? headerToolbar;
   final SidebarStyle sidebarStyle;
 
   /// The workspaces, for the pill a filed note's tab wears.
@@ -250,8 +245,8 @@ class AppShell extends StatefulWidget {
   /// A new note in a new tab, from the + at the end of the row. Absent, there is no +.
   final VoidCallback? onNew;
 
-  /// The command palette (lib/commands/command_bar.dart), for the header toolbar's versions that offer it in the
-  /// bar. Absent, they offer it nowhere, and the Command centre's pill opens its own menu.
+  /// The command palette (lib/commands/command_bar.dart), which the header toolbar's title pill opens. Absent, the pill
+  /// opens its own menu.
   final VoidCallback? onSearch;
 
   /// A tab's note deleted from its menu; the shell has closed its tab and left it. Absent, the menu has no Delete.
@@ -376,12 +371,6 @@ class AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _sync();
-    // The bar's version decides its height too (`data-header`), so the whole shell hears a change of it.
-    headerToolbarChoice.addListener(_versionChanged);
-  }
-
-  void _versionChanged() {
-    if (mounted && widget.headerToolbar == null) setState(() {});
   }
 
   @override
@@ -405,7 +394,6 @@ class AppShellState extends State<AppShell> {
   void dispose() {
     // No shell, no stamps of its own on the root: once the tree has settled.
     Future<void>.microtask(() => shellStamps.value = const <String, String?>{});
-    headerToolbarChoice.removeListener(_versionChanged);
     _tabs.dispose();
     _walk.dispose();
     _barTools.dispose();
@@ -771,8 +759,8 @@ class AppShellState extends State<AppShell> {
       'topbar': topBar == TopBarStyle.classic ? null : topBar.id,
       // Grouped command is a size larger, the bar with it (app.css `[data-header='large']`; Matt, 2026-10-28: "make the
       // elements a size larger"); only where there is a bar for it to draw.
-      // And on a phone's width a search pill's bar is a small step larger again, Command centre's with it (Matt,
-      // 2026-10-29: "Make the header icons and search bar slightly larger on mobile"; app.css `[data-header='phone']`).
+      // And on a phone's width a small step larger again (Matt, 2026-10-29: "Make the header icons and search bar
+      // slightly larger on mobile"; app.css `[data-header='phone']`).
       'header': _headerStamp(tabBar, window),
     };
 
@@ -803,13 +791,11 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  /// `data-header`: the bar's size where a version wants another. Grouped command's is the dock's smaller size
-  /// (`large`); on a window narrower than the opened Fold, the two with a search pill are a small step larger (`phone`).
+  /// `data-header`: the bar's size, Grouped command's: the dock's smaller size (`large`), and on a window narrower
+  /// than the opened Fold a small step larger (`phone`).
   String? _headerStamp(bool tabBar, Size window) {
     if (!tabBar) return null;
-    final version = widget.headerToolbar ?? headerToolbarVersion;
-    if (version.searchPill && window.width < phoneWidth) return 'phone';
-    return version == HeaderToolbarVersion.groupedCommand ? 'large' : null;
+    return window.width < phoneWidth ? 'phone' : 'large';
   }
 
   /// The screen and everything over it, for one build. [plain] is simple mode's frame (GHST-105): the place, or
@@ -1015,15 +1001,12 @@ class AppShellState extends State<AppShell> {
     final chip = widget.barChip;
     // Simple mode's bar: no people icon, no bell, no Forward, no aside, and tabs with no groups.
     final simple = widget.simple;
-    final named = widget.headerToolbar;
     return ListenableBuilder(
-      listenable: Listenable.merge([_barTools, ?chip?.changes, if (named == null) headerToolbarChoice]),
+      listenable: Listenable.merge([_barTools, ?chip?.changes]),
       builder: (context, _) => AppTabBar(
         style: widget.topBar,
         child: NoteTabs(
           style: widget.topBar,
-          // The line of controls in the version Developer chose; a change draws the bar again at once.
-          version: named ?? headerToolbarVersion,
           toolsModel: _barTools.model,
           filters: _barTools.filters,
           onSearch: widget.onSearch,

@@ -87,9 +87,6 @@ void main() {
 
   group('on the Mac', () {
     testWidgets('starts hidden, and the bar\'s panel icon shows simple\'s list beside the note and hides it, kept to the device', (tester) async {
-      // Today's bar's rings, by what they say, held still while the column opens; Grouped command keeps Settings and
-      // the organizations behind its round button.
-      pinTodaysBar();
       onMac();
       final local = MemoryStored();
       final library = await open(tester, size: mac, stored: local);
@@ -105,7 +102,7 @@ void main() {
       final note = tester.state<NoteScreenState>(find.byType(NoteScreen));
       expect(tester.getRect(find.byType(NoteScreen)).left, 0);
       final barAt = tester.getRect(find.byType(AppTabBar));
-      final controls = {for (final label in ['All your notes', 'Home', 'Settings', 'Organizations']) label: tester.getRect(bar(label))};
+      final controls = {for (final label in ['All your notes', 'Home', 'You: notifications, organizations and Settings']) label: tester.getRect(bar(label))};
       final lights = tester.getCenter(find.byType(MacLightsRow).last);
 
       await tester.tap(bar('All your notes'));
@@ -238,8 +235,6 @@ void main() {
 
   // What the tree held that simple's list does not, and where each is in advanced mode on a wide window.
   testWidgets('everything the old tree held is still reached on a wide window', (tester) async {
-    // Today's bar's rings, by what they say; Grouped command keeps them behind its round button and •••.
-    pinTodaysBar();
     onMac();
     final local = MemoryStored();
     writeSidebarShown(true, local);
@@ -253,8 +248,10 @@ void main() {
     expect(home.workspaces.value.list.map((space) => space.name), containsAll(['Work', 'Home']));
     expect((home.onNewFolder != null, home.onManageWorkspace != null), (true, true));
 
-    // The organizations: the bar's people icon (its picker, or Settings › Organizations).
-    expect(bar('Organizations'), findsOneWidget);
+    // The organizations: the button for you's menu (its picker, and Settings › Organizations).
+    await openBarMenu(tester, 'you');
+    expect(find.bySemanticsLabel('Organizations'), findsOneWidget);
+    await openBarMenu(tester, 'you');
 
     // All notes: the folders and New folder, the archive, and the trash's word while it holds any.
     shell.showAllNotes();

@@ -15,7 +15,6 @@ import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:glacier/glacier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -86,7 +85,6 @@ void main() {
           if (window.mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
           try {
             await launch(tester, size: window.size, theme: theme, sidebar: screen == 'home-sidebar');
-            expect(headerToolbarVersion, HeaderToolbarVersion.groupedCommand, reason: 'nothing kept is the default');
             final shell = tester.state<AppShellState>(find.byType(AppShell));
             switch (screen) {
               case 'note':

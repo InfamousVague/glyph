@@ -19,7 +19,6 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/note/note_settings.dart';
 import 'package:ghost_md/sheet/kit.dart';
 import 'package:ghost_md/shell/app_shell.dart';
-import 'package:ghost_md/shell/header_toolbar.dart' show HeaderToolbarVersion;
 import 'package:ghost_md/shell/page_dock.dart' show PageDockSeam;
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/shell/top_bar.dart';
@@ -107,9 +106,6 @@ Future<NoteScreenState> pumpNote(
   // The note's own Back (GHST-105): a phone's plain shell in simple mode asks for it; a wide window's list pane does
   // not. Null follows the store: Back in simple, none in advanced, as the root's phone wiring does.
   bool? back,
-  // The bar's version, where a test is about one (today's draws the note's own NoteTools as they are); null is the
-  // device's choice, the default unless a test chose.
-  HeaderToolbarVersion? headerToolbar,
   // The page tree a doc page is drawn from (lib/note/doc_page.dart); null is the one over the world's library.
   ValueListenable<PageTree>? pageTree,
 }) async {
@@ -151,7 +147,6 @@ Future<NoteScreenState> pumpNote(
             notes: [note],
             workspaces: world.workspaces.value,
             topBar: TopBarStyle.classic,
-            headerToolbar: headerToolbar,
             openNotes: [note.id],
             mobile: mobile ?? size.width < 600,
             finePointer: fine ?? size.width >= 600,

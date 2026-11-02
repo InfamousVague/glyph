@@ -1,6 +1,6 @@
 // Settings and the plugins found from the command search, in the app put together (Matt, 2026-10-29: "Add the ability
 // to search settings and plugins from the command search"; lib/commands/settings_places.dart): the header toolbar's
-// search pill (Command centre and Grouped command) opens the palette, what is typed finds a setting under Settings and
+// search pill opens the palette, what is typed finds a setting under Settings and
 // a plugin under Plugins after the notes and commands, and choosing one opens Settings at its page with the row lit, a
 // More of Simple's opened for it, or the Market at a plugin not added. On a phone and on a desktop's window.
 import 'dart:convert';
@@ -21,7 +21,7 @@ import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/settings_screen.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
+import 'package:ghost_md/shell/header_toolbar.dart' show HeaderAct;
 import 'package:glacier/glacier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,12 +41,10 @@ void main() {
     }
   }
 
-  /// The app launched with [version]'s bar kept on the device and [experience] chosen, the plugins the built-in ones
-  /// with Keyboard modes added.
-  Future<void> launch(WidgetTester tester, {required Size size, required HeaderToolbarVersion version, String experience = 'advanced'}) async {
+  /// The app launched with [experience] chosen, the plugins the built-in ones with Keyboard modes added.
+  Future<void> launch(WidgetTester tester, {required Size size, String experience = 'advanced'}) async {
     SharedPreferences.setMockInitialValues({
       PreferencesStore.storageKey: jsonEncode({'theme': 'light', 'experience': experience, 'experienceChosen': true}),
-      'glyph-header-toolbar': version.id,
     });
     addTearDown(() => SharedPreferences.setMockInitialValues({}));
     preferences.forget();
@@ -71,7 +69,6 @@ void main() {
   }
 
   Future<void> close(WidgetTester tester) async {
-    headerToolbarChoice.set(HeaderToolbarVersion.fallback.id);
     debugDisableShadows = true;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));
@@ -113,9 +110,8 @@ void main() {
 
   for (final size in [phone, desktop]) {
     final at = size == phone ? 'phone' : 'desktop';
-    for (final version in [HeaderToolbarVersion.command, HeaderToolbarVersion.groupedCommand]) {
-      testWidgets('${version.label} on a $at: a setting found by the pill’s search opens Settings at it, lit', (tester) async {
-        await launch(tester, size: size, version: version);
+      testWidgets('on a $at: a setting found by the pill’s search opens Settings at it, lit', (tester) async {
+        await launch(tester, size: size);
         await search(tester, 'font size');
         // The commands first, then Settings.
         expect(headings(tester), contains('SETTINGS'));
@@ -130,10 +126,9 @@ void main() {
         await pump(tester, 20);
         await close(tester);
       });
-    }
 
     testWidgets('on a $at: a plugin not added opens in the Market; an added one’s setting on its page; both under Plugins after Settings', (tester) async {
-      await launch(tester, size: size, version: HeaderToolbarVersion.command);
+      await launch(tester, size: size);
       await search(tester, 'keyboard');
       expect(headings(tester).last, 'PLUGINS');
       expect(find.descendant(of: find.byType(GlacierCommandPalette), matching: find.text('Added')), findsOneWidget, reason: 'Keyboard modes is added');
@@ -158,7 +153,7 @@ void main() {
     });
 
     testWidgets('in Simple on a $at: a row behind More is found, and More opens in place for it', (tester) async {
-      await launch(tester, size: size, version: HeaderToolbarVersion.groupedCommand, experience: 'simple');
+      await launch(tester, size: size, experience: 'simple');
       await search(tester, 'typewriter', pill: false);
       expect(row('Typewriter scroll'), findsWidgets);
       await tester.tap(row('Typewriter scroll').last);

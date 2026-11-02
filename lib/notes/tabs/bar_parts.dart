@@ -5,7 +5,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import 'bar_icon.dart';
 import '../../app/plain.dart';
 
 // The pieces the top bar is made of that are not tabs (notes/NoteTabs.module.css): a ring, a word, a capsule of
@@ -157,14 +156,6 @@ Color headerGlassTint(Tokens t) => t.colorOf(headerGlass(ghostPlain ? (ghostBarB
 Color controlGlass(Tokens t, {bool lit = false, String ink = 'app-ink'}) =>
     t.colorOf('color-mix(in oklch, var(--$ink) var(${lit ? '--app-control-glass-lit' : '--app-control-glass'}), transparent)');
 
-/// The control glass of a control that stands out (the Labelled bar's "on", New, the button for you): the accent's
-/// at the lit share, and the share once more over that under a mouse or a finger. Without an accent the accent is
-/// the ink, and this is the ink's glass a step up.
-Color accentGlass(Tokens t, {bool lit = false}) {
-  final glass = controlGlass(t, lit: true, ink: 'glacier-accent-9');
-  return lit ? Color.alphaBlend(controlGlass(t, ink: 'glacier-accent-9'), glass) : glass;
-}
-
 /// A control of the header as a surface: [controlGlass] with the hairline the pills wear, a circle or a round of
 /// [radius]; lit, the glass a step up and the hairline the stronger border, as the title pill's always was.
 BoxDecoration controlGlassBox(Tokens t, {bool lit = false, bool circle = false, double radius = 999, double? border}) => BoxDecoration(
@@ -314,180 +305,6 @@ class InsetRing extends StatelessWidget {
       position: DecorationPosition.foreground,
       decoration: BoxDecoration(border: Border.all(color: color, width: width), borderRadius: radius),
       child: child,
-    );
-  }
-}
-
-/// `.sidebar` and `.step` (NoteTabs.module.css): one ring of the bar, `--app-bar-ring` across - the sidebar's button,
-/// an arrow, the people icon, the bell, the cog, the aside's toggle. Muted until hovered or pressed, when it takes the
-/// page's ink on the header's control glass ([controlGlass], lit; `--app-paper-2` until 2026-11-01); `on` is a ring
-/// round it in its own ink (`[data-on]`); with nothing to do ([onPressed] null) it stays, dead, at 30%, so the row
-/// never changes width.
-class BarRing extends StatelessWidget {
-  const BarRing({
-    super.key,
-    required this.glyph,
-    required this.iconSize,
-    required this.label,
-    required this.onPressed,
-    this.on = false,
-    this.expanded,
-    this.current = false,
-    this.mirrored = false,
-    this.dot = false,
-    this.anchorKey,
-  });
-
-  final BarGlyph glyph;
-  final double iconSize;
-
-  /// `aria-label`.
-  final String label;
-  final VoidCallback? onPressed;
-
-  /// `data-on`: the sidebar showing, Home being the page, something unread.
-  final bool on;
-
-  /// `aria-expanded`, where the ring opens something.
-  final bool? expanded;
-
-  /// `aria-current="page"`.
-  final bool current;
-  final bool mirrored;
-
-  /// `.bell[data-unread]::after`: the 6px gold dot at the bell's shoulder, ringed in the page's paper.
-  final bool dot;
-
-  /// A key on the ring's own box, for a menu to hang from.
-  final Key? anchorKey;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final ring = t.len('app-bar-ring');
-    final radius = BorderRadius.circular(t.radius('md'));
-    final ink = t.color('glacier-text'), muted = t.color('glacier-text-muted');
-    return Semantics(
-      expanded: expanded,
-      selected: current ? true : null,
-      child: GlacierPressable(
-        onPressed: onPressed,
-        semanticLabel: label,
-        builder: (context, state) {
-          final lit = (state.hovered || state.pressed) && !state.disabled;
-          final color = lit || on ? ink : muted;
-          Widget face = SizedBox(
-            key: anchorKey,
-            width: ring,
-            height: ring,
-            child: InsetRing(
-              on: on,
-              color: ink,
-              width: t.len('app-line'),
-              radius: radius,
-              child: DecoratedBox(
-                // Lit, the header's control glass a step up (Matt, 2026-11-01: "make sure all components in the header
-                // support glass"), where it was the second paper.
-                decoration: BoxDecoration(color: lit ? controlGlass(t, lit: true) : null, borderRadius: radius),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Center(child: BarIcon(glyph, size: iconSize, color: color, mirrored: mirrored)),
-                    if (dot)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: GlacierScope(
-                          classes: const {'app-gold'},
-                          child: Builder(
-                            builder: (context) {
-                              final gold = context.tokens;
-                              return Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: gold.colorOf('var(--app-gold, var(--glacier-text))'),
-                                  shape: BoxShape.circle,
-                                  // `box-shadow: 0 0 0 2px var(--glacier-bg)`
-                                  boxShadow: [BoxShadow(color: gold.color('glacier-bg'), spreadRadius: 2)],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-          // `.step:disabled { opacity: 0.3 }`
-          if (state.disabled) face = Opacity(opacity: 0.3, child: face);
-          return GlacierFocusRing(visible: state.focused, radius: t.radius('md'), child: face);
-        },
-      ),
-    );
-  }
-}
-
-/// `.app-word` with `.top .word` (app.css, NoteTabs.module.css): one of the Masthead's controls as a word - Home,
-/// Notes, Back, Forward, Teams - a bar ring's height, so the row is the height it always is.
-class BarWord extends StatelessWidget {
-  const BarWord({super.key, required this.word, required this.onPressed, this.label, this.on = false, this.expanded, this.current = false, this.leading, this.trailing, this.anchorKey});
-
-  final String word;
-  final VoidCallback? onPressed;
-
-  /// `aria-label`, where the word alone would not say it.
-  final String? label;
-  final bool on;
-  final bool? expanded;
-  final bool current;
-
-  /// A glyph before or after the word: Back's arrow, Forward's.
-  final BarGlyph? leading;
-  final BarGlyph? trailing;
-  final Key? anchorKey;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final radius = BorderRadius.circular(t.radius('md'));
-    return Semantics(
-      expanded: expanded,
-      selected: current ? true : null,
-      child: GlacierPressable(
-        onPressed: onPressed,
-        semanticLabel: label ?? word,
-        builder: (context, state) {
-          final lit = state.hovered && !state.disabled;
-          final color = state.disabled
-              ? t.color('glacier-text-subtle')
-              : lit || state.pressed || on
-                  ? t.color('glacier-text')
-                  : t.color('glacier-text-muted');
-          final style = t.textAt(t.fontSize('md'), weight: 'medium', color: color);
-          return GlacierFocusRing(
-            visible: state.focused,
-            radius: t.radius('md'),
-            child: Container(
-              key: anchorKey,
-              constraints: BoxConstraints(minHeight: t.len('app-bar-ring')),
-              padding: EdgeInsets.symmetric(horizontal: t.space(2)),
-              decoration: BoxDecoration(color: lit ? controlGlass(t, lit: true) : null, borderRadius: radius),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: t.space(1),
-                children: [
-                  if (leading != null) BarIcon(leading!, size: 16, color: color),
-                  ExcludeSemantics(child: BarLine(word, style: style, ellipsis: false)),
-                  if (trailing != null) BarIcon(trailing!, size: 16, color: color),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 }

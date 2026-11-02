@@ -1,12 +1,12 @@
-/// What the header toolbar's versions (lib/shell/header_toolbar.dart) share: a control's press with today's labels
-/// and the card it toggles, a hint under it for a mouse, a glyph drawn in a style of the version's own but the pack
-/// that was chosen, the bell's dot, a count, and a menu hung from the bar.
+/// The header toolbar's kit (lib/shell/header_toolbar.dart): a control's press with the old bar's labels and the card
+/// it toggles, a hint under it for a mouse, a glyph drawn in a style of the line's own but the pack that was chosen,
+/// the bell's dot, a count, and a menu hung from the bar.
 ///
 /// Iconography stays the app's own: every glyph is an [AppIcon] (or the app's house), so the pack chosen in
-/// Settings › Appearance is the pack every version draws in; a version varies only the style ([styled]: outline,
-/// solid, filled), the stroke, and the ground under the glyph. No icon is added.
+/// Settings › Appearance is the pack the line draws in; the line varies only the style ([styled]: outline, solid,
+/// filled), the stroke, and the ground under the glyph. No icon is added.
 ///
-/// The hint is new to the bar: today's rings have none (the page's `title` had no counterpart here). Under a mouse
+/// The hint is new to the bar: the old bar's rings had none (the page's `title` had no counterpart here). Under a mouse
 /// a control's own words show under it after a moment's rest; a finger has the screen reader's label alone, as
 /// before. A hint is never read out: the label already is.
 library;
@@ -58,9 +58,9 @@ class HeaderGlyph extends StatelessWidget {
   }
 }
 
-/// One control of a version's row: the press, today's label and states for a screen reader, the floating card it
+/// One control of the line's row: the press, the old bar's label and states for a screen reader, the floating card it
 /// toggles, the hint for a mouse, and the key it is found by (`header:<id>`). [face] draws it for the press's
-/// state; with nothing to do it is drawn at 30%, as today's dead rings are.
+/// state; with nothing to do it is drawn at 30%, as the old bar's dead rings were.
 class HeaderPress extends StatelessWidget {
   const HeaderPress({super.key, required this.act, required this.fine, required this.face, this.onPressed, this.expanded, this.anchorKey, this.radius = 8});
 
@@ -205,7 +205,7 @@ class HeaderDot extends StatelessWidget {
       );
 }
 
-/// A number at a control's corner, as today's ring wears the links' count.
+/// A number at a control's corner, as the old bar's ring wore the links' count.
 class HeaderCount extends StatelessWidget {
   const HeaderCount({super.key, required this.count, required this.ink, required this.paper});
   final int count;
@@ -240,7 +240,7 @@ Widget withMarks(HeaderAct act, Widget child, {required Color rim, required Colo
   );
 }
 
-/// One row of a version's menu.
+/// One row of the line's menu.
 sealed class HeaderMenuEntry {
   const HeaderMenuEntry();
 }
@@ -416,7 +416,7 @@ HeaderAct youAct(HeaderParts parts) => HeaderAct(
       dot: parts.unread,
     );
 
-/// [HeaderParts.kept] as the first rows of a version's •••, with a rule after them where [more] rows follow.
+/// [HeaderParts.kept] as the first rows of the line's •••, with a rule after them where [more] rows follow.
 List<HeaderMenuEntry> keptEntries(HeaderParts parts, {bool more = true, Widget? Function(HeaderAct act)? icon}) => [
       for (final act in parts.kept) HeaderMenuAct(act, icon: icon?.call(act)),
       if (more && parts.kept.isNotEmpty) const HeaderMenuRule(),

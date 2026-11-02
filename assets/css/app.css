@@ -355,21 +355,21 @@ body {
  * carry their own, and the page scrolls under them.
  */
 /*
- * The header toolbar's sixth version, Grouped command (lib/shell/header/grouped_command_row.dart), its rings the home
+ * The header toolbar's line, Grouped command (lib/shell/header/grouped_command_row.dart), its rings the home
  * page's dock's as the dock is while the page scrolls (Matt, 2026-10-29: "make the header icons and searchbar just a
  * touch smaller to match the size of the buttons in the dock when smaller"): `--app-ring` at the dock's scrolled
  * scale (lib/shell/page_dock.dart `dockScrolledScale`, 0.8), 28-35px, where they were 34-42px (2026-10-28: "a size
  * larger", then "very slightly" more). The bar's heights are built from the ring, so the bar follows. Stamped by the
- * shell (`data-header`) only while that version draws the bar.
+ * shell (`data-header`) wherever there is a bar.
  */
 :root[data-header='large'] {
   --app-bar-ring: calc(var(--app-ring) * 0.8);
 }
 
 /*
- * The two versions with a search pill, Command centre and Grouped command, on a window narrower than the opened Fold:
- * a small step larger than the dock's smaller size (Matt, 2026-10-29: "Make the header icons and search bar slightly
- * larger on mobile"), about 31px on a phone where Grouped command's were 28.6 and Command centre's 27.6.
+ * The header's line on a window narrower than the opened Fold: a small step larger than the dock's smaller size (Matt,
+ * 2026-10-29: "Make the header icons and search bar slightly larger on mobile"), about 31px on a phone where it was
+ * 28.6.
  */
 :root[data-header='phone'] {
   --app-bar-ring: calc(var(--app-ring) * 0.8 + 2.5px);

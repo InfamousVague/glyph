@@ -15,7 +15,6 @@ import 'package:ghost_md/live/presence.dart';
 import 'package:ghost_md/live/team.dart';
 import 'package:ghost_md/note/note_tools.dart';
 import 'package:ghost_md/shell/app_shell.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/shell/placeholders.dart';
 import 'package:ghost_md/shell/top_bar_tools.dart';
 import 'package:ghost_md/team/crdt.dart';
@@ -239,11 +238,9 @@ void main() {
       expect(tester.getRect(find.byType(NoteMore)).right, tester.getRect(find.byType(NoteSimpleHeader)).right);
     });
 
-    group('in the bar, every version of the header toolbar', () {
-      tearDown(() => headerToolbarChoice.set(HeaderToolbarVersion.today.id));
-      for (final version in HeaderToolbarVersion.values) {
+    group('in the bar', () {
         for (final window in const [(name: 'phone', size: Size(390, 844), mobile: true, fine: false), (name: 'mac', size: Size(1280, 800), mobile: false, fine: true)]) {
-          drawnTest('${version.number} ${version.label}, ${window.name}', (tester) async {
+          drawnTest(window.name, (tester) async {
             final rooms = _Rooms()..rooms = {'o1': [_on('ana', 'groceries', client: 1, hue: 'sea'), _on('sam', 'groceries', client: 2)]};
             final pages = PagePresence(read: () => rooms.rooms, changes: rooms, self: () => 'matt');
             addTearDown(pages.dispose);
@@ -259,7 +256,6 @@ void main() {
                   sheet: sheet,
                   notes: library,
                   workspaces: spaces,
-                  headerToolbar: version,
                   openNotes: const ['weekend', 'groceries'],
                   mobile: window.mobile,
                   finePointer: window.fine,
@@ -305,7 +301,6 @@ void main() {
             expect(tester.takeException(), isNull);
           });
         }
-      }
     });
   });
 

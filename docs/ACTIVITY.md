@@ -14,7 +14,7 @@ choice below. Built straight (no mockup, no developer switch) and shipped all at
 | Motion | Gentle and purposeful: reels turn (audio), the brush draws (images), arrows circle (sync), the sparkle shimmers (AI), a people glyph pulses (meetings), a ring fills (downloads). Reduced motion stops it. |
 | The record | One record of running work: `lib/core/background_jobs.dart` grows from the device hint into the app's registry. Every job: kind, title, state (queued, running, waiting, done, failed), progress (fraction or indeterminate), what it waits on (Wi-Fi, charger, credits, your Mac, sign-in), Stop, Open result, device it runs on. |
 | Jobs on it | All of them: banners, summaries and write-ups, own and team sync, recording, transcription and Better words, share uploads, model and update downloads, Slack posts, ElevenLabs read-alouds, Notion/GitHub/Calendar fetches, the Meet/Zoom bot. |
-| Ring | In the header, beside You, in every header version: one arc per running job in its colour. Always there; grey when idle (a thin ring in the ink's grey, Calm too, still a button that opens the tray: "Nothing running now.", Today, Past 7 days). One bloom when all finish, then grey again. A still red dot when something needs you. A sync's arc fills as it goes and never sweeps. |
+| Ring | In the header, beside You: one arc per running job in its colour. Always there; grey when idle (a thin ring in the ink's grey, Calm too, still a button that opens the tray: "Nothing running now.", Today, Past 7 days). One bloom when all finish, then grey again. A still red dot when something needs you. A sync's arc fills as it goes and never sweeps. |
 | Tray | A card hanging under the ring (as History's does); a sheet on a phone. Live rows (icon, title, live line, progress, Stop/Open), then **Today** ("3 summaries, 12 banners, 40 notes synced, 1 failed"), then **Past 7 days** behind More. |
 | In place | Banner shimmer where the banner will land; "Writing the summary…" streaming into the meeting note; per-note sync marks (blue arrow → tick) in lists and the note's header; upload progress on share rows, pictures and recordings. |
 | Results | A result chip slides in from the edge ("Banner ready · View"), replacing most toasts; a batch gives one chip. |
@@ -224,8 +224,9 @@ those); **the Mac** everything the ring shows, other devices' too, and a failed 
   / `RingArc`. The bar always draws the ring (Matt, 2026-10-29: "Keep the activity indicator always showing just have
   it gray put when nothing is happening"): idle, the painter draws its track alone (`idle`, `app-ink-3`, the ink's
   grey, `idleStroke` 1.5) on the arcs' own line, no glyph, nothing moving, labelled "Activity: nothing running". Its room is
-  kept in every version: the rows that had none for it give a spare tool or Back and Forward to their ••• where the
-  row is a 360 phone's or a narrowed Mac's (`lib/shell/header_toolbar.dart` `HeaderParts.cramped`, `snugRoom`).
+  kept: Grouped command's line (`lib/shell/header/grouped_command_row.dart`, the header toolbar's only line since
+  2026-11-01, when the contact sheet of six ended with it) puts Forward and the note's spare tools under its ••• on a
+  narrow row.
 - `activity_tray.dart`: `ActivityTray`, `UpdateSection`, `ActivityRow`, `JobBar`, `TrayButton`.
 - `job_mark.dart`: `JobMark`, `markedPlugin(id)` (null in a store-shot build), `marksOnTile`, `activityCalm`.
 - `activity_chips.dart`: `ActivityChips` (mounted by the shell under the header), `ActivityChip.of(job)`.

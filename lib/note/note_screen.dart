@@ -2080,8 +2080,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       TopBarFill(
         tools: inBar ? _tools : null,
         tail: inBar ? _more : null,
-        // What the tools are, for the header toolbar's other versions to sort into pills, tiles and menus
-        // (lib/shell/header_toolbar.dart); version 1 draws the two widgets above, as ever.
+        // What the tools are, for the header toolbar to sort into its pills and its menu (lib/shell/header_toolbar.dart).
         model: inBar ? _toolsModel : null,
         child: Listener(
           onPointerDown: _pointerDown,

@@ -20,7 +20,6 @@ import 'package:ghost_md/note/pinch_zoom.dart';
 import 'package:ghost_md/note/version_history.dart';
 import 'package:ghost_md/sheet/kit.dart';
 import 'package:ghost_md/shell/screen.dart';
-import 'package:ghost_md/shell/header_toolbar.dart' show HeaderToolbarVersion;
 import 'package:ghost_md/shell/top_bar_tools.dart';
 import 'package:glacier/glacier.dart';
 
@@ -47,6 +46,12 @@ void main() {
       ];
   List<String> labels(WidgetTester tester) => [for (final tool in tester.widgetList<NoteToolButton>(find.byType(NoteToolButton))) tool.label];
 
+  // What the bar is handed to draw, as the same words: the spare actions, the view switch and More.
+  List<String> barLabels(WidgetTester tester) {
+    final model = TopBarTools.maybeOf(tester.element(find.byType(NoteScreen)))!.model!.value;
+    return [for (final action in model.actions) action.label, viewSwitchWords(model.kind, page: model.page).label, 'More for this note'];
+  }
+
   // A new id for every note: the saving keeps each note's last writes by its id for the next screen on it to wait
   // on (lib/core/library.dart), and a write left unanswered when one test's clock stops would hold up the next's.
   var made = 0;
@@ -57,7 +62,7 @@ void main() {
     return note;
   }
 
-  // More from whichever bar is drawn: today's ring, or Grouped command's row under its ••• on a phone.
+  // More from the bar: its own segment, or its row under ••• on a phone.
   Future<void> more(WidgetTester tester) => pressInBar(tester, 'more', label: 'More for this note');
 
   Future<void> press(WidgetTester tester, String row) async {
@@ -181,10 +186,10 @@ void main() {
       await closeNote(tester);
     });
 
-    // On today's bar, which draws the note's own NoteTools as they are.
+    // In the note's own header, which draws the note's NoteTools as they are (the bar draws them from their model).
     testWidgets('a note in the Trash is read and not written', (tester) async {
       final world = NoteWorld();
-      final screen = await pumpNote(tester, world, await seeded(tester, world, '# Thrown\n'), readOnly: true, speak: true, headerToolbar: HeaderToolbarVersion.today);
+      final screen = await pumpNote(tester, world, await seeded(tester, world, '# Thrown\n'), readOnly: true, speak: true, bar: false);
       expect(screen.view!.state.readOnly, isTrue);
       // Its tools are the view switch and More: nothing pins, archives or talks into a note in the Trash.
       expect(labels(tester), ['Showing the marks. Show the formatted note.', 'More for this note']);
@@ -195,42 +200,41 @@ void main() {
     });
   });
 
-  // The note's own NoteTools, which today's bar draws as they are (the other versions draw them from the model the
-  // screen hands beside them, test/shell/header_toolbar_test.dart): the first four here on today's bar.
+  // The note's own NoteTools, drawn as they are in the note's own header where there is no bar (the bar draws them from
+  // the model the screen hands beside them, test/shell/header_toolbar_test.dart).
   group("the note's tools", () {
     testWidgets('are the view switch and More, with nothing brought out that has no way to be done', (tester) async {
       final world = NoteWorld();
-      await pumpNote(tester, world, await seeded(tester, world, '# Day\n'), headerToolbar: HeaderToolbarVersion.today);
-      // Two of the spares here: the activity ring, always in the row (Matt, 2026-10-29: "Keep the activity indicator
-      // always showing"), takes the room Archive had, and Archive is More's alone.
-      expect(labels(tester), ['Version history', 'Pin to the top', 'Showing the marks. Show the formatted note.', 'More for this note']);
+      await pumpNote(tester, world, await seeded(tester, world, '# Day\n'), bar: false);
+      // Three of the spares here, the note's own header having the room the bar's activity ring takes.
+      expect(labels(tester), ['Version history', 'Pin to the top', 'Archive', 'Showing the marks. Show the formatted note.', 'More for this note']);
       await closeNote(tester);
     });
 
     testWidgets('in simple mode are the view switch and More alone where a bar takes them: Pin and Archive are the sheet’s rows, and the rest waits behind its More (GHST-103, GHST-105)', (tester) async {
       final world = NoteWorld();
       world.prefs.value = world.prefs.value.choosing('simple');
-      await pumpNote(tester, world, await seeded(tester, world, '# Day\n'), headerToolbar: HeaderToolbarVersion.today);
+      await pumpNote(tester, world, await seeded(tester, world, '# Day\n'));
       // Nothing comes out of More in simple (GHST-105: "pin/archive/view switch move into ⋯"); the bar, where there is
       // one, keeps only the switch and More.
-      expect(labels(tester), ['Showing the formatted note. Show the marks.', 'More for this note']);
+      expect(barLabels(tester), ['Showing the formatted note. Show the marks.', 'More for this note']);
       // Back to advanced while the note is open, with the marks showing again: the bar grows back.
       world.prefs.value = world.prefs.value.choosing('advanced').copyWith(noteView: 'mixed');
       // The tools are handed their new model after the frame that redraws the screen.
       for (var i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      expect(labels(tester), contains('Version history'));
+      expect(barLabels(tester), contains('Version history'));
       await closeNote(tester);
     });
 
     testWidgets('are drawn in the top bar when it offers a place, and in the note’s own header when there is none', (tester) async {
       final world = NoteWorld();
       final note = await seeded(tester, world, '# Day\n');
-      await pumpNote(tester, world, note, headerToolbar: HeaderToolbarVersion.today);
-      // In the bar: the buttons are under the bar's slot, not under the screen.
+      await pumpNote(tester, world, note);
+      // In the bar: not under the screen, and drawn by the bar from their model, More among them.
       expect(find.descendant(of: find.byType(NoteScreen), matching: find.byType(NoteToolButton)), findsNothing);
-      expect(find.byType(NoteMore), findsOneWidget);
+      expect(TopBarTools.maybeOf(tester.element(find.byType(NoteScreen)))?.model?.value.onMore, isNotNull);
       await closeNote(tester);
       await pumpNote(tester, world, note, bar: false);
       expect(TopBarTools.maybeOf(tester.element(find.byType(NoteScreen))), isNull);

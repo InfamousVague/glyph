@@ -1,114 +1,35 @@
-/// The header toolbar's six versions, and the seam the top bar picks one through (Matt, 2026-10-28: "Add a few
-/// ways to redo the header toolbar icons right now it's just a huge list of icons and is quite hard to work with
-/// include versions with different iconography vibrant colors and different UI/UX add a developer setting to switch
-/// between 5 versions"; and the sixth, after the contact sheet on 2.3.61: "Make a version that combines the command
-/// center and grouped sections").
+/// The header toolbar: the seam the top bar draws its line of controls through, and the one way it is drawn, **Grouped
+/// command** (header/grouped_command_row.dart).
 ///
-/// The bar's four styles (lib/shell/top_bar.dart: Classic, Ledger, Masthead, Islands) are layouts of one row of
-/// rings; a version is what that row holds and how it is drawn - which controls stand out, which are gathered into
-/// a pill or a menu, in what weight of glyph and on what ground. So the two go together: any version in any style,
-/// the style saying where the row of controls is and what shape the tabs take, the version saying what the row is.
+/// There were six versions from 2026-10-28 (Matt: "Add a few ways to redo the header toolbar icons right now it's just
+/// a huge list of icons and is quite hard to work with include versions with different iconography vibrant colors and
+/// different UI/UX add a developer setting to switch between 5 versions"; and the sixth, after the contact sheet on
+/// 2.3.61: "Make a version that combines the command center and grouped sections"), picked under Settings › Developer ›
+/// Header toolbar: today's bar, every control its own ring; Grouped; Vibrant tiles; Command centre; Labelled; and
+/// Grouped command, the default from 2026-10-29 (Matt: "make the grouped command the default header layout"). The
+/// contact sheet ended with Grouped command on 2026-11-01 (Matt: "Please look through the app and see if there are
+/// other settings that can be simplified removed or moved to a plugin for extra configuration, we currently have too
+/// many appearance settings for different title bar layouts and stuff"): the other five and the picker went, and the
+/// pieces Grouped command took from Grouped and Command centre live in its own file. A device that had chosen another
+/// keeps the word under `glyph-header-toolbar`, and nothing reads it.
 ///
-/// - **1, Today's bar** ([HeaderToolbarVersion.today]): the row as it was, every control its own ring, the bar's
-///   only look until Grouped command took its place as the default. The bar draws its own code for it and nothing
-///   here is asked, so its pictures are exactly what they were.
-/// - **2, Grouped** (header/grouped_row.dart): the way around as one segmented pill, the note's few most used in a
-///   second with the rest under •••, and the app's own - the bell, the organizations, Settings - behind one round
-///   button for you, its dot the bell's.
-/// - **3, Vibrant tiles** (header/tiles_row.dart): each control a small tile in its own hue, the Market's tiles'
-///   colours, with a white filled glyph; fewer at once, the rest under a tile of •••, and a word beside each of the
-///   note's on a wide window.
-/// - **4, Command centre** (header/command_row.dart): Back, then a pill with the note's name that opens the command
-///   palette, then one action and •••, whose menu has everything else in sections, each glyph in its colour.
-/// - **5, Labelled** (header/labelled_row.dart): only what the screen is for, with words on a wide window: on a
-///   note the view, Share and More; at home Search, New and Browse. The app's own are behind the round button for
-///   you, and the bell is a dot on it.
-/// - **6, Grouped command** (header/grouped_command_row.dart): Grouped's pills at the ends - the way around, the
-///   note's own with •••, the button for you - and Command centre's title pill between them, opening the palette. On
-///   a narrow window the pills keep the sidebar and Back, the view and •••, and the rest is one press away.
-///   The default since 2026-10-29 (Matt: "make the grouped command the default header layout"): a device that has
-///   chosen nothing draws it, and so does one that had chosen today's, which was kept as nothing.
+/// The bar's four styles (lib/shell/top_bar.dart: Classic, Ledger, Masthead, Islands) stay: they are where the line
+/// sits and what shape the tabs take, and the line is the same in each.
 ///
-/// Every version keeps every control the bar was given within reach: in the row, or in a menu one press away
+/// The line keeps every control the bar was given within reach: in the row, or in a menu one press away
 /// (test/shell/header_toolbar_test.dart presses for each). A control the bar was not given (simple mode's, a phone
-/// reading a note's) is in no version. The labels a screen reader says are today's, word for word, in every one.
-///
-/// The choice is a developer's, of this device ([headerToolbarChoice], Settings › Developer › Header toolbar, where
-/// Grouped command is first and today's bar is still there to go back to), and the bar hears it: a change is the bar
-/// drawn again at once, nothing restarted.
+/// reading a note's) is not there. The labels a screen reader says are the old bar's, word for word.
 library;
 
 import 'package:flutter/widgets.dart';
 
 import '../art/app_icon.dart' show LucideIcon;
 import '../art/lucide.g.dart';
-import '../core/preferences.dart' show DeviceWord;
 import '../core/workspaces.dart' show OrgLike;
 import '../note/note_tools.dart';
-import 'header/command_row.dart';
-import 'header/grouped_command_row.dart';
-import 'header/grouped_row.dart';
-import 'header/labelled_row.dart';
-import 'header/tiles_row.dart';
 import 'top_bar_tools.dart' show BarButton;
 
-/// The six, in Matt's order (Developer offers the default first, then the rest in this order), each with the line
-/// said under its name there.
-enum HeaderToolbarVersion {
-  today('Today’s bar (the old one)', 'Every control its own ring on one line, as the bar was before Grouped command.'),
-  grouped('Grouped', 'The way around in one pill, the note’s most used in another with the rest under •••, and the bell, teams and Settings behind your round button.'),
-  tiles('Vibrant tiles', 'Each control a small tile in its own colour with a white glyph, fewer at once and the rest under •••; words beside the note’s on a wide window.'),
-  command('Command centre', 'Back, the note’s name in a pill that opens the command palette, one action and •••, with everything else in its menu’s sections.'),
-  labelled('Labelled', 'Only what the screen needs, with words on a wide window: view, Share and More on a note; Search, New and Browse at home. The bell is a dot on you.'),
-  groupedCommand('Grouped command', 'Grouped’s pills at the ends and the note’s name between them in a pill that opens the command palette; on a phone the pills keep Back, the sidebar, the view and •••.');
-
-  const HeaderToolbarVersion(this.label, this.hint);
-
-  final String label;
-  final String hint;
-
-  /// Its number, as Matt counts them: today's is 1.
-  int get number => index + 1;
-
-  /// The word it is kept as.
-  String get id => name;
-
-  /// Whether its bar holds a search pill that opens the command palette: Command centre and Grouped command. Their
-  /// home page then has no search field of its own, nor does the opened Fold's notes column, and the home page's
-  /// Filters are a circle of the bar's after the pill (Matt, 2026-10-29, of Command centre on 2.3.68: "the search bar
-  /// and filters is still showing on the homepage on mobile when it shouldn't"; until then only Grouped command did).
-  bool get searchPill => this == command || this == groupedCommand;
-
-  /// The one a device that has chosen nothing draws: Grouped command (Matt, 2026-10-29: "make the grouped command
-  /// the default header layout").
-  static const HeaderToolbarVersion fallback = HeaderToolbarVersion.groupedCommand;
-
-  /// Whether it is [fallback].
-  bool get isDefault => this == fallback;
-
-  /// The six as Developer lists them: the default first, then the rest in their order.
-  static List<HeaderToolbarVersion> get offered => [fallback, for (final version in values) if (version != fallback) version];
-
-  /// The version a kept word names; one this build does not know is the default.
-  static HeaderToolbarVersion parse(Object? id) {
-    for (final version in values) {
-      if (version.name == id) return version;
-    }
-    return fallback;
-  }
-}
-
-/// This device's choice, kept as `glyph-header-toolbar` and as nothing while it is the default (Grouped command;
-/// today's was kept as nothing while it was the default, so a device that had chosen it draws Grouped command now): a
-/// developer's look at the bar on the phone in his hand, so not a preference that travels to the account's other
-/// devices.
-final DeviceWord headerToolbarChoice = DeviceWord('glyph-header-toolbar', fallback: HeaderToolbarVersion.fallback.id, words: {for (final version in HeaderToolbarVersion.values) version.id});
-
-/// The version [headerToolbarChoice] says.
-HeaderToolbarVersion get headerToolbarVersion => HeaderToolbarVersion.parse(headerToolbarChoice.value);
-
-/// One control the bar was given, as words: what it is, what it says, what it draws and what a press does. Every
-/// version draws the same ones; each draws them its own way.
+/// One control the bar was given, as words: what it is, what it says, what it draws and what a press does.
 @immutable
 class HeaderAct {
   const HeaderAct({
@@ -138,7 +59,7 @@ class HeaderAct {
   /// A word or two for beside it or in a menu: Home, Notes, Share.
   final String word;
 
-  /// One of the Market's hues (lib/market/market_items.dart `marketHues`), for the versions that wear colour.
+  /// One of the Market's hues (lib/market/market_items.dart `marketHues`), which its glyph wears in a menu of •••.
   final String hue;
 
   /// The glyph, by Lucide's name, drawn in the chosen pack; or the app's own house ([house]).
@@ -178,8 +99,8 @@ class HeaderAct {
   Key get key => keyOf(id);
 }
 
-/// Everything the bar was given, sorted into what it is for, for a version to draw. Built by the bar
-/// (lib/notes/note_tabs.dart) from its own fields; nothing in it is a version's.
+/// Everything the bar was given, sorted into what it is for, for the line to draw. Built by the bar
+/// (lib/notes/note_tabs.dart) from its own fields.
 @immutable
 class HeaderParts {
   const HeaderParts({
@@ -236,12 +157,12 @@ class HeaderParts {
   final Widget? presence;
 
   /// The ring of the app's running work (lib/activity/activity_ring.dart; docs/ACTIVITY.md), beside the button for
-  /// you, or where a version has none, before the app's own; the app hands it always, grey while nothing runs, so its
-  /// room is kept (null only where a caller has no ring to give, as the web's page and some tests).
+  /// you; the app hands it always, grey while nothing runs, so its room is kept (null only where a caller has no ring
+  /// to give, as the web's page and some tests).
   final Widget? activity;
 
-  /// The home page's Filters, handed to the bar to draw in its own look; null off the home page, and for a version
-  /// that leaves them on the page (all but Grouped command).
+  /// The home page's Filters, handed to the bar to draw in its own look, a circle after the title pill; null off the
+  /// home page.
   final BarButton? filters;
 
   /// A screen's own controls handed as widgets with no model: drawn as they come, so nothing is lost.
@@ -264,7 +185,7 @@ class HeaderParts {
   /// The way around, in today's order.
   List<HeaderAct> get way => [?home, ?sidebar, ?back, ?forward];
 
-  /// What every version keeps under its ••• rather than in its row, at the menu's top (Matt, 2026-10-29: "Put the
+  /// What the line keeps under its ••• rather than in its row, at the menu's top (Matt, 2026-10-29: "Put the
   /// all files folder icon under the more menu as well as the + button in the header"): every note by folder, then a
   /// new note. ⌘N and the palette's commands make a note as they did; the home page's dock keeps its +.
   List<HeaderAct> get kept => [?folders, ?newNote];
@@ -277,22 +198,9 @@ class HeaderParts {
 
   /// Whether the row has room for words: the opened Fold, a tablet, the Mac.
   bool get wide => room >= 600;
-
-  /// Whether the row is narrower than a 360 phone's ([crampedRoom]): a Mac's window narrowed to a phone's width, its
-  /// window buttons taking the row's start. With the activity ring always in the row (Matt, 2026-10-29: "Keep the
-  /// activity indicator always showing just have it gray put when nothing is happening") a version puts a little more
-  /// under its ••• there.
-  bool get cramped => room < crampedRoom;
 }
 
-/// The row under which a 360 phone's is: a 390 phone's row is about 354 wide, a 360 phone's about 324.
-const double snugRoom = 340;
-
-/// The row under which [HeaderParts.cramped] holds: a 360 phone's row is about 324, a Mac's window at 390 with its
-/// window buttons about 291.
-const double crampedRoom = 310;
-
-/// What a version draws on the row: the start, a middle that takes what is left (or nothing, the start and end
+/// What the line draws on the row: the start, a middle that takes what is left (or nothing, the start and end
 /// pushed apart), and the end. The bar lays them out for its style: on one line, or the Islands' capsules.
 @immutable
 class HeaderRow {
@@ -303,29 +211,15 @@ class HeaderRow {
   final List<Widget> trail;
 }
 
-/// Whether the window is a phone's width, narrower than the opened Fold: where the two versions with a search pill are
-/// a small step larger (Matt, 2026-10-29: "Make the header icons and search bar slightly larger on mobile"), their
+/// Whether the window is a phone's width, narrower than the opened Fold: where the line is a small step larger (Matt, 2026-10-29: "Make the header icons and search bar slightly larger on mobile"), their
 /// glyphs by [phoneGlyphStep] and their rings by the shell's `data-header='phone'` (lib/shell/app_shell.dart).
 bool headerOnPhone(BuildContext context) => MediaQuery.sizeOf(context).width < phoneWidth;
 
 /// The width under which [headerOnPhone] holds.
 const double phoneWidth = 600;
 
-/// How much larger the glyphs of a search pill's bar are on a phone's width.
+/// How much larger the line's glyphs are on a phone's width.
 const double phoneGlyphStep = 1.5;
-
-/// Draws a version's row from the parts.
-typedef HeaderRowBuilder = HeaderRow Function(BuildContext context, HeaderParts parts);
-
-/// The one place a version is chosen: its row's builder, or null for today's, which the bar draws itself.
-HeaderRowBuilder? headerRowFor(HeaderToolbarVersion version) => switch (version) {
-      HeaderToolbarVersion.today => null,
-      HeaderToolbarVersion.grouped => groupedRow,
-      HeaderToolbarVersion.tiles => tilesRow,
-      HeaderToolbarVersion.command => commandRow,
-      HeaderToolbarVersion.labelled => labelledRow,
-      HeaderToolbarVersion.groupedCommand => groupedCommandRow,
-    };
 
 // ---- the note's tools as acts ------------------------------------------------------------------------------------
 

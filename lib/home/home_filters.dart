@@ -83,12 +83,12 @@ class HomeFilters extends StatefulWidget {
   /// operator typed by hand is still read and still said back as a chip.
   final bool simple;
 
-  /// Whether the search field is drawn. Not while the header toolbar's Grouped command draws the bar, whose title pill
-  /// is the search (lib/shell/header/grouped_command_row.dart; Matt, 2026-10-28: "remove the search bar from the home
-  /// page since it's redundant"): the filters' button alone then, at the row's end, where it always stood.
+  /// Whether the search field is drawn. Not under the bar, whose title pill is the search
+  /// (lib/shell/header/grouped_command_row.dart; Matt, 2026-10-28: "remove the search bar from the home page since it's
+  /// redundant"): the filters' button alone then, at the row's end, where it always stood.
   final bool searchField;
 
-  /// Whether the filters' button is drawn here. Not where Grouped command draws the bar, which holds the button beside
+  /// Whether the filters' button is drawn here. Not under the bar, which holds the button beside
   /// its title pill (Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it
   /// next to the command search bar in the top bar"): the same [HomeFiltersButton], handed to the bar by the home page
   /// (lib/shell/top_bar_tools.dart `TopBarFill.filters`). The chips of what is chosen stay here, under it.

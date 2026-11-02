@@ -27,7 +27,6 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/settings_screen.dart';
 import 'package:ghost_md/shell/app_shell.dart';
-import 'package:ghost_md/shell/header_toolbar.dart';
 import 'package:ghost_md/sheet/sheet.dart';
 import 'package:ghost_md/shell/screen.dart';
 import 'package:glacier/glacier.dart';
@@ -63,7 +62,6 @@ void main() {
   Future<void> launch(WidgetTester tester, {required WhatsNew whatsNew, Size size = phone, GuideController? guide, String experience = 'advanced', bool mac = false}) async {
     SharedPreferences.setMockInitialValues({
       PreferencesStore.storageKey: jsonEncode({'theme': 'light', 'experience': experience, 'experienceChosen': true}),
-      'glyph-header-toolbar': HeaderToolbarVersion.groupedCommand.id,
     });
     addTearDown(() => SharedPreferences.setMockInitialValues({}));
     preferences.forget();
@@ -86,7 +84,6 @@ void main() {
   }
 
   Future<void> close(WidgetTester tester) async {
-    headerToolbarChoice.set(HeaderToolbarVersion.fallback.id);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));
     debugDefaultTargetPlatformOverride = null;

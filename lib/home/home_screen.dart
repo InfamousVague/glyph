@@ -71,7 +71,6 @@ import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
 import '../shell/header_pane.dart';
-import '../shell/header_toolbar.dart';
 import '../shell/top_bar_tools.dart';
 import '../shell/page_dock.dart';
 import '../tapes/player.dart' show TapePlayer;
@@ -487,9 +486,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     widget.workspaces.addListener(_redraw);
     windowEndCover.addListener(_redraw);
-    // Grouped command's title pill is the search, so the page's field goes while it draws the bar, as it does unless
-    // Developer has chosen another.
-    headerToolbarChoice.addListener(_redraw);
     if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
   }
 
@@ -506,7 +502,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     widget.workspaces.removeListener(_redraw);
     windowEndCover.removeListener(_redraw);
-    headerToolbarChoice.removeListener(_redraw);
     _runner
       ?..removeListener(_gistsSpoke)
       ..dispose();
@@ -633,12 +628,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) => _build(context);
 
-  /// Whether the filters' button is the bar's: a version with a search pill (Command centre, Grouped command) draws the
-  /// bar, so the button stands beside its pill (Matt, 2026-10-29: "also remove this filter button on the home page,
-  /// when on the homepage add it next to the command search bar in the top bar", and of Command centre on 2.3.68: "the
-  /// search bar and filters is still showing on the homepage on mobile when it shouldn't"). A page with no bar over
-  /// it, or in simple mode, keeps its own.
-  bool _filtersInBar(BuildContext context) => !widget.simple && headerToolbarVersion.searchPill && TopBarTools.maybeOf(context) != null;
+  /// Whether the filters' button is the bar's: the bar's title pill is the search, so the button stands beside it
+  /// (Matt, 2026-10-29: "also remove this filter button on the home page, when on the homepage add it next to the
+  /// command search bar in the top bar", and on 2.3.68: "the search bar and filters is still showing on the homepage on
+  /// mobile when it shouldn't"). A page with no bar over it, or in simple mode, keeps its own.
+  bool _filtersInBar(BuildContext context) => !widget.simple && TopBarTools.maybeOf(context) != null;
 
   BarButton? _barButton;
   String? _barKey;
@@ -705,9 +699,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.onNewFolder != null ? 131072 : 0) |
           (widget.onNewNote != null ? 262144 : 0) |
           (widget.onAllTapes != null ? 524288 : 0) |
-          // The header toolbar's Grouped command takes the search field off a page already drawn.
-          (headerToolbarVersion.searchPill ? 1048576 : 0) |
-          // And its bar takes the filters' button off the page.
+          // The bar takes the search field and the filters' button off the page.
           (inBar ? 2097152 : 0),
       meetings: widget.meetings,
       // Cards or icons where a workspace is chosen: its own choice, or the nearest one above it. Not in simple mode.
@@ -1022,11 +1014,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
           onSaveSearch: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
           simple: widget.simple,
-          // No field of the page's own while the header toolbar's Grouped command draws the bar: its title pill opens
+          // No field of the page's own under the bar: the header toolbar's title pill opens
           // the palette, which finds notes by name (Matt, 2026-10-28: "remove the search bar from the home page since
           // it's redundant"). Simple mode has no bar, so it keeps its field, and so does a page with no bar over it, as
-          // the filters' button stays (and as simple's list keeps its field off the bar, SimpleHome.searchField): with
-          // Grouped command the default, a page drawn alone would otherwise have no search at all.
+          // the filters' button stays (and as simple's list keeps its field off the bar, SimpleHome.searchField): a page
+          // drawn alone would otherwise have no search at all.
           searchField: (drawn.seams & 2097152) == 0,
           // And the filters' button is the bar's beside its title pill; the chips of what is chosen stay here.
           filtersButton: (drawn.seams & 2097152) == 0,

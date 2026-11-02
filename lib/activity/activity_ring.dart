@@ -1,5 +1,5 @@
-/// The ring in the header (docs/ACTIVITY.md, Ring; Matt, 2026-10-29): beside the button for you, in every version of
-/// the header toolbar, one arc for each job in its kind's colour, the other devices' a little dimmed; a quiet grey ring
+/// The ring in the header (docs/ACTIVITY.md, Ring; Matt, 2026-10-29): beside the button for you in the header
+/// toolbar, one arc for each job in its kind's colour, the other devices' a little dimmed; a quiet grey ring
 /// when nothing runs (Matt, 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing
 /// is happening"); one bloom when the last job ends, and grey again after it; a still red dot when something needs the
 /// person; a green badge with an up arrow while the app's own update waits (Matt, 2026-10-30: "show the updates stuff

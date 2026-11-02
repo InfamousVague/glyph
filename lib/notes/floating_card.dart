@@ -20,7 +20,7 @@ const String notificationsToggle = '[data-notifications-toggle]';
 /// The mirrored sidebar icon's, for the aside's card (`[data-aside-toggle]`).
 const String asideToggle = '[data-aside-toggle]';
 
-/// The control a card is being opened from, where it was pressed, and when: told by the header toolbar's versions
+/// The control a card is being opened from, where it was pressed, and when: told by the header toolbar
 /// (lib/shell/header/header_kit.dart `HeaderPress`, and a menu's row by the button the menu hangs from), so a card
 /// opened by a press there hangs under that control and not under the whole bar ([FloatingCard]). Matt, 2026-10-29, of
 /// History in Grouped command on a note: "the history dropdown starts too low not under the buttons as expected".
@@ -108,8 +108,8 @@ class FloatingCard extends StatefulWidget {
 class _FloatingCardState extends State<FloatingCard> with SingleTickerProviderStateMixin {
   final OverlayPortalController _portal = OverlayPortalController()..show();
 
-  /// The control that opened it, where a version of the header toolbar says so ([cardOpenedFrom]); null for today's
-  /// bar, whose rings do not, and for a card opened by a key: it then hangs under the whole bar, as the page's does.
+  /// The control that opened it, where the header toolbar says so ([cardOpenedFrom]); null for a card opened by a key
+  /// or from elsewhere: it then hangs under the whole bar, as the page's does.
   final Rect? _from = _takeOpenedFrom();
 
   /// `animation: drawerIn 180ms var(--glacier-ease-out)`.

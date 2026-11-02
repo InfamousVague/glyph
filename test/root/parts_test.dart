@@ -31,7 +31,6 @@ import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/simple/simple_home.dart';
 
-import '../support/header_bar.dart';
 import '../support/render.dart';
 
 void main() {
@@ -261,15 +260,12 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('takes the home page down under a note and makes it anew on the way back, as the page does: at its top, its search empty, its rows arriving', (tester) async {
-      // The home page's own search field, which it draws under today's bar; Grouped command's pill is the search.
-      pinTodaysBar();
+    testWidgets('takes the home page down under a note and makes it anew on the way back, as the page does: at its top, its rows arriving', (tester) async {
       final library = await open(tester);
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       final state = tester.state(find.byType(HomeScreen));
-      // The page is searched and scrolled before it is left.
-      await tester.enterText(find.byType(EditableText).first, 'pack');
-      await settle(tester, 2);
+      // The page is scrolled before it is left. (Its search is the bar's title pill, the palette, which the page does
+      // not keep.)
       final scroller = find.descendant(of: find.byType(HomeScreen), matching: find.byType(Scrollable)).first;
       tester.state<ScrollableState>(scroller).position.jumpTo(40);
       await tester.pump();
@@ -283,10 +279,9 @@ void main() {
       await settle(tester, 2);
       shell.backToList();
       await tester.pump();
-      // A page made anew: another state, nothing typed in its search, at its top, with the note made meanwhile.
+      // A page made anew: another state, at its top, with the note made meanwhile.
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(tester.state(find.byType(HomeScreen)), isNot(same(state)));
-      expect(tester.widget<EditableText>(find.byType(EditableText).first).controller.text, isEmpty);
       final back = find.descendant(of: find.byType(HomeScreen), matching: find.byType(Scrollable)).first;
       expect(tester.state<ScrollableState>(back).position.pixels, 0);
       expect(home(tester).notes.any((each) => each.body.startsWith('# Made while away')), isTrue);

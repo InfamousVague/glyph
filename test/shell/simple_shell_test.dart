@@ -128,14 +128,19 @@ void main() {
   });
 
   testWidgets('has every control in advanced, from the same shell, with the tabs and their groups', (tester) async {
-    // Today's bar's rings, by what they say, every one in the row; Grouped command keeps some behind its round
-    // button and •••.
-    pinTodaysBar();
     final it = await shell(tester, simple: false, open: const ['weekend', 'groceries']);
     expect(find.byType(AppTabBar), findsOneWidget);
     expect(find.byType(NoteTab), findsNWidgets(2));
-    for (final control in ['Home', 'All your notes', 'Back to where you were', 'Forward again', 'Organizations', 'Notifications', 'Settings']) {
+    // The way around in the row, Forward under the line's ••• on a phone, and the app's own behind the button for you.
+    for (final control in ['Home', 'All your notes', 'Back to where you were']) {
       expect(find.descendant(of: find.byType(NoteTabs), matching: find.bySemanticsLabel(control)), findsOneWidget, reason: '$control is drawn');
+    }
+    for (final (menu, controls) in [('overflow', ['Forward again']), ('you', ['Organizations', 'Notifications', 'Settings'])]) {
+      await openBarMenu(tester, menu);
+      for (final control in controls) {
+        expect(find.bySemanticsLabel(control), findsOneWidget, reason: '$control is under $menu');
+      }
+      await openBarMenu(tester, menu);
     }
     expect(tester.widget<NoteTabs>(find.byType(NoteTabs)).grouping, isTrue);
     expect(it.tabs.open, ['weekend', 'groceries']);
