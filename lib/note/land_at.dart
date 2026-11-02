@@ -52,6 +52,18 @@ const int landings = 4;
 
 final RegExp _numbered = RegExp(r'^line:(\d+)$');
 
+/// A stretch of lines, `lines:4-6`: a receipt of Ask (docs/ASK_THE_ORG.md; Matt, 2026-11-02: "every claim linked to
+/// the note and line it came from"). The page lands on the first, and the lines are selected, which is their highlight.
+final RegExp _range = RegExp(r'^lines:(\d+)-(\d+)$');
+
+/// The lines [at] names as a stretch (`lines:4-6`), the last no less than the first; null for anything else.
+(int, int)? landingRange(String at) {
+  final match = _range.firstMatch(at);
+  if (match == null) return null;
+  final from = int.parse(match.group(1)!), to = int.parse(match.group(2)!);
+  return (from, to < from ? from : to);
+}
+
 /// The line [at] names in [view]'s note, counting from 1, or null while it is not there: an item by its anchor
 /// (`^anchor` or `anchor`), or a line by its number, `line:12`; and, as `[[Note#^name]]` and `[[Note#Heading]]`
 /// point (lib/core/block_ids.dart), any line by the name at its end, or a heading by its words.
@@ -59,6 +71,8 @@ int? landingLine(EditorView view, String at) {
   final anchor = at.replaceFirst(RegExp(r'^\^'), '');
   if (anchor.isEmpty) return null;
   final doc = view.state.doc;
+  final range = landingRange(anchor);
+  if (range != null) return range.$1 >= 1 && range.$1 <= doc.lines && doc.length > 0 ? range.$1 : null;
   final numbered = _numbered.firstMatch(anchor);
   if (numbered != null) {
     final n = int.tryParse(numbered.group(1)!) ?? 0;
@@ -96,7 +110,12 @@ class LandAt {
       // Before a named line's name, as before an item's: typed there, a letter would go into the name.
       final named = blockIdOf(line.text);
       final caret = named != null && named.from > 0 && wordsEnd(line.text) > named.from ? named.from - 1 : wordsEnd(line.text);
-      if (_landed == 0) {
+      final range = landingRange(at);
+      if (_landed == 0 && range != null) {
+        // A stretch is selected whole, from its first line's start to its last's end.
+        final last = doc.line(range.$2 < doc.lines ? range.$2 : doc.lines);
+        view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from, last.to)));
+      } else if (_landed == 0) {
         view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from + caret)));
         // A line folded out of the words (a meeting's transcript, lib/editor/view/transcript_fold.dart) is not landed
         // on: the caret was kept out of it, and the transcript opens at it in its own view.

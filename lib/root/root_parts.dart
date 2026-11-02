@@ -37,6 +37,8 @@ extension _RootParts on _GhostRootState {
     onNoteMenu: _menu.open,
     // Show in Finder (Explorer, Files) for a folder's directory and a page's file, on a desktop.
     show: _showInFiles,
+    // Keep an index… (docs/AI_INDEXES.md, root_indexes.dart).
+    onKeepIndex: _keepIndex,
     // Clean up with AI… (lib/plugins/cleanup, 2026-11-02): Cleanup's page at the folder, while the plugin is on.
     onCleanup: _cleanUp,
     child: Stack(
@@ -72,6 +74,9 @@ extension _RootParts on _GhostRootState {
         _part('trash', () => _trashSheet == null ? null : (_trashSheet, _trashed, _trash.value, _made?.hidden, _workspaces.value, preferences.value.simple), _trashPart),
         // The chat with Claude (lib/claude/claude_chat.dart): it hears the runner for itself while it is up.
         _part('askClaude', () => (_askClaude && _claudeOn, _chatAgent, _chatInitial), _askClaudePart),
+        // Ask (lib/ask/ask_sheet.dart): the notes it reads are read as a question is asked, so it is built again only
+        // as it opens, shuts, or its scopes or the look change.
+        _part('ask', () => _askSheet == null ? null : (_askSheet, _workspaces.value, preferences.value.simple), _askPart),
         // Claude talked to (lib/claude/claude_voice_sheet.dart): it hears the talk for itself while it is up.
         _part('claudeTalk', () => _claudeOn ? _talk : null, _talkPart),
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
@@ -990,6 +995,7 @@ extension _RootParts on _GhostRootState {
         startTimer: _ticketsWired.timers == null || !projectSuite.anywhere(timeTrackingTool) ? null : _ticketsWired.startTimer,
         stopTimer: _ticketsWired.timers == null ? null : _ticketsWired.stopTimer,
         backUpNow: _gitWired.backUpNow,
+        asks: _askCommands,
       ),
     );
   }
@@ -1323,6 +1329,8 @@ extension _RootParts on _GhostRootState {
       onFollow: _follow == null ? null : _followFrom,
       // An AI's Chat: the chat with Claude, opened for it (docs/CLAUDE_APP.md, "The chat").
       onChat: _claudeOn ? (ai) => _openAskClaude(agent: ai.name) : null,
+      // Ask the team's notes, with receipts (root_ask.dart).
+      onAsk: () => _openAskOrg(id),
       onLog: () => shell.openOrganizationLog(id),
       onAccount: _toAccount,
       wisp: wisp,
@@ -1334,6 +1342,8 @@ extension _RootParts on _GhostRootState {
       onMember: (handle) => shell.openOrganizationMember(id, handle),
       onCreateHome: () => _createHome(id),
       onSetDocs: (mode) => _setDocs(id, mode),
+      // The space's index card under its home page (root_indexes.dart).
+      indexCard: (space) => _indexCardOf(shell, space),
     );
   }
 

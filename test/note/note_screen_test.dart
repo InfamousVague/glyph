@@ -823,6 +823,23 @@ void main() {
       expect(NotePlaces(world.device).readPlace(n), isNull, reason: 'a note opened at an item keeps no place of its own');
     });
 
+    testWidgets('lands on a stretch of lines an Ask receipt points at: the page at its first, the lines selected', (tester) async {
+      // docs/ASK_THE_ORG.md (Matt, 2026-11-02: "every claim linked to the note and line it came from").
+      final world = NoteWorld();
+      final screen = await pumpNote(tester, world, await seeded(tester, world, long), at: 'lines:80-82');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 500));
+      final view = screen.view!;
+      final doc = view.state.doc;
+      expect(view.state.selection.main.from, doc.line(80).from);
+      expect(view.state.selection.main.to, doc.line(82).to);
+      final seen = view.coordsAtPos(doc.line(80).from)!;
+      final header = tester.getRect(find.byType(NoteScreen)).top + tester.element(find.byType(NoteScreen)).tokens.len('app-safe-top');
+      expect(seen.top, closeTo(header + 12, 2));
+      await closeNote(tester);
+    });
+
     testWidgets('lands on an item by its anchor', (tester) async {
       final world = NoteWorld();
       final body = '$long\n- [ ] Ask Sam ^ask-sam\n$long';

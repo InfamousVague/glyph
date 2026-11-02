@@ -55,7 +55,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../core/page_scroll.dart';
 import '../../book/book_view.dart' show BookDrawing;
-import '../../core/page_tree.dart' show DocsMode, PageIcon, TeamspaceSettings, spaceOfOrg, teamspaceHomeIn;
+import '../../core/page_tree.dart' show DocsMode, PageIcon, Space, TeamspaceSettings, spaceOfOrg, teamspaceHomeIn;
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
 import '../../core/note.dart';
@@ -120,7 +120,12 @@ class OrganizationScreen extends StatefulWidget {
     this.onMember,
     this.onCreateHome,
     this.onSetDocs,
+    this.onAsk,
+    this.indexCard,
   });
+
+  /// The space's index card under its home page (docs/AI_INDEXES.md), the root's; absent, none.
+  final Widget Function(Space space)? indexCard;
 
   /// The marks and blocks the teamspace's home page draws (its queries, its links), the root's; null draws its words
   /// alone.
@@ -134,6 +139,9 @@ class OrganizationScreen extends StatefulWidget {
 
   /// Writes the home page's `docs:`, making the home page first where there is none; absent, no setting.
   final Future<void> Function(DocsMode mode)? onSetDocs;
+
+  /// Ask the organization's notes (docs/ASK_THE_ORG.md); absent, no Ask on its home.
+  final VoidCallback? onAsk;
 
   final AccountServices? services;
   final String orgId;
@@ -615,6 +623,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             onMember: widget.onMember,
             onCreateHome: widget.onCreateHome,
             onSetDocs: widget.onSetDocs,
+            onAsk: widget.onAsk,
+            index: space == null || widget.indexCard == null ? null : widget.indexCard!(space),
             simple: _prefs.value.simple,
           ),
           SizedBox(height: t.space(8)),
