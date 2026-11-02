@@ -44,6 +44,7 @@ import '../core/stored.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../forms/form_inbox.dart' show syncForms;
+import '../plugins/more/more_tools.dart' show emailTool, meetingsTool, moreToolOn;
 import '../plugins/projects/suite.dart' show formsTool, projectSuite;
 import '../integrations/webhooks/plugin.dart' show hooksWhileOn;
 import '../live/live.dart';
@@ -54,6 +55,7 @@ import '../mail/mail_in.dart';
 import '../meet/live_captions.dart';
 import '../meet/meet_api.dart' show MeetApi;
 import '../meet/meet_in.dart';
+import '../meet/meet_kinds.dart' show sendUnsentKinds;
 import '../book/ticket_events.dart';
 import '../book/ticket_watchers.dart' show ticketCreator;
 import '../mentions/mention_notices.dart';
@@ -313,11 +315,19 @@ class WiredAccount {
       forgetTeams: docs.forget,
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,
-      mailIn: offered ? syncMail : null,
+      // Only where Email to a note is on (docs/PM_PLUGINS.md §10): off, the mail waits on the service, sealed, none
+      // taken, opened or deleted, and is a note once it is on again.
+      mailIn: offered ? (ctx) async => moreToolOn(emailTool) ? syncMail(ctx) : 0 : null,
       // And, before the takes, the Discord plugin's word to the service: off on this device, Ghost stops joining the
       // account's Discord calls (lib/plugins/discord/calls.dart).
       meetIn: (ctx) async {
         await discordCallsFollowPlugin(api: ctx.api, token: ctx.token, kept: ctx.kept);
+        // Meetings off (docs/PM_PLUGINS.md §10): the service told that no kind is wanted, and the takes left where they
+        // wait on it, so none is lost; they are filed once it is on again.
+        if (!moreToolOn(meetingsTool)) {
+          await sendUnsentKinds(api: ctx.api, token: ctx.token, kept: ctx.kept);
+          return 0;
+        }
         return syncMeet(ctx);
       },
       // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
@@ -384,7 +394,8 @@ class WiredAccount {
                 return session == null ? null : MeetApi(api).live(session.token, meeting, after: after);
               },
               noteFor: (meeting) async {
-                if (account.session == null) return null;
+                // No meeting's note at its first caption while Meetings is off (docs/PM_PLUGINS.md §10).
+                if (account.session == null || !moreToolOn(meetingsTool)) return null;
                 final booked = meetIn.meetings?.where((m) => m.id == meeting).firstOrNull;
                 return liveNoteFor(
                   meeting,

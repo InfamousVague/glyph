@@ -35,6 +35,7 @@ import 'space_pages.dart';
 import 'workspace_sheet.dart';
 import '../shell/pop_menu.dart';
 import '../shell/wide_screen.dart' show hoverPointer, mousePointer;
+import '../plugins/more/more_tools.dart' show canvasTool, moreToolOn;
 
 part 'note_tree_spaces.dart';
 
@@ -427,7 +428,7 @@ class _NoteTreeState extends State<NoteTree> {
                         ? Row(
                             spacing: 0.5 * look.em,
                             children: [
-                              _KindMark(book: facts.isBook, canvas: facts.isCanvas, color: t.color('app-ink-3')),
+                              _KindMark(book: facts.isBook, canvas: facts.isCanvas && moreToolOn(canvasTool), color: t.color('app-ink-3')),
                               Expanded(child: name),
                             ],
                           )

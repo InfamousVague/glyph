@@ -106,7 +106,9 @@ class PlaceTags {
     Stored? kept,
     int Function()? now,
     Timer Function(Duration wait, void Function() then)? later,
-  })  : _getNote = getNote,
+    bool Function()? on,
+  })  : _on = on ?? _always,
+        _getNote = getNote,
         _updateNote = updateNote,
         _refinePending = refinePending ?? ((_) => false),
         _untouched = untouched,
@@ -114,6 +116,12 @@ class PlaceTags {
         _kept = kept,
         _now = now ?? (() => DateTime.now().millisecondsSinceEpoch),
         _later = later ?? Timer.new;
+
+  /// Whether a note's place is written at all: the Places plugin's switch (lib/plugins/places/places_tool.dart;
+  /// docs/PM_PLUGINS.md §10), asked at each new note; off, no location is asked for and none written.
+  final bool Function() _on;
+
+  static bool _always() => true;
 
   /// The fix, the gates and a place's name.
   final Locations locations;
@@ -514,7 +522,7 @@ class PlaceTags {
   Future<LocateFailure?> tagNewNotesIfWanted(List<String> ids, Waiting waiting, {bool quiet = false, Introduce? introduce}) async {
     final prefs = _preferences;
     if (ids.isEmpty) return null;
-    if (!prefs.tagNewNotes || prefs.localOnly) return _missed(ids, null);
+    if (!_on() || !prefs.tagNewNotes || prefs.localOnly) return _missed(ids, null);
     final refused = await _stillRefused();
     if (refused != null) return _missed(ids, refused);
     if (!quiet && introduce != null && locations.cannotLocate == null && await _wouldPrompt()) {
@@ -545,7 +553,7 @@ class PlaceTags {
   /// of Tag new notes, and with an introduction of its own (`tagEntryIfWanted`).
   Future<LocateFailure?> tagEntryIfWanted(List<String> ids, Waiting waiting, {bool quiet = false, Introduce? introduce}) async {
     if (ids.isEmpty) return null;
-    if (_preferences.localOnly) return _missed(ids, null);
+    if (!_on() || _preferences.localOnly) return _missed(ids, null);
     final refused = await _stillRefused();
     if (refused != null) return _missed(ids, refused);
     if (!quiet && introduce != null && locations.cannotLocate == null && await _wouldPrompt()) {
@@ -563,7 +571,7 @@ class PlaceTags {
   /// (`willLocate`).
   Future<bool> willLocate() async {
     final prefs = _preferences;
-    if (!prefs.tagNewNotes || prefs.localOnly || locations.cannotLocate != null) return false;
+    if (!_on() || !prefs.tagNewNotes || prefs.localOnly || locations.cannotLocate != null) return false;
     if (await _stillRefused() != null) return false;
     return _allowedNow();
   }

@@ -90,7 +90,11 @@ const List<String> templateChips = <String>['{{date}}', '{{time}}', '{{weekday}}
 /// What a journal's entries start with, and whether they keep where they were written (`TemplatePicker`). Put it
 /// among a [Sheet]'s children: it is a block of the sheet's flow.
 class TemplatePicker extends StatefulWidget {
-  const TemplatePicker({super.key, required this.template, required this.onTemplate, required this.place, required this.onPlace, required this.name, this.note, this.device = const EntryPlaceDevice(), this.display, this.asksName, this.clock});
+  const TemplatePicker({super.key, required this.template, required this.onTemplate, required this.place, required this.onPlace, required this.name, this.note, this.device = const EntryPlaceDevice(), this.display, this.asksName, this.clock, this.offersPlace = true});
+
+  /// Whether "With where you are" is offered: where the Places plugin is on (docs/PM_PLUGINS.md §10). Off, the
+  /// entries keep no place and the switch is not drawn.
+  final bool offersPlace;
 
   final String template;
   final ValueChanged<String> onTemplate;
@@ -287,7 +291,7 @@ class _TemplatePickerState extends State<TemplatePicker> {
           mainAxisSize: MainAxisSize.min,
           spacing: t.space(2),
           children: [
-            if (widget.place) Text('Where you are, with the map, at the top.', style: pageText(t, sm, color: subtle)),
+            if (widget.place && widget.offersPlace) Text('Where you are, with the map, at the top.', style: pageText(t, sm, color: subtle)),
             if (jsTrim(filled).isNotEmpty) EntryPreviewPage(key: const ValueKey('template-page'), words: filled, display: display) else Text('An empty page.', style: pageText(t, sm, color: subtle)),
           ],
         ),
@@ -339,12 +343,12 @@ class _TemplatePickerState extends State<TemplatePicker> {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: t.space(5),
             children: [
-              Expanded(child: CssFlow(children: [choice, place])),
+              Expanded(child: CssFlow(children: [choice, if (widget.offersPlace) place])),
               Expanded(child: CssFlow(children: [previewBlock()])),
             ],
           );
         }
-        return CssFlow(children: [choice, previewBlock(), place]);
+        return CssFlow(children: [choice, previewBlock(), if (widget.offersPlace) place]);
       },
     );
   }

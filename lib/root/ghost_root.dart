@@ -127,8 +127,10 @@ import '../core/workspaces.dart';
 import '../core/bytes.dart' show toBase64Url;
 import '../core/notifications.dart' show isMention, ticketRuleKind;
 import '../core/page_tree.dart' show DocsMode, PageMover, Space, TeamspaceSettings, spaceOfOrg, spacesFor, teamspaceHomeIn, withDocsMode, withProjectPlugins;
+import '../plugins/more/more_tools.dart';
 import '../plugins/projects/suite.dart';
 import '../core/versions_log.dart' show ChangesAcross;
+import '../meet/meet_in.dart' show meetingNotesOf;
 import '../meet/meeting_mark.dart' show meetingsOf, withMeetingMark;
 import '../mentions/mention_notices.dart' show mentionContext, mentionPayload;
 import '../mentions/mention_syntax.dart' show handleKey;
@@ -846,6 +848,8 @@ class _GhostRootState extends State<GhostRoot> {
           refinePending: (id) => _voice?.recorder.refining?.refinePending(id) ?? false,
           untouched: _untouched,
           kept: _stored,
+          // A note's place only where the Places plugin is on (docs/PM_PLUGINS.md §10).
+          on: () => moreToolOn(placesTool),
         );
 
   /// The first time a new note would be tagged on a phone that has never answered the location prompt, the app
@@ -1657,6 +1661,8 @@ class _GhostRootState extends State<GhostRoot> {
     _tick.tell();
     // A pass finished: the trash is as the account has it, so what has waited its thirty days may go.
     if (_services?.engine?.status.value.phase == 'idle') _purgeTrash();
+    // And the account's more tools in use before they were plugins, asked once (docs/PM_PLUGINS.md §10).
+    if (_services?.engine?.status.value.phase == 'idle') _adoptAccountTools();
   }
 
   /// What the account is listened to by, less where its sync stands (`AccountServices.changes` is all of them).
@@ -2123,6 +2129,12 @@ class _GhostRootState extends State<GhostRoot> {
     // plugin finds on. Where the registry has no such plugin (a test's), the calendars are read as they always were.
     final calendarHere = _pluginsHeard.byId(calendarManifest.id) != null;
     if (calendarHere) _pluginsHeard.adopt(calendarManifest.id, inUse: calendarInUse(calendar));
+    // The more tools in use before they were plugins, switched on once (docs/PM_PLUGINS.md §10): the ones the device's
+    // own settings answer, before anything they hold runs (the git backup's website is written at its first pass).
+    adoptMoreTools(_pluginsHeard, {
+      meetingsTool: (meetingsTool, () => preferences.value.meetings.isNotEmpty || meetingNotesOf(preferences.value).isNotEmpty),
+      publishingTool: (publishingTool, () => gitBackupSettings().publish),
+    }, store: _stored);
     calendar.start(notes: () => _reads.queryNotes, notesChanged: _library, on: calendarHere ? calendarOn : null, switched: _pluginsHeard);
     _calendarLife = AppLifecycleListener(onResume: calendar.resumed);
     // The Contacts plugin (lib/plugins/contacts, lib/integrations/contacts): the phone's contacts read where it is
@@ -2233,6 +2245,9 @@ class _GhostRootState extends State<GhostRoot> {
     // personal notes have a history beside them. Before anything else reads the notes, and quiet about what fails:
     // a library with none of it is a library as it was.
     if (_real && mounted) await _readLibraryDescription();
+    // And the more tools the notes use, switched on once where they are in use, before the first notes of a new
+    // library are made (docs/PM_PLUGINS.md §10).
+    if (mounted) _adoptMoreToolsInNotes();
     if (mounted) usePluginNotes(PluginNotes(bodyOf: (id) => _library.noteOf(id)?.body, setProperty: (id, key, value) => _changeNote(id, (body) => withProperty(body, key, value), userEvent: 'plugin.link')));
     if (mounted) snippetsSource = _snippets;
     // The build's test report, from here on, for whoever has Developer mode on: never ahead of the notes.
@@ -2296,6 +2311,47 @@ class _GhostRootState extends State<GhostRoot> {
       await _library.createNote(identical(note.body, sampleNoteBody) ? sampleNoteWith(await _samplePicture()) : note.body);
     }
     await _settleStarterExamples();
+  }
+
+  /// Switches on, once on this device, each of the more tools its library's notes already use: a canvas, a diagram, a
+  /// formula or a language's block, a note's place, a note from mail, a meeting's mark (lib/plugins/more/more_tools.dart
+  /// `adoptMoreTools`, read from each note's facts). A new library has none, and its tools stay off.
+  void _adoptMoreToolsInNotes() {
+    Set<String>? used;
+    Set<String> uses() => used ??= {
+          for (final note in _library.value)
+            if (!note.inTrash) ...NoteFacts.of(note).more,
+        };
+    adoptMoreTools(_pluginsHeard, {
+      canvasTool: (canvasTool, () => uses().contains(canvasTool)),
+      diagramsTool: (diagramsTool, () => uses().contains(diagramsTool)),
+      placesTool: (placesTool, () => uses().contains(placesTool)),
+      emailTool: (emailTool, () => uses().contains(emailTool)),
+      'meetings:notes': (meetingsTool, () => uses().contains(meetingsTool)),
+    }, store: _stored);
+  }
+
+  /// Whether this run has asked the service for the account's halves of the checks.
+  bool _accountToolsAsked = false;
+
+  /// The account's halves of the more tools' checks, once on this device (lib/plugins/more/more_tools.dart): an Email
+  /// to a note address, and a site published, asked of the service after a pass has gone through, so the session and
+  /// the keys are there. A question that fails is asked again on another run; one answered is never asked again.
+  void _adoptAccountTools() {
+    if (_accountToolsAsked || MoreTools.debugAllOn) return;
+    final services = _services;
+    if (services == null || !services.signedIn) return;
+    final mail = services.mailIn, sites = services.sites;
+    final asks = <String, (String, Future<bool> Function())>{
+      if (mail != null && !moreToolChecked(emailAddressCheck, store: _stored)) emailAddressCheck: (emailTool, () async => (await mail.refresh()).address != null),
+      if (sites != null && !moreToolChecked(publishedSitesCheck, store: _stored)) publishedSitesCheck: (publishingTool, () async => (await sites.refresh()).isNotEmpty),
+    };
+    _accountToolsAsked = true;
+    for (final MapEntry(key: name, value: (tool, ask)) in asks.entries) {
+      unawaited(ask().then((used) {
+        if (mounted) adoptMoreTools(_pluginsHeard, {name: (tool, () => used)}, store: _stored);
+      }, onError: (Object failure) => debugPrint('[glyph] whether $tool was in use was not asked: $failure')));
+    }
   }
 
   /// The library's own description read as it is opened (see [_open]): the config, the folders from the paths, the

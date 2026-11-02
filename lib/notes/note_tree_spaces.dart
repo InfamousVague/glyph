@@ -379,7 +379,8 @@ extension _SpacesTree on _NoteTreeState {
       return lucide(open ? Lucide.folderOpen : Lucide.folder, size: 14, strokeWidth: 2.1, color: ink3);
     }
     final facts = note == null ? null : NoteFacts.of(note);
-    return _KindMark(book: facts?.isBook ?? false, canvas: facts?.isCanvas ?? false, color: ink3);
+    // A canvas is marked one where Canvas is on; off, it is listed as a note (docs/PM_PLUGINS.md §10).
+    return _KindMark(book: facts?.isBook ?? false, canvas: (facts?.isCanvas ?? false) && moreToolOn(canvasTool), color: ink3);
   }
 
   /// One line of the pages' list, or of the favorites ([nested] false: no fold, no +, no drag).

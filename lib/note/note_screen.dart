@@ -196,6 +196,7 @@ class NoteSeams {
     this.location,
     this.shareVersionsFile,
     this.mapCard,
+    this.places = true,
     this.bookBar,
     this.bookFoot,
     this.canvas,
@@ -322,6 +323,10 @@ class NoteSeams {
   /// a tag still waiting for a draft's first words, which fetches no tiles; `arrive` for a card that just appeared
   /// on the open note and `leave` for one whose tag was just taken off, which calls `onLeft` once it has gone.
   final Widget Function(BuildContext context, GeoTag tag, {required bool header, required bool quiet, required bool arrive, required bool leave, VoidCallback? onLeft})? mapCard;
+
+  /// Whether a note's place is offered: Add my location and Remove location in More, the Map look, and a journal's
+  /// "With where you are"; the Places plugin's switch (docs/PM_PLUGINS.md §10). Off, `location:` is the text it is.
+  final bool places;
 
   /// A chapter's book, its place in it and the chapters either side, over and under the words (book/BookNav.tsx).
   final Widget Function(BuildContext context, BookPlace place)? bookBar;
@@ -2316,7 +2321,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
               setTemplate: (text) => _writeKeys((was) => withTemplate(was, text)),
               setPlace: (on) => _writeKeys((was) => withEntryPlace(was, on)),
               unkeep: () => _writeKeys(withoutJournal),
-              placeDefault: _prefs.value.tagNewNotes,
+              placeDefault: seams.places && _prefs.value.tagNewNotes,
+              offersPlace: seams.places,
               device: switch (_tags) {
                 final tags? => EntryPlaceDevice(cannot: () => tags.locations.cannotLocate, refused: tags.autoTagRefusal, allowWhere: tags.allowLocationWhere(), ask: tags.askFromPress),
                 _ => const EntryPlaceDevice(),
@@ -2332,7 +2338,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ticketKey: _notebookRows && !_isJournal && projectPluginOn(ticketsTool, noteId: _id) ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',
-      look: !_typed && !widget.readOnly && _raw ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,
+      look: !_typed && !widget.readOnly && _raw ? NoteLook(value: _look, canMap: seams.places && (_tag != null || _look == Look.map), onChange: chooseLook) : null,
       onAi: seams.onAi == null || view == null ? null : (kind, [instruction]) => seams.onAi!(view, kind, instruction),
       running: seams.aiRunning?.call(),
       // What Fill the blanks would take, read while the sheet is up (`settingsOpen && view ? fillPlanOf(view.state)`).
@@ -2344,7 +2350,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       sharingSection: seams.sharingSection?.call(context),
       linked: seams.linked?.call(context),
       plugins: view == null || widget.readOnly ? null : seams.plugins?.call(view),
-      location: seams.location?.call(_tag) ?? _location(_prefs.value),
+      location: seams.places ? seams.location?.call(_tag) ?? _location(_prefs.value) : null,
       history: versions != null && !_isCanvas && !widget.readOnly && _raw
           ? NoteHistory(record: versions, keeps: _versioning?.keeps ?? versions.keepsVersions(_id), current: () => _view?.state.doc.toString() ?? _saving.body, onRestore: restoreVersion, onShareFile: seams.shareVersionsFile)
           : null,

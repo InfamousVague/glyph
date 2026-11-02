@@ -52,7 +52,10 @@ enum NewBookKind { notebook, journal, docs }
 
 /// The New notebook sheet (`NewBookSheet`).
 class NewBookSheet extends StatefulWidget {
-  const NewBookSheet({super.key, required this.open, required this.onClose, required this.titles, required this.onCreate, this.onCreateJournal, this.onCreateDocs, this.kind = NewBookKind.notebook, this.isCanvas, this.tagNewNotes, this.device = const EntryPlaceDevice(), this.clock, this.simple});
+  const NewBookSheet({super.key, required this.open, required this.onClose, required this.titles, required this.onCreate, this.onCreateJournal, this.onCreateDocs, this.kind = NewBookKind.notebook, this.isCanvas, this.tagNewNotes, this.device = const EntryPlaceDevice(), this.clock, this.simple, this.offersPlace = true});
+
+  /// Whether a journal's "With where you are" is offered: where the Places plugin is on (docs/PM_PLUGINS.md §10).
+  final bool offersPlace;
 
   final bool open;
   final VoidCallback onClose;
@@ -104,7 +107,7 @@ class _NewBookSheetState extends State<NewBookSheet> {
     });
   });
 
-  bool _tagNewNotes() => widget.tagNewNotes?.call() ?? preferences.value.tagNewNotes;
+  bool _tagNewNotes() => widget.offersPlace && (widget.tagNewNotes?.call() ?? preferences.value.tagNewNotes);
 
   /// The kinds this sheet offers: a notebook always, a journal where it can be made, docs where they can be and the
   /// app is not in simple mode.
@@ -216,7 +219,7 @@ class _NewBookSheetState extends State<NewBookSheet> {
                 child: _KindChoice(kind: _kind, kinds: kinds, onKind: (kind) => setState(() => _kind = kind)),
               ),
             if (journal) ...[
-              TemplatePicker(template: _template, onTemplate: (text) => setState(() => _template = text), place: _place, onPlace: (on) => setState(() => _place = on), name: _name, device: widget.device, clock: widget.clock),
+              TemplatePicker(template: _template, onTemplate: (text) => setState(() => _template = text), place: _place, onPlace: (on) => setState(() => _place = on), name: _name, device: widget.device, clock: widget.clock, offersPlace: widget.offersPlace),
               SheetGroup(children: [SheetRow(key: const ValueKey('book-make'), label: 'Make the journal', hint: 'Empty, ready for its first entry.', onPress: _make, disabled: !named)]),
             ] else ...[
               SheetNote(

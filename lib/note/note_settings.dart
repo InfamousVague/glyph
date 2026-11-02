@@ -175,7 +175,11 @@ class NoteJournal {
     required this.unkeep,
     this.placeDefault = false,
     this.device = const EntryPlaceDevice(),
+    this.offersPlace = true,
   });
+
+  /// Whether "With where you are" is offered: where the Places plugin is on (docs/PM_PLUGINS.md §10).
+  final bool offersPlace;
 
   final bool on;
   final String template;
@@ -613,6 +617,7 @@ class _NoteSettingsState extends State<NoteSettings> {
             name: widget.title,
             note: journal.on ? 'Entries you have written stay as they are.' : null,
             device: journal.device,
+            offersPlace: journal.offersPlace,
           ),
           SheetGroup(
             children: [
