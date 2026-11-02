@@ -37,6 +37,8 @@ extension _RootParts on _GhostRootState {
     onNoteMenu: _menu.open,
     // Show in Finder (Explorer, Files) for a folder's directory and a page's file, on a desktop.
     show: _showInFiles,
+    // Keep an index… (docs/AI_INDEXES.md, root_indexes.dart).
+    onKeepIndex: _keepIndex,
     child: Stack(
       fit: StackFit.expand,
       children: [
@@ -1338,6 +1340,8 @@ extension _RootParts on _GhostRootState {
       onMember: (handle) => shell.openOrganizationMember(id, handle),
       onCreateHome: () => _createHome(id),
       onSetDocs: (mode) => _setDocs(id, mode),
+      // The space's index card under its home page (root_indexes.dart).
+      indexCard: (space) => _indexCardOf(shell, space),
     );
   }
 

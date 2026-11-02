@@ -15,6 +15,8 @@
 ///   ([teamspaceHomeBody]), filed in the organization so it is the team's.
 /// - **Pages open in: Read or Edit**, the home page's `docs:` ([withDocsMode]); in simple mode (GHST-103) behind a
 ///   More that opens in place.
+/// - **The index** (docs/AI_INDEXES.md; Matt, 2026-11-02: "for any folder or org, the AI keeps an index note"): its
+///   card, [index], under the home page, whose section the index is.
 library;
 
 import 'dart:async';
@@ -82,6 +84,7 @@ class TeamspaceHome extends StatefulWidget {
     this.onCreateHome,
     this.onSetDocs,
     this.onAsk,
+    this.index,
     this.simple = false,
   });
 
@@ -118,6 +121,9 @@ class TeamspaceHome extends StatefulWidget {
   /// Ask the space's notes, with receipts (docs/ASK_THE_ORG.md; Matt, 2026-11-02: "'Ask the org' with receipts"):
   /// a line of its own over the members; absent, none.
   final VoidCallback? onAsk;
+
+  /// The space's index card (lib/ai/indexes/index_card.dart); absent, none.
+  final Widget? index;
 
   /// Simple mode: the setting behind More.
   final bool simple;
@@ -242,6 +248,10 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
           SizedBox(height: t.space(2)),
           ToolSwitches(key: TeamspaceHome.toolsKey, orgId: orgId),
         ],
+      ],
+      if (widget.index case final index?) ...[
+        SizedBox(height: t.space(6)),
+        index,
       ],
     ];
     return DefaultTextStyle(
