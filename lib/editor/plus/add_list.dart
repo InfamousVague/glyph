@@ -122,7 +122,12 @@ class AddConfig {
     this.simple = false,
     this.toggles = false,
     this.gantt = false,
+    this.queries,
   });
+
+  /// Which of the ready-made databases are offered, by their lines: one that needs a project tool that is off where
+  /// the note is (docs/PM_PLUGINS.md), a ticket board say, is not. Absent, every one.
+  final bool Function(String lines)? queries;
 
   /// A picture: the screen opens its picker.
   final VoidCallback? onPicture;
@@ -459,6 +464,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       simple: config.simple,
       toggles: config.toggles,
       gantt: config.gantt,
+      queries: config.queries,
       effects: config.effects,
       inserts: config.inserts,
     );
@@ -555,8 +561,8 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       _Page.all => of(filterRows(allRows(_gates, _now, naming), _field.text)),
       // Simple's More holds the time row, which says the minute the list was opened at, as the first page's does.
       _Page.more => <_Shown>[const _Shown.back(), ...of(moreRows(_gates, _now, naming))],
-      _Page.board => <_Shown>[const _Shown.back(), ...of(boardRows())],
-      _Page.database => <_Shown>[const _Shown.back(), ...of(databaseRows())],
+      _Page.board => <_Shown>[const _Shown.back(), ...of(boardRows(_gates.queries))],
+      _Page.database => <_Shown>[const _Shown.back(), ...of(databaseRows(_gates.queries))],
       _Page.note || _Page.canvas => const <_Shown>[],
     };
   }

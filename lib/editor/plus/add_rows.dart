@@ -180,7 +180,11 @@ class AddGates {
     this.simple = false,
     this.toggles = false,
     this.gantt = false,
+    this.queries,
   });
+
+  /// Which ready-made databases are offered, by their lines ([AddConfig.queries]); absent, every one.
+  final bool Function(String lines)? queries;
 
   final bool picture;
   final bool video;
@@ -249,6 +253,7 @@ AddGates readGates({
   bool simple = false,
   bool toggles = false,
   bool gantt = false,
+  bool Function(String lines)? queries,
   List<PlusEffect> effects = const <PlusEffect>[],
   List<PlusInsert> inserts = const <PlusInsert>[],
 }) => AddGates(
@@ -271,6 +276,7 @@ AddGates readGates({
   simple: simple,
   toggles: toggles,
   gantt: gantt,
+  queries: queries,
 );
 
 // ---- the moment, in words (core/stamp.ts, core/noteNames.ts) -----------------------------------------------------------
@@ -503,11 +509,20 @@ const String linkSeed = '[text](url)';
 
 /// A board's page: the two ways to start one, so the two kinds of board are a single choice rather than a name to
 /// guess between. Fresh columns is a `board` fence of its own ([boardSeed]); From your tickets is the ready-made
-/// ticket board, a query grouped into lanes, which fills itself from the library.
-List<AddRow> boardRows() => const <AddRow>[AddRow(id: 'board', words: 'Fresh columns'), AddRow(id: 'query:board', words: 'From your tickets')];
+/// ticket board, a query grouped into lanes, which fills itself from the library: offered where [offered] takes its
+/// lines (with Tickets off, it is not).
+List<AddRow> boardRows([bool Function(String lines)? offered]) => <AddRow>[
+  const AddRow(id: 'board', words: 'Fresh columns'),
+  for (final template in queryTemplates)
+    if (template.id == 'board' && (offered?.call(template.lines) ?? true)) const AddRow(id: 'query:board', words: 'From your tickets'),
+];
 
-/// A database's page: the ready-made queries (query_templates.dart), each a row of its own, Write your own last.
-List<AddRow> databaseRows() => <AddRow>[for (final template in queryTemplates) AddRow(id: 'query:${template.id}', words: template.words)];
+/// A database's page: the ready-made queries (query_templates.dart), each a row of its own, Write your own last;
+/// those [offered] takes, where a project tool one needs is off (docs/PM_PLUGINS.md).
+List<AddRow> databaseRows([bool Function(String lines)? offered]) => <AddRow>[
+  for (final template in queryTemplates)
+    if (offered?.call(template.lines) ?? true) AddRow(id: 'query:${template.id}', words: template.words),
+];
 
 /// A ready-made query as a block: drawn at once with the caret on the line after it, or, for Write your own, with
 /// its kind selected to be written over, the fence's lines showing.
