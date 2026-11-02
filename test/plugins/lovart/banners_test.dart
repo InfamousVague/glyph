@@ -123,7 +123,9 @@ void main() {
       expect(prompt, contains('choose the assets to include'));
       expect(prompt, contains('The note is titled “New Orleans weekend”.'));
       expect(prompt, contains('We drove down on Friday'));
-      expect(prompt, contains('The left third is empty white.'));
+      // The whole frame filled since 2026-11-02 (Matt: a new one was "not filling the space").
+      expect(prompt, contains('Fill the whole frame'));
+      expect(prompt, isNot(contains('left third is empty white')));
       expect(prompt, isNot(contains('location: 1,2')));
       expect(prompt, isNot(contains('image/x.png')));
       expect(prompt, endsWith('Make one image.'));

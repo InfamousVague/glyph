@@ -7,7 +7,7 @@
 /// for it (2026-10-26: "The dotwork pre prompts should be full color like the grocery store item from earlier"; they
 /// were black ink only before, and lib/note/note_banner.dart draws each as it is), the mascot described
 /// word for word as every ghost scene describes it, small on the right two-thirds doing what the note is about, the
-/// left third left white. [bannerPrompt] is that pre-prompt with the note's title and its opening as the subject;
+/// left third left white, until 2026-11-02: no ghost since, and the scene fills the frame edge to edge. [bannerPrompt] is that pre-prompt with the note's title and its opening as the subject;
 /// Lovart picks the one scene. The banner is the note's front matter `banner:` (lib/core/banner.dart), drawn across
 /// the top of the page (lib/note/note_screen.dart, by [NoteBannerView]).
 ///
@@ -62,13 +62,13 @@ const String bannerNoteSlot = '{note}';
 /// about tell it, looked up first so they are drawn as they really are (Matt, the same day: "have it do more research
 /// online for the note and looking up what assets to include"). Lovart's design agent does the looking up: only the
 /// words below and the note's go to Lovart, as before.
-const String bannerStyleDefault = '''A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Keep everything drawn inside the middle band of the picture, away from its top and bottom edges, with plain white above and below, so the banner can be cropped wider without cutting anything off.
+const String bannerStyleDefault = '''A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Fill the whole frame: the scene runs from the left edge to the right edge, with no empty margins or blank thirds, and its main subjects sit across the middle of the picture so a wider crop keeps them.
 
 A stipple dotwork illustration in full colour on pure white: form, folds and shadow built entirely from dots of rich, natural colour, dense in the shadows and sparse in the light, with a fine clean outline. The colours are true to the things drawn, warm and clear. Precise, patient and quietly elegant, like a hand-coloured fine-art print or a careful naturalist's plate.
 
 Research before you draw. Search online for what the note is about: the real places, buildings, products, tools, organisations, foods, plants, animals or events it names, and what each really looks like (its shape, colours, materials, landmarks, packaging). Then choose the assets to include: three to six concrete objects, places or details that best stand for this note, each drawn true to the real thing. Prefer the specific over the generic: the actual landmark, the actual dish, the actual kind of device.
 
-The scene: {note} Arrange it in the right two-thirds of the frame. The left third is empty white.
+The scene: {note} Spread it across the full width of the frame, edge to edge.
 
 Full colour, every tone made of dots: no flat fills, no smooth gradients. No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
 
