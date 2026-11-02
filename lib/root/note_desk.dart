@@ -210,7 +210,7 @@ import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
 import '../plugins/keymaps/keymaps.dart' show KeymapBadge, KeymapHooks, keyboardMode, keyboardModes, vimJk, vimStartsNormal;
 import '../plugins/link_marks.dart';
-import '../plugins/lovart/lovart.dart' show bannerEdit, bannerUnready, lovartBannerMaking, lovartCuesOn, lovartIsMaking, lovartMaking, makeBanner, makeCue, removeBanner;
+import '../plugins/lovart/lovart.dart' show bannerEdit, bannerUnready, lovartBannerMaking, lovartCuesOn, lovartInspiring, lovartIsMaking, lovartMaking, makeBanner, makeCue, removeBanner;
 import '../plugins/more/tool_off.dart' show MoreToolOff;
 import '../plugins/more/more_tools.dart' show canvasTool, diagramsTool, isMoreTool, meetingsTool, moreToolOn, moreTools, placesTool;
 import '../plugins/projects/suite.dart';
@@ -1066,7 +1066,8 @@ class NoteDeskState extends State<NoteDesk> {
         on: lovartCuesOn,
         press: (cue) => unawaited(makeCue(_editing, cue)),
         making: (cueText) => lovartIsMaking(widget.noteId, cueText),
-        changes: Listenable.merge(<Listenable>[lovartMaking, plugins]),
+        inspiring: () => lovartInspiring.value.contains(widget.noteId),
+        changes: Listenable.merge(<Listenable>[lovartMaking, lovartInspiring, plugins]),
       )),
     // A meeting's summary being written, drawn where it will land, its words streaming in, until the section lands
     // (lib/editor/ai/summary_writing.dart; docs/ACTIVITY.md, In place): read from the record, never written into the note.

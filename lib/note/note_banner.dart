@@ -24,8 +24,8 @@ import '../core/banner.dart' show bannerAspect;
 import '../core/images.dart' show PictureStore;
 import '../editor/media/images.dart' show KeptPicture;
 import '../editor/media/lovart_badge.dart' show LovartBadged;
+import '../editor/media/lovart_pending.dart' show LovartPending;
 import '../activity/activity_look.dart' show activityMoves;
-import '../activity/banner_shimmer.dart';
 import '../notes/note_menu.dart' show byMouse;
 import '../shell/pop_menu.dart';
 
@@ -183,8 +183,8 @@ void forgetBannerColours() {
   _reading.clear();
 }
 
-/// The banner [name] of the note, from [store]; while [making], the band where it will land (lib/activity/
-/// banner_shimmer.dart; docs/ACTIVITY.md, In place: Lovart's blurred stand-in was here before), at the shape the
+/// The banner [name] of the note, from [store]; while [making], Lovart's blurred stand-in where it will land
+/// (lib/editor/media/lovart_pending.dart; back since 2026-11-02 in place of the activity band), at the shape the
 /// banner it replaces is drawn at or, with none, the shape a banner is drawn at before it is read, the picture fading in
 /// over it as it lands; with neither, nothing.
 ///
@@ -202,7 +202,7 @@ class NoteBannerView extends StatelessWidget {
   final PictureStore? store;
   final bool making;
 
-  /// What Lovart was asked for, while it is made (the blurred stand-in's colours were picked by it; the band is the images' own).
+  /// What Lovart was asked for, while it is made: the blurred stand-in's colours are picked by it.
   final String prompt;
 
   /// The column's own left edge where the page reads as a column; the gutter otherwise.
@@ -228,7 +228,9 @@ class NoteBannerView extends StatelessWidget {
               key: const ValueKey<String>('note-banner-making'),
               width: width,
               height: height,
-              child: BannerShimmer(width: width, height: height, radius: radius),
+              // Lovart's blurred stand-in, its mark and the ring turning (Matt, 2026-11-02: "bring back the blurry image
+              // with the lovart logo with the spinner when generating images and header images").
+              child: LovartPending(prompt: prompt.isEmpty ? 'header image' : prompt, height: height),
             ),
             picture: name == null ? null : _BannerMenuArea(rows: menu, child: _BannerPicture(name: name, store: store, width: width, radius: radius)),
           );

@@ -150,10 +150,12 @@ to hand them.
 
 Built 2026-10-29, reading the record and the sync's own bookkeeping, never a list of their own:
 
-- **Banner shimmer** (`lib/activity/banner_shimmer.dart`, drawn by `lib/note/note_banner.dart` `NoteBannerView`): while
-  `lovartBannerMaking` holds the note (one made alone or in a notebook's run, whose banners are not jobs of their own)
-  or its `banner:<note>` job is live, a band at the banner's shape in the images' colour, a sheen sweeping and the brush
-  stroke drawing; the band fades away over the picture as it lands. Cards in the lists draw no banners, so none there.
+- **A banner being made** (`lib/editor/media/lovart_pending.dart` `LovartPending`, drawn by `lib/note/note_banner.dart`
+  `NoteBannerView`): while `lovartBannerMaking` holds the note (one made alone or in a notebook's run, whose banners are
+  not jobs of their own) or its `banner:<note>` job is live, Lovart's blurred stand-in at the banner's shape, its mark
+  on a dark round with the ring turning; it fades away over the picture as it lands. Until 2026-11-02 this was a band
+  with a sheen (`banner_shimmer.dart`); Matt asked for the stand-in back ("bring back the blurry image with the lovart
+  logo with the spinner when generating images and header images"). Cards in the lists draw no banners, so none there.
 - **Summary writing** (`lib/editor/ai/summary_writing.dart`, an editor extension the note's screen adds in
   `lib/root/note_desk.dart`): while `summary:<note>` is live (here or another device's) and the note has no
   `## Summary`, a block at `summaryPlace` says "Writing the summary…" with the sparkle, the job's `steps` and

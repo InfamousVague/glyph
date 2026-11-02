@@ -59,6 +59,7 @@ class FakeClient extends LovartClient {
 /// A note on the screen with its cues marked, and pictures under it.
 class Stage {
   bool on = true;
+  bool inspiring = false;
   final Set<String> busy = {};
   final ValueNotifier<int> told = ValueNotifier<int>(0);
   final List<String> pressed = [];
@@ -79,6 +80,7 @@ class Stage {
                 onPress?.call(cue);
               },
               making: busy.contains,
+              inspiring: () => inspiring,
               changes: told,
             )),
           ],
@@ -301,6 +303,27 @@ void main() {
         await away(tester);
       });
     }
+  });
+
+  // A moodboard being made waits as four of Lovart's stand-ins where its pictures will go (Matt, 2026-11-02: "bring
+  // back the blurry image with the lovart logo with the spinner when generating images and header images").
+  testWidgets('a moodboard being made: four stand-ins where its pictures will go, gone once it lands', (tester) async {
+    final stage = Stage();
+    await stage.show(tester, '# Brand ideas\n\nWarm, hand-made, a little playful.');
+    expect(find.byKey(const ValueKey('lovart-moodboard-pending')), findsNothing);
+    stage.inspiring = true;
+    stage.tell();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('lovart-moodboard-pending')), findsOneWidget);
+    expect(find.byKey(const ValueKey('lovart-pending')), findsNWidgets(4));
+    expect(find.byKey(const ValueKey('lovart-working')), findsNWidgets(4), reason: 'each with Lovart\'s mark and its ring');
+    stage.inspiring = false;
+    stage.tell();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('lovart-moodboard-pending')), findsNothing);
+    await away(tester);
   });
 }
 

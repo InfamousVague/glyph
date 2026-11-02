@@ -23,6 +23,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../plugins/lovart/cues.dart' show ImageCue, imageCues;
+import '../../plugins/lovart/inspiration.dart' show inspirationCount, inspirationInsert;
 import '../../plugins/lovart/lovart_mark.dart';
 import '../media/images.dart' show gutterOf;
 import '../media/lovart_pending.dart';
@@ -35,7 +36,7 @@ import '../view/syntax_tree.dart';
 
 /// What the note's screen gives the cues.
 class LovartCueHooks {
-  const LovartCueHooks({required this.on, required this.press, required this.making, this.changes});
+  const LovartCueHooks({required this.on, required this.press, required this.making, this.inspiring, this.changes});
 
   /// Whether cues are marked: the plugin on. Read at each drawing.
   final bool Function() on;
@@ -46,7 +47,11 @@ class LovartCueHooks {
   /// Whether the cue written [cueText] is being made now.
   final bool Function(String cueText) making;
 
-  /// Told when [on] or [making] may answer otherwise: the cues are drawn again.
+  /// Whether the note's inspiration moodboard is being made now: its four stand-ins wait where the pictures will go
+  /// (Matt, 2026-11-02: "bring back the blurry image with the lovart logo with the spinner when generating images").
+  final bool Function()? inspiring;
+
+  /// Told when [on], [making] or [inspiring] may answer otherwise: the cues are drawn again.
   final Listenable? changes;
 }
 
@@ -286,6 +291,12 @@ DecorationSet _pendingOf(EditorState state) {
       if (hooks.making(cue.text)) found.add(Decoration.widget(widget: LovartPendingWidget(cue.prompt), block: true, side: 1).range(line.to));
     }
   }
+  // A moodboard being made: its stand-ins after the line its pictures will follow (inspiration.dart
+  // `inspirationInsert`: under an `## Inspiration` there already is, else after the note's last line of words).
+  if (hooks.inspiring?.call() ?? false) {
+    final at = inspirationInsert(doc.toString(), const []).line.clamp(1, doc.lines);
+    found.add(Decoration.widget(widget: const LovartMoodboardPendingWidget(), block: true, side: 2).range(doc.line(at).to));
+  }
   return found.isEmpty ? Decoration.none : Decoration.set(found, true);
 }
 
@@ -316,6 +327,39 @@ class LovartPendingWidget extends EditorWidget {
     return Padding(
       padding: EdgeInsets.only(top: t.space(2), bottom: t.space(3)).add(EdgeInsets.symmetric(horizontal: gutterOf(context))),
       child: LovartPending(prompt: prompt, maxHeight: MediaQuery.sizeOf(context).height * 0.4),
+    );
+  }
+}
+
+/// A moodboard's four stand-ins, two across, at a picture's place, while Lovart makes them.
+class LovartMoodboardPendingWidget extends EditorWidget {
+  const LovartMoodboardPendingWidget();
+
+  @override
+  bool eq(LovartMoodboardPendingWidget other) => true;
+
+  @override
+  bool takesPointer(_) => false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gap = t.space(2);
+    return Padding(
+      key: const ValueKey<String>('lovart-moodboard-pending'),
+      padding: EdgeInsets.only(top: t.space(2), bottom: t.space(3)).add(EdgeInsets.symmetric(horizontal: gutterOf(context))),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = (box.maxWidth - gap) / 2;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (var i = 1; i <= inspirationCount; i += 1) SizedBox(width: width, child: LovartPending(prompt: 'inspiration $i', maxHeight: MediaQuery.sizeOf(context).height * 0.25)),
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -8,9 +8,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/editor/media/lovart_pending.dart' show LovartPending, LovartWorking;
 import 'package:ghost_md/activity/activity_look.dart';
 import 'package:ghost_md/activity/activity_tray.dart' show JobBar;
-import 'package:ghost_md/activity/banner_shimmer.dart';
 import 'package:ghost_md/activity/sync_mark.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/art/app_icon.dart';
@@ -83,24 +83,26 @@ void main() {
 
   Tokens tokensAt(WidgetTester tester, Finder finder) => GlacierTheme.of(tester.element(finder));
 
+  // Lovart's blurred stand-in with its mark and the turning ring, back in place of the activity band (Matt, 2026-11-02:
+  // "bring back the blurry image with the lovart logo with the spinner when generating images and header images").
   group('a banner being made', () {
     for (final window in [phone, mac]) {
-      stillTest('is a band at the banner\'s shape where it will land, moving, in the images\' colour (${window.name})', (tester) async {
+      stillTest('is Lovart\'s blurred stand-in at the banner\'s shape where it will land, its ring turning (${window.name})', (tester) async {
         await pumpApp(tester, size: window.size, home: const Align(alignment: Alignment.topCenter, child: NoteBannerView(name: null, store: null, making: true, prompt: 'n1')));
         await tester.pump(const Duration(milliseconds: 100));
-        final band = tester.getSize(find.byKey(const ValueKey('banner-shimmer')));
+        final band = tester.getSize(find.byKey(const ValueKey('lovart-pending')));
         expect(band.height, closeTo(band.width / BannerLook.unread.shape < noteBannerMaxHeight ? band.width / BannerLook.unread.shape : noteBannerMaxHeight, 0.5), reason: 'the shape a banner is drawn at before it is read, no taller than a banner is');
-        expect(band.width, closeTo(window.size.width - 2 * tokensAt(tester, find.byType(BannerShimmer)).len('app-gutter'), 0.5), reason: 'the page\'s width, as the banner is');
-        expect(tester.state<BannerShimmerState>(find.byType(BannerShimmer)).moving, isTrue);
-        final painter = tester.widget<CustomPaint>(find.descendant(of: find.byType(BannerShimmer), matching: find.byType(CustomPaint))).painter! as BannerShimmerPainter;
-        expect(painter.from, jobColour(tokensAt(tester, find.byType(BannerShimmer)), JobLook.images));
-        final before = painter.beat;
+        expect(band.width, closeTo(window.size.width - 2 * tokensAt(tester, find.byType(LovartPending)).len('app-gutter'), 0.5), reason: 'the page\'s width, as the banner is');
+        expect(find.byType(ImageFiltered), findsOneWidget, reason: 'the fields of colour blurred together');
+        expect(find.byKey(const ValueKey('lovart-working')), findsOneWidget, reason: 'Lovart\'s mark with its ring');
+        final turn = tester.widget<RotationTransition>(find.descendant(of: find.byType(LovartWorking), matching: find.byType(RotationTransition))).turns;
+        final before = turn.value;
         await tester.pump(const Duration(milliseconds: 300));
-        expect((tester.widget<CustomPaint>(find.descendant(of: find.byType(BannerShimmer), matching: find.byType(CustomPaint))).painter! as BannerShimmerPainter).beat, isNot(before), reason: 'the sheen sweeps and the stroke draws');
+        expect(turn.value, isNot(before), reason: 'the ring turns');
       });
     }
 
-    stillTest('lands: the band fades away over the picture, then the picture is drawn alone', (tester) async {
+    stillTest('lands: the stand-in fades away over the picture, then the picture is drawn alone', (tester) async {
       final store = MemoryPictureStore({'lovart-a.png': (await tester.runAsync(png))!});
       final making = ValueNotifier<bool>(true);
       await pumpApp(
@@ -111,20 +113,20 @@ void main() {
           child: ValueListenableBuilder<bool>(valueListenable: making, builder: (context, on, _) => NoteBannerView(name: on ? null : 'lovart-a.png', store: store, making: on)),
         ),
       );
-      expect(find.byType(BannerShimmer), findsOneWidget);
+      expect(find.byType(LovartPending), findsOneWidget);
       making.value = false;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
-      expect(find.byKey(const ValueKey('note-banner-landing')), findsOneWidget, reason: 'the band still over it, fading');
+      expect(find.byKey(const ValueKey('note-banner-landing')), findsOneWidget, reason: 'the stand-in still over it, fading');
       expect(find.byKey(const ValueKey('note-banner-lovart-a.png')), findsOneWidget, reason: 'the picture under it');
       final fading = tester.widget<FadeTransition>(find.byKey(const ValueKey('note-banner-landing'))).opacity.value;
       expect(fading, inExclusiveRange(0, 1));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.byType(BannerShimmer), findsNothing);
+      expect(find.byType(LovartPending), findsNothing);
       expect(find.byKey(const ValueKey('note-banner-lovart-a.png')), findsOneWidget);
     });
 
-    stillTest('under reduced motion the band is still and the picture comes at once', (tester) async {
+    stillTest('under reduced motion the ring is still and the picture comes at once', (tester) async {
       reducedMotion(tester);
       final store = MemoryPictureStore({'lovart-a.png': (await tester.runAsync(png))!});
       final making = ValueNotifier<bool>(true);
@@ -136,21 +138,12 @@ void main() {
           child: ValueListenableBuilder<bool>(valueListenable: making, builder: (context, on, _) => NoteBannerView(name: on ? null : 'lovart-a.png', store: store, making: on)),
         ),
       );
-      expect(tester.state<BannerShimmerState>(find.byType(BannerShimmer)).moving, isFalse);
-      final painter = tester.widget<CustomPaint>(find.descendant(of: find.byType(BannerShimmer), matching: find.byType(CustomPaint))).painter! as BannerShimmerPainter;
-      expect(painter.beat, isNull, reason: 'drawn still: the sheen in the middle, the stroke whole');
+      expect(find.byKey(const ValueKey('lovart-working')), findsOneWidget);
       expect(tester.binding.hasScheduledFrame, isFalse, reason: 'nothing asks for a frame');
       making.value = false;
       await tester.pump();
-      expect(find.byType(BannerShimmer), findsNothing);
+      expect(find.byType(LovartPending), findsNothing);
       expect(find.byKey(const ValueKey('note-banner-landing')), findsNothing);
-    });
-
-    stillTest('Calm draws the band in ink', (tester) async {
-      await pumpApp(tester, size: phone.size, prefs: const AppPreferences(theme: 'dark', calm: true), home: const Align(alignment: Alignment.topCenter, child: NoteBannerView(name: null, store: null, making: true)));
-      final t = tokensAt(tester, find.byType(BannerShimmer));
-      final painter = tester.widget<CustomPaint>(find.descendant(of: find.byType(BannerShimmer), matching: find.byType(CustomPaint))).painter! as BannerShimmerPainter;
-      expect(painter.from, t.color('app-ink'));
     });
   });
 

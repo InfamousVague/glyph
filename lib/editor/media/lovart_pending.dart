@@ -5,7 +5,10 @@
 /// picture is: three soft fields of colour, blurred together over a wash of the first, the colours picked from the
 /// prompt's words among the cassettes' hues (lib/tapes/tape_art.dart [tapeHues]) so one cue keeps its look while it
 /// waits; in the middle, Lovart's mark on a dark round with a ring turning round it. Still under reduced motion, the
-/// ring a quarter drawn. Nothing of it is in the note: when the picture lands, the picture takes its place.
+/// ring a quarter drawn. Nothing of it is in the note: when the picture lands, the picture takes its place. A header
+/// image being made wears it too, at the banner's shape (Matt, 2026-11-02: "bring back the blurry image with the lovart
+/// logo with the spinner when generating images and header images"; the activity band had stood in for it since
+/// 2026-10-29).
 library;
 
 import 'dart:math' as math;
@@ -35,10 +38,13 @@ int _hash(String words) {
 
 /// The stand-in for the picture [prompt] will make, [width] wide at most.
 class LovartPending extends StatelessWidget {
-  const LovartPending({super.key, required this.prompt, this.maxHeight = 360});
+  const LovartPending({super.key, required this.prompt, this.maxHeight = 360, this.height});
 
   final String prompt;
   final double maxHeight;
+
+  /// A height of its own, where the stand-in takes a shape it is given: a header image's (lib/note/note_banner.dart).
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +58,7 @@ class LovartPending extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final width = box.maxWidth.isFinite ? box.maxWidth : 320.0;
-          final height = math.min(width / lovartPendingAspect, maxHeight);
+          final height = this.height ?? math.min(width / lovartPendingAspect, maxHeight);
           return ClipRRect(
             key: const ValueKey<String>('lovart-pending'),
             borderRadius: BorderRadius.circular(radius),
