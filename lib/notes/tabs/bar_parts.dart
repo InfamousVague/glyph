@@ -139,10 +139,11 @@ Color glassTint(Tokens t) => t.colorOf(ghostPlain ? plainGlass : glassRecipe);
 /// The glass's tint as the stylesheet says it.
 const String glassRecipe = 'color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)';
 
-/// [glass] made the header's: `--app-header-shade` of black laid over it (app.css; Matt, 2026-11-01: "make the header
-/// 50% darker glass"), half in the dark and a step on paper. Mixed rather than laid on, it is one colour, and the
-/// same one, since both are drawn premultiplied.
-String headerGlass(String glass) => 'color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), $glass)';
+/// [glass] made the header's: `--app-header-shade` of `--app-header-tint` laid over it (app.css): black at half in the
+/// dark (Matt, 2026-11-01: "make the header 50% darker glass"), white at 40% on paper, frosted white glass (2026-11-02:
+/// "In light mode also the header is gray when it should be frosted white glass"). Mixed rather than laid on, it is
+/// one colour, and the same one, since both are drawn premultiplied.
+String headerGlass(String glass) => 'color-mix(in srgb, var(--app-header-tint) var(--app-header-shade), $glass)';
 
 /// The header's glass: the pane, the tab bar across a split window, the Islands' capsules. A plain build's is its own
 /// pane's tint (lib/app/plain.dart) darkened the same.

@@ -468,7 +468,7 @@ body {
    * but the tabs and such are fully opaque"): the same mix and blur as the screen's own header pane, so the cards
    * scrolled under the bar show through it as they do under the title strip above it, which is the pane alone.
    */
-  background: color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent));
+  background: color-mix(in srgb, var(--app-header-tint) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent));
   -webkit-backdrop-filter: var(--app-glass-blur);
   backdrop-filter: var(--app-glass-blur);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
@@ -666,11 +666,13 @@ body:has(.app-headerPane) .app-statusScrim {
  * support glass"): `--app-header-shade` of black laid over the glass, so the pane, the tab bar across a split window
  * and the Islands' capsules let half the light through that the glass did, in the dark - the tint at half its
  * lightness and what runs under it at half its brightness, the blur as it was. Mixed rather than laid on, it is one
- * colour: `color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), <the glass>)` is the glass under that share of
+ * colour: `color-mix(in srgb, var(--app-header-tint) var(--app-header-shade), <the glass>)` is the glass under that share of
  * black, both being drawn premultiplied.
  *
- * On paper half would turn a white header mid-grey, mud rather than glass; there the step is 8%, a frosted grey a
- * shade under the page, which reads as darker glass and keeps the page's white the brightest thing on the screen.
+ * On paper it is white that is laid over the glass, not black (Matt, 2026-11-02: "In light mode also the header is
+ * gray when it should be frosted white glass"): 8% of black read as a grey bar. `--app-header-tint` is white there at
+ * 40%, so the header is frosted white glass, brighter than the glass alone and what runs under it softened to a haze,
+ * and black at half in the dark as before.
  *
  * Every control on the header is the one glass of its own (`--app-control-glass`): the page's ink at that share over
  * the header's glass, with the hairline the pills have always worn, a step more (`--app-control-glass-lit`) under a
@@ -678,17 +680,20 @@ body:has(.app-headerPane) .app-statusScrim {
  * blurs again for itself. An "on" control (ink, its glyph in paper) is a state, not a surface, and stays solid.
  */
 :root {
-  --app-header-shade: 8%;
+  --app-header-tint: oklch(1 0 0);
+  --app-header-shade: 40%;
   --app-control-glass: 6%;
   --app-control-glass-lit: 11%;
 }
 
 [data-theme='dark'] {
+  --app-header-tint: oklch(0 0 0);
   --app-header-shade: 50%;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    --app-header-tint: oklch(0 0 0);
     --app-header-shade: 50%;
   }
 }
@@ -698,7 +703,7 @@ body:has(.app-headerPane) .app-statusScrim {
   inset-inline: 0;
   inset-block-start: 0;
   z-index: 3;
-  background: color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent));
+  background: color-mix(in srgb, var(--app-header-tint) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent));
   -webkit-backdrop-filter: var(--app-glass-blur);
   backdrop-filter: var(--app-glass-blur);
 }
@@ -712,7 +717,7 @@ body:has(.app-headerPane) .app-statusScrim {
   background: linear-gradient(
     to bottom,
     transparent var(--app-safe-top),
-    color-mix(in srgb, oklch(0 0 0) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)) var(--app-safe-top)
+    color-mix(in srgb, var(--app-header-tint) var(--app-header-shade), color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)) var(--app-safe-top)
   );
 }
 
