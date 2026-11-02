@@ -33,13 +33,15 @@ import '../core/note_folders.dart' show folderFor;
 import '../core/preferences.dart' show preferences;
 import '../core/show_in_files.dart';
 import '../core/workspaces.dart';
+import '../plugins/cleanup/manifest.dart' show cleanupManifest;
+import '../plugins/registry.dart' show pluginOn;
 import '../shell/pop_menu.dart';
 import 'folder_drag.dart';
 import 'note_menu.dart' show byMouse, showInFilesRows;
 
 /// What a folder's menu does, from the root: its sheet to rename it, or at Delete.
 class FolderMenuScope extends InheritedWidget {
-  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, this.show, this.onKeepIndex, required super.child});
+  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, this.show, this.onKeepIndex, this.onCleanup, required super.child});
 
   final WorkspaceStore store;
   final ValueChanged<Workspace> onRename;
@@ -69,10 +71,14 @@ class FolderMenuScope extends InheritedWidget {
   /// the AI keeps an index note"). Absent, no row.
   final ValueChanged<Workspace>? onKeepIndex;
 
+  /// Clean up with AI…: the Cleanup plugin's page at the folder (lib/plugins/cleanup; Matt, 2026-11-02). A row only
+  /// while the plugin is on ([folderCleanupRows]).
+  final ValueChanged<Workspace>? onCleanup;
+
   static FolderMenuScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<FolderMenuScope>();
 
   @override
-  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu || old.show != show || old.onKeepIndex != onKeepIndex;
+  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu || old.show != show || old.onKeepIndex != onKeepIndex || old.onCleanup != onCleanup;
 }
 
 /// The right-click a folder's tile, chip or row answers: its menu at the pointer, a mouse's other button only. An
@@ -145,6 +151,8 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
           // behind its More.
           if (scope.onSetTemplate != null && !preferences.value.simple) GlacierMenuItem(key: const ValueKey('folder-menu-template'), icon: icon(Lucide.copyPlus), onSelect: () => scope.onSetTemplate!(folder), child: const Text('Set template…')),
           if (scope.onKeepIndex != null) GlacierMenuItem(key: const ValueKey('folder-menu-index'), icon: icon(Lucide.listTree), onSelect: () => scope.onKeepIndex!(folder), child: const Text('Keep an index…')),
+          // Clean up with AI… before Move to, whose rows are places (lib/plugins/cleanup; 2026-11-02).
+          ...folderCleanupRows(scope, folder, icon: icon(Lucide.brushCleaning)),
           if (context.mounted) ...folderMoveRows(context, store, FolderCarry.folder(folder.id, folder.name)),
           ...folderShowRows(scope.show, folder, store.value.list, icon: icon(Lucide.hardDrive)),
           const GlacierMenuSeparator(),
@@ -160,3 +168,12 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
 /// `folderFor`, [all] for its parents'), where it is on the disk.
 List<Widget> folderShowRows(ShowInFiles? show, Workspace folder, List<Workspace> all, {required Widget icon}) =>
     showInFilesRows(show, folderFor(folder, all), key: const ValueKey('folder-menu-show'), icon: icon, directory: true);
+
+/// Clean up with AI… for [folder], where the scope can open Cleanup's page and the plugin is on (docs/CLEANUP.md; Matt,
+/// 2026-11-02: "spawn a task making a 'cleanup' plugin that allows us to use whatever AI we choose that's connected to
+/// clean up and sort the notes in a given folder"). Simple mode has it too: the plugin is added only by someone who
+/// wants it.
+List<Widget> folderCleanupRows(FolderMenuScope? scope, Workspace folder, {required Widget icon}) => [
+      if (scope?.onCleanup != null && pluginOn(cleanupManifest))
+        GlacierMenuItem(key: const ValueKey('folder-menu-cleanup'), icon: icon, onSelect: () => scope!.onCleanup!(folder), child: const Text('Clean up with AI…')),
+    ];

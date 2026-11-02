@@ -39,6 +39,8 @@ extension _RootParts on _GhostRootState {
     show: _showInFiles,
     // Keep an index… (docs/AI_INDEXES.md, root_indexes.dart).
     onKeepIndex: _keepIndex,
+    // Clean up with AI… (lib/plugins/cleanup, 2026-11-02): Cleanup's page at the folder, while the plugin is on.
+    onCleanup: _cleanUp,
     child: Stack(
       fit: StackFit.expand,
       children: [

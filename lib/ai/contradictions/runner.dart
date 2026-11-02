@@ -7,7 +7,7 @@
 /// the files as each request ends, so a Stop or a closed app loses nothing found.
 ///
 /// **Never two scopes in one prompt**: the pairs are grouped by their scope (personal notes, or one organization's)
-/// before they are cut into requests, and an organization's notes are only read at all with Organization notes on.
+/// before they are cut into requests, and an organization's notes are only read at all with Organization notes on (the default).
 ///
 /// **On its own** only once the person has run it by hand ([ContradictionSettings.ranOnce]), which is where a big run's
 /// cost is asked (lib/plugins/contradictions/contradictions_pane.dart). Then: When a note is saved, two minutes after
@@ -55,7 +55,7 @@ enum ContradictionSchedule {
 /// The person's settings for the finder, this device's.
 @immutable
 class ContradictionSettings {
-  const ContradictionSettings({this.schedule = ContradictionSchedule.nightly, this.threshold = defaultThreshold, this.byFolder = false, this.orgs = false, this.ranOnce = false, this.lastRun});
+  const ContradictionSettings({this.schedule = ContradictionSchedule.nightly, this.threshold = defaultThreshold, this.byFolder = false, this.orgs = true, this.ranOnce = false, this.lastRun});
 
   final ContradictionSchedule schedule;
 
@@ -65,7 +65,8 @@ class ContradictionSettings {
   /// "Within each folder only": personal notes compared within their top folder.
   final bool byFolder;
 
-  /// "Organization notes": each organization's notes compared with its own. Off until turned on.
+  /// "Organization notes": each organization's notes compared with its own, never with the person's. On unless turned
+  /// off (Matt, 2026-11-02, asked whether they should be: "Turn them on").
   final bool orgs;
 
   /// Run by hand once: what lets it run on its own.
@@ -90,7 +91,7 @@ class ContradictionSettings {
       schedule: ContradictionSchedule.values.where((s) => s.name == json['schedule']).firstOrNull ?? ContradictionSchedule.nightly,
       threshold: threshold is num && threshold >= 0.5 && threshold <= 1 ? threshold.toDouble() : defaultThreshold,
       byFolder: json['byFolder'] == true,
-      orgs: json['orgs'] == true,
+      orgs: json['orgs'] != false,
       ranOnce: json['ranOnce'] == true,
       lastRun: DateTime.tryParse('${json['lastRun']}'),
     );

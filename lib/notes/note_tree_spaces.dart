@@ -484,6 +484,9 @@ extension _SpacesTree on _NoteTreeState {
           GlacierMenuItem(key: const ValueKey('page-menu-add'), icon: icon(Lucide.filePlus), onSelect: () => unawaited(_newPage(tree, space, node)), child: const Text('Add a page inside')),
         if (folder != null && folder.org == null)
           GlacierMenuItem(icon: icon(Lucide.folderOpen), onSelect: () => _set(() => _manage = _Manage(folder)), child: Text('${folder.name}, folder settings…')),
+        // Clean up with AI… for a folder's page, an organization's own workspace's too, before Move to's places
+        // (lib/plugins/cleanup).
+        if (folder != null) ...folderCleanupRows(FolderMenuScope.maybeOf(context), folder, icon: icon(Lucide.brushCleaning)),
         ...folderMoveRows(context, widget.workspaces, FolderCarry.note(note.id, said)),
         // Show in Finder (Explorer, Files) for the page's file (Matt, 2026-11-01: "also add an 'open in finder'
         // option"), else a folder's page's directory; nothing on a phone (lib/core/show_in_files.dart).
