@@ -45,7 +45,7 @@ import 'making.dart' show lovartPictureEnded, lovartPictureJob;
 import 'manifest.dart';
 
 /// How many of a note's opening characters tell Lovart what it is about, past its title.
-const int bannerChars = 900;
+const int bannerChars = 1500;
 
 /// The fewest words a note has before it is given a banner by itself: a grocery list of two things is not yet one.
 const int bannerMinWords = 25;
@@ -53,15 +53,40 @@ const int bannerMinWords = 25;
 /// How many notes are remembered as given one: the newest.
 const int _doneKept = 2000;
 
-/// The house's banner, the ghost's dotwork, with [subject] where the scene goes.
-String bannerStyle(String subject) => [
-  'A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Keep everything drawn inside the middle band of the picture, away from its top and bottom edges, with plain white above and below, so the banner can be cropped wider without cutting anything off.',
-  'A stipple dotwork illustration in full colour on pure white: form, folds and shadow built entirely from dots of rich, natural colour, dense in the shadows and sparse in the light, with a fine clean outline. The colours are true to the things drawn, warm and clear. Precise, patient and quietly elegant, like a hand-coloured fine-art print or a careful naturalist\'s plate.',
-  'In it is the mascot of Ghost.md: a ghost made from a single sheet of fine writing paper. The sheet falls from a softly rounded top with one small corner folded down like a dog-eared page, a little taller than it is wide and as wide at the bottom as at the top, and ends in a hem cut in three soft waves that never touches the ground and never narrows to a tail. The sheet is plain, with no lines or writing on it. There is nothing inside the sheet: no body, no legs, no feet. Two small, simple eyes, each a solid black oval of dots, set wide and a little low, with no eyelids, iris, pupils, highlights or lashes. No mouth, and two short arms that are only a lift in the cloth. A single thin curl of smoke rises from the top of its head. The sheet bends, billows and folds with every movement; it never stands on the ground, and its small shadow of dots is below it. Calm and quietly warm, with the poise of a grown-up; not cute, not spooky.',
-  'The ghost is small in the frame, in the right two-thirds, doing what this note is about: $subject The left third is empty white.',
-  'Full colour, every tone made of dots: no flat fills, no smooth gradients. The ghost\'s sheet stays white paper and its eyes black. No text, no letters, no words, no watermark, no border.',
-  'Make one image.',
-].join('\n\n');
+/// Where the note goes in a header image's prompt: [bannerStyle]'s, and a person's own ([bannerPromptKey]).
+const String bannerNoteSlot = '{note}';
+
+/// The house's banner in dotwork, with [bannerNoteSlot] where the note's scene goes (the default of "Header image
+/// prompt" on the plugin's page). No ghost in it since 2026-11-02 (Matt: "don't show the ghost itself in all the generated
+/// images"): the mascot was described in every banner, word for word, and was in every one; now the things the note is
+/// about tell it, looked up first so they are drawn as they really are (Matt, the same day: "have it do more research
+/// online for the note and looking up what assets to include"). Lovart's design agent does the looking up: only the
+/// words below and the note's go to Lovart, as before.
+const String bannerStyleDefault = '''A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Keep everything drawn inside the middle band of the picture, away from its top and bottom edges, with plain white above and below, so the banner can be cropped wider without cutting anything off.
+
+A stipple dotwork illustration in full colour on pure white: form, folds and shadow built entirely from dots of rich, natural colour, dense in the shadows and sparse in the light, with a fine clean outline. The colours are true to the things drawn, warm and clear. Precise, patient and quietly elegant, like a hand-coloured fine-art print or a careful naturalist's plate.
+
+Research before you draw. Search online for what the note is about: the real places, buildings, products, tools, organisations, foods, plants, animals or events it names, and what each really looks like (its shape, colours, materials, landmarks, packaging). Then choose the assets to include: three to six concrete objects, places or details that best stand for this note, each drawn true to the real thing. Prefer the specific over the generic: the actual landmark, the actual dish, the actual kind of device.
+
+The scene: {note} Arrange it in the right two-thirds of the frame. The left third is empty white.
+
+Full colour, every tone made of dots: no flat fills, no smooth gradients. No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
+
+Make one image.''';
+
+/// [template] with the note's [subject] where [bannerNoteSlot] is, or after it where the template has no slot; and
+/// [extra], the words "Added to every image" holds, before its last line.
+String bannerStyle(String subject, {String? template, String? extra}) {
+  final words = (template == null || template.trim().isEmpty) ? bannerStyleDefault : template.trim();
+  final filled = words.contains(bannerNoteSlot) ? words.replaceAll(bannerNoteSlot, subject) : '$words\n\nThe scene: $subject';
+  return withLovartExtra(filled, extra);
+}
+
+/// [prompt] with [extra] added: the person's words for every image Lovart makes ([lovartExtraKey]).
+String withLovartExtra(String prompt, String? extra) {
+  final more = extra?.trim() ?? '';
+  return more.isEmpty ? prompt : '$prompt\n\n$more';
+}
 
 String _opening(String body) {
   var words = body.substring(frontMatterOffset(body)).replaceAll(RegExp(r'!\[[^\]]*\]\([^)]*\)'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -69,16 +94,54 @@ String _opening(String body) {
   return words;
 }
 
-/// The prompt for [body]'s banner: the house style, with the note as the subject for Lovart to pick one scene from.
-String bannerPrompt(String body) {
+/// The note's own headings below its title, for what to look up: "Flights, Where we stay, Food".
+List<String> _sections(String body) => [
+  for (final line in body.substring(frontMatterOffset(body)).split('\n'))
+    if (RegExp(r'^#{2,3}\s+\S').hasMatch(line)) line.replaceFirst(RegExp(r'^#+\s+'), '').trim(),
+].take(12).toList();
+
+/// The prompt for [body]'s banner: the house style or the person's own ([template]), with the note as the subject
+/// for Lovart to research and pick one scene from, and [extra] on the end.
+String bannerPrompt(String body, {String? template, String? extra}) {
   final title = noteTitle(body);
   final opening = _opening(body);
+  final sections = _sections(body);
   final subject = [
-    'pick one simple, concrete scene from the note below and show the ghost in it, with a few objects from it drawn with care.',
+    'pick one simple, concrete scene from the note below, with the assets you found drawn with care.',
     if (title.isNotEmpty) 'The note is titled “$title”.',
+    if (sections.isNotEmpty) 'Its sections: ${sections.join('; ')}.',
     if (opening.isNotEmpty) 'It reads: $opening',
   ].join(' ');
-  return bannerStyle(subject);
+  return bannerStyle(subject, template: template, extra: extra);
+}
+
+/// The person's own header image prompt, or null for the house's ([bannerStyleDefault]).
+String? bannerTemplate([PluginHost? via]) {
+  final Object? kept = (via ?? host).storage.get<Object?>(bannerPromptKey, null);
+  return kept is String && kept.trim().isNotEmpty ? kept : null;
+}
+
+/// Keeps it; empty, or the house's own words, is the house's again.
+void setBannerTemplate(String? words, [PluginHost? via]) {
+  final on = via ?? host;
+  final trimmed = words?.trim() ?? '';
+  if (trimmed.isEmpty || trimmed == bannerStyleDefault.trim()) {
+    on.storage.remove(bannerPromptKey);
+  } else {
+    on.storage.set(bannerPromptKey, trimmed);
+  }
+}
+
+/// The words added to every image Lovart makes from this app: a header image, an {image: …} and inspiration.
+String? lovartExtra([PluginHost? via]) {
+  final Object? kept = (via ?? host).storage.get<Object?>(lovartExtraKey, null);
+  return kept is String && kept.trim().isNotEmpty ? kept : null;
+}
+
+void setLovartExtra(String? words, [PluginHost? via]) {
+  final on = via ?? host;
+  final trimmed = words?.trim() ?? '';
+  trimmed.isEmpty ? on.storage.remove(lovartExtraKey) : on.storage.set(lovartExtraKey, trimmed);
 }
 
 /// The notes being given a banner now, by id: their banner's place draws Lovart at work while one is here.
@@ -240,7 +303,7 @@ class LovartBanners {
     try {
       final List<Uint8List> images;
       try {
-        images = await lovart.generate(bannerPrompt(note.body));
+        images = await lovart.generate(bannerPrompt(note.body, template: bannerTemplate(), extra: lovartExtra()));
       } on LovartFailure catch (failure) {
         refused?.call(failure);
         if (rethrowStopping && failure is! LovartRefused) {
@@ -339,7 +402,7 @@ Future<void> makeBanner(NoteEditing editing) async {
   var made = 0;
   String? failed;
   try {
-    final names = await keepLovartImages((await lovart.generate(bannerPrompt(editing.body()))).take(1).toList());
+    final names = await keepLovartImages((await lovart.generate(bannerPrompt(editing.body(), template: bannerTemplate(), extra: lovartExtra()))).take(1).toList());
     if (names.isEmpty) return;
     final edit = bannerEdit(editing.body(), names.first);
     editing.replaceLine((text, line) => line == edit.line, edit.next);

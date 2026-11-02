@@ -28,6 +28,8 @@ String inspirationPrompt(String body) {
   if (about.length > inspirationChars) about = '${about.substring(0, inspirationChars).trimRight()}…';
   return [
     'Make a moodboard of $inspirationCount inspiration images for the ideas in this note${title.isEmpty ? '' : ', “$title”'}.',
+    // Looked up first (Matt, 2026-11-02: "have it do more research online for the note and looking up what assets to include").
+    'First search online for what the note names (products, brands, places, references, styles) and gather real visual references and assets to draw on.',
     'Make $inspirationCount separate images, one image each, each a different visual direction: style, colour palette, composition. No words or lettering in the images.',
     '',
     'The note:',

@@ -96,7 +96,7 @@ Future<bool> makeCue(NoteEditing editing, ImageCue cue) async {
   var made = 0;
   String? failed;
   try {
-    final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
+    final names = await keepLovartImages(await lovart.generate(withLovartExtra(cuePrompt(cue.prompt), lovartExtra())));
     if (names.isEmpty) return false;
     final written = placeCue(editing, cue, names);
     if (!written) editing.say('The image was made, but its {image: …} was gone from the note.');
@@ -133,7 +133,7 @@ Future<void> makeAllCues(NoteEditing editing) async {
       final key = makingKey(editing.noteId, cue.text);
       markMaking(key, true);
       try {
-        final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
+        final names = await keepLovartImages(await lovart.generate(withLovartExtra(cuePrompt(cue.prompt), lovartExtra())));
         if (names.isNotEmpty && placeCue(editing, cue, names)) made += 1;
       } on LovartRefused catch (failure) {
         editing.say(failure.message);
@@ -166,7 +166,7 @@ Future<void> makeInspiration(NoteEditing editing) async {
   var made = 0;
   String? failed;
   try {
-    final names = await keepLovartImages(await lovart.generate(inspirationPrompt(editing.body())));
+    final names = await keepLovartImages(await lovart.generate(withLovartExtra(inspirationPrompt(editing.body()), lovartExtra())));
     if (names.isEmpty) return;
     final at = inspirationInsert(editing.body(), names);
     editing.replaceLine((text, line) => line == at.line, (text) => '$text${at.add}');

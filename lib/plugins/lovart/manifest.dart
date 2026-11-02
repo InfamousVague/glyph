@@ -36,6 +36,12 @@ const String bannersDoneKey = 'glyph-lovart-banners-done';
 /// were made, so a run the app was closed under goes on at the next launch.
 const String bannerRunKey = 'glyph-lovart-banner-run';
 
+/// The person's own header image prompt (banners.dart `bannerTemplate`), where they changed the house's.
+const String bannerPromptKey = 'glyph-lovart-banner-prompt';
+
+/// Words added to every image this app asks Lovart for (banners.dart `lovartExtra`).
+const String lovartExtraKey = 'glyph-lovart-extra';
+
 const PluginManifest manifest = PluginManifest(
   id: 'lovart',
   name: 'Lovart',
@@ -57,7 +63,7 @@ const PluginManifest manifest = PluginManifest(
     PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there.'),
   ],
   hosts: ['lovart.ai'],
-  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannerRunKey],
+  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannerRunKey, bannerPromptKey, lovartExtraKey],
   secrets: [accessKeySecret, secretKeySecret],
 );
 

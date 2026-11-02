@@ -12,12 +12,14 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../activity/activity_cost.dart' show askJobCost;
 import '../../claude/claude_settings.dart' show maskKey;
 import '../../settings/kit/settings_kit.dart';
+import '../../settings/kit/settings_type.dart' show pageText;
 import '../../settings/panes/pane_parts.dart' show armedFor;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../github/plain_field.dart';
@@ -28,7 +30,7 @@ import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
 import 'banner_run.dart' show BannerRun, bannerCandidates, bannerRunEstimate, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
-import 'banners.dart' show bannersOn, setBanners;
+import 'banners.dart' show bannerNoteSlot, bannerStyleDefault, bannerTemplate, bannersOn, lovartExtra, setBannerTemplate, setBanners, setLovartExtra;
 import 'lovart_queue.dart';
 import 'lovart_setup.dart';
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
@@ -36,7 +38,9 @@ import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 /// What Settings' search finds on the page.
 const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Lovart keys', 'access key secret key ak sk lovart api credits'),
-  SettingsFindable('Header images for notes', 'banner header cover image ghost dotwork automatic'),
+  SettingsFindable('Header images for notes', 'banner header cover image dotwork automatic'),
+  SettingsFindable('Header image prompt', 'prompt style words banner header research assets edit change reset'),
+  SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
 ];
@@ -69,6 +73,12 @@ class LovartPane extends StatefulWidget {
 class _LovartPaneState extends State<LovartPane> {
   final TextEditingController _access = TextEditingController();
   final TextEditingController _secret = TextEditingController();
+
+  /// "Header image prompt" and "Added to every image" (Matt, 2026-11-02: "allow a setting in the lovart plugin to
+  /// modify the prompt"): the house's words to start from, kept with Keep, and Reset back to the house's.
+  late final TextEditingController _prompt = TextEditingController(text: bannerTemplate() ?? bannerStyleDefault);
+  late final TextEditingController _extra = TextEditingController(text: lovartExtra() ?? '');
+  String? _promptSaid;
   late final VoidCallback _stop;
   bool _checking = false;
   String? _problem;
@@ -99,6 +109,8 @@ class _LovartPaneState extends State<LovartPane> {
     super.initState();
     _access.addListener(_redraw);
     _secret.addListener(_redraw);
+    _prompt.addListener(_redraw);
+    _extra.addListener(_redraw);
     _stop = onPluginStorage(_redraw);
     unawaited(host.secrets.warm());
   }
@@ -108,12 +120,31 @@ class _LovartPaneState extends State<LovartPane> {
     _stop();
     _access.dispose();
     _secret.dispose();
+    _prompt.dispose();
+    _extra.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
   void _redraw() {
     if (mounted) setState(() {});
+  }
+
+  /// Whether the fields say something other than what is kept.
+  bool get _promptChanged => _prompt.text.trim() != (bannerTemplate() ?? bannerStyleDefault).trim() || _extra.text.trim() != (lovartExtra() ?? '').trim();
+
+  void _keepPrompt() {
+    setBannerTemplate(_prompt.text);
+    setLovartExtra(_extra.text);
+    setState(() => _promptSaid = _prompt.text.contains(bannerNoteSlot) || _prompt.text.trim().isEmpty
+        ? 'Kept. The next images are asked with these words.'
+        : 'Kept. There is no $bannerNoteSlot in it, so the note goes at its end.');
+  }
+
+  void _resetPrompt() {
+    setBannerTemplate(null);
+    _prompt.text = bannerStyleDefault;
+    setState(() => _promptSaid = 'Back to Ghost.md’s own words.');
   }
 
   Future<void> _keep() async {
@@ -243,7 +274,7 @@ class _LovartPaneState extends State<LovartPane> {
             SettingRow(
               key: const ValueKey('lovart-banners'),
               label: 'Header images for notes',
-              hint: const Text('When you leave a note, Lovart draws a banner for its top in the ghost’s dotwork, from its title and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
+              hint: const Text('When you leave a note, Lovart looks up what it is about and draws a banner for its top in dotwork, from its title, sections and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
               control: GlacierSwitch(ariaLabel: 'Header images for notes', checked: bannersOn(), onCheckedChange: setBanners),
             ),
             if (lovartBannerJob != null)
@@ -279,6 +310,39 @@ class _LovartPaneState extends State<LovartPane> {
               ),
           ],
         ),
+        PaneSection(
+          title: 'Prompt',
+          description: const Text('What Lovart is asked. The header image prompt has $bannerNoteSlot where the note goes: its title, sections and opening, for Lovart to look up and draw.'),
+          children: [
+            SettingRow(
+              key: const ValueKey('lovart-prompt'),
+              label: 'Header image prompt',
+              layout: SettingRowLayout.stacked,
+              control: _PromptField(key: const ValueKey('lovart-prompt-field'), label: 'Header image prompt', controller: _prompt, placeholder: bannerStyleDefault, lines: 8),
+            ),
+            SettingRow(
+              key: const ValueKey('lovart-extra'),
+              label: 'Added to every image',
+              hint: const Text('Words put at the end of every image asked for: header images, {image: …} and inspiration. “Muted autumn colours”, “no people”.'),
+              layout: SettingRowLayout.stacked,
+              control: _PromptField(key: const ValueKey('lovart-extra-field'), label: 'Added to every image', controller: _extra, placeholder: 'Nothing added', lines: 2),
+            ),
+            SettingRow(
+              key: const ValueKey('lovart-prompt-actions'),
+              label: _promptSaid ?? (_promptChanged ? 'Not kept yet' : (bannerTemplate() == null ? 'Ghost.md’s own words' : 'Your own words')),
+              layout: SettingRowLayout.stacked,
+              control: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: context.tokens.space(2),
+                runSpacing: context.tokens.space(2),
+                children: [
+                  RowAction(onPress: _resetPrompt, disabled: bannerTemplate() == null && _prompt.text.trim() == bannerStyleDefault.trim(), child: const Text('Reset')),
+                  RowAction(onPress: _keepPrompt, disabled: !_promptChanged, child: const Text('Keep')),
+                ],
+              ),
+            ),
+          ],
+        ),
         // What is being made now and what waits, on this device (lovart_queue.dart).
         const LovartQueueSection(),
         PaneSection(
@@ -292,8 +356,95 @@ class _LovartPaneState extends State<LovartPane> {
             ),
           ],
         ),
-        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, or a note’s title and opening for its header image go to Lovart. Write {image: a prompt} anywhere in a note to make a picture there.')),
+        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, or a note’s title, sections and opening for its header image go to Lovart, with your prompt’s words. Lovart’s agent may search the web for what they name. Write {image: a prompt} anywhere in a note to make a picture there.')),
       ],
+    );
+  }
+}
+
+
+/// A prompt's words: a field of several lines that grows with them, Enter a new line, nothing corrected, since what
+/// is typed is sent to Lovart as it is (the snippets page's field, lib/settings/panes/snippets_pane.dart).
+class _PromptField extends StatefulWidget {
+  const _PromptField({super.key, required this.label, required this.controller, required this.placeholder, this.lines = 3});
+
+  final String label;
+  final TextEditingController controller;
+  final String placeholder;
+  final int lines;
+
+  @override
+  State<_PromptField> createState() => _PromptFieldState();
+}
+
+class _PromptFieldState extends State<_PromptField> {
+  final FocusNode _focus = FocusNode(debugLabel: 'lovart prompt');
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    _focus
+      ..removeListener(_changed)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ink = t.color('app-ink');
+    final quiet = t.color('app-ink-3');
+    final style = pageText(t, t.fontSize('sm'), color: ink);
+    return GlacierFocusRing(
+      visible: _focus.hasFocus,
+      offset: 1,
+      radius: t.radius('md'),
+      color: t.color('glacier-accent-solid'),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _focus.requestFocus,
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: ink.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(t.radius('md'))),
+          child: Padding(
+            padding: EdgeInsets.all(t.space(3)),
+            child: Stack(
+              children: [
+                if (widget.controller.text.isEmpty) ExcludeSemantics(child: Text(widget.placeholder, style: style.copyWith(color: quiet), maxLines: widget.lines, overflow: TextOverflow.ellipsis)),
+                Semantics(
+                  label: widget.label,
+                  textField: true,
+                  child: EditableText(
+                    controller: widget.controller,
+                    focusNode: _focus,
+                    style: style,
+                    cursorColor: ink,
+                    cursorWidth: 1,
+                    backgroundCursorColor: quiet,
+                    selectionColor: t.color('glacier-selection'),
+                    minLines: widget.lines,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    textCapitalization: TextCapitalization.sentences,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    smartDashesType: SmartDashesType.disabled,
+                    smartQuotesType: SmartQuotesType.disabled,
+                    keyboardAppearance: t.isDark ? Brightness.dark : Brightness.light,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

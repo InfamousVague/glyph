@@ -109,19 +109,42 @@ void main() {
   });
 
   group('the prompt', () {
-    test('is the ghost\'s dotwork, with the note\'s title and opening as the subject', () {
+    test('is the house\'s dotwork, with the note\'s title and opening as the subject', () {
       final prompt = bannerPrompt('---\nlocation: 1,2\n---\n# New Orleans weekend\n\n$_words\n\n![](image/x.png)');
       expect(prompt, startsWith('A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square'));
       expect(prompt, contains('A stipple dotwork illustration in full colour on pure white'));
       expect(prompt, isNot(contains('no colour')), reason: 'full colour since 2026-10-26');
-      expect(prompt, contains('one small corner folded down like a dog-eared page'));
-      expect(prompt, contains('A single thin curl of smoke rises from the top of its head.'));
+      // No ghost in it since 2026-11-02, and the things it names looked up first.
+      expect(prompt, isNot(contains('dog-eared')));
+      expect(prompt, isNot(contains('mascot of Ghost.md')));
+      expect(prompt, contains('No ghost, no mascot'));
+      expect(prompt, contains('Search online for what the note is about'));
+      expect(prompt, contains('choose the assets to include'));
       expect(prompt, contains('The note is titled “New Orleans weekend”.'));
       expect(prompt, contains('We drove down on Friday'));
       expect(prompt, contains('The left third is empty white.'));
       expect(prompt, isNot(contains('location: 1,2')));
       expect(prompt, isNot(contains('image/x.png')));
       expect(prompt, endsWith('Make one image.'));
+    });
+
+    test('names the note\'s sections, for what to look up', () {
+      final prompt = bannerPrompt('# Tokyo trip\n\n## Flights\n\nWords.\n\n### Where we stay\n\nMore words.');
+      expect(prompt, contains('Its sections: Flights; Where we stay.'));
+    });
+
+    test('is the person\'s own where they changed it, the note where {note} is, and their extra words on the end', () {
+      final own = bannerPrompt('# Tokyo trip\n\nWords.', template: 'Watercolour, wide. Show: {note} Nothing else.');
+      expect(own, startsWith('Watercolour, wide. Show: pick one simple, concrete scene'));
+      expect(own, contains('The note is titled “Tokyo trip”.'));
+      expect(own, endsWith('Nothing else.'));
+      // No slot: the note goes at the end.
+      expect(bannerPrompt('# Tokyo trip', template: 'Watercolour.'), startsWith('Watercolour.\n\nThe scene: pick one'));
+      // Empty is the house's.
+      expect(bannerPrompt('# Tokyo trip', template: '  '), bannerPrompt('# Tokyo trip'));
+      expect(bannerPrompt('# Tokyo trip', extra: 'Muted autumn colours.'), endsWith('Make one image.\n\nMuted autumn colours.'));
+      expect(withLovartExtra('A cat.', null), 'A cat.');
+      expect(withLovartExtra('A cat.', ' '), 'A cat.');
     });
 
     test('takes only the opening of a long note', () {

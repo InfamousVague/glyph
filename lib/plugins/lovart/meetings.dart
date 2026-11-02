@@ -23,6 +23,7 @@ import '../../core/summary_text.dart' show summarySection;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'client.dart';
+import 'banners.dart' show lovartExtra, withLovartExtra;
 import 'inspiration.dart';
 import 'keep.dart';
 import 'making.dart';
@@ -76,7 +77,7 @@ class LovartMeetings {
     // The app's own job, not asked for: in the ring while Lovart draws, and a chip as the moodboard lands.
     final job = lovartPictureJob('lovart-inspiration:$id', noteId: id, title: 'Inspiration for ${noteTitle(body)}', person: false);
     try {
-      images = await lovart.generate(inspirationPrompt(body));
+      images = await lovart.generate(withLovartExtra(inspirationPrompt(body), lovartExtra()));
     } on LovartFailure catch (failure) {
       warn?.call('[lovart] no inspiration for the meeting: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
       lovartPictureEnded(job, noteId: id);
