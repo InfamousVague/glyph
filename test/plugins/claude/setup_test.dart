@@ -6,7 +6,6 @@
 // the test's own: nothing is asked of the network.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glacier/glacier.dart' show GlacierSwitch;
 import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/claude/claude_settings.dart';
 import 'package:ghost_md/claude/messages_api.dart';
@@ -150,15 +149,10 @@ void main() {
       expect(find.text('Your key works. Claude is ready.'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('setup-next')));
       await settleSettings(tester);
-      // The two settings, each with its default in a line.
+      // The model, with its default in a line. Who writes meetings up is Settings › AI's alone since 2026-11-01.
       expect(find.text('Your settings'), findsOneWidget);
-      expect(find.text('On by default: each meeting’s transcript goes from this device to Anthropic under your key, and Claude writes it up.'), findsOneWidget);
       expect(find.text('Sonnet 5.5 unless you choose another: quick and able. Each is billed at its own price.'), findsOneWidget);
-      await tester.ensureVisible(find.byKey(const ValueKey('claude-setup-meetings')));
-      await settleSettings(tester);
-      await tester.tap(find.descendant(of: find.byKey(const ValueKey('claude-setup-meetings')), matching: find.byType(GlacierSwitch)));
-      await settleSettings(tester);
-      expect(settings.meetings, isFalse);
+      expect(find.byKey(const ValueKey('claude-setup-meetings')), findsNothing);
       await tester.ensureVisible(find.byKey(const ValueKey('claude-setup-model:claude-opus-5-5')));
       await settleSettings(tester);
       await tester.tap(find.byKey(const ValueKey('claude-setup-model:claude-opus-5-5')));

@@ -1,11 +1,11 @@
-// Write meeting summaries with Claude, on the Claude plugin's page (lib/plugins/claude/claude_in_app.dart, lib/claude/
-// claude_settings.dart `meetings`; Matt, 2026-10-28: "We should be using Claude to generate the meeting summaries not
-// the local processor on the Mac when the anthropic API key is set"). On by default, so a key is all it takes; the card
-// says honestly that the transcript goes to Anthropic under the person's own key; off is the device's model; Simple
-// shows the switch with a shorter word; Settings' search finds it.
+// Meeting summaries, on the Claude plugin's page (lib/plugins/claude/claude_in_app.dart; Matt, 2026-10-28: "We should
+// be using Claude to generate the meeting summaries not the local processor on the Mac when the anthropic API key is
+// set"). A key is all it takes, Settings › AI › Meeting summaries being Automatic; the card says honestly that the
+// transcript goes to Anthropic under the person's own key, and its row opens that choice, the one place it is made
+// since its own "Write meeting summaries with Claude" switch went (Matt, 2026-11-01: "see if there are other settings
+// that can be simplified removed"). Settings' search finds it.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glacier/glacier.dart' show GlacierSwitch;
 import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/claude/claude_settings.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -27,20 +27,16 @@ void main() {
     await pumpSettings(tester, SingleChildScrollView(child: ClaudeInApp(settings: settings, phone: false, prefs: prefs)), size: const Size(390, 4000));
   }
 
-  GlacierSwitch meetingsSwitch(WidgetTester tester) => tester.widget<GlacierSwitch>(find.descendant(of: find.byKey(const ValueKey('claude-meetings')), matching: find.byType(GlacierSwitch)));
+  const privacy = 'Where Claude writes them, a meeting’s transcript is sent from this device to Anthropic under your own API key, and Anthropic bills the key. It goes nowhere else: not through Ghost.md’s server.';
 
-  const privacy = 'On, a meeting’s transcript is sent from this device to Anthropic under your own API key, and Anthropic bills the key. It goes nowhere else: not through Ghost.md’s server. Off, nothing of a meeting goes to Anthropic.';
-
-  testWidgets('is on by default with a key, says where the transcript goes, and off is the device’s model', (tester) async {
+  testWidgets('says where the transcript goes, and its row is the way to who writes them, with no switch of its own', (tester) async {
     await page(tester);
     expect(find.byWidgetPredicate((w) => w is PaneSection && w.title == 'Meeting summaries'), findsOneWidget);
-    expect(meetingsSwitch(tester).checked, isTrue);
     expect(find.text(privacy), findsOneWidget);
-    expect(find.textContaining('Sonnet 5.5 writes them'), findsOneWidget);
-    meetingsSwitch(tester).onCheckedChange!(false);
-    await tester.pump();
-    expect(settings.meetings, isFalse);
-    expect(find.text('Off: the summary model on your device writes them, and the transcript stays on your devices.'), findsOneWidget);
+    final row = tester.widget<SettingRow>(find.byKey(const ValueKey('claude-meetings')));
+    expect(row.label, 'Who writes them');
+    expect(find.text('Chosen in Settings › AI › Meeting summaries. Automatic is Claude.'), findsOneWidget);
+    expect(find.bySemanticsLabel('Write meeting summaries with Claude'), findsNothing);
     await endSettings(tester);
   });
 
@@ -50,10 +46,9 @@ void main() {
     await endSettings(tester);
   });
 
-  testWidgets('in Simple, the switch and the plain word, with the same privacy line', (tester) async {
+  testWidgets('in Simple, the same card and the same privacy line', (tester) async {
     await page(tester, simple: true);
-    expect(meetingsSwitch(tester).checked, isTrue);
-    expect(find.text('On: Claude writes them.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('claude-meetings')), findsOneWidget);
     expect(find.text(privacy), findsOneWidget);
     await endSettings(tester);
   });

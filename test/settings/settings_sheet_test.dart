@@ -278,7 +278,8 @@ void main() {
       expect(_rows(tester), {'Account': 'Not signed in', 'I have an account': 'Account', 'Create an account': 'Account', 'Organizations': 'Signed out'});
       await tester.enterText(find.byType(EditableText), 'privacy');
       await tester.pump();
-      expect(_rows(tester).keys, ['Privacy', 'Local only', 'Privacy policy']);
+      // Look up blanks online answers too: on AI since 2026-11-01, its words still say privacy.
+      expect(_rows(tester).keys, ['Privacy', 'Local only', 'Privacy policy', 'Look up blanks online']);
       // A sub-page is found by its own name, though it is not on the list.
       await tester.enterText(find.byType(EditableText), 'cheat');
       await tester.pump();

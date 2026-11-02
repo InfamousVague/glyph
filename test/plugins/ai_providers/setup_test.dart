@@ -24,7 +24,7 @@ import 'package:ghost_md/plugins/onboarding/setup_sheet.dart';
 import 'package:ghost_md/plugins/onboarding/setup_voice.dart';
 import 'package:ghost_md/plugins/openai/openai.dart';
 import 'package:ghost_md/plugins/reach.dart' show usesLine;
-import 'package:ghost_md/settings/kit/settings_kit.dart' show Pick;
+import 'package:ghost_md/settings/kit/settings_kit.dart' show Pick, SettingRow;
 
 import '../../settings/support.dart';
 import 'support.dart';
@@ -158,9 +158,8 @@ void main() {
       await settleSettings(tester);
       expect(find.text('Your settings'), findsOneWidget);
       expect(find.text('Model One unless you choose another: the first OpenAI lists for your key.'), findsOneWidget);
-      await tester.tap(find.descendant(of: find.byKey(const ValueKey('openai-setup-meetings')), matching: find.byType(GlacierSwitch)));
-      await settleSettings(tester);
-      expect(test.settings.meetings, isFalse);
+      // Who writes meetings up is Settings › AI's alone since 2026-11-01: no switch of its own here.
+      expect(find.byKey(const ValueKey('openai-setup-meetings')), findsNothing);
       await tester.ensureVisible(find.byKey(const ValueKey('openai-setup-model:model-two')));
       await settleSettings(tester);
       await tester.tap(find.byKey(const ValueKey('openai-setup-model:model-two')));
@@ -221,9 +220,9 @@ void main() {
       await tester.tap(find.descendant(of: find.byKey(const ValueKey('provider-tools')), matching: find.byType(GlacierSwitch)));
       await settleSettings(tester);
       expect(test.settings.tools, isFalse);
-      await tester.tap(find.descendant(of: find.byKey(const ValueKey('provider-meetings')), matching: find.byType(GlacierSwitch)));
-      await settleSettings(tester);
-      expect(test.settings.meetings, isFalse);
+      // Meeting summaries is a row to Settings › AI, with no switch of its own.
+      expect(find.descendant(of: find.byKey(const ValueKey('provider-meetings')), matching: find.byType(GlacierSwitch)), findsNothing);
+      expect(tester.widget<SettingRow>(find.byKey(const ValueKey('provider-meetings'))).label, 'Who writes them');
       await tester.tap(find.descendant(of: find.byKey(const ValueKey('provider-spend-on')), matching: find.byType(GlacierSwitch)));
       await settleSettings(tester);
       expect(test.settings.spend.on, isTrue);

@@ -16,9 +16,11 @@
 ///   sound on the Mac), then **Sync meeting recordings**, with how many recordings stayed on this phone under the
 ///   card, for a signed-in account where this device records, and **Sort meetings into workspaces** (on unless
 ///   turned off; the key is `sortMeetings` in the synced preferences). Kept in Simple: the card is what Simple's
-///   Recording page shows first, the rest behind More (lib/settings/panes/recording_pane.dart). In Advanced, and only
-///   where a Claude key is kept, a row says who writes the summaries, Claude or this device, and where to change it
-///   (Settings › Plugins › Claude, Write meeting summaries with Claude; Matt, 2026-10-28), with what goes to Anthropic.
+///   Recording page shows first, the rest behind More (lib/settings/panes/recording_pane.dart). In Advanced a row says
+///   who writes the
+///   summaries, Claude, another AI or this device, and opens Settings › AI › Meeting summaries, the one place that
+///   is chosen (Matt, 2026-11-01, of the settings: "see if there are other settings that can be simplified removed";
+///   it pointed at Claude's own switch, which went that day).
 /// - **Where meetings go** ([MeetingsGoSection]), on each meeting plugin's page (Google Meet, Zoom, Discord): one row
 ///   saying where its meetings go, which opens the Meetings card, lit ([meetingsGoName]).
 library;
@@ -30,10 +32,11 @@ import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
 import '../../ai/meeting_sort.dart' show sortsMeetings, withSortMeetings;
-import '../../claude/claude_settings.dart' show ClaudeSettings, claudeSettings;
-import '../../plugins/registry.dart' show plugins;
+import '../../assistant/app_assistant.dart' show appAssistant;
+import '../../assistant/assistant.dart' show AssistantChoice;
 import '../../core/preferences.dart';
 import '../../settings/kit/settings_kit.dart';
+import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../../sync/notes.dart' show longestSyncedSaid, stayedHere;
 
 /// The Recording page's section id, which the plugin pages' row opens.
@@ -53,7 +56,7 @@ String meetingsGoSaid(Preferences prefs) => sortsMeetings(prefs) ? 'Workspaces' 
 /// meetings, first in the card; [signedIn] and [records] decide Sync meeting recordings, which is about the account's
 /// devices and is not on an iPhone.
 class MeetingsCard extends StatefulWidget {
-  const MeetingsCard({super.key, required this.store, this.services, this.before = const [], this.signedIn = false, this.records = true, this.claude, this.claudeOn});
+  const MeetingsCard({super.key, required this.store, this.services, this.before = const [], this.signedIn = false, this.records = true, this.assistant});
 
   final PreferencesStore store;
 
@@ -63,9 +66,8 @@ class MeetingsCard extends StatefulWidget {
   final bool signedIn;
   final bool records;
 
-  /// Claude's settings and whether its plugin is on, for who writes the summaries; the app's own when null.
-  final ClaudeSettings? claude;
-  final bool Function()? claudeOn;
+  /// Which AI writes meetings up, for the row that says so; the app's own when null.
+  final AssistantChoice? assistant;
 
   @override
   State<MeetingsCard> createState() => _MeetingsCardState();
@@ -95,13 +97,13 @@ class _MeetingsCardState extends State<MeetingsCard> {
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
-    final claude = widget.claude ?? claudeSettings;
+    final assistant = widget.assistant ?? appAssistant;
+    final host = SettingsHost.maybeOf(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([store, claude, if (widget.claudeOn == null) plugins]),
+      listenable: Listenable.merge([store, assistant]),
       builder: (context, _) {
         final prefs = store.value;
-        final keyed = claude.hasKey;
-        final byClaude = keyed && claude.meetings && (widget.claudeOn ?? () => plugins.switchedOn('claude'))();
+        final by = assistant.meetingsBy;
         final sync = widget.signedIn && widget.records;
         if (sync) _countStayed(prefs);
         final stayed = sync ? _stayed : 0;
@@ -134,14 +136,15 @@ class _MeetingsCardState extends State<MeetingsCard> {
                   onCheckedChange: (on) => store.update((was) => withSortMeetings(was, on)),
                 ),
               ),
-              if (keyed && !prefs.simple)
+              if (!prefs.simple)
                 SettingRow(
                   key: const ValueKey('meetings-summaries-by'),
                   label: 'Summaries written by',
-                  hint: Text(byClaude
-                      ? 'Claude, with your own API key: a meeting’s transcript goes from this device to Anthropic. Change it under Write meeting summaries with Claude, in Settings › Plugins › Claude.'
-                      : 'The summary model on this device. Write meeting summaries with Claude, in Settings › Plugins › Claude, has Claude write them with your key instead.'),
-                  value: Text(byClaude ? 'Claude' : 'This device'),
+                  hint: Text(by == null
+                      ? 'The summary model on this device. Chosen in Settings › AI › Meeting summaries.'
+                      : '${assistant.nameOf(by)}, with your own key: a meeting’s transcript goes from this device to it. Chosen in Settings › AI › Meeting summaries.'),
+                  value: Text(by == null ? 'This device' : assistant.nameOf(by)),
+                  onPress: host == null ? null : () => host.go('ai', setting: 'Meeting summaries'),
                 ),
             ],
           ),

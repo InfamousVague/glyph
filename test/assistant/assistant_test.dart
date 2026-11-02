@@ -174,23 +174,85 @@ void main() {
       expect(world.choice.chatBy, isNull);
     });
 
-    test('meetings: Claude where it may write them, else another allowed to, else the device; Local only does not unchoose them', () async {
+    test('meetings: Claude where it can, else another set up, else the device; Local only does not unchoose them', () async {
       final world = _World();
       await world.load();
+      expect(world.choice.meetingsBy, isNull);
       await world.openAi.setKey('sk-test-0123456789abcdef');
       expect(world.choice.meetingsBy, 'openai');
-      await world.openAi.setMeetings(false);
-      expect(world.choice.meetingsBy, isNull);
-      await world.openAi.setMeetings(true);
       await world.claude.setKey('sk-ant-test-0123456789abcdef');
       expect(world.choice.meetingsBy, claudeAssistantId);
+      // The providers' old "Write meeting summaries with" switches are asked by nothing now (2026-11-01).
       await world.claude.setMeetings(false);
+      expect(world.choice.meetingsBy, claudeAssistantId);
+      world.claudeOn = false;
       expect(world.choice.meetingsBy, 'openai');
+      world.claudeOn = true;
       await world.choice.setMeetings(assistantDevice);
       expect(world.choice.meetingsBy, isNull);
       await world.choice.setMeetings('openai');
       world.localOnly = true;
       expect(world.choice.meetingsBy, 'openai', reason: 'held by Local only, never moved to the device for it');
+    });
+
+    // Matt, 2026-11-01: "see if there are other settings that can be simplified removed". Who writes meetings up is
+    // Settings › AI › Meeting summaries alone; each provider's own switch is read into it once, so nothing of a meeting
+    // goes where it did not go before.
+    group('the providers’ old switches, read once into the meetings’ choice', () {
+      Future<(AssistantChoice, MemorySecureStore)> fresh({required bool claudeMeetings, required bool openAiMeetings, String? chosen, MemorySecureStore? kept}) async {
+        final claude = ClaudeSettings(MemorySecureStore());
+        final openAi = AiProviderSettings(MemorySecureStore(), prefix: 'openai', name: 'OpenAI', fallbackModels: const [AiModelInfo('gpt-fallback')]);
+        await claude.load();
+        await openAi.load();
+        await claude.setKey('sk-ant-test-0123456789abcdef');
+        await claude.setMeetings(claudeMeetings);
+        await openAi.setKey('sk-test-0123456789abcdef');
+        await openAi.setMeetings(openAiMeetings);
+        final store = kept ?? MemorySecureStore();
+        if (chosen != null) await store.write(assistantMeetingsName, chosen);
+        final choice = AssistantChoice(
+          store: store,
+          claude: claude,
+          claudeOn: () => true,
+          others: [AiPlugged(id: 'openai', name: 'OpenAI', settings: openAi, switchedOn: () => true, client: (settings, {key}) => _Provider('OpenAI here.'))],
+        );
+        await choice.load();
+        return (choice, store);
+      }
+
+      test('both on: Automatic stays, and Claude writes them as before', () async {
+        final (choice, store) = await fresh(claudeMeetings: true, openAiMeetings: true);
+        expect((choice.meetings, choice.meetingsBy), (assistantAuto, claudeAssistantId));
+        expect(store.held[assistantSwitchesReadName], 'read');
+      });
+
+      test('Claude’s off: the choice is OpenAI, which wrote them', () async {
+        final (choice, store) = await fresh(claudeMeetings: false, openAiMeetings: true);
+        expect((choice.meetings, choice.meetingsBy), ('openai', 'openai'));
+        expect(store.held[assistantMeetingsName], 'openai');
+      });
+
+      test('both off: the choice is this device, and nothing goes to either', () async {
+        final (choice, _) = await fresh(claudeMeetings: false, openAiMeetings: false);
+        expect((choice.meetings, choice.meetingsBy), (assistantDevice, null));
+      });
+
+      test('OpenAI’s off and Claude writes them anyway: Automatic stays', () async {
+        final (choice, _) = await fresh(claudeMeetings: true, openAiMeetings: false);
+        expect((choice.meetings, choice.meetingsBy), (assistantAuto, claudeAssistantId));
+      });
+
+      test('Claude chosen by name with its switch off: OpenAI, which stood in for it', () async {
+        final (choice, _) = await fresh(claudeMeetings: false, openAiMeetings: true, chosen: claudeAssistantId);
+        expect(choice.meetingsBy, 'openai');
+      });
+
+      test('read once: Automatic chosen again afterwards stays, the switches as they were', () async {
+        final (choice, store) = await fresh(claudeMeetings: false, openAiMeetings: true);
+        await choice.setMeetings(assistantAuto);
+        final (again, _) = await fresh(claudeMeetings: false, openAiMeetings: true, kept: store);
+        expect((again.meetings, again.meetingsBy), (assistantAuto, claudeAssistantId));
+      });
     });
 
     test('the runner asks the provider the choice names, with its model, its limit and a prompt that does not call it Claude', () async {

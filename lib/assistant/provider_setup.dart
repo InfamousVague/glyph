@@ -12,8 +12,9 @@
 ///    its key may be left empty (an endpoint on the person's own computer needs none).
 /// 5. **Check it works**: the provider's models list, which none bills ([AiProvider.check]), said in plain words
 ///    ([providerSetupResult]); the list it answers is kept for the last step's picker.
-/// 6. **Your settings**: Write meeting summaries with (its name) and the model, from the list just read (or typed, for the
-///    custom endpoint), the default said in a line ([ProviderSetupChoices]).
+/// 6. **Your settings**: the model, from the list just read (or typed, for the custom endpoint), the default said in a
+///    line ([ProviderSetupChoices]). Who writes meetings up is Settings › AI › Meeting summaries' (the sheet's "Write
+///    meeting summaries with" switch went on 2026-11-01).
 library;
 
 import 'dart:async';
@@ -21,7 +22,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../plugins/github/plain_field.dart';
 import '../plugins/onboarding/setup_flow.dart';
@@ -192,36 +192,6 @@ class _ProviderSetupChoicesState extends State<ProviderSetupChoices> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: t.space(2),
           children: [
-            SheetGroup(
-              children: [
-                Padding(
-                  key: ValueKey('${page.id}-setup-meetings'),
-                  padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(3)),
-                  child: Row(
-                    spacing: t.space(3),
-                    children: [
-                      AppIcon(Lucide.users, size: 18, color: t.color('app-ink-2')),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          spacing: 2,
-                          children: [
-                            Text('Write meeting summaries with ${page.name}', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
-                            Text(
-                              settings.meetings
-                                  ? 'On: a meeting’s transcript may go from this device to ${page.company} under your key, where no other AI writes it up first (Settings › AI).'
-                                  : 'Off: ${page.name} never writes meetings up, and nothing of them goes to ${page.company}.',
-                              style: quiet,
-                            ),
-                          ],
-                        ),
-                      ),
-                      GlacierSwitch(ariaLabel: 'Write meeting summaries with ${page.name}', checked: settings.meetings, onCheckedChange: (on) => unawaited(settings.setMeetings(on))),
-                    ],
-                  ),
-                ),
-              ],
-            ),
             const SheetHeading('Model'),
             Text(defaultSaid, key: ValueKey('${page.id}-setup-model-default'), style: quiet),
             if (models.isNotEmpty)

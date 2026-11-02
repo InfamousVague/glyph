@@ -403,43 +403,24 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('with the meeting service, draws Meetings: the sound, the notification, and when it is written up', (tester) async {
+    testWidgets('with the meeting service, draws Meetings: the sound, the live words, and when it is written up', (tester) async {
       var asked = 0;
       await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, meetingSoundWhy: 'Update Ghost.md to include sound from other apps.', onAllowMeetingNotices: () => ++asked > 0 && false));
       // Then the sorting every meeting shares, whatever plugin it came from (lib/meet/ui/meeting_settings.dart); Sync
-      // meeting recordings waits for an account.
-      expect(rowLabels(tester, 'Meetings'), ['Include sound from other apps', 'Live transcript during meetings', 'Tell me when a meeting is written up', 'Write up straight away', 'Sort meetings into workspaces']);
+      // meeting recordings waits for an account. "Tell me when a meeting is written up" went on 2026-11-01: Settings ›
+      // Notifications › Summaries is that switch, and asks Android.
+      expect(rowLabels(tester, 'Meetings'), ['Include sound from other apps', 'Live transcript during meetings', 'Write up straight away', 'Sort meetings into workspaces', 'Summaries written by']);
+      expect(find.text('Allow'), findsNothing);
+      expect(asked, 0);
       // The sound has no switch where the device cannot, and says why.
       expect(tester.widget<SettingRow>(rowCalled('Include sound from other apps')).control, isNull);
       expect(find.text('Update Ghost.md to include sound from other apps.'), findsOneWidget);
-      await tapOn(tester, find.text('Allow'));
-      expect(asked, 1);
-      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'Notifications are off for Ghost.md in the phone’s settings.');
       expect(preferences.value.writeUp, 'charging');
       await tapOn(tester, inRow('Write up straight away', find.byType(GlacierSwitch)));
       expect(preferences.value.writeUp, 'now');
       await endSettings(tester);
 
-      // Differs 16 (docs/PARITY.md): the phone's answer comes a moment after it is asked; blocked is said then, and
-      // a prompt that went up says nothing.
-      final phone = Completer<bool>();
-      await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, onAllowMeetingNotices: () => phone.future));
-      await tapOn(tester, find.text('Allow'));
-      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'A notification, with the first line of the summary once the phone is unlocked.');
-      phone.complete(false);
-      await tester.pump();
-      await tester.pump();
-      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'Notifications are off for Ghost.md in the phone’s settings.');
-      await endSettings(tester);
-      await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, onAllowMeetingNotices: () async => true));
-      await tapOn(tester, find.text('Allow'));
-      await tester.pump();
-      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'A notification, with the first line of the summary once the phone is unlocked.');
-      await endSettings(tester);
-
       await openPane(tester, 'recording', size: const Size(390, 1800), features: const SettingsFeatures(meetings: true, meetingSound: true, canNotifyMeetings: true));
-      expect(find.text('Allow'), findsNothing);
-      expect(find.descendant(of: rowCalled('Tell me when a meeting is written up'), matching: find.text('On')), findsOneWidget);
       await tapOn(tester, inRow('Include sound from other apps', find.byType(GlacierSwitch)));
       expect(preferences.value.meetingSound, isTrue);
       await endSettings(tester);
@@ -500,13 +481,67 @@ void main() {
     });
   });
 
+  // Matt, 2026-11-01: "see if there are other settings that can be simplified removed". Notifications › Summaries is
+  // the one switch for a meeting written up; Recording's "Tell me when a meeting is written up" went, and its asking
+  // of Android with it, here.
+  group('Notifications › Summaries, for a meeting written up', () {
+    testWidgets('where Android has not allowed it, says so and asks, by Allow and by the switch turned on', (tester) async {
+      var asked = 0;
+      final phone = Completer<bool>();
+      await openPane(tester, 'notifications', size: const Size(390, 1800), features: SettingsFeatures(onAllowMeetingNotices: () {
+        asked += 1;
+        return phone.future;
+      }));
+      expect(hintOf(tester, 'Summaries'), 'Android isn’t showing a meeting written up as a notification yet. Allow it below.');
+      await tapOn(tester, find.byKey(const ValueKey('allow-meeting-notices')));
+      expect(asked, 1);
+      phone.complete(false);
+      await tester.pump();
+      await tester.pump();
+      expect(hintOf(tester, 'Summaries'), 'Notifications are off for Ghost.md in the phone’s settings, so a meeting written up shows here alone.');
+      expect(find.byKey(const ValueKey('allow-meeting-notices')), findsNothing);
+      // Off and on again asks again.
+      await tapOn(tester, inRow('Summaries', find.byType(GlacierSwitch)));
+      expect(preferences.value.notifications.summaries, isFalse);
+      await tapOn(tester, inRow('Summaries', find.byType(GlacierSwitch)));
+      expect((preferences.value.notifications.summaries, asked), (true, 2));
+      await endSettings(tester);
+    });
+
+    testWidgets('where Android allows it, or there is no meeting service, asks nothing', (tester) async {
+      for (final features in [SettingsFeatures(canNotifyMeetings: true, onAllowMeetingNotices: () => throw StateError('asked')), const SettingsFeatures()]) {
+        await openPane(tester, 'notifications', size: const Size(390, 1800), features: features);
+        expect(hintOf(tester, 'Summaries'), 'A meeting written up: here, in the list, and on Android as the phone’s own notification, with the first line of the summary.');
+        expect(find.byKey(const ValueKey('allow-meeting-notices')), findsNothing);
+        await endSettings(tester);
+      }
+    });
+  });
+
   group('AI', () {
+    // Matt, 2026-11-01: "see if there are other settings that can be simplified removed or moved". From Account's
+    // Privacy card, beside the fill it belongs to; Local only still holds it off.
+    testWidgets('has Look up blanks online beside Fill blanks on their own, written, and held off by Local only', (tester) async {
+      await openPane(tester, 'ai', size: const Size(390, 1600));
+      final was = preferences.value.lookUpBlanks;
+      await tapOn(tester, inRow('Look up blanks online', find.byType(GlacierSwitch)));
+      expect(preferences.value.lookUpBlanks, !was);
+      await tapOn(tester, inRow('Look up blanks online', find.byType(GlacierSwitch)));
+      preferences.update((now) => now.copyWith(localOnly: true));
+      await tester.pump();
+      expect(tester.widget<SettingRow>(rowCalled('Look up blanks online')).disabledReason, 'Local only is on, so such blanks wait.');
+      expect(switchIn(tester, 'Look up blanks online').checked, isFalse);
+      preferences.update((now) => now.copyWith(localOnly: false));
+      await endSettings(tester);
+    });
+
     testWidgets('lists the catalogue, with Get waiting for a downloader, and keeps Fill blanks on their own', (tester) async {
       await openPane(tester, 'ai', size: const Size(390, 1200));
       // And under it, which AI answers the chat and which writes meetings up (docs/AI_PROVIDERS.md; Matt, 2026-10-29).
       expect(cardTitles(tester), ['Model', 'Assistant', 'Meeting summaries']);
       const ais = ['Automatic', 'Claude', 'OpenAI', 'Gemini', 'Custom AI model', 'Aster'];
-      expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own', ...ais, ...ais, 'On this device']);
+      // Look up blanks online beside Fill blanks on their own since 2026-11-01 (it was on Account's Privacy card).
+      expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own', 'Look up blanks online', ...ais, ...ais, 'On this device']);
       expect(hintOf(tester, 'Qwen3.5 4B'), 'The balance. Fits most phones; check a fact it answers from memory. 2.7 GB.');
       expect(find.text('Get'), findsNWidgets(4));
       expect([for (final get in tester.widgetList<RowAction>(find.byType(RowAction))) get.disabled], everyElement(isTrue));
@@ -572,7 +607,7 @@ void main() {
       expect(cardTitles(tester), ['Sign in', null, 'Privacy', 'Location', null]);
       expect(rowLabels(tester).take(2), ['Create an account', 'Lost the password']);
       expect(rowLabels(tester).last, 'Export everything');
-      expect(rowLabels(tester, 'Privacy'), ['Local only', 'Link previews', 'Look up blanks online', 'Privacy policy']);
+      expect(rowLabels(tester, 'Privacy'), ['Local only', 'Link previews', 'Privacy policy']);
       expect(rowLabels(tester, 'Location'), ['Map on a tagged note', 'Place names', 'Tag new notes with my location']);
       // With no account service the button cannot be pressed, whatever is typed.
       await tester.enterText(find.byType(EditableText).at(0), 'sam');
@@ -640,7 +675,6 @@ void main() {
       await openPane(tester, 'account', size: const Size(390, 2600), onOpenLink: opened.add, features: SettingsFeatures(onLocate: () => located++));
       for (final (row, read) in <(String, bool Function(Preferences))>[
         ('Link previews', (p) => p.linkPreviews),
-        ('Look up blanks online', (p) => p.lookUpBlanks),
         ('Map on a tagged note', (p) => p.mapTiles),
         ('Place names', (p) => p.placeNames),
       ]) {
@@ -664,8 +698,6 @@ void main() {
       await tapOn(tester, inRow('Local only', find.byType(GlacierSwitch)));
       expect(preferences.value.localOnly, isTrue);
       expect(find.textContaining(' is on, so nothing syncs until it is off.'), findsOneWidget);
-      expect(tester.widget<SettingRow>(rowCalled('Look up blanks online')).disabledReason, 'Local only is on, so such blanks wait.');
-      expect(switchIn(tester, 'Look up blanks online').checked, isFalse);
       expect([for (final row in rowLabels(tester, 'Location')) tester.widget<SettingRow>(rowCalled(row)).disabledReason], everyElement('Local only is on.'));
       expect(find.textContaining('A tagged note shows where it was written and a pin while Local only is on'), findsOneWidget);
       // Link previews stays live under it.
@@ -707,8 +739,10 @@ void main() {
       expect(tester.getRect(find.byKey(const ValueKey('account-submit'))), rectNear(35.7, 678.22, 51.39, 53.55, 1));
       expect(tester.getRect(inRow('Create an account', find.text('Create an account'))).topLeft, offsetMoreOrLessEquals(const Offset(35.7, 776.39), epsilon: 1));
       expect(tester.getRect(find.text('PRIVACY', skipOffstage: false)).top, closeTo(996.03, 1.5));
-      expect(tester.getRect(find.text('LOCATION', skipOffstage: false)).top, closeTo(1626.89, 3));
-      expect(tester.getRect(find.text('Update Ghost.md to tag notes.', skipOffstage: false)).top, closeTo(2138.58, 4));
+      // Less the row Look up blanks online took on Privacy until it went to AI (2026-11-01).
+      const lookUp = 130.34;
+      expect(tester.getRect(find.text('LOCATION', skipOffstage: false)).top, closeTo(1626.89 - lookUp, 3));
+      expect(tester.getRect(find.text('Update Ghost.md to tag notes.', skipOffstage: false)).top, closeTo(2138.58 - lookUp, 4));
       await endSettings(tester);
     });
   });

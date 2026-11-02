@@ -2,10 +2,11 @@
 /// claude is enabled the meeting summary should go through claude instead of gemma".
 ///
 /// Claude is **chosen** for meetings when the Claude plugin's switch is on, an API key is kept on this device (typed
-/// here, or sealed from another of the account's devices, lib/sync/sealed_keys.dart), and Write meeting summaries with
-/// Claude is on (Settings › Plugins › Claude, [ClaudeSettings.meetings], on unless turned off; Matt, 2026-10-28: "We
-/// should be using Claude to generate the meeting summaries not the local processor on the Mac when the anthropic API
-/// key is set"). It
+/// here, or sealed from another of the account's devices, lib/sync/sealed_keys.dart), and Settings › AI › Meeting
+/// summaries has Claude write them (Automatic, or Claude; lib/assistant/assistant.dart `meetingsBy`; Matt, 2026-10-28:
+/// "We should be using Claude to generate the meeting summaries not the local processor on the Mac when the anthropic
+/// API key is set"). Claude's own page had a "Write meeting summaries with Claude" switch too until 2026-11-01, read
+/// once into that choice. It
 /// is **enabled** (asked now) when, besides, Local only is off, since Local only holds the plugin off with every
 /// plugin that reaches the internet. Chosen but held by Local only, a meeting's write-up waits for Claude rather than
 /// going to the phone's own model: summaries are never remade on their own, so a local write-up made in the meantime
@@ -171,8 +172,8 @@ class MeetingClaude {
     await choice?.load();
   }
 
-  /// Meetings are Claude's: the plugin switched on, a key kept, and Write meeting summaries with Claude on (see the
-  /// header). With a [choice], whether any provider writes them.
+  /// With a [choice] (the app's), whether any provider writes meetings up. Without one (a test's), Claude's: the plugin
+  /// switched on, a key kept, and its old switch as it was kept.
   bool get chosen {
     final choice = this.choice;
     if (choice == null) return switchedOn() && settings.hasKey && settings.meetings;

@@ -16,8 +16,8 @@
 ///    let go of again, as the page never keeps a refused key; a 403 is a key not allowed the API; a 402, a 429 or a
 ///    word of the credit balance is "The key works but the account has no credit yet; add some under Billing.", with
 ///    Billing; no answer is the connection.
-/// 6. **Your settings**: the two that matter, Write meeting summaries with Claude and the model, each with its default
-///    in a line ([ClaudeSetupChoices]).
+/// 6. **Your settings**: the model, with its default in a line ([ClaudeSetupChoices]). Who writes meetings up is
+///    Settings › AI › Meeting summaries' (the sheet's "Write meeting summaries with Claude" went on 2026-11-01).
 ///
 /// Listing the models is not billed, and a key with no credit may well list them: so a check that passes says the key
 /// is right, not that the account can pay. Step 2 says to add credit, and the chat says so plainly at the first ask
@@ -29,7 +29,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../claude/claude_settings.dart';
 import '../../claude/messages_api.dart';
@@ -139,7 +138,7 @@ PluginSetup claudeSetup({ClaudeSettings? settings, Future<ClaudeError?> Function
   );
 }
 
-/// The last step's part: Write meeting summaries with Claude, and the model, each with its default in a line. The
+/// The last step's part: the model, with its default in a line. The
 /// same settings as the plugin's page (lib/plugins/claude/claude_in_app.dart), written through [settings].
 class ClaudeSetupChoices extends StatelessWidget {
   const ClaudeSetupChoices({super.key, required this.settings, required this.simple});
@@ -156,36 +155,6 @@ class ClaudeSetupChoices extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: t.space(2),
         children: [
-          SheetGroup(
-            children: [
-              Padding(
-                key: const ValueKey('claude-setup-meetings'),
-                padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(3)),
-                child: Row(
-                  spacing: t.space(3),
-                  children: [
-                    AppIcon(Lucide.users, size: 18, color: t.color('app-ink-2')),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 2,
-                        children: [
-                          Text('Write meeting summaries with Claude', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
-                          Text(
-                            settings.meetings
-                                ? 'On by default: each meeting’s transcript goes from this device to Anthropic under your key, and Claude writes it up.'
-                                : 'Off: your device’s own model writes meetings up, and nothing of them goes to Anthropic.',
-                            style: quiet,
-                          ),
-                        ],
-                      ),
-                    ),
-                    GlacierSwitch(ariaLabel: 'Write meeting summaries with Claude', checked: settings.meetings, onCheckedChange: (on) => unawaited(settings.setMeetings(on))),
-                  ],
-                ),
-              ),
-            ],
-          ),
           const SheetHeading('Model'),
           Text('${claudeModelLabel(defaultClaudeModel)} unless you choose another: quick and able. Each is billed at its own price.', key: const ValueKey('claude-setup-model-default'), style: quiet),
           SheetGroup(

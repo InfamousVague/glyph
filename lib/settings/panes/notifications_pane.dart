@@ -39,7 +39,7 @@ String notificationsSummary(NotificationPrefs prefs) => '${NotificationPrefs.cat
 const Map<String, (String, String)> _switches = {
   'team': ('Team', 'Who joined, left or was removed, an organization renamed or deleted, and your invitations answered.'),
   'claude': ('Claude', 'A note Claude made, edited or added to through the MCP server, with the first line it changed.'),
-  'summaries': ('Summaries', 'A meeting written up. Here, in the list; the phone’s own notification is under Recording.'),
+  'summaries': ('Summaries', 'A meeting written up: here, in the list, and on Android as the phone’s own notification, with the first line of the summary.'),
   'conflicts': ('Conflicts', 'A note changed on two devices at once and kept twice.'),
 };
 
@@ -60,8 +60,24 @@ const Map<String, (String, String)> _switches = {
 ///   page's `requestNotifications`): wherever the row is drawn it can be pressed, with or without a recorder or a
 ///   meeting service. What Android answered is read again every second while it is keeping them from showing, as
 ///   the page does.
-class NotificationsPane extends StatelessWidget {
-  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.services, this.onOpenAccount, this.phone, this.reminders});
+///
+/// **Summaries** is the one switch for a meeting written up (Matt, 2026-11-01: "see if there are other settings that
+/// can be simplified removed"): Recording's "Tell me when a meeting is written up", which only asked Android to let the
+/// meeting service notify, went that day. Switched on where Android has not allowed the meeting's notification, it
+/// asks ([onAllowMeetingNotices]); and while it is on and not allowed, "Allow meeting notifications" is under the card.
+class NotificationsPane extends StatefulWidget {
+  const NotificationsPane({
+    super.key,
+    this.store,
+    this.signedIn = false,
+    this.orgs = const [],
+    this.services,
+    this.onOpenAccount,
+    this.phone,
+    this.reminders,
+    this.canNotifyMeetings = true,
+    this.onAllowMeetingNotices,
+  });
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -84,6 +100,12 @@ class NotificationsPane extends StatelessWidget {
   /// ([phoneReminders], Android over the real library) unless given. With none, no group.
   final ReminderHost? reminders;
 
+  /// Whether Android lets the meeting service post its notification ([SettingsFeatures.canNotifyMeetings]), and what
+  /// asks it to (`SettingsFeatures.onAllowMeetingNotices`, answering whether it was not refused outright). Without the
+  /// asking, nothing is asked: a build or a device with no meeting service.
+  final bool canNotifyMeetings;
+  final FutureOr<bool> Function()? onAllowMeetingNotices;
+
   static Widget hosted(BuildContext context) {
     final host = SettingsHost.maybeOf(context);
     return NotificationsPane(
@@ -91,43 +113,72 @@ class NotificationsPane extends StatelessWidget {
       orgs: host?.features.orgs ?? const [],
       services: AccountScope.maybeOf(context),
       onOpenAccount: host == null ? null : () => host.go('account'),
+      canNotifyMeetings: host?.features.canNotifyMeetings ?? true,
+      onAllowMeetingNotices: host?.features.onAllowMeetingNotices,
     );
   }
 
   @override
+  State<NotificationsPane> createState() => _NotificationsPaneState();
+}
+
+class _NotificationsPaneState extends State<NotificationsPane> {
+  /// The meeting notification asked for and refused outright: said under Summaries.
+  bool _refused = false;
+
+  /// Asks Android for the meeting's notification, once Summaries is on and it is not allowed.
+  void _askForMeetings() {
+    final allow = widget.onAllowMeetingNotices;
+    if (allow == null || widget.canNotifyMeetings) return;
+    void answered(bool asked) {
+      if (!asked && mounted) setState(() => _refused = true);
+    }
+
+    final said = allow();
+    if (said is bool) return answered(said);
+    unawaited(said.then<void>(answered, onError: (Object _) => answered(false)));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final services = this.services;
-    final store = this.store ?? services?.prefs ?? preferences;
+    final services = widget.services;
+    final store = widget.store ?? services?.prefs ?? preferences;
     return AccountBuilder(
       services: services,
       builder: (context) => _PhoneRead(
-        phone: phone ?? services?.phoneNotices,
+        phone: widget.phone ?? services?.phoneNotices,
         builder: (context, phone, state) => _page(context, store, services, phone, state),
       ),
     );
   }
 
   Widget _page(BuildContext context, PreferencesStore store, AccountServices? services, PhoneNotices? phone, NoticesState? state) {
-    final signedIn = services?.signedIn ?? this.signedIn;
+    final signedIn = services?.signedIn ?? widget.signedIn;
     // Team news comes to members; an invitation has nothing to mute yet, and is never muted anyway.
-    final orgs = services == null ? this.orgs : [for (final row in services.joined) SettingsOrg(id: row.id, name: row.name, members: row.members)];
+    final orgs = services == null ? widget.orgs : [for (final row in services.joined) SettingsOrg(id: row.id, name: row.name, members: row.members)];
     return ValueListenableBuilder<Preferences>(
       valueListenable: store,
       builder: (context, prefs, _) {
         final notifications = prefs.notifications;
         void write(NotificationPrefs next) => store.update((now) => now.copyWith(notifications: next));
-        void flip(String category, bool on) => write(switch (category) {
-              'team' => notifications.copyWith(team: on),
-              'claude' => notifications.copyWith(claude: on),
-              'summaries' => notifications.copyWith(summaries: on),
-              _ => notifications.copyWith(conflicts: on),
-            });
+        void flip(String category, bool on) {
+          write(switch (category) {
+            'team' => notifications.copyWith(team: on),
+            'claude' => notifications.copyWith(claude: on),
+            'summaries' => notifications.copyWith(summaries: on),
+            _ => notifications.copyWith(conflicts: on),
+          });
+          if (category == 'summaries' && on) _askForMeetings();
+        }
+
+        // Summaries on, and Android not letting the meeting's notification through: the way to allow it.
+        final meetingsKept = notifications.isOn('summaries') && !widget.canNotifyMeetings && widget.onAllowMeetingNotices != null;
         void mute(String id, bool muted) {
           final others = [for (final held in notifications.mutedOrgs) if (held != id) held];
           write(notifications.copyWith(mutedOrgs: muted ? [...others, id] : others));
         }
 
-        final reminders = this.reminders ?? phoneReminders.value;
+        final reminders = widget.reminders ?? phoneReminders.value;
         return PaneBody(
           children: [
             // This phone's own, signed in or not: nothing of it needs an account.
@@ -138,7 +189,7 @@ class NotificationsPane extends StatelessWidget {
                   TextSpan(
                     children: [
                       const TextSpan(text: 'Notifications come with an account. Sign in under '),
-                      WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: GoWord('Account', onPress: onOpenAccount)),
+                      WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: GoWord('Account', onPress: widget.onOpenAccount)),
                       const TextSpan(text: ' and they arrive here.'),
                     ],
                   ),
@@ -153,11 +204,21 @@ class NotificationsPane extends StatelessWidget {
                     key: ValueKey(category),
                     label: _switches[category]!.$1,
                     // An iPhone has no Recording section and writes up no meeting itself ([recordsVoice]).
-                    hint: Text(category == 'summaries' && !recordsVoice ? 'A meeting written up on another of your devices.' : _switches[category]!.$2),
+                    hint: Text(
+                      category == 'summaries' && !recordsVoice
+                          ? 'A meeting written up on another of your devices.'
+                          : category == 'summaries' && meetingsKept
+                              ? (_refused ? 'Notifications are off for Ghost.md in the phone’s settings, so a meeting written up shows here alone.' : 'Android isn’t showing a meeting written up as a notification yet. Allow it below.')
+                              : _switches[category]!.$2,
+                    ),
                     control: GlacierSwitch(ariaLabel: _switches[category]!.$1, checked: notifications.isOn(category), onCheckedChange: (on) => flip(category, on)),
                   ),
               ],
             ),
+            if (meetingsKept && !_refused)
+              PaneActions(
+                children: [RowAction(key: const ValueKey('allow-meeting-notices'), onPress: _askForMeetings, child: const Text('Allow meeting notifications'))],
+              ),
             if (orgs.isNotEmpty)
               PaneSection(
                 title: 'Mute an organization',
@@ -186,7 +247,7 @@ class NotificationsPane extends StatelessWidget {
                     hint: Text(
                       state == NoticesState.blocked
                           ? 'It’s on, but Android is not showing notifications from Ghost.md. Allow them below, or in the app’s system settings.'
-                          : 'Team news, invitations and Claude’s changes, as the switches above say. Meetings have their own, under Recording.',
+                          : 'Team news, invitations and Claude’s changes, as the switches above say. A meeting written up has its own, as Summaries says.',
                     ),
                     control: GlacierSwitch(ariaLabel: 'Phone notifications', checked: phone.on, onCheckedChange: (on) => unawaited(phone.setOn(on))),
                   ),

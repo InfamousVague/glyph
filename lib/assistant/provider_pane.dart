@@ -10,8 +10,9 @@
 ///   date. The custom endpoint's model may be typed, as some list none, and Aster's ([AiProviderPage.typedModel]).
 /// - **Tools**: whether the model is offered Ghost.md's tools (on), for a model the person knows has none. One that
 ///   refuses them is asked without them anyway, and the chat says so once.
-/// - **Meeting summaries**: Write meeting summaries with (its name), on unless turned off, as Claude's; which provider writes
-///   them, of those that may, is Settings › AI › Assistant.
+/// - **Meeting summaries**: what a meeting sends where this provider writes it up, and a row to Settings › AI › Meeting
+///   summaries, where who writes them is chosen. Its own "Write meeting summaries with (its name)" switch went on
+///   2026-11-01, read once into that choice (lib/assistant/assistant.dart).
 /// - **Spending limit**: Claude's card, for this provider's own limit (lib/claude/claude_spend.dart), and the prices it
 ///   counts at, since no provider's API says them: high until the person sets their model's, so the limit is reached
 ///   early rather than late; OpenRouter's listed prices where it lists them, and Aster's published ones for its models.
@@ -29,6 +30,7 @@ import '../plugins/brands.dart' show pluginHeroGlyph;
 import '../plugins/github/plain_field.dart';
 import '../settings/kit/settings_kit.dart';
 import '../settings/panes/pane_parts.dart' show armedFor;
+import '../settings/panes/settings_host.dart' show SettingsHost;
 import '../settings/settings_search.dart' show SettingsFindable;
 import 'provider.dart';
 import 'provider_page.dart';
@@ -442,14 +444,14 @@ class _ProviderPaneState extends State<ProviderPane> {
             ),
             PaneSection(
               title: 'Meeting summaries',
-              description: const Text('Each meeting’s summary: what was said, what was decided, and who does what next. Which AI writes them, of those allowed to, is chosen in Settings › AI › Assistant.'),
-              footer: Text('On, a meeting’s transcript is sent from this device to ${page.company} under your own key. It goes nowhere else: not through Ghost.md’s server. Off, nothing of a meeting goes to ${page.company}.'),
+              description: const Text('Each meeting’s summary: what was said, what was decided, and who does what next.'),
+              footer: Text('Where ${page.name} writes them, a meeting’s transcript is sent from this device to ${page.company} under your own key. It goes nowhere else: not through Ghost.md’s server.'),
               children: [
                 SettingRow(
                   key: const ValueKey('provider-meetings'),
-                  label: 'Write meeting summaries with ${page.name}',
-                  hint: Text(settings.meetings ? 'On: ${page.name} may write them up.' : 'Off: ${page.name} never writes them.'),
-                  control: GlacierSwitch(ariaLabel: 'Write meeting summaries with ${page.name}', checked: settings.meetings, onCheckedChange: (on) => unawaited(settings.setMeetings(on))),
+                  label: 'Who writes them',
+                  hint: const Text('Chosen in Settings › AI › Meeting summaries.'),
+                  onPress: SettingsHost.maybeOf(context) == null ? null : () => SettingsHost.maybeOf(context)!.go('ai', setting: 'Meeting summaries'),
                 ),
               ],
             ),

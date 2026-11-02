@@ -649,8 +649,8 @@ cores, and the summary was to follow on the Mac's own model, while Claude's key 
 sealed, lib/sync/sealed_keys.dart). Now (lib/ai/summaries.dart, "CLAUDE WHERE THE KEY IS, AND CAPTIONS FIRST"):
 
 - **Who writes it.** Claude, wherever the Claude plugin is on, a key is here (typed, or sealed from another device) and
-  **Write meeting summaries with Claude** is on (Settings › Plugins › Claude, on unless turned off, synced with the
-  key); otherwise the device's own summary model. The transcript then goes from that device to Anthropic under the
+  Settings › AI › Meeting summaries has Claude write them (Automatic is Claude; its plugin's own switch went on
+  2026-11-01); otherwise another AI chosen there, or the device's own summary model. The transcript then goes from that device to Anthropic under the
   person's own key, and nowhere else. A meeting goes to Claude whole up to 800,000 characters (about 200,000 tokens; the
   standup was one request), and past that in 400,000-character pieces, notes then summary, with the same prompts
   (lib/ai/summary_claude.dart). The Mac's write-up is sent the job config now, so with Claude chosen it makes the

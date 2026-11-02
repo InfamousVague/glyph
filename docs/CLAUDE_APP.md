@@ -98,8 +98,9 @@ through setting up an account and getting their keys and have the onboarding tes
 successful"). Six steps in a sheet: what it is; an account, Open the Console (`https://console.anthropic.com/`) and
 Billing (`…/settings/billing`); a key, Open API keys (`…/settings/keys`) then Create Key; the key pasted, its shape
 checked (`sk-ant-`, no spaces, not cut short) and kept through `ClaudeSettings.setKey`, the page's own store and so the
-sealed sync's; the check, `ClaudeApi.check` (`GET /v1/models?limit=1`, not billed); and the two settings that matter,
-Write meeting summaries with Claude and the model. The check's words: 401 "That key isn’t right." (the key let go of,
+sealed sync's; the check, `ClaudeApi.check` (`GET /v1/models?limit=1`, not billed); and the model (Write meeting
+summaries with Claude was the other setting there until 2026-11-01, when Settings › AI › Meeting summaries became the
+one place who writes meetings up is chosen). The check's words: 401 "That key isn’t right." (the key let go of,
 as the page keeps no refused key); 403 or `permission_error`, a key not allowed the API; 402, 429, `billing_error` or a
 400 that speaks of credit, "The key works but the account has no credit yet; add some under Billing." (kept, with Open
 Billing); no answer, the connection. The addresses are console.anthropic.com's, as the page names them; each answers a
@@ -147,9 +148,9 @@ lib/claude/claude_spend.dart). Search finds it by spending, limit, budget and co
 Matt, 2026-10-19: "when claude is enabled the meeting summary should go through claude instead of gemma". A meeting's
 write-up (one recorded on the phone or the Mac, and one Ghost was in, docs/MEET.md) is Claude's where Claude is
 **chosen**: the Claude plugin's switch is on, a key is kept on this device (typed, or sealed from another device), and
-**Write meeting summaries with Claude** is on (Matt, 2026-10-28: "We should be using Claude to generate the meeting
-summaries not the local processor on the Mac when the anthropic API key is set"; the Meeting summaries card on the
-plugin's page, on unless turned off, `anthropic-meetings`, synced with the key). Without any of them, meetings are
+Settings › AI › Meeting summaries has Claude write them, Automatic or by name (Matt, 2026-10-28: "We should be using
+Claude to generate the meeting summaries not the local processor on the Mac when the anthropic API key is set"). The
+plugin's own switch for it, `anthropic-meetings`, went on 2026-11-01 and was read once into that choice. Without any of them, meetings are
 written up on the device as they always were; a long voice note's summary always is. lib/ai/summary_claude.dart is Claude's half,
 lib/ai/summaries.dart (its header, "CLAUDE, FOR MEETINGS") the queue's.
 

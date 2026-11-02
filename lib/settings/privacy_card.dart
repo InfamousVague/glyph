@@ -11,8 +11,9 @@ const String privacyUrl = 'https://ghostmarkdown.com/privacy.html';
 
 /// Port of `PrivacyCard` (src/app/settings/PrivacyCard.tsx): the switches that decide what leaves the device, and the
 /// policy with what it comes to in two lines. Local only is the whole network switch; Link previews says whether a
-/// link's card is drawn at all; Look up blanks online is greyed off under Local only, which keeps such blanks
-/// waiting. Each is a stored preference (`localOnly`, `linkPreviews`, `lookUpBlanks`), live at once.
+/// link's card is drawn at all. Each is a stored preference (`localOnly`, `linkPreviews`), live at once. Look up blanks
+/// online was the card's too until 2026-11-01, when it moved to Settings › AI beside Fill blanks on their own (Matt:
+/// "see if there are other settings that can be simplified removed or moved"); Local only still holds it off.
 ///
 /// What differs from the web original: the words are the app's (the page had a second set for a browser), and the
 /// policy's row opens its link through [onOpenLink], or cannot be pressed without one. Local only is read by the
@@ -45,12 +46,6 @@ class PrivacyCard extends StatelessWidget {
             label: 'Link previews',
             hint: const Text("A card under a line that is only a link. In the app, the page's title is read from that site."),
             control: GlacierSwitch(ariaLabel: 'Link previews', checked: prefs.linkPreviews, onCheckedChange: (on) => store.update((now) => now.copyWith(linkPreviews: on))),
-          ),
-          SettingRow(
-            label: 'Look up blanks online',
-            hint: const Text('On Fill, a blank that needs something live asks Open-Meteo, Frankfurter’s bank rates or Wikipedia. Only its question goes.'),
-            control: GlacierSwitch(ariaLabel: 'Look up blanks online', checked: prefs.lookUpBlanks && !prefs.localOnly, onCheckedChange: (on) => store.update((now) => now.copyWith(lookUpBlanks: on))),
-            disabledReason: prefs.localOnly ? 'Local only is on, so such blanks wait.' : null,
           ),
           SettingRow(
             icon: const AppIcon(Lucide.shieldCheck, size: 20),

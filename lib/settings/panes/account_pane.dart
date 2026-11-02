@@ -33,7 +33,6 @@ const List<SettingsFindable> privacyFindable = [
   SettingsFindable('Privacy', 'what leaves the phone'),
   SettingsFindable('Local only', 'offline privacy network internet nothing leaves the phone'),
   SettingsFindable('Link previews', 'links url cards'),
-  SettingsFindable('Look up blanks online', 'fill blank weather rates wikipedia web live internet'),
   SettingsFindable('Privacy policy', 'data privacy personal information policy'),
 ];
 

@@ -32,7 +32,7 @@ String? hintOf(WidgetTester tester, String label) {
   return hint is Text ? hint.data : null;
 }
 
-const _on = 'Team news, invitations and Claude’s changes, as the switches above say. Meetings have their own, under Recording.';
+const _on = 'Team news, invitations and Claude’s changes, as the switches above say. A meeting written up has its own, as Summaries says.';
 const _blocked = 'It’s on, but Android is not showing notifications from Ghost.md. Allow them below, or in the app’s system settings.';
 const _footer = 'Within about fifteen minutes while Ghost.md is closed, and as they arrive while it runs in the background. Not while it is open in front of you: the bell has them.';
 

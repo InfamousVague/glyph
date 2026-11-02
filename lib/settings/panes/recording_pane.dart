@@ -40,7 +40,6 @@ List<SettingsFindable> recordingFindable({required bool android, bool signedIn =
       const SettingsFindable('Live transcript during meetings', 'real time live words captions meeting transcript as they speak battery charging'),
       if (android) ...const [
         SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
-        SettingsFindable('Tell me when a meeting is written up', 'notification notify alert written up'),
         SettingsFindable('Write up straight away', 'meeting battery charging background'),
       ],
       // The desktop's own Meetings card: one switch, for the computer's sound.
@@ -77,9 +76,10 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 /// What differs from the web original: there is no recorder, no meeting service and no tape store yet (stage 8), so
 /// what needs one is asked of [features] and marked where it is missing.
 /// - **Meetings** on Android is drawn only where this build has the meeting service ([SettingsFeatures.meetings],
-///   the web's native generation 20). Its "Tell me when a meeting is written up" shows On or the word Allow, which
-///   cannot be pressed until [SettingsFeatures.onAllowMeetingNotices] is given. The row for a meeting's own sound has
-///   its switch only where the device can ([SettingsFeatures.meetingSound]), and otherwise says why when it is told.
+///   the web's native generation 20). The row for a meeting's own sound has its switch only where the device can
+///   ([SettingsFeatures.meetingSound]), and otherwise says why when it is told. Its "Tell me when a meeting is written
+///   up", which showed On or asked Android to allow the meeting's notification, went on 2026-11-01: Settings ›
+///   Notifications › Summaries is that switch, and asks (lib/settings/panes/notifications_pane.dart).
 /// - **Tapes**: the page's card read the notes and asked each tape's file itself (`listNotes`, `headStatus`); here
 ///   whoever holds the notes counts (the app's root, over lib/settings/tapes.dart and tapes_here.dart), and the
 ///   card asks for the files to be asked as it is put up ([SettingsFeatures.onCountTapes]). The room is
@@ -172,9 +172,6 @@ class _RecordingPaneState extends State<RecordingPane> {
 
   /// What a removal did, or why it could not: the Tapes card's footer in place of the room.
   String? _said;
-
-  /// Allow was pressed and the phone refused outright.
-  bool _blocked = false;
 
   /// The voice log (capture/voice_log.dart), followed as it is written.
   final ValueListenable<List<VoiceLogEntry>> _voiceLog = useVoiceLog();
@@ -275,43 +272,15 @@ class _RecordingPaneState extends State<RecordingPane> {
           ),
         );
 
-        final canNotify = features.canNotifyMeetings;
-        final allow = features.onAllowMeetingNotices;
         final bytes = features.tapes ?? 0;
         final remove = features.onRemoveOldAudio;
 
         // This device's own rows for its meetings, first on the Meetings card: on Android with the meeting service the
-        // sound, the notification and when it is written up; on the desktop the computer's sound.
+        // sound, the live words and when it is written up; on the desktop the computer's sound and the live words.
         final deviceRows = <Widget>[
           if (android && features.meetings) ...[
             sound,
             words,
-            SettingRow(
-              label: 'Tell me when a meeting is written up',
-              hint: Text(
-                _blocked && !canNotify
-                    ? 'Notifications are off for Ghost.md in the phone’s settings.'
-                    : 'A notification, with the first line of the summary once the phone is unlocked.',
-              ),
-              value: canNotify ? const Text('On') : null,
-              control: canNotify
-                  ? null
-                  : RowAction(
-                      onPress: () {
-                        if (allow == null) return;
-                        void answered(bool asked) {
-                          if (!asked && mounted) setState(() => _blocked = true);
-                        }
-
-                        // `if (requestNotifications() === 'blocked') setBlocked(true)`, once the phone has said.
-                        final said = allow();
-                        if (said is bool) return answered(said);
-                        unawaited(said.then<void>(answered, onError: (Object _) => answered(false)));
-                      },
-                      disabled: allow == null,
-                      child: const Text('Allow'),
-                    ),
-            ),
             SettingRow(
               label: 'Write up straight away',
               hint: const Text('Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery.'),

@@ -3,11 +3,10 @@
 /// chat and Ask (with the talk to it and the "Ask Claude" note's runner), and the one that writes meetings up. Settings
 /// › AI › Assistant chooses each; Automatic, the default, is:
 ///
-/// - **Claude, where it can answer**: its plugin on and an Anthropic key kept (for meetings, Write meeting summaries
-///   with Claude on as well), exactly as before there were others, so nothing changes for a person with Claude set up;
+/// - **Claude, where it can answer**: its plugin on and an Anthropic key kept, exactly as before there were others, so
+///   nothing changes for a person with Claude set up;
 /// - **else the first other provider that can**, in the Market's order (OpenAI, Gemini, Custom AI model): its plugin
-///   on, its key (and for the custom endpoint its address and model) kept, and for meetings its own Write meeting
-///   summaries with (its name) on;
+///   on, and its key (and for the custom endpoint its address and model) kept;
 /// - **else the device**: the chat is not offered, as with no key today, and meetings are the on-device model's.
 ///
 /// A provider chosen by name answers while it can, and Automatic's rule stands in while it cannot (its key forgotten,
@@ -15,8 +14,14 @@
 /// keeps them on the device's own model whatever keys are kept.
 ///
 /// The two choices are kept in the device's secure store beside the keys ([assistantChatName],
-/// [assistantMeetingsName]) and follow the account with them (lib/sync/connections.dart), as Claude's Write meeting
-/// summaries with Claude does.
+/// [assistantMeetingsName]) and follow the account with them (lib/sync/connections.dart).
+///
+/// **Who writes meetings up is chosen here alone** (Matt, 2026-11-01: "see if there are other settings that can be
+/// simplified removed"): each provider's page had its own "Write meeting summaries with (its name)" switch as well,
+/// which Automatic asked, until that day. The switches are kept as they were and read once, the first time the choices
+/// are read here ([assistantSwitchesReadName]): where one of them was off and the old rule would have had someone
+/// other than the new one write meetings up, the meetings' choice becomes the one the old rule had, or On this device
+/// where it had nobody, so nothing of a meeting goes where it did not go before.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -30,6 +35,10 @@ import 'provider_settings.dart';
 /// The names in the secure store.
 const String assistantChatName = 'glyph-assistant-chat';
 const String assistantMeetingsName = 'glyph-assistant-meetings';
+
+/// Kept once the providers' old "Write meeting summaries with" switches have been read into the meetings' choice (see
+/// the header): this device's own, so each reads them once.
+const String assistantSwitchesReadName = 'glyph-assistant-meetings-switches';
 
 /// The choices' own words: Automatic (see the header), Claude's id, and the device for meetings.
 const String assistantAuto = 'auto';
@@ -59,8 +68,8 @@ class AiPlugged {
   /// Whether it can answer the chat now: allowed, and set up.
   bool get ready => allowed() && settings.ready;
 
-  /// Whether it may write meetings up: switched on, set up, and its Write meeting summaries with (its name) on.
-  bool get writesMeetings => switchedOn() && settings.ready && settings.meetings;
+  /// Whether it may write meetings up: switched on, and set up.
+  bool get writesMeetings => switchedOn() && settings.ready;
 }
 
 /// What a chat or a write-up is sent with when it is not Claude's (Claude's own path is the one it always was).
@@ -119,8 +128,40 @@ class AssistantChoice extends ChangeNotifier {
   Future<void> _load() async {
     await Future.wait([if (!claude.loaded) claude.load(), for (final other in others) other.settings.load()]);
     await _read();
+    await _fromSwitches();
     _loaded = true;
     notifyListeners();
+  }
+
+  /// The providers' old "Write meeting summaries with" switches, read into the meetings' choice once (see the header).
+  /// A plugin switched off is taken as on here, so a read made before the plugins are is the same read: a provider that
+  /// is off when a meeting is written up gives way to Automatic's rule, as a choice always does.
+  Future<void> _fromSwitches() async {
+    try {
+      if (await _store.read(assistantSwitchesReadName) != null) return;
+      final anyOff = (claude.hasKey && !claude.meetings) || others.any((o) => o.settings.ready && !o.settings.meetings);
+      if (anyOff) {
+        String? by({required bool switches}) {
+          bool claudeWrites() => claude.hasKey && (!switches || claude.meetings);
+          bool writes(AiPlugged o) => o.settings.ready && (!switches || o.settings.meetings);
+          if (_meetings == assistantDevice) return null;
+          if (_meetings == claudeAssistantId && claudeWrites()) return claudeAssistantId;
+          final chosen = other(_meetings);
+          if (chosen != null && writes(chosen)) return chosen.id;
+          if (claudeWrites()) return claudeAssistantId;
+          return others.where(writes).firstOrNull?.id;
+        }
+
+        final was = by(switches: true);
+        if (was != by(switches: false)) {
+          _meetings = was ?? assistantDevice;
+          await _store.write(assistantMeetingsName, _meetings);
+        }
+      }
+      await _store.write(assistantSwitchesReadName, 'read');
+    } catch (_) {
+      // A store that cannot be read or written is read again next time.
+    }
   }
 
   /// Reads the choices again, once another device's were written into the store (lib/sync/sealed_keys.dart).
@@ -176,7 +217,7 @@ class AssistantChoice extends ChangeNotifier {
   bool get anyOn => claudeOn() || others.any((o) => o.allowed());
 
   bool get _claudeChats => claudeOn() && claude.hasKey;
-  bool get _claudeWrites => claudeSwitchedOn() && claude.hasKey && claude.meetings;
+  bool get _claudeWrites => claudeSwitchedOn() && claude.hasKey;
 
   /// Who answers the chat now: [claudeAssistantId], another's id, or null for nobody (see the header).
   String? get chatBy {

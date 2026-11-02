@@ -19,12 +19,11 @@
 /// is this device's, from what Claude reports for each request, and the card says so.
 ///
 /// **Meeting summaries** (Matt, 2026-10-28: "We should be using Claude to generate the meeting summaries not the local
-/// processor on the Mac when the anthropic API key is set"; lib/ai/summary_claude.dart): Write meeting summaries with
-/// Claude, on unless turned off ([ClaudeSettings.meetings], synced with the key), so a key is all a meeting needs to be
-/// written up by Claude on every device; off, the device's own summary model writes them, as before. The card says
-/// plainly what goes where: the meeting's transcript, from this device to Anthropic, under the person's own key,
-/// billed to it, and nowhere else. In Simple ([Preferences.simple]) it is the switch and that sentence; Advanced adds
-/// how a meeting is sent and what happens when Claude cannot be reached.
+/// processor on the Mac when the anthropic API key is set"; lib/ai/summary_claude.dart): a key is all a meeting needs
+/// to be written up by Claude on every device, Settings › AI › Meeting summaries being Automatic. The card says plainly
+/// what goes where: the meeting's transcript, from this device to Anthropic, under the person's own key, billed to it,
+/// and nowhere else; and its row opens that choice. Its own "Write meeting summaries with Claude" switch
+/// ([ClaudeSettings.meetings]) went on 2026-11-01, read once into the choice (lib/assistant/assistant.dart).
 library;
 
 import 'dart:async';
@@ -37,10 +36,11 @@ import '../../art/art.dart' show AppIcon, Lucide;
 import '../../claude/claude_settings.dart';
 import '../../claude/claude_spend.dart';
 import '../../claude/messages_api.dart';
-import '../../core/preferences.dart' show PreferencesStore, preferences;
+import '../../core/preferences.dart' show PreferencesStore;
 import '../../core/wip.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/pane_parts.dart' show armedFor;
+import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../../settings/settings_search.dart';
 import '../github/plain_field.dart';
 
@@ -286,37 +286,21 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
     );
   }
 
-  /// Write meeting summaries with Claude (see the header).
+  /// Meeting summaries (see the header): what goes where, and the way to who writes them.
   Widget _meetingsCard(BuildContext context, ClaudeSettings settings) {
-    return ValueListenableBuilder(
-      valueListenable: widget.prefs ?? preferences,
-      builder: (context, prefs, _) {
-        final simple = prefs.simple;
-        final on = settings.meetings;
-        final String hint;
-        if (!settings.hasKey) {
-          hint = 'Add your API key above, and Claude writes your meetings up.';
-        } else if (!on) {
-          hint = 'Off: the summary model on your device writes them, and the transcript stays on your devices.';
-        } else if (simple) {
-          hint = 'On: Claude writes them.';
-        } else {
-          hint = 'On: ${claudeModelLabel(settings.model)} writes them, a meeting read whole where it fits. If Claude can’t be reached, the summary model on your device writes it instead, where you have one.';
-        }
-        return PaneSection(
-          title: 'Meeting summaries',
-          description: const Text('Each meeting’s summary: what was said, what was decided, and who does what next. A meeting Ghost was in is written up from its captions as soon as it reaches your device.'),
-          footer: const Text('On, a meeting’s transcript is sent from this device to Anthropic under your own API key, and Anthropic bills the key. It goes nowhere else: not through Ghost.md’s server. Off, nothing of a meeting goes to Anthropic.'),
-          children: [
-            SettingRow(
-              key: const ValueKey('claude-meetings'),
-              label: 'Write meeting summaries with Claude',
-              hint: Text(hint),
-              control: GlacierSwitch(ariaLabel: 'Write meeting summaries with Claude', checked: on, onCheckedChange: (next) => unawaited(settings.setMeetings(next))),
-            ),
-          ],
-        );
-      },
+    final host = SettingsHost.maybeOf(context);
+    return PaneSection(
+      title: 'Meeting summaries',
+      description: const Text('Each meeting’s summary: what was said, what was decided, and who does what next. A meeting Ghost was in is written up from its captions as soon as it reaches your device.'),
+      footer: const Text('Where Claude writes them, a meeting’s transcript is sent from this device to Anthropic under your own API key, and Anthropic bills the key. It goes nowhere else: not through Ghost.md’s server.'),
+      children: [
+        SettingRow(
+          key: const ValueKey('claude-meetings'),
+          label: 'Who writes them',
+          hint: Text(settings.hasKey ? 'Chosen in Settings › AI › Meeting summaries. Automatic is Claude.' : 'Add your API key above, and Claude writes your meetings up.'),
+          onPress: host == null ? null : () => host.go('ai', setting: 'Meeting summaries'),
+        ),
+      ],
     );
   }
 

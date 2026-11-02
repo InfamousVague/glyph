@@ -17,7 +17,11 @@ import 'settings_host.dart';
 const List<SettingsFindable> aiFindable = [
   SettingsFindable('Model', 'ai llm download formatting format enhance summarize choose your qwen gemma storage remove'),
   SettingsFindable('Fill blanks on their own', 'auto fill blanks automatic weather live facts idle'),
-  SettingsFindable('Assistant', 'assistant ai chat ask claude openai gpt gemini google custom openrouter ollama lm studio meeting summaries provider which model'),
+  // From Account's Privacy card (2026-11-01), beside the fill it is part of.
+  SettingsFindable('Look up blanks online', 'fill blank weather rates wikipedia web live internet privacy'),
+  SettingsFindable('Assistant', 'assistant ai chat ask claude openai gpt gemini google custom openrouter ollama lm studio provider which model'),
+  // The one place who writes meetings up is chosen (2026-11-01; Recording's and each provider's page's rows open it).
+  SettingsFindable('Meeting summaries', 'meeting meetings summary summaries write up written by claude openai gemini device model provider'),
 ];
 
 /// A model in the catalogue (core/ai.ts `ModelChoice`).
@@ -63,7 +67,9 @@ String aiSummary(Preferences prefs, SettingsModelsState? state) {
 /// one here.
 ///
 /// "Fill blanks on their own" (`autoFill`) and the chosen model (`formatModel`) are stored preferences, live in
-/// `preferences` at once.
+/// `preferences` at once. "Look up blanks online" (`lookUpBlanks`) stands beside it since 2026-11-01, when it moved from
+/// Account's Privacy card (Matt: "see if there are other settings that can be simplified removed or moved"): greyed
+/// off while Local only is on, which keeps such blanks waiting.
 ///
 /// What differs from the web original: there is no model store or downloader yet (stage 8). What is on the device
 /// is [SettingsFeatures.models], which is null until then and reads as nothing downloaded; **Get cannot be pressed
@@ -182,6 +188,13 @@ class _AiPaneState extends State<AiPane> {
                   hint: const Text('A few seconds after you stop typing, blanks the phone can answer fill themselves, so you needn’t reach for Fill. Press it any time instead.'),
                   control: GlacierSwitch(ariaLabel: 'Fill blanks on their own', checked: prefs.autoFill, onCheckedChange: (on) => store.update((now) => now.copyWith(autoFill: on))),
                 ),
+                // Local only holds it off whatever it says, and says why.
+                SettingRow(
+                  label: 'Look up blanks online',
+                  hint: const Text('On Fill, a blank that needs something live asks Open-Meteo, Frankfurter’s bank rates or Wikipedia. Only its question goes.'),
+                  control: GlacierSwitch(ariaLabel: 'Look up blanks online', checked: prefs.lookUpBlanks && !prefs.localOnly, onCheckedChange: (on) => store.update((now) => now.copyWith(lookUpBlanks: on))),
+                  disabledReason: prefs.localOnly ? 'Local only is on, so such blanks wait.' : null,
+                ),
               ],
             ),
             AssistantSection(choice: widget.assistant ?? appAssistant),
@@ -215,14 +228,12 @@ class _AssistantSectionState extends State<AssistantSection> {
     if (id == claudeAssistantId) {
       if (!choice.claudeOn()) return 'Off: add Claude in the Market.';
       if (!choice.claude.hasKey) return 'Needs its key: Settings › Claude.';
-      if (meetings && !choice.claude.meetings) return 'Its Write meeting summaries with Claude is off.';
       return 'Ready.';
     }
     final other = choice.other(id);
     if (other == null) return '';
     if (!other.allowed()) return 'Off: add ${other.name} in the Market.';
     if (!other.settings.ready) return 'Needs setting up: Settings › ${other.name}.';
-    if (meetings && !other.settings.meetings) return 'Its Write meeting summaries with ${other.name} is off.';
     return 'Ready: ${other.settings.model}.';
   }
 
@@ -263,7 +274,7 @@ class _AssistantSectionState extends State<AssistantSection> {
           ),
           PaneSection(
             title: 'Meeting summaries',
-            description: const Text('Which AI writes your meetings up. Automatic is Claude where it may, else the first other AI allowed to, else the summary model on your device.'),
+            description: const Text('Which AI writes your meetings up, the one place it is chosen. Automatic is Claude where it can, else the first other AI set up, else the summary model on your device.'),
             children: _picks(chosen: choice.meetings, choices: choice.meetingsChoices, meetings: true, pick: (id) => unawaited(choice.setMeetings(id))),
           ),
         ],
