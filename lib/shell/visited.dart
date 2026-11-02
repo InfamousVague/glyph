@@ -7,7 +7,8 @@ import 'package:flutter/foundation.dart';
 // after going back forgets what was ahead. Notes get deleted, so a step skips any place that is no longer there
 // rather than landing on nothing.
 
-/// A place: `'list'` (the home page), `'notes'` (the All notes grid), or a note by id (`'note:<id>'`).
+/// A place: `'list'` (the home page), `'notes'` (the All notes grid), a folder on it (`'notes/<id>'`), or a note by
+/// id (`'note:<id>'`).
 typedef Place = String;
 
 /// The home page.
@@ -20,6 +21,17 @@ const Place allNotesPlace = 'notes';
 const int mostPlaces = 30;
 
 Place notePlace(String id) => 'note:$id';
+
+/// The All notes page at a folder (the workspace [id]), or at its top for null (Matt, 2026-11-02: "Going back from
+/// inside a folder doesn't take you back to the root folder view"): each level it has shown is a step on the trail, so
+/// Back walks up through them and Forward down again.
+Place folderPlace(String? id) => id == null ? allNotesPlace : '$allNotesPlace/$id';
+
+/// Whether a place is the All notes page, at its top or at a folder.
+bool isAllNotesPlace(Place place) => place == allNotesPlace || place.startsWith('$allNotesPlace/');
+
+/// The folder a place on the All notes page is at, or null for its top and for any other place.
+String? folderOfPlace(Place place) => place.startsWith('$allNotesPlace/') ? place.substring(allNotesPlace.length + 1) : null;
 
 /// The note a place is, or null for the home page and the grid.
 String? noteIdOf(Place place) => place.startsWith('note:') ? place.substring(5) : null;

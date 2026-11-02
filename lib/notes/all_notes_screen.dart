@@ -37,17 +37,26 @@
 ///   chooses the folder as a pill does, and where the workspace is above them; the line of words offers Cards or
 ///   Icons at its end (lib/notes/icon_browser.dart), the words the tally's line tall so the line stands where the
 ///   page measured it, chosen for the level shown and the folders under it and kept on the device (2026-10-20); the
-///   strip and the icon view offer New folder and New note inside the level; inside a folder the back gesture and
-///   Escape go up a level, at a workspace at the top home as ever; the icon view draws the folders as its
+///   strip and the icon view offer New folder and New note inside the level; inside a folder Back goes up a level
+///   and only the top leaves (below); the icon view draws the folders as its
 ///   first tiles, then the level's own notes in the page's order (a folder's are in its tile), and at All the
 ///   workspaces at the top as the folders, then the notes filed in none. The cards are every note under the chosen
 ///   workspace, and a card whose note is in a folder inside it says which (`FolderPlaceMark`; 2026-10-20). No
 ///   folders while a search is typed, whose cards and tiles are what was found; none of it in simple mode.
+/// - **Back inside a folder goes up** (Matt, 2026-11-02: "Going back from inside a folder doesn't take you back to
+///   the root folder view"): the bar's arrow, the phone's back gesture (predictive or not), Escape, Cmd-[ (Alt-←
+///   off Apple) and a mouse's back button each go up one level, a sub-folder to its folder and a workspace at the top
+///   to the page's top where that is drawn as folders (All notes by folder, or icons chosen there); only from the
+///   top does Back leave, home. Each level is a step on the shell's trail (lib/shell/visited.dart `folderPlace`), so
+///   Forward, Cmd-] and a mouse's forward button go down again; a level gone back up to opens where it was scrolled
+///   to; and in the icon view the line over the tiles starts at the top, "All notes › Work › Clients", each part a
+///   way up.
 library;
 
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kBackMouseButton, kForwardMouseButton;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -101,6 +110,8 @@ class AllNotesScreen extends StatefulWidget {
     required this.workspaces,
     required this.onOpen,
     required this.onBack,
+    this.onUp,
+    this.onForward,
     this.tapes = false,
     this.icons = false,
     this.onRefresh,
@@ -130,8 +141,18 @@ class AllNotesScreen extends StatefulWidget {
   final WorkspaceStore workspaces;
   final ValueChanged<String> onOpen;
 
-  /// Home.
+  /// Home: the page left, from the top of its folders.
   final VoidCallback onBack;
+
+  /// Up a level, to the folder given or the page's top for null: Back inside a folder, by the bar's arrow, the
+  /// phone's back gesture, Escape, Cmd-[ or a mouse's back button (Matt, 2026-11-02: "Going back from inside a folder
+  /// doesn't take you back to the root folder view"). The shell's (`AppShellState.folderUp`), so the step is on the
+  /// trail and Forward goes down again; absent, the level is chosen here.
+  final ValueChanged<String?>? onUp;
+
+  /// Forward again along the trail (`AppShellState.goOn`): Cmd-] and a mouse's forward button. Absent, neither does
+  /// anything.
+  final VoidCallback? onForward;
 
   /// Opened with the Tapes word already on, from the home page's Tapes heading, its "See all".
   final bool tapes;
@@ -209,6 +230,62 @@ class AllNotesScreen extends StatefulWidget {
 class _AllNotesScreenState extends State<AllNotesScreen> {
   /// The icon view asked for by the way in ([AllNotesScreen.icons]), until the toggle chooses a view.
   late bool _iconsAsked = widget.icons;
+
+  /// Whether the page's top has been drawn as folders on this visit: a workspace at the top then goes up to it,
+  /// where the toggle has since chosen cards for the workspace.
+  bool _topAsFolders = false;
+
+  /// Where each level shown was scrolled to when it was left, by its workspace's id ('' for the top), and the level
+  /// drawn last: a level gone back up to opens where it was rather than gliding to its top.
+  final Map<String, double> _tops = <String, double>{};
+  String? _levelShown;
+  bool _levelKnown = false;
+
+  /// Where to put the page for [level], drawn now: where it was left when this is a way back up to it, else null.
+  double? _cameUp(List<Workspace> list, String? level) {
+    if (!_levelKnown) {
+      _levelKnown = true;
+      _levelShown = level;
+      return null;
+    }
+    final was = _levelShown;
+    if (was == level) return null;
+    _levelShown = level;
+    if (_scroller.hasClients && _scroller.position.hasPixels) _tops[was ?? ''] = _scroller.position.pixels;
+    final up = was != null && (level == null || workspaceFamily(list, level).contains(was));
+    return up ? _tops[level ?? ''] : null;
+  }
+
+  /// Up to [level]: the shell's step where there is one, else the level chosen here.
+  void _up(String? level) => widget.onUp != null ? widget.onUp!(level) : widget.workspaces.chooseWorkspace(level);
+
+  /// Cmd-[ and Cmd-] on a Mac or an iPad's keyboard, Alt-← and Alt-→ elsewhere, as a browser has them: Back is the
+  /// app's back stack (whatever is open over the page first, then up a level, then home), Forward the trail's.
+  KeyEventResult _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent || !mounted) return KeyEventResult.ignored;
+    final keys = HardwareKeyboard.instance;
+    final apple = defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS;
+    final key = event.logicalKey;
+    final held = apple ? keys.isMetaPressed && !keys.isAltPressed && !keys.isControlPressed : keys.isAltPressed && !keys.isMetaPressed && !keys.isControlPressed;
+    if (!held || keys.isShiftPressed) return KeyEventResult.ignored;
+    if (key == (apple ? LogicalKeyboardKey.bracketLeft : LogicalKeyboardKey.arrowLeft)) return BackScope.of(context).goBack() ? KeyEventResult.handled : KeyEventResult.ignored;
+    final forward = widget.onForward;
+    if (forward != null && key == (apple ? LogicalKeyboardKey.bracketRight : LogicalKeyboardKey.arrowRight)) {
+      forward();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// A mouse's back and forward buttons over the page, as the keys above.
+  void _onPointer(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse) return;
+    if (event.buttons & kBackMouseButton != 0) {
+      BackScope.of(context).goBack();
+    } else if (event.buttons & kForwardMouseButton != 0) {
+      widget.onForward?.call();
+    }
+  }
 
   /// The page with its dock over it, where there is one.
   Widget _docked(Widget page) {
@@ -359,6 +436,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     _focus.addListener(_redraw);
     _focus.addListener(_readAhead);
     if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
+    FocusManager.instance.addLateKeyEventHandler(_onKey);
   }
 
   /// What the search reads of each note, made as the field takes the keyboard (lib/core/search_ahead.dart).
@@ -381,6 +459,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 
   @override
   void dispose() {
+    FocusManager.instance.removeLateKeyEventHandler(_onKey);
     widget.workspaces.removeListener(_redraw);
     _focus.removeListener(_redraw);
     _focus.removeListener(_readAhead);
@@ -571,6 +650,15 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     final browsing = !widget.simple && !searched && (workspace != null || icons);
     final folders = browsing ? folderTiles(spaces.list, spaces.of, widget.notes, workspace) : const <FolderCount>[];
     final crumbs = browsing && folderPath(spaces.list, workspace).length > 1;
+    // Up a level from here: the folder this one is in; from a workspace at the top, the top, where the top is drawn
+    // as folders (All notes by folder, or the icon view chosen there); from the top, or with no way up, home.
+    if (workspace == null && icons) _topAsFolders = true;
+    final topAsFolders = !widget.simple && (_iconsAsked || _topAsFolders || browseViewAt(spaces.list, null, widget.stored) == BrowseView.icons);
+    final current = spaces.current;
+    final canUp = !widget.simple && current != null && (current.parent != null || topAsFolders);
+    final upTo = canUp ? current.parent : null;
+    final upName = upTo == null ? 'All notes' : (spaces.list.where((w) => w.id == upTo).firstOrNull?.name ?? 'All notes');
+    final cameUp = _cameUp(spaces.list, workspace);
 
     // The bar: `padding-block: calc(var(--app-safe-top) + var(--glacier-space-2)) var(--glacier-space-2)` round a
     // search as tall as its field (`min-block-size: var(--glacier-space-8)`) and its hairlines.
@@ -583,7 +671,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // `padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-4))`
     final top = math.max(under, safeTop) + t.space(4);
     // Another workspace, order, archive or tapes chosen: the page glides back to its top rather than jumping there.
-    final room = _glide.keyed('${workspace ?? 'all'}|${_sort.id}|${_archived ? 'archive' : ''}|${_tapes ? 'tapes' : ''}|${icons ? 'icons' : ''}', still: t.reducedMotion);
+    // Back up to a level already shown: where it was left, at once.
+    final room = _glide.keyed('${workspace ?? 'all'}|${_sort.id}|${_archived ? 'archive' : ''}|${_tapes ? 'tapes' : ''}|${icons ? 'icons' : ''}', still: t.reducedMotion, restore: cameUp);
     // `padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10))`
     // And at least the room the dock stands in, so the last cards scroll clear of it.
     final dock = widget.dock;
@@ -703,9 +792,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 SizedBox(height: t.space(3)),
                 // The folders inside the chosen workspace, with where it is above them (GHST-107); in the icon view
                 // they are the first tiles, and only the line above is drawn here.
-                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs || widget.onNewFolder != null || widget.onNewNote != null))) ...[
+                // In the icon view the line starts at the page's top, All notes, so there is a way up from a workspace at
+                // the top too (Matt, 2026-11-02).
+                if (workspace != null && (icons ? browsing : (folders.isNotEmpty || crumbs || widget.onNewFolder != null || widget.onNewNote != null))) ...[
                   if (icons)
-                    FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, store: widget.workspaces)
+                    FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: _up, root: 'All notes', onRoot: () => _up(null), store: widget.workspaces)
                   else
                     FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder, onNewNote: widget.onNewNote, store: widget.workspaces),
                   SizedBox(height: t.space(4)),
@@ -753,9 +844,10 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 
     final onRefresh = widget.onRefresh;
     final manage = _manage;
-    // Inside a folder, the phone's back gesture and Escape go up a level, as the line above does; at a workspace at
-    // the top they go home, as ever (the shell's own OnBack, under this one).
-    final up = workspace == null ? null : spaces.current?.parent;
+    // Inside a folder, the phone's back gesture and Escape go up a level, as the line above does, and the bar's arrow
+    // too; at the top they go home, as ever (the shell's own OnBack, under this one). A workspace at the top goes up
+    // to the top where that is drawn as folders ([canUp]).
+    void back() => canUp ? _up(upTo) : widget.onBack();
     return ColoredBox(
       // `.screen { background: var(--glacier-bg) }`
       color: t.color('glacier-bg'),
@@ -778,8 +870,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                   children: [
                     GlacierPressable(
                       key: const ValueKey('all-notes-back'),
-                      onPressed: widget.onBack,
-                      semanticLabel: 'Back to home',
+                      onPressed: back,
+                      semanticLabel: canUp ? 'Back to $upName' : 'Back to home',
                       builder: (context, state) => GlacierFocusRing(
                         visible: state.focused,
                         child: SizedBox.square(
@@ -819,7 +911,10 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 onDeleteAll: FolderMenuScope.maybeOf(context)?.deleteAll,
                 noteExists: FolderMenuScope.maybeOf(context)?.noteExists,
               ),
-            OnBack(active: up != null && !widget.simple, onBack: () => widget.workspaces.chooseWorkspace(up), child: const SizedBox.shrink()),
+            OnBack(active: canUp, onBack: () => _up(upTo), child: const SizedBox.shrink()),
+            // A mouse's back and forward buttons anywhere over the page, heard without taking the press from what
+            // is under it.
+            Positioned.fill(child: Listener(behavior: HitTestBehavior.translucent, onPointerDown: _onPointer, child: const SizedBox.expand())),
           ],
         ),
       ),

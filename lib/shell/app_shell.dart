@@ -96,6 +96,7 @@ class AppShell extends StatefulWidget {
     this.drafts = const {},
     this.topBar = TopBarStyle.classic,
     this.workspaces = const Workspaces(),
+    this.onChooseWorkspace,
     this.organizations = const [],
     this.unread = false,
     this.openNotes = const [],
@@ -163,8 +164,13 @@ class AppShell extends StatefulWidget {
   /// How the top bar is laid out (Settings › Appearance).
   final TopBarStyle topBar;
 
-  /// The workspaces, for the pill a filed note's tab wears.
+  /// The workspaces, for the pill a filed note's tab wears, and the level the All notes page is at
+  /// ([Workspaces.current]): a folder opened there is a step on the trail (shell/visited.dart `folderPlace`).
   final Workspaces workspaces;
+
+  /// A folder of All notes to show, or its top for null, where an arrow lands on one (`WorkspaceStore.chooseWorkspace`).
+  /// Absent, a step onto a folder shows the page at whatever level it is.
+  final ValueChanged<String?>? onChooseWorkspace;
 
   /// The organizations you belong to, for the people icon's picker.
   final List<OrgLike> organizations;
@@ -302,6 +308,14 @@ class AppShellState extends State<AppShell> {
   final TopBarTools _barTools = TopBarTools();
   late VisibleNotes _seen = _see();
 
+  /// The level All notes is at: the chosen workspace as last handed in, or the one an arrow has just landed on before
+  /// the store's change comes back down. The All notes page's place on the trail is this level's (`folderPlace`).
+  late String? _level = widget.workspaces.current?.id;
+
+  /// The All notes page last shown, so an arrow back onto it from a note opens it in the view it was in (the icon
+  /// view of All notes by folder, or the cards).
+  ScreenNotes? _lastNotes;
+
   /// The notes every screen is handed: none held back by a pending delete, none in the trash, and no draft.
   VisibleNotes _see() => visibleNotes(_library, hidden: widget.drafts.isEmpty ? widget.hidden : {...widget.hidden, ...widget.drafts}, trash: widget.trash);
 
@@ -376,6 +390,8 @@ class AppShellState extends State<AppShell> {
     if (!identical(old.openNotes, widget.openNotes)) _tabs.openFromElsewhere(widget.openNotes);
     if (old.sidebarShown != widget.sidebarShown && widget.sidebarShown != null) _sidebarShown = widget.sidebarShown;
     if (old.asideShown != widget.asideShown) _asideShown = widget.asideShown;
+    // Another level chosen on All notes (a folder's tile, a chip, a pill, a crumb): somewhere new on the trail.
+    if (old.workspaces.current?.id != widget.workspaces.current?.id) _level = widget.workspaces.current?.id;
     _sync();
   }
 
@@ -396,7 +412,9 @@ class AppShellState extends State<AppShell> {
     _tabs.update(shown: shown, notes: _library, live: _seen.live);
     if (widget.simple) _tabs.trimTo(shown);
     _walk.live = _seen.live;
-    _walk.arrive(_screen.place);
+    final screen = _screen;
+    if (screen is ScreenNotes) _lastNotes = screen;
+    _walk.arrive(screen is ScreenNotes ? folderPlace(_level) : screen.place);
   }
 
   /// Whether simple mode draws the home page as a column beside the note (GHST-105, [_plain]): simple, on a window
@@ -521,8 +539,13 @@ class AppShellState extends State<AppShell> {
       return;
     }
     final id = noteIdOf(spot);
-    if (spot == allNotesPlace) {
-      show(const Screen.notes());
+    if (isAllNotesPlace(spot)) {
+      // All notes at the level the step was taken from: the folder chosen, and the page as it was last shown.
+      final folder = folderOfPlace(spot);
+      _level = folder;
+      widget.onChooseWorkspace?.call(folder);
+      final screen = _screen;
+      show(screen is ScreenNotes ? screen : ScreenNotes(icons: _lastNotes?.icons ?? false));
     } else if (id == null) {
       backToList();
     } else if (shown != null && widget.untouchedEntryOf?.call(shown!) == id) {
@@ -535,6 +558,18 @@ class AppShellState extends State<AppShell> {
   /// One step back through where he has been, and forward again.
   void goBack() => _land(_walk.back());
   void goOn() => _land(_walk.on());
+
+  /// All notes up a level, to the folder [level] or its top for null (Matt, 2026-11-02: "Going back from inside a
+  /// folder doesn't take you back to the root folder view"): its own Back, the phone's back gesture, Escape, Cmd-[
+  /// and a mouse's back button. Where the step before this one on the trail is that level, the trail steps back onto
+  /// it, so Forward goes down into the folder again; else the level is somewhere new.
+  void folderUp(String? level) {
+    final before = _walk.trail.backFrom(_walk.stillThere);
+    if (_screen is ScreenNotes && before?.place == folderPlace(level)) return goBack();
+    _level = level;
+    widget.onChooseWorkspace?.call(level);
+    _change(() {});
+  }
 
   /// One tab closed, or a whole group's; the note being read among them hands over to the tab left beside it.
   void closeTabs(Iterable<String> ids) {

@@ -204,6 +204,8 @@ extension _RootParts on _GhostRootState {
       simple: prefs.simple,
       emptyPaneBuilder: (context, shell) => const SimpleEmptyPane(ghost: Ghost(scene: GhostScene.noNotes, size: GhostSize.small)),
       workspaces: _workspaces.value,
+      // A folder of All notes an arrow lands on.
+      onChooseWorkspace: _workspaces.chooseWorkspace,
       organizations: signedIn ? services!.joined : const [],
       organizationBuilder: services == null ? null : _organizationPage,
       onRenameNote: _rename,
@@ -312,6 +314,9 @@ extension _RootParts on _GhostRootState {
           clock: widget.clock,
           onOpen: (id) => _openWhereLeft(shell, id),
           onBack: shell.backToList,
+          // Up a folder, a step back on the trail where it came down from there, and Forward down again.
+          onUp: shell.folderUp,
+          onForward: preferences.value.simple ? null : shell.goOn,
           onRefresh: _pullRefresh,
           onNoteMenu: (note, at) => _menu.open(note.id, at),
           notesInWorkspace: _notesIn,

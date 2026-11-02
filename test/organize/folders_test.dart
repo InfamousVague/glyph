@@ -220,11 +220,11 @@ void main() {
       expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-clients'))).label, 'Clients, folder, 2 notes');
       await tester.tap(find.byKey(const ValueKey('tile-note-roadmap')));
       expect(opened, ['roadmap']);
-      // A folder's tile enters it, and the line above says where the page is.
+      // A folder's tile enters it, and the line above says where the page is, from the page's top (2026-11-02).
       await tester.tap(find.byKey(const ValueKey('tile-folder-clients')));
       await settle(tester);
       expect(store.value.current?.id, 'clients');
-      expect(find.bySemanticsLabel('In Work › Clients'), findsOneWidget);
+      expect(find.bySemanticsLabel('In All notes › Work › Clients'), findsOneWidget);
       expect(find.byKey(const ValueKey('tile-folder-kiln')), findsOneWidget);
       expect(find.byKey(const ValueKey('tile-note-invoice')), findsOneWidget);
       expect(find.byKey(const ValueKey('tile-note-kickoff')), findsNothing, reason: 'Kiln’s, behind its tile');

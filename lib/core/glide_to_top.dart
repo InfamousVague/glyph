@@ -52,8 +52,10 @@ class GlideToTop {
   }
 
   /// The key the page is drawn for. Answers the room to pad the foot by in this build: more than 0 from the build
-  /// the key changes in, while the page was scrolled, until the glide ends. A null key never glides.
-  double keyed(String? key, {required bool still}) {
+  /// the key changes in, while the page was scrolled, until the glide ends. A null key never glides. With [restore],
+  /// a key changed to is put where it was left instead, at once and with no room borrowed: a folder gone back up to
+  /// on All notes opens where it was scrolled to (Matt, 2026-11-02).
+  double keyed(String? key, {required bool still, double? restore}) {
     if (!_keyed) {
       _keyed = true;
       _key = key;
@@ -61,6 +63,15 @@ class GlideToTop {
     }
     if (key == _key) return _room;
     _key = key;
+    if (restore != null && controller.hasClients) {
+      _end();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_gone || !controller.hasClients) return;
+        final position = controller.position;
+        controller.jumpTo(position.hasContentDimensions ? restore.clamp(position.minScrollExtent, position.maxScrollExtent) : restore);
+      });
+      return _room;
+    }
     final from = _lastTop;
     if (key == null || from <= 0 || !controller.hasClients) return _room;
     if (still) {

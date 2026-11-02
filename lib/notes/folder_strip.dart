@@ -256,11 +256,17 @@ class FolderStrip extends StatelessWidget {
 /// Where the chosen workspace is, as a line: "Work › Clients", each part but the last a way up. Nothing for a
 /// workspace at the top.
 class FolderCrumbs extends StatelessWidget {
-  const FolderCrumbs({super.key, required this.list, required this.chosen, required this.onChoose, this.store});
+  const FolderCrumbs({super.key, required this.list, required this.chosen, required this.onChoose, this.root, this.onRoot, this.store});
 
   final List<Workspace> list;
   final String chosen;
   final ValueChanged<String> onChoose;
+
+  /// The page's own top as the line's first part, a way up to it, as All notes by folder has it ("All notes › Work ›
+  /// Clients"; Matt, 2026-11-02): with it the line is drawn for a workspace at the top too. Absent, the line starts
+  /// at the workspace at the top and is nothing for one.
+  final String? root;
+  final VoidCallback? onRoot;
 
   /// The workspaces, so a note or a folder can be dropped on a part of the line and go there; none, and nothing is.
   final WorkspaceStore? store;
@@ -275,12 +281,32 @@ class FolderCrumbs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = folderPath(list, chosen);
-    if (path.length < 2) return const SizedBox.shrink();
+    final root = onRoot == null ? null : this.root;
+    if (path.length < (root == null ? 2 : 1)) return const SizedBox.shrink();
     final t = context.tokens;
     final sm = t.fontSize('sm');
+    // A part above where the page is, pressed to go up to it.
+    Widget way(Key key, String name, VoidCallback onPressed) => GlacierPressable(
+          key: key,
+          onPressed: onPressed,
+          semanticLabel: 'Up to $name',
+          haptic: HapticKind.selection,
+          builder: (context, state) => GlacierFocusRing(
+            visible: state.focused,
+            radius: t.radius('sm'),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: t.space(1), vertical: t.space(1)),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(t.radius('sm')),
+                color: state.hovered || state.pressed ? t.colorOf('color-mix(in oklch, var(--app-ink) 6%, transparent)') : null,
+              ),
+              child: Text(name, maxLines: 1, softWrap: false, style: pageText(t, sm, color: state.pressed ? t.color('app-ink') : t.color('app-ink-2'))),
+            ),
+          ),
+        );
     return Semantics(
       container: true,
-      label: 'In ${path.map((w) => w.name).join(' › ')}',
+      label: 'In ${[?root, ...path.map((w) => w.name)].join(' › ')}',
       child: SizedBox(
         key: const ValueKey('folder-crumbs'),
         height: normalLeading(sm) * sm + 2 * t.space(1),
@@ -288,30 +314,14 @@ class FolderCrumbs extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
+              if (root != null) way(const ValueKey('crumb-root'), root, onRoot!),
               for (final (at, part) in path.indexed) ...[
-                if (at > 0) ExcludeSemantics(child: Text(' › ', style: pageText(t, sm, color: t.color('app-ink-3')))),
+                if (at > 0 || root != null) ExcludeSemantics(child: Text(' › ', style: pageText(t, sm, color: t.color('app-ink-3')))),
                 if (at == path.length - 1)
                   // The last part is where the page is: said, not pressed.
                   _drop(Padding(padding: EdgeInsets.symmetric(horizontal: t.space(1), vertical: t.space(1)), child: Text(part.name, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: t.color('app-ink')))), part)
                 else
-                  _drop(GlacierPressable(
-                    key: ValueKey('crumb-${part.id}'),
-                    onPressed: () => onChoose(part.id),
-                    semanticLabel: 'Up to ${part.name}',
-                    haptic: HapticKind.selection,
-                    builder: (context, state) => GlacierFocusRing(
-                      visible: state.focused,
-                      radius: t.radius('sm'),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: t.space(1), vertical: t.space(1)),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(t.radius('sm')),
-                          color: state.hovered || state.pressed ? t.colorOf('color-mix(in oklch, var(--app-ink) 6%, transparent)') : null,
-                        ),
-                        child: Text(part.name, maxLines: 1, softWrap: false, style: pageText(t, sm, color: state.pressed ? t.color('app-ink') : t.color('app-ink-2'))),
-                      ),
-                    ),
-                  ), part),
+                  _drop(way(ValueKey('crumb-${part.id}'), part.name, () => onChoose(part.id)), part),
               ],
             ],
           ),
