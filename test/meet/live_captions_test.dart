@@ -159,6 +159,10 @@ void main() {
     expect(liveNoteBody('Launch sync'), note.body);
     expect(meetLiveNoteId(meeting), liveId);
     expect(liveNoteBody(null), '# A meeting\n\n$liveLine\n', reason: 'no date nor time: nothing a device would say its own way');
+    // With its booking's start, the day on the end in no language's order, so a weekly meeting is a title a week.
+    final monday = DateTime(2026, 10, 27, 9, 30).millisecondsSinceEpoch;
+    expect(liveNoteBody('Engineering Standup', startsAt: monday), '# Engineering Standup 2026-10-27\n\n$liveLine\n');
+    expect(liveNoteBody(null, startsAt: monday), '# A meeting\n\n$liveLine\n');
   });
 
   test('a note the person deleted is not made again by the next caption', () async {
@@ -202,7 +206,8 @@ void main() {
     expect(notes.writes, [liveId], reason: 'one edit of the one note');
     expect(await notes.get(meetNoteId('AbCdEfGhIjKlMnOpQrStUv')), isNull, reason: 'no second note of the meeting');
     final note = (await notes.get(liveId))!;
-    expect(withMeetingMark(note.body, null), startsWith('# Launch sync\n\nGhost was in this meeting on '));
+    // The take's title, its meeting's day on the end (2026-11-02).
+    expect(withMeetingMark(note.body, null), matches(RegExp(r'^# Launch sync \d{4}-\d{2}-\d{2}\n\nGhost was in this meeting on ')));
     expect(meetingMarkOf(note.body)?.booking, meeting, reason: 'the take’s mark, once');
     expect(note.body, contains('It is being written up on your device.\n\nMy own notes: ask about pricing.\n\n## Captions\n\n**Sam Lee (0:01):** Good morning everyone.\n\n**Daniel (0:11):** The pricing page is drafted.\n'));
     expect(note.body, isNot(contains(liveLine)));

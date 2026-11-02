@@ -193,10 +193,10 @@ class LiveCaptions {
 const String liveNotesKey = 'glyph-meet-live-notes';
 
 /// The note meeting [meeting] is while Ghost is in it ([meetLiveNoteId]), made here now where it is not yet: titled
-/// [title], marked a meeting as a filed one is (`prefs.meetings`, and kept against the booking, meet_in.dart
+/// [title] and its booking's day ([startsAt]), marked a meeting as a filed one is (`prefs.meetings`, and kept against the booking, meet_in.dart
 /// [withMeetingNote]), and [made] told, for the list and the sync. None where this device made one for it before and
 /// it is gone (the person deleted it), or the meeting was filed already as a note of its own (an older build's take).
-Future<String?> liveNoteFor(String meeting, {required LocalNotes notes, required PreferencesStore prefs, required Stored kept, String? title, required int now, FutureOr<void> Function()? made}) async {
+Future<String?> liveNoteFor(String meeting, {required LocalNotes notes, required PreferencesStore prefs, required Stored kept, String? title, int? startsAt, required int now, FutureOr<void> Function()? made}) async {
   final id = meetLiveNoteId(meeting);
   if (await notes.get(id) != null) return id;
   if (liveNoteMadeBefore(kept, id)) return null;
@@ -205,7 +205,7 @@ Future<String?> liveNoteFor(String meeting, {required LocalNotes notes, required
   // Not marked a meeting in its own words yet (meeting_mark.dart): the mark's `start` would be this device's clock, and
   // the live note is the very same words on every device so two devices making it meet as one. The take, filed with
   // the meeting's own start (meet_in.dart), writes the mark.
-  await notes.apply(Note(id: id, body: liveNoteBody(title), createdAt: now, updatedAt: now, source: NoteSource.capture));
+  await notes.apply(Note(id: id, body: liveNoteBody(title, startsAt: startsAt), createdAt: now, updatedAt: now, source: NoteSource.capture));
   markLiveNoteMade(kept, id, now);
   prefs.update((was) => withMeetingNote(was.copyWith(meetings: {...was.meetings, id: now}), meeting, id));
   await made?.call();

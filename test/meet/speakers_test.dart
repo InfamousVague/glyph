@@ -90,12 +90,12 @@ void main() {
 
   test('filed to be written up: the captions wait under their own heading', () {
     final body = meetNoteBody(take(), now: 0, writeUp: true);
-    expect(body, '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. It is being written up on your device.\n\n'
+    expect(body, '# Launch sync 2026-10-18\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. It is being written up on your device.\n\n'
         '## Captions\n\n**Sam Lee (0:01):** Good morning everyone. Launch checklist first.\n\n**Daniel (0:11):** The pricing page is drafted.\n');
   });
 
   test('filed from the captions alone, the captions are the transcript and the note says why', () {
-    expect(meetNoteBody(take(), now: 0, writeUp: false), '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. This is from Meet’s captions: the recording could not be kept on this device.\n\n'
+    expect(meetNoteBody(take(), now: 0, writeUp: false), '# Launch sync 2026-10-18\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. This is from Meet’s captions: the recording could not be kept on this device.\n\n'
         '## Transcript\n\n**Sam Lee (0:01):** Good morning everyone. Launch checklist first.\n\n**Daniel (0:11):** The pricing page is drafted.\n');
     expect(meetNoteBody(take(captions: const [], audio: 0), now: 0, writeUp: false, why: CaptionsOnly.noSound), endsWith('No sound came with it, so this is from Meet’s captions.\n\n## Transcript\n\nMeet showed no captions.\n'));
     // A Zoom's are Zoom's.
@@ -117,14 +117,14 @@ void main() {
       const Segment(startMs: 3000, endMs: 8000, text: 'Launch checklist first.'),
       const Segment(startMs: 10200, endMs: 12500, text: 'The pricing page is drafted.'),
     ];
-    expect(withSpeakers(written, segments), '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n'
+    expect(withSpeakers(written, segments), '# Launch sync 2026-10-18\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n'
         '## Transcript\n\n**Sam Lee (0:00):** Good morning everyone. Launch checklist first.\n\n**Daniel (0:10):** The pricing page is drafted.\n');
     // A summary landed above it stays where it is.
     final summarised = written.replaceFirst('\n\nGhost was', '\n## Summary\nA call.\n\nGhost was');
-    expect(withSpeakers(summarised, segments), startsWith('# Launch sync\n## Summary\nA call.\n\nGhost was in this meeting'));
+    expect(withSpeakers(summarised, segments), startsWith('# Launch sync 2026-10-18\n## Summary\nA call.\n\nGhost was in this meeting'));
     // No phrases with times kept: the captions' own turns are the transcript, never Whisper's words as one block
     // (2026-10-30: this was the step that left the block, the captions dropped and the words as Whisper wrote them).
-    expect(withSpeakers(written, const []), '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\n**Sam Lee (0:01):** Good morning everyone. Launch checklist first.\n\n**Daniel (0:11):** The pricing page is drafted.\n');
+    expect(withSpeakers(written, const []), '# Launch sync 2026-10-18\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\n**Sam Lee (0:01):** Good morning everyone. Launch checklist first.\n\n**Daniel (0:11):** The pricing page is drafted.\n');
     // No captions kept: the phrases in timed turns, with nobody named; a transcript in turns already is left.
     expect(withSpeakers('# A note\n\n## Transcript\n\nWords.\n', segments), '# A note\n\n## Transcript\n\n(0:00) Good morning everyone. Launch checklist first. The pricing page is drafted.\n');
     expect(withSpeakers('# A note\n\n## Transcript\n\n(0:00) Words.\n', segments), '# A note\n\n## Transcript\n\n(0:00) Words.\n', reason: 'in turns already: nothing to do');
@@ -135,7 +135,7 @@ void main() {
     expect(withSpeakers(filed, const []), isNull, reason: 'no transcript yet: keep waiting');
     final written = '${filed.trimRight()}\n\n## Transcript\n\nGood morning everyone.\n';
     final done = withSpeakers(written, const [Segment(startMs: 0, endMs: 2000, text: 'Good morning everyone.')])!;
-    expect(done, '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\n(0:00) Good morning everyone.\n');
+    expect(done, '# Launch sync 2026-10-18\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\n(0:00) Good morning everyone.\n');
     expect(awaitsWriteUp(done), isFalse);
   });
 }

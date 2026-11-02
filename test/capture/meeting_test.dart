@@ -54,6 +54,28 @@ void main() {
     });
   });
 
+  group('an invite’s title, dated (2026-11-02: a weekly meeting was one title many times over)', () {
+    final monday = DateTime(2026, 10, 27, 9, 30).millisecondsSinceEpoch;
+
+    test('ends with its day, no comma, in no language’s order', () {
+      expect(datedMeetingTitle('Engineering Standup', monday), 'Engineering Standup 2026-10-27');
+      expect(datedMeetingTitle('  Engineering   Standup ', monday), 'Engineering Standup 2026-10-27');
+      expect(meetingDay(monday), '2026-10-27');
+    });
+
+    test('a title that says a date already, an empty one, and no time are left as they are', () {
+      for (final dated in ['Standup 2026-10-27', 'Review 10/27', 'Planning Oct 27', 'Offsite 27 October', 'Retro Sept. 3']) {
+        expect(datedMeetingTitle(dated, monday), dated);
+      }
+      expect(datedMeetingTitle('', monday), '');
+      expect(datedMeetingTitle('Standup', 0), 'Standup');
+      // A word that only starts like a month is not a date.
+      expect(datedMeetingTitle('Marketing sync', monday), 'Marketing sync 2026-10-27');
+      expect(datedMeetingTitle('Q3 roadmap', monday), 'Q3 roadmap 2026-10-27');
+      expect(datedMeetingTitle('Decision 2', monday), 'Decision 2 2026-10-27');
+    });
+  });
+
   group('the title', () {
     // Local times: the title is the time on the phone's own clock.
     final afternoon = DateTime(2026, 9, 26, 14, 5).millisecondsSinceEpoch;

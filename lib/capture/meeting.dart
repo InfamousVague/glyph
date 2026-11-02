@@ -57,6 +57,31 @@ const List<String> _germanMonths = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Jun
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
+/// A meeting's day as its title ends with it: `2026-10-27`, on this device's clock, in no language's own order, so
+/// every device of the account writes the same words for the same meeting.
+String meetingDay(int ms) {
+  final date = DateTime.fromMillisecondsSinceEpoch(ms);
+  return '${date.year}-${_two(date.month)}-${_two(date.day)}';
+}
+
+/// A date already in a title: `2026-10-27`, `10/27`, `Oct 27`, `27 October`.
+const String _month = r'(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?';
+final RegExp _saysADate = RegExp(
+  r'\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[/.]\d{1,2}\b|\b' + _month + r'\s+\d{1,2}\b|\b\d{1,2}\s+' + _month + r'(?![a-z])',
+  caseSensitive: false,
+);
+
+/// An invite's [title] with its meeting's day on the end (Matt, 2026-11-02: "Meetings with the same name seem to get
+/// linked to the latest version … Maybe meeting titles should include the date"). A weekly "Engineering Standup" was
+/// three notes of one title, so a `[[Engineering Standup]]` in a ticket from the 27th opened the 29th's; now each is
+/// "Engineering Standup 2026-10-27" and a link names one. No comma between them: a comma in a `[[title]]` splits a
+/// board's line (the connector's append_to_note). A title that says a date already is left as it is.
+String datedMeetingTitle(String title, int ms) {
+  final named = title.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (named.isEmpty || ms <= 0 || _saysADate.hasMatch(named)) return named;
+  return '$named ${meetingDay(ms)}';
+}
+
 /// "Meeting, 26 Sep 14:05": the day and the month in the locale's own order, then the time on a 24-hour clock. The
 /// locale's literals between the day and the month (de-DE's "." after the day) are dropped, so the title is always
 /// the day, a space, the month, whichever comes first; a locale's own month abbreviation is kept as it is ("Sept.").

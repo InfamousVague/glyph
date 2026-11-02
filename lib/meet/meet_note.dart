@@ -41,7 +41,7 @@ library;
 
 import 'dart:typed_data';
 
-import '../capture/meeting.dart' show meetingTitle;
+import '../capture/meeting.dart' show datedMeetingTitle, meetingTitle;
 import '../core/bytes.dart';
 import '../core/library.dart' show transcriptOf, withTranscript;
 import '../core/locale_dates.dart';
@@ -68,9 +68,9 @@ String meetNoteId(String takeId) {
   return mailNoteId('meet:$takeId');
 }
 
-/// The note's title: the invite's, or the date's.
+/// The note's title: the invite's with the meeting's day on the end ([datedMeetingTitle]), or the date's.
 String meetTitle(OpenedTake take, {required int now}) {
-  final title = take.title.replaceAll(RegExp(r'\s+'), ' ').trim();
+  final title = datedMeetingTitle(take.title, take.startedAt > 0 ? take.startedAt : now);
   if (title.isNotEmpty) return title;
   return meetingTitle(take.startedAt > 0 ? take.startedAt : now);
 }

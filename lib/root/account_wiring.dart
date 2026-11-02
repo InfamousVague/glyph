@@ -403,6 +403,7 @@ class WiredAccount {
                   prefs: settings,
                   kept: device,
                   title: booked?.title,
+                  startsAt: booked?.startsAt,
                   now: DateTime.now().millisecondsSinceEpoch,
                   made: () async {
                     await refresh();

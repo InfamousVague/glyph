@@ -26,6 +26,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../capture/meeting.dart' show datedMeetingTitle;
 import '../capture/meeting_turns.dart' show transcriptTurns;
 import '../core/front_matter.dart' show frontMatterEnd;
 import '../core/note.dart' show Segment;
@@ -175,10 +176,11 @@ const String liveLine = 'Ghost is in this meeting now. Its transcript comes in a
 const String liveLineNoTake = 'Ghost was in this meeting, but its recording didn’t reach Ghost.md.';
 
 /// The note a meeting Ghost is in starts as: its title and [liveLine]. The same words on every device, so two of the
-/// account's devices that make it at once make one note: no date, no time, nothing the device's own clock or language
-/// would say differently.
-String liveNoteBody(String? title) {
-  final named = (title ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+/// account's devices that make it at once make one note: no time, nothing the device's language would say its own way.
+/// The title ends with the day its booking [startsAt] ([datedMeetingTitle], `2026-10-27`), the service's start, the
+/// same on every device, so a weekly meeting is a note a day and not one title many times over (2026-11-02).
+String liveNoteBody(String? title, {int? startsAt}) {
+  final named = datedMeetingTitle(title ?? '', startsAt ?? 0);
   return '# ${named.isEmpty ? 'A meeting' : named}\n\n$liveLine\n';
 }
 

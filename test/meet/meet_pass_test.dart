@@ -83,7 +83,7 @@ void main() {
     final note = d.device.notes.held[id]!;
     // Marked a meeting in its own words (lib/meet/meeting_mark.dart): when it began, the service, the booking.
     expect(meetingMarkOf(note.body), const MeetingMark(startMs: 1792159200000, kind: 'meet', booking: 'm1'));
-    expect(withMeetingMark(note.body, null), startsWith('# Launch sync\n\nGhost was in this meeting on '));
+    expect(withMeetingMark(note.body, null), startsWith('# Launch sync 2026-10-16\n\nGhost was in this meeting on '));
     expect(note.body, contains('It is being written up on your device.\n\n## Captions\n\n**Sam Lee (0:01):** Good morning everyone.\n\n**Daniel (0:11):** The pricing page is drafted.\n'));
     expect(note.body, isNot(contains('## Transcript')), reason: 'the write-up would take words under it as the transcript');
     expect((note.createdAt, note.updatedAt, note.recordingMs, note.source), (1792159200000, 1792162000000, 90000, NoteSource.capture));
