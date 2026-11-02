@@ -160,8 +160,9 @@ void main() {
     testWidgets('has a switch for each category, each a synced preference the row in the list counts', (tester) async {
       await openPane(tester, 'notifications');
       // The morning's ticket digest under them (lib/settings/panes/ticket_digest_section.dart; Matt, 2026-10-31).
-      expect(cardTitles(tester), ['What reaches you', 'Ticket digest']);
-      expect(rowLabels(tester), ['Team', 'Claude', 'Summaries', 'Conflicts', 'Morning digest', 'Time', 'Write a digest note']);
+      // The morning time over the digest where the phone does not remind (2026-11-01).
+      expect(cardTitles(tester), ['What reaches you', 'Morning', 'Ticket digest']);
+      expect(rowLabels(tester), ['Team', 'Claude', 'Summaries', 'Conflicts', 'Morning time', 'Morning digest', 'Write a digest note']);
       for (final (row, read) in <(String, bool Function(NotificationPrefs))>[('Team', (n) => n.team), ('Claude', (n) => n.claude), ('Summaries', (n) => n.summaries), ('Conflicts', (n) => n.conflicts)]) {
         expect(read(preferences.value.notifications), isTrue);
         await tapOn(tester, inRow(row, find.byType(GlacierSwitch)));
@@ -188,7 +189,7 @@ void main() {
 
     testWidgets('lists the organizations to mute once the account is in one, and keeps the muted ones by id', (tester) async {
       await openPane(tester, 'notifications', features: const SettingsFeatures(signedIn: true, orgs: [SettingsOrg(id: 'o1', name: 'Attic', members: 1), SettingsOrg(id: 'o2', name: 'Cellar', members: 4)]));
-      expect(cardTitles(tester), ['What reaches you', 'Mute an organization', 'Ticket digest']);
+      expect(cardTitles(tester), ['What reaches you', 'Mute an organization', 'Morning', 'Ticket digest']);
       expect((hintOf(tester, 'Attic'), hintOf(tester, 'Cellar')), ('1 member', '4 members'));
       await tapOn(tester, inRow('Cellar', find.byType(GlacierSwitch, skipOffstage: false)));
       await tapOn(tester, inRow('Attic', find.byType(GlacierSwitch, skipOffstage: false)));
@@ -373,7 +374,8 @@ void main() {
     testWidgets('keeps each switch and the summaries’ pick as a preference, live at once', (tester) async {
       await openPane(tester, 'recording', size: const Size(390, 1400));
       expect(cardTitles(tester), ['While recording', 'After recording', 'Summaries', 'Tapes', 'Voice log']);
-      for (final (row, read) in <(String, bool Function(Preferences))>[('Stop when I go quiet', (p) => p.quietStop), ('Review after recording', (p) => p.review), ('Better words', (p) => p.refine)]) {
+      // Review after recording and Better words are one switch since 2026-11-01, Improve after recording.
+      for (final (row, read) in <(String, bool Function(Preferences))>[('Stop when I go quiet', (p) => p.quietStop), ('Improve after recording', (p) => p.improve && p.review && p.refine)]) {
         final was = read(preferences.value);
         expect(switchIn(tester, row).checked, was);
         await tapOn(tester, inRow(row, find.byType(GlacierSwitch)));
@@ -388,7 +390,7 @@ void main() {
       await tapOn(tester, inRow('Meetings and long voice notes', find.byType(Pick)));
       expect(preferences.value.summaries, 'long');
       // On the phone the words say so.
-      expect(hintOf(tester, 'Better words'), 'A larger model goes over the recording and fixes the words. A few seconds of the phone per minute of speech.');
+      expect(hintOf(tester, 'Improve after recording'), contains('a few seconds of the phone per minute of speech.'));
       expect(hintOf(tester, 'Stop when I go quiet'), contains('The side key and Done still work.'));
       await back(tester);
       expect(listLine(tester, 'Recording'), recordingSummary(preferences.value));
@@ -472,11 +474,14 @@ void main() {
       await openPane(tester, 'recording');
       expect(tester.getRect(find.text('WHILE RECORDING')).topLeft, offsetMoreOrLessEquals(const Offset(31.24, 122.73), epsilon: 0.5));
       expect(tester.getRect(inRow('Stop when I go quiet', find.text('Stop when I go quiet'))).topLeft, offsetMoreOrLessEquals(const Offset(35.7, 159.05), epsilon: 0.5));
-      expect(tester.getRect(inRow('Review after recording', find.text('Review after recording'))).topLeft, offsetMoreOrLessEquals(const Offset(35.7, 269.45), epsilon: 0.75));
-      expect(tester.getRect(find.text('AFTER RECORDING')).top, closeTo(403.39, 1));
-      expect(tester.getRect(find.text('SUMMARIES')).top, closeTo(553.56, 1));
-      expect(tester.getRect(inRow('Off', find.text('Off', skipOffstage: false))).topLeft, offsetMoreOrLessEquals(const Offset(35.7, 823), epsilon: 1.5));
-      expect(tester.getRect(find.text('TAPES', skipOffstage: false)).top, closeTo(877.63, 1.5));
+      // The page's Review after recording stood under it, and After recording held Better words alone: one switch since
+      // 2026-11-01, Improve after recording, with both its words. What follows is held to where it stands now.
+      final after = tester.getRect(find.text('AFTER RECORDING')).top;
+      expect(after, lessThan(403.39));
+      expect(tester.getRect(inRow('Improve after recording', find.text('Improve after recording'))).left, closeTo(35.7, 0.5));
+      final shift = after - 403.39;
+      expect(tester.getRect(find.text('SUMMARIES')).top - 553.56, greaterThan(shift - 1), reason: 'the Improve row is taller than Better words was');
+      expect(tester.getRect(find.text('TAPES', skipOffstage: false)).top - tester.getRect(find.text('SUMMARIES')).top, closeTo(877.63 - 553.56, 1.5));
       await endSettings(tester);
     });
   });
@@ -608,7 +613,7 @@ void main() {
       expect(rowLabels(tester).take(2), ['Create an account', 'Lost the password']);
       expect(rowLabels(tester).last, 'Export everything');
       expect(rowLabels(tester, 'Privacy'), ['Local only', 'Link previews', 'Privacy policy']);
-      expect(rowLabels(tester, 'Location'), ['Map on a tagged note', 'Place names', 'Tag new notes with my location']);
+      expect(rowLabels(tester, 'Location'), ['Use OpenStreetMap', 'Tag new notes with my location']);
       // With no account service the button cannot be pressed, whatever is typed.
       await tester.enterText(find.byType(EditableText).at(0), 'sam');
       await tester.enterText(find.byType(EditableText).at(1), 'correct horse');
@@ -675,8 +680,8 @@ void main() {
       await openPane(tester, 'account', size: const Size(390, 2600), onOpenLink: opened.add, features: SettingsFeatures(onLocate: () => located++));
       for (final (row, read) in <(String, bool Function(Preferences))>[
         ('Link previews', (p) => p.linkPreviews),
-        ('Map on a tagged note', (p) => p.mapTiles),
-        ('Place names', (p) => p.placeNames),
+        // Map on a tagged note and Place names until 2026-11-01.
+        ('Use OpenStreetMap', (p) => p.openStreetMap && p.mapTiles && p.placeNames),
       ]) {
         final was = read(preferences.value);
         await tapOn(tester, inRow(row, find.byType(GlacierSwitch)));
@@ -742,7 +747,9 @@ void main() {
       // Less the row Look up blanks online took on Privacy until it went to AI (2026-11-01).
       const lookUp = 130.34;
       expect(tester.getRect(find.text('LOCATION', skipOffstage: false)).top, closeTo(1626.89 - lookUp, 3));
-      expect(tester.getRect(find.text('Update Ghost.md to tag notes.', skipOffstage: false)).top, closeTo(2138.58 - lookUp, 4));
+      // And less the row Place names took on Location, one switch with the map's since 2026-11-01.
+      const placeNames = 110.17;
+      expect(tester.getRect(find.text('Update Ghost.md to tag notes.', skipOffstage: false)).top, closeTo(2138.58 - lookUp - placeNames, 4));
       await endSettings(tester);
     });
   });

@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/book/ticket_digest.dart' show digestSettingsOf, ticketDigestSettingsKey;
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/preferences.dart' show Preferences, PreferencesStore;
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/trash.dart';
 import 'package:ghost_md/home_screen/home_host.dart';
+import 'package:ghost_md/reminders/morning_time.dart';
 import 'package:ghost_md/reminders/reminder_host.dart';
 import 'package:ghost_md/reminders/reminder_scheduler.dart';
 import 'package:ghost_md/reminders/reminder_settings.dart';
@@ -46,7 +49,7 @@ void main() {
   group('the scheduler', () {
     test('hands the phone the plan once, and again only when it is another', () async {
       final phone = FakeReminders();
-      final settings = ReminderSettingsStore(MemoryStored());
+      final settings = ReminderSettingsStore(MemoryStored(), PreferencesStore());
       final scheduler = ReminderScheduler(host: phone, settings: settings, clock: () => now);
       final notes = [note('a', '- [ ] Call the plumber 📅 2026-10-03')];
       expect(await scheduler.pass(notes), isTrue);
@@ -61,7 +64,7 @@ void main() {
 
     test('a plan the phone did not take is handed over again at the next pass', () async {
       final phone = FakeReminders()..takes = false;
-      final scheduler = ReminderScheduler(host: phone, settings: ReminderSettingsStore(MemoryStored()), clock: () => now);
+      final scheduler = ReminderScheduler(host: phone, settings: ReminderSettingsStore(MemoryStored(), PreferencesStore()), clock: () => now);
       final notes = [note('a', '- [ ] Call 📅 2026-10-03')];
       await scheduler.pass(notes);
       phone.takes = true;
@@ -72,7 +75,7 @@ void main() {
     test('a reminder that has rung leaves the plan as the clock passes it', () async {
       final phone = FakeReminders();
       var clock = now;
-      final scheduler = ReminderScheduler(host: phone, settings: ReminderSettingsStore(MemoryStored()), clock: () => clock);
+      final scheduler = ReminderScheduler(host: phone, settings: ReminderSettingsStore(MemoryStored(), PreferencesStore()), clock: () => clock);
       final notes = [note('a', '- [ ] Call ⏰ 2026-10-02 08:30\n- [ ] Pay 📅 2026-10-03')];
       await scheduler.pass(notes);
       expect(phone.last, ['2026-10-02 08:30 Call', '2026-10-03 09:00 Pay']);
@@ -81,12 +84,49 @@ void main() {
       expect(phone.last, ['2026-10-03 09:00 Pay']);
     });
 
-    test('the settings are this device’s, kept, and read back', () {
+    test('the settings are this device’s, kept, and read back; the time is the morning time, synced', () {
       final kept = MemoryStored();
-      ReminderSettingsStore(kept).update((was) => was.copyWith(on: false, hour: 7, minute: 15, dayBefore: true));
-      expect(ReminderSettingsStore(kept).value, const ReminderSettings(on: false, hour: 7, minute: 15, dayBefore: true));
+      final prefs = PreferencesStore();
+      ReminderSettingsStore(kept, prefs).update((was) => was.copyWith(on: false, hour: 7, minute: 15, dayBefore: true));
+      expect(prefs.value.morningTime, '07:15');
+      expect(ReminderSettingsStore(kept, prefs).value, const ReminderSettings(on: false, hour: 7, minute: 15, dayBefore: true));
       kept.writeText(reminderSettingsKey, '{"hour": 99, "on": "yes"}');
-      expect(ReminderSettingsStore(kept).value, const ReminderSettings());
+      expect(ReminderSettingsStore(kept, PreferencesStore()).value, const ReminderSettings());
+    });
+
+    // Matt, 2026-11-01: "see if there are other settings that can be simplified". The reminders' time and the ticket
+    // digest's are one morning time (lib/reminders/morning_time.dart): chosen anywhere, heard by the store at once.
+    test('the morning time chosen elsewhere is the reminders’ time at once, and the scheduler hears it', () async {
+      final prefs = PreferencesStore();
+      final settings = ReminderSettingsStore(MemoryStored(), prefs);
+      final phone = FakeReminders();
+      final scheduler = ReminderScheduler(host: phone, settings: settings, clock: () => now);
+      final notes = [note('a', '- [ ] Call the plumber 📅 2026-10-03')];
+      await scheduler.pass(notes);
+      expect(phone.last, ['2026-10-03 09:00 Call the plumber']);
+      prefs.update((p) => p.copyWith(morningTime: '06:30'));
+      expect((settings.value.hour, settings.value.minute), (6, 30));
+      expect(await scheduler.pass(notes), isTrue);
+      expect(phone.last, ['2026-10-03 06:30 Call the plumber']);
+    });
+
+    test('until a morning time is chosen, the reminders’ old time is it where it was changed, else the digest’s, else nine', () {
+      final prefs = PreferencesStore();
+      expect(morningOf(prefs.value, kept: MemoryStored()), (hour: 9, minute: 0));
+      final kept = MemoryStored()..write(reminderSettingsKey, const ReminderSettings(hour: 7, minute: 45).toJson());
+      expect(morningOf(prefs.value, kept: kept), (hour: 7, minute: 45));
+      expect(ReminderSettingsStore(kept, prefs).value.hour, 7);
+      final digest = Preferences.defaults.copyWith(more: {ticketDigestSettingsKey: {'on': true, 'hour': 8, 'minute': 0, 'note': false}});
+      expect(morningOf(digest, kept: MemoryStored()), (hour: 8, minute: 0));
+      expect(digestSettingsOf(digest).hour, 8);
+      // The reminders' changed time over the digest's; the digest's untouched half past eight is no choice.
+      expect(morningOf(digest, kept: kept), (hour: 7, minute: 45));
+      final untouched = Preferences.defaults.copyWith(more: {ticketDigestSettingsKey: {'on': true, 'hour': 8, 'minute': 30, 'note': true}});
+      expect(morningOf(untouched, kept: MemoryStored()), (hour: 9, minute: 0));
+      // Chosen, it is the one time for both.
+      final chosen = digest.copyWith(morningTime: '06:15');
+      expect(morningOf(chosen, kept: kept), (hour: 6, minute: 15));
+      expect((digestSettingsOf(chosen).hour, digestSettingsOf(chosen).minute), (6, 15));
     });
   });
 
@@ -120,7 +160,7 @@ void main() {
         trash: trash,
         reminders: phone,
         home: home,
-        settings: ReminderSettingsStore(MemoryStored()),
+        settings: ReminderSettingsStore(MemoryStored(), PreferencesStore()),
         kept: MemoryStored(),
         clock: () => now,
         timer: (wait, then) => (timers..add(HeldTimer(then))).last,

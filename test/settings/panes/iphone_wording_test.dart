@@ -164,7 +164,8 @@ void main() {
       expect(account, contains('Your notes and pictures stay on this device. Signed in, they sync encrypted on the device first'));
       expect(account, contains('Every note you make here starts with where you were. Off,'));
       expect(account, isNot(matches(RegExp(r'recording|voice|spoken|the model|microphone', caseSensitive: false))));
-      expect(appearance, contains('Blur at the edges'));
+      // Effects, the one switch since 2026-11-01: on an iPhone its words say nothing of recording.
+      expect(appearance, contains('Effects'));
       expect(appearance, isNot(contains('Ripples while recording')));
       expect(notifications, contains('A meeting written up on another of your devices.'));
       expect(notifications, isNot(contains('under Recording')));
@@ -175,7 +176,8 @@ void main() {
       expect(_shown(tester), contains('where you were, typed or spoken. Off,'));
       await endSettings(tester);
       await openPane(tester, 'theme', size: const Size(390, 3600));
-      expect(rowLabels(tester), contains('Ripples while recording'));
+      // The ripples are Effects' since 2026-11-01, and its words say so where something records.
+      expect(_shown(tester), contains('While recording, the newest words move with your voice.'));
       await endSettings(tester);
     });
   });

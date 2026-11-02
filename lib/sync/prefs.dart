@@ -59,9 +59,10 @@ const List<String> syncedPrefs = [
   // The dock's buttons, their order and which are hidden (lib/core/dock_layout.dart; Matt, 2026-10-27: "build the
   // dock editor"): the person's dock, the same on every device, with the wide window's own where there is one.
   'dock',
-  'refine',
+  // Improve after recording, Review after recording and Better words until 2026-11-01 (`review`, `refine`, which an
+  // older build syncs and this one carries untouched): the person's.
+  'improve',
   'quietStop',
-  'review',
   'summaries',
   // When a meeting is written up, and whether its audio syncs: the person's choices, whichever device made it.
   'writeUp',
@@ -69,31 +70,31 @@ const List<String> syncedPrefs = [
   // Whether that switch was ever touched: until it is, a meeting's audio syncs (GHST-112), whatever an older build
   // wrote.
   'syncMeetingRecordingsChosen',
-  'codeLight',
-  'codeDark',
-  'codeChosen',
+  // The colours of code, one palette (`codeLight`, `codeDark` and `codeChosen` until 2026-11-01), and the motion's one
+  // switch, Effects (`wisp`, `wispEdge`, `ripples` until then): looks, so they travel.
+  'code',
   'noteView',
-  'wisp',
-  'wispEdge',
-  'ripples',
+  'effects',
   // Calm: the running work's colours as ink (docs/ACTIVITY.md), a look that travels as the motion's switches do.
   'calm',
   // Focus mode: a way of writing, the same on every device. Its typewriter scroll is always on with it since 2026-11-01,
   // and `focusTypewriter`, which an older build syncs, is carried for it untouched.
   'focusMode',
-  // Settings › Sounds (Matt, 2026-10-27): the pack, whether the app makes sounds, and each event's switch travel, as a
-  // look does. The volume does not (`soundVolume`): a phone and a Mac are not equally loud.
-  'soundPack',
-  'interfaceSounds',
+  // Settings › Sounds & haptics (Matt, 2026-10-27): what makes a sound (`soundPack` and `interfaceSounds` until
+  // 2026-11-01) and each event's switch travel, as a look does. The volume does not (`soundVolume`): a phone and a Mac
+  // are not equally loud.
+  'sounds',
   'soundEvents',
   'motionSpeed',
   'linkPreviews',
   // Whether a canvas's cards land on its dots: a way of working, the same on every device.
   'canvasSnap',
-  // Where a note was written: the map and the place names describe the person, so they travel. Tagging new notes
-  // does not: it makes this device ask for its position, and whether a device talks to the network stays with it.
-  'mapTiles',
-  'placeNames',
+  // Where a note was written: Use OpenStreetMap, the map and the place names (`mapTiles` and `placeNames` until
+  // 2026-11-01), describes the person, so it travels. Tagging new notes does not: it makes this device ask for its
+  // position, and whether a device talks to the network stays with it.
+  'openStreetMap',
+  // The morning time, a due day's reminder's and the ticket digest's (lib/reminders/morning_time.dart): the person's.
+  'morningTime',
   // The notes left open: they belong to the person, so the tabs are the same wherever they pick the app up.
   'openNotes',
   'tabGroups',

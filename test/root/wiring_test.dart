@@ -405,7 +405,7 @@ void main() {
       await openNote(tester, library.value.first.id);
       expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(typing), isTrue);
       await close(tester);
-      library = await open(tester, prefs: const Preferences(theme: 'light', wisp: false));
+      library = await open(tester, prefs: const Preferences(theme: 'light', effects: false));
       await openNote(tester, library.value.first.id);
       expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(typing), isFalse);
       await close(tester);

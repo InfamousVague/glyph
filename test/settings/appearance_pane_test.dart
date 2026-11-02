@@ -89,16 +89,17 @@ void main() {
   setUpAll(loadAppFonts);
 
   group('the Appearance page', () {
-    testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
+    // Touch's Haptics went to Settings › Sounds & haptics on 2026-11-01.
+    testWidgets('holds the look, the type and the motion, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch', 'Dock']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
       await endSettings(tester);
     });
 
     testWidgets('keeps the two size dials together in Type, beside the two faces', (tester) async {
       await _open(tester);
       expect(_labels(tester, 'Type'), ['Note font', 'Interface font', 'Text size', 'Scale']);
-      expect(_labels(tester, 'Motion'), ['Animation speed', 'Ghostly typing', 'Blur at the edges', 'Ripples while recording']);
+      expect(_labels(tester, 'Motion'), ['Animation speed', 'Effects']);
       // The sample in the card's head, in the note's own face at the headings' size.
       final sample = tester.widget<Text>(find.byKey(const ValueKey('settings-sample')));
       expect(sample.data, 'Aa');
@@ -110,12 +111,11 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('has no Touch where there is no motor', (tester) async {
-      await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
+    testWidgets('has no Touch, whatever the motor: Haptics is Sounds & haptics’ now', (tester) async {
+      await _alone(tester, const AppearancePane());
+      expect(_titles(tester), isNot(contains('Touch')));
       expect(find.text('Haptics'), findsNothing);
-      expect(appearanceFindable(haptics: false).map((f) => f.name), isNot(contains('Haptics')));
-      expect(appearanceFindable(haptics: true).map((f) => f.name), contains('Haptics'));
+      expect(appearanceFindable().map((f) => f.name), isNot(contains('Haptics')));
       await endSettings(tester);
     });
 
@@ -160,26 +160,22 @@ void main() {
         await endSettings(tester);
       }
       for (final simple in [false, true]) {
-        expect(appearanceFindable(haptics: true, simple: simple).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Focus mode'), contains('Typewriter scroll'))));
+        expect(appearanceFindable(simple: simple).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Focus mode'), contains('Typewriter scroll'))));
       }
     });
 
-    testWidgets('writes each switch to what the app reads', (tester) async {
+    // Ghostly typing, Blur at the edges and Ripples while recording until Matt, 2026-11-01: "see if there are other
+    // settings that can be simplified". One switch, Effects, that all three read.
+    testWidgets('writes Effects, the one switch the ghostly typing, the blur at the edges and the ripples read', (tester) async {
       await _open(tester);
       Finder toggle(String row) => find.descendant(of: find.widgetWithText(SettingRow, row), matching: find.byType(GlacierSwitch));
-      for (final (row, read) in <(String, bool Function(Preferences))>[('Ghostly typing', (p) => p.wisp), ('Blur at the edges', (p) => p.wispEdge), ('Ripples while recording', (p) => p.ripples)]) {
-        expect(read(preferences.value), isTrue);
-        await _tap(tester, toggle(row));
-        expect(read(preferences.value), isFalse, reason: row);
-        expect(tester.widget<GlacierSwitch>(toggle(row)).checked, isFalse);
+      expect((preferences.value.effects, preferences.value.wisp, preferences.value.wispEdge, preferences.value.ripples), (true, true, true, true));
+      await _tap(tester, toggle('Effects'));
+      expect((preferences.value.effects, preferences.value.wisp, preferences.value.wispEdge, preferences.value.ripples), (false, false, false, false));
+      expect(tester.widget<GlacierSwitch>(toggle('Effects')).checked, isFalse);
+      for (final gone in ['Ghostly typing', 'Blur at the edges', 'Ripples while recording', 'Haptics']) {
+        expect(find.widgetWithText(SettingRow, gone), findsNothing, reason: gone);
       }
-      // The haptics are this device's own switch, and the motor's.
-      expect(hapticsPref.value, isTrue);
-      expect(hapticsEnabled(), isTrue);
-      await _tap(tester, toggle('Haptics'));
-      expect(hapticsPref.value, isFalse);
-      expect(hapticsEnabled(), isFalse);
-      expect(tester.widget<GlacierSwitch>(toggle('Haptics')).checked, isFalse);
       await endSettings(tester);
     });
 
@@ -245,11 +241,16 @@ void main() {
       expect(_root(tester).duration('glacier-duration-fast'), const Duration(milliseconds: 150));
       expect(_root(tester).len('app-motion-scale'), 1);
 
-      expect(preferences.value.codeChosen, isFalse);
-      await _tap(tester, find.text('GitHub'));
-      await _tap(tester, find.text('Nord'));
-      expect((preferences.value.codeLight, preferences.value.codeDark, preferences.value.codeChosen), ('github', 'nord', true));
-      expect(_root(tester).attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'nord')));
+      // Code colours, one palette for both sides of the page (Matt, 2026-11-01): each side its variant where the palette
+      // has one, Pastel where it has none.
+      expect(preferences.value.code, 'pastel');
+      await _tap(tester, find.descendant(of: find.byKey(const ValueKey('code-github')), matching: find.byType(Pick)));
+      expect((preferences.value.code, preferences.value.codeLight, preferences.value.codeDark), ('github', 'github', 'pastel'));
+      expect(_root(tester).attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'pastel')));
+      await _tap(tester, find.descendant(of: find.byKey(const ValueKey('code-nord')), matching: find.byType(Pick)));
+      expect((preferences.value.code, preferences.value.codeLight, preferences.value.codeDark), ('nord', 'pastel', 'nord'));
+      await _tap(tester, find.descendant(of: find.byKey(const ValueKey('code-ink')), matching: find.byType(Pick)));
+      expect(_root(tester).attrs, allOf(containsPair('code-light', 'ink'), containsPair('code-dark', 'ink')));
       await endSettings(tester);
     });
 
@@ -314,8 +315,8 @@ void main() {
       expect(_titles(tester), isNot(contains('Icons')));
       // The style chosen still draws Simple's page.
       expect(preferences.value.iconStyle, 'solid');
-      expect(appearanceFindable(haptics: false, simple: true).map((f) => f.name), isNot(contains('Icons')));
-      expect(appearanceFindable(haptics: false).map((f) => f.name), contains('Icons'));
+      expect(appearanceFindable(simple: true).map((f) => f.name), isNot(contains('Icons')));
+      expect(appearanceFindable().map((f) => f.name), contains('Icons'));
       await endSettings(tester);
     });
   });
@@ -583,8 +584,6 @@ void main() {
         'Type': (2274.83, 1353.52),
         'Spacing': (3646.19, 226.7),
         'Corners': (3890.73, 143.56),
-        'Code': (4052.14, 269.34),
-        'Motion': (4339.33, 523.86),
       };
       // The Market's themes and faces, which the web's page did not have then: Page and Type that many rows taller,
       // and every card under each that much further down.
@@ -597,7 +596,7 @@ void main() {
       // Focus mode's card stood between Type and the icons from 2026-10-27 to 2026-11-01.
       final icons = card('Icons');
       expect(icons.top, closeTo(card('Type').bottom + gap, 3.5));
-      const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion'];
+      const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners'];
       for (final entry in web.entries) {
         final rect = card(entry.key);
         final at = order.indexOf(entry.key);
@@ -608,6 +607,11 @@ void main() {
         expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');
         expect(rect.top, closeTo(entry.value.$1 + down + below, 3.5), reason: '${entry.key}’s top');
       }
+      // Code and Motion were the web's cards (4052.14, 269.34 and 4339.33, 523.86) until 2026-11-01, when Code's two
+      // picks became one, a row a palette, and Motion's three switches one, Effects: each still a gap under the last.
+      expect(card('Code').top, closeTo(card('Corners').bottom + gap, 3.5));
+      expect(card('Motion').top, closeTo(card('Code').bottom + gap, 3.5));
+      expect(card('Motion').height, lessThan(523.86));
       // The segmented controls: the kit's small size, on the deeper track a card gives them.
       final size = find.ancestor(of: find.text('Largest'), matching: find.byType(GlacierSegmentedControl));
       expect(tester.getRect(size).size.width, closeTo(318.59, 0.05));

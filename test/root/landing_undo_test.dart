@@ -93,7 +93,7 @@ void main() {
   Future<void> open(WidgetTester tester, List<Note> notes) async {
     library = SampleLibrary(notes);
     refining = _Refining();
-    var prefs = Preferences.defaults.copyWith(review: false, refine: false);
+    var prefs = Preferences.defaults.copyWith(improve: false);
     await pumpApp(
       tester,
       prefs: const Preferences(theme: 'light'),

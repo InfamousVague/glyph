@@ -55,7 +55,7 @@ Future<void> hide(WidgetTester tester, bool hidden) async {
 }
 
 Future<void> setWispEdge(WidgetTester tester, bool on) async {
-  preferences.value = preferences.value.copyWith(wispEdge: on);
+  preferences.value = preferences.value.copyWith(effects: on);
   await tester.pump();
 }
 
@@ -404,7 +404,7 @@ void main() {
     });
 
     testWidgets('wears the haze only with the smoke at the edges on', (tester) async {
-      await show(tester, atWork(tester, stage: listeningAt(10)), prefs: const Preferences(theme: 'light', wispEdge: false));
+      await show(tester, atWork(tester, stage: listeningAt(10)), prefs: const Preferences(theme: 'light', effects: false));
       expect(state(tester).debugBend, isNotNull);
       expect(state(tester).debugHazeOn, isFalse);
       await setWispEdge(tester, true);

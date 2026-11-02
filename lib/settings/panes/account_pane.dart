@@ -39,8 +39,8 @@ const List<SettingsFindable> privacyFindable = [
 /// The Location card's names (AccountPane.findable.ts `LOCATION`).
 const List<SettingsFindable> locationFindable = [
   SettingsFindable('Location', 'map place where geotag gps'),
-  SettingsFindable('Map on a tagged note', 'openstreetmap tiles'),
-  SettingsFindable('Place names', 'nominatim address geocode'),
+  // Map on a tagged note and Place names until 2026-11-01: found by their words still.
+  SettingsFindable('Use OpenStreetMap', 'openstreetmap map on a tagged note tiles place names nominatim address geocode'),
   SettingsFindable('Tag new notes with my location', 'automatic gps position geotag place where front matter'),
 ];
 
@@ -790,10 +790,10 @@ class _LocationRefused extends StatelessWidget {
       );
 }
 
-/// Port of `LocationCard` (src/app/settings/LocationCard.tsx): where a note was written, and the three network things
-/// it can mean. The map at the top of a tagged note, the place's name, and every new note starting with where the
-/// device was: each is its own switch (`mapTiles`, `placeNames`, `tagNewNotes`), and Local only turns all of them
-/// off.
+/// Port of `LocationCard` (src/app/settings/LocationCard.tsx): where a note was written, and the network things it can
+/// mean. Use OpenStreetMap, the map at the top of a tagged note and the place's name (`openStreetMap`; two switches,
+/// Map on a tagged note and Place names, until Matt, 2026-11-01: "see if there are other settings that can be
+/// simplified"), and every new note starting with where the device was (`tagNewNotes`). Local only turns both off.
 ///
 /// It is more than one child of the page (the card, and a footnote while Local only is on), so a page lays out its
 /// [parts]; on its own it is the card.
@@ -856,15 +856,9 @@ class LocationCard extends StatelessWidget {
           description: const Text("A note can say where it was written. The place is kept in the note's own words, so it goes wherever the note does. A link you share leaves it out unless you say so on the note."),
           children: [
             SettingRow(
-              label: 'Map on a tagged note',
-              hint: const Text('A small map at the top of the note, and under each place you add. Opening one fetches the tiles from openstreetmap.org, which sees your IP address, as a website would.'),
-              control: GlacierSwitch(ariaLabel: 'Map on a tagged note', checked: prefs.mapTiles, onCheckedChange: (on) => store.update((now) => now.copyWith(mapTiles: on))),
-              disabledReason: localOnly,
-            ),
-            SettingRow(
-              label: 'Place names',
-              hint: const Text('The name of the place, asked of OpenStreetMap once when you add a location or a place, and kept in the note. Never asked again.'),
-              control: GlacierSwitch(ariaLabel: 'Place names', checked: prefs.placeNames, onCheckedChange: (on) => store.update((now) => now.copyWith(placeNames: on))),
+              label: 'Use OpenStreetMap',
+              hint: const Text('A small map at the top of a tagged note and under each place you add, its tiles fetched from openstreetmap.org, which sees your IP address as a website would; and the name of the place, asked of it once and kept in the note.'),
+              control: GlacierSwitch(ariaLabel: 'Use OpenStreetMap', checked: prefs.openStreetMap, onCheckedChange: (on) => store.update((now) => now.copyWith(openStreetMap: on))),
               disabledReason: localOnly,
             ),
             SettingRow(

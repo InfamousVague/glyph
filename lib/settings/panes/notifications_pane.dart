@@ -13,6 +13,7 @@ import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
 import '../../reminders/reminder_host.dart' show ReminderHost, phoneReminders;
+import 'morning_section.dart';
 import 'reminders_section.dart';
 import 'ticket_digest_section.dart';
 import '../../plugins/projects/suite.dart' show projectSuite, ticketsTool;
@@ -20,8 +21,9 @@ import '../../plugins/projects/suite.dart' show projectSuite, ticketsTool;
 /// What Settings' search finds on Notifications (`findable`, src/app/settings/NotificationsPane.findable.ts): the four
 /// switches, and the card of organizations to mute once there is one to draw it for.
 List<SettingsFindable> notificationsFindable({required bool orgs}) => [
-      // Reminders, where the phone reminds (reminders_section.dart).
+      // Reminders, where the phone reminds (reminders_section.dart), and the morning time they share with the digest.
       if (phoneReminders.value != null) ...remindersFindable,
+      if (phoneReminders.value != null || projectSuite.anywhere(ticketsTool)) morningFindable,
       const SettingsFindable('Team', 'organization members joined left removed renamed invitation accepted declined'),
       const SettingsFindable('Claude', 'mcp ai note created edited appended journal rule'),
       const SettingsFindable('Summaries', 'meeting written up summary recording'),
@@ -183,6 +185,9 @@ class _NotificationsPaneState extends State<NotificationsPane> {
           children: [
             // This phone's own, signed in or not: nothing of it needs an account.
             if (reminders != null) RemindersSection(host: reminders),
+            // The one time the reminders and the digest share (Matt, 2026-11-01): under the reminders where the phone
+            // reminds, else over the digest.
+            if (reminders != null) MorningSection(store: store, reminders: reminders),
             if (!signedIn)
               SettingsCallout(
                 child: Text.rich(
@@ -236,6 +241,7 @@ class _NotificationsPaneState extends State<NotificationsPane> {
             // The morning's ticket digest (lib/book/ticket_digest.dart; Matt, 2026-10-31): the account's choices, on
             // every device, under what the bell takes in.
             // Where Tickets is on for the person or a team of theirs (docs/PM_PLUGINS.md).
+            if (reminders == null && projectSuite.anywhere(ticketsTool)) MorningSection(store: store),
             if (projectSuite.anywhere(ticketsTool)) TicketDigestSection(store: store, reminders: reminders),
             if (phone != null && state != null)
               PaneSection(

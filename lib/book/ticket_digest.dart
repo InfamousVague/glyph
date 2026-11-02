@@ -33,6 +33,7 @@ import '../core/days.dart' show isoDay, isoDayAfter, daysBetween;
 import '../core/preferences.dart' show Preferences;
 import '../core/properties.dart';
 import '../mentions/mention_syntax.dart' show handleKey;
+import '../reminders/morning_time.dart' show morningOf;
 import '../reminders/reminder_plan.dart' show Reminder, ReminderKind, stableId;
 import '../reminders/reminder_syntax.dart' show ReminderTime;
 import 'ticket_links.dart' show openBlockers;
@@ -84,8 +85,12 @@ class DigestSettings {
   int get hashCode => Object.hash(on, hour, minute, note);
 }
 
-/// The choices the settings hold.
-DigestSettings digestSettingsOf(Preferences prefs) => DigestSettings.fromJson(prefs.more[ticketDigestSettingsKey]);
+/// The choices the settings hold, at the morning time (lib/reminders/morning_time.dart): the digest's own time, kept
+/// under its key until 2026-11-01, is read only for the morning time until one is chosen.
+DigestSettings digestSettingsOf(Preferences prefs) {
+  final morning = morningOf(prefs);
+  return DigestSettings.fromJson(prefs.more[ticketDigestSettingsKey]).copyWith(hour: morning.hour, minute: morning.minute);
+}
 
 /// [prefs] with [settings] as the digest's choices.
 Preferences withDigestSettings(Preferences prefs, DigestSettings settings) => prefs.copyWith(more: {...prefs.more, ticketDigestSettingsKey: settings.toJson()});

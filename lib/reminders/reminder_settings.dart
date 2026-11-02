@@ -1,12 +1,16 @@
 /// Settings › Notifications › Reminders: whether this phone reminds at all, the time a to-do or a ticket with a due
-/// day and no time of its own is reminded at, and whether it is reminded the day before too. This device's own, kept
-/// in its memory under `glyph-reminders` (lib/core/stored.dart), never synced: only a phone reminds, and each phone
-/// is its owner's to set.
+/// day and no time of its own is reminded at, and whether it is reminded the day before too. Whether and the day
+/// before are this device's own, kept in its memory under `glyph-reminders` (lib/core/stored.dart), never synced: only
+/// a phone reminds, and each phone is its owner's to set. The time is the morning time since 2026-11-01
+/// (lib/reminders/morning_time.dart), the ticket digest's too, kept in the synced preferences: the store reads it from
+/// there and writes it there, so everything that hears the store hears it change.
 library;
 
 import 'package:flutter/foundation.dart';
 
+import '../core/preferences.dart' show Preferences, PreferencesStore, preferences;
 import '../core/stored.dart';
+import 'morning_time.dart';
 
 /// What the person chose.
 @immutable
@@ -57,20 +61,45 @@ class ReminderSettings {
 /// The key the choices are kept under.
 const String reminderSettingsKey = 'glyph-reminders';
 
-/// The choices, read once from this device's memory and written back as they change.
+/// The choices, read once from this device's memory and written back as they change, the time the morning time of
+/// [PreferencesStore] (the app's own unless given), heard as it changes.
 class ReminderSettingsStore extends ValueNotifier<ReminderSettings> {
-  ReminderSettingsStore([Stored? kept])
+  ReminderSettingsStore([Stored? kept, PreferencesStore? prefs])
       : _kept = kept ?? stored,
-        super((kept ?? stored).read<ReminderSettings>(reminderSettingsKey, const ReminderSettings(), ReminderSettings.fromJson));
+        _prefs = prefs ?? preferences,
+        super(const ReminderSettings()) {
+    value = _read();
+    _prefs.addListener(_heard);
+  }
 
   final Stored _kept;
+  final PreferencesStore _prefs;
 
-  /// Changes the choices, and keeps them.
+  ReminderSettings _read() {
+    final kept = _kept.read<ReminderSettings>(reminderSettingsKey, const ReminderSettings(), ReminderSettings.fromJson);
+    final morning = morningOf(_prefs.value, kept: _kept);
+    return kept.copyWith(hour: morning.hour, minute: morning.minute);
+  }
+
+  void _heard() {
+    final morning = morningOf(_prefs.value, kept: _kept);
+    if ((morning.hour, morning.minute) != (value.hour, value.minute)) value = value.copyWith(hour: morning.hour, minute: morning.minute);
+  }
+
+  /// Changes the choices, and keeps them: a new time as the morning time, for the digest too.
   void update(ReminderSettings Function(ReminderSettings now) change) {
     final next = change(value);
     if (next == value) return;
+    final timed = (next.hour, next.minute) != (value.hour, value.minute);
     value = next;
     _kept.write(reminderSettingsKey, next.toJson());
+    if (timed) _prefs.update((Preferences now) => withMorning(now, next.hour, next.minute));
+  }
+
+  @override
+  void dispose() {
+    _prefs.removeListener(_heard);
+    super.dispose();
   }
 }
 

@@ -75,12 +75,13 @@ void main() {
         // Under Account's card since 2026-10-24, and first on its line the mode the app is in (GHST-103), advanced
         // until it is chosen: the choice is the page's first card.
         'Appearance': 'Advanced · Light · Maple Mono',
-        // Under Appearance on its card since 2026-10-27: the pack, and how many sounds are on.
-        'Sounds': 'Ghostly · 4 of 12 on',
+        // Under Appearance on its card since 2026-10-27: what makes a sound, and how many are on. Sounds & haptics since
+        // Haptics came from Appearance (2026-11-01).
+        'Sounds & haptics': 'All · 4 of 12 on',
         'Library folder': 'Where your notes are kept',
         'Backup': 'To a USB drive or SD card',
         'Export': 'Everything as one zip',
-        'Recording': 'Better words',
+        'Recording': 'Improved after recording',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
         // The port's own (2026-10-27), on a card of its own before the Market's: the triggers a new device has.
         'Snippets': ';date, ;time',
@@ -88,7 +89,7 @@ void main() {
         'Market': '0 of 0 plugins added',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
+      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds & haptics', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
       await endSettings(tester);
     });
 
@@ -164,7 +165,7 @@ void main() {
             accent: 'teal',
             density: 'compact',
             rounding: 'square',
-            refine: false,
+            improve: false,
             localOnly: true,
             notifications: now.notifications.copyWith(claude: false),
             workspaces: const KeptWorkspaces(list: [KeptWorkspace(id: 'w1', name: 'Work'), KeptWorkspace(id: 'w2', name: 'Home')]),
@@ -184,7 +185,7 @@ void main() {
     testWidgets('leave out what an iPhone has no use for, and add the hidden pages once they are unlocked', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       await _open(tester, size: const Size(390, 1200));
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds', 'Export', 'Snippets', 'Market', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds & haptics', 'Export', 'Snippets', 'Market', 'About']);
       debugDefaultTargetPlatformOverride = null;
       await endSettings(tester);
 
@@ -251,7 +252,8 @@ void main() {
     });
 
     testWidgets('open a page at one of its settings, brought into view and lit', (tester) async {
-      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}, toPage: const SettingsTarget('theme', setting: 'Haptics', nonce: 9)), settle: false);
+      // Haptics, on Sounds & haptics since it left Appearance (2026-11-01).
+      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}, toPage: const SettingsTarget('sounds', setting: 'Haptics', nonce: 9)), settle: false);
       await tester.pump(const Duration(milliseconds: 16));
       final row = find.widgetWithText(SettingRow, 'Haptics', skipOffstage: false);
       bool lit() => SettingsFindableMark.isLit(tester.widget(find.descendant(of: row, matching: find.byKey(SettingsFindableMark.lightKey, skipOffstage: false), skipOffstage: false)));
@@ -271,7 +273,8 @@ void main() {
       await _open(tester);
       await tester.enterText(find.byType(EditableText), 'smoke');
       await tester.pump();
-      expect(_rows(tester), {'Blur at the edges': 'Appearance'});
+      // Blur at the edges was a switch of its own until 2026-11-01: Effects answers to its words, the smoke's too.
+      expect(_rows(tester), {'Effects': 'Appearance'});
       await tester.enterText(find.byType(EditableText), 'sign');
       await tester.pump();
       // Account is found by its own words, so what on its page answers to them is listed after it.

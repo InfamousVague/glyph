@@ -285,7 +285,7 @@ class LibraryConfig {
       orgs: Map.unmodifiable(orgs),
       dailyNotes: daily,
       smartNotebooks: smart is List ? List.unmodifiable(smart) : null,
-      defaults: Map.unmodifiable({'geotag': prefs.tagNewNotes, 'mapTiles': prefs.mapTiles, 'placeNames': prefs.placeNames}),
+      defaults: Map.unmodifiable({'geotag': prefs.tagNewNotes, 'openStreetMap': prefs.openStreetMap}),
       slack: stored == null ? null : _channelsOut(stored, slackChannelsKey, slackMeetingsKey),
       discord: stored == null ? null : _channelsOut(stored, discordChannelsKey, discordMeetingsKey),
     );
@@ -303,7 +303,8 @@ class LibraryConfig {
   /// `[{"id", "name", "query"}]`, as lib/core/smart_notebooks.dart keeps them.
   final List<Object?>? smartNotebooks;
 
-  /// `{"geotag": true, "mapTiles": true, "placeNames": true}`.
+  /// `{"geotag": true, "openStreetMap": true}`. A file from before 2026-11-01 says `mapTiles` and `placeNames`, the two
+  /// switches Use OpenStreetMap was then, read as it: off where either was.
   final Map<String, Object?> defaults;
 
   /// `{"channels": [{"id", "name"}], "meetings": {"channel", "share"}}`, names and ids only.
@@ -458,11 +459,10 @@ Preferences applyConfigSection(Preferences prefs, LibraryConfig config, String s
     case 'defaults':
       final defaults = config.defaults;
       if (defaults.isEmpty) return prefs;
-      return prefs.copyWith(
-        tagNewNotes: defaults['geotag'] is bool ? defaults['geotag'] as bool : prefs.tagNewNotes,
-        mapTiles: defaults['mapTiles'] is bool ? defaults['mapTiles'] as bool : prefs.mapTiles,
-        placeNames: defaults['placeNames'] is bool ? defaults['placeNames'] as bool : prefs.placeNames,
-      );
+      final map = defaults['openStreetMap'] is bool
+          ? defaults['openStreetMap'] as bool
+          : (defaults['mapTiles'] is bool || defaults['placeNames'] is bool ? defaults['mapTiles'] != false && defaults['placeNames'] != false : prefs.openStreetMap);
+      return prefs.copyWith(tagNewNotes: defaults['geotag'] is bool ? defaults['geotag'] as bool : prefs.tagNewNotes, openStreetMap: map);
     case 'slack':
       if (stored != null && config.slack != null) _applyChannels(stored, config.slack!, slackChannelsKey, slackMeetingsKey);
       return prefs;

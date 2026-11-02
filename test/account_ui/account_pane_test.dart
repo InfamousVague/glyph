@@ -86,7 +86,7 @@ void main() {
       final device = await Device.make();
       await device.pump(tester, AccountPane(services: device.services));
       expect(titlesOf(tester), ['Sync', 'Your colour', 'Privacy', 'Location']);
-      final places = placesOf(tester, ['Sync now', 'Local only', 'Map on a tagged note', 'Delete account']);
+      final places = placesOf(tester, ['Sync now', 'Local only', 'Use OpenStreetMap', 'Delete account']);
       expect([...places]..sort(), places);
       await endSettings(tester);
     });

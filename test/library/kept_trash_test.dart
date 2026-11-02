@@ -62,7 +62,7 @@ void main() {
       expect(told, 1);
       final before = trash.value;
       // Any other setting changing leaves the trash, and whoever watches it, alone.
-      prefs.update((now) => now.copyWith(ripples: !now.ripples));
+      prefs.update((now) => now.copyWith(effects: !now.effects));
       expect(told, 1);
       expect(trash.value, same(before));
       // Settings from another device land as a preference change.

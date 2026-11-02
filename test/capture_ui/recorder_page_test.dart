@@ -66,7 +66,7 @@ void main() {
   /// The recorder open on [script], on a window of [size], with the page's three notes.
   Future<Capture> speak(WidgetTester tester, Map<String, String> script, Size size) async {
     final capture = Capture(tester, script: script)..insets = EdgeInsets.zero;
-    capture.prefs = capture.prefs.copyWith(wisp: false, ripples: false);
+    capture.prefs = capture.prefs.copyWith(effects: false);
     for (final (id, body) in notes) {
       capture.notes.create(id, body);
     }
@@ -325,7 +325,7 @@ void main() {
         ..insets = const EdgeInsets.only(top: 61)
         ..ratio = 2.625
         ..measuredAt = 2.625;
-      capture.prefs = capture.prefs.copyWith(wisp: false, ripples: false);
+      capture.prefs = capture.prefs.copyWith(effects: false);
       for (final (id, body) in notes) {
         capture.notes.create(id, body);
       }
@@ -379,7 +379,7 @@ void main() {
         ..insets = const EdgeInsets.only(top: 46)
         ..ratio = 2.625
         ..measuredAt = 2.625;
-      capture.prefs = capture.prefs.copyWith(wisp: false, ripples: false);
+      capture.prefs = capture.prefs.copyWith(effects: false);
       for (final (id, body) in notes) {
         capture.notes.create(id, body);
       }

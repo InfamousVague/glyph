@@ -31,7 +31,7 @@ void main() {
     store.ensureOrgWorkspace(const OrgLike(id: 'o1', name: 'Acme Corp', hue: 'sea'));
     var prefs = Preferences.defaults.copyWith(
       workspaces: KeptWorkspaces(list: [for (final w in store.value.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue, parent: w.parent)], notes: {'n1': work.id}),
-      mapTiles: false,
+      openStreetMap: false,
     );
     prefs = withDailyNotes(prefs, DailyNotesSetup(folder: home.id, template: 'A day'));
     return withSmartNotebooks(prefs, const [SmartNotebook(id: 's-1', name: 'Open work', query: 'is:todo')]);
@@ -50,7 +50,7 @@ void main() {
       expect(json['orgs'], {'orgs/Acme Corp': {'org': 'o1', 'name': 'Acme Corp', 'hue': 'sea'}});
       expect(json['dailyNotes'], {'folder': 'Home', 'template': 'A day'});
       expect(json['smartNotebooks'], [{'id': 's-1', 'name': 'Open work', 'query': 'is:todo'}]);
-      expect(json['defaults'], {'geotag': true, 'mapTiles': false, 'placeNames': true});
+      expect(json['defaults'], {'geotag': true, 'openStreetMap': false});
       expect(json['slack'], {'channels': [{'id': 'c1', 'name': '#eng'}], 'meetings': {'channel': 'c1', 'share': false}});
       expect(json.containsKey('discord'), isFalse);
       expect(config.encode(), isNot(contains('hooks.slack.com')));
@@ -167,16 +167,26 @@ void main() {
       final a = device(file, clock: () => now), b = device(file, clock: () => now);
       await a.keeper.open();
       await b.keeper.open();
-      a.prefs.update((p) => p.copyWith(mapTiles: false));
+      a.prefs.update((p) => p.copyWith(openStreetMap: false));
       await a.keeper.flush();
       // B changes the same section without rereading: its write leaves A's newer stamp alone, and the next reread
       // takes A's.
       now = DateTime.utc(2026, 10, 31, 9);
-      b.prefs.update((p) => p.copyWith(placeNames: false));
+      b.prefs.update((p) => p.copyWith(tagNewNotes: false));
       await b.keeper.flush();
       expect(file.writes, 1);
       expect(await b.keeper.reread(), ['defaults']);
       expect(b.prefs.value.mapTiles, isFalse);
+    });
+
+    // Matt, 2026-11-01: "see if there are other settings that can be simplified". A file from before says the two
+    // switches Use OpenStreetMap was: off where either was.
+    test('reads an older file’s map and place names as Use OpenStreetMap', () {
+      LibraryConfig file(Map<String, Object?> defaults) => LibraryConfig.parse(jsonEncode({'defaults': defaults}));
+      expect(applyConfigSection(Preferences.defaults, file({'mapTiles': true, 'placeNames': false}), 'defaults').openStreetMap, isFalse);
+      expect(applyConfigSection(Preferences.defaults, file({'mapTiles': true, 'placeNames': true}), 'defaults').openStreetMap, isTrue);
+      expect(applyConfigSection(Preferences.defaults.copyWith(openStreetMap: false), file({'geotag': true}), 'defaults').openStreetMap, isFalse);
+      expect(applyConfigSection(Preferences.defaults, file({'openStreetMap': false, 'mapTiles': true}), 'defaults').openStreetMap, isFalse);
     });
 
     test('merges channels by id into the plugin’s own item, and never the on switch', () async {
@@ -194,12 +204,12 @@ void main() {
       final file = MemoryConfigFile();
       final a = device(file);
       await a.keeper.open();
-      a.prefs.update((p) => p.copyWith(placeNames: false));
-      a.prefs.update((p) => p.copyWith(mapTiles: false));
+      a.prefs.update((p) => p.copyWith(tagNewNotes: false));
+      a.prefs.update((p) => p.copyWith(openStreetMap: false));
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(file.writes, 1);
       final written = LibraryConfig.parse(file.text);
-      expect(written.defaults, {'geotag': true, 'mapTiles': false, 'placeNames': false});
+      expect(written.defaults, {'geotag': false, 'openStreetMap': false});
       expect(written.written.keys, ['defaults']);
 
       a.stored.write(slackChannelsKey, [{'id': 'c1', 'name': 'https://hooks.slack.com/leak'}]);

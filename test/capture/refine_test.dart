@@ -88,7 +88,7 @@ void begin() {
   backend.reset();
   summaries.clear();
   writingUp = false;
-  prefs = Preferences.defaults.copyWith(refine: true, localOnly: false);
+  prefs = Preferences.defaults.copyWith(improve: true, localOnly: false);
   notes['n1'] = note('n1', '# Grocery run\n\nOat milk and legs.', 1);
   backend.answers['get_note'] = (args) => notes[args!['id']];
   backend.answers['update_note'] = (args) {
@@ -179,9 +179,9 @@ void main() {
     });
 
     refineTest('are not asked for with better words switched off, or in a browser', (tester) async {
-      prefs = prefs.copyWith(refine: false);
+      prefs = prefs.copyWith(improve: false);
       refining.enqueueRefine(job());
-      prefs = prefs.copyWith(refine: true);
+      prefs = prefs.copyWith(improve: true);
       native = false;
       // The module reads `isTauri()` at each call; an object made with no backend is that answer.
       make().enqueueRefine(job());

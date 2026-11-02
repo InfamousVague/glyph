@@ -1,5 +1,6 @@
-/// Settings › Notifications › Reminders (docs/FEATURES_2_1.md): whether this phone reminds, the time a due day with
-/// no time of its own is reminded at, and the day before. Drawn only where the phone reminds (Android, over the real
+/// Settings › Notifications › Reminders (docs/FEATURES_2_1.md): whether this phone reminds, and the day before. The
+/// time a due day with no time of its own is reminded at is the morning time since 2026-11-01, a row of its own under
+/// this card that the ticket digest shares (morning_section.dart). Drawn only where the phone reminds (Android, over the real
 /// library: lib/reminders/reminder_host.dart `phoneReminders`); a Mac, an iPhone and a test draw nothing, and the
 /// pane is as it was.
 ///
@@ -24,7 +25,7 @@ import 'pane_parts.dart';
 
 /// What Settings' search finds of it, where it is drawn.
 const List<SettingsFindable> remindersFindable = [
-  SettingsFindable('Reminders', 'remind me due date to-do task ticket alarm time notification'),
+  SettingsFindable('Reminders', 'remind me due date to-do task ticket alarm notification'),
   SettingsFindable('The day before', 'reminder day before due early'),
 ];
 
@@ -74,12 +75,6 @@ class _RemindersSectionState extends State<RemindersSection> {
     super.dispose();
   }
 
-  Future<void> _pickTime(ReminderSettings now) async {
-    final picked = await widget.host.pickTime(now.hour, now.minute);
-    if (picked == null || !mounted) return;
-    _store.update((was) => was.copyWith(hour: picked.hour, minute: picked.minute));
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ReminderSettings>(
@@ -94,7 +89,7 @@ class _RemindersSectionState extends State<RemindersSection> {
           children: [
             PaneSection(
               title: 'Reminders',
-              footer: Text('A to-do with a due date reminds you at $at on the day. Hold a to-do and choose Remind me for a time of its own.'),
+              footer: Text('A to-do with a due date reminds you on the day at $at, the morning time. Hold a to-do and choose Remind me for a time of its own.'),
               children: [
                 SettingRow(
                   label: 'Remind me',
@@ -106,13 +101,6 @@ class _RemindersSectionState extends State<RemindersSection> {
                             : 'To-dos and tickets with a due date, and any line with a time set.',
                   ),
                   control: GlacierSwitch(ariaLabel: 'Remind me', checked: settings.on, onCheckedChange: (on) => _store.update((now) => now.copyWith(on: on))),
-                ),
-                SettingRow(
-                  label: 'Time',
-                  hint: const Text('When a due date with no time of its own reminds you.'),
-                  value: Text(at),
-                  disabled: !settings.on,
-                  onPress: settings.on ? () => unawaited(_pickTime(settings)) : null,
                 ),
                 SettingRow(
                   label: 'The day before',

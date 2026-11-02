@@ -67,13 +67,13 @@ void main() {
 
   for (final theme in const <String>['pastel', 'ink', 'github', 'solarized']) {
     testWidgets('on the light page: $theme', (tester) async {
-      await draw(tester, AppPreferences(theme: 'light', codeLight: theme));
+      await draw(tester, AppPreferences(theme: 'light', code: theme));
       await shot(tester, 'code-light-$theme');
     });
   }
   for (final theme in const <String>['pastel', 'ink', 'one-dark', 'dracula', 'nord']) {
     testWidgets('on the dark page: $theme', (tester) async {
-      await draw(tester, AppPreferences(theme: 'dark', codeDark: theme));
+      await draw(tester, AppPreferences(theme: 'dark', code: theme));
       await shot(tester, 'code-dark-$theme');
     });
   }

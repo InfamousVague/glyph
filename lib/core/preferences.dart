@@ -186,6 +186,27 @@ bool isCodeThemeLight(Object? value) => codeThemesLight.contains(value);
 
 bool isCodeThemeDark(Object? value) => codeThemesDark.contains(value);
 
+/// Every code palette, one choice for both sides of the page since 2026-11-01 ([Preferences.code]): each drawn on the
+/// side it has a variant for, Pastel standing in on the other.
+const List<String> codeThemes = ['pastel', 'ink', 'github', 'solarized', 'one-dark', 'dracula', 'nord'];
+
+bool isCodeTheme(Object? value) => codeThemes.contains(value);
+
+/// What the app makes sounds for ([Preferences.sounds]): everything, the notifications' alone, or nothing.
+const List<String> soundsChoices = ['all', 'notifications', 'off'];
+
+/// A morning time as kept (`08:30`), or null for anything else.
+({int hour, int minute})? clockOf(Object? value) {
+  if (value is! String) return null;
+  final parts = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(value);
+  if (parts == null) return null;
+  final hour = int.parse(parts.group(1)!), minute = int.parse(parts.group(2)!);
+  return hour < 24 && minute < 60 ? (hour: hour, minute: minute) : null;
+}
+
+/// [hour] and [minute] as a morning time is kept: `08:30`.
+String clockWord(int hour, int minute) => '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+
 /// How notes are shown (editor/viewMode.ts `NoteView`).
 bool isNoteView(Object? value) => value == 'mixed' || value == 'formatted';
 
@@ -473,9 +494,8 @@ class Preferences {
     this.iconPack = 'lucide',
     this.iconStyle = 'outline',
     this.dock = DockPrefs.defaults,
-    this.refine = true,
+    this.improve = true,
     this.quietStop = false,
-    this.review = true,
     this.summaries = 'meetings',
     this.writeUp = 'charging',
     this.syncMeetingRecordings = true,
@@ -483,9 +503,7 @@ class Preferences {
     this.meetingSound = false,
     this.localOnly = false,
     this.formatModel = 'qwen3.5-4b',
-    this.codeLight = 'pastel',
-    this.codeDark = 'pastel',
-    this.codeChosen = false,
+    this.code = 'pastel',
     this.noteView = 'mixed',
     this.openNotes = const [],
     this.tabGroups = TabGroups.none,
@@ -494,24 +512,21 @@ class Preferences {
     this.meetings = const {},
     this.versions = const {},
     this.shares = const {},
-    this.wisp = true,
-    this.wispEdge = true,
-    this.ripples = true,
+    this.effects = true,
     this.calm = false,
     this.menuBarAlways = false,
     this.focusMode = false,
-    this.soundPack = 'ghostly',
-    this.interfaceSounds = true,
+    this.sounds = 'all',
     this.soundVolume = 0.75,
     this.soundEvents = const {},
     this.motionSpeed = 'normal',
     this.linkPreviews = true,
     this.canvasSnap = true,
-    this.mapTiles = true,
-    this.placeNames = true,
+    this.openStreetMap = true,
     this.tagNewNotes = true,
     this.lookUpBlanks = true,
     this.autoFill = true,
+    this.morningTime,
     this.notifications = const NotificationPrefs(),
     this.snippets = defaultSnippets,
     this.more = const {},
@@ -528,7 +543,7 @@ class Preferences {
     // `{ ...DEFAULT_PREFERENCES, ...raw }`: a key the store has wins, whatever it holds; one it lacks is the default.
     Object? at(String key, Object? fallback) => map.containsKey(key) ? map[key] : fallback;
     bool flag(String key, bool fallback) => map[key] is bool ? map[key] as bool : fallback;
-    // The page asks these two by their truthiness (`!loaded.codeChosen`).
+    // The page asked these by their truthiness (`!loaded.codeChosen`).
     bool truthy(String key) {
       final value = map[key];
       return !(value == null || value == false || value == 0 || value == '' || (value is double && value.isNaN));
@@ -536,12 +551,17 @@ class Preferences {
 
     String word(String key, String fallback) => map[key] is String ? map[key] as String : fallback;
 
-    final codeChosen = truthy('codeChosen');
     final homeLayoutChosen = truthy('homeLayoutChosen');
     final experienceChosen = truthy('experienceChosen');
     final syncMeetingRecordingsChosen = truthy('syncMeetingRecordingsChosen');
     final experience = at('experience', d.experience);
-    final codeLight = at('codeLight', d.codeLight), codeDark = at('codeDark', d.codeDark);
+    // Two switches or two picks an older build kept, read as the one this build has (Matt, 2026-11-01: "see if there
+    // are other settings that can be simplified"): the new key where a store has it; else off where either of the old
+    // was turned off, a choice of less being the one a person made; else the default.
+    bool merged(String key, List<String> old, bool fallback) {
+      if (map[key] is bool) return map[key] as bool;
+      return old.any((each) => map[each] == false) ? false : fallback;
+    }
     final noteView = at('noteView', d.noteView), theme = at('theme', d.theme);
     final uiScale = at('uiScale', d.uiScale);
     final homeLayout = at('homeLayout', d.homeLayout), topBar = at('topBar', d.topBar);
@@ -576,9 +596,8 @@ class Preferences {
       iconStyle: iconStyleChoices.contains(iconStyle) ? iconStyle as String : d.iconStyle,
       // The dock's buttons (lib/core/dock_layout.dart): an id this build does not know is left out, the rest kept.
       dock: DockPrefs.fromJson(map['dock']),
-      refine: flag('refine', d.refine),
+      improve: merged('improve', const ['review', 'refine'], d.improve),
       quietStop: flag('quietStop', d.quietStop),
-      review: flag('review', d.review),
       summaries: isSummaries(summaries) ? summaries as String : d.summaries,
       writeUp: isWriteUp(writeUp) ? writeUp as String : d.writeUp,
       // On until it is chosen (GHST-112): every store from before 2026-10-23 holds the old default, off, that nobody
@@ -590,9 +609,7 @@ class Preferences {
       localOnly: flag('localOnly', d.localOnly),
       formatModel: word('formatModel', d.formatModel),
       // A theme a later build removed falls back to the default rather than to no colours at all.
-      codeLight: isCodeThemeLight(codeLight) && codeChosen ? codeLight as String : d.codeLight,
-      codeDark: isCodeThemeDark(codeDark) && codeChosen ? codeDark as String : d.codeDark,
-      codeChosen: codeChosen,
+      code: isCodeTheme(map['code']) ? map['code'] as String : _codeFromPair(map, truthy('codeChosen'), d.code),
       noteView: isNoteView(noteView) ? noteView as String : d.noteView,
       // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
       openNotes: List.unmodifiable(ids.length > mostTabs ? ids.sublist(ids.length - mostTabs) : ids),
@@ -602,26 +619,25 @@ class Preferences {
       meetings: _readById<num>(map['meetings'], _isTime),
       versions: _readById<bool>(map['versions'], (on) => on is bool),
       shares: _readShares(map['shares']),
-      wisp: flag('wisp', d.wisp),
-      wispEdge: flag('wispEdge', d.wispEdge),
-      ripples: flag('ripples', d.ripples),
+      effects: merged('effects', const ['wisp', 'wispEdge', 'ripples'], d.effects),
       calm: flag('calm', d.calm),
       menuBarAlways: flag('menuBarAlways', d.menuBarAlways),
       focusMode: flag('focusMode', d.focusMode),
       // A pack from a later build, which this one has no files for, is Ghostly; a volume that is not a step is the
       // default; a switch that is not a yes or a no is left out, and so reads as its event's default.
-      soundPack: soundPackChoices.contains(map['soundPack']) ? map['soundPack'] as String : d.soundPack,
-      interfaceSounds: flag('interfaceSounds', d.interfaceSounds),
+      sounds: soundsChoices.contains(map['sounds'])
+          ? map['sounds'] as String
+          : (map['soundPack'] == 'off' ? 'off' : (map['interfaceSounds'] == false ? 'notifications' : d.sounds)),
       soundVolume: map['soundVolume'] is num && soundVolumes.contains((map['soundVolume'] as num).toDouble()) ? (map['soundVolume'] as num).toDouble() : d.soundVolume,
       soundEvents: _readById<bool>(map['soundEvents'], (on) => on is bool),
       motionSpeed: motionScales.containsKey(motionSpeed) ? motionSpeed as String : d.motionSpeed,
       linkPreviews: flag('linkPreviews', d.linkPreviews),
       canvasSnap: flag('canvasSnap', d.canvasSnap),
-      mapTiles: flag('mapTiles', d.mapTiles),
-      placeNames: flag('placeNames', d.placeNames),
+      openStreetMap: merged('openStreetMap', const ['mapTiles', 'placeNames'], d.openStreetMap),
       tagNewNotes: flag('tagNewNotes', d.tagNewNotes),
       lookUpBlanks: flag('lookUpBlanks', d.lookUpBlanks),
       autoFill: flag('autoFill', d.autoFill),
+      morningTime: clockOf(map['morningTime']) == null ? null : map['morningTime'] as String,
       notifications: NotificationPrefs.fromJson(map['notifications']),
       snippets: _readSnippets(map['snippets']),
       more: Map.unmodifiable({
@@ -629,6 +645,19 @@ class Preferences {
           if (entry.key is String && !_keys.contains(entry.key) && !_retired.contains(entry.key)) entry.key as String: entry.value,
       }),
     );
+  }
+
+  /// The one code palette from an older build's two (`codeLight`, `codeDark`), read only where they were [chosen]: the
+  /// two the same is that one; one of them other than Pastel is that one, a choice being what was made; two choices
+  /// are the one for the side of the page the person reads (the dark page's unless they chose a light theme).
+  static String _codeFromPair(Map<Object?, Object?> map, bool chosen, String fallback) {
+    if (!chosen) return fallback;
+    final light = isCodeThemeLight(map['codeLight']) ? map['codeLight'] as String : fallback;
+    final dark = isCodeThemeDark(map['codeDark']) ? map['codeDark'] as String : fallback;
+    if (light == dark) return light;
+    if (light == fallback) return dark;
+    if (dark == fallback) return light;
+    return themeScheme(isTheme(map['theme']) ? map['theme'] as String : defaults.theme) == 'light' ? light : dark;
   }
 
   /// `system`, `light`, `dark`, or a named theme: `dawn`, `boreal`, `ember` (`ThemePref`).
@@ -689,14 +718,16 @@ class Preferences {
   /// 2026-10-27: "build the dock editor"). Travels, as the icons do: a dock is the person's, on every device.
   final DockPrefs dock;
 
-  /// Better words after recording: a larger, slower model goes over the kept recording in the background.
-  final bool refine;
+  /// Improve after recording (Settings › Recording): after Stop, the review - the slower speech model listens again and
+  /// the language model checks the note - and better words, a larger, slower model going over the kept recording in
+  /// the background. Two switches, Review after recording and Better words (`review`, `refine`), until Matt,
+  /// 2026-11-01: "see if there are other settings that can be simplified"; [review] and [refine] read it.
+  final bool improve;
+  bool get review => improve;
+  bool get refine => improve;
 
   /// Stop when I go quiet: a recording that has heard words saves itself after a few seconds of quiet.
   final bool quietStop;
-
-  /// After Stop, the review: the slower speech model listens again and the language model checks the note.
-  final bool review;
 
   /// Which recordings are summarised on their own ([summariesChoices]).
   final String summaries;
@@ -720,12 +751,13 @@ class Preferences {
   /// Which model formats notes on the phone, by its id.
   final String formatModel;
 
-  /// Colours for code on the light page and on the dark one; `ink` keeps code in the page's ink.
-  final String codeLight;
-  final String codeDark;
-
-  /// Whether the code colours were picked in Settings; until they are, they follow the default (Pastel).
-  final bool codeChosen;
+  /// The colours of code ([codeThemes]; `ink` keeps code in the page's ink): one palette for both sides of the page,
+  /// each side its variant where the palette has one ([codeLight], [codeDark]), Pastel where it has none. Two picks, one
+  /// a side (`codeLight`, `codeDark`, with `codeChosen`), until Matt, 2026-11-01: "see if there are other settings that
+  /// can be simplified".
+  final String code;
+  String get codeLight => isCodeThemeLight(code) ? code : defaults.code;
+  String get codeDark => isCodeThemeDark(code) ? code : defaults.code;
 
   /// How notes are shown: `mixed` or `formatted`.
   final String noteView;
@@ -751,11 +783,14 @@ class Preferences {
   /// The notes shared by a read-only link, by note id.
   final Map<String, ShareEntry> shares;
 
-  /// The app's movement, three switches under Settings › Appearance › Motion: the ghostly typing, the smoke where a
-  /// page slips under its header, and the rings that answer a voice while recording.
-  final bool wisp;
-  final bool wispEdge;
-  final bool ripples;
+  /// Effects, one switch under Settings › Appearance › Motion: the ghostly typing, the blur where a page slips under its
+  /// header, and the ripples that answer a voice while recording. Three switches (`wisp`, `wispEdge`, `ripples`) until
+  /// Matt, 2026-11-01: "see if there are other settings that can be simplified"; [wisp], [wispEdge] and [ripples]
+  /// read it.
+  final bool effects;
+  bool get wisp => effects;
+  bool get wispEdge => effects;
+  bool get ripples => effects;
 
   /// Calm (Settings › Appearance; docs/ACTIVITY.md, Matt, 2026-10-29): the colours the app's running work wears - the
   /// ring in the header, the tray, the result chips - turned to ink, the motion kept. Stamped as `data-calm` on the
@@ -775,13 +810,16 @@ class Preferences {
   /// writing, so it travels with the person (lib/sync/prefs.dart).
   final bool focusMode;
 
-  /// Settings › Sounds (lib/settings/panes/sounds_pane.dart): the pack every sound is played from
-  /// ([soundPackChoices]), whether sounds inside the app play at all, how loud they are ([soundVolumes]), and each
+  /// Settings › Sounds & haptics (lib/settings/panes/sounds_pane.dart): what makes a sound ([soundsChoices]: `all`,
+  /// `notifications` for a notification's own alone, or `off`), how loud the app's own are ([soundVolumes]), and each
   /// event's own switch, by its id (lib/sounds/sound_pack.dart `SoundEvent`), only those that were switched: an
   /// event not in it is its default (`SoundEvent.on`), so a default changed later reaches everyone who never touched
-  /// it. The volume stays on this device, since a phone and a Mac are not equally loud; the rest travel.
-  final String soundPack;
-  final bool interfaceSounds;
+  /// it. The volume stays on this device, since a phone and a Mac are not equally loud; the rest travel. The pack and
+  /// a switch for the sounds inside the app (`soundPack`, `interfaceSounds`) until Matt, 2026-11-01: "see if there are
+  /// other settings that can be simplified"; [soundPack] and [interfaceSounds] read it.
+  final String sounds;
+  String get soundPack => sounds == 'off' ? 'off' : 'ghostly';
+  bool get interfaceSounds => sounds == 'all';
   final double soundVolume;
   final Map<String, bool> soundEvents;
 
@@ -794,11 +832,12 @@ class Preferences {
   /// A canvas's cards land on its grid of dots.
   final bool canvasSnap;
 
-  /// A map at the top of a tagged note, drawn from OpenStreetMap's tiles.
-  final bool mapTiles;
-
-  /// The name of the place a tagged note was written, asked of OpenStreetMap once.
-  final bool placeNames;
+  /// Use OpenStreetMap (Settings › Account › Location): a map at the top of a tagged note, drawn from its tiles, and
+  /// the name of the place a tagged note was written, asked of it once. Two switches (`mapTiles`, `placeNames`) until
+  /// Matt, 2026-11-01: "see if there are other settings that can be simplified"; [mapTiles] and [placeNames] read it.
+  final bool openStreetMap;
+  bool get mapTiles => openStreetMap;
+  bool get placeNames => openStreetMap;
 
   /// Every note made here starts with where the device was. Kept on the device.
   final bool tagNewNotes;
@@ -808,6 +847,12 @@ class Preferences {
 
   /// Fill the blanks on their own, a few seconds after the typing stops. Kept on the device.
   final bool autoFill;
+
+  /// The morning time (`08:30`), Settings › Notifications: when a due day with no time of its own is reminded at and
+  /// when the morning's ticket digest comes (lib/reminders/morning_time.dart reads it). Null until chosen, read from
+  /// the two times there were until Matt, 2026-11-01: "see if there are other settings that can be simplified".
+  /// Travels, as the digest's did.
+  final String? morningTime;
 
   /// Which notifications are drawn and counted.
   final NotificationPrefs notifications;
@@ -822,17 +867,21 @@ class Preferences {
   static const Set<String> _keys = {
     'theme', 'uiScale', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'textSize', 'typeface', //
-    'noteFace', 'iconPack', 'iconStyle', 'dock', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
-    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', 'calm', 'menuBarAlways', 'focusMode', //
-    'soundPack', 'interfaceSounds', 'soundVolume', 'soundEvents', //
-    'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications', 'snippets',
+    'noteFace', 'iconPack', 'iconStyle', 'dock', 'improve', 'quietStop', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'code', //
+    'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'effects', 'calm', 'menuBarAlways', 'focusMode', //
+    'sounds', 'soundVolume', 'soundEvents', //
+    'motionSpeed', 'linkPreviews', 'canvasSnap', 'openStreetMap', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'morningTime', 'notifications', 'snippets',
   };
 
   /// Keys an older build kept that nothing reads now (Matt, 2026-11-01: "see if there are other settings that can be
   /// simplified removed or moved to a plugin"): read past and left out, never kept in [more] and written back. The
   /// side panel's `sidebarStyle` (always the card over the note), `assist` (the editor's aids always on, as nothing
-  /// ever wrote it off) and `focusTypewriter` (always on with focus mode).
-  static const Set<String> _retired = {'sidebarStyle', 'assist', 'focusTypewriter'};
+  /// ever wrote it off) and `focusTypewriter` (always on with focus mode); and the pairs and the three read into one
+  /// ([improve], [code], [effects], [sounds], [openStreetMap]).
+  static const Set<String> _retired = {
+    'sidebarStyle', 'assist', 'focusTypewriter', 'refine', 'review', 'codeLight', 'codeDark', 'codeChosen', 'wisp', 'wispEdge', 'ripples', //
+    'soundPack', 'interfaceSounds', 'mapTiles', 'placeNames',
+  };
 
   Preferences copyWith({
     String? theme,
@@ -851,9 +900,8 @@ class Preferences {
     String? iconPack,
     String? iconStyle,
     DockPrefs? dock,
-    bool? refine,
+    bool? improve,
     bool? quietStop,
-    bool? review,
     String? summaries,
     String? writeUp,
     bool? syncMeetingRecordings,
@@ -861,9 +909,7 @@ class Preferences {
     bool? meetingSound,
     bool? localOnly,
     String? formatModel,
-    String? codeLight,
-    String? codeDark,
-    bool? codeChosen,
+    String? code,
     String? noteView,
     List<String>? openNotes,
     TabGroups? tabGroups,
@@ -872,24 +918,21 @@ class Preferences {
     Map<String, num>? meetings,
     Map<String, bool>? versions,
     Map<String, ShareEntry>? shares,
-    bool? wisp,
-    bool? wispEdge,
-    bool? ripples,
+    bool? effects,
     bool? calm,
     bool? menuBarAlways,
     bool? focusMode,
-    String? soundPack,
-    bool? interfaceSounds,
+    String? sounds,
     double? soundVolume,
     Map<String, bool>? soundEvents,
     String? motionSpeed,
     bool? linkPreviews,
     bool? canvasSnap,
-    bool? mapTiles,
-    bool? placeNames,
+    bool? openStreetMap,
     bool? tagNewNotes,
     bool? lookUpBlanks,
     bool? autoFill,
+    String? morningTime,
     NotificationPrefs? notifications,
     List<Snippet>? snippets,
     Map<String, Object?>? more,
@@ -911,9 +954,8 @@ class Preferences {
         iconPack: iconPack ?? this.iconPack,
         iconStyle: iconStyle ?? this.iconStyle,
         dock: dock ?? this.dock,
-        refine: refine ?? this.refine,
+        improve: improve ?? this.improve,
         quietStop: quietStop ?? this.quietStop,
-        review: review ?? this.review,
         summaries: summaries ?? this.summaries,
         writeUp: writeUp ?? this.writeUp,
         syncMeetingRecordings: syncMeetingRecordings ?? this.syncMeetingRecordings,
@@ -921,9 +963,7 @@ class Preferences {
         meetingSound: meetingSound ?? this.meetingSound,
         localOnly: localOnly ?? this.localOnly,
         formatModel: formatModel ?? this.formatModel,
-        codeLight: codeLight ?? this.codeLight,
-        codeDark: codeDark ?? this.codeDark,
-        codeChosen: codeChosen ?? this.codeChosen,
+        code: code ?? this.code,
         noteView: noteView ?? this.noteView,
         openNotes: openNotes ?? this.openNotes,
         tabGroups: tabGroups ?? this.tabGroups,
@@ -932,24 +972,21 @@ class Preferences {
         meetings: meetings ?? this.meetings,
         versions: versions ?? this.versions,
         shares: shares ?? this.shares,
-        wisp: wisp ?? this.wisp,
-        wispEdge: wispEdge ?? this.wispEdge,
-        ripples: ripples ?? this.ripples,
+        effects: effects ?? this.effects,
         calm: calm ?? this.calm,
         menuBarAlways: menuBarAlways ?? this.menuBarAlways,
         focusMode: focusMode ?? this.focusMode,
-        soundPack: soundPack ?? this.soundPack,
-        interfaceSounds: interfaceSounds ?? this.interfaceSounds,
+        sounds: sounds ?? this.sounds,
         soundVolume: soundVolume ?? this.soundVolume,
         soundEvents: soundEvents ?? this.soundEvents,
         motionSpeed: motionSpeed ?? this.motionSpeed,
         linkPreviews: linkPreviews ?? this.linkPreviews,
         canvasSnap: canvasSnap ?? this.canvasSnap,
-        mapTiles: mapTiles ?? this.mapTiles,
-        placeNames: placeNames ?? this.placeNames,
+        openStreetMap: openStreetMap ?? this.openStreetMap,
         tagNewNotes: tagNewNotes ?? this.tagNewNotes,
         lookUpBlanks: lookUpBlanks ?? this.lookUpBlanks,
         autoFill: autoFill ?? this.autoFill,
+        morningTime: morningTime ?? this.morningTime,
         notifications: notifications ?? this.notifications,
         snippets: snippets ?? this.snippets,
         more: more ?? this.more,
@@ -974,9 +1011,8 @@ class Preferences {
         'iconPack': iconPack,
         'iconStyle': iconStyle,
         'dock': dock.toJson(),
-        'refine': refine,
+        'improve': improve,
         'quietStop': quietStop,
-        'review': review,
         'summaries': summaries,
         'writeUp': writeUp,
         'syncMeetingRecordings': syncMeetingRecordings,
@@ -984,9 +1020,7 @@ class Preferences {
         'meetingSound': meetingSound,
         'localOnly': localOnly,
         'formatModel': formatModel,
-        'codeLight': codeLight,
-        'codeDark': codeDark,
-        'codeChosen': codeChosen,
+        'code': code,
         'noteView': noteView,
         'openNotes': openNotes,
         'tabGroups': tabGroups.toJson(),
@@ -995,24 +1029,22 @@ class Preferences {
         'meetings': meetings,
         'versions': versions,
         'shares': {for (final entry in shares.entries) entry.key: entry.value.toJson()},
-        'wisp': wisp,
-        'wispEdge': wispEdge,
-        'ripples': ripples,
+        'effects': effects,
         if (calm) 'calm': true,
         if (menuBarAlways) 'menuBarAlways': true,
         'focusMode': focusMode,
-        'soundPack': soundPack,
-        'interfaceSounds': interfaceSounds,
+        'sounds': sounds,
         'soundVolume': _number(soundVolume),
         'soundEvents': soundEvents,
         'motionSpeed': motionSpeed,
         'linkPreviews': linkPreviews,
         'canvasSnap': canvasSnap,
-        'mapTiles': mapTiles,
-        'placeNames': placeNames,
+        'openStreetMap': openStreetMap,
         'tagNewNotes': tagNewNotes,
         'lookUpBlanks': lookUpBlanks,
         'autoFill': autoFill,
+        // Written once chosen, so a store from before the morning time was one reads the two it had.
+        if (morningTime != null) 'morningTime': morningTime,
         'notifications': notifications.toJson(),
         // Written once they are not the defaults: a store with none reads as the defaults, so a device that chose
         // nothing keeps the web's stored shape to the letter, and a list emptied on purpose is written, empty.

@@ -21,7 +21,7 @@ void main() {
   Future<void> open(WidgetTester tester, {required bool blur}) async {
     await pumpApp(
       tester,
-      prefs: Preferences(theme: 'light', wispEdge: blur),
+      prefs: Preferences(theme: 'light', effects: blur),
       home: GhostRoot(
         launch: false,
         core: (command, [args = const <String, Object?>{}]) async => null,
@@ -57,7 +57,7 @@ void main() {
     await open(tester, blur: true);
     expect(BlurEdgeSettings.instance.wanted, isTrue);
     expect((await scrolledHome(tester)).whereType<EdgeBlurStrip>(), isNotEmpty);
-    preferences.value = preferences.value.copyWith(wispEdge: false);
+    preferences.value = preferences.value.copyWith(effects: false);
     await tester.pump();
     await tester.pump();
     expect(BlurEdgeSettings.instance.wanted, isFalse);

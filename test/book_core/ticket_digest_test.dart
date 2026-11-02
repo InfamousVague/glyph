@@ -105,17 +105,19 @@ void main() {
   });
 
   group('its time', () {
-    test('8:30 unless changed; a phone claims the next morning ahead and holds its alarm', () async {
+    // The morning time since 2026-11-01 (lib/reminders/morning_time.dart; Matt: "see if there are other settings that
+    // can be simplified"), the reminders' nine o'clock until it is chosen, where the digest's own was half past eight.
+    test('the morning time, 9:00 unless changed; a phone claims the next morning ahead and holds its alarm', () async {
       final account = Account();
       final phone = Device(account, 'phone-1', phone: true);
-      expect(phone.runner.settings, const DigestSettings());
+      expect(phone.runner.settings, const DigestSettings(hour: 9, minute: 0));
       await phone.runner.look();
       expect(phone.runner.alarm?.day, '2026-10-31');
-      expect(phone.runner.alarm?.at, DateTime(2026, 10, 31, 8, 30));
+      expect(phone.runner.alarm?.at, DateTime(2026, 10, 31, 9, 0));
       final reminder = digestReminderOf(phone.runner)!;
       expect((reminder.kind, reminder.title, reminder.text, reminder.noteId), (ReminderKind.digest, 'Your tickets: 2 due today · 1 overdue · 1 blocked', 'GHO-2 Book the venue, GHO-1 Ship the beta, ME-1 Renew the passport, GHO-6 Launch', digestNoteId));
       // After the time, the next morning's.
-      account.now = DateTime(2026, 10, 31, 9, 0);
+      account.now = DateTime(2026, 10, 31, 9, 30);
       await phone.runner.look();
       expect(phone.runner.alarm?.day, '2026-11-01');
       // Another time chosen: the alarm moves with it; turned off, it goes.
@@ -133,8 +135,8 @@ void main() {
       final account = Account();
       final mac = Device(account, 'mac-1', phone: false)..set(const DigestSettings(note: true));
       await mac.runner.look();
-      expect(mac.sent, isEmpty, reason: 'before 8:30');
-      account.now = DateTime(2026, 10, 31, 8, 31);
+      expect(mac.sent, isEmpty, reason: 'before 9:00');
+      account.now = DateTime(2026, 10, 31, 9, 1);
       await mac.runner.look();
       await mac.runner.look();
       expect(mac.sent.map((d) => d.day), ['2026-10-31']);
@@ -154,7 +156,7 @@ void main() {
       final phone = Device(account, 'phone-1', phone: true), mac = Device(account, 'mac-1', phone: false);
       await phone.runner.look();
       mac.sync();
-      account.now = DateTime(2026, 10, 31, 8, 31);
+      account.now = DateTime(2026, 10, 31, 9, 1);
       await mac.runner.look();
       expect(mac.sent, isEmpty);
       // The phone, looked at after its alarm rang, writes its note where asked for and claims the next morning, which
@@ -171,8 +173,8 @@ void main() {
       mac.runner.dispose();
     });
 
-    test('two Macs at 8:30: the account’s first claim sends, the other reads it and does not', () async {
-      final account = Account()..now = DateTime(2026, 10, 31, 8, 31);
+    test('two Macs at the morning time: the account’s first claim sends, the other reads it and does not', () async {
+      final account = Account()..now = DateTime(2026, 10, 31, 9, 1);
       final one = Device(account, 'mac-1', phone: false), two = Device(account, 'mac-2', phone: false);
       await Future.wait([one.runner.look(), two.runner.look()]);
       expect(one.sent.length + two.sent.length, 1);

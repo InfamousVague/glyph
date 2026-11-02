@@ -132,8 +132,8 @@ void main() {
       expect(appearance.summary!(_facts(_simple)), 'Simple · Light · Maple Mono');
       expect(appearance.summary!(_facts(_advanced)), 'Advanced · Light · Maple Mono');
       expect(experienceFindable.map((f) => f.name), ['Mode']);
-      expect(appearanceFindable(haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Calm']);
-      expect(appearanceFindable(haptics: true).map((f) => f.name).take(2), ['Mode', 'Page']);
+      expect(appearanceFindable(simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Calm']);
+      expect(appearanceFindable().map((f) => f.name).take(2), ['Mode', 'Page']);
       // The card's words are the walkthrough's, so the two say the same thing.
       expect(experienceChoices.map((c) => c.label), ['Simple', 'Advanced']);
     });
@@ -152,13 +152,13 @@ void main() {
   group('the sheet', () {
     testWidgets('lists the short list in Simple with Appearance under Account’s card, and the rest comes back with Advanced', (tester) async {
       await _open(tester);
-      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'Sounds', 'About']);
+      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'Sounds & haptics', 'About']);
       expect(_line(tester, 'Appearance'), 'Simple · Light · Maple Mono');
       expect(find.text('Simple or advanced', skipOffstage: false), findsNothing);
       // Another device, or the walkthrough, choosing Advanced: the list is read from the preferences, live.
       preferences.update((now) => now.choosing('advanced'));
       await tester.pump();
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds & haptics', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
       expect(_line(tester, 'Appearance'), 'Advanced · Light · Maple Mono');
       await endSettings(tester);
     });
@@ -190,7 +190,7 @@ void main() {
       await tester.pump();
       await settleSettings(tester);
       expect(_display(tester), isNull);
-      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'Sounds', 'About']);
+      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'Sounds & haptics', 'About']);
       expect(_line(tester, 'Appearance'), 'Simple · Light · Maple Mono');
 
       // And back again, from the same card.
@@ -285,8 +285,8 @@ void main() {
       await _tap(tester, find.descendant(of: find.byWidgetPredicate((w) => w is ChoiceCards<String> && w.label == 'Theme'), matching: find.text('Dark')));
       expect(preferences.value.theme, 'dark');
       // The search's list of the page is the page's.
-      expect(appearanceFindable(haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Calm']);
-      expect(appearanceFindable(haptics: true).map((f) => f.name), containsAll(['Accent', 'Haptics']));
+      expect(appearanceFindable(simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Dock', 'Calm']);
+      expect(appearanceFindable().map((f) => f.name), containsAll(['Accent', 'Effects', 'Code colours']));
       // The footnote that led to the mode's page went with the page: the mode is on this one.
       expect(find.byKey(const ValueKey('appearance-more-looks')), findsNothing);
       expect(find.byType(GoWord), findsNothing);

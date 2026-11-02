@@ -32,9 +32,9 @@ import 'watch_section.dart';
 List<SettingsFindable> recordingFindable({required bool android, bool signedIn = false, bool simple = false}) => [
       ...const [
         SettingsFindable('Stop when I go quiet', 'silence auto stop'),
-        SettingsFindable('Review after recording', 'check transcript'),
         SettingsFindable('Voice log', 'voice commands what the app understood model transcript copy clear debug'),
-        SettingsFindable('Better words', 'refine clean up transcript'),
+        // Review after recording and Better words until 2026-11-01: found by their words still.
+        SettingsFindable('Improve after recording', 'review after recording check transcript better words refine clean up'),
         SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
       ],
       const SettingsFindable('Live transcript during meetings', 'real time live words captions meeting transcript as they speak battery charging'),
@@ -53,10 +53,10 @@ List<SettingsFindable> recordingFindable({required bool android, bool signedIn =
     ];
 
 /// The names [recordingFindable] lists that Simple's page keeps behind More: looked for, they open it.
-const List<String> recordingBehindMore = ['Stop when I go quiet', 'Review after recording', 'Voice log', 'Better words', 'Summaries', 'Tapes', 'Remove audio older than a month'];
+const List<String> recordingBehindMore = ['Stop when I go quiet', 'Voice log', 'Improve after recording', 'Summaries', 'Tapes', 'Remove audio older than a month'];
 
-/// Recording's row in the list: what a take becomes, better words or the words as heard.
-String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'Words as heard';
+/// Recording's row in the list: what a take becomes, improved after recording or the words as heard.
+String recordingSummary(Preferences prefs) => prefs.improve ? 'Improved after recording' : 'Words as heard';
 
 /// Port of `RecordingPane` (src/app/settings/RecordingPane.tsx): the microphone and what happens to a take. While
 /// recording, After recording, the Summaries as three picks with a hint each, the Meetings, and the Tapes. The page's
@@ -70,8 +70,9 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 /// page is (settings_sections.dart), and there it shows the Meetings card and a More row that opens the rest in
 /// place (GHST-103).
 ///
-/// Every switch and pick is a stored preference and is live in `preferences` at once: `quietStop`, `review`,
-/// `refine`, `summaries`, `writeUp` and `meetingSound`.
+/// Every switch and pick is a stored preference and is live in `preferences` at once: `quietStop`, `improve`,
+/// `summaries`, `writeUp` and `meetingSound`. Improve after recording was two switches until Matt, 2026-11-01: "see if
+/// there are other settings that can be simplified": Review after recording, under While recording, and Better words.
 ///
 /// What differs from the web original: there is no recorder, no meeting service and no tape store yet (stage 8), so
 /// what needs one is asked of [features] and marked where it is missing.
@@ -313,20 +314,15 @@ class _RecordingPaneState extends State<RecordingPane> {
                 ),
                 control: GlacierSwitch(ariaLabel: 'Stop when I go quiet', checked: prefs.quietStop, onCheckedChange: (on) => set((now) => now.copyWith(quietStop: on))),
               ),
-              SettingRow(
-                label: 'Review after recording',
-                hint: const Text('After you stop, a slower listen and a read-through, with what it would fix for you to keep. For recordings under three minutes.'),
-                control: GlacierSwitch(ariaLabel: 'Review after recording', checked: prefs.review, onCheckedChange: (on) => set((now) => now.copyWith(review: on))),
-              ),
             ],
           ),
           PaneSection(
             title: 'After recording',
             children: [
               SettingRow(
-                label: 'Better words',
-                hint: Text('A larger model goes over the recording and fixes the words. A few seconds of $device per minute of speech.'),
-                control: GlacierSwitch(ariaLabel: 'Better words after recording', checked: prefs.refine, onCheckedChange: (on) => set((now) => now.copyWith(refine: on))),
+                label: 'Improve after recording',
+                hint: Text('After you stop, a slower listen and a read-through, with what it would fix for you to keep (under three minutes); and a larger model goes over the recording and fixes the words, a few seconds of $device per minute of speech.'),
+                control: GlacierSwitch(ariaLabel: 'Improve after recording', checked: prefs.improve, onCheckedChange: (on) => set((now) => now.copyWith(improve: on))),
               ),
             ],
           ),

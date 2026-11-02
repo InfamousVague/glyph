@@ -247,7 +247,7 @@ void main() {
     });
 
     test('off with the app\'s sounds', () {
-      prefs.value = prefs.value.copyWith(interfaceSounds: false);
+      prefs.value = prefs.value.copyWith(sounds: 'notifications');
       record.begin('run', kind: JobKind.images, title: 'Run', personStarted: true);
       now = now.add(const Duration(minutes: 1));
       record.handle('run')!.done();

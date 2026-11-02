@@ -33,7 +33,7 @@ import '../core/mac_app.dart' show runsAsMacApp;
 /// for a wide window; they went on 2026-11-01 (Matt: "we currently have too many appearance settings for different
 /// title bar layouts and stuff"). Focus mode is the note's ••• and the command bar's, the typewriter scroll always on
 /// with it, and the side panel is the card over the note on every window.
-List<SettingsFindable> appearanceFindable({required bool haptics, bool simple = false}) => [
+List<SettingsFindable> appearanceFindable({bool simple = false}) => [
       ...experienceFindable,
       const SettingsFindable('Page', 'theme light dark system dawn boreal ember'),
       if (simple) ...[
@@ -41,14 +41,14 @@ List<SettingsFindable> appearanceFindable({required bool haptics, bool simple = 
         const SettingsFindable('Text size', 'font bigger smaller larger'),
         // The dock's buttons, in either mode: Simple's pages have a dock too.
         dockFindable,
-      ] else ...appearanceFindableAdvanced(haptics: haptics),
+      ] else ...appearanceFindableAdvanced(),
       // In both modes (docs/ACTIVITY.md, Simple mode: the ring, the tray and the chips all show there).
       calmFindable,
       if (runsAsMacApp) menuBarFindable,
     ];
 
 /// What Advanced's page has after the theme: everything.
-List<SettingsFindable> appearanceFindableAdvanced({required bool haptics}) => [
+List<SettingsFindable> appearanceFindableAdvanced() => [
       const SettingsFindable('Home page', 'dashboard layout home cards list timeline spotlight grid'),
       const SettingsFindable('Top bar', 'header toolbar tabs bar ledger strip masthead islands thumb classic capsules'),
       const SettingsFindable('Accent', 'colour color highlight'),
@@ -60,14 +60,13 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool haptics}) => [
       const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
-      const SettingsFindable('Code', 'syntax highlighting colours colors'),
+      const SettingsFindable('Code', 'syntax highlighting colours colors palette'),
+      const SettingsFindable('Code colours', 'syntax highlighting palette pastel ink github solarized one dark dracula nord light page dark page'),
       const SettingsFindable('Motion', 'movement animations'),
       const SettingsFindable('Animation speed', 'motion fast slow'),
-      const SettingsFindable('Ghostly typing', 'wisp letters blur'),
-      // Smoke at the edges until 2026-10-24, when the smoke gave way to a blur: still found by the word.
-      const SettingsFindable('Blur at the edges', 'wisp smoke fade scroll'),
-      if (recordsVoice) const SettingsFindable('Ripples while recording', 'waves voice'),
-      if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
+      // Ghostly typing, Blur at the edges and Ripples while recording until 2026-11-01: still found by their words, and
+      // by the smoke the blur was until 2026-10-24.
+      SettingsFindable('Effects', 'ghostly typing wisp letters blur at the edges smoke fade scroll${recordsVoice ? ' ripples while recording waves voice' : ''}'),
       dockFindable,
     ];
 
@@ -113,29 +112,28 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// What differs from the web original:
 /// - The first card, the mode, is the port's own: the web app has no mode.
 /// - Controls whose feature has no Flutter port yet still write their preference and change nothing more: the home
-///   page's layout and the top bar's style until those screens read them, the code colours, the three Motion
-///   switches, and the note's face until there is a note to set in it.
+///   page's layout and the top bar's style until those screens read them, the code colours, and the note's face until
+///   there is a note to set in it.
+///
+/// Matt, 2026-11-01: "see if there are other settings that can be simplified removed or moved to a plugin for extra
+/// configuration, we currently have too many appearance settings". Code's two picks, the light page's and the dark
+/// one's, are one, Code colours: a palette, drawn on each side in its variant there where it has one, Pastel where it
+/// has none. Motion's three switches, Ghostly typing, Blur at the edges and Ripples while recording, are one, Effects.
+/// Touch's Haptics went to Settings › Sounds & haptics (lib/settings/panes/sounds_pane.dart).
 /// - The faces Fira Code, Noto and Plex are not shipped yet, so choosing one draws in the fallback face.
 /// - Scale reaches the app as a magnification of the whole window (lib/app/ghost_app.dart), where the page set the
 ///   root's font size; and the pace reaches the kit's duration tokens through the app's theme rather than inline.
 class AppearancePane extends StatelessWidget {
-  const AppearancePane({super.key, this.store, this.haptics, this.hasMotor});
+  const AppearancePane({super.key, this.store});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
 
-  /// The haptics switch's flag; the app's own when null.
-  final DeviceFlag? haptics;
-
-  /// Whether this device has a motor; asked of the platform when null.
-  final bool? hasMotor;
-
   @override
   Widget build(BuildContext context) {
     final store = this.store ?? preferences;
-    final haptics = this.haptics ?? hapticsPref;
     return ListenableBuilder(
-      listenable: Listenable.merge([store, haptics]),
+      listenable: store,
       builder: (context, _) {
         final t = context.tokens;
         final prefs = store.value;
@@ -308,18 +306,19 @@ class AppearancePane extends StatelessWidget {
             ),
             PaneSection(
               title: 'Code',
-              description: const Text("The colours of code in a code block. Ink keeps code in the page's own ink."),
+              description: const Text("Code colours: the colours of code in a code block, one palette on the light page and the dark one. Ink keeps code in the page's own ink."),
               children: [
-                SettingRow(
-                  label: 'On the light page',
-                  layout: SettingRowLayout.stacked,
-                  control: segments('Code colours on the light page', codeLightWords, prefs.codeLight, (value) => set((now) => now.copyWith(codeLight: value, codeChosen: true))),
-                ),
-                SettingRow(
-                  label: 'On the dark page',
-                  layout: SettingRowLayout.stacked,
-                  control: segments('Code colours on the dark page', codeDarkWords, prefs.codeDark, (value) => set((now) => now.copyWith(codeDark: value, codeChosen: true))),
-                ),
+                for (final palette in codeThemes)
+                  SettingRow(
+                    key: ValueKey('code-$palette'),
+                    label: codeWords[palette]!,
+                    hint: Text(isCodeThemeLight(palette) && isCodeThemeDark(palette)
+                        ? 'On the light page and the dark one.'
+                        : isCodeThemeLight(palette)
+                            ? 'On the light page; Pastel on the dark one.'
+                            : 'On the dark page; Pastel on the light one.'),
+                    control: Pick(checked: prefs.code == palette, label: 'Code colours: ${codeWords[palette]}', onPress: () => set((now) => now.copyWith(code: palette))),
+                  ),
               ],
             ),
             PaneSection(
@@ -333,36 +332,17 @@ class AppearancePane extends StatelessWidget {
                   control: segments('Animation speed', speedWords, prefs.motionSpeed, (value) => set((now) => now.copyWith(motionSpeed: value))),
                 ),
                 SettingRow(
-                  label: 'Ghostly typing',
-                  // Out of a blur, where the words came out of smoke until Matt, 2026-10-24: "replace the smoke effect with
-                  // a gradient blur on all places that use the wisp smoke". The switch is the same one.
-                  hint: const Text('Words you say come in out of a soft blur, and words you delete blur away. What you type appears at once.'),
-                  control: GlacierSwitch(ariaLabel: 'Ghostly typing', checked: prefs.wisp, onCheckedChange: (wisp) => set((now) => now.copyWith(wisp: wisp))),
-                ),
-                SettingRow(
-                  label: 'Blur at the edges',
-                  hint: const Text('A page blurs softly as it passes under the header or the dock.'),
-                  control: GlacierSwitch(ariaLabel: 'Blur at the edges', checked: prefs.wispEdge, onCheckedChange: (wispEdge) => set((now) => now.copyWith(wispEdge: wispEdge))),
-                ),
-                // Nothing is recorded on an iPhone ([recordsVoice]), so there is nothing to ripple.
-                if (recordsVoice) SettingRow(
-                  label: 'Ripples while recording',
-                  hint: const Text('The newest words move with your voice as the phone hears it.'),
-                  control: GlacierSwitch(ariaLabel: 'Ripples while recording', checked: prefs.ripples, onCheckedChange: (ripples) => set((now) => now.copyWith(ripples: ripples))),
+                  label: 'Effects',
+                  // Ghostly typing, Blur at the edges and Ripples while recording until 2026-11-01. Out of a blur, where the
+                  // words came out of smoke until Matt, 2026-10-24: "replace the smoke effect with a gradient blur on all
+                  // places that use the wisp smoke".
+                  hint: Text(
+                    'Words you say come in out of a soft blur and words you delete blur away, and a page blurs softly as it passes under the header or the dock.${recordsVoice ? ' While recording, the newest words move with your voice.' : ''}',
+                  ),
+                  control: GlacierSwitch(ariaLabel: 'Effects', checked: prefs.effects, onCheckedChange: (on) => set((now) => now.copyWith(effects: on))),
                 ),
               ],
             ),
-            if (hasMotor ?? hapticsAvailable())
-              PaneSection(
-                title: 'Touch',
-                children: [
-                  SettingRow(
-                    label: 'Haptics',
-                    hint: const Text('A small tap when a style or a cue kicks in.'),
-                    control: GlacierSwitch(ariaLabel: 'Haptics', checked: haptics.value, onCheckedChange: haptics.set),
-                  ),
-                ],
-              ),
             // Last, so every card above it stays where the web page measured it (appearance_pane_test.dart).
             dock,
           ],

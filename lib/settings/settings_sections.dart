@@ -418,22 +418,23 @@ final List<SettingsSectionSpec> _sections = [
     // The mode first, as the page has it, then the looks.
     summary: (facts) => '${experienceSummary(facts.prefs)} · ${appearanceSummary(facts.prefs)}',
     // In Simple the page is the mode, the theme and the text size alone, and so is what the search finds on it.
-    settings: (facts) => appearanceFindable(haptics: facts.haptics, simple: facts.simple),
+    settings: (facts) => appearanceFindable(simple: facts.simple),
     pane: (context) => const AppearancePane(),
   ),
   // What the app sounds like (Matt, 2026-10-27: "build ... the sounds settings"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md):
-  // on Appearance's card, under it, since a pack is a look for the ears. In Simple too, its page the pack and the
-  // switch with the rest behind More.
+  // on Appearance's card, under it, since a pack is a look for the ears. In Simple too, its page what makes a sound
+  // and the haptics with the rest behind More. Sounds & haptics since Haptics came from Appearance (Matt, 2026-11-01:
+  // "see if there are other settings that can be simplified removed or moved").
   SettingsSectionSpec(
     id: 'sounds',
-    label: 'Sounds',
-    words: 'sound sounds audio chime tick pack ghostly volume mute quiet notification',
+    label: 'Sounds & haptics',
+    words: 'sound sounds audio chime tick pack ghostly volume mute quiet notification haptics vibrate vibration buzz touch',
     glyph: SettingsGlyph.volume,
     group: appearanceGroup,
     // The port's own (2026-10-27): the web app has no Sounds page, so its file is Appearance's, the card it is on.
     webFile: 'settings/AppearancePane.tsx',
     summary: (facts) => soundsSummary(facts.prefs),
-    settings: (facts) => soundsFindable(),
+    settings: (facts) => soundsFindable(haptics: facts.haptics),
     pane: SoundsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in

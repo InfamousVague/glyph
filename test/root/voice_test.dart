@@ -163,7 +163,7 @@ void main() {
     handlers = null;
     cancels = 0;
     stopSays = null;
-    var prefs = Preferences.defaults.copyWith(review: false, refine: false);
+    var prefs = Preferences.defaults.copyWith(improve: false);
     return Voice(
       recorder: Recorder(
         engine: CaptureEngine(backend: null, hasNativeGeneration: (_) async => true, preferences: () => prefs),

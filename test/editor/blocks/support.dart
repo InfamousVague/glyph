@@ -89,7 +89,7 @@ Future<EditorView> pumpBlocks(WidgetTester tester, BlockFixture fixture, {requir
     ),
   );
   addTearDown(view.destroy);
-  final prefs = AppPreferences(theme: fixture.theme, codeLight: codeLight ?? fixture.json['codeLight'] as String, codeDark: fixture.json['codeDark'] as String, noteFace: fixture.json['noteFace'] as String, textSize: fixture.json['textSize'] as String);
+  final prefs = AppPreferences(theme: fixture.theme, code: codeLight ?? (themeScheme(fixture.theme) == 'dark' ? fixture.json['codeDark'] : fixture.json['codeLight']) as String, noteFace: fixture.json['noteFace'] as String, textSize: fixture.json['textSize'] as String);
   await pumpApp(
     tester,
     size: Size(fixture.width, tall),

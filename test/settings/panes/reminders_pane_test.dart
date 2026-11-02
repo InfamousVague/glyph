@@ -43,17 +43,18 @@ void main() {
 
   testWidgets('is not drawn where the phone does not remind', (tester) async {
     await pumpSettings(tester, const SingleChildScrollView(child: Padding(padding: EdgeInsets.all(16), child: NotificationsPane(signedIn: true))));
-    expect(titles(tester), ['What reaches you', 'Ticket digest']);
+    expect(titles(tester), ['What reaches you', 'Morning', 'Ticket digest']);
     expect(find.text('Remind me'), findsNothing);
     await endSettings(tester);
   });
 
   testWidgets('is drawn first, signed in or not, in its own words', (tester) async {
     await open(tester);
-    expect(titles(tester), ['Reminders', 'What reaches you', 'Ticket digest']);
+    // The morning time under the reminders, the digest's too (Matt, 2026-11-01).
+    expect(titles(tester), ['Reminders', 'Morning', 'What reaches you', 'Ticket digest']);
     expect(hintOf(tester, 'Remind me'), 'To-dos and tickets with a due date, and any line with a time set.');
     expect(find.text('9:00'), findsOneWidget);
-    expect(find.text('A to-do with a due date reminds you at 9:00 on the day. Hold a to-do and choose Remind me for a time of its own.'), findsOneWidget);
+    expect(find.text('A to-do with a due date reminds you on the day at 9:00, the morning time. Hold a to-do and choose Remind me for a time of its own.'), findsOneWidget);
     await endSettings(tester);
   });
 
@@ -71,6 +72,8 @@ void main() {
     switchOf(tester, 'Remind me').onCheckedChange!(false);
     await tester.pump();
     expect(ReminderSettingsStore(kept).value, const ReminderSettings(on: false, hour: 7, minute: 30, dayBefore: true));
+    // The time is the morning time, in the synced preferences (Matt, 2026-11-01).
+    expect(preferences.value.morningTime, '07:30');
     expect(switchOf(tester, 'The day before').disabled, isTrue);
     await endSettings(tester);
   });

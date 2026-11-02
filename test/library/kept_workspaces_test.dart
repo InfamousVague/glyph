@@ -122,7 +122,7 @@ void main() {
       expect(store.value.list, [work, home]);
       expect(store.workspaceOf('n1'), home);
       // Any other setting changing leaves the workspaces, and whoever watches them, alone.
-      prefs.update((now) => now.copyWith(ripples: !now.ripples));
+      prefs.update((now) => now.copyWith(effects: !now.effects));
       expect(told, 2);
     });
 

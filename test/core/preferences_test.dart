@@ -19,16 +19,55 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Since 2026-11-01 (Matt: "see if there are other settings that can be simplified removed or moved to a plugin") this
 /// build writes fewer keys than the web did: [thisBuild] is the web's shape as this build writes it, its retired keys
-/// left out.
+/// left out and each pair or three read into one ([merges]) where the first of them stood; [thisBuildAttrs] the
+/// attributes stamped for the one code palette.
 void main() {
   final web = jsonDecode(_web) as Map<String, dynamic>;
   final cases = (web['cases'] as Map<String, dynamic>).cast<String, Map<String, dynamic>>();
 
-  /// The web's stored shape as this build writes it, in the same order: the keys nothing reads now left out.
-  Map<String, dynamic> thisBuild(Map<String, dynamic> shape) => {
-        for (final entry in shape.entries)
-          if (!const {'sidebarStyle', 'assist', 'focusTypewriter'}.contains(entry.key)) entry.key: entry.value,
-      };
+  /// The one key each pair or three became on 2026-11-01, and the keys it was.
+  const merges = {
+    'improve': ['refine', 'review'],
+    'code': ['codeLight', 'codeDark', 'codeChosen'],
+    'effects': ['wisp', 'wispEdge', 'ripples'],
+    'sounds': ['soundPack', 'interfaceSounds'],
+    'openStreetMap': ['mapTiles', 'placeNames'],
+  };
+
+  /// The one code palette the web's two read as (Preferences `_codeFromPair`), for the shapes the web wrote.
+  String codeOf(Map<String, dynamic> shape) {
+    if (shape['codeChosen'] != true) return 'pastel';
+    final light = shape['codeLight'] as String, dark = shape['codeDark'] as String;
+    if (light == dark || dark == 'pastel') return light;
+    if (light == 'pastel') return dark;
+    return themeScheme(shape['theme'] as String) == 'light' ? light : dark;
+  }
+
+  /// The web's stored shape as this build writes it, in the same order: the keys nothing reads now left out, and each
+  /// merged pair or three as its one key where the first of them stood.
+  Map<String, dynamic> thisBuild(Map<String, dynamic> shape) {
+    final out = <String, dynamic>{};
+    for (final entry in shape.entries) {
+      if (const {'sidebarStyle', 'assist', 'focusTypewriter'}.contains(entry.key)) continue;
+      final into = merges.entries.where((merge) => merge.value.contains(entry.key)).firstOrNull?.key;
+      if (into == null) {
+        out[entry.key] = entry.value;
+      } else if (!out.containsKey(into)) {
+        out[into] = switch (into) {
+          'code' => codeOf(shape),
+          'sounds' => shape['soundPack'] == 'off' ? 'off' : (shape['interfaceSounds'] == false ? 'notifications' : 'all'),
+          _ => merges[into]!.every((old) => shape[old] != false),
+        };
+      }
+    }
+    return out;
+  }
+
+  /// The attributes the web stamped, with the code palette's two sides as the one palette has them.
+  Map<String, dynamic> thisBuildAttrs(Map<String, dynamic> attrs, Map<String, dynamic> read) {
+    final code = codeOf(read);
+    return {...attrs, 'code-light': isCodeThemeLight(code) ? code : 'pastel', 'code-dark': isCodeThemeDark(code) ? code : 'pastel'};
+  }
 
   /// The preferences as a launch reads [stored] laid over the defaults (`launchWith`).
   Preferences launchWith(Map<String, Object?> stored) => Preferences.fromJson(jsonDecode(jsonEncode({...Preferences.defaults.toJson(), ...stored})));
@@ -131,8 +170,10 @@ void main() {
       for (final face in typefaces) {
         expect(d.copyWith(noteFace: face).attrs['note-font'], face);
       }
-      // Both code themes are always stamped.
-      expect(d.copyWith(codeLight: 'github', codeDark: 'nord').attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'nord')));
+      // Both sides' code colours are always stamped: the one palette's, or Pastel where it has no variant.
+      expect(d.copyWith(code: 'github').attrs, allOf(containsPair('code-light', 'github'), containsPair('code-dark', 'pastel')));
+      expect(d.copyWith(code: 'nord').attrs, allOf(containsPair('code-light', 'pastel'), containsPair('code-dark', 'nord')));
+      expect(d.copyWith(code: 'ink').attrs, allOf(containsPair('code-light', 'ink'), containsPair('code-dark', 'ink')));
     });
 
     test('writes the size and the pace as the page’s inline styles, and leaves the pace to a still device', () {
@@ -176,7 +217,7 @@ void main() {
       test('reads the stored shape “$name” as the web app does, and stamps the page as it does', () {
         final read = Preferences.fromJson(cases[name]!['stored']);
         expect(jsonDecode(jsonEncode(read.toJson())), thisBuild(cases[name]!['read'] as Map<String, dynamic>), reason: 'settle');
-        expect(read.attrs, cases[name]!['attrs'], reason: 'the attributes applyPreferences stamps');
+        expect(read.attrs, thisBuildAttrs(cases[name]!['attrs'] as Map<String, dynamic>, cases[name]!['read'] as Map<String, dynamic>), reason: 'the attributes applyPreferences stamps');
         expect(read.rootStyle(), cases[name]!['style'], reason: 'the inline styles applyPreferences writes');
         // What is written is read back as itself: a round trip changes nothing.
         expect(Preferences.fromJson(jsonDecode(jsonEncode(read.toJson()))), read);
@@ -307,12 +348,12 @@ void main() {
       expect(read.more.containsKey('sidebarStyle'), isFalse);
     });
 
-    test('keeps code colours only once they have been chosen', () {
+    test('keeps an older build’s code colours only once they had been chosen', () {
       const d = Preferences.defaults;
-      final unchosen = launchWith({'codeLight': 'ink', 'codeDark': 'ink', 'codeChosen': false});
-      expect((unchosen.codeLight, unchosen.codeDark), (d.codeLight, d.codeDark));
-      final chosen = launchWith({'codeLight': 'ink', 'codeDark': 'ink', 'codeChosen': true});
-      expect((chosen.codeLight, chosen.codeDark), ('ink', 'ink'));
+      final unchosen = Preferences.fromJson({'codeLight': 'ink', 'codeDark': 'ink', 'codeChosen': false});
+      expect((unchosen.code, unchosen.codeLight, unchosen.codeDark), (d.code, d.codeLight, d.codeDark));
+      final chosen = Preferences.fromJson({'codeLight': 'ink', 'codeDark': 'ink', 'codeChosen': true});
+      expect((chosen.code, chosen.codeLight, chosen.codeDark), ('ink', 'ink', 'ink'));
     });
 
     test('opens the home page on Spotlight until a layout is picked, the Cards every device stored before it included', () {
@@ -569,6 +610,86 @@ void main() {
       expect(json.containsKey(key), isFalse, reason: key);
       expect(syncedPrefs, isNot(contains(key)), reason: key);
     }
+  });
+
+  // And the pairs that became one switch or one pick that day, each old key read as the new one and only the new one
+  // written: off where an older build had either of a pair turned off, a choice of less being the one made.
+  group('a pair read as one (Matt, 2026-11-01)', () {
+    void writesOnlyTheNew(Preferences read, String key, List<String> old) {
+      final json = read.toJson();
+      expect(json.containsKey(key), isTrue, reason: key);
+      for (final each in old) {
+        expect(json.containsKey(each), isFalse, reason: each);
+        expect(read.more.containsKey(each), isFalse, reason: each);
+        expect(syncedPrefs, isNot(contains(each)), reason: each);
+      }
+      expect(syncedPrefs, contains(key));
+      expect(Preferences.fromJson(jsonDecode(jsonEncode(json))), read, reason: 'read back as itself');
+    }
+
+    test('Code colours: the light page’s and the dark page’s picks as one palette', () {
+      expect(Preferences.fromJson({'codeLight': 'github', 'codeDark': 'pastel', 'codeChosen': true}).code, 'github');
+      expect(Preferences.fromJson({'codeLight': 'pastel', 'codeDark': 'dracula', 'codeChosen': true}).code, 'dracula');
+      // Two choices: the side of the page the person reads.
+      expect(Preferences.fromJson({'codeLight': 'github', 'codeDark': 'nord', 'codeChosen': true, 'theme': 'dark'}).code, 'nord');
+      expect(Preferences.fromJson({'codeLight': 'github', 'codeDark': 'nord', 'codeChosen': true, 'theme': 'light'}).code, 'github');
+      // The new key wins; a palette this build does not have is Pastel's.
+      expect(Preferences.fromJson({'code': 'solarized', 'codeLight': 'github', 'codeDark': 'nord', 'codeChosen': true}).code, 'solarized');
+      expect(Preferences.fromJson({'code': 'neon'}).code, 'pastel');
+      writesOnlyTheNew(Preferences.fromJson({'codeLight': 'github', 'codeDark': 'nord', 'codeChosen': true}), 'code', ['codeLight', 'codeDark', 'codeChosen']);
+    });
+
+    test('Effects: Ghostly typing, Blur at the edges and Ripples while recording', () {
+      expect(Preferences.fromJson({}).effects, isTrue);
+      expect(Preferences.fromJson({'wisp': true, 'wispEdge': true, 'ripples': true}).effects, isTrue);
+      for (final off in ['wisp', 'wispEdge', 'ripples']) {
+        final read = Preferences.fromJson({'wisp': true, 'wispEdge': true, 'ripples': true, off: false});
+        expect((read.effects, read.wisp, read.wispEdge, read.ripples), (false, false, false, false), reason: off);
+      }
+      expect(Preferences.fromJson({'effects': true, 'wisp': false}).effects, isTrue);
+      writesOnlyTheNew(Preferences.fromJson({'wisp': false}), 'effects', ['wisp', 'wispEdge', 'ripples']);
+    });
+
+    test('Improve after recording: Review after recording and Better words', () {
+      expect(Preferences.fromJson({}).improve, isTrue);
+      for (final off in ['review', 'refine']) {
+        final read = Preferences.fromJson({'review': true, 'refine': true, off: false});
+        expect((read.improve, read.review, read.refine), (false, false, false), reason: off);
+      }
+      expect(Preferences.fromJson({'improve': true, 'refine': false}).improve, isTrue);
+      writesOnlyTheNew(Preferences.fromJson({'refine': false}), 'improve', ['review', 'refine']);
+    });
+
+    test('Use OpenStreetMap: Map on a tagged note and Place names', () {
+      expect(Preferences.fromJson({}).openStreetMap, isTrue);
+      for (final off in ['mapTiles', 'placeNames']) {
+        final read = Preferences.fromJson({'mapTiles': true, 'placeNames': true, off: false});
+        expect((read.openStreetMap, read.mapTiles, read.placeNames), (false, false, false), reason: off);
+      }
+      writesOnlyTheNew(Preferences.fromJson({'placeNames': false}), 'openStreetMap', ['mapTiles', 'placeNames']);
+    });
+
+    test('Sounds: All, Notifications only or Off, from the pack and Interface sounds', () {
+      expect(Preferences.fromJson({}).sounds, 'all');
+      expect(Preferences.fromJson({'soundPack': 'ghostly', 'interfaceSounds': true}).sounds, 'all');
+      final notifications = Preferences.fromJson({'soundPack': 'ghostly', 'interfaceSounds': false});
+      expect((notifications.sounds, notifications.soundPack, notifications.interfaceSounds), ('notifications', 'ghostly', false));
+      final off = Preferences.fromJson({'soundPack': 'off', 'interfaceSounds': true});
+      expect((off.sounds, off.soundPack, off.interfaceSounds), ('off', 'off', false));
+      expect(Preferences.fromJson({'sounds': 'all', 'soundPack': 'off'}).sounds, 'all');
+      expect(Preferences.fromJson({'sounds': 'loud'}).sounds, 'all');
+      writesOnlyTheNew(off, 'sounds', ['soundPack', 'interfaceSounds']);
+    });
+
+    test('the morning time is written once chosen, and only a time', () {
+      expect(Preferences.fromJson({}).morningTime, isNull);
+      expect(Preferences.defaults.toJson().containsKey('morningTime'), isFalse);
+      expect(Preferences.fromJson({'morningTime': '07:30'}).morningTime, '07:30');
+      expect(Preferences.fromJson({'morningTime': '25:00'}).morningTime, isNull);
+      expect(Preferences.fromJson({'morningTime': 7}).morningTime, isNull);
+      expect(Preferences.defaults.copyWith(morningTime: '06:00').toJson()['morningTime'], '06:00');
+      expect(syncedPrefs, contains('morningTime'));
+    });
   });
 }
 

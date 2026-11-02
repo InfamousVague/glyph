@@ -46,7 +46,7 @@ void main() {
       final on = await recording(tester);
       expect(tester.widget<LivePage>(find.byType(LivePage)).ripples, isNotNull);
       await on.close();
-      final off = await recording(tester, first: (capture) => capture.prefs = capture.prefs.copyWith(ripples: false));
+      final off = await recording(tester, first: (capture) => capture.prefs = capture.prefs.copyWith(effects: false));
       expect(tester.widget<LivePage>(find.byType(LivePage)).ripples, isNull);
       await off.close();
     });

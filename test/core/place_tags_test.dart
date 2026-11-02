@@ -330,7 +330,7 @@ void main() {
     });
 
     test('is not asked with Place names off, or for a tag that has one', () async {
-      prefs.update((p) => p.copyWith(placeNames: false));
+      prefs.update((p) => p.copyWith(openStreetMap: false));
       tags.wantPlace('n1', london);
       tags.wantPlace('n1', london.named('Somewhere'));
       await pumpEventQueue();

@@ -61,6 +61,9 @@ final Map<double, String> scaleWords = {0.85: '85%', 0.925: '93%', 1: 'Default',
 const Map<String, String> codeLightWords = {'pastel': 'Pastel', 'ink': 'Ink', 'github': 'GitHub', 'solarized': 'Solarized'};
 const Map<String, String> codeDarkWords = {'pastel': 'Pastel', 'ink': 'Ink', 'one-dark': 'One Dark', 'dracula': 'Dracula', 'nord': 'Nord'};
 
+/// Every code palette's name, in [codeThemes]' order: Settings › Appearance › Code's one pick since 2026-11-01.
+const Map<String, String> codeWords = {'pastel': 'Pastel', 'ink': 'Ink', 'github': 'GitHub', 'solarized': 'Solarized', 'one-dark': 'One Dark', 'dracula': 'Dracula', 'nord': 'Nord'};
+
 /// How the sidebar opens, in words (`SIDEBAR_MODES`, AppearancePane.tsx).
 
 /// Appearance's row in the list (SettingsSheet.tsx): the page and the note's face, then anything else that has been
