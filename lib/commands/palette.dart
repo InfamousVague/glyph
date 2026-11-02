@@ -197,6 +197,7 @@ class PaletteDoing {
     this.setFocusMode,
     this.settingsAt,
     this.marketPlugin,
+    this.asks = const [],
   });
 
   final void Function(String id) openNote;
@@ -289,6 +290,10 @@ class PaletteDoing {
   /// My tickets, offered in simple mode too, and Triage (lib/tickets/ui/tickets_screen.dart; Matt, 2026-10-31).
   final VoidCallback? myTickets;
   final VoidCallback? triage;
+
+  /// Ask my notes, and Ask each organization (docs/ASK_THE_ORG.md; Matt, 2026-11-02: "'Ask the org' with receipts"):
+  /// a scope each, its key and its command's words; offered in simple mode too.
+  final List<({String key, String title, VoidCallback run})> asks;
 
   /// Focus mode on or off (Matt, 2026-10-27: "build ... focus mode"); offered in simple mode too, being one switch.
   final void Function(bool on)? setFocusMode;
@@ -469,6 +474,9 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
   final today = doing.today;
   if (today != null) add('today', 'Today’s note', 'Notes', 'daily day date journal today page', today, shortcut: '⇧⌘D');
+  for (final each in doing.asks) {
+    add('ask:${each.key}', each.title, 'Ask', 'ask question answer receipts cited sources search notes org team organization', each.run);
+  }
   final askClaude = simple ? null : doing.askClaude;
   if (askClaude != null) add('ask-claude', 'Ask Claude', 'Ghost.md', 'claude ai anthropic assistant write chat ask', askClaude);
   // Back up to git now (lib/plugins/git_backup; Matt, 2026-10-31), in Simple too: a backup is never advanced.

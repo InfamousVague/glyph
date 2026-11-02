@@ -39,7 +39,7 @@ import 'note_menu.dart' show byMouse, showInFilesRows;
 
 /// What a folder's menu does, from the root: its sheet to rename it, or at Delete.
 class FolderMenuScope extends InheritedWidget {
-  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, this.show, required super.child});
+  const FolderMenuScope({super.key, required this.store, required this.onRename, required this.onDelete, this.onDeleteAll, this.deleteAll, this.noteExists, this.onSetTemplate, this.onNoteMenu, this.show, this.onKeepIndex, required super.child});
 
   final WorkspaceStore store;
   final ValueChanged<Workspace> onRename;
@@ -65,10 +65,14 @@ class FolderMenuScope extends InheritedWidget {
   /// Show in Finder, Explorer or Files, for a folder's directory and a page's file; absent, or on a phone, no row.
   final ShowInFiles? show;
 
+  /// Keep an index…: the folder's index card in a sheet (docs/AI_INDEXES.md; Matt, 2026-11-02: "for any folder or org,
+  /// the AI keeps an index note"). Absent, no row.
+  final ValueChanged<Workspace>? onKeepIndex;
+
   static FolderMenuScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<FolderMenuScope>();
 
   @override
-  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu || old.show != show;
+  bool updateShouldNotify(FolderMenuScope old) => old.store != store || old.onRename != onRename || old.onDelete != onDelete || old.onDeleteAll != onDeleteAll || old.deleteAll != deleteAll || old.noteExists != noteExists || old.onSetTemplate != onSetTemplate || old.onNoteMenu != onNoteMenu || old.show != show || old.onKeepIndex != onKeepIndex;
 }
 
 /// The right-click a folder's tile, chip or row answers: its menu at the pointer, a mouse's other button only. An
@@ -140,6 +144,7 @@ void showFolderMenu(BuildContext context, FolderMenuScope scope, String folderId
           // A template for the folder's new notes (Matt, 2026-10-30): simple mode keeps it on the folder's sheet,
           // behind its More.
           if (scope.onSetTemplate != null && !preferences.value.simple) GlacierMenuItem(key: const ValueKey('folder-menu-template'), icon: icon(Lucide.copyPlus), onSelect: () => scope.onSetTemplate!(folder), child: const Text('Set template…')),
+          if (scope.onKeepIndex != null) GlacierMenuItem(key: const ValueKey('folder-menu-index'), icon: icon(Lucide.listTree), onSelect: () => scope.onKeepIndex!(folder), child: const Text('Keep an index…')),
           if (context.mounted) ...folderMoveRows(context, store, FolderCarry.folder(folder.id, folder.name)),
           ...folderShowRows(scope.show, folder, store.value.list, icon: icon(Lucide.hardDrive)),
           const GlacierMenuSeparator(),

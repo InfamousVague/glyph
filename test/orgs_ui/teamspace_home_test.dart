@@ -27,6 +27,7 @@ class Asked {
   final List<String> opened = [], members = [];
   final List<DocsMode> docs = [];
   int created = 0;
+  int ask = 0;
 }
 
 Note at(String id, String path, String body) => Note(id: id, body: body, createdAt: 0, updatedAt: 0, path: path);
@@ -57,6 +58,7 @@ Future<Asked> page(WidgetTester tester, Device device, String id, {List<Note> no
       onMember: asked.members.add,
       onCreateHome: create ? () async => asked.created += 1 : null,
       onSetDocs: (mode) async => asked.docs.add(mode),
+      onAsk: () => asked.ask += 1,
     ),
     scroll: false,
   );
@@ -97,6 +99,10 @@ void main() {
     expect(asked.opened, ['road']);
     await press(tester, TeamspaceHome.editKey);
     expect(asked.opened, ['road', 'home']);
+    // Ask the space's notes, with receipts (docs/ASK_THE_ORG.md; Matt, 2026-11-02): over the members.
+    expect(tester.getTopLeft(find.byKey(TeamspaceHome.askKey)).dy, lessThan(tester.getTopLeft(find.byKey(TeamspaceHome.stripKey)).dy));
+    await press(tester, TeamspaceHome.askKey);
+    expect(asked.ask, 1);
     // What was there stays under it.
     expect(find.byKey(const ValueKey('org-heading-members')), findsOneWidget);
     expect(find.byKey(const ValueKey('org-heading-activity')), findsOneWidget);

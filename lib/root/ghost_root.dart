@@ -12,7 +12,10 @@ import '../account/ui_state.dart';
 import '../aside/aside.dart';
 import '../aside/aside_history.dart';
 import '../aside/aside_panel.dart';
-import '../ai/available.dart' show AvailabilityController, modelFor, presentIds;
+import '../ai/available.dart' show Available, AvailabilityController, modelFor, presentIds;
+import '../ai/indexes/index_ai.dart' show DeviceIndexAi, IndexAiPick, cloudIndexAi, pickIndexAi;
+import '../ai/indexes/index_card.dart' show IndexCard, showIndexSheet;
+import '../ai/indexes/index_keeper.dart' show IndexKeeper;
 import '../ai/backend.dart' as engine show aiBackend, readDevice;
 import '../ai/fills/queue.dart' show resumeParked, startFills;
 import '../ai/meeting_sort.dart' show MeetingSorter, askMeetingSort, sortTitlesEach;
@@ -87,7 +90,7 @@ import '../core/trash_files.dart';
 import '../core/mac_app.dart' show runsAsMacApp;
 import '../core/library_files.dart' show LibraryFiles;
 import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
-import '../core/folder_adopter.dart' show adoptFolders;
+import '../core/folder_adopter.dart' show adoptFolders, fileByFolder;
 import '../core/library_config.dart' show LibraryConfig, LibraryConfigKeeper, configFileFor;
 import '../core/favorites.dart' show favoritesIn, withFavorite;
 import '../core/folder_dirs.dart' show libraryRootOf, removeEmptyFolderDirs;
@@ -127,7 +130,7 @@ import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../core/bytes.dart' show toBase64Url;
 import '../core/notifications.dart' show isMention, ticketRuleKind;
-import '../core/page_tree.dart' show DocsMode, PageMover, Space, TeamspaceSettings, spaceOfOrg, spacesFor, teamspaceHomeIn, withDocsMode, withProjectPlugins;
+import '../core/page_tree.dart' show DocsMode, PageMover, Space, folderPageBody, TeamspaceSettings, spaceOfOrg, spacesFor, teamspaceHomeIn, withDocsMode, withProjectPlugins;
 import '../plugins/more/more_tools.dart';
 import '../plugins/projects/suite.dart';
 import '../core/versions_log.dart' show ChangesAcross;
@@ -189,6 +192,11 @@ import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../home/home_organizations.dart' show OrgPresence;
+import '../ask/ask.dart' show AskResult;
+import '../ask/ask_model.dart' show AskModel, askModelFor;
+import '../ask/ask_note.dart' show askNoteBody, askNoteTitle;
+import '../ask/ask_scope.dart';
+import '../ask/ask_sheet.dart' show AskSheet;
 import '../assistant/app_assistant.dart' show appAssistant;
 import '../claude/claude_chat.dart';
 import '../claude/claude_books.dart' show ClaudeBookProblem, ClaudeBooks, ClaudeShelf;
@@ -315,6 +323,8 @@ part 'root_ticket_rules.dart';
 part 'root_git_backup.dart';
 part 'root_contradictions.dart';
 part 'root_teamspaces.dart';
+part 'root_ask.dart';
+part 'root_indexes.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -551,6 +561,17 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// What ElevenLabs' voice previews play on: the memos' player, played whole (lib/plugins/elevenlabs/previews.dart).
   late final TapeClipPlayer? _voicePreviews = widget.clipPlayer == null ? null : TapeClipPlayer(widget.clipPlayer!);
+  /// The self-maintaining indexes (docs/AI_INDEXES.md, root_indexes.dart): started only over the real library.
+  IndexKeeper get _indexKeeper => _indexKeeperMade ??= IndexKeeper(
+        notes: _library,
+        get: _library.get,
+        write: (id, change) => _changeNote(id, change, userEvent: 'ai.index'),
+        makePage: _makeFolderPage,
+        pick: _indexAi,
+        deviceId: thisDevice().id,
+        deviceName: thisDevice().name,
+      );
+  IndexKeeper? _indexKeeperMade;
   late final BannerJob _bannerJob = BannerJob(
     notes: () => _library.value,
     banners: _banners,
@@ -1162,6 +1183,9 @@ class _GhostRootState extends State<GhostRoot> {
   /// The chat with Claude is up (lib/root/root_claude.dart), the agent it was opened for, if any, and the words its
   /// field starts with: what the page whose dock opened it is about.
   bool _askClaude = false;
+
+  /// The Ask sheet is up, on its scope (lib/root/root_ask.dart, docs/ASK_THE_ORG.md).
+  ({AskScope scope})? _askSheet;
   String? _chatAgent;
   String? _chatInitial;
 
@@ -1994,6 +2018,7 @@ class _GhostRootState extends State<GhostRoot> {
     }
     if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
     if (identical(lovartBannerJob, _bannerJob)) lovartBannerJob = null;
+    _indexKeeperMade?.dispose();
     lovartBannerRun.removeListener(_bannerMoved);
     preferences.removeListener(_bannerJob.tellElsewhere);
     _bannerJob.dispose();
@@ -2092,6 +2117,8 @@ class _GhostRootState extends State<GhostRoot> {
     // Settings › Lovart's run over the recent notes, the root's job: one the app went under goes on, once Lovart is
     // on and its keys are read.
     lovartBannerJob = _bannerJob;
+    // The indexes a folder's page asks for, refreshed as its notes change (root_indexes.dart).
+    if (_real) _indexKeeper.start();
     // How the app's running work opens what it made and fixes what stopped it (lib/core/background_jobs.dart; the ring,
     // the tray and the chips, docs/ACTIVITY.md): a note where it was left, a link the app's way, a plugin's page; and
     // the chime as a long job of the person's ends.

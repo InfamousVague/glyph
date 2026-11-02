@@ -163,6 +163,7 @@ PaletteDoing paletteDoingFor({
   VoidCallback? triage,
   void Function(String page, {String? setting})? settingsAt,
   void Function(String id)? marketPlugin,
+  List<({String key, String title, VoidCallback run})> asks = const [],
   void Function(String noteId)? startTimer,
   VoidCallback? stopTimer,
   VoidCallback? backUpNow,
@@ -218,6 +219,7 @@ PaletteDoing paletteDoingFor({
     setFocusMode: (on) => store.update((now) => now.copyWith(focusMode: on)),
     settingsAt: settingsAt == null ? null : (page, setting) => settingsAt(page, setting: setting),
     marketPlugin: marketPlugin,
+    asks: asks,
   );
 }
 
