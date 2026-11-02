@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.3.98",
+    "date": "2026-11-02",
+    "title": "Gantt charts you can read on a phone",
+    "items": [
+      {"icon": "sliders-horizontal", "words": "Gantt charts scroll sideways on a phone, with names in a column that stays put, bigger text, and the dates kept in view on top.", "kind": "better"},
+      {"icon": "sparkles", "words": "A Mermaid gantt is drawn as the app's own chart, opening at today, with a full screen of its own. Its text is untouched.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.3.97",
     "date": "2026-11-02",
     "title": "A calmer Ghost.md: project tools and more are plugins",
