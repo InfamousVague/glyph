@@ -23,6 +23,14 @@
     "licence": "CC0-1.0",
     "brand": "https://elevenlabs.io/brand"
   },
+  "figma": {
+    "title": "Figma",
+    "hex": "F24E1E",
+    "from": "https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/figma.svg",
+    "project": "Simple Icons 16.35.0 (npm simple-icons@16.35.0)",
+    "licence": "CC0-1.0",
+    "brand": "https://www.figma.com/using-the-figma-brand/"
+  },
   "github": {
     "title": "GitHub",
     "hex": "181717",

@@ -58,8 +58,22 @@ const Map<String, (Color, Color)> marketHues = {
   'magenta': (Color(0xFFB5279F), Color(0xFFF07AE0)),
 };
 
-/// The hue of a plugin with no page of its own, by its id, and else by its category's.
-const Map<String, String> _ownHues = {'marks': 'amber', 'rich-embeds': 'red'};
+/// The hue of a plugin with no page of its own, by its id, and else by its category's. The project tools and Canvas
+/// each have their own (Matt, 2026-11-02: "make the plugins for features like the gantt and such different colors
+/// currently they're all the same color"): they were all the projects category's mint. With the more tools' own
+/// (Meetings orange, Diagrams purple, Places green, Email blue, Publishing cyan) no two of the thirteen share one.
+const Map<String, String> _ownHues = {
+  'marks': 'amber',
+  'rich-embeds': 'red',
+  'tickets': 'indigo',
+  'planning': 'magenta',
+  'gantt': 'coral',
+  'boards': 'lime',
+  'automations': 'yellow',
+  'time-tracking': 'rose',
+  'forms': 'mint',
+  'canvas': 'red',
+};
 const Map<PluginCategory, String> _categoryHues = {
   PluginCategory.ai: 'purple',
   PluginCategory.calendar: 'cyan',

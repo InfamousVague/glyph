@@ -1188,10 +1188,10 @@
       "category": "editor",
       "icon": "shapes",
       "mark": null,
-      "hue": "amber",
+      "hue": "red",
       "colours": [
-        "#c27c00",
-        "#ffb84d"
+        "#dd3a30",
+        "#ff6b61"
       ],
       "platforms": {
         "android": true,
@@ -1396,10 +1396,10 @@
       "category": "projects",
       "icon": "workflow",
       "mark": null,
-      "hue": "mint",
+      "hue": "yellow",
       "colours": [
-        "#1f9e8f",
-        "#5fe0cf"
+        "#b58400",
+        "#ffd43b"
       ],
       "platforms": {
         "android": true,
@@ -1427,10 +1427,10 @@
       "category": "projects",
       "icon": "square-kanban",
       "mark": null,
-      "hue": "mint",
+      "hue": "lime",
       "colours": [
-        "#1f9e8f",
-        "#5fe0cf"
+        "#5a8a00",
+        "#a3d93f"
       ],
       "platforms": {
         "android": true,
@@ -1489,10 +1489,10 @@
       "category": "projects",
       "icon": "chart-gantt",
       "mark": null,
-      "hue": "mint",
+      "hue": "coral",
       "colours": [
-        "#1f9e8f",
-        "#5fe0cf"
+        "#c8643f",
+        "#f0906b"
       ],
       "platforms": {
         "android": true,
@@ -1520,10 +1520,10 @@
       "category": "projects",
       "icon": "calendar-days",
       "mark": null,
-      "hue": "mint",
+      "hue": "magenta",
       "colours": [
-        "#1f9e8f",
-        "#5fe0cf"
+        "#b5279f",
+        "#f07ae0"
       ],
       "platforms": {
         "android": true,
@@ -1552,10 +1552,10 @@
       "category": "projects",
       "icon": "ticket",
       "mark": null,
-      "hue": "mint",
+      "hue": "indigo",
       "colours": [
-        "#1f9e8f",
-        "#5fe0cf"
+        "#4f5bd5",
+        "#8c95ff"
       ],
       "platforms": {
         "android": true,
@@ -1586,10 +1586,10 @@
       "category": "projects",
       "icon": "hourglass",
       "mark": null,
-      "hue": "mint",
+      "hue": "rose",
       "colours": [
-        "#1f9e8f",
-        "#5fe0cf"
+        "#d6336c",
+        "#ff7aa8"
       ],
       "platforms": {
         "android": true,

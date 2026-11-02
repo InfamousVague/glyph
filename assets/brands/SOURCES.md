@@ -27,6 +27,7 @@ its colours are its data file's (`data/simple-icons.json`, `hex`).
 | GitHub | `github` | `#181717` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/github.svg | https://github.com/logos |
 | Calendar (Google Calendar) | `googlecalendar` | `#4285F4` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/googlecalendar.svg | https://fonts.gstatic.com/s/i/productlogos/calendar_2020q4/v8/192px.svg |
 | Gemini | `googlegemini` | `#8E75B2` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/googlegemini.svg | https://gemini.google.com |
+| Figma | `figma` | `#F24E1E` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/figma.svg (fetched 2026-11-02, Matt: "it should use a iconized version of the figma logo") | https://www.figma.com/using-the-figma-brand/ |
 | Google Meet | `googlemeet` | `#00897B` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/googlemeet.svg | https://about.google/brand-resource-center/logos-list/ |
 | Notion | `notion` | `#000000` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/notion.svg | https://www.notion.so |
 | Things | `things` | `#2473E7` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/things.svg | https://culturedcode.com/terms/#using_our_service |

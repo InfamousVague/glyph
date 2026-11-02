@@ -66,13 +66,14 @@ void main() {
         'google-meet': 'googlemeet',
         'elevenlabs': 'elevenlabs',
         'gemini': 'googlegemini',
+        'figma': 'figma',
       });
       for (final MapEntry(key: id, value: slug) in pluginBrands.entries) {
         expect(brandOf(pluginOf(id))?.slug, slug, reason: id);
         expect(brandMarkData[slug], isNotNull, reason: slug);
       }
       // Zoom's mark is its wordmark: a video camera instead (Matt, 2026-10-29: "change zoom").
-      expect(pluginsWithoutMark.keys.toSet(), {'slack', 'openai', 'aster', 'figma', 'zoom'});
+      expect(pluginsWithoutMark.keys.toSet(), {'slack', 'openai', 'aster', 'zoom'});
       expect((pluginOf('zoom').icon, brandOf(pluginOf('zoom'))), ('video', null));
     });
 
