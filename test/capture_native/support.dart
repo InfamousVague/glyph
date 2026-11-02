@@ -23,7 +23,8 @@ class TestCore {
 
   String get dataDir => '${root.path}/data';
   Directory get models => Directory('$dataDir/models');
-  Directory get recordings => Directory('$dataDir/recordings');
+  /// Recordings live in the app's own library since 906173be (files, films and recordings under `data/Library/`).
+  Directory get recordings => Directory('$dataDir/Library/recordings');
 
   /// Why the tests cannot run here, or null: the library not built, or built without the engines.
   static Future<String?> missing() async {

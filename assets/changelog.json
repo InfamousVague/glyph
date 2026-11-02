@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.3.97",
+    "date": "2026-11-02",
+    "title": "A calmer Ghost.md: project tools and more are plugins",
+    "items": [
+      {"icon": "puzzle", "words": "Tickets, Planning, Gantt, Boards, Automations, Time tracking and Forms are plugins, off until you or your team turn them on.", "kind": "new"},
+      {"icon": "users", "words": "A new organization asks which tools the team uses, and a banner offers to turn on any its notes need.", "kind": "new"},
+      {"icon": "store", "words": "Canvas, Meetings, Diagrams and math, Places, Email to a note and Publishing are plugins too, on if you already use them.", "kind": "better"},
+      {"icon": "sparkles", "words": "The header is a darker glass, and every button, pill and ring on it is glass too.", "kind": "better"},
+      {"icon": "folder-open", "words": "Show in Finder (or Explorer) in every note and folder menu on a computer.", "kind": "new"},
+      {"icon": "sliders-horizontal", "words": "Simpler Settings: one Effects switch, one Sounds choice, one Morning time, and one place to pick who writes summaries.", "kind": "better"},
+      {"icon": "shield-check", "words": "Leaving or deleting an organization keeps your notes in a folder named after it, and moves between organizations are safe.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.3.96",
     "date": "2026-11-01",
     "title": "Delete a folder with everything in it",
