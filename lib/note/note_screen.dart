@@ -144,6 +144,8 @@ import 'note_tools.dart';
 import 'page_head.dart';
 import 'pinch_zoom.dart';
 import 'version_keeping.dart';
+import '../plugins/projects/suite.dart' show automationsTool, projectPluginOn, ticketsTool;
+import '../core/properties.dart' as props show isTicket;
 
 /// The links between notes, for this note (lib/links/note_links.dart): how many notes link here, worn on the
 /// Links tool's ring; the More sheet's rows for them (Links, Outline, Local graph, Copy link to this line) with
@@ -626,6 +628,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   LiveTitles get _live => widget.liveTitles ?? liveTitles;
   String get _id => widget.note.id;
 
+  /// The blank page's cards: the Bug report and the Feature only where Tickets is on where the note is (docs/PM_PLUGINS.md).
+  List<NoteTemplate>? get _cardTemplates => projectPluginOn(ticketsTool, noteId: _id) ? widget.templates : [for (final template in widget.templates ?? builtIns) if (!props.isTicket(template.words)) template];
+
   /// The editor's view, once it has one.
   EditorView? get view => _view;
 
@@ -901,7 +906,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             names: names ?? const <NameOffer>[],
             onName: nameIt,
             cards: cardsShown
-                ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly, canLocate: _tags != null && _tags!.locations.cannotLocateHere == null, refused: _refusalStands ? _tags?.allowLocationWhere() : null, mapHeader: _tags == null ? null : (context) => const MapPicture(size: MapSize.header, pin: true))
+                ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: _cardTemplates, onYours: widget.onTemplates, localOnly: prefs.localOnly, canLocate: _tags != null && _tags!.locations.cannotLocateHere == null, refused: _refusalStands ? _tags?.allowLocationWhere() : null, mapHeader: _tags == null ? null : (context) => const MapPicture(size: MapSize.header, pin: true))
                 : null,
           );
         },
@@ -2322,8 +2327,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       // A notebook's template for its new pages (lib/notes/place_templates.dart), written as its other keys are.
       pageTemplate: _notebookRows && !_isJournal && !widget.readOnly ? NotePageTemplate(name: notebookTemplateName(_typedBody), onChoose: () => unawaited(_choosePageTemplate())) : null,
       // A notebook's rules for its tickets and its GitHub repos (lib/book/rules_sheet.dart), written as its other keys are.
-      ticketRules: _notebookRows && !_isJournal && !widget.readOnly ? NoteTicketRules(summary: rulesSummary(_typedBody), onOpen: () => unawaited(openTicketRules(context, body: () => _typedBody, write: _writeKeys))) : null,
-      ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
+      // Rules where Automations is on where the notebook is, its key where Tickets is (docs/PM_PLUGINS.md).
+      ticketRules: _notebookRows && !_isJournal && !widget.readOnly && projectPluginOn(automationsTool, noteId: _id) ? NoteTicketRules(summary: rulesSummary(_typedBody), onOpen: () => unawaited(openTicketRules(context, body: () => _typedBody, write: _writeKeys))) : null,
+      ticketKey: _notebookRows && !_isJournal && projectPluginOn(ticketsTool, noteId: _id) ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',
       look: !_typed && !widget.readOnly && _raw ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,

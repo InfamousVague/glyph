@@ -777,7 +777,7 @@ class _GhostRootState extends State<GhostRoot> {
   void _say(BuildContext context, String message) => GlacierToast.of(context).toast(message: Text(message));
 
   /// What the note on screen reads of the library, read once per change to the notes (lib/root/library_reads.dart).
-  late final LibraryReads _reads = LibraryReads(shown: () => _shown, all: () => _library.value, history: _ticketHistory);
+  late final LibraryReads _reads = LibraryReads(shown: () => _shown, all: () => _library.value, history: _ticketHistory, ticketsOn: (id) => projectPluginOn(ticketsTool, noteId: id));
 
   /// When each ticket's status changed, read from its versions as a burndown or a stale mark first asks
   /// (lib/core/planning/history.dart; Matt, 2026-10-31): a team's tickets keep versions, a person's own where switched
@@ -1222,6 +1222,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// A project tool's answer moved somewhere: what reads them is drawn again.
   void _toolsMoved() {
+    // Which notes are tickets at all follows Tickets (library_reads.dart `ticketsOn`).
+    _reads.changed();
     if (mounted) _told(() => _toolsAt += 1);
   }
 
@@ -1357,7 +1359,7 @@ class _GhostRootState extends State<GhostRoot> {
     write: (id, change) => unawaited(_writeNote(id, change)),
     addTicket: _addFromQuery,
     // `[[GHO-12]]` finds the ticket by its key too.
-    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket, follow: _ticketFollow(id), labelColour: (label, hue) => _setLabelColour(id, label, hue), work: _ticketsWired.work(id)),
+    tickets: (id) => _reads.ticketOptions(id, open: _openTitle, addSub: _newSubTicket, follow: _ticketFollow(id), labelColour: (label, hue) => _setLabelColour(id, label, hue), work: _ticketsWired.work(id), planned: projectPluginOn(planningTool, noteId: id)),
     // A ticket's lock and its sub-tickets' progress on a board or a query that lists it (lib/book/ticket_links.dart).
     ticketMarks: _reads.ticketMarks,
     // Tickets picked in a query and changed at once, and a ticket's notebook's label colours (root_tickets.dart).

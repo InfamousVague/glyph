@@ -610,7 +610,7 @@ final List<SettingsSectionSpec> _sections = [
     where: _advanced,
     // As About's row says it.
     summary: (facts) => _static('A sample note, a board and two canvases', facts),
-    settings: (facts) => examplesFindable,
+    settings: (facts) => examplesFindableNow(),
     pane: ExamplesPane.hosted,
     listed: false,
     parent: 'about',

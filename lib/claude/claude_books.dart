@@ -29,6 +29,7 @@ import 'dart:convert';
 
 import '../core/docs_book.dart';
 import '../core/note_text.dart' show sameTitle;
+import '../plugins/projects/suite.dart' show projectPluginOn, projectSuite, ticketsTool;
 import 'claude_folders.dart';
 
 /// The notes Claude made since the app opened: what trash_note may take from an organization, and what a cut-off
@@ -142,6 +143,10 @@ final List<Map<String, Object?>> claudeBookTools = [
       'due': _string('When it is due, as YYYY-MM-DD.'),
       'priority': _string('Highest, High, Medium, Low or Lowest.'),
       'details': _string('Markdown under its heading: what is to be done, where it came from (a [[Meeting note]] link), and anything said about it.'),
+      'turn_on_tickets': {
+        'type': 'boolean',
+        'description': 'Only once the person has said yes: turns the Tickets plugin on where the notebook is (for them, or for its organization) before making the ticket. Tickets is off until it is turned on, and create_ticket says so.',
+      },
     },
     const ['notebook', 'title'],
   ),
@@ -270,13 +275,34 @@ class ClaudeBooks {
         final workspace = _workspace(input['folder']);
         final id = await shelf.notebook(title: title, key: key == null || key.isEmpty ? null : key, about: (input['about'] as String?)?.trim(), workspaceId: workspace);
         claudeMade.add(id);
-        return (said: jsonEncode({'id': id, 'title': title, if (key != null && key.isNotEmpty) 'ticket_key': key, 'done': true}), step: 'Made the notebook $title', noteId: id);
+        // A notebook of tickets where Tickets is off is a plain notebook until it is on (docs/PM_PLUGINS.md).
+        final ticketsOff = key != null && key.isNotEmpty && !projectPluginOn(ticketsTool, noteId: id);
+        return (
+          said: jsonEncode({
+            'id': id,
+            'title': title,
+            if (key != null && key.isNotEmpty) 'ticket_key': key,
+            if (ticketsOff) 'tickets_off': 'The Tickets plugin is off here: its tickets show as plain notes, and create_ticket asks before it turns Tickets on. Tell the person.',
+            'done': true,
+          }),
+          step: 'Made the notebook $title',
+          noteId: id,
+        );
       case ClaudeBookTool.ticket:
         final asked = (input['notebook'] as String? ?? '').trim();
         final title = (input['title'] as String? ?? '').trim();
         if (asked.isEmpty || title.isEmpty) throw const ClaudeBookProblem('Give the `notebook` and the ticket’s `title`.');
         final book = shelf.findNotebook(asked);
         if (book == null) throw ClaudeBookProblem('No notebook “$asked”. Make it with create_notebook, or list notes to find its id.');
+        // Tickets is a plugin, off until turned on for the person or for the team (docs/PM_PLUGINS.md): where it is
+        // off, nothing is made until the person says to turn it on.
+        if (!projectPluginOn(ticketsTool, noteId: book.id)) {
+          if (input['turn_on_tickets'] != true) {
+            final where = projectSuite.whereWords(noteId: book.id);
+            throw ClaudeBookProblem('The Tickets plugin is off${where.isEmpty ? ' for the person' : where}, so a ticket would show as a plain note. Nothing was made. Tell the person, and offer to turn Tickets on${where.isEmpty ? '' : where}; if they say yes, call create_ticket again with `turn_on_tickets: true`.');
+          }
+          await projectSuite.turnOn(const [ticketsTool], noteId: book.id);
+        }
         final fields = <(String, String)>[
           for (final field in const ['status', 'assignee', 'due', 'priority'])
             if ((input[field] as String?)?.trim().isNotEmpty ?? false) (field, (input[field]! as String).trim()),
