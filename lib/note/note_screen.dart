@@ -2168,7 +2168,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         Positioned(
           top: padTop + (seams.headRoom?.value ?? 0) + t.space(2),
           right: t.len('app-gutter-end'),
-          width: railWidth - t.space(4),
+          // Wholly right of the page's own scrollbar, at the scroller's edge (railed): the outline is a card since
+          // 2026-11-02 and drew over the bar (Matt: "the scrollbar goes behind the card for the 'on this page' card").
+          width: math.max(0, railWidth - t.len('app-gutter-end') - t.space(3)),
           bottom: t.len('app-safe-bottom') + t.space(4),
           child: SingleChildScrollView(child: DocOutlineRail(view: view, page: _scroll.position)),
         ),

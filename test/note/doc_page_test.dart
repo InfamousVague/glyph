@@ -170,6 +170,10 @@ void main() {
       await pump(tester, 'plan', size: const Size(1280, 900));
       expect(find.byKey(const ValueKey('doc-outline')), findsOneWidget);
       expect(find.descendant(of: find.byKey(const ValueKey('doc-outline')), matching: find.text('Goals')), findsOneWidget);
+      // The card is clear of the page's scrollbar, which stands at the scroller's edge, the rail's width in from the
+      // window's (Matt, 2026-11-02: "the scrollbar goes behind the card for the 'on this page' card").
+      final scrollerEdge = tester.getRect(find.byType(NoteScreen)).right - docRailWidth;
+      expect(tester.getRect(find.byKey(const ValueKey('doc-outline'))).left, greaterThan(scrollerEdge));
       await closeNote(tester);
 
       await pump(tester, 'plan', size: const Size(390, 844));

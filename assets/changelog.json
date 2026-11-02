@@ -2,9 +2,10 @@
   {
     "version": "2.4.3",
     "date": "2026-11-02",
-    "title": "Lovart's blurred stand-in is back",
+    "title": "Lovart's blurred stand-in is back, and On this page clear of the scrollbar",
     "items": [
-      {"icon": "image", "words": "While Lovart makes a header image or a moodboard, a blurred stand-in with Lovart's mark and a turning ring waits where it goes.", "kind": "better"}
+      {"icon": "image", "words": "While Lovart makes a header image or a moodboard, a blurred stand-in with Lovart's mark and a turning ring waits where it goes.", "kind": "better"},
+      {"icon": "list-tree", "words": "The On this page card no longer covers the page's scrollbar.", "kind": "fixed"}
     ]
   },
   {
