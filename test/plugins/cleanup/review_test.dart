@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/notes/folder_menu.dart';
+import 'package:ghost_md/notes/workspace_sheet.dart';
 import 'package:ghost_md/plugins/built_in.dart' show builtIn;
 import 'package:ghost_md/plugins/cleanup/cleanup.dart';
 import 'package:ghost_md/plugins/registry.dart';
@@ -241,6 +242,58 @@ void main() {
     expect(find.text('On this device'), findsOneWidget);
     expect(find.textContaining('to the model on this device, and nothing leaves it, 12 notes at a time'), findsOneWidget);
     await featureShot(tester, 'cleanup', 'page-local-only');
+    await away(tester);
+  });
+
+  testWidgets('an organization’s folder: Duplicates is off and says why, the rest as before', (tester) async {
+    final service = serviceOf();
+    service.choose(world.plansId);
+    await pumpPage(tester, service);
+    await settle(tester);
+    final row = find.byKey(const ValueKey('cleanup-pass-switch-duplicates'));
+    expect(find.descendant(of: row, matching: find.text('Not in an organization’s folders: a merged copy would stay for everyone else.')), findsOneWidget);
+    final toggle = tester.widget<GlacierSwitch>(find.descendant(of: row, matching: find.byType(GlacierSwitch)));
+    expect((toggle.checked, toggle.disabled), (false, true));
+    expect(find.textContaining('an organization’s: its notes stay in it'), findsOneWidget);
+    await featureShot(tester, 'cleanup', 'page-organization');
+    await away(tester);
+  });
+
+  testWidgets('a phone’s folder sheet has Clean up with AI… while the plugin is on; it closes the sheet and opens the page there', (tester) async {
+    final before = plugins;
+    addTearDown(() => usePlugins(before));
+    final cleaned = <String>[];
+    var closed = 0;
+    Future<void> sheetOf(bool on) async {
+      usePlugins(createRegistry(builtIn, store: MemorySwitches({'cleanup': on})));
+      await pumpApp(
+        tester,
+        home: BackScope(
+          child: FolderMenuScope(
+            store: world.workspaces,
+            onRename: (_) {},
+            onDelete: (_) {},
+            onCleanup: (folder) => cleaned.add(folder.id),
+            child: WorkspaceManageSheet(store: world.workspaces, editing: world.workspaces.value.list.firstWhere((w) => w.id == 'clients'), folders: true, onClose: () => closed += 1),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    await sheetOf(false);
+    expect(find.byKey(const ValueKey('workspace-cleanup'), skipOffstage: false), findsNothing);
+    await away(tester);
+    await sheetOf(true);
+    final row = find.byKey(const ValueKey('workspace-cleanup'), skipOffstage: false);
+    expect(row, findsOneWidget);
+    await featureShot(tester, 'cleanup', 'phone-folder-sheet');
+    await tester.ensureVisible(row);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(row);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(cleaned, ['clients']);
+    expect(closed, 1);
     await away(tester);
   });
 

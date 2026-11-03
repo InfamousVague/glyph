@@ -127,6 +127,9 @@ class CleanupService extends ChangeNotifier {
     return _connected.where((a) => a.id == id).firstOrNull;
   }
 
+  /// Whether the folder chosen is an organization's (its own workspace or a folder under it): no Duplicates there.
+  bool get inOrg => _folderId != null && workspaces.orgOf(_folderId!) != null;
+
   /// How many notes a run would read in the folder now: under it too, out of the Trash and the Archive.
   int get noteCount {
     final id = _folderId;
@@ -191,6 +194,7 @@ class CleanupService extends ChangeNotifier {
   String? get cannotLook {
     if (_folderId == null || folder == null) return 'Choose a folder first.';
     if (_options.passes.isEmpty) return 'Turn on at least one thing to do.';
+    if (inOrg && _options.passes.every((p) => p == CleanupPass.duplicates)) return 'Duplicates isn’t offered in an organization’s folders: turn on something else to do.';
     if (_aisRead && ai == null) return localOnly ? 'Local only is on, and there is no model on this device yet.' : 'No AI is connected yet.';
     if (noteCount == 0) return '${folder!.name} has no notes in it.';
     return null;

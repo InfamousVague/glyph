@@ -135,6 +135,8 @@ String cleanupJobId(String folderId) => 'cleanup:$folderId';
 /// how far it is (the Activity tray's job and the page); [stop] ends it after the ask in flight, keeping what the finished asks found. Never throws for an ask
 /// that failed: its words are in [CleanupPlan.failures]. [now] is today's date for the prompt.
 Future<CleanupPlan> runCleanup({required CleanupScope scope, required CleanupAi ai, required CleanupOptions options, void Function(int done, int total, String line)? progress, CleanupStop? stop, DateTime Function()? now}) async {
+  // An organization's folders are never asked about duplicates ([optionsFor]).
+  options = optionsFor(scope, options);
   final sizes = ai.sizes;
   final batches = cleanupBatches(scope, sizes);
   final system = cleanupSystem(options);

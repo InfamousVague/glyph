@@ -44,6 +44,37 @@ void main() {
     expect(steps, ['Reading with Fake AI 0/8', 'Reading with Fake AI 8/8', 'Tidying with Fake AI 0/1']);
   });
 
+  test('an organization’s folders are never asked about duplicates, and the app finds none there either', () async {
+    // Two copies of one team note, word for word.
+    final copy = world.library.noteOf('team-plan')!;
+    await world.library.createNote(copy.body.replaceFirst('# Team plan', '# Team plan (shared)'), id: 'team-plan-copy');
+    world.workspaces.fileNote('team-plan-copy', world.plansId);
+    final asked = <Asked>[];
+    final plan = await runCleanup(
+      scope: world.scope('org-o1'),
+      ai: scriptedAi((_, prompt) {
+        final n = noteRefs(prompt);
+        return answerJson({
+          'duplicates': [
+            {'keep': n['Team plan'], 'others': [n['Team plan (shared)']]},
+          ],
+        });
+      }, asked: asked),
+      options: const CleanupOptions(passes: {CleanupPass.duplicates, CleanupPass.titles}),
+    );
+    expect(asked.single.system, isNot(contains('"duplicates"')));
+    expect(plan.items.whereType<MergeItem>(), isEmpty);
+    // The same folder's notes, personal, would have been found.
+    expect(duplicateGroups([for (final n in world.scope('org-o1').notes) (id: n.id, title: n.title, body: n.body, updatedAt: n.updatedAt)]), isNotEmpty);
+    final service = world.service();
+    service.choose(world.plansId);
+    for (final pass in CleanupPass.values) {
+      service.setPass(pass, pass == CleanupPass.duplicates);
+    }
+    expect(service.inOrg, isTrue);
+    expect(service.cannotLook, 'Duplicates isn’t offered in an organization’s folders: turn on something else to do.');
+  });
+
   test('the device’s model is sent 12 notes an ask and 400 characters of each', () async {
     final asked = <Asked>[];
     await runCleanup(scope: world.scope('work'), ai: scriptedAi((_, _) => '{}', local: true, asked: asked), options: const CleanupOptions(passes: {CleanupPass.titles}));

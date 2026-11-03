@@ -5,8 +5,11 @@ import 'package:glacier/glacier.dart';
 import '../art/icons.dart';
 import '../core/preferences.dart' show preferences;
 import '../core/workspaces.dart' show FolderContents, Workspace, WorkspaceStore, folderDeleteQuestion, orgOfWorkspace, orgWorkspaceId, workspacePathName;
+import '../plugins/cleanup/manifest.dart' show cleanupManifest;
+import '../plugins/registry.dart' show pluginOn;
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
+import 'folder_menu.dart' show FolderMenuScope;
 import 'org_mark.dart';
 import 'workspace_swatch.dart';
 
@@ -430,6 +433,23 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
                 ),
             ],
           ),
+        // Clean up with AI… (lib/plugins/cleanup; Matt, 2026-11-02, choosing "Add it"): the plugin's page at this folder,
+        // on a phone's sheet as on a desktop's menu, while the plugin is on.
+        if (!making)
+          if (FolderMenuScope.maybeOf(context)?.onCleanup case final cleanUp? when pluginOn(cleanupManifest))
+            SheetGroup(
+              children: [
+                SheetRow(
+                  key: const ValueKey('workspace-cleanup'),
+                  label: 'Clean up with AI…',
+                  hint: 'Sort, retitle and tidy its notes with your AI. You review every change first.',
+                  onPress: () {
+                    widget.onClose();
+                    cleanUp(editing);
+                  },
+                ),
+              ],
+            ),
         if (!making)
           SheetGroup(
             children: [

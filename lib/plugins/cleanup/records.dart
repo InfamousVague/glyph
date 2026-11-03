@@ -1,14 +1,42 @@
 /// Each applied cleanup, recorded so it can be taken back later (docs/CLEANUP.md, "Undo and the record"; Matt,
-/// 2026-11-02): when, which folder, which AI, and every change with what it was before. Kept in the plugin's storage
-/// ([cleanupRunsKey], this device's), the last [CleanupRecords.most] runs.
+/// 2026-11-02): when, which folder, which AI, and every change with what it was before.
+///
+/// **Where** (Matt, 2026-11-02, choosing "Library folder"): a personal folder's runs are kept in the Library itself,
+/// `.glyph/cleanup.json` ([cleanupRunsFileFor]), beside the library's config, so they go wherever the folder goes (Back
+/// up to git commits it, a folder shared between two Macs carries it, a restore brings it back) and a run can be undone
+/// on another device that has the folder. An organization's runs stay in the plugin's storage on this device
+/// ([cleanupRunsKey]): their before and after are a team's words, and a file in `.glyph/` is committed by Back up to
+/// git whichever organizations are left out of it. So is every run where the Library has no file Dart can reach (an
+/// Android folder picked in the system's picker). Each place keeps its last [CleanupRecords.most] runs.
 library;
+
+import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/library_config.dart' show ConfigFile, FileConfigFile;
+import '../../core/library_folder.dart' show LibraryStatus;
 import '../types.dart' show PluginStorage;
 
-/// The storage key the records are kept under.
+/// The storage key an organization's runs are kept under on this device.
 const String cleanupRunsKey = 'glyph-cleanup-runs';
+
+/// The file a personal folder's runs are kept in, inside the library's dot folder.
+const String cleanupRunsFileName = 'cleanup.json';
+
+/// The file's version.
+const int cleanupRunsVersion = 1;
+
+/// The Library's file of runs, by the library config's rules (lib/core/library_config.dart `configFileFor`): the
+/// chosen folder while it can be reached, else Ghost.md's own; none for an Android folder picked in the system's
+/// picker, which has no path Dart can reach.
+ConfigFile? cleanupRunsFileFor(LibraryStatus status) {
+  if (status.kind == 'tree') return null;
+  final root = status.kind == 'folder' && status.reachable && status.path != null ? status.path : status.own;
+  if (root == null || root.isEmpty) return null;
+  return FileConfigFile('$root/.glyph/$cleanupRunsFileName');
+}
 
 /// What a change was.
 enum CleanupChangeKind { folder, move, body, trash, archive }
@@ -74,12 +102,15 @@ class CleanupChange {
 /// One applied run.
 @immutable
 class CleanupRecord {
-  const CleanupRecord({required this.id, required this.at, required this.folderId, required this.folderPath, required this.aiName, required this.changes, this.misplaced = const [], this.undone = false});
+  const CleanupRecord({required this.id, required this.at, required this.folderId, required this.folderPath, required this.aiName, required this.changes, this.org, this.misplaced = const [], this.undone = false});
 
   final String id;
   final DateTime at;
   final String folderId;
   final String folderPath;
+
+  /// The organization the folder is in, or null for a personal folder: where the record is kept follows it.
+  final String? org;
   final String aiName;
   final List<CleanupChange> changes;
 
@@ -103,7 +134,7 @@ class CleanupRecord {
     return parts.isEmpty ? 'Nothing changed' : parts.join(' · ');
   }
 
-  CleanupRecord asUndone() => CleanupRecord(id: id, at: at, folderId: folderId, folderPath: folderPath, aiName: aiName, changes: changes, misplaced: misplaced, undone: true);
+  CleanupRecord asUndone() => CleanupRecord(id: id, at: at, folderId: folderId, folderPath: folderPath, aiName: aiName, changes: changes, org: org, misplaced: misplaced, undone: true);
 
   Map<String, Object?> toJson() => {
         'id': id,
@@ -111,6 +142,7 @@ class CleanupRecord {
         'folder': folderId,
         'path': folderPath,
         'ai': aiName,
+        'org': ?org,
         'changes': [for (final c in changes) c.toJson()],
         if (misplaced.isNotEmpty) 'misplaced': misplaced,
         if (undone) 'undone': true,
@@ -128,6 +160,7 @@ class CleanupRecord {
       folderId: json['folder'] as String,
       folderPath: json['path'] is String ? json['path'] as String : '',
       aiName: json['ai'] is String ? json['ai'] as String : '',
+      org: json['org'] is String ? json['org'] as String : null,
       changes: [if (changes is List) for (final c in changes) ?CleanupChange.fromJson(c)],
       misplaced: [if (misplaced is List) for (final m in misplaced) if (m is String) m],
       undone: json['undone'] == true,
@@ -135,24 +168,59 @@ class CleanupRecord {
   }
 }
 
-/// The records, newest first, over a plugin's storage or a test's memory.
+/// The records, newest first (see the library doc): a personal folder's in the Library's file once [useFile] has
+/// found it, an organization's (and every one while there is no file) in the plugin's storage, or a test's memory.
 class CleanupRecords extends ChangeNotifier {
-  CleanupRecords({PluginStorage? storage}) : _storage = storage;
+  CleanupRecords({PluginStorage? storage, ConfigFile? file}) : _storage = storage, _file = file;
 
   final PluginStorage? _storage;
+  ConfigFile? _file;
   List<CleanupRecord>? _memory;
+  List<CleanupRecord> _inFile = const [];
+  Future<void> _writing = Future<void>.value();
 
-  /// The most runs kept.
+  /// The most runs each place keeps.
   static const int most = 20;
 
-  List<CleanupRecord> get all {
+  /// The Library's file, once the root knows where the library is (null: none to be had); read at once.
+  Future<void> useFile(ConfigFile? file) async {
+    _file = file;
+    await reread();
+  }
+
+  /// Reads the Library's file again: as it is found, and before a write, so a run written by another device sharing
+  /// the folder is kept.
+  Future<void> reread() async {
+    _inFile = await _readFile();
+    notifyListeners();
+  }
+
+  /// What was last written, for a test to wait on.
+  Future<void> get written => _writing;
+
+  Future<List<CleanupRecord>> _readFile() async {
+    final file = _file;
+    if (file == null) return const [];
+    try {
+      final text = await file.read();
+      if (text == null || text.trim().isEmpty) return const [];
+      final json = jsonDecode(text);
+      final runs = json is Map ? json['runs'] : null;
+      return [if (runs is List) for (final r in runs) ?CleanupRecord.fromJson(r)];
+    } catch (_) {
+      // A file that cannot be read keeps nothing; it is written again whole with the next run.
+      return const [];
+    }
+  }
+
+  List<CleanupRecord> get _device {
     final storage = _storage;
     if (storage == null) return _memory ?? const [];
     final raw = storage.get<Object?>(cleanupRunsKey, null);
     return [if (raw is List) for (final r in raw) ?CleanupRecord.fromJson(r)];
   }
 
-  void _write(List<CleanupRecord> records) {
+  void _writeDevice(List<CleanupRecord> records) {
     final kept = records.take(most).toList();
     final storage = _storage;
     if (storage == null) {
@@ -160,14 +228,54 @@ class CleanupRecords extends ChangeNotifier {
     } else {
       storage.set(cleanupRunsKey, [for (final r in kept) r.toJson()]);
     }
+  }
+
+  /// [change] made to the Library's file: read first, so another device's runs are kept, then written whole.
+  void _writeFile(List<CleanupRecord> Function(List<CleanupRecord> had) change) {
+    final file = _file;
+    if (file == null) return;
+    _inFile = change(_inFile).take(most).toList();
+    _writing = _writing.then((_) async {
+      try {
+        final had = await _readFile();
+        final mine = {for (final r in _inFile) r.id: r};
+        final merged = [..._inFile, for (final r in had) if (!mine.containsKey(r.id)) r]..sort((a, b) => b.at.compareTo(a.at));
+        // Undone anywhere is undone.
+        final undone = {for (final r in had) if (r.undone) r.id};
+        final next = [for (final r in merged.take(most)) undone.contains(r.id) && !r.undone ? r.asUndone() : r];
+        await file.write(const JsonEncoder.withIndent('  ').convert({'version': cleanupRunsVersion, 'runs': [for (final r in next) r.toJson()]}));
+        _inFile = next;
+      } catch (failure) {
+        debugPrint('[ghost] the cleanup runs were not written to the Library: $failure');
+      }
+    });
+  }
+
+  /// Whether [record] is kept in the Library's file: a personal folder's, where there is a file.
+  bool inLibrary(CleanupRecord record) => record.org == null && _file != null;
+
+  List<CleanupRecord> get all {
+    final seen = <String>{};
+    final both = [..._inFile, ..._device]..sort((a, b) => b.at.compareTo(a.at));
+    return [for (final r in both) if (seen.add(r.id)) r];
+  }
+
+  /// [record] kept, first, where it belongs.
+  void add(CleanupRecord record) {
+    if (inLibrary(record)) {
+      _writeFile((had) => [record, for (final r in had) if (r.id != record.id) r]);
+    } else {
+      _writeDevice([record, for (final r in _device) if (r.id != record.id) r]);
+    }
     notifyListeners();
   }
 
-  /// [record] kept, first.
-  void add(CleanupRecord record) => _write([record, ...all.where((r) => r.id != record.id)]);
-
-  /// [id] marked as taken back.
-  void markUndone(String id) => _write([for (final r in all) r.id == id ? r.asUndone() : r]);
+  /// [id] marked as taken back, wherever it is kept.
+  void markUndone(String id) {
+    if (_inFile.any((r) => r.id == id)) _writeFile((had) => [for (final r in had) r.id == id ? r.asUndone() : r]);
+    if (_device.any((r) => r.id == id)) _writeDevice([for (final r in _device) r.id == id ? r.asUndone() : r]);
+    notifyListeners();
+  }
 
   CleanupRecord? byId(String id) => all.where((r) => r.id == id).firstOrNull;
 }

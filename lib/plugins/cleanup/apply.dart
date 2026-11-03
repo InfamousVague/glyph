@@ -16,6 +16,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 
 import '../../core/library.dart';
 import '../../core/note_text.dart' show noteTitle;
@@ -42,6 +43,9 @@ class CleanupApplied {
   /// Each note that is not where the plan said once applied, read back: "“Plan” is not in Work › Clients".
   final List<String> misplaced;
 }
+
+/// A run's id's tail, so two runs in one instant (or on two devices sharing the Library) are two records.
+final Random _random = Random();
 
 /// What a note's title is, for the words said about it.
 String _named(String title) => title.trim().isEmpty ? 'Untitled' : (title.length > 40 ? '“${title.substring(0, 38)}…”' : '“${title.trim()}”');
@@ -89,7 +93,17 @@ Future<CleanupApplied> applyCleanup({
   final tidy = {for (final i in items.whereType<EditItem>()) if (i.pass == CleanupPass.tidy) i.noteId: i};
   final links = {for (final i in items.whereType<EditItem>()) if (i.pass == CleanupPass.links) i.noteId: i};
   final titles = {for (final i in items.whereType<TitleItem>()) i.noteId: i};
-  final merges = {for (final i in items.whereType<MergeItem>()) i.keepId: i};
+  // No merge in an organization's folders, whoever made the plan (plan.dart `optionsFor`): a team note put in this
+  // member's Trash would stay every other member's.
+  final merges = {
+    for (final i in items.whereType<MergeItem>())
+      if (scope.org == null) i.keepId: i,
+  };
+  if (scope.org != null) {
+    for (final i in items.whereType<MergeItem>()) {
+      skipped.add('the merge into ${_named(titleOf(i.keepId))}: merges are not made in an organization’s folders');
+    }
+  }
   final trashed = <String>{};
   final written = <String>{};
   for (final id in {...tidy.keys, ...titles.keys, ...links.keys, ...merges.keys}) {
@@ -224,12 +238,13 @@ Future<CleanupApplied> applyCleanup({
   }
 
   final record = CleanupRecord(
-    id: 'cleanup-${now.microsecondsSinceEpoch.toRadixString(36)}',
+    id: 'cleanup-${now.microsecondsSinceEpoch.toRadixString(36)}-${_random.nextInt(1 << 30).toRadixString(36)}',
     at: now,
     folderId: scope.rootId,
     folderPath: scope.root.path,
     aiName: aiName,
     changes: changes,
+    org: scope.org,
     misplaced: misplaced,
   );
   return CleanupApplied(record: record, applied: applied, skipped: skipped, misplaced: misplaced);
