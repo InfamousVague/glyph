@@ -98,7 +98,10 @@ class EmojiWidget extends EditorWidget {
 /// `id: GHO-12` is named: [_keyNames] asks `isLibraryProperty`, not this set alone.
 /// Its authors too, which the byline over the page draws (lib/note/byline.dart; Matt, 2026-11-02: a note the connector
 /// made read "authors" over its title, a key's name and nothing else).
-const Set<String> _unsaid = <String>{'look', 'authors', ...libraryKeys};
+/// And what the page draws itself round the words: the banner across its top (lib/note/note_banner.dart), the place's
+/// map card (`location`) and a page's icon (lib/note/doc_page.dart): a note with a header image read "banner" over
+/// its title (2026-11-02, recording the marketing video).
+const Set<String> _unsaid = <String>{'look', 'authors', 'banner', 'location', 'icon', ...libraryKeys};
 
 final RegExp _key = RegExp(r'^\s*([\w.-]+)\s*:');
 
