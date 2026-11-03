@@ -36,7 +36,7 @@ void main() {
     group('at $width', () {
       testWidgets('the byline and the editor start where the page starts them', (tester) async {
         final world = NoteWorld();
-        final note = await tester.runAsync(() => seedNote(world, 'lisbon', web['body'] as String));
+        final note = await tester.runAsync(() => seedNote(world, 'lisbon', _saidKey(web['body'] as String)));
         final screen = await pumpNote(tester, world, note!, size: size, seams: measuredSeams(world.asked), speak: true);
         // The page's under its bar, moved by the bars' difference: the byline's foot here against the page's, and the
         // byline under the bar.
@@ -66,7 +66,7 @@ void main() {
 
       testWidgets('the More sheet’s rows stand where the page’s do', (tester) async {
         final world = NoteWorld();
-        final note = await tester.runAsync(() => seedNote(world, 'lisbon', web['body'] as String));
+        final note = await tester.runAsync(() => seedNote(world, 'lisbon', _saidKey(web['body'] as String)));
         if (width == 840) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
         await pumpNote(tester, world, note!, size: size, seams: measuredSeams(world.asked), speak: true);
         await pressInBar(tester, 'more', label: 'More for this note');
@@ -103,3 +103,9 @@ void main() {
     });
   }
 }
+
+/// The page's note with a key the folded line still names beside its authors: the line the page drew over the title
+/// said "authors", which the byline draws and the line leaves out since 2026-11-02, so the note keeps a key it names
+/// and the line stands where the page's did.
+String _saidKey(String body) => body.replaceFirst('authors: matt, Claude\n', 'authors: matt, Claude\ntags: trip\n');
+
