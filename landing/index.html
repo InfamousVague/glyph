@@ -71,6 +71,7 @@
     <nav class="dots-nav" aria-label="The page's sections">
       <ol class="dots">
         <li><a href="#top" aria-label="Start" title="Start"></a></li>
+        <li><a href="#tour" aria-label="The tour" title="The tour"></a></li>
         <li><a href="#market" aria-label="The Market" title="The Market"></a></li>
         <li><a href="#for-teams" aria-label="For teams" title="For teams"></a></li>
         <li><a href="#lovart" aria-label="Lovart" title="Lovart"></a></li>
@@ -113,28 +114,38 @@
             <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="icons.svg#i-webhook"/></svg>Webhooks</a></li>
           </ul>
         </div>
-        <!-- The video of the app (Matt, 2026-11-02: "place this video in the header of the website with rounded edges"):
-             the window at its own 4:3, its corners rounded, playing muted and looping as a page may; Sound on unmutes it.
-             Made with tool/marketing (edit.py, then cropped to the window). -->
-        <figure class="wrap hero-video-wrap">
-          <div class="hero-video">
-            <video id="hero-video" src="video/ghost-md.mp4" poster="video/ghost-md-poster.webp" width="1200" height="900" autoplay muted loop playsinline preload="metadata" aria-label="A tour of Ghost Markdown: a note with a Lovart header, writing in Markdown, meetings, folders, team docs, Lovart pictures and moodboards, the Market, a Gantt chart and Ghost Academy."></video>
-            <button class="pill hero-sound" id="hero-sound" type="button" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="icons.svg#i-volume-2"/></svg><span>Sound on</span></button>
+      </section>
+
+      <!-- The tour, a slide of its own the page snaps to (Matt, 2026-11-02: "show the video as it's own slide so the page
+           snaps to it"): the laptop with the app's video on its screen. -->
+      <section class="tour" id="tour" aria-label="A tour of Ghost Markdown">
+        <!-- The video of the app on the laptop's screen (Matt, 2026-11-02: "it should be placed on the screen of the
+             computer that was there ... also put a play button over it and have the sound on by default"): the 16:9 cut,
+             the gradient round the window, still on its poster until Play, then playing with its voice. Made with
+             tool/marketing. -->
+        <figure class="wrap laptop-wrap tour-laptop">
+          <div class="laptop">
+            <div class="laptop-video">
+              <video id="hero-video" src="video/ghost-md.mp4" poster="video/ghost-md-poster.webp" width="1920" height="1080" playsinline preload="metadata" aria-label="A tour of Ghost Markdown: a note with a Lovart header, writing in Markdown, meetings, folders, team docs, Lovart pictures and moodboards, the Market, a Gantt chart and Ghost Academy."></video>
+              <button class="video-play" id="hero-play" type="button" aria-label="Play the tour, with sound"><svg class="i" aria-hidden="true"><use href="icons.svg#i-play"/></svg></button>
+            </div>
           </div>
         </figure>
         <script>
           (() => {
             const video = document.getElementById('hero-video');
-            const button = document.getElementById('hero-sound');
-            if (!video || !button) return;
-            // Still for a person who asks for less motion: the poster, and play only when asked.
-            if (matchMedia('(prefers-reduced-motion: reduce)').matches) { video.removeAttribute('autoplay'); video.pause(); }
-            button.addEventListener('click', () => {
-              video.muted = !video.muted;
-              if (!video.muted) { video.currentTime = 0; video.play(); }
-              button.setAttribute('aria-pressed', String(!video.muted));
-              button.querySelector('span').textContent = video.muted ? 'Sound on' : 'Sound off';
+            const play = document.getElementById('hero-play');
+            if (!video || !play) return;
+            // Sound on: a press is what lets a page play with its voice, so it waits for one. No controls of the
+            // browser's (Matt: "shouldn't have the sound toggle"): a tap on the picture pauses it, and Play goes on.
+            play.addEventListener('click', () => {
+              video.muted = false;
+              video.play();
             });
+            video.addEventListener('click', () => { if (!video.paused) video.pause(); });
+            video.addEventListener('play', () => play.hidden = true);
+            video.addEventListener('pause', () => play.hidden = false);
+            video.addEventListener('ended', () => { play.hidden = false; video.load(); });
           })();
         </script>
       </section>

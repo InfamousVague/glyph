@@ -8,13 +8,17 @@ frame of a slowly drifting gradient, the 4:3 window centred on it with rounded c
 --phase offsets the gradient's drift, so consecutive scenes continue the motion instead of starting it again.
 """
 import argparse
+import os
 import subprocess
 
-W, H = 1920, 1080
-WIN_H = 900
-WIN_W = WIN_H * 4 // 3          # 1200
-X, Y = (W - WIN_W) // 2, (H - WIN_H) // 2 + 6
-R = 26                          # the corner's radius
+# 2560x1440 by default (Matt, 2026-11-02, of the 1080p cut on the website: "the resolution is far too low"): the
+# window is 1600 wide, from the recording's 2080, so its text stays sharp on a retina screen. MK_SCALE=0.75 is 1080p.
+SCALE = float(os.environ.get("MK_SCALE", "1"))
+W, H = round(2560 * SCALE), round(1440 * SCALE)
+WIN_H = round(1200 * SCALE)
+WIN_W = WIN_H * 4 // 3          # 1600
+X, Y = (W - WIN_W) // 2, (H - WIN_H) // 2 + round(8 * SCALE)
+R = round(35 * SCALE)           # the corner's radius
 # Ghost's evening: deep ink-violet to violet, rose and a warm ember, drifting slowly.
 COLOURS = ["0x140f2e", "0x3a2580", "0x9a3f8f", "0xe0785a"]
 
@@ -38,7 +42,7 @@ def main() -> None:
     out_dur = dur / a.speed
     cols = ":".join(f"c{i}={c}" for i, c in enumerate(COLOURS))
     bg = f"gradients=s={W}x{H}:r=60:{cols}:nb_colors={len(COLOURS)}:speed=0.0035:type=spiral:seed=7:d={out_dur + a.phase + 1}"
-    shadow_pad = 120
+    shadow_pad = round(160 * SCALE)
     blurs = []
     for i, box in enumerate(a.blur):
         x, y, w, h = box.split(":")
@@ -49,7 +53,7 @@ def main() -> None:
         # The rounded corners' mask, and from it the shadow: black, blurred, see-through.
         f"color=black:s={WIN_W}x{WIN_H}:r=60:d={out_dur},format=gray,geq=lum='{mask_expr(R)}'[m0]",
         "[m0]split[m1][m2]",
-        f"[m2]pad={WIN_W + 2 * shadow_pad}:{WIN_H + 2 * shadow_pad}:{shadow_pad}:{shadow_pad}:black,boxblur=48:2,lutyuv=y='val*0.55'[sa]",
+        f"[m2]pad={WIN_W + 2 * shadow_pad}:{WIN_H + 2 * shadow_pad}:{shadow_pad}:{shadow_pad}:black,boxblur={round(64 * SCALE)}:2,lutyuv=y='val*0.55'[sa]",
         f"color=black:s={WIN_W + 2 * shadow_pad}x{WIN_H + 2 * shadow_pad}:r=60:d={out_dur},format=rgba[sb]",
         "[sb][sa]alphamerge[shadow]",
         # The window, scaled down sharply, its corners rounded.
@@ -57,7 +61,7 @@ def main() -> None:
         *blurs,
         f"[c{len(a.blur)}]scale={WIN_W}:{WIN_H}:flags=lanczos,format=rgba[w0]",
         "[w0][m1]alphamerge[win]",
-        f"[bg][shadow]overlay={X - shadow_pad}:{Y - shadow_pad + 22}:shortest=1[b1]",
+        f"[bg][shadow]overlay={X - shadow_pad}:{Y - shadow_pad + round(30 * SCALE)}:shortest=1[b1]",
         f"[b1][win]overlay={X}:{Y}:shortest=1,format=yuv420p[v]",
     ])
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", a.clip, "-f", "lavfi", "-i", bg, "-filter_complex", graph, "-map", "[v]",

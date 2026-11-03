@@ -7,6 +7,8 @@ put on the drifting background by compose.py, crossfaded one into the next, the 
     python3 tool/marketing/edit.py --again    # every piece made again
 """
 import argparse
+import hashlib
+import os
 import json
 import pathlib
 import subprocess
@@ -33,7 +35,10 @@ SEGMENTS = [
     ("07-lovart-cue", "07-lovart-cue-raw.mov", 6.5, 9.0, 1.6, []),
     ("07-lovart-cue", "07-lovart-cue-raw.mov", 47.0, 4.5, 1.0, []),
     ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 2.0, 7.0, 1.4, []),
-    ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 130.0, 12.0, 1.6, []),
+    # Straight from the stand-ins to the glide down the four, the landing left out (Matt: "the section of the video where
+    # we do the mood board is still glitchy and jumps to the top, instead crossfade to the part where we start scrolling
+    # down the moodboard"): the note lays itself out again as they land, which reads as a jump.
+    ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 141.9, 9.6, 1.2, []),
     ("09-market", "09-market-raw.mov", 2.2, 10.5, 1.4, []),
     ("09-market", "09b-plugins-raw.mov", 2.2, 13.5, 1.8, []),
     ("09-market", "09c-add-gantt-raw.mov", 2.5, 6.0, 1.0, []),
@@ -41,7 +46,7 @@ SEGMENTS = [
     ("10-gantt", "10-gantt-raw.mov", 10.5, 4.5, 1.0, []),
     ("10-gantt", "10b-board-raw.mov", 1.5, 3.5, 1.0, []),
     ("11-academy", "11-academy-raw.mov", 2.2, 9.5, 1.5, []),
-    ("12-close", "12-close-raw.mov", 2.45, 8.0, 1.0, [], "0xfbfbfb"),
+    ("12-close", "12-close-raw.mov", 2.85, 7.6, 1.0, [], "0xfbfbfb"),
 ]
 
 
@@ -53,11 +58,14 @@ def seconds(path: pathlib.Path) -> float:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--again", action="store_true")
+    p.add_argument("--scenes", help="only these scenes, comma-separated: a cut of its own")
+    p.add_argument("--out", default="ghost-md.mp4")
     a = p.parse_args()
     PIECES.mkdir(parents=True, exist_ok=True)
-    segs = [s for s in SEGMENTS if (CLIPS / s[1]).exists()]
+    wanted = set(a.scenes.split(",")) if a.scenes else None
+    segs = [s for s in SEGMENTS if (CLIPS / s[1]).exists() and (wanted is None or s[0] in wanted)]
     for s in SEGMENTS:
-        if s not in segs:
+        if s not in segs and (wanted is None or s[0] in wanted):
             print(f"  not recorded yet, left out: {s[1]}")
     # Where each piece starts in the cut, so the background drifts on across it.
     starts, at = [], 0.0
@@ -67,7 +75,9 @@ def main() -> None:
     total = at + FADE
     pieces = []
     for i, ((scene, clip, start, dur, speed, blurs, *bar), phase) in enumerate(zip(segs, starts)):
-        out = PIECES / f"{i:02d}-{scene}.mp4"
+        # Named by what makes it, so a piece is made again only when its own cut or the background under it changes.
+        key = hashlib.sha1(repr((clip, start, dur, speed, blurs, bar, round(phase, 3), os.environ.get("MK_SCALE", "1"))).encode()).hexdigest()[:10]
+        out = PIECES / f"{scene}-{key}.mp4"
         pieces.append(out)
         if out.exists() and not a.again:
             continue
@@ -109,7 +119,7 @@ def main() -> None:
             graph.append(f"[{k}:a]aresample=48000,adelay={ms}|{ms},apad[a{len(voices)}]")
             voices.append(f"[a{len(voices)}]")
     graph.append(f"{''.join(voices)}amix=inputs={len(voices)}:normalize=0,atrim=duration={total:.3f},loudnorm=I=-16:TP=-1.5:LRA=11[a]")
-    out = M / "ghost-md.mp4"
+    out = M / a.out
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(graph), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)], check=True)
     print(f"{out}: {total:.1f}s")
 

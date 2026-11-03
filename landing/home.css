@@ -359,35 +359,63 @@ main > section {
   background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
 }
 
-/* The app's video in the opening (2026-11-02): the window at its own 4:3, rounded as the app's window is (26 of 1200
-   by 900 in the recording, a touch more here so no pixel of what was round it shows), over the page's shadow. */
-.hero-video-wrap {
-  margin-block: clamp(2.5rem, 5vw, 3.5rem) 0;
+/* The tour's slide: the laptop as large as the screen allows under the bar, never past one screen's height. */
+.tour .laptop-wrap {
+  margin-block: 0;
 }
 
-.hero-video {
+.tour .laptop {
+  max-inline-size: min(60rem, calc((100svh - var(--bar) - 6rem) * 16 / 9));
+}
+
+/* The app's video on the laptop's screen (2026-11-02), at the screen's own corners, with a play button over it until
+   it plays. */
+.laptop-video {
   position: relative;
-  max-inline-size: 56rem;
-  margin: 0 auto;
 }
 
-.hero-video video {
+.laptop-video video {
   display: block;
   inline-size: 100%;
   block-size: auto;
-  aspect-ratio: 4 / 3;
-  border-radius: 2.4% / 3.2%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0.5rem 0.5rem 0 0;
   background: oklch(0.13 0 0);
-  box-shadow:
-    0 0 0 1px oklch(0.3 0 0 / 0.6),
-    var(--shadow);
+  cursor: pointer;
 }
 
-.hero-sound {
+.video-play {
   position: absolute;
-  inset-block-end: 1rem;
-  inset-inline-start: 1rem;
-  backdrop-filter: blur(12px);
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  inline-size: clamp(4rem, 9vw, 5.5rem);
+  aspect-ratio: 1;
+  border: 1px solid oklch(1 0 0 / 0.35);
+  border-radius: 50%;
+  color: white;
+  background: oklch(0.15 0 0 / 0.45);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 40px oklch(0 0 0 / 0.35);
+  cursor: pointer;
+  transition: scale 0.2s ease, background 0.2s ease;
+}
+
+.video-play:hover {
+  scale: 1.06;
+  background: oklch(0.15 0 0 / 0.6);
+}
+
+.video-play .i {
+  inline-size: 42%;
+  block-size: 42%;
+  margin-inline-start: 6%;
+  fill: currentColor;
+}
+
+.video-play[hidden] {
+  display: none;
 }
 
 /* ---- a band: one idea, its words, and the app showing it --------------------------------------------------------- */
