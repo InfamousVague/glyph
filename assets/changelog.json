@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.8",
+    "date": "2026-11-03",
+    "title": "Header images that always land",
+    "items": [
+      {"icon": "image", "words": "A header image made while a note was being changed elsewhere is no longer lost: it's written in once the note settles.", "kind": "fixed"},
+      {"icon": "refresh-cw", "words": "A note changed here and on another device at once keeps both changes, instead of losing the one made here.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.4.7",
     "date": "2026-11-03",
     "title": "Ghost Academy clear of the Mac's window buttons",
