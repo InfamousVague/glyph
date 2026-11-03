@@ -257,13 +257,23 @@ class _CleanupPaneState extends State<CleanupPane> {
         title: 'What to do',
         children: [
           for (final pass in passes)
-            SettingRow(
-              key: ValueKey('cleanup-pass-switch-${pass.name}'),
-              icon: AppIcon(passIcon(pass), size: 16),
-              label: pass.label,
-              hint: Text(pass.about),
-              control: GlacierSwitch(ariaLabel: pass.label, checked: options.has(pass), disabled: busy, onCheckedChange: (on) => service.setPass(pass, on)),
-            ),
+            // Duplicates is held in an organization's folders (plan.dart `optionsFor`): said, and its switch off.
+            if (pass == CleanupPass.duplicates && service.inOrg)
+              SettingRow(
+                key: ValueKey('cleanup-pass-switch-${pass.name}'),
+                icon: AppIcon(passIcon(pass), size: 16),
+                label: pass.label,
+                hint: const Text('Not in an organization’s folders: a merged copy would stay for everyone else.'),
+                control: GlacierSwitch(ariaLabel: pass.label, checked: false, disabled: true),
+              )
+            else
+              SettingRow(
+                key: ValueKey('cleanup-pass-switch-${pass.name}'),
+                icon: AppIcon(passIcon(pass), size: 16),
+                label: pass.label,
+                hint: Text(pass.about),
+                control: GlacierSwitch(ariaLabel: pass.label, checked: options.has(pass), disabled: busy, onCheckedChange: (on) => service.setPass(pass, on)),
+              ),
           if (full) ...[
             SettingRow(
               key: const ValueKey('cleanup-deeper'),

@@ -14,12 +14,13 @@ The code is `lib/plugins/cleanup/`. Off until added in the Market (`standard: fa
   folder_menu.dart): *Clean up with AI…*, while the plugin is on.
 - **A folder page's ••• menu** in the spaces' tree (lib/notes/note_tree_spaces.dart): the same row, an organization's
   own workspace's page included.
-
-The row stands after Rename… (and Set template…), before Move to's list of places.
+- **A phone's folder sheet** (lib/notes/workspace_sheet.dart, its More in the sidebar, its pill on the list): the same
+  row, above Delete workspace (Matt, 2026-11-02, choosing "Add it").
 - **Its page in Settings** (Settings › Cleanup, or the Market's Open): a folder picker, which lists every folder,
   personal or an organization's, the organization's own workspace included.
 
-Each opens the plugin's page with the folder chosen. The page says, before anything runs, exactly what is sent and to
+In a menu the row stands after Rename… (and Set template…), before Move to's list of places. Each opens the plugin's
+page with the folder chosen. The page says, before anything runs, exactly what is sent and to
 whom.
 
 ## The page
@@ -48,7 +49,7 @@ whom.
 |---|---|---|---|
 | **Sort** | on | Sub-folders and which notes go in each. Existing folders first; at most 3 new ones a run, and only directly inside the chosen folder unless *Deeper folders* is on. | New folders with `WorkspaceStore.addWorkspace(name, 'ink', parent)`; each note with the drag's own move (lib/notes/folder_drag.dart `moveCarried`), only where `folderVerdict` says `moves`. |
 | **Titles** | on | A better title for notes with none, "Untitled", a date alone, or one that doesn't match the words. | The title line rewritten (`# New title`; a front matter `title:` set instead where the note has one; a heading put above a note whose title is its first line of prose, so no words go). Never a note other notes link to by its title. |
-| **Duplicates** | on | Notes that are the same note twice: the same meeting copied, "X (shared)", a repeated paste. One is kept, the others merged into it. | The kept note gains any line of the others it does not already have, under `## From “<title>”`; the others go to the **Trash**. |
+| **Duplicates** | on, never in an organization's folders | Notes that are the same note twice: the same meeting copied, "X (shared)", a repeated paste. One is kept, the others merged into it. | The kept note gains any line of the others it does not already have, under `## From “<title>”`, with no AI rewriting (Matt, 2026-11-02, choosing "Keep every line"); the others go to the **Trash**. |
 | **Tidy** | on | Broken Markdown: stray `#`, mixed list markers, empty sections, headings that skip levels. | A second ask with the whole note; accepted only if every word of the note is still there in the same order (formatting only). *Rewrite for clarity* (off; under More) lets the words change. |
 | **Tags and links** | off | `tags:` for notes, and `[[links]]` between notes of the folder that are about the same thing. | Tags added to front matter `tags:` (lib/core/properties.dart `withProperty`); links as a last line, `Related: [[A]] · [[B]]`. |
 | **Stale** | off | Notes that look abandoned or empty. | Into the **Archive** (`NoteLibrary.archive`). Never the Trash. |
@@ -120,9 +121,12 @@ the Trash), tags and links, archives, moves.
 
 - **Every write is over the revision that was read** (`NoteLibrary.update(id, body, revision)`): a note changed since
   the plan was made is skipped and named, never overwritten.
-- **Nothing is deleted.** A merged-away note goes to the Trash (`Trash.trashNote`), restorable for 30 days; an
-  organization's note in the Trash stays live for every other member, since a member's Trash is their own. Archive is
+- **Nothing is deleted.** A merged-away note goes to the Trash (`Trash.trashNote`), restorable for 30 days. Archive is
   the Archive.
+- **No merges in an organization's folders** (Matt, 2026-11-02, choosing "Skip team duplicates"): a member's Trash is
+  their own, so a team copy put in one member's Trash would stay every other member's, and deleting it for everyone is
+  not this plugin's to do. Duplicates is not asked there (plan.dart `optionsFor`), its switch on the page is off and
+  says why, and applying refuses a merge in an organization's folders whoever planned it.
 - **An organization's notes stay in it.** A move is made only where `folderVerdict` answers `moves` (same organization,
   or both personal): never `asks`, never across, never to the top. A folder made inside an organization's folder is
   the organization's.
@@ -133,12 +137,20 @@ the Trash), tags and links, archives, moves.
 
 ## Undo and the record
 
-Each applied run is a record in the plugin's storage (`glyph-cleanup-runs`, the last 20 runs, this device's): when,
-which folder, which AI, and for every change what it was before and after (a move's old folder, an edit's old body and
+Each applied run is a record: when, which folder, which AI, and for every change what it was before and after (a move's old folder, an edit's old body and
 the revision it left, a trashed note's id, an archive, a new folder's id). **Undo** on the toast and on the page takes
 the whole run back in one action, in the reverse order: moves back, archives out, the Trash's notes restored, bodies
 written back over the revision the run left (a note changed since is left as it is and named), new folders removed if
 nothing is filed in them. Undo stays on a past run until it has been undone.
+
+**Where the records are** (Matt, 2026-11-02, choosing "Library folder"; records.dart): a personal folder's runs in the
+Library itself, `.glyph/cleanup.json` (version 1, `{"version": 1, "runs": [...]}`, the last 20), beside the library's
+config, so they go wherever the folder goes: Back up to git commits the file, a folder shared between two Macs carries
+it, a restore brings it back, and a run can be undone on another device that has the folder (the file is read again
+before each write, and a run undone anywhere is undone). The account's own sync does not carry it. An organization's
+runs stay in the plugin's storage on this device (`glyph-cleanup-runs`): their before and after are a team's words, and
+a file in `.glyph/` is committed by Back up to git whichever organizations are left out of it. So is every run where
+the Library has no file Dart can reach (an Android folder picked in the system's picker).
 
 ## Large folders
 
@@ -163,14 +175,11 @@ test/plugins/cleanup/: plan_test (the scope, the prompt, every validation rule, 
 the formatting-only check, tags and links, duplicates and merges), run_test (batches, Tidy's asks, a failed ask, Stop,
 the estimate, the tray's job), ai_test (connected AIs, Local only, the asks through each provider's client, the limit),
 apply_test (apply, read back, Undo, a note changed since, an organization's boundary, the Trash, a move that did not
-land, the record), review_test (the page, the review, ticks, Apply, Undo, Simple, Local only, the folder menu's row).
+land, the record), review_test (the page, the review, ticks, Apply, Undo, Simple, Local only, an organization's folder, the folder menu's row and a phone's folder sheet's).
 Pictures into build/feature-shots/cleanup/ with --update-goldens. No real AI is asked: the AIs are scripted.
 
 ## Not in this version
 
-- The Claude connector (mcp/). When it comes, it must return a plan and apply only on a second call naming the
-  approved item ids.
+- The Claude connector (mcp/), later (Matt, 2026-11-02). When it comes, it must return a plan and apply only on a
+  second call naming the approved item ids.
 - A run that continues on another device.
-- A row on a phone's folder sheet (lib/notes/workspace_sheet.dart): on a phone it is the tile's hold menu in All notes
-  by folder, or the plugin's page.
-- The records live in the plugin's storage on this device, not in the Library folder.

@@ -82,6 +82,11 @@ class CleanupOptions {
   }
 }
 
+/// What a run of [options] may do in [scope]: Duplicates is never asked in an organization's folders (Matt,
+/// 2026-11-02, choosing "Skip team duplicates"): a member's Trash is their own, so a merged-away team note would go
+/// on being every other member's, and deleting it for everyone is not this plugin's to do.
+CleanupOptions optionsFor(CleanupScope scope, CleanupOptions options) => scope.org != null && options.has(CleanupPass.duplicates) ? options.toggled(CleanupPass.duplicates, false) : options;
+
 /// The most new folders one run makes.
 const int cleanupMaxNewFolders = 3;
 

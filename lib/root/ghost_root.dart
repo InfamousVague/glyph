@@ -235,7 +235,7 @@ import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/git_backup/git_backup.dart' show GitBackupService, gitBackupSettings;
-import '../plugins/cleanup/cleanup.dart' show CleanupService, cleanupHost;
+import '../plugins/cleanup/cleanup.dart' show CleanupService, cleanupHost, cleanupRunsFileFor;
 import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
 import '../plugins/host.dart' show PluginNotes, onPluginStorage, usePluginNotes;
 import '../plugins/registry.dart' show Registry, plugins;
@@ -2426,7 +2426,10 @@ class _GhostRootState extends State<GhostRoot> {
     final folder = _libraryFolder;
     if (folder != null) {
       try {
-        final file = configFileFor(await folder.status());
+        final status = await folder.status();
+        // Cleanup's runs of personal folders, kept in the Library beside its config (lib/plugins/cleanup/records.dart).
+        unawaited(_cleanup?.records.useFile(cleanupRunsFileFor(status)));
+        final file = configFileFor(status);
         if (file != null) {
           final keeper = _libraryConfig = LibraryConfigKeeper(file: file, preferences: preferences, stored: _stored);
           await keeper.open();

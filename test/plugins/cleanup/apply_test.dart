@@ -2,7 +2,10 @@
 // record"; Matt, 2026-11-02): only the ticked items, each note written once over the revision that was read, a copy
 // to the Trash and never deleted, a stale note to the Archive, an organization's note never moved out of it, every
 // move read back, a note changed since left alone and named, and the whole run undone in one, now or from its record.
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/library_config.dart' show MemoryConfigFile;
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/plugins/cleanup/cleanup.dart';
 import 'package:ghost_md/plugins/host.dart';
@@ -160,12 +163,14 @@ void main() {
       expect(world.workspaces.value.list.where((w) => w.name == 'Updates'), isEmpty);
     });
 
-    test('a merged-away team note goes to this person’s Trash, never deleted', () async {
+    test('a merge in an organization’s folders is never made, whoever planned it: a team copy in one member’s Trash would stay everyone else’s', () async {
       final team = world.scope('org-o1');
       final done = await apply(planOf([const MergeItem(keepId: 'team-plan', others: ['team-standup'])], team), {'merge:team-plan'});
-      expect(world.trash.isTrashed('team-standup'), isTrue);
-      expect(world.library.noteOf('team-standup'), isNotNull);
-      expect(done.record.changes.map((c) => c.kind), [CleanupChangeKind.body, CleanupChangeKind.trash]);
+      expect(world.trash.isTrashed('team-standup'), isFalse);
+      expect(body('team-plan'), world.library.noteOf('team-plan')!.body);
+      expect(done.record.changes, isEmpty);
+      expect(done.skipped.single, contains('merges are not made in an organization’s folders'));
+      expect(done.record.org, 'o1');
     });
   });
 
@@ -202,6 +207,52 @@ void main() {
       final undone = await undoCleanup(record: back, library: world.library, workspaces: world.workspaces, trash: world.trash);
       expect(undone.left, isEmpty);
       expect(filed('standup'), 'work');
+    });
+
+    test('a personal folder’s runs are kept in the Library’s file; an organization’s stay on this device', () async {
+      useStored(MemoryStored());
+      usePluginGround(PluginGround());
+      final file = MemoryConfigFile();
+      final records = CleanupRecords(storage: cleanupHost.storage, file: file);
+      final personal = await apply(everything(), {for (final i in everything().items) i.id});
+      final team = world.scope('org-o1');
+      final teamRun = await apply(planOf([MoveItem(noteId: 'team-plan', from: world.plansId, to: 'org-o1')], team), {'move:team-plan'});
+      records.add(personal.record);
+      records.add(teamRun.record);
+      await records.written;
+      final kept = jsonDecode(file.text!) as Map<String, Object?>;
+      expect(kept['version'], 1);
+      expect([for (final r in kept['runs']! as List) (r as Map)['id']], [personal.record.id], reason: 'a team’s words never go into a file git backup commits');
+      expect(file.text, isNot(contains('Team plan')));
+      expect(CleanupRecords(storage: cleanupHost.storage).all.map((r) => r.id), [teamRun.record.id]);
+      expect(records.all.map((r) => r.id), unorderedEquals([personal.record.id, teamRun.record.id]));
+      // Another device that shares the folder reads the run, and its Undo is everyone's.
+      final there = CleanupRecords(file: file);
+      await there.reread();
+      expect(there.all.single.toJson(), personal.record.toJson());
+      there.markUndone(personal.record.id);
+      await there.written;
+      await records.reread();
+      expect(records.byId(personal.record.id)!.undone, isTrue);
+    });
+
+    test('a run another device wrote meanwhile is kept when this one writes; a file that cannot be read keeps nothing', () async {
+      final file = MemoryConfigFile();
+      final here = CleanupRecords(file: file), there = CleanupRecords(file: file);
+      CleanupRecord run(String id, int minutes) => CleanupRecord(id: id, at: DateTime.utc(2026, 11, 2, 12, minutes), folderId: 'work', folderPath: 'Work', aiName: 'Claude', changes: const [CleanupChange.archive('idea')]);
+      here.add(run('a', 1));
+      await here.written;
+      there.add(run('b', 2));
+      await there.written;
+      await here.reread();
+      expect(here.all.map((r) => r.id), ['b', 'a']);
+      await file.write('{not json');
+      await here.reread();
+      expect(here.all, isEmpty);
+      final none = CleanupRecords();
+      await none.useFile(null);
+      none.add(run('c', 3));
+      expect(none.all.single.id, 'c', reason: 'with no file the run is kept on the device');
     });
 
     test('the service applies the ticked, keeps the record, and undoes it once', () async {
