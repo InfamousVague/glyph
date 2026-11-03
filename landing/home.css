@@ -359,28 +359,28 @@ main > section {
   background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
 }
 
-/* The tour's slide: the laptop as large as the screen allows under the bar, never past one screen's height. */
-.tour .laptop-wrap {
-  margin-block: 0;
+/* The tour's slide: the video alone at its own 16:9 (Matt, 2026-11-02: "Remove the laptop"), as large as one screen
+   allows under the bar, its corners rounded, over the page's shadow, with a play button over it until it plays. */
+.tour-frame {
+  margin: 0 auto;
+  inline-size: 100%;
+  max-inline-size: min(64rem, calc((100svh - var(--bar) - 5rem) * 16 / 9));
 }
 
-.tour .laptop {
-  max-inline-size: min(60rem, calc((100svh - var(--bar) - 6rem) * 16 / 9));
-}
-
-/* The app's video on the laptop's screen (2026-11-02), at the screen's own corners, with a play button over it until
-   it plays. */
-.laptop-video {
+.tour-video {
   position: relative;
 }
 
-.laptop-video video {
+.tour-video video {
   display: block;
   inline-size: 100%;
   block-size: auto;
   aspect-ratio: 16 / 9;
-  border-radius: 0.5rem 0.5rem 0 0;
+  border-radius: clamp(0.75rem, 1.6vw, 1.25rem);
   background: oklch(0.13 0 0);
+  box-shadow:
+    0 0 0 1px oklch(0.3 0 0 / 0.5),
+    var(--shadow);
   cursor: pointer;
 }
 
