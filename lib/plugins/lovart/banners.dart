@@ -61,19 +61,20 @@ const int _doneKept = 2000;
 /// Where the note goes in a header image's prompt: [bannerStyle]'s, and a person's own ([bannerPromptKey]).
 const String bannerNoteSlot = '{note}';
 
-/// The house's banner in dotwork, with [bannerNoteSlot] where the note's scene goes (the default of "Header image
-/// prompt" on the plugin's page). No ghost in it since 2026-11-02 (Matt: "don't show the ghost itself in all the generated
+/// The house's banner, a realistic painterly illustration since 2026-11-03 (Matt: "Update the base prompt to be a
+/// realistic painterly illustration style"; it was the ghost's dotwork), with [bannerNoteSlot] where the note's scene
+/// goes (the default of "Header image prompt" on the plugin's page). No ghost in it since 2026-11-02 (Matt: "don't show the ghost itself in all the generated
 /// images"): the mascot was described in every banner, word for word, and was in every one; now the things the note is
 /// about tell it, looked up first so they are drawn as they really are (Matt, the same day: "have it do more research
 /// online for the note and looking up what assets to include"). Lovart's design agent does the looking up: only the
 /// words below and the note's go to Lovart, as before.
 const String bannerStyleDefault = '''A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Fill the whole frame: the scene runs from the left edge to the right edge, with no empty margins or blank thirds, and its main subjects sit across the middle of the picture so a wider crop keeps them.
 
-A stipple dotwork illustration in full colour on pure white: form, folds and shadow built entirely from dots of rich, natural colour, dense in the shadows and sparse in the light, with a fine clean outline. The colours are true to the things drawn, warm and clear. Precise, patient and quietly elegant, like a hand-coloured fine-art print or a careful naturalist's plate.
+A realistic, painterly illustration, highly detailed: true-to-life forms, textures and light, rendered with visible, confident brushwork, like a fine editorial or travel-poster painting. Natural, rich colour and soft, believable lighting with depth and atmosphere; real materials (stone, wood, glass, fabric, food) painted with care. Elegant and calm, never cartoonish.
 
 The scene: {note} Spread it across the full width of the frame, edge to edge.
 
-Full colour, every tone made of dots: no flat fills, no smooth gradients. No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
+Full colour, painted, not photographic and not flat vector art. No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
 
 Make one image.''';
 

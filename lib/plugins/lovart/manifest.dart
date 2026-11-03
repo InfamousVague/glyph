@@ -62,7 +62,7 @@ const PluginManifest manifest = PluginManifest(
     'Make images, on a note with {image: a prompt} in it: each becomes a picture',
     'Inspiration images, on any note: a moodboard of four under ## Inspiration',
     'Inspiration for design meetings, once each is written up, where you switch it on',
-    'Header images for notes, in the ghost’s dotwork, made as you leave a note',
+    'Header images for notes, painted from what each note is about, made as you leave a note',
   ],
   // Off until added: it sends a note's words to Lovart and spends the person's Lovart credits.
   standard: false,

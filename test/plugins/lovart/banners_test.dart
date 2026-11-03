@@ -110,10 +110,12 @@ void main() {
   });
 
   group('the prompt', () {
-    test('is the house\'s dotwork, with the note\'s title and opening as the subject', () {
+    test('is the house\'s painterly style, with the note\'s title and opening as the subject', () {
       final prompt = bannerPrompt('---\nlocation: 1,2\n---\n# New Orleans weekend\n\n$_words\n\n![](image/x.png)');
       expect(prompt, startsWith('A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square'));
-      expect(prompt, contains('A stipple dotwork illustration in full colour on pure white'));
+      // A realistic painterly illustration since 2026-11-03, no longer the dotwork.
+      expect(prompt, contains('A realistic, painterly illustration, highly detailed'));
+      expect(prompt, isNot(contains('dotwork')));
       expect(prompt, isNot(contains('no colour')), reason: 'full colour since 2026-10-26');
       // No ghost in it since 2026-11-02, and the things it names looked up first.
       expect(prompt, isNot(contains('dog-eared')));

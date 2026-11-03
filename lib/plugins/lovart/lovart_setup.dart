@@ -81,7 +81,7 @@ PluginSetup lovartSetup({PluginHost? via, LovartClient? Function()? client}) {
         title: 'Images by Lovart',
         icon: Lucide.palette,
         points: [
-          (Lucide.image, 'A header across the top of a note, in the ghost’s dotwork'),
+          (Lucide.image, 'A painted header across the top of a note'),
           (Lucide.users, 'A moodboard of four for a design meeting, once it is written up'),
           (Lucide.wandSparkles, 'A picture wherever you write {image: …} in a note'),
           (Lucide.gauge, 'With your Lovart credits: ${aboutCredits(1)} an image'),
