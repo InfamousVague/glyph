@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.9",
+    "date": "2026-11-03",
+    "title": "Your Lovart prompt on every device",
+    "items": [
+      {"icon": "palette", "words": "The Lovart header prompt and the words added to every image follow your account, so every device draws in your style.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.4.8",
     "date": "2026-11-03",
     "title": "Header images that always land",
