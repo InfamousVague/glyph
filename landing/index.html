@@ -113,11 +113,30 @@
             <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="icons.svg#i-webhook"/></svg>Webhooks</a></li>
           </ul>
         </div>
-        <figure class="wrap laptop-wrap">
-          <div class="laptop">
-            <img src="shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen: a search with its filters, a pinned note, recent notes as cards, and the day's notes below." />
+        <!-- The video of the app (Matt, 2026-11-02: "place this video in the header of the website with rounded edges"):
+             the window at its own 4:3, its corners rounded, playing muted and looping as a page may; Sound on unmutes it.
+             Made with tool/marketing (edit.py, then cropped to the window). -->
+        <figure class="wrap hero-video-wrap">
+          <div class="hero-video">
+            <video id="hero-video" src="video/ghost-md.mp4" poster="video/ghost-md-poster.webp" width="1200" height="900" autoplay muted loop playsinline preload="metadata" aria-label="A tour of Ghost Markdown: a note with a Lovart header, writing in Markdown, meetings, folders, team docs, Lovart pictures and moodboards, the Market, a Gantt chart and Ghost Academy."></video>
+            <button class="pill hero-sound" id="hero-sound" type="button" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="icons.svg#i-volume-2"/></svg><span>Sound on</span></button>
           </div>
         </figure>
+        <script>
+          (() => {
+            const video = document.getElementById('hero-video');
+            const button = document.getElementById('hero-sound');
+            if (!video || !button) return;
+            // Still for a person who asks for less motion: the poster, and play only when asked.
+            if (matchMedia('(prefers-reduced-motion: reduce)').matches) { video.removeAttribute('autoplay'); video.pause(); }
+            button.addEventListener('click', () => {
+              video.muted = !video.muted;
+              if (!video.muted) { video.currentTime = 0; video.play(); }
+              button.setAttribute('aria-pressed', String(!video.muted));
+              button.querySelector('span').textContent = video.muted ? 'Sound on' : 'Sound off';
+            });
+          })();
+        </script>
       </section>
 
       <!-- The Market, high on the page (Matt, 2026-10-27: "also show the market page high on the list of the website with

@@ -359,6 +359,37 @@ main > section {
   background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
 }
 
+/* The app's video in the opening (2026-11-02): the window at its own 4:3, rounded as the app's window is (26 of 1200
+   by 900 in the recording, a touch more here so no pixel of what was round it shows), over the page's shadow. */
+.hero-video-wrap {
+  margin-block: clamp(2.5rem, 5vw, 3.5rem) 0;
+}
+
+.hero-video {
+  position: relative;
+  max-inline-size: 56rem;
+  margin: 0 auto;
+}
+
+.hero-video video {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: 2.4% / 3.2%;
+  background: oklch(0.13 0 0);
+  box-shadow:
+    0 0 0 1px oklch(0.3 0 0 / 0.6),
+    var(--shadow);
+}
+
+.hero-sound {
+  position: absolute;
+  inset-block-end: 1rem;
+  inset-inline-start: 1rem;
+  backdrop-filter: blur(12px);
+}
+
 /* ---- a band: one idea, its words, and the app showing it --------------------------------------------------------- */
 
 /* No rule between bands: the screen's edge is the break, as Air has it. A band is paper or ink and nothing between
