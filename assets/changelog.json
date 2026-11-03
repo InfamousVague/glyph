@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.10",
+    "date": "2026-11-03",
+    "title": "Header images that show the whole note",
+    "items": [
+      {"icon": "image", "words": "A header image is a collage of the places and things a note is about, in whatever style your prompt asks for.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.9",
     "date": "2026-11-03",
     "title": "Your Lovart prompt on every device",
