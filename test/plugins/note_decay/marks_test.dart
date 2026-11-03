@@ -15,8 +15,8 @@ import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/plugins/note_decay/ai.dart';
 import 'package:ghost_md/plugins/note_decay/decay.dart';
 import 'package:ghost_md/plugins/note_decay/decay_list.dart';
-import 'package:ghost_md/plugins/note_decay/marks.dart';
-import 'package:ghost_md/plugins/note_decay/sheets.dart';
+import 'package:ghost_md/plugins/note_decay/source.dart';
+import 'package:ghost_md/plugins/out_of_date/out_of_date.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../support/feature_shot.dart';
@@ -72,11 +72,7 @@ class Stage {
         extensions: noteExtensions(
           more: <Extension>[
             history(),
-            noteDecayMarks(DecayMarkHooks(
-              signals: (body) => decay.signalsFor(id, body: body),
-              press: (signals, view, context) => openDecay(context, decay: decay, noteId: id, signals: signals, view: view),
-              changes: decay,
-            )),
+            outOfDateMarks(OutOfDateHooks(noteId: () => id, sources: () => [decayOutOfDate(decay: () => decay)], changes: decay)),
           ],
         ),
       ),
@@ -110,7 +106,7 @@ Future<void> settle(WidgetTester tester) async {
   }
 }
 
-Finder get chips => find.byType(DecayChip);
+Finder get chips => find.byType(OutOfDateChip);
 
 Future<void> away(WidgetTester tester) async {
   debugDisableShadows = true;
@@ -133,7 +129,7 @@ void main() {
       await featureShot(tester, folder, 'marks-$theme');
       await tester.tap(chips.at(1));
       await settle(tester);
-      expect(find.byKey(const ValueKey('decay-reason')), findsOneWidget);
+      expect(find.byKey(OutOfDateSheet.sheetKey), findsOneWidget);
       expect(find.text('GHO-12 was closed on Oct 30'), findsOneWidget);
       await featureShot(tester, folder, 'reason-$theme');
       await away(tester);

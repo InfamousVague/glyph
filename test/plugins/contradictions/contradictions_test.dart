@@ -1,5 +1,6 @@
 // The contradiction finder as the person meets it (docs/CONTRADICTIONS.md; Matt, 2026-11-02: "flags the stale one inline,
-// 'superseded by …', so old notes stop misleading you or the AI"): the "Out of date?" mark on the older line, its sheet's
+// 'superseded by …', so old notes stop misleading you or the AI", then "Yes, fold them" for its word and Note decay
+// alerts' chip): the one "May be out of date" mark on the older line (lib/plugins/out_of_date/), its sheet's
 // Mark superseded and Not a conflict, the page in Settings in Simple and Advanced, and the home page's line. Pictures in
 // build/feature-shots/contradictions/ under --update-goldens.
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -13,12 +14,11 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/view/column.dart' show EditorColumn;
 import 'package:ghost_md/editor/view/editor_view.dart' show EditorView;
 import 'package:ghost_md/editor/items/note_plugins.dart';
-import 'package:ghost_md/editor/items/suggestions.dart';
 import 'package:ghost_md/market/market_items.dart' show marketHues, pluginHue;
 import 'package:ghost_md/plugins/brands.dart' show ownPlugins;
 import 'package:ghost_md/plugins/built_in.dart' show builtIn;
 import 'package:ghost_md/plugins/contradictions/contradictions.dart';
-import 'package:ghost_md/plugins/registry.dart';
+import 'package:ghost_md/plugins/out_of_date/out_of_date.dart';
 import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart' show Pick;
 
@@ -56,11 +56,11 @@ class _Editing implements NoteEditing {
 Future<(EditorView, _Editing)> pumpPlan(WidgetTester tester, ContradictionRunner runner, {String theme = 'light'}) async {
   contradictionRunner.value = runner;
   addTearDown(() => contradictionRunner.value = null);
-  final registry = createRegistry([contradictionsPlugin], store: MemorySwitches({'contradictions': true}));
   final editing = _Editing('plan');
-  final view = await pumpNote(tester, plan.body, theme: theme, more: <Extension>[lineSuggestions(suggest: (body) => lineOffers('plan', editing, body, registry: registry))]);
+  final source = OutOfDateSource(id: 'contradictions', on: () => true, marks: (noteId, body) => contradictionMarks(noteId, body, runner: runner));
+  final view = await pumpNote(tester, plan.body, theme: theme, more: <Extension>[outOfDateMarks(OutOfDateHooks(noteId: () => 'plan', sources: () => [source], editing: () => editing))]);
   editing.view = view;
-  runner.onFindings = () => view.dispatch(TransactionSpec(effects: suggestionsStale.of(null)));
+  runner.onFindings = () => view.dispatch(TransactionSpec(effects: outOfDateRedraw()));
   await tester.pump();
   return (view, editing);
 }
@@ -82,8 +82,10 @@ void main() {
   test('the marks are one a line, on the line that holds the older words, and none without a runner', () async {
     final runner = await foundRunner();
     final marks = contradictionMarks('plan', plan.body, runner: runner);
-    expect(marks.single.line, 3);
-    expect(marks.single.label, outOfDateWord);
+    // The third line, counted from 0, with what the newer note says as its reason.
+    expect(marks.single.line, 2);
+    expect(marks.single.reason, 'Standup says “Release moved to Monday”');
+    expect([for (final a in marks.single.actions) a.key], ['contradiction-superseded', 'contradiction-dismiss']);
     expect(contradictionMarks('standup', standup.body, runner: runner), isEmpty);
     expect(contradictionMarks('plan', withSuperseded(plan.body, runner.open.single, now), runner: runner), isEmpty);
     expect(contradictionMarks('plan', plan.body), isEmpty);
@@ -95,7 +97,7 @@ void main() {
     contradictionOpenNote = opened.add;
     addTearDown(() => contradictionOpenNote = null);
     final (view, _) = await pumpPlan(tester, runner);
-    final pill = find.byKey(const ValueKey('cm-suggest'));
+    final pill = find.byKey(OutOfDateChip.chipKey);
     expect(pill, findsOneWidget);
     // On the third line: below the title's.
     final top = tester.getTopLeft(find.byType(EditorColumn)).dy;
@@ -107,7 +109,7 @@ void main() {
 
     await tester.tap(pill);
     await settle(tester);
-    expect(find.byKey(const ValueKey('contradiction-sheet')), findsOneWidget);
+    expect(find.byKey(OutOfDateSheet.sheetKey), findsOneWidget);
     expect(find.textContaining('Standup says “Release moved to Monday”', findRichText: true), findsOneWidget);
     expect(find.text('Open Standup'), findsOneWidget);
     await featureShot(tester, shots, 'sheet-light');
@@ -119,7 +121,7 @@ void main() {
     expect(lines[3], startsWith('> Superseded by [[Standup]] ('));
     expect(lines[3], endsWith('): “Release moved to Monday”'));
     expect(runner.open, isEmpty);
-    expect(find.byKey(const ValueKey('cm-suggest')), findsNothing);
+    expect(find.byKey(OutOfDateChip.chipKey), findsNothing);
     await featureShot(tester, shots, 'superseded-light');
     await away(tester);
   });
@@ -128,11 +130,11 @@ void main() {
     final runner = (await tester.runAsync(foundRunner))!;
     await pumpPlan(tester, runner, theme: 'dark');
     await featureShot(tester, shots, 'mark-dark');
-    await tester.tap(find.byKey(const ValueKey('cm-suggest')));
+    await tester.tap(find.byKey(OutOfDateChip.chipKey));
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('contradiction-dismiss')));
     await settle(tester);
-    expect(find.byKey(const ValueKey('cm-suggest')), findsNothing);
+    expect(find.byKey(OutOfDateChip.chipKey), findsNothing);
     expect(runner.open, isEmpty);
     await away(tester);
   });

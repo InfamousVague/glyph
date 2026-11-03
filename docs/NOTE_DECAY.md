@@ -94,19 +94,23 @@ the plugin being added), and the list; GitHub/Figma lookups and the months are b
 | `lib/plugins/note_decay/lookups.dart` | GitHub's and Figma's answers, behind `DecayLookups` |
 | `lib/plugins/note_decay/dismissals.dart` | `decay-ok:` read and written |
 | `lib/plugins/note_decay/ai.dart` | `DecayModel`, the AI pass and Update with AI, quotes checked |
-| `lib/plugins/note_decay/diff_sheet.dart` | the reviewable diff |
-| `lib/plugins/note_decay/marks.dart` | the line mark, its chip and its sheet |
+| `lib/plugins/note_decay/sheets.dart` | Update with AI's reviewable diff, and Still right |
+| `lib/plugins/note_decay/source.dart` | the signals as marks of the shared mark (lib/plugins/out_of_date/) |
 | `lib/plugins/note_decay/decay_list.dart` | Pages that may be out of date |
 | `lib/plugins/note_decay/decay_pane.dart` | the plugin's page |
 
-## 5. Shared with the contradiction finder
+## 5. One mark, shared with the Contradiction finder
 
-Contradictions compare notes with each other; decay compares a note with the world and its sources. The two were
-built the same day in parallel, and the Contradiction finder (docs/CONTRADICTIONS.md, lib/plugins/contradictions/)
-landed first with its own mark: an "Out of date?" word on the stale line through the registry's `suggest`, its sheet
-opened by `Suggestion.open`. This plugin's mark is an editor decoration (`marks.dart`: a wash and a chip, and a block
-at the page's head, which a line's word cannot be), written to take any kind and reason. A line both mark shows both.
-Whether to fold them into one look is question 4 below.
+Contradictions compare notes with each other; decay compares a note with the world and its sources. To a reader both
+say "this line may be stale", so they wear one mark (Matt, 2026-11-02, asked whether to fold them: "Yes, fold them").
+`lib/plugins/out_of_date/out_of_date.dart` owns it and knows no plugin: each plugin is an `OutOfDateSource` that gives
+marks (a line, a reason, a detail, actions), and `sources.dart` lists the app's, the finder's first.
+
+- The chip at a line's end, or at the page's head, counts its reasons ("May be out of date · 2").
+- The sheet lists each reason with its own plugin's rows under it: the finder's Open, Mark superseded and Not a
+  conflict; this plugin's Update with AI and Still right. Putting one away leaves the others.
+- While neither plugin is on, the page is never read for marks; while one is, a letter typed moves the marks and they
+  are asked again once typing pauses.
 
 ## 6. Status
 
@@ -126,7 +130,7 @@ Built 2026-11-02, not released.
 - **Ticket references** are `[[GHO-12]]` and a bare `GHO-12` that is a ticket in the library; "renamed ticket" is the
   `link` signal when a ticket is linked by its title.
 - Not built: the hosted connector (mcp/) does not show marks; the contradiction finder had not landed, so the mark
-  here is the shared one for now (§5).
+  here became the one both share (§5).
 
 Tests: test/plugins/note_decay/ (signals_test, ai_test, marks_test); pictures with `--update-goldens` in
 build/feature-shots/note-decay/.
@@ -138,5 +142,4 @@ build/feature-shots/note-decay/.
 2. Renames: keep them on the device as now, or write the old title into the renamed note (`was: [Spec]`) so every
    device and a git restore know it? That writes into a note on rename.
 3. Should Still right on a team page be the team's (written in the page, as now) or each person's own?
-4. The Contradiction finder's "Out of date?" word and this plugin's "May be out of date" chip mean nearly the same
-   to a reader. Fold them into one mark (one look, one sheet listing reasons from both), or keep them apart?
+4. ~~One mark or two~~: folded, 2026-11-02 (§5).

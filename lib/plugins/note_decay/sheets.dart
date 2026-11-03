@@ -1,7 +1,8 @@
-/// What a decay mark opens (docs/NOTE_DECAY.md §2; Matt, 2026-11-02, the "'may be out of date' mark with the
-/// reason"): the reason, then **Update with AI**, which shows the AI's edits as a diff to accept or reject and changes
-/// nothing until accepted, and **Still right**, which keeps the mark away until its source changes again
-/// (dismissals.dart). Every change goes through the open editor as one step its Undo takes back.
+/// Note decay alerts' actions in the one "May be out of date" sheet (lib/plugins/out_of_date/; docs/NOTE_DECAY.md §2;
+/// Matt, 2026-11-02, the "'may be out of date' mark with the reason", then "Yes, fold them" for it and the Contradiction
+/// finder's word): **Update with AI**, which shows the AI's edits as a diff to accept or reject and changes nothing
+/// until accepted, and **Still right**, which keeps the reason away until its source changes again (dismissals.dart).
+/// Every change goes through the open editor as one step its Undo takes back.
 library;
 
 import 'dart:async';
@@ -18,14 +19,11 @@ import '../../sheet/sheet.dart';
 import 'ai.dart';
 import 'decay.dart';
 import 'dismissals.dart';
-import 'marks.dart' show decayRedraw;
+import '../out_of_date/out_of_date.dart' show outOfDateRedraw;
 import 'signals.dart';
 
 /// The user event a decay change is made under.
 const String decayUserEvent = 'input.decay';
-
-/// What the reason's sheet was answered with.
-enum DecayAnswer { update, stillRight }
 
 /// [view]'s page made [next], as one change from where the two first differ to where they last do.
 void replacePage(EditorViewLike view, String next) {
@@ -39,60 +37,25 @@ void replacePage(EditorViewLike view, String next) {
   while (end < doc.length - start && end < next.length - start && doc.codeUnitAt(doc.length - 1 - end) == next.codeUnitAt(next.length - 1 - end)) {
     end += 1;
   }
-  view.dispatch(TransactionSpec(changes: ChangeSpec(from: start, to: doc.length - end, insert: next.substring(start, next.length - end)), effects: decayRedraw(), userEvent: decayUserEvent));
+  view.dispatch(TransactionSpec(changes: ChangeSpec(from: start, to: doc.length - end, insert: next.substring(start, next.length - end)), effects: outOfDateRedraw(), userEvent: decayUserEvent));
 }
 
-/// A mark tapped: its reasons, and what the person chooses (see the header).
-Future<void> openDecay(BuildContext context, {required NoteDecay decay, required String noteId, required List<DecaySignal> signals, required EditorViewLike view}) async {
-  final model = decay.model;
-  final answer = await showWorkSheet<DecayAnswer>(context, (done) => DecayReasonSheet(signals: signals, aiName: model.ready ? model.name : null, onAnswer: done));
-  if (answer == DecayAnswer.stillRight) {
-    var body = view.state.doc.toString();
-    for (final signal in signals) {
-      body = withStillRight(body, signal);
-    }
-    replacePage(view, body);
-    return;
+/// Still right for [signals]: each kept in the page's front matter, as one change.
+void stillRight(EditorViewLike view, List<DecaySignal> signals) {
+  var body = view.state.doc.toString();
+  for (final signal in signals) {
+    body = withStillRight(body, signal);
   }
-  if (answer != DecayAnswer.update || !context.mounted) return;
+  replacePage(view, body);
+}
+
+/// Update with AI for [signals] on [noteId]: the AI asked for the edit with the page as the editor has it, its edits shown
+/// as a diff, and only the accepted ones made, as one change.
+Future<void> updateWithAi(BuildContext context, EditorViewLike view, {required NoteDecay decay, required String noteId, required List<DecaySignal> signals}) async {
   final asked = decay.propose(noteId, view.state.doc.toString(), signals);
-  final accepted = await showWorkSheet<List<DecayEdit>>(context, (done) => DecayDiffSheet(edits: asked, by: model.name, onAnswer: done));
+  final accepted = await showWorkSheet<List<DecayEdit>>(context, (done) => DecayDiffSheet(edits: asked, by: decay.model.name, onAnswer: done));
   if (accepted == null || accepted.isEmpty) return;
   replacePage(view, applyEdits(view.state.doc.toString(), accepted));
-}
-
-/// The reasons, Update with AI and Still right.
-class DecayReasonSheet extends StatelessWidget {
-  const DecayReasonSheet({super.key, required this.signals, required this.aiName, required this.onAnswer});
-
-  final List<DecaySignal> signals;
-
-  /// Who Update with AI asks; null where no AI can be asked, and the row says so.
-  final String? aiName;
-  final ValueChanged<DecayAnswer?> onAnswer;
-
-  @override
-  Widget build(BuildContext context) => Sheet(
-        key: const ValueKey('decay-reason'),
-        label: 'May be out of date',
-        onClose: () => onAnswer(null),
-        children: [
-          SheetTitle.text('May be out of date'),
-          for (final signal in signals) SheetNote(signal.reason),
-          SheetGroup(
-            children: [
-              SheetRow(
-                key: const ValueKey('decay-update'),
-                label: 'Update with AI',
-                hint: aiName == null ? 'Connect an AI in Settings › AI first' : 'Asks $aiName for the edit; nothing changes until you accept it',
-                disabled: aiName == null,
-                onPress: aiName == null ? null : () => onAnswer(DecayAnswer.update),
-              ),
-              SheetRow(key: const ValueKey('decay-still-right'), label: 'Still right', hint: 'Keeps this away until it changes again', onPress: () => onAnswer(DecayAnswer.stillRight)),
-            ],
-          ),
-        ],
-      );
 }
 
 /// The AI's edits as a diff: each line as it reads struck through, what it would read under it, each chosen to be

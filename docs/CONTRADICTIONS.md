@@ -16,9 +16,11 @@ own so it does not meet the sessions building Cleanup, Ask the org, Self-maintai
 
 ## What the person sees
 
-**An inline mark on the older note's line.** A quiet pill at the end of the stale line, "Out of date?", drawn by the
-editor's line suggestions (lib/editor/items/suggestions.dart) as Notion's and GitHub's words are: a decoration, never
-written into the note. Pressing it opens a small sheet:
+**An inline mark on the older note's line.** The one "May be out of date" mark it shares with Note decay alerts
+(lib/plugins/out_of_date/; Matt, 2026-11-02, asked whether the two should be one: "Yes, fold them"): a faint wash on
+the line and a muted chip at its end, drawn by the editor, never written into the note. Until then it was its own
+"Out of date?" word through the registry's `suggest`. A line both plugins flag has one chip that counts its reasons.
+Pressing it opens the one sheet, where the finder's reason comes first:
 
 - the newer note's title and its words ("Release moved to Monday"), what disagrees in a line, and when it was found;
 - **Open newer note**;
@@ -171,5 +173,5 @@ Kept small, so the sessions working beside it meet as little as possible:
 1. Answered 2026-11-02: organization notes are checked by default. Still open: a team-wide switch in the
    organization's Home.md, so a team can keep its notes from members' AIs?
 2. Nightly by default once added and run once, or When a note is saved?
-3. The mark's word: "Out of date?" (now), "Superseded?", or "Newer note"?
+3. ~~The mark's word~~: settled 2026-11-02, it is the shared "May be out of date" (lib/plugins/out_of_date/).
 4. Should findings and dismissals follow the account (synced settings) as well as live in the Library's file?
