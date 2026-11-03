@@ -359,12 +359,14 @@ main > section {
   background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
 }
 
-/* The tour's slide: the video alone at its own 16:9 (Matt, 2026-11-02: "Remove the laptop"), as large as one screen
+/* The tour's slide: the video alone (Matt, 2026-11-02: "Remove the laptop"), cropped to the app's 4:3 with the same
+   gradient round it as above and below the window in the cut (2026-11-03: "Make it the aspect ratio of the app with the
+   same padding"), 1840 by 1440, as large as one screen
    allows under the bar, its corners rounded, over the page's shadow, with a play button over it until it plays. */
 .tour-frame {
   margin: 0 auto;
   inline-size: 100%;
-  max-inline-size: min(64rem, calc((100svh - var(--bar) - 5rem) * 16 / 9));
+  max-inline-size: min(56rem, calc((100svh - var(--bar) - 4rem) * 1840 / 1440));
 }
 
 .tour-video {
@@ -375,7 +377,7 @@ main > section {
   display: block;
   inline-size: 100%;
   block-size: auto;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 1840 / 1440;
   border-radius: clamp(0.75rem, 1.6vw, 1.25rem);
   background: oklch(0.13 0 0);
   box-shadow:

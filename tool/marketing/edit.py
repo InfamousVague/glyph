@@ -34,11 +34,13 @@ SEGMENTS = [
     ("06-lovart-header", "06-lovart-land-raw.mov", 0.3, 5.5, 1.0, []),
     ("07-lovart-cue", "07-lovart-cue-raw.mov", 6.5, 9.0, 1.6, []),
     ("07-lovart-cue", "07-lovart-cue-raw.mov", 47.0, 4.5, 1.0, []),
-    ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 2.0, 7.0, 1.4, []),
+    # The four stand-ins as they appear, not the seconds they sat still (Matt: "fix the dead air of a few seconds on
+    # the mood board section").
+    ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 3.0, 3.2, 1.0, []),
     # Straight from the stand-ins to the glide down the four, the landing left out (Matt: "the section of the video where
     # we do the mood board is still glitchy and jumps to the top, instead crossfade to the part where we start scrolling
     # down the moodboard"): the note lays itself out again as they land, which reads as a jump.
-    ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 141.9, 9.6, 1.2, []),
+    ("08-lovart-moodboard", "08-lovart-moodboard-raw.mov", 141.4, 8.3, 1.25, []),
     ("09-market", "09-market-raw.mov", 2.2, 10.5, 1.4, []),
     ("09-market", "09b-plugins-raw.mov", 2.2, 13.5, 1.8, []),
     ("09-market", "09c-add-gantt-raw.mov", 2.5, 6.0, 1.0, []),
