@@ -77,6 +77,8 @@ const Map<String, String> _ownHues = {
   'canvas': 'red',
   // Cleanup (docs/CLEANUP.md): lime, which no other plugin on the AI shelf wears.
   'cleanup': 'lime',
+  // Note decay alerts (lib/plugins/note_decay): amber, the one hue no AI plugin wears, for old paper.
+  'note-decay': 'amber',
 };
 const Map<PluginCategory, String> _categoryHues = {
   PluginCategory.ai: 'purple',

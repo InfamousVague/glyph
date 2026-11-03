@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.5",
+    "date": "2026-11-02",
+    "title": "No stray authors line over a note's title",
+    "items": [
+      {"icon": "users", "words": "A note an AI helped write no longer shows an \"authors\" line over its title: the byline already says who wrote it.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.4.4",
     "date": "2026-11-02",
     "title": "Lovart can start from your Figma frames",

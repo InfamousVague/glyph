@@ -433,6 +433,52 @@
       "link": "ghostmd://market/plugin/lovart"
     },
     {
+      "id": "note-decay",
+      "name": "Note decay alerts",
+      "line": "Pages that may be out of date, marked",
+      "description": "Marks a line of a page, quietly, where what it refers to has changed since it was written: a linked note renamed or put away, a ticket closed, a GitHub pull request merged, a date it speaks of as ahead now past. Each mark says why; Still right puts it away, and Update with AI suggests the edit for you to accept.",
+      "category": "ai",
+      "icon": "clock",
+      "mark": null,
+      "hue": "amber",
+      "colours": [
+        "#c27c00",
+        "#ffb84d"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A quiet “May be out of date” mark on a line, with the reason",
+        "Still right, which keeps it away until the thing changes again",
+        "Update with AI: the edit shown as a change to accept or reject",
+        "Pages that may be out of date, on a teamspace’s home and a docs notebook"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads your notes to find what each page refers to, and writes “Still right” into a page’s front matter (decay-ok) when you tap it.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "ai",
+          "label": "The model on your phone",
+          "why": "With Check with AI on, asks your connected AI, or the phone’s own model with Local only, whether a flagged page is out of date and how to update it.",
+          "icon": "sparkles"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/note-decay"
+    },
+    {
       "id": "openai",
       "name": "OpenAI",
       "line": "OpenAI’s models, with your own key",
@@ -4210,6 +4256,10 @@
     ],
     "check": [
       "M20 6 9 17l-5-5"
+    ],
+    "clock": [
+      "M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z",
+      "M12 6v6l4 2"
     ],
     "contact-round": [
       "M16 2v2",

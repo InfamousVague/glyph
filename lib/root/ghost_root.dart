@@ -238,6 +238,7 @@ import '../plugins/git_backup/git_backup.dart' show GitBackupService, gitBackupS
 import '../plugins/cleanup/cleanup.dart' show CleanupService, cleanupHost, cleanupRunsFileFor;
 import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
 import '../plugins/host.dart' show PluginNotes, onPluginStorage, usePluginNotes;
+import '../plugins/note_decay/note_decay.dart' show startNoteDecay;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/channels.dart' show channels, postToChannel;
 import '../plugins/slack/mrkdwn.dart' show noteMessage;
@@ -2193,6 +2194,9 @@ class _GhostRootState extends State<GhostRoot> {
     // The Contacts plugin (lib/plugins/contacts, lib/integrations/contacts): the phone's contacts read where it is
     // on, and the people the notes name, for its page. Its switch is the plugin's.
     phoneContacts.start(bodies: () => [for (final note in _reads.queryNotes) note.body], switched: contactsSwitch());
+    // Note decay alerts (lib/plugins/note_decay, docs/NOTE_DECAY.md): what may have made a page out of date, read
+    // from the library as it changes, for the open note's marks and the lists of pages; nothing while the plugin is off.
+    startNoteDecay(notes: () => _library.value, changes: _libraryChanges);
     // The outgoing webhooks (lib/integrations/webhooks, docs/INTEGRATIONS.md): what this device changes in a note,
     // told to their URLs; a send still waiting goes as the app goes behind another. Matched rather than promoted, as
     // the sync engine's touched is.

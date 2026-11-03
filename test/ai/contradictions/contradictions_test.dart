@@ -280,19 +280,19 @@ void main() {
       expect(runner.open, isEmpty);
     });
 
-    test('a team’s notes are never in a personal prompt, and are read only with Organization notes on', () async {
+    test('a team’s notes are never in a personal prompt, are read by default, and not with Organization notes off', () async {
       final teamPlan = note('team-plan', plan.body.replaceAll('Release', 'Launch'), day: 1, path: 'orgs/HelloTrade/Plan.md');
       final teamStandup = note('team-standup', standup.body.replaceAll('Release', 'Launch'), day: 9, path: 'orgs/HelloTrade/Standup.md');
       final notes = [plan, standup, teamPlan, teamStandup];
 
       final off = ScriptedAi([]);
-      await runnerOver(notes, off).run(personStarted: true);
+      await runnerOver(notes, off, settings: const ContradictionSettings(orgs: false)).run(personStarted: true);
       expect(off.asked, hasLength(1));
       expect(off.asked.single, isNot(contains('Launch')));
 
       final on = ScriptedAi([], reply: (prompt) => prompt.contains('Launch') ? releaseMoved(older: 'Launch is Thursday', newer: 'Launch moved to Monday') : releaseMoved());
       final store = MemoryStored();
-      final runner = runnerOver(notes, on, store: store, settings: const ContradictionSettings(orgs: true));
+      final runner = runnerOver(notes, on, store: store);
       await runner.run(personStarted: true);
       expect(on.asked, hasLength(2));
       for (final prompt in on.asked) {
@@ -334,11 +334,12 @@ void main() {
 
     test('the settings are kept and read back', () {
       final store = MemoryStored();
-      runnerOver([], null, store: store).setSettings(const ContradictionSettings(schedule: ContradictionSchedule.saved, threshold: 0.9, orgs: true));
+      runnerOver([], null, store: store).setSettings(const ContradictionSettings(schedule: ContradictionSchedule.saved, threshold: 0.9, orgs: false));
       final again = runnerOver([], null, store: store).settings;
       expect(again.schedule, ContradictionSchedule.saved);
       expect(again.threshold, 0.9);
-      expect(again.orgs, isTrue);
+      expect(again.orgs, isFalse, reason: 'turned off, kept off');
+      expect(ContradictionSettings.fromJson(const {}).orgs, isTrue, reason: 'on unless turned off');
       expect(again.byFolder, isFalse);
     });
   });

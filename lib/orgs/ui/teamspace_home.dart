@@ -35,6 +35,7 @@ import '../../home/home_organizations.dart' show OrgPresence;
 import '../../mentions/mention_syntax.dart' show handleKey;
 import '../../sheet/css.dart';
 import '../orgs.dart' show Member;
+import '../../plugins/note_decay/decay_list.dart' show DecayPagesSection;
 import '../../plugins/projects/suite.dart' show projectSuite;
 import '../../plugins/projects/tool_chip.dart' show ToolBanner;
 import '../../plugins/projects/tool_switches.dart' show ToolSwitches;
@@ -132,6 +133,7 @@ class TeamspaceHome extends StatefulWidget {
   static const Key stripKey = ValueKey<String>('members-strip'), pinsKey = ValueKey<String>('pinned-pages'), pageKey = ValueKey<String>('home-page');
   static const Key createKey = ValueKey<String>('home-create'), editKey = ValueKey<String>('home-edit'), docsKey = ValueKey<String>('home-docs'), moreKey = ValueKey<String>('home-more');
   static const Key toolsKey = ValueKey<String>('home-tools'), toolBannerKey = ValueKey<String>('home-tool-banner');
+  static const Key decayKey = ValueKey<String>('home-decay');
 
   /// A member's round on the strip, and its dot while they are here.
   static Key memberKey(String handle) => ValueKey<String>('strip-member:${handleKey(handle)}');
@@ -182,6 +184,7 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
         );
 
     final orgId = widget.space?.orgId;
+    final spaceIds = {for (final note in widget.notes) note.id};
     final children = <Widget>[
       // The tools the space's notes use and the team has not turned on (docs/PM_PLUGINS.md §6).
       if (orgId != null)
@@ -219,6 +222,8 @@ class _TeamspaceHomeState extends State<TeamspaceHome> {
           children: [for (final note in pins) _PinCard(key: TeamspaceHome.pinKey(note.id), note: note, onOpen: () => widget.onOpenNote(note.id))],
         ),
       ],
+      // The space's pages that may be out of date, where Note decay alerts is on and any is (lib/plugins/note_decay).
+      DecayPagesSection(key: TeamspaceHome.decayKey, where: (note) => spaceIds.contains(note.id), onOpen: (note) => widget.onOpenNote(note.id), top: t.space(6), most: 5),
       if (widget.space != null && (home != null || widget.onCreateHome != null || widget.onSetDocs != null)) ...[
         SizedBox(height: t.space(6)),
         if (home != null) ...[

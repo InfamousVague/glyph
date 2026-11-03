@@ -96,7 +96,9 @@ class EmojiWidget extends EditorWidget {
 /// Keys the folded line leaves unnamed: how the note looks, and the library's own (lib/core/front_matter.dart
 /// `libraryKeys`), which a one-block body carries beside the page's and which are nobody's to edit here. A ticket's
 /// `id: GHO-12` is named: [_keyNames] asks `isLibraryProperty`, not this set alone.
-const Set<String> _unsaid = <String>{'look', ...libraryKeys};
+/// Its authors too, which the byline over the page draws (lib/note/byline.dart; Matt, 2026-11-02: a note the connector
+/// made read "authors" over its title, a key's name and nothing else).
+const Set<String> _unsaid = <String>{'look', 'authors', ...libraryKeys};
 
 final RegExp _key = RegExp(r'^\s*([\w.-]+)\s*:');
 
