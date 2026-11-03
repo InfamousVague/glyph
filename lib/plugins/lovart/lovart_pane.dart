@@ -277,7 +277,7 @@ class _LovartPaneState extends State<LovartPane> {
             SettingRow(
               key: const ValueKey('lovart-banners'),
               label: 'Header images for notes',
-              hint: const Text('When you leave a note, Lovart looks up what it is about and draws a banner for its top in dotwork, from its title, sections and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
+              hint: const Text('When you leave a note, Lovart looks up what it is about and draws a banner for its top in the style of the prompt below, from its title, sections and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
               control: GlacierSwitch(ariaLabel: 'Header images for notes', checked: bannersOn(), onCheckedChange: setBanners),
             ),
             if (lovartBannerJob != null)
@@ -315,7 +315,7 @@ class _LovartPaneState extends State<LovartPane> {
         ),
         PaneSection(
           title: 'Prompt',
-          description: const Text('What Lovart is asked. The header image prompt has $bannerNoteSlot where the note goes: its title, sections and opening, for Lovart to look up and draw.'),
+          description: const Text('What Lovart is asked, on every device you sign in on. The header image prompt has $bannerNoteSlot where the note goes: its title, sections and opening, for Lovart to look up and draw.'),
           children: [
             SettingRow(
               key: const ValueKey('lovart-prompt'),

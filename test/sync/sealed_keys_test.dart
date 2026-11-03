@@ -39,7 +39,7 @@ import 'package:ghost_md/plugins/github/manifest.dart' as github show manifest, 
 import 'package:ghost_md/plugins/elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
 import 'package:ghost_md/plugins/elevenlabs/manifest.dart' as eleven show apiKeySecret, manifest, modelKey, ownVoicesKey, voiceKey;
 import 'package:ghost_md/plugins/lovart/lovart.dart' show lovartPlugin;
-import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart show accessKeySecret, manifest, secretKeySecret;
+import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart show accessKeySecret, bannerPromptKey, lovartExtraKey, manifest, secretKeySecret;
 import 'package:ghost_md/plugins/meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
 import 'package:ghost_md/plugins/openai/openai.dart' show openAiPlugin;
 import 'package:ghost_md/plugins/host.dart';
@@ -573,6 +573,22 @@ void main() {
     await fold.sync();
     expect(await fold.lovartHost.secrets.read(lovart.accessKeySecret), isNull);
     expect(await fold.lovartHost.secrets.read(lovart.secretKeySecret), isNull);
+  });
+
+  test('Lovart’s header prompt and its words for every image, changed on one device, are what the next one asks with (Matt, 2026-11-03: "I updated the lovart prompt ... but it\'s still doing dotwork styles")', () async {
+    final mac = KeysDevice(service, 'mac-1');
+    final fold = KeysDevice(service, 'fold-1');
+    mac.lovartHost.storage.set(lovart.bannerPromptKey, 'A highly detailed illustration. {note}');
+    mac.lovartHost.storage.set(lovart.lovartExtraKey, 'Rich, painterly light.');
+    await mac.sync();
+    await fold.sync();
+    expect(fold.lovartHost.storage.get<Object?>(lovart.bannerPromptKey, null), 'A highly detailed illustration. {note}');
+    expect(fold.lovartHost.storage.get<Object?>(lovart.lovartExtraKey, null), 'Rich, painterly light.');
+    // Back to the house's on the Mac is the house's on the phone too.
+    mac.lovartHost.storage.remove(lovart.bannerPromptKey);
+    await mac.sync();
+    await fold.sync();
+    expect(fold.lovartHost.storage.get<Object?>(lovart.bannerPromptKey, null), isNull);
   });
 
   test('ElevenLabs’ key, its switch, the voice and the model, set on one device, are on the next after a sync, the key sealed (Matt, 2026-10-27: "Build a plugin for elevenlabs")', () async {

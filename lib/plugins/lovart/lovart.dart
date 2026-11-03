@@ -239,7 +239,7 @@ final GlyphPlugin lovartPlugin = GlyphPlugin(
       label: 'Header image',
       icon: lovartIcon,
       visible: (noteId, body) => body.trim().isNotEmpty,
-      hint: (noteId, body) => bannerUnready() ?? '${bannerOf(body) == null ? 'A banner' : 'A new banner'} across the top of this note, in the ghost’s dotwork, made by Lovart with your credits: ${aboutCredits(1)}.',
+      hint: (noteId, body) => bannerUnready() ?? '${bannerOf(body) == null ? 'A banner' : 'A new banner'} across the top of this note, in your header prompt’s style, made by Lovart with your credits: ${aboutCredits(1)}.',
       enabled: (noteId, body) => bannerUnready() == null && !lovartBannerMaking.value.contains(noteId),
       run: (editing, [choice]) => makeBanner(editing),
     ),
