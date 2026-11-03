@@ -383,7 +383,6 @@ main > section {
   box-shadow:
     0 0 0 1px oklch(0.3 0 0 / 0.5),
     var(--shadow);
-  cursor: pointer;
 }
 
 .video-play {

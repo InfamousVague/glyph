@@ -135,16 +135,16 @@
             const video = document.getElementById('hero-video');
             const play = document.getElementById('hero-play');
             if (!video || !play) return;
-            // Sound on: a press is what lets a page play with its voice, so it waits for one. No controls of the
-            // browser's (Matt: "shouldn't have the sound toggle"): a tap on the picture pauses it, and Play goes on.
+            // Sound on: a press is what lets a page play with its voice, so it waits for one. Once it plays, the
+            // browser's own controls (Matt, 2026-11-03: "add a volume slider and other controls to the video"): play
+            // and pause, the time and where it is, the volume and full screen.
             play.addEventListener('click', () => {
               video.muted = false;
+              video.controls = true;
               video.play();
             });
-            video.addEventListener('click', () => { if (!video.paused) video.pause(); });
-            video.addEventListener('play', () => play.hidden = true);
-            video.addEventListener('pause', () => play.hidden = false);
-            video.addEventListener('ended', () => { play.hidden = false; video.load(); });
+            video.addEventListener('play', () => { play.hidden = true; video.controls = true; });
+            video.addEventListener('ended', () => { play.hidden = false; video.controls = false; video.load(); });
           })();
         </script>
       </section>
