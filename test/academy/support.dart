@@ -33,7 +33,8 @@ Registry freshDevice({Set<String>? learned, Map<String, String> kept = const {}}
 }
 
 /// The Academy alone on a phone's screen, under the app's theme.
-Future<Shown> showAcademy(WidgetTester tester, {String theme = 'light', Size size = const Size(390, 844), bool? simple, VoiceOver? voice}) async {
+/// [mac] draws it as the Mac app does, under the window's title bar with its three buttons (`data-titlebar`).
+Future<Shown> showAcademy(WidgetTester tester, {String theme = 'light', Size size = const Size(390, 844), bool? simple, VoiceOver? voice, bool mac = false}) async {
   final shown = Shown();
   await pumpApp(
     tester,
@@ -46,7 +47,7 @@ Future<Shown> showAcademy(WidgetTester tester, {String theme = 'light', Size siz
       child: Builder(
         builder: (context) => RootStamps(
           sheet: context.tokens.sheet,
-          stamps: const {'tabs': null},
+          stamps: {'tabs': null, if (mac) 'titlebar': 'overlay'},
           // Quiet unless a test listens: no player, so nothing goes to the platform channel.
           child: AcademyScreen(onDone: () => shown.done += 1, onCheatSheet: () => shown.cheatSheet += 1, simple: simple, voice: voice ?? VoiceOver(useDefaultOutput: false)),
         ),

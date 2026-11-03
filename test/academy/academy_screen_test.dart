@@ -10,6 +10,7 @@ import 'package:ghost_md/plugins/gantt/gantt.dart' show ganttPlugin;
 import 'package:ghost_md/plugins/marks_plugin.dart';
 import 'package:ghost_md/plugins/projects/suite.dart' show ProjectSuite;
 import 'package:ghost_md/plugins/registry.dart';
+import 'package:ghost_md/shell/desktop/mac_lights.dart';
 import 'package:glacier/glacier.dart';
 
 import 'support.dart';
@@ -43,6 +44,25 @@ void main() {
   bool disabled(WidgetTester tester, String course) => tester.widget<GlacierPressable>(key('course:$course')).onPressed == null;
 
   group('the Academy', () {
+    testWidgets('on the Mac its bar starts after the window’s three buttons and they sit on it; elsewhere it starts at the gutter', (tester) async {
+      // Matt, 2026-11-02, a screenshot: "the academy controls intercept the traffic light controls".
+      freshDevice();
+      await showAcademy(tester, size: const Size(1200, 800), mac: true);
+      final t = tester.element(key('academy-top')).tokens;
+      final room = trafficLightsRoom(t);
+      expect(room, greaterThan(trafficLightsStart + 52), reason: 'room for the three buttons');
+      // The back arrow and the mortarboard begin past the third button.
+      expect(tester.getRect(key('academy-back')).left, greaterThanOrEqualTo(room));
+      expect(find.descendant(of: key('academy-top'), matching: find.byType(MacLightsRow)), findsOneWidget);
+      await away(tester);
+
+      freshDevice();
+      await showAcademy(tester, size: const Size(1200, 800));
+      expect(tester.getRect(key('academy-back')).left, lessThan(trafficLightsStart + 52));
+      expect(find.byType(MacLightsRow), findsNothing);
+      await away(tester);
+    });
+
     testWidgets('opens on its catalog, and carries on at the first lesson not passed yet', (tester) async {
       freshDevice(learned: {first.id});
       await showAcademy(tester, size: const Size(390, 6000));

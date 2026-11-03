@@ -73,6 +73,7 @@ import '../home/home_parts.dart' show CssLines;
 import '../plugins/projects/suite.dart' show ProjectSuite, projectSuite;
 import '../plugins/projects/tool_chip.dart' show ToolChip;
 import '../plugins/registry.dart';
+import '../shell/desktop/mac_lights.dart' show MacLightsRow, trafficLightsRoom;
 import 'courses.dart';
 import 'lessons.dart';
 import 'looks.dart';
@@ -366,12 +367,16 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
       }
     }
 
-    // `.top`
+    // `.top`. On the Mac the window's three buttons sit at the bar's start (Matt, 2026-11-02, a screenshot: "the
+    // academy controls intercept the traffic light controls"): the back arrow and the heading begin after their room,
+    // and the row says where its centre is so the buttons sit on it, as the recorder's and the guide's bars do
+    // (lib/shell/desktop/mac_lights.dart).
+    final lights = trafficLightsRoom(t);
     final top = Padding(
       key: const ValueKey('academy-top'),
       // `.back { margin-inline-start: calc(-1 * var(--glacier-space-2)) }`
-      padding: EdgeInsets.only(left: gutterStart - t.space(2), right: gutterEnd, top: t.len('app-safe-top') + t.space(3)),
-      child: Row(
+      padding: EdgeInsets.only(left: gutterStart - t.space(2) + lights, right: gutterEnd, top: t.len('app-safe-top') + t.space(3)),
+      child: _onLights(lights > 0, Row(
         children: [
           GlacierPressable(
             key: const ValueKey('academy-back'),
@@ -413,7 +418,7 @@ class _AcademyScreenState extends State<AcademyScreen> with WidgetsBindingObserv
           // The walkthrough's speaker, the size of the back arrow so the bar keeps its height.
           VoiceButton(key: const ValueKey('academy-voice'), off: _voice.muted, onPressed: () => _voice.setMuted(!_voice.muted), side: t.space(8), icon: 20),
         ],
-      ),
+      )),
     );
 
     return OnBack(
@@ -1661,3 +1666,6 @@ class _RenderFoot extends RenderBox with ContainerRenderObjectMixin<RenderBox, _
   @override
   void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
 }
+
+/// The bar on the Mac's window buttons, where the page is drawn under the title bar.
+Widget _onLights(bool mac, Widget row) => mac ? MacLightsRow(child: row) : row;
