@@ -119,8 +119,9 @@ void main() {
       expect(prompt, isNot(contains('dog-eared')));
       expect(prompt, isNot(contains('mascot of Ghost.md')));
       expect(prompt, contains('No ghost, no mascot'));
-      expect(prompt, contains('Search online for what the note is about'));
-      expect(prompt, contains('choose the assets to include'));
+      expect(prompt, contains('a collage of the places and things this note is about'));
+      expect(prompt, contains('search online for the real places'));
+      expect(prompt, contains('three to six of them'));
       expect(prompt, contains('The note is titled “New Orleans weekend”.'));
       expect(prompt, contains('We drove down on Friday'));
       // The whole frame filled since 2026-11-02 (Matt: a new one was "not filling the space").
@@ -138,11 +139,14 @@ void main() {
 
     test('is the person\'s own where they changed it, the note where {note} is, and their extra words on the end', () {
       final own = bannerPrompt('# Tokyo trip\n\nWords.', template: 'Watercolour, wide. Show: {note} Nothing else.');
-      expect(own, startsWith('Watercolour, wide. Show: pick one simple, concrete scene'));
+      expect(own, startsWith('Watercolour, wide. Show: a collage of the places and things this note is about'));
+      // A style of the person's own still asks for the looking up and the collage (2026-11-03).
+      expect(own, contains('search online for the real places'));
+      expect(own, contains('three to six of them'));
       expect(own, contains('The note is titled “Tokyo trip”.'));
       expect(own, endsWith('Nothing else.'));
       // No slot: the note goes at the end.
-      expect(bannerPrompt('# Tokyo trip', template: 'Watercolour.'), startsWith('Watercolour.\n\nThe scene: pick one'));
+      expect(bannerPrompt('# Tokyo trip', template: 'Watercolour.'), startsWith('Watercolour.\n\nThe scene: a collage'));
       // Empty is the house's.
       expect(bannerPrompt('# Tokyo trip', template: '  '), bannerPrompt('# Tokyo trip'));
       expect(bannerPrompt('# Tokyo trip', extra: 'Muted autumn colours.'), endsWith('Make one image.\n\nMuted autumn colours.'));
@@ -152,7 +156,7 @@ void main() {
 
     test('takes only the opening of a long note', () {
       final prompt = bannerPrompt('# Long\n\n${'word ' * 2000}');
-      expect(prompt.length, lessThan(bannerStyle('').length + bannerChars + 300));
+      expect(prompt.length, lessThan(bannerStyle('').length + bannerChars + 900));
     });
   });
 

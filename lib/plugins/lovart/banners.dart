@@ -71,8 +71,6 @@ const String bannerStyleDefault = '''A wide 16:9 landscape illustration, 1920 by
 
 A stipple dotwork illustration in full colour on pure white: form, folds and shadow built entirely from dots of rich, natural colour, dense in the shadows and sparse in the light, with a fine clean outline. The colours are true to the things drawn, warm and clear. Precise, patient and quietly elegant, like a hand-coloured fine-art print or a careful naturalist's plate.
 
-Research before you draw. Search online for what the note is about: the real places, buildings, products, tools, organisations, foods, plants, animals or events it names, and what each really looks like (its shape, colours, materials, landmarks, packaging). Then choose the assets to include: three to six concrete objects, places or details that best stand for this note, each drawn true to the real thing. Prefer the specific over the generic: the actual landmark, the actual dish, the actual kind of device.
-
 The scene: {note} Spread it across the full width of the frame, edge to edge.
 
 Full colour, every tone made of dots: no flat fills, no smooth gradients. No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
@@ -105,14 +103,17 @@ List<String> _sections(String body) => [
     if (RegExp(r'^#{2,3}\s+\S').hasMatch(line)) line.replaceFirst(RegExp(r'^#+\s+'), '').trim(),
 ].take(12).toList();
 
-/// The prompt for [body]'s banner: the house style or the person's own ([template]), with the note as the subject
-/// for Lovart to research and pick one scene from, and [extra] on the end.
+/// The prompt for [body]'s banner: the house style or the person's own ([template]), with the note as the subject:
+/// what to look up and a collage of three to six of its places and things, then the note itself, and [extra] on the end.
 String bannerPrompt(String body, {String? template, String? extra}) {
   final title = noteTitle(body);
   final opening = _opening(body);
   final sections = _sections(body);
   final subject = [
-    'pick one simple, concrete scene from the note below, with the assets you found drawn with care.',
+    // The looking up and the collage are the note's part, whatever the style (Matt, 2026-11-03, with a prompt of his own:
+    // "the dotwork was removed now but the prompt doesn't have a collage of multiple places from the note now"): they
+    // were the house style's own paragraph, so a person's style left them out and the scene was one place.
+    'a collage of the places and things this note is about. Research before you draw: search online for the real places, buildings, products, tools, organisations, foods, plants, animals or events it names, and what each really looks like (its shape, colours, materials, landmarks, packaging). Then choose three to six of them that best stand for the note and compose them together across the frame, each drawn true to the real thing: the actual landmark, the actual dish, the actual kind of device, not a generic one.',
     if (title.isNotEmpty) 'The note is titled “$title”.',
     if (sections.isNotEmpty) 'Its sections: ${sections.join('; ')}.',
     if (opening.isNotEmpty) 'It reads: $opening',
