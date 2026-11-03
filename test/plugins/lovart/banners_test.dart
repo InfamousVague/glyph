@@ -312,6 +312,124 @@ void main() {
     });
   });
 
+  group('written into the note, whatever happened to it meanwhile (Matt, 2026-11-03: the Columbus note)', () {
+    const words = '# Columbus\n\n$_words';
+    const rewritten = '# Columbus\n\n$_words And the November places, with their map cards.';
+
+    test('a note rewritten elsewhere while the picture was made gets it on its newest words', () async {
+      await keys();
+      note('c1', words);
+      fake.onAsk = () => note('c1', rewritten, revision: 7);
+      expect(await banners.noteLeft('c1'), isTrue);
+      expect(notes['c1']!.body, withBanner(rewritten, pictures.kept.keys.single));
+      expect(notes['c1']!.body, startsWith('---\nbanner: "![](image/lovart-'));
+    });
+
+    test('a note with no front matter, written through its open editor, gets front matter made for it', () async {
+      await keys();
+      note('c1', words);
+      final handed = <String>[];
+      banners = LovartBanners(
+        getNote: (id) async => notes[id],
+        update: (id, body, revision) async => fail('the open editor writes it'),
+        write: (id, change) async => handed.add(change(notes[id]!.body)),
+      );
+      expect(await banners.noteLeft('c1'), isTrue);
+      expect(handed.single, '---\nbanner: "![](image/${pictures.kept.keys.single})"\n---\n$words');
+    });
+
+    test('a write refused every time is owed: said in the tray, and put in when the note is next left, with nothing more asked of Lovart', () async {
+      final record = Activity(store: () => MemoryStored());
+      useActivity(record);
+      addTearDown(() => useActivity(Activity()));
+      await keys();
+      note('c1', words);
+      final warned = <String>[];
+      var refusing = true, tries = 0;
+      banners = LovartBanners(
+        getNote: (id) async => notes[id],
+        update: (id, body, revision) async {
+          tries += 1;
+          if (refusing) throw StateError('the note changed');
+          return notes[id] = notes[id]!.copyWith(body: body, revision: revision + 1);
+        },
+        warn: warned.add,
+        retryPause: Duration.zero,
+      );
+      expect(await banners.noteLeft('c1'), isFalse);
+      expect(tries, 4);
+      final name = pictures.kept.keys.single;
+      expect(bannerOwed('c1'), name);
+      expect(warned.single, contains('not written'));
+      expect(record['banner:c1']!.state, JobState.failed);
+      expect(record['banner:c1']!.cause, bannerUnwrittenWords);
+      expect(bannerOf(notes['c1']!.body), isNull);
+      refusing = false;
+      expect(await banners.noteLeft('c1'), isTrue);
+      expect(bannerOf(notes['c1']!.body), name);
+      expect(fake.asked, hasLength(1), reason: 'the picture was paid for once');
+      expect(bannerOwed('c1'), isNull);
+      // And once in, it is not made or written again.
+      expect(await banners.noteLeft('c1'), isFalse);
+    });
+
+    test('an open editor that stopped saving owes it too, and the note left writes it where it is kept', () async {
+      await keys();
+      note('c1', words);
+      var open = true;
+      banners = LovartBanners(
+        getNote: (id) async => notes[id],
+        update: (id, body, revision) async => notes[id] = notes[id]!.copyWith(body: body, revision: revision + 1),
+        write: (id, change) async {
+          if (open) throw StateError('The note’s editor is not saving.');
+          notes[id] = notes[id]!.copyWith(body: change(notes[id]!.body));
+        },
+        retryPause: Duration.zero,
+      );
+      expect(await banners.noteLeft('c1'), isFalse);
+      expect(bannerOwed('c1'), isNotNull);
+      open = false;
+      expect(await banners.noteLeft('c1'), isTrue);
+      expect(bannerOf(notes['c1']!.body), pictures.kept.keys.single);
+      expect(fake.asked, hasLength(1));
+    });
+
+    test('one owed is let go where the note was given a banner by hand, or had it taken off, meanwhile', () async {
+      await keys();
+      note('c1', words);
+      note('c2', words);
+      var refusing = true;
+      banners = LovartBanners(
+        getNote: (id) async => notes[id],
+        update: (id, body, revision) async {
+          if (refusing) throw StateError('the note changed');
+          return notes[id] = notes[id]!.copyWith(body: body, revision: revision + 1);
+        },
+        retryPause: Duration.zero,
+      );
+      expect(await banners.noteLeft('c1'), isFalse);
+      expect(await banners.noteLeft('c2'), isFalse);
+      refusing = false;
+      note('c1', withBanner(words, 'mine.png'), revision: 3);
+      note('c2', withoutBanner(words), revision: 3);
+      expect(await banners.noteLeft('c1'), isFalse);
+      expect(await banners.noteLeft('c2'), isFalse);
+      expect(bannerOf(notes['c1']!.body), 'mine.png');
+      expect(bannerDeclined(notes['c2']!.body), isTrue);
+      expect((bannerOwed('c1'), bannerOwed('c2')), (null, null));
+      expect(fake.asked, hasLength(2));
+    });
+
+    test('taken off while it was made, it stays off', () async {
+      await keys();
+      note('c1', words);
+      fake.onAsk = () => note('c1', withoutBanner(words), revision: 2);
+      expect(await banners.noteLeft('c1'), isFalse);
+      expect(bannerDeclined(notes['c1']!.body), isTrue);
+      expect(bannerOwed('c1'), isNull);
+    });
+  });
+
   group('a run over the recent notes', () {
     setUp(() {
       lovartBannerRun.value = null;

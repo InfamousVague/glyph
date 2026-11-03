@@ -547,7 +547,7 @@ class _GhostRootState extends State<GhostRoot> {
   // for notes"). The note on screen is the one being left when the screen changes.
   // Written where the note is now: through its editor while it is open, so a banner made in the background never
   // costs what is being typed (`_changeNote`).
-  late final LovartBanners _banners = LovartBanners(getNote: _library.get, update: _library.update, write: (id, change) => _changeNote(id, change, userEvent: 'lovart.banner'), warn: debugPrint);
+  late final LovartBanners _banners = LovartBanners(getNote: _library.get, update: _library.update, write: (id, change) => _changeNote(id, change, userEvent: 'lovart.banner', confirm: true), warn: debugPrint);
   String? _bannerOpen;
 
   /// Settings › Lovart's header images for the recent notes, as the app's own job (lib/plugins/lovart/banner_run.dart;

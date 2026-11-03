@@ -654,6 +654,17 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// Whether a save was refused for good.
   bool get saveStopped => _stopped;
 
+  /// Whether a change handed to this screen's editor is kept: not where the note is read-only here, nor once its
+  /// saving has stopped, where the change would show and never be written (a header image lost so, Matt, 2026-11-03).
+  bool get keepsChanges => !widget.readOnly && _saving.writable;
+
+  /// What is waiting saved now, answering whether it was kept: false where [keepsChanges] is, after the save.
+  Future<bool> savedHere() async {
+    if (widget.readOnly) return false;
+    await _saving.settled();
+    return _saving.writable;
+  }
+
   // ---- what the note is ---------------------------------------------------------------------------------------------
 
   bool get _isCanvas => isCanvasBody(_typedBody);

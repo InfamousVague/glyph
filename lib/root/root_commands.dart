@@ -269,10 +269,14 @@ extension _RootCommands on _GhostRootState {
   /// an open editor is refused at its next save and stops its saving (lib/core/library.dart `NoteSaving`). Open with
   /// no editor (a notebook's own words drawn), its screen writes it. Otherwise it is written where it is kept, from
   /// the revision read, and a note gone or moved on throws, for the caller to say. [userEvent] is the edit's name in
-  /// the editor's history.
-  Future<void> _changeNote(String noteId, String Function(String body) change, {String userEvent = 'claude.type'}) async {
-    final view = openNoteScreen(_shell.currentContext, noteId)?.view;
+  /// the editor's history. [confirm]: through an open editor too, a change it will not keep (read-only, or its saving
+  /// stopped) throws, and so does one its save is refused for: a header image handed to such an editor showed there
+  /// and was never written (Matt, 2026-11-03).
+  Future<void> _changeNote(String noteId, String Function(String body) change, {String userEvent = 'claude.type', bool confirm = false}) async {
+    final open = openNoteScreen(_shell.currentContext, noteId);
+    final view = open?.view;
     if (view != null) {
+      if (confirm && !open!.keepsChanges) throw StateError('The note’s editor is not saving.');
       final now = view.state.doc.toString();
       final next = change(now);
       if (next == now) return;
@@ -286,6 +290,7 @@ extension _RootCommands on _GhostRootState {
         endNext -= 1;
       }
       view.dispatch(ed.TransactionSpec(changes: ed.Change(from: start, to: endNow, insert: next.substring(start, endNext)), userEvent: userEvent));
+      if (confirm && !await open!.savedHere()) throw StateError('The note’s editor did not save the change.');
       return;
     }
     final screen = openNoteScreen(_shell.currentContext, noteId);

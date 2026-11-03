@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
+import 'package:ghost_md/core/banner.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart' show Preferences;
 import 'package:ghost_md/core/summary_text.dart';
@@ -580,6 +581,65 @@ void main() {
       await phone.run();
       expect(phone.notes['a']?.body, withSummary(one.body, theirs));
       expect(phone.notes.length, 1);
+    });
+  });
+
+  group('a header image put in on one device while the words changed on the other', () {
+    // Matt, 2026-11-03: the Columbus note's banner, made on the phone as Claude rewrote the note through the connector.
+    const words = '# Columbus\n\nThings to do.\n';
+    const rewritten = '# Columbus\n\nThings to do in November, with places.\n';
+
+    test('keeps one note: the other device’s words, with the banner on them, and no copy', () async {
+      final (api: _, :phone, :mac) = await pair();
+      final one = note('a', words, createdAt: 1, updatedAt: 1);
+      mac.notes['a'] = one;
+      await mac.run();
+      await phone.run();
+      mac.notes['a'] = edited(one, rewritten, 2);
+      await mac.run();
+      phone.notes['a'] = edited(one, withBanner(words, 'lovart-img-1.png'), 3);
+      final outcome = await phone.run();
+      expect((outcome.conflicts, phone.notes.length), (0, 1));
+      expect(phone.notes['a']?.body, withBanner(rewritten, 'lovart-img-1.png'));
+      await mac.run();
+      expect((mac.notes.length, mac.notes['a']?.body), (1, withBanner(rewritten, 'lovart-img-1.png')));
+    });
+
+    test('a banner the other device gave, or took off, stands', () async {
+      final (api: _, :phone, :mac) = await pair();
+      final one = note('a', words, createdAt: 1, updatedAt: 1);
+      mac.notes['a'] = one;
+      await mac.run();
+      await phone.run();
+      mac.notes['a'] = edited(one, withBanner(rewritten, 'mine.png'), 2);
+      await mac.run();
+      phone.notes['a'] = edited(one, withBanner(words, 'lovart-img-1.png'), 3);
+      expect((await phone.run()).conflicts, 0);
+      expect(phone.notes['a']?.body, withBanner(rewritten, 'mine.png'));
+      expect(bannerMerged(words, withBanner(words, 'x.png'), withoutBanner(rewritten)), withoutBanner(rewritten));
+      // Anything else changed here as well is the old rule: a copy.
+      expect(bannerMerged(words, withBanner('$words\nMore.', 'x.png'), rewritten), isNull);
+      expect(bannerMerged(null, withBanner(words, 'x.png'), rewritten), isNull);
+      // Front matter of its own kept: only the banner is the difference.
+      const kept = '---\nlocation: "Columbus"\n---\n# Columbus\n\nThings to do.\n';
+      expect(bannerMerged(kept, withBanner(kept, 'x.png'), '${kept}More.\n'), withBanner('${kept}More.\n', 'x.png'));
+    });
+
+    test('is never written over by a sync that read the notes before it landed', () async {
+      final (api: _, :phone, :mac) = await pair();
+      final one = note('a', words, createdAt: 1, updatedAt: 1);
+      mac.notes['a'] = one;
+      await mac.run();
+      await phone.run();
+      mac.notes['a'] = edited(one, rewritten, 2);
+      await mac.run();
+      // The banner lands on the phone just after its pass has read the list, while it opens the Mac's row.
+      phone.local.afterList = () => phone.notes['a'] = edited(one, withBanner(words, 'lovart-img-1.png'), 3);
+      final outcome = await phone.run();
+      expect((outcome.conflicts, phone.notes.length), (0, 1));
+      expect(phone.notes['a']?.body, withBanner(rewritten, 'lovart-img-1.png'));
+      await mac.run();
+      expect(mac.notes['a']?.body, withBanner(rewritten, 'lovart-img-1.png'));
     });
   });
 

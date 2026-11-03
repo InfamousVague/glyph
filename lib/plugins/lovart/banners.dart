@@ -21,7 +21,11 @@
 /// - **Once per note.** Marked in the plugin's storage before Lovart is asked ([bannersDoneKey]), so a banner taken
 ///   off, or a failure, asks nothing more; "Header image" on the note's cog is there to make one again.
 /// - **Into the note as it is then.** Read again once the picture is kept, written over the revision read; one that
-///   moved on meanwhile is read again and written once more.
+///   moved on meanwhile is read again and written again, [_writeAttempts] times in all.
+/// - **Never made twice.** A picture made and kept that still could not be written in (the note's editor stopped
+///   saving, the note moving on under every attempt) is owed to the note ([bannersOwedKey]): said in the activity
+///   tray, and written in the next time the note is left, with nothing more asked of Lovart (Matt, 2026-11-03:
+///   "it's not showing the generated header image", the Columbus note, whose picture was paid for and never landed).
 library;
 
 import 'dart:async';
@@ -176,6 +180,27 @@ void forgetBannersGiven(Iterable<String> ids, [PluginHost? via]) {
   on.storage.set(bannersDoneKey, [for (final id in done) if (!gone.contains(id)) id]);
 }
 
+/// What the activity tray says of a header image made that could not be written into its note.
+const String bannerUnwrittenWords = 'The header image was made but could not be put in the note. Leaving the note again puts it in, with nothing more asked of Lovart.';
+
+/// How many times a banner is written into its note, reading it again before each, before it is owed instead.
+const int _writeAttempts = 4;
+
+Map<String, String> _owed(PluginHost on) {
+  final Object? kept = on.storage.get<Object?>(bannersOwedKey, null);
+  return kept is Map ? {for (final MapEntry(:key, :value) in kept.entries) if (key is String && value is String) key: value} : <String, String>{};
+}
+
+/// The picture made for the note [id] and not yet written into it, or null.
+String? bannerOwed(String id, [PluginHost? via]) => _owed(via ?? host)[id];
+
+void _owe(PluginHost on, String id, String? name) {
+  final owed = _owed(on);
+  if (name == null ? owed.remove(id) == null : owed[id] == name) return;
+  if (name != null) owed[id] = name;
+  owed.isEmpty ? on.storage.remove(bannersOwedKey) : on.storage.set(bannersOwedKey, owed);
+}
+
 void _markDone(PluginHost on, String id) {
   final done = _done(on);
   if (done.contains(id)) return;
@@ -215,7 +240,7 @@ String? bannerUnready() {
 
 /// Gives notes their banners as they are left.
 class LovartBanners {
-  LovartBanners({required this.getNote, required this.update, this.write, this.pictures, this.client, this.warn, this.done, PluginHost? via}) : _host = via;
+  LovartBanners({required this.getNote, required this.update, this.write, this.pictures, this.client, this.warn, this.done, this.retryPause = const Duration(milliseconds: 600), PluginHost? via}) : _host = via;
 
   final Future<Note?> Function(String id) getNote;
   final Future<Note> Function(String id, String body, int expectedRevision) update;
@@ -237,6 +262,10 @@ class LovartBanners {
 
   /// Told the note a banner was written into.
   final void Function(String id)? done;
+
+  /// How long a refused write waits, times the attempt, before the note is read again: a sync or an editor's save
+  /// landing on it a moment before is done by then.
+  final Duration retryPause;
   final PluginHost? _host;
 
   PluginHost get _on => _host ?? host;
@@ -263,6 +292,7 @@ class LovartBanners {
     if (rethrowStopping) return _make(id, rethrowStopping: true, again: again, replacing: replacing);
     JobHandle? job;
     LovartFailure? refused;
+    var unwritten = false;
     try {
       final made = await _make(
         id,
@@ -270,10 +300,13 @@ class LovartBanners {
         replacing: replacing,
         started: (title) => job = activity.begin('banner:$id', kind: JobKind.images, title: title.isEmpty ? 'Header image' : 'Header image for $title', shownHere: activityRoutes.noteShown(id), plugin: manifest.id),
         refused: (failure) => refused = failure,
+        unwritten: () => unwritten = true,
       );
       final failure = refused;
       if (made) {
         job?.done(result: JobResult('Banner ready', onOpen: activityRoutes.noteOpener(id)), tally: const JobTally('banner', 'banners'));
+      } else if (unwritten) {
+        job?.failed(bannerUnwrittenWords);
       } else if (failure != null && !failure.passing && failure is! LovartRefused) {
         // Credits, keys, a go-ahead: the person's to fix. Lovart busy or out of reach a moment is not: leaving the note
         // again asks again, so that goes quietly.
@@ -288,73 +321,95 @@ class LovartBanners {
     }
   }
 
-  Future<bool> _make(String id, {bool rethrowStopping = false, bool again = false, String? replacing, void Function(String title)? started, void Function(LovartFailure failure)? refused}) async {
+  Future<bool> _make(String id, {bool rethrowStopping = false, bool again = false, String? replacing, void Function(String title)? started, void Function(LovartFailure failure)? refused, void Function()? unwritten}) async {
     if (!pluginOn(manifest) || !hasLovartKeys(_on)) return false;
-    if ((pictures ?? lovartPictureStore) == null) return false;
+    final store = pictures ?? lovartPictureStore;
+    if (store == null) return false;
     final asked = again || replacing != null;
-    if ((!asked && _done(_on).contains(id)) || lovartBannerMaking.value.contains(id)) return false;
+    // A picture made before and never written in: that one, not another asked of Lovart.
+    var owed = asked ? null : _owed(_on)[id];
+    if ((!asked && owed == null && _done(_on).contains(id)) || lovartBannerMaking.value.contains(id)) return false;
     final note = await getNote(id);
-    if (note == null || !wantsBanner(note, replacing: replacing != null, takenOff: again) || bannerOf(note.body) != replacing) return false;
+    if (note == null || !wantsBanner(note, replacing: replacing != null, takenOff: again) || bannerOf(note.body) != replacing) {
+      // Gone, given one by hand, or taken off meanwhile: the picture owed is not wanted any more.
+      if (owed != null) _owe(_on, id, null);
+      return false;
+    }
+    if (owed != null && await store.bytesOf(owed).then((bytes) => bytes == null, onError: (Object _) => true)) {
+      _owe(_on, id, null);
+      owed = null;
+    }
     // Marked before Lovart is asked: once per note, whatever happens next.
     _markDone(_on, id);
-    final lovart = client != null ? client!() : (_host == null ? lovartClient() : LovartClient.kept(via: _host));
-    if (lovart == null) return false;
+    final lovart = owed != null ? null : (client != null ? client!() : (_host == null ? lovartClient() : LovartClient.kept(via: _host)));
+    if (owed == null && lovart == null) return false;
     _making(id, true);
     started?.call(noteTitle(note.body));
     try {
-      final List<Uint8List> images;
-      try {
-        // The Figma frames the note links to, where that is switched on (figma_refs.dart).
-        final references = await figmaRefsFor(note.body, via: _host);
-        images = await lovart.generate(withFigmaRefs(bannerPrompt(note.body, template: bannerTemplate(), extra: lovartExtra()), references.length, banner: true), references: references);
-        if (lovart.dropped.isNotEmpty) warn?.call('[lovart] ${figmaRefsDroppedWords(lovart.dropped)}');
-      } on LovartFailure catch (failure) {
-        refused?.call(failure);
-        if (rethrowStopping && failure is! LovartRefused) {
-          // Not this note's fault: a run started again later tries it again. One asked again was given one before,
-          // and stays so for leaving it.
-          if (!asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
-          rethrow;
+      final String name;
+      if (owed != null) {
+        name = owed;
+      } else {
+        final List<Uint8List> images;
+        try {
+          // The Figma frames the note links to, where that is switched on (figma_refs.dart).
+          final references = await figmaRefsFor(note.body, via: _host);
+          images = await lovart!.generate(withFigmaRefs(bannerPrompt(note.body, template: bannerTemplate(), extra: lovartExtra()), references.length, banner: true), references: references);
+          if (lovart.dropped.isNotEmpty) warn?.call('[lovart] ${figmaRefsDroppedWords(lovart.dropped)}');
+        } on LovartFailure catch (failure) {
+          refused?.call(failure);
+          if (rethrowStopping && failure is! LovartRefused) {
+            // Not this note's fault: a run started again later tries it again. One asked again was given one before,
+            // and stays so for leaving it.
+            if (!asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
+            rethrow;
+          }
+          // Lovart at its limit of jobs at once, or out of reach a moment: not this note's doing, so leaving it again
+          // asks again.
+          if (failure.passing && !asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
+          warn?.call('[lovart] no banner for the note: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
+          return false;
         }
-        // Lovart at its limit of jobs at once, or out of reach a moment: not this note's doing, so leaving it again
-        // asks again.
-        if (failure.passing && !asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
-        warn?.call('[lovart] no banner for the note: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
-        return false;
+        final names = await keepLovartImages(images.take(1).toList(), into: pictures);
+        if (names.isEmpty) return false;
+        name = names.first;
       }
-      final names = await keepLovartImages(images.take(1).toList(), into: pictures);
-      if (names.isEmpty) return false;
-      final into = write;
-      if (into != null) {
-        for (var attempt = 0; attempt < 2; attempt += 1) {
-          var wrote = false;
-          try {
+      // Whether the note, as it is now, still takes it: a banner given by hand meanwhile (or, one being replaced,
+      // another one) stands, and so does one taken off meanwhile.
+      bool takes(String body) => bannerOf(body) == replacing && (again || !bannerDeclined(body));
+      Object? last;
+      for (var attempt = 0; attempt < _writeAttempts; attempt += 1) {
+        if (attempt > 0) await Future<void>.delayed(retryPause * attempt);
+        try {
+          final into = write;
+          if (into != null) {
+            var wrote = false;
             await into(id, (body) {
-              // Given one by hand meanwhile (or, one being replaced, another one): that one stands.
-              if (bannerOf(body) != replacing) return body;
+              if (!takes(body)) return body;
               wrote = true;
-              return withBanner(body, names.first);
+              return withBanner(body, name);
             });
+            _owe(_on, id, null);
             if (wrote) done?.call(id);
             return wrote;
-          } catch (failure) {
-            if (attempt == 1) warn?.call('[lovart] the banner was not written into the note: $failure');
           }
-        }
-        return false;
-      }
-      for (var attempt = 0; attempt < 2; attempt += 1) {
-        final now = await getNote(id);
-        // Gone, or given one by hand meanwhile (or, one being replaced, another one): that one stands.
-        if (now == null || bannerOf(now.body) != replacing) return false;
-        try {
-          await update(id, withBanner(now.body, names.first), now.revision);
+          final now = await getNote(id);
+          if (now == null || !takes(now.body)) {
+            _owe(_on, id, null);
+            return false;
+          }
+          await update(id, withBanner(now.body, name), now.revision);
+          _owe(_on, id, null);
           done?.call(id);
           return true;
         } catch (failure) {
-          if (attempt == 1) warn?.call('[lovart] the banner was not written into the note: $failure');
+          last = failure;
         }
       }
+      // Made, kept and paid for, and still not in the note: owed to it, for the next time it is left, and said.
+      _owe(_on, id, name);
+      warn?.call('[lovart] the banner was not written into the note: $last');
+      unwritten?.call();
       return false;
     } finally {
       _making(id, false);

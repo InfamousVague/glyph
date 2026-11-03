@@ -717,6 +717,16 @@ describe('deleting notes, to the Trash', () => {
  * 2026-10-31: the one-block shape reads the ticket's key as `issue:` too), and a one-block body's library keys ride
  * along as any other key the rewrite kept.
  */
+describe('keepKeys and a header image', () => {
+  it('puts back the banner a device wrote in while Claude rewrote the note, front matter and all (Matt, 2026-11-03)', () => {
+    const banner = '---\nbanner: "![](image/lovart-img-1.png)"\n---\n';
+    expect(keepKeys(`${banner}# Columbus\n\nThings to do.\n`, '# Columbus\n\nThings to do in November.\n')).toBe(`${banner}# Columbus\n\nThings to do in November.\n`);
+    // A rewrite that says its own, or takes it off, has it.
+    expect(keepKeys(`${banner}# Columbus\n`, '---\nbanner: none\n---\n# Columbus\n')).toBe('---\nbanner: none\n---\n# Columbus\n');
+    expect(keepKeys(`${banner}# Columbus\n`, '---\nbanner: "![](image/other.png)"\n---\n# Columbus\n')).toContain('other.png');
+  });
+});
+
 describe('keepKeys and the two shapes of front matter', () => {
   it('puts back a ticket’s type and its key, written as id: or as issue:', () => {
     expect(keepKeys('---\ntype: ticket\nid: GHO-12\nstatus: Done\n---\n# Loop\n', '# Loop\n\nRewritten.\n')).toBe('---\ntype: ticket\nid: GHO-12\nstatus: Done\n---\n# Loop\n\nRewritten.\n');

@@ -475,9 +475,13 @@ function keepPlace(before: string, next: string): string {
 
 /**
  * The keys a notebook, a journal and an entry are made of (book/book.ts, book/journal.ts), how a note looks
- * (core/look.ts), and what makes a notebook the one your templates are kept in (notes/ownTemplates.ts).
+ * (core/look.ts), what makes a notebook the one your templates are kept in (notes/ownTemplates.ts), and the note's
+ * header image (`banner:`, lib/core/banner.dart). A device's Lovart writes the banner in as the note is left, often
+ * while Claude is still rewriting it: update_note replaced the whole body with words read before it landed, and the
+ * picture, made and paid for, was gone from every device with no copy and nothing said (Matt, 2026-11-03, the
+ * Columbus note). A rewrite that gives a banner of its own, or `banner: none`, has it.
  */
-const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date', 'look', 'templates'] as const;
+const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date', 'look', 'templates', 'banner'] as const;
 
 /** A notebook's keys for its tickets (book/tickets.ts): the key they are numbered by and the workflow they move through. */
 const NOTEBOOK_KEYS = ['key', 'statuses'] as const;

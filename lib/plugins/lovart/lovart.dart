@@ -56,7 +56,7 @@ export 'lovart_hold.dart';
 export 'lovart_mark.dart';
 export 'lovart_pane.dart';
 export 'lovart_setup.dart';
-export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey, bannersKey, bannersDoneKey, bannerRunKey;
+export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey, bannersKey, bannersDoneKey, bannersOwedKey, bannerRunKey;
 export 'making.dart';
 export 'meetings.dart';
 

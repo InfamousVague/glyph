@@ -31,8 +31,18 @@ class DeviceNotes implements LocalNotes {
   /// By id.
   final Map<String, Note> held = {};
 
+  /// Run once, just after the next list is read: a write made here while a pass is under way.
+  void Function()? afterList;
+
   @override
-  Future<List<Note>> list() async => held.values.toList();
+  Future<List<Note>> list() async {
+    final listed = held.values.toList();
+    final then = afterList;
+    afterList = null;
+    then?.call();
+    return listed;
+  }
+
   @override
   Future<Note?> get(String id) async => held[id];
   @override

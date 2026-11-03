@@ -50,6 +50,7 @@ import 'package:flutter/foundation.dart';
 import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../core/attachment_refs.dart';
+import '../core/banner.dart' show bannerDeclined, bannerOf, withBanner;
 import '../core/book.dart';
 import '../core/bytes.dart';
 import '../core/ids.dart';
@@ -1348,9 +1349,34 @@ Note _copyOf(Note full) => Note(
 bool _isMeeting(SyncContext ctx, String id, Note local, Note theirs) =>
     ctx._meetings.containsKey(id) || local.body.contains(ghostLineStart) || theirs.body.contains(ghostLineStart);
 
+/// Two copies of a note where this device's change since [base] is its header image alone (lib/core/banner.dart,
+/// put in by Lovart as the note was left) and theirs changed the words: theirs, with the banner on it. Theirs as it
+/// is where it has a banner of its own or says `banner: none`: that one stands. Null where this device changed
+/// anything else, or there is no base to tell by. Matt, 2026-11-03: the Columbus note's header image, written on the
+/// phone while Claude was still rewriting the note, would have been a second copy of the note at best.
+String? bannerMerged(String? base, String mine, String theirs) {
+  if (base == null) return null;
+  final name = bannerOf(mine);
+  if (name == null || bannerOf(base) != null || withBanner(mine, null) != withBanner(base, null)) return null;
+  if (bannerOf(theirs) != null || bannerDeclined(theirs)) return theirs;
+  return withBanner(theirs, name);
+}
+
 /// One note from the service, merged into this device (`merge`). [local] is the note here as the list has it, or
 /// null when there is none. A note left differing from its recorded fingerprint is sent by the push that follows.
-Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome) async {
+///
+/// The list is read once a page, and the note here may be written after it, while the row is opened and its files
+/// fetched: a header image landing as the sync runs (Matt, 2026-11-03). Before anything is written over it, the note
+/// is read again, and where it moved on the row is merged again against it ([again]), never written over it.
+Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome, {bool again = false}) async {
+  Future<bool> moved() async {
+    if (local == null || again) return false;
+    final now = await ctx.notes.get(item.id);
+    return now != null && (now.body != local.body || now.updatedAt != local.updatedAt);
+  }
+
+  Future<void> mergeAgain() async => _merge(ctx, item, await _listed(ctx, item.id), outcome, again: true);
+
   final known = ctx.state.notes[item.id];
   final changedHere = local != null ? known == null || known.mark != mark(local) : known != null;
 
@@ -1386,6 +1412,7 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
       final mine = summarySection(local.body);
       final merged = _withBody(theirs, mine != null ? withSummary(theirs.body, mine.text, kept: summarySection(theirs.body)?.text) : withoutSummary(theirs.body));
       await _fetchFilesOf(ctx, payload);
+      if (await moved()) return mergeAgain();
       await ctx.notes.apply(withPhrases(merged, whole, known?.phrases).note);
       outcome.changed += 1;
       ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
@@ -1397,6 +1424,7 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
       // has, and no copy. As with the summary above, the mark kept is theirs, so the push that follows sends the
       // merge.
       await _fetchFilesOf(ctx, payload);
+      if (await moved()) return mergeAgain();
       await ctx.notes.apply(withPhrases(_withBody(theirs, index), whole, known?.phrases).note);
       outcome.changed += 1;
       ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
@@ -1408,15 +1436,18 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
     // kept as two notes. As above, the mark kept is theirs, so the push that follows sends the merge. Any other note
     // changed on both sides is kept twice as it always was.
     final base = _isMeeting(ctx, item.id, local, theirs) ? _baseFor(known, item.rev) : null;
-    final both = base == null ? null : mergedWords(base, local.body, theirs.body);
+    // Or the header image alone put in here, over words changed there ([bannerMerged]): theirs, with the banner.
+    final both = (base == null ? null : mergedWords(base, local.body, theirs.body)) ?? bannerMerged(_baseFor(known, item.rev), local.body, theirs.body);
     if (both != null) {
       await _fetchFilesOf(ctx, payload);
+      if (await moved()) return mergeAgain();
       await ctx.notes.apply(withPhrases(_withBody(theirs, both), whole, known?.phrases).note);
       outcome.changed += 1;
       ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
       return;
     }
     // Changed on both sides and not the same: this device's version is kept as a note of its own.
+    if (await moved()) return mergeAgain();
     final full = await ctx.notes.get(item.id) ?? local;
     final copy = await ctx.notes.apply(_copyOf(full));
     outcome.conflicts += 1;
@@ -1429,6 +1460,7 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
   // went (GHST-112). This device's own stand where it rewrote them since, and go with the push that follows.
   final phrased = withPhrases(theirs, whole, known?.phrases);
   final same = local != null && mark(local) == mark(theirs) && (whole == null || listEquals(phrased.note.segments, whole.segments));
+  if (!same && await moved()) return mergeAgain();
   final applied = same ? local : await ctx.notes.apply(phrased.note);
   if (!same) outcome.changed += 1;
   // Theirs are what the service has: where this device's own stood over them, the push that follows sends them, and
