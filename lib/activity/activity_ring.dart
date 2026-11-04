@@ -268,8 +268,8 @@ class _ActivityRingState extends State<ActivityRing> with TickerProviderStateMix
             arcs: [for (final job in jobs) RingArc.of(t, job)],
             spin: _spin.value,
             track: t.color('glacier-border-subtle'),
-            // Nothing running: the ring's track alone, thin, in the ink's grey, in Calm as well (it is no job's colour).
-            idle: t.color('app-ink-3'),
+            // Nothing running: no ring, the grey check alone (Matt, 2026-11-04: "Remove the outline around the sync check
+            // button when the button is idle instead of having the gray outline").
             bloom: live.isEmpty && jobs.isEmpty ? _bloom.value : 0,
             bloomColour: _lastColour ?? (_record.lastEnded == null ? jobColour(t, JobLook.sync) : kindColour(t, _record.lastEnded!.kind)),
           ),

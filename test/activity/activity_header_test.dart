@@ -1,6 +1,6 @@
 // The ring of running work in the header (lib/activity/activity_ring.dart; docs/ACTIVITY.md, Ring): in the header
 // toolbar in every top bar style, on a phone, the opened Fold and the Mac, beside the button for you;
-// one arc for each job in its colour, the other devices' dimmed; a quiet grey ring while idle, still a button that opens
+// one arc for each job in its colour, the other devices' dimmed; a grey check with no ring while idle, still a button that opens
 // the tray (Matt, 2026-10-29: "Keep the activity indicator always showing just have it gray put when nothing is
 // happening"); one bloom when all finish, then grey again; a still red dot when something needs you; the tray it opens,
 // a card under it on a wide window and a sheet on a phone.
@@ -141,14 +141,15 @@ void main() {
       }
   });
 
-  /// The idle ring: no arcs and no job's glyph, the track alone in the muted ink with a check in the same grey (Matt,
-  /// 2026-10-29: "Make the grayed out sync a check mark in gray"), and nothing moving.
+  /// Idle: no arcs, no job's glyph and no ring round it since 2026-11-04 (Matt: "Remove the outline around the sync check
+  /// button when the button is idle"), only a check in the muted ink (2026-10-29: "Make the grayed out sync a check
+  /// mark in gray"), and nothing moving.
   void expectIdle(WidgetTester tester, {String reason = ''}) {
     expect(ring(), findsOneWidget, reason: reason);
     final drawn = painter(tester);
     expect(drawn.arcs, isEmpty, reason: reason);
     final grey = GlacierTheme.of(tester.element(ring())).color('app-ink-3');
-    expect(drawn.idle, grey, reason: 'grey, $reason');
+    expect(drawn.idle, isNull, reason: 'no grey ring round the check, $reason');
     final icons = tester.widgetList<AppIcon>(find.descendant(of: ring(), matching: find.byType(AppIcon))).toList();
     expect([for (final icon in icons) (icon.key, icon.color)], [(const ValueKey('activity-ring:idle-check'), grey)], reason: 'the grey check alone, $reason');
     expect(find.descendant(of: ring(), matching: find.byType(JobGlyph)), findsNothing, reason: reason);
@@ -156,7 +157,7 @@ void main() {
   }
 
   for (final window in windows) {
-    barTest('idle, a quiet grey ring, a button that opens the tray, ${window.name}', (tester) async {
+    barTest('idle, a grey check with no ring, a button that opens the tray, ${window.name}', (tester) async {
         for (final note in [true, false]) {
           final reason = 'on ${note ? 'a note' : 'home'}';
           await pumpShell(tester, window: window, note: note);
@@ -184,8 +185,6 @@ void main() {
     barTest('idle is the muted ink in ${calm ? 'Calm, ' : ''}$theme, never a job\'s colour', (tester) async {
       await pumpShell(tester, window: mac, theme: theme, calm: calm);
       expectIdle(tester);
-      final t = GlacierTheme.of(tester.element(ring()));
-      expect(painter(tester).idle, isNot(jobColour(t, JobLook.sync)));
     });
   }
 

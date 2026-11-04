@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.17",
+    "date": "2026-11-04",
+    "title": "A quieter sync check",
+    "items": [
+      {"icon": "check", "words": "With nothing running, the check at the top shows on its own, without the grey ring round it.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.16",
     "date": "2026-11-04",
     "title": "Notion into its own organization",
