@@ -12,11 +12,10 @@ import '../home/home_organizations.dart' show OrgPresence;
 import '../live/presence.dart' show aiDoingWords;
 import '../notes/workspace_swatch.dart';
 import '../orgs/orgs.dart';
+import '../orgs/ui/invite_sheet.dart';
 import '../orgs/ui/parts.dart';
 import 'account_forms.dart';
 import 'invite_actions.dart';
-import 'invite_emails.dart';
-import 'invite_links.dart';
 import 'kit/settings_kit.dart';
 import 'panes/pane_parts.dart';
 import 'settings_screen.dart';
@@ -47,8 +46,8 @@ enum OrganizationFrom { settings, dashboard }
 /// stood, no search over its six sections, and opened landed on Members, so the first thing seen is the team.
 ///
 /// The sections: General (the name and the colour, which owners and admins change; the workspace follows), Members
-/// (the hero, the list with each one's role, your colour here, invite by handle or by link, remove, and for the
-/// owner a role to set or the organization to hand over), Workspace (the organization's workspace on this device,
+/// (the hero, the list with each one's role, your colour here, Invite people - the invite modal, on Email - remove,
+/// and for the owner a role to set or the organization to hand over), Workspace (the organization's workspace on this device,
 /// and the way to the notes filed in it), Notifications (mute this organization's team news), Report (an email to
 /// the app's maker) and, last and on its own, Leave or Delete, each tapped twice. The service's refusals are shown
 /// in its own words under the row that asked.
@@ -111,6 +110,9 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
   String? _problem;
   SettingsTarget? _goTo;
   String? _readFor;
+
+  /// Whether the invite modal is up, from Invite people on Members (Matt, 2026-11-04).
+  bool _inviting = false;
 
   AccountServices get _services => widget.services;
   Orgs get _orgs => _services.orgs!;
@@ -248,13 +250,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
                 me: me,
                 problem: _problem,
                 now: _now(),
-                onSendLink: widget.onSendLink,
-                onInvite: (handle) async {
-                  await _orgs.inviteByHandle(orgId, handle);
-                  // The key wrapped for them now (docs/SHARED.md, S2), so the team's notes are theirs the moment they accept.
-                  unawaited(services.syncNotificationsNow());
-                  await _read();
-                },
+                onInvitePeople: () => setState(() => _inviting = true),
                 onDo: _onDo,
                 onRemoveAi: _onRemoveAi,
                 seen: widget.seen,
@@ -426,7 +422,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
       ),
     ];
 
-    return SettingsScreen(
+    final screen = SettingsScreen(
       open: true,
       onClose: widget.onClose,
       sections: row == null ? [for (final section in sections) if (section.id == 'members') section] : sections,
@@ -435,6 +431,27 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
       search: false,
       closeWord: widget.from == OrganizationFrom.settings ? 'Organizations' : (widget.from == OrganizationFrom.dashboard ? name : null),
       split: widget.split,
+    );
+    // The invite modal, held here rather than by its row, whose place among the members' rows moves as they come and go.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        screen,
+        if (_inviting && canEdit && row != null)
+            InviteSheet(
+            services: services,
+            orgId: orgId,
+            name: name,
+            onSendLink: widget.onSendLink,
+            onClose: () => setState(() => _inviting = false),
+            onInvite: (handle) async {
+              await _orgs.inviteByHandle(orgId, handle);
+              // The key wrapped for them now (docs/SHARED.md, S2), so the team's notes are theirs the moment they accept.
+              unawaited(services.syncNotificationsNow());
+              await _read();
+            },
+          ),
+      ],
     );
   }
 }
@@ -529,7 +546,7 @@ class _GeneralState extends State<_General> {
 // --- Members ---------------------------------------------------------------------------------------------------------
 
 class _Members extends StatelessWidget {
-  const _Members({required this.services, required this.row, required this.org, required this.me, required this.problem, required this.now, required this.onInvite, required this.onDo, required this.onRemoveAi, this.onSendLink, this.seen = const []});
+  const _Members({required this.services, required this.row, required this.org, required this.me, required this.problem, required this.now, required this.onInvitePeople, required this.onDo, required this.onRemoveAi, this.seen = const []});
 
   /// Who is here now: the AIs online among them.
   final List<OrgPresence> seen;
@@ -540,10 +557,10 @@ class _Members extends StatelessWidget {
   final String me;
   final String? problem;
   final int now;
-  final Future<void> Function(String handle) onInvite;
+  /// Invite people: the invite modal, which the screen holds (lib/orgs/ui/invite_sheet.dart).
+  final VoidCallback onInvitePeople;
   final Future<void> Function(String what, String handle) onDo;
   final Future<void> Function(OrgAi ai) onRemoveAi;
-  final void Function(String title, String url)? onSendLink;
 
   @override
   Widget build(BuildContext context) {
@@ -592,34 +609,18 @@ class _Members extends StatelessWidget {
               for (final (ai, here) in aiLines(ais, seen, now: now))
                 // A row made for an AI online and not listed yet is the dashboard's: there is nothing here to remove.
                 if (!ai.id.startsWith('live:')) AiRow(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, role: row.role, now: now, onRemove: onRemoveAi, here: here),
+              // Invite, in a modal of its own on Email (Matt, 2026-11-04: "Open the invite section as a modal and default to email based invites").
+              if (canInvite)
+                SettingRow(
+                  key: const ValueKey('organization-invite'),
+                  icon: const AppIcon(Lucide.userPlus, size: 16),
+                  label: 'Invite people',
+                  hint: const Text('By email, by link or by their handle.'),
+                  onPress: onInvitePeople,
+                ),
             ],
           ),
         if (row.state == 'member') YourColourCard(services: services, row: row),
-        if (canInvite) InviteCard(onInvite: onInvite),
-        // Invite by email (Matt, 2026-11-03): a mailed link that opens the app, or helps get it first.
-        if (canInvite)
-          InviteEmails(
-            services: services,
-            orgId: row.id,
-            inset: true,
-            around: (panel) => PaneSection(
-              title: 'Invite by email',
-              description: const Text('We email them a link to join. It opens Ghost.md if they have it, or helps them get it first, and works once, for 14 days.'),
-              children: [panel],
-            ),
-          ),
-        if (canInvite)
-          InviteLinks(
-            services: services,
-            orgId: row.id,
-            inset: true,
-            onSend: onSendLink,
-            around: (panel) => PaneSection(
-              title: 'Invite by link',
-              description: const Text('Anyone signed in who has the link can join as a member, until it stops or you turn it off. Send it however you like.'),
-              children: [panel],
-            ),
-          ),
       ],
     );
   }
@@ -780,71 +781,6 @@ class _AiRowState extends State<AiRow> {
       hint: Text(_problem ?? _online() ?? aiLine(ai, me: widget.me, now: widget.now), key: const ValueKey('ai-hint')),
       layout: canRemove ? SettingRowLayout.stacked : SettingRowLayout.trailing,
       control: canRemove ? Align(alignment: AlignmentDirectional.centerStart, child: RowAction(key: const ValueKey('ai-remove'), onPress: () => unawaited(_remove()), disabled: _busy, child: const Text('Remove'))) : null,
-    );
-  }
-}
-
-/// Invite by handle (`Invite`): they get an invitation in their notifications, and join once they accept.
-class InviteCard extends StatefulWidget {
-  const InviteCard({super.key, required this.onInvite});
-  final Future<void> Function(String handle) onInvite;
-
-  @override
-  State<InviteCard> createState() => _InviteCardState();
-}
-
-class _InviteCardState extends State<InviteCard> {
-  String _handle = '';
-  bool _busy = false;
-  String? _problem;
-  String? _said;
-
-  Future<void> _submit() async {
-    final clean = _handle.trim();
-    if (clean.isEmpty || _busy) return;
-    setState(() {
-      _busy = true;
-      _problem = null;
-      _said = null;
-    });
-    try {
-      await widget.onInvite(clean);
-      if (mounted) {
-        setState(() {
-          _said = '$clean is invited. They see it in their notifications.';
-          _handle = '';
-        });
-      }
-    } catch (failure) {
-      if (mounted) setState(() => _problem = accountFailureText(failure));
-    }
-    if (mounted) setState(() => _busy = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final words = _problem ?? _said;
-    return PaneSection(
-      title: 'Invite',
-      description: const Text('By handle. They get an invitation in their notifications, with Accept and Decline, and join once they accept.'),
-      children: [
-        SettingsForm(
-          children: [
-            GlacierInput(
-              ariaLabel: 'Handle',
-              placeholder: 'Handle',
-              autoCapitalize: TextCapitalization.none,
-              autoCorrect: false,
-              spellCheck: false,
-              value: _handle,
-              onChange: (text) => setState(() => _handle = text),
-              onSubmitted: (_) => unawaited(_submit()),
-            ),
-            if (words != null) FormProblem(words),
-            FormSubmit(wordKey: const ValueKey('organization-invite'), _busy ? 'One moment…' : 'Invite', onPressed: _busy || _handle.trim().isEmpty ? null : () => unawaited(_submit())),
-          ],
-        ),
-      ],
     );
   }
 }

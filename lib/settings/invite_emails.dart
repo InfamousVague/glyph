@@ -26,7 +26,7 @@ import 'kit/settings_type.dart';
 /// heading [around] would have put over the panel included; where it has them but sends no mail, the panel says so in
 /// place of the field.
 class InviteEmails extends StatefulWidget {
-  const InviteEmails({super.key, required this.services, required this.orgId, this.inset = false, this.around, this.now});
+  const InviteEmails({super.key, required this.services, required this.orgId, this.inset = false, this.around, this.now, this.missing, this.autoFocus = false});
 
   final AccountServices services;
   final String orgId;
@@ -39,6 +39,13 @@ class InviteEmails extends StatefulWidget {
 
   /// This moment, in ms, for "Sent 2 hours ago"; the clock's when left out.
   final int Function()? now;
+
+  /// What is drawn where the service has no email invitations yet, in place of nothing: the invite modal's Email tab
+  /// (lib/orgs/ui/invite_sheet.dart), which would otherwise stand empty.
+  final Widget? missing;
+
+  /// The address field takes the focus as it is drawn: the invite modal opens on it.
+  final bool autoFocus;
 
   @override
   State<InviteEmails> createState() => _InviteEmailsState();
@@ -169,7 +176,7 @@ class _InviteEmailsState extends State<InviteEmails> {
 
   @override
   Widget build(BuildContext context) {
-    if (_missing) return const SizedBox.shrink();
+    if (_missing) return widget.missing ?? const SizedBox.shrink();
     final t = context.tokens;
     final sm = t.fontSize('sm'), xs = t.fontSize('xs');
     final quiet = pageText(t, sm, color: t.color('app-ink-2'));
@@ -205,6 +212,7 @@ class _InviteEmailsState extends State<InviteEmails> {
                 ariaLabel: 'Email address',
                 placeholder: 'name@example.com',
                 type: GlacierInputType.email,
+                autoFocus: widget.autoFocus,
                 autoCapitalize: TextCapitalization.none,
                 autoCorrect: false,
                 spellCheck: false,

@@ -4,12 +4,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/home/home_organizations.dart';
 import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/invite_actions.dart';
+import 'package:ghost_md/settings/invite_emails.dart';
 import 'package:ghost_md/settings/invite_links.dart';
 import 'package:glacier/glacier.dart';
 
@@ -189,16 +191,60 @@ void main() {
       final id = await ghost(device);
       await page(tester, device, id);
       expect(members(tester), hasLength(1));
-      await typeInto(tester, 'Invite by handle', 'nobody');
+      // The hero's Invite opens the invite modal on Email (Matt, 2026-11-04); Handle is a segment along.
+      await openInvite(tester, from: 'org-invite');
+      expect(inviteWay(tester), 'email');
+      expect(find.text('Invite to Ghost'), findsOneWidget);
+      await inviteBy(tester, 'Handle');
+      expect(inviteWay(tester), 'handle');
+      await typeInto(tester, 'Handle', 'nobody');
       await tapKey(tester, 'org-invite-submit');
       await settle(tester, 10);
       expect(find.text('No one has that handle.'), findsOneWidget);
-      await typeInto(tester, 'Invite by handle', 'lee');
+      await typeInto(tester, 'Handle', 'lee');
       await tapKey(tester, 'org-invite-submit');
       await settle(tester, 10);
       expect(find.text('lee is invited. They see it in their notifications.'), findsOneWidget);
+      await closeInvite(tester);
       expect(members(tester), hasLength(2));
       expect(members(tester)[1], contains('Invited'));
+      await endSettings(tester);
+    });
+
+    testWidgets('sends an email invitation from the invite modal, shows the links under Link, and keeps the inline page free of them', (tester) async {
+      final device = await Device.make(peers: const ['sam', 'lee']);
+      final id = await ghost(device);
+      await page(tester, device, id);
+      // Nothing to invite with on the page itself: Invite is the modal's.
+      expect(find.byType(InviteEmails), findsNothing);
+      expect(find.byType(InviteLinks), findsNothing);
+      await openInvite(tester, from: 'org-invite');
+      expect(find.byKey(const ValueKey('invite-sheet-note')), findsOneWidget);
+      await typeInto(tester, 'Email address', 'kim@example.com');
+      await tapKey(tester, 'invite-email-send');
+      await settle(tester, 10);
+      expect(device.service.mailed.single.to, 'kim@example.com');
+      expect(find.text('Invitation sent to kim@example.com. The link in it works once, for 14 days.'), findsOneWidget);
+      await inviteBy(tester, 'Link');
+      expect(inviteWay(tester), 'link');
+      expect(find.byKey(const ValueKey('invite-link-new')), findsOneWidget);
+      expect(find.byType(InviteEmails), findsNothing);
+      await closeInvite(tester);
+      // Opened again, it is on Email again.
+      await openInvite(tester, from: 'org-invite');
+      expect(inviteWay(tester), 'email');
+      await endSettings(tester);
+    });
+
+    testWidgets('in Simple mode the invite modal is the three ways without the sentence under them', (tester) async {
+      final device = await Device.make();
+      preferences.value = preferences.value.copyWith(experience: 'simple');
+      final id = await ghost(device);
+      await page(tester, device, id);
+      await openInvite(tester, from: 'org-invite');
+      expect(inviteWay(tester), 'email');
+      expect(find.byKey(const ValueKey('invite-sheet-note')), findsNothing);
+      expect(find.byKey(const ValueKey('invite-email-field')), findsOneWidget);
       await endSettings(tester);
     });
 
@@ -207,8 +253,8 @@ void main() {
       final id = await boo(device);
       await page(tester, device, id);
       expect(find.byKey(const ValueKey('org-invite')), findsNothing);
-      expect(find.byWidgetPredicate((w) => w is GlacierInput && w.ariaLabel == 'Invite by handle'), findsNothing);
       expect(find.byType(InviteLinks), findsNothing);
+      expect(find.byType(InviteEmails), findsNothing);
       expect(tester.widget<Text>(find.byKey(const ValueKey('org-hero-meta'))).data, contains('You are member'));
       await endSettings(tester);
     });

@@ -53,10 +53,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('dock-org-settings')));
     await settle(tester);
     expect(asked, ['claude', 'new', 'settings']);
-    // Invite is the hero's: the page goes to the invite field and puts the caret in it.
-    await tester.tap(find.byKey(const ValueKey('dock-org-invite')));
-    await settle(tester, 10);
-    expect(FocusManager.instance.primaryFocus?.debugLabel, 'Invite by handle');
+    // Invite is the hero's: the invite modal, on Email, with the caret in the address field (Matt, 2026-11-04).
+    await openInvite(tester, from: 'dock-org-invite');
+    expect(inviteWay(tester), 'email');
+    final field = find.descendant(of: find.byKey(const ValueKey('invite-email-field')), matching: find.byType(EditableText));
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
     await done(tester);
   });
 

@@ -144,17 +144,19 @@ void main() {
       final id = await ghost(device);
       await pumpSheet(tester, device, id);
       expect(member(tester, 'matt'), isNotNull);
-      await tester.ensureVisible(find.byKey(const ValueKey('organization-invite')));
+      await openInvite(tester);
+      await inviteBy(tester, 'Handle');
       await typeInto(tester, 'Handle', 'nobody');
-      await tapKey(tester, 'organization-invite');
+      await tapKey(tester, 'org-invite-submit');
       await settle(tester, 10);
       expect(find.text('No one has that handle.'), findsOneWidget);
       await typeInto(tester, 'Handle', 'sam');
-      await tapKey(tester, 'organization-invite');
+      await tapKey(tester, 'org-invite-submit');
       await settle(tester, 10);
+      expect(find.text('sam is invited. They see it in their notifications.'), findsOneWidget);
+      await closeInvite(tester);
       expect(member(tester, 'sam')?.chip, 'Invited');
       expect(tester.widget<RoleChip>(find.descendant(of: find.byKey(const ValueKey('member:sam')), matching: find.byType(RoleChip))).member?.state, 'invited');
-      expect(find.text('sam is invited. They see it in their notifications.'), findsOneWidget);
       expect(member(tester, 'sam')?.hint, startsWith('Invited by matt'));
       // An invitee can be withdrawn, not made anything.
       expect(member(tester, 'sam')?.words, ['Withdraw']);
@@ -208,7 +210,7 @@ void main() {
       expect(ai(tester, 'Cursor')?.words, ['Remove']);
       // After the people, and not counted with them.
       final order = [for (final row in tester.widgetList<SettingRow>(find.descendant(of: card('Members'), matching: find.byType(SettingRow)))) row.label];
-      expect(order, ['matt', 'sam', 'Claude', 'Cursor']);
+      expect(order, ['matt', 'sam', 'Claude', 'Cursor', 'Invite people']);
       expect(heroMeta(tester), '2 members · You are owner');
       expect(footerOf(tester, 'Members'), 'An AI reads and writes through its member’s own access, with their connector. Removing it takes it off this list, not out of the notes: it is listed again when it next reads them.');
       await removeAi(tester, 'Cursor');
@@ -298,6 +300,8 @@ void main() {
       final copied = Clipped(tester);
       final id = await ghost(device);
       await pumpSheet(tester, device, id);
+      await openInvite(tester);
+      await inviteBy(tester, 'Link');
       expect(find.text('No links yet. Make one to send to people who should join.'), findsOneWidget);
       await tapKey(tester, 'invite-link-new');
       await settle(tester);
@@ -329,7 +333,12 @@ void main() {
       final device = await Device.make();
       final id = await ghost(device);
       await pumpSheet(tester, device, id);
-      expect(find.text('INVITE BY EMAIL'), findsOneWidget);
+      // Invite people opens the modal on Email, the address field taking the caret.
+      await openInvite(tester);
+      expect(inviteWay(tester), 'email');
+      expect(find.text('Invite to Ghost'), findsOneWidget);
+      final field = find.descendant(of: find.byKey(const ValueKey('invite-email-field')), matching: find.byType(EditableText));
+      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
       await typeInto(tester, 'Email address', 'not an address');
       await tapKey(tester, 'invite-email-send');
       await settle(tester, 10);
@@ -364,43 +373,48 @@ void main() {
       device.service.sendsMail = false;
       final id = await ghost(device);
       await pumpSheet(tester, device, id);
+      await openInvite(tester);
       expect(find.text('Email invitations aren’t set up on this service yet. Send an invite link instead.'), findsOneWidget);
       expect(find.byKey(const ValueKey('invite-email-field')), findsNothing);
       await endSettings(tester);
     });
 
-    testWidgets('draws no "Invite by email" section, heading and all, on a service from before it', (tester) async {
+    testWidgets('says email invitations are not on a service from before them, with no field, and the other ways still there', (tester) async {
       final service = await FakeService.start(seed: seeded);
       final device = await Device.make(service: service, fetcher: (request) async => request.url.path.contains('/emails') ? FetchResponse(404) : service.fetcher(request));
       final id = await ghost(device);
       await pumpSheet(tester, device, id);
-      expect(find.text('INVITE BY EMAIL'), findsNothing);
-      expect(find.text('INVITE'), findsOneWidget);
+      await openInvite(tester);
+      expect(find.text('Email invitations aren’t on this service yet. Send an invite link instead.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('invite-email-field')), findsNothing);
+      await inviteBy(tester, 'Handle');
+      expect(find.byKey(const ValueKey('invite-handle-field')), findsOneWidget);
       await endSettings(tester);
     });
 
     // InviteLinks.test.tsx: "invite links on an older service draw nothing".
-    testWidgets('draws no "Invite by link" section, heading and all, on a service from before invite links', (tester) async {
+    testWidgets('says invite links are not on a service from before them', (tester) async {
       final service = await FakeService.start(seed: seeded);
       // The live service before its deploy: the organization's routes answer, the links' are not there.
       final device = await Device.make(service: service, fetcher: (request) async => request.url.path.contains('/links') ? FetchResponse(404) : service.fetcher(request));
       final id = await ghost(device);
       await pumpSheet(tester, device, id);
+      await openInvite(tester);
+      await inviteBy(tester, 'Link');
       expect(find.text('Reading the links…'), findsNothing);
-      expect(find.text('INVITE BY LINK'), findsNothing);
-      expect(find.textContaining('Anyone signed in who has the link'), findsNothing);
+      expect(find.byKey(const ValueKey('invite-link-new')), findsNothing);
       expect(find.byType(InviteLinks), findsOneWidget);
-      // The card by handle is still there.
-      expect(find.text('INVITE'), findsOneWidget);
+      expect(find.text('Invite links aren’t on this service yet. Invite them by handle instead.'), findsOneWidget);
       await endSettings(tester);
     });
 
-    testWidgets('shows no invite links to a member who does not manage the organization', (tester) async {
+    testWidgets('shows no Invite people, and asks for no invite links, to a member who does not manage the organization', (tester) async {
       final device = await Device.make();
       final id = await boo(device);
       await pumpSheet(tester, device, id);
       expect(member(tester, 'sam'), isNotNull);
-      expect(find.text('INVITE BY LINK'), findsNothing);
+      expect(find.byKey(const ValueKey('organization-invite')), findsNothing);
+      expect(find.text('Invite people'), findsNothing);
       expect(device.service.calls.any((call) => call.contains('/links')), isFalse);
       await endSettings(tester);
     });

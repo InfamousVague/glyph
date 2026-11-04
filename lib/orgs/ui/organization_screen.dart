@@ -7,8 +7,8 @@
 /// name with its colour, the clock to its audit log and the cog to its settings; under it the scroller with its
 /// smoke. On it, in order: the other organizations as pills, when there is more than one; the hero (the colour,
 /// the name, how many and what you are, what its workspace is, New and Invite); the newest notes filed in its
-/// workspace, as cards; the members with their roles, your colour here, and for an owner or an admin the invite
-/// field and the invite links; and the activity, the organization's own news from the feed, newest first.
+/// workspace, as cards; the members with their roles and your colour here; and the activity, the organization's own
+/// news from the feed, newest first. Invite, for an owner or an admin, opens the invite modal (invite_sheet.dart).
 ///
 /// On a page 44rem wide the members stand beside the notes and the activity. Invited and not yet a member, the
 /// page is the invitation with Accept and Decline; gone from the list, it says so. Signed out or with Local only
@@ -49,7 +49,6 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -75,14 +74,13 @@ import '../../notes/pull_to_refresh.dart';
 import '../../notes/when.dart';
 import '../../notes/workspace_swatch.dart';
 import '../../settings/invite_actions.dart';
-import '../../settings/invite_emails.dart';
-import '../../settings/invite_links.dart';
 import '../../settings/kit/settings_kit.dart' show GoWord, SettingsWord;
 import '../../sheet/css.dart';
 import '../../shell/header_pane.dart';
 import '../../shell/page_dock.dart';
 import '../orgs.dart';
 import 'org_news.dart';
+import 'invite_sheet.dart';
 import 'parts.dart';
 import 'teamspace_home.dart';
 
@@ -208,8 +206,8 @@ class OrganizationScreen extends StatefulWidget {
 
 class _OrganizationScreenState extends State<OrganizationScreen> {
   final ScrollController _scroller = ScrollController();
-  final FocusNode _inviteFocus = FocusNode(debugLabel: 'Invite by handle');
-  final GlobalKey _inviteKey = GlobalKey(debugLabel: 'invite field');
+  /// Whether the invite modal is up (lib/orgs/ui/invite_sheet.dart).
+  bool _inviting = false;
   Org? _org;
   String? _problem;
   Object? _readFor;
@@ -260,7 +258,6 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     _prefs.removeListener(_changed);
     _services?.workspaces?.removeListener(_changed);
     _scroller.dispose();
-    _inviteFocus.dispose();
     super.dispose();
   }
 
@@ -307,11 +304,9 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     if (_row?.state == 'member') await _read();
   }
 
-  void _toInvite() {
-    final at = _inviteKey.currentContext;
-    if (at != null) unawaited(Scrollable.ensureVisible(at, alignment: 0.5, duration: context.tokens.reducedMotion ? Duration.zero : const Duration(milliseconds: 300), curve: Curves.easeOut));
-    _inviteFocus.requestFocus();
-  }
+  /// Invite, from the hero or the dock: the invite modal, on Email (Matt, 2026-11-04: "Open the invite section as a
+  /// modal and default to email based invites").
+  void _toInvite() => setState(() => _inviting = true);
 
   @override
   Widget build(BuildContext context) {
@@ -536,56 +531,6 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
         ),
         // Your colour in this organization (docs/SHARED.md, S7), under the members, where it is worn.
         _YourColour(services: services!, row: row),
-        if (canInvite)
-          _Invite(
-            fieldKey: _inviteKey,
-            focusNode: _inviteFocus,
-            onInvite: (handle) async {
-              await services.orgs!.inviteByHandle(widget.orgId, handle);
-              // The key wrapped for them now (docs/SHARED.md, S2), so the team's notes are theirs the moment they accept.
-              unawaited(services.syncNotificationsNow());
-              await _read();
-            },
-          ),
-        // Invite by email (Matt, 2026-11-03): a mailed link that opens the app, or helps get it first.
-        if (canInvite)
-          InviteEmails(
-            services: services,
-            orgId: widget.orgId,
-            now: widget.now,
-            around: (panel) => Padding(
-              padding: EdgeInsets.only(top: t.space(4)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Invite by email', style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
-                  SizedBox(height: t.space(1)),
-                  panel,
-                ],
-              ),
-            ),
-          ),
-        if (canInvite)
-          InviteLinks(
-            services: services,
-            orgId: widget.orgId,
-            onSend: widget.onSendLink,
-            now: widget.now,
-            around: (panel) => Padding(
-              // `.byLink { margin-block-start: var(--glacier-space-4) }`, over the section's own gap.
-              padding: EdgeInsets.only(top: t.space(4)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Invite by link', style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
-                  SizedBox(height: t.space(1)),
-                  panel,
-                ],
-              ),
-            ),
-          ),
       ]);
 
       final activity = section([
@@ -729,6 +674,21 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                   return dockSeam == null ? body : PageDockFrame(seam: dockSeam, actions: dockRings, foot: dockFoot, child: body);
                 }(),
               ),
+              if (_inviting && canInvite && !held)
+                InviteSheet(
+                  services: services!,
+                  orgId: widget.orgId,
+                  name: row.name,
+                  now: widget.now,
+                  onSendLink: widget.onSendLink,
+                  onClose: () => setState(() => _inviting = false),
+                  onInvite: (handle) async {
+                    await services.orgs!.inviteByHandle(widget.orgId, handle);
+                    // The key wrapped for them now (docs/SHARED.md, S2), so the team's notes are theirs the moment they accept.
+                    unawaited(services.syncNotificationsNow());
+                    await _read();
+                  },
+                ),
               HeaderPane(
                 child: Padding(
                   key: const ValueKey('organization-bar'),
@@ -1404,87 +1364,6 @@ class _YourColourState extends State<_YourColour> {
             if (problem != null) Semantics(liveRegion: true, child: Text(problem, style: pageText(t, sm, color: t.color('app-ink-2')))),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// The invite field, for an owner or an admin (the dashboard's `Invite`): a handle in, the service's answer under
-/// it in its own words.
-class _Invite extends StatefulWidget {
-  const _Invite({required this.fieldKey, required this.focusNode, required this.onInvite});
-  final Key fieldKey;
-  final FocusNode focusNode;
-  final Future<void> Function(String handle) onInvite;
-
-  @override
-  State<_Invite> createState() => _InviteState();
-}
-
-class _InviteState extends State<_Invite> {
-  String _handle = '';
-  bool _busy = false;
-  String? _problem;
-  String? _said;
-
-  Future<void> _submit() async {
-    final clean = _handle.trim();
-    if (clean.isEmpty || _busy) return;
-    setState(() {
-      _busy = true;
-      _problem = null;
-      _said = null;
-    });
-    try {
-      await widget.onInvite(clean);
-      if (mounted) {
-        setState(() {
-          _said = '$clean is invited. They see it in their notifications.';
-          _handle = '';
-        });
-      }
-    } catch (failure) {
-      if (mounted) setState(() => _problem = accountFailureText(failure));
-    }
-    if (mounted) setState(() => _busy = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final words = _problem ?? _said;
-    return Padding(
-      // `.invite { margin-block-start: var(--glacier-space-1) }`
-      padding: EdgeInsets.only(top: t.space(1)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: GlacierInput(
-                  key: widget.fieldKey,
-                  focusNode: widget.focusNode,
-                  ariaLabel: 'Invite by handle',
-                  placeholder: 'Invite by handle',
-                  autoCapitalize: TextCapitalization.none,
-                  autoCorrect: false,
-                  spellCheck: false,
-                  value: _handle,
-                  onChange: (text) => setState(() => _handle = text),
-                  onSubmitted: (_) => unawaited(_submit()),
-                ),
-              ),
-              SizedBox(width: t.space(2)),
-              OrgAction(key: const ValueKey('org-invite-submit'), label: _busy ? 'One moment…' : 'Invite', onPressed: _busy || _handle.trim().isEmpty ? null : () => unawaited(_submit())),
-            ],
-          ),
-          if (words != null) ...[
-            SizedBox(height: t.space(2)),
-            Semantics(liveRegion: true, child: Text(words, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')))),
-          ],
-        ],
       ),
     );
   }

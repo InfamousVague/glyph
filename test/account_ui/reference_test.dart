@@ -15,8 +15,6 @@ import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/account_forms.dart';
-import 'package:ghost_md/settings/invite_emails.dart';
-import 'package:ghost_md/settings/invite_links.dart';
 import 'package:ghost_md/shell/account_gate.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:glacier/glacier.dart';
@@ -83,26 +81,18 @@ void main() {
       final under = width >= 600 ? 'xwh' : 'xywh';
       held.check('headings', [for (final words in ['Notes', 'Members']) tester.getRect(find.text(words))], dims: 'yh', only: null);
       held.check('mores', [tester.getRect(key('org-all-notes'))], only: 0);
-      // Invite by email (lib/settings/invite_emails.dart, the port's own: Matt, 2026-11-03) stands between the invite field
-      // and the links, which are held as they were, that much lower, and the activity under them with them.
-      final byEmail = Offset(0, tester.getRect(find.byType(InviteLinks)).top - tester.getRect(find.byType(InviteEmails)).top);
-      held.shift -= byEmail;
-      held.check('mores', [tester.getRect(key('org-audit-log'))], only: 1, dims: under);
-      held.shift += byEmail;
+      // The page's invite field and links under Your colour are the invite modal's here (lib/orgs/ui/invite_sheet.dart,
+      // Matt, 2026-11-04), so what is under the members stands that much higher: the page's from Your colour's foot to
+      // its New link's.
+      final inModal = Offset(0, reference.of('newLink').single.rect.bottom - reference.of('yourColour').single.rect.bottom);
       held.check('cards', rectsOf(tester, find.byType(NoteCard)), dims: width >= 600 ? 'xyw' : 'xywh');
       held.check('members', [for (final handle in ['matt', 'sam', 'lee']) tester.getRect(key('member:$handle'))]);
       held.check('avatars', rectsOf(tester, key('member-avatar')));
       held.check('roles', rectsOf(tester, find.byType(RoleChip)));
       held.check('sinces', rectsOf(tester, key('member-since')), dims: 'xyh');
       held.check('yourColour', rectsOf(tester, key('org-your-colour')), dims: 'xyh');
-      held.check('inviteInput', rectsOf(tester, find.byWidgetPredicate((w) => w is GlacierInput && w.ariaLabel == 'Invite by handle')));
-      held.check('inviteButton', rectsOf(tester, key('org-invite-submit')));
-      // On a wide page each member's row stands about 0.07 lower here than the page's, the one before it, so the
-      // invite links under them end up a little more than half a pixel down: held for their place across and size.
-      final links = width >= 600 ? 'xwh' : 'xywh';
-      held.shift -= byEmail;
-      held.check('linkRows', rectsOf(tester, find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('invite-link:'))), dims: links);
-      held.check('newLink', rectsOf(tester, key('invite-link-new')), dims: links);
+      held.shift += inModal;
+      held.check('mores', [tester.getRect(key('org-audit-log'))], only: 1, dims: under);
       held.check('news', [tester.getRect(key('news:n2')), tester.getRect(key('news:n1'))], dims: under);
       await picture(tester, 'dashboard-$width-light');
       held.done();

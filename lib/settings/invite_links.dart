@@ -30,7 +30,7 @@ import 'kit/settings_type.dart';
 /// - A device that will not copy cannot be told from one that will (the clipboard's call does not answer), so the
 ///   words that write the link out are said only when the call throws.
 class InviteLinks extends StatefulWidget {
-  const InviteLinks({super.key, required this.services, required this.orgId, this.inset = false, this.around, this.now, this.onSend});
+  const InviteLinks({super.key, required this.services, required this.orgId, this.inset = false, this.around, this.now, this.onSend, this.missing});
 
   final AccountServices services;
   final String orgId;
@@ -40,6 +40,9 @@ class InviteLinks extends StatefulWidget {
 
   /// The heading the panel sits under, drawn by the page around it and gone with it.
   final Widget Function(Widget panel)? around;
+
+  /// What is drawn where the service has no invite links yet, in place of nothing: the invite modal's Link tab.
+  final Widget? missing;
 
   /// This moment, in ms, for "Stops in 7 days"; the clock's when left out.
   final int Function()? now;
@@ -149,7 +152,7 @@ class _InviteLinksState extends State<InviteLinks> {
 
   @override
   Widget build(BuildContext context) {
-    if (_missing) return const SizedBox.shrink();
+    if (_missing) return widget.missing ?? const SizedBox.shrink();
     final t = context.tokens;
     final sm = t.fontSize('sm'), xs = t.fontSize('xs');
     final quiet = pageText(t, sm, color: t.color('app-ink-2'));

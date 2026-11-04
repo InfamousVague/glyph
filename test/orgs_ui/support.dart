@@ -2,13 +2,40 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/home/home_organizations.dart' show OrgPresence;
 import 'package:ghost_md/orgs/orgs.dart';
+import 'package:ghost_md/orgs/ui/invite_sheet.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/organization_sheet.dart';
+import 'package:ghost_md/sheet/sheet.dart';
+import 'package:glacier/glacier.dart';
 
 import '../account_ui/support.dart';
 
 export '../account_ui/support.dart';
+
+/// Opens the invite modal from what is keyed [from] (lib/orgs/ui/invite_sheet.dart): Invite people on the settings'
+/// Members, `org-invite` on the dashboard, `dock-org-invite` on its dock.
+Future<void> openInvite(WidgetTester tester, {String from = 'organization-invite'}) async {
+  await tapKey(tester, from);
+  await settle(tester, 10);
+  expect(find.byType(InviteSheet), findsOneWidget, reason: 'the invite modal');
+}
+
+/// The way the invite modal shows: `email`, `link` or `handle`.
+String? inviteWay(WidgetTester tester) => tester.widget<GlacierSegmentedControl>(find.byKey(const ValueKey('invite-sheet-ways'))).value;
+
+/// Chooses [way] in the invite modal, by its segment.
+Future<void> inviteBy(WidgetTester tester, String way) async {
+  await tester.tap(find.descendant(of: find.byKey(const ValueKey('invite-sheet-ways')), matching: find.text(way)));
+  await settle(tester, 10);
+}
+
+/// Closes the invite modal, as a tap on its scrim does.
+Future<void> closeInvite(WidgetTester tester) async {
+  tester.widget<Sheet>(find.byKey(const ValueKey('invite-sheet'))).onClose();
+  await settle(tester, 10);
+  expect(find.byType(InviteSheet), findsNothing);
+}
 
 /// The organization made by matt, as the service holds it (`ghost()`).
 Future<String> ghost(Device device, {String name = 'Ghost', String? hue = 'sea'}) async => (await device.orgs.createOrg(name, hue: hue)).id;
