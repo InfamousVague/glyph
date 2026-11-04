@@ -274,3 +274,51 @@ screenshots and review notes are in place; Apple takes no What's New for a platf
 2000005 (`b708d138-b806-41c7-8d2a-7e7aea8589ae`) was validated, uploaded and processed `VALID` on 2026-10-13 and
 the version was submitted at 16:20:02 UTC in review submission `3084faf2-e892-480c-b2c0-bb13b0c6b77a`:
 **Waiting for Review**, released automatically once approved. `docs/CUTOVER.md`, section 9, has all of it.
+
+## 2.4.19 on both platforms (2026-11-04, UTC)
+
+Matt asked to send 2.4.19, the version with the anonymous usage stats (docs/ANALYTICS.md), "to Apple and android
+with any new updates language needed". Both platforms' live version was 2.3.60 (iOS `11fd5af9-…`, macOS
+`484c0189-…`, both `READY_FOR_SALE`), nothing in review or pending, so a new version was made on each rather than
+one renumbered. The script is `ghost-md-app-store-pack/tools/store-2.4.19.mjs` (store-2.3.60.mjs's, with a `meta`
+step). **Nothing is submitted**: the App Privacy answers (docs/store/analytics-disclosures.md) are entered by hand
+first, and the main session submits after.
+
+| | iPhone | Mac App Store |
+|---|---|---|
+| Version | `e0ca990a-43fd-4af8-9751-aae4aa4fa4a1`, 2.4.19, `PREPARE_FOR_SUBMISSION`, `AFTER_APPROVAL` | `2d1a8d94-d014-4ea2-b4dc-6b5855cd91a0`, 2.4.19, `PREPARE_FOR_SUBMISSION`, `AFTER_APPROVAL` |
+| en-US localization | `d14e268f-b06d-4ddd-bc3a-42e88dcbcf01` | `342ac2d8-086b-485e-9cc9-680b7b0443b7` |
+| Review detail | `9b7402f4-24fe-4c2e-b95c-5202b5917195` | `7e6fcbf2-df77-48a0-8757-f9f79b99fea9` |
+| Build | **none: blocked, see below** | 2004019, `80622879-3f29-4576-9edd-814190519b00`, `VALID`, `usesNonExemptEncryption` false, attached |
+| Screenshots | 2.3.60's, carried over: `APP_IPHONE_67` 10, `APP_IPHONE_DUO` 10 | 2.3.60's: `APP_DESKTOP` 9 |
+
+- **The Mac build**: `tool/cutover-build-mac-store.sh 2.4.19` from ef397f54 (the `+` is the tree's unrelated
+  test report and fixtures), the core rebuilt by the script, the usage stats' key in. `altool --validate-app`
+  "VERIFY SUCCEEDED with no errors, 1 warning" (90889, no provisioning profile so not for TestFlight, as every
+  Mac store build so far), uploaded 20:38 (delivery 80622879-…), `VALID` by 20:39.
+- **The iPhone build stopped at the export** (`build/ios-store/export.log`): "PLA Update available … your team's
+  Account Holder, Matt Wisniewski, must agree to the latest Program License Agreement", and "No profiles for
+  'com.mattssoftware.glyph.activity' were found". The Live Activity extension (ios/GhostActivity, 2026-10-29)
+  came after 2.3.60 and had never been signed for a device; with the agreement unaccepted Xcode cannot register
+  its id or make its profile, and the API refuses the bundle ids and profiles too (403
+  `FORBIDDEN_ERROR.PLA_NOT_ACCEPTED`). Versions, words and uploads were not refused. The way on: Matt accepts the
+  agreement at developer.apple.com (Account), then `tool/cutover-build-ios.sh 2.4.19` again (build 2004019; no
+  `--build 2` needed, nothing reached Apple). If the key is still refused for the extension's id, register
+  `com.mattssoftware.glyph.activity` by hand under Identifiers (a Live Activity needs no capability).
+- **What's New** (en-US), written fresh for each platform since 2.3.60 from assets/changelog.json, leaving out
+  what that build does not do (on an iPhone: the workspace import, the meeting bot's pages, team chat, publishing,
+  recording; on the Mac, Show in Finder, unchecked in the sandbox). The texts are the script's `whatsNew`; the
+  usage-stats line opens both. Brand-checked by the script (one more word than 2.3.60's list: "Teamspaces" became
+  "Team spaces", the list catching "teams").
+- **Description**, both platforms, two sentences in SYNC AND PRIVACY and nothing else
+  (docs/store/analytics-disclosures.md): "nothing of yours is on any server" → "none of them is on any server",
+  and "No ads, no analytics, no tracking." → "No ads, no tracking; usage stats are anonymous and can be turned
+  off." Promotional text and keywords are 2.3.60's, word for word (promotional text set again, as it does not
+  come across by itself).
+- **Review notes**: 2.3.60's, with one sentence before the test account: "The app sends optional anonymous usage
+  statistics (feature counts, no content, no account link); people can turn them off in Settings › Privacy or
+  during onboarding."
+- **Export compliance**: as since 2.0.5, `ITSAppUsesNonExemptEncryption` false in the Info.plist (the Mac script
+  adds it), so App Store Connect asks nothing more; the Mac build reads `usesNonExemptEncryption` false.
+- **App Privacy is not in the App Store Connect API** (every path 404s); it is entered on the app's App Privacy
+  page by hand, then published. The answers: docs/store/analytics-disclosures.md.

@@ -120,7 +120,7 @@ WORKSPACES AND TEAMS
 File notes under workspaces to keep work and home apart. With an account, make an organization and invite people by their handle. It gets a workspace of its own on each member's devices.
 
 SYNC AND PRIVACY
-No account is needed. Without one, your notes stay on your iPhone and nothing of yours is on any server. Sign in and your notes are the same on your iPhone, on a Mac and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. The AI assistant sees only what you ask it and the notes it reads to answer, sent to your AI provider with your own key. Delete the account in Settings and everything it kept goes with it. No ads, no analytics, no tracking.
+No account is needed. Without one, your notes stay on your iPhone and none of them is on any server. Sign in and your notes are the same on your iPhone, on a Mac and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. The AI assistant sees only what you ask it and the notes it reads to answer, sent to your AI provider with your own key. Delete the account in Settings and everything it kept goes with it. No ads, no tracking; usage stats are anonymous and can be turned off.
 ```
 
 ## What's New, 2.3.1 (4,000)
@@ -486,7 +486,7 @@ WORKSPACES AND TEAMS
 File notes under workspaces to keep work and home apart. With an account, make an organization and invite people by their handle. It gets a workspace of its own on each member's devices.
 
 SYNC AND PRIVACY
-No account is needed. Without one, your notes stay on your Mac and nothing of yours is on any server. Sign in and your notes are the same on your Mac, on an iPhone and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. The AI assistant sees only what you ask it and the notes it reads to answer, sent to your AI provider with your own key. Delete the account in Settings and everything it kept goes with it. No ads, no analytics, no tracking.
+No account is needed. Without one, your notes stay on your Mac and none of them is on any server. Sign in and your notes are the same on your Mac, on an iPhone and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. The AI assistant sees only what you ask it and the notes it reads to answer, sent to your AI provider with your own key. Delete the account in Settings and everything it kept goes with it. No ads, no tracking; usage stats are anonymous and can be turned off.
 ```
 
 What's New:

@@ -26,6 +26,13 @@ Analytics** (only Analytics; not App Functionality, not Product Personalization)
 The answers already given (User ID, Other User Content, Photos or Videos, Audio Data, each linked, App Functionality)
 are unchanged.
 
+**Entering them** (App Store Connect › Ghost Markdown › App Privacy; one set for the iPhone and the Mac; the App Store
+Connect API has no App Privacy resource, so this is by hand, checked 2026-11-04): Edit under Data Types, tick the four
+above beside the four already ticked, Save; then for each of the four, Set Up: *How is it used?* Analytics only;
+*Is it linked to the user's identity?* No; *Is it used for tracking?* No; Save. The page then shows them under "Data
+Not Linked to You". Publish, so the label matches the 2.4.19 binaries before they are submitted. "Data Used to Track
+You" stays empty.
+
 **The privacy manifest.** `ios/Runner/PrivacyInfo.xcprivacy` and `macos/Runner/PrivacyInfo.xcprivacy` (the Mac App
 Store build's) now declare the same four, each `NSPrivacyCollectedDataTypeLinked` false,
 `NSPrivacyCollectedDataTypeTracking` false, purpose `NSPrivacyCollectedDataTypePurposeAnalytics`:
@@ -73,12 +80,13 @@ Every claim of "no analytics" in the store copy, and what it says now:
 | `tauri/docs/store/PLAY_STORE.md` (Data safety plan) | “Anything else (contacts, analytics, crash logs) \| No” | as above (to change when the form is sent) |
 | `tauri/docs/store/play/copy/full-2026-10-05.txt` | (what was pasted on 2026-10-05; not a no-analytics claim, and a dated record) | unchanged |
 
-The App Store copy (`tauri/docs/store/apple/listing.md`) makes no "no analytics" claim; its "No tracking." in
-APP_STORE.md is still true (Apple's tracking means linking with other companies' data, and nothing is). One sentence
-in both stores' descriptions is worth softening, though it does not name analytics: “Without one, your notes stay on
-your iPhone and nothing of yours is on any server.” Suggested: “Without one, your notes stay on your iPhone and none
-of them is on any server.” (iPhone, Mac, and the Play listing's “without one nothing of yours is on any server” →
-“without one none of your notes is on any server”). Not changed.
+**The App Store copy did claim it** (found 2026-11-04 in App Store Connect: the iPhone's and the Mac's description
+both ended SYNC AND PRIVACY with "No ads, no analytics, no tracking.", and `tauri/docs/store/apple/listing.md` had
+it too). On the 2.4.19 versions both sentences were changed, and nothing else: “nothing of yours is on any server” →
+“none of them is on any server”, and “No ads, no analytics, no tracking.” → “No ads, no tracking; usage stats are
+anonymous and can be turned off.” (tauri/docs/store/APP_STORE.md, "2.4.19 on both platforms"). Apple's "tracking"
+means linking with other companies' data, which nothing does, so "no tracking" stands. The Play listing's “without
+one nothing of yours is on any server” → “without one none of your notes is on any server” is still to make.
 
 **The Play full description was already over 4,000 characters on main** (4,059 by `copy/check.mjs`); with the
 sentence above it is 4,094. Something else has to be cut before it is pasted.
@@ -98,7 +106,9 @@ App Store (4,000) and Play release notes (500):
 > better. They're on by default, and you can turn them off in Settings › Privacy or on the walkthrough's privacy page.
 > Also: choose Lovart's image model in its settings.
 
-(218 characters; drop the last sentence if 2.4.18 already shipped with its own notes.)
+(218 characters; drop the last sentence if 2.4.18 already shipped with its own notes.) **Not for the App Store as
+written**: "Lovart" is a third party's name, which Apple refused twice under 4.1(a). The App Store's 2.4.19 What's New
+is ghost-md-app-store-pack/tools/store-2.4.19.mjs `whatsNew`, which says "the image generation plugin".
 
 ## Terms of service
 
