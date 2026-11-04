@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.4.16",
+    "date": "2026-11-04",
+    "title": "Notion into its own organization",
+    "items": [
+      {"icon": "users", "words": "Importing from Notion makes a new organization named after your Notion workspace, so your team can join it.", "kind": "new"},
+      {"icon": "trash-2", "words": "Remove what was imported moves the notes that came from Notion to the Trash, keeping your own.", "kind": "new"},
+      {"icon": "palette", "words": "A new Field journal header style, sepia ink and watercolour, in place of Rough sketch.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.15",
     "date": "2026-11-04",
     "title": "Notion kept in sync",
