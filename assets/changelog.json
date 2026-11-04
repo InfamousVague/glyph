@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.22",
+    "date": "2026-11-04",
+    "title": "Header images in their own colours",
+    "items": [
+      {"icon": "image", "words": "Header images are never turned to their negative in dark mode; every one shows in its own colours.", "kind": "fixed"}
+    ]
+  },
+  {
     "version": "2.4.21",
     "date": "2026-11-04",
     "title": "Maps in colour",

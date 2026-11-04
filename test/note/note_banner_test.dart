@@ -157,15 +157,6 @@ void main() {
       debugDisableShadows = true;
     });
 
-    test('is drawn in the page\'s inks: white is the paper and black the ink', () {
-      const ink = Color(0xFF101010), paper = Color(0xFFF5F0E6);
-      final matrix = inkOnPaper(ink, paper).toString();
-      expect(matrix, contains('matrix'));
-      // Each channel: out = ink + (paper - ink) × in, so in 0 is the ink and in 1 the paper.
-      double channel(double inkC, double paperC, double v) => inkC + (paperC - inkC) * v;
-      expect(channel(ink.r, paper.r, 0), ink.r);
-      expect(channel(ink.r, paper.r, 1), closeTo(paper.r, 1e-9));
-    });
   });
 
   Future<Uint8List> png(Color fill, {Color? dots}) async {
@@ -183,7 +174,7 @@ void main() {
     return data!.buffer.asUint8List();
   }
 
-  testWidgets('a banner in colour is drawn in its own colours; one in black and white in the page\'s inks (Matt, 2026-10-26)', (tester) async {
+  testWidgets('every banner is drawn in its own colours, never turned over in dark mode (Matt, 2026-11-04: "just remove the invert logic all together")', (tester) async {
     forgetBannerColours();
     final colour = (await tester.runAsync(() => png(const Color(0xFFFFFFFF), dots: const Color(0xFFD9482B))))!;
     final grey = (await tester.runAsync(() => png(const Color(0xFFFFFFFF), dots: const Color(0xFF222222))))!;
@@ -197,7 +188,7 @@ void main() {
       return tester.widgetList(find.descendant(of: find.byType(NoteBannerView), matching: find.byType(ColorFiltered))).length;
     }
     expect(await filters('lovart-colour.png'), 0, reason: 'turned over, its reds would come out cyan');
-    expect(await filters('lovart-grey.png'), 1, reason: 'black dots turn to light on the dark page, as before');
+    expect(await filters('lovart-grey.png'), 0, reason: 'the black-and-white ones too, since 2026-11-04');
     debugDisableShadows = true;
   });
 

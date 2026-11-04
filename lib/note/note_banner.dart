@@ -6,8 +6,10 @@
 /// such a banner sits on the light page with no white box round it and turns over on the dark one, dots of light on
 /// the night page. Since 2026-10-26 they are made in full colour (Matt: "The dotwork pre prompts should be full color
 /// like the grocery store item from earlier"), and a picture in colour is drawn in its own colours: turned over, its
-/// reds would come out cyan. Which a banner is, is read from the picture itself once ([bannerInColour]), so the black
-/// and white ones already made keep turning over and nothing in the note says which it is.
+/// reds would come out cyan. Since 2026-11-04 no banner is turned over at all (Matt: "on dark mode the images are
+/// inverted for some reason in the header", a painting drawn as its negative, then "just remove the invert logic all
+/// together"): every one is drawn in its own colours, the old dotwork too. Whether one is in colour is still read
+/// ([bannerInColour]), for the redo of black-and-white banners (Settings › Lovart).
 library;
 
 import 'dart:async';
@@ -31,13 +33,6 @@ import '../shell/pop_menu.dart';
 
 /// The tallest a banner is drawn, past which a wide window's banner keeps this height and is cropped to its middle.
 const double noteBannerMaxHeight = 420;
-
-/// A colour filter that draws a black-on-white picture in [ink] on [paper]: each channel's white is the paper's,
-/// its black the ink's, and the greys between.
-ColorFilter inkOnPaper(Color ink, Color paper) {
-  List<double> row(double inkC, double paperC, int at) => [for (var i = 0; i < 3; i += 1) i == at ? paperC - inkC : 0, 0, inkC * 255];
-  return ColorFilter.matrix(<double>[...row(ink.r, paper.r, 0), ...row(ink.g, paper.g, 1), ...row(ink.b, paper.b, 2), 0, 0, 0, 1, 0]);
-}
 
 /// How far apart a pixel's channels are before it counts as coloured, of 255: a grey's are equal, and a JPEG's
 /// noise and a warm paper stay under it.
@@ -295,8 +290,7 @@ class _LandingState extends State<_Landing> with SingleTickerProviderStateMixin 
   }
 }
 
-/// The banner at its shape ([BannerLook.shape]) with its drawing in the middle, in the page's inks while it is black
-/// and white (or not yet read), in its own colours once it is read to be in colour.
+/// The banner at its shape ([BannerLook.shape]) with its drawing in the middle, always in its own colours.
 class _BannerPicture extends StatefulWidget {
   const _BannerPicture({required this.name, required this.store, required this.width, required this.radius});
 
@@ -337,7 +331,6 @@ class _BannerPictureState extends State<_BannerPicture> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     final name = widget.name, store = widget.store, width = widget.width;
     final height = math.min(width / _look.shape, noteBannerMaxHeight);
     final kept = KeptPicture(name: name, store: store, badge: false, waiting: SizedBox(width: width, height: height));
@@ -346,7 +339,6 @@ class _BannerPictureState extends State<_BannerPicture> {
     Widget picture = identical(_look, BannerLook.unread)
         ? FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: kept)
         : ClipRect(child: Stack(children: [Positioned.fromRect(rect: _look.placeIn(Size(width, height)), child: FittedBox(fit: BoxFit.cover, child: kept))]));
-    if (!_look.colour) picture = ColorFiltered(colorFilter: inkOnPaper(t.color('app-ink'), t.color('app-paper')), child: picture);
     return Semantics(
       label: 'Header image',
       image: true,
