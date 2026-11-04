@@ -84,7 +84,10 @@ const API = 'https://ghostmarkdown.com/api';
 
 /** .env, with the token and the Notion and Google credentials checked for shape as well as presence. */
 function loadServerEnv() {
-  const env = loadEnv([...BOX_ENV_KEYS, 'VITE_GLYPH_API_TOKEN']);
+  const env = loadEnv([...BOX_ENV_KEYS, 'VITE_GLYPH_API_TOKEN', 'MAILGUN_API_KEY']);
+  // The account's Mailgun key, which the mail diagnosis already uses, sends the invitations where no key of its own is
+  // set (2026-11-03, Matt: "Deploy when ready"): a Mailgun API key sends through any of the account's domains.
+  if (!env.GLYPH_MAILGUN_API_KEY && env.MAILGUN_API_KEY) env.GLYPH_MAILGUN_API_KEY = env.MAILGUN_API_KEY;
   // The shape is checked because the value is interpolated into a heredoc on
   // the box: hex cannot close a heredoc or start a command substitution.
   if (!/^[0-9a-f]{64}$/.test(env.VITE_GLYPH_API_TOKEN)) {
