@@ -80,6 +80,8 @@ pub struct Accounts {
     pub pokes: Arc<crate::live::Pokes>,
     /// The meetings Ghost is in, their captions sealed as they come, for the account's devices (meet/live.rs).
     pub captions: Arc<crate::meet::live::LiveCaptions>,
+    /// Mail the service sends: email invitations to an organization (outbox.rs, orgs.rs). The tests' keeps them.
+    pub outbox: Arc<crate::outbox::Outbox>,
     issuer: Issuer,
     challenges: Challenges,
     by_address: guard::RateLimiter<IpAddr>,
@@ -104,6 +106,10 @@ impl Accounts {
             store,
             pokes: Arc::default(),
             captions: Arc::default(),
+            #[cfg(not(test))]
+            outbox: Arc::new(crate::outbox::Outbox::from_env()),
+            #[cfg(test)]
+            outbox: Arc::new(crate::outbox::Outbox::kept()),
             issuer,
             challenges: Challenges::default(),
             by_address: guard::RateLimiter::new(SIGN_IN_PER_ADDRESS, now),

@@ -6,6 +6,12 @@
 //! joins as a member, told to every member as a joining is, with the link's maker as the one who asked. A person
 //! already in is answered the organization and counts no use; one with an invitation waiting has it accepted; one who
 //! declined within the day joins anyway, since following a link is asking to. The organization's cap on people holds.
+//!
+//! An invitation by email (Matt, 2026-11-03: "email invites to join orgs") is a link of this table too: one use, a
+//! fortnight, and the address it was mailed to (`email`), so the people who manage the organization see it waiting and
+//! can send it again or turn it off. It is listed apart from the links ([EmailInvite]) and counts against neither the
+//! links' cap nor theirs against it, and its row is deleted - the address with it - once it is used, turned off or has
+//! expired (`sweep_email_invites`, hourly), so an address is kept no longer than the invitation could be followed.
 
 use super::notifications::Notice;
 use super::orgs::{INVITED, MEMBER};
@@ -43,6 +49,30 @@ const LINK_SELECT: &str = "SELECT l.id, l.code, l.created_at, l.expires_at, l.ma
 /// The rows still working at `now`: not expired, not used up.
 const WORKING: &str = "(l.expires_at IS NULL OR l.expires_at > ?2) AND (l.max_uses IS NULL OR l.uses < l.max_uses)";
 
+/// An invitation by email, as the people who manage the organization see it: the address, and when it was made, was
+/// last mailed and stops.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmailInvite {
+    pub id: String,
+    pub email: String,
+    pub created_at: i64,
+    pub expires_at: Option<i64>,
+    pub sent_at: Option<i64>,
+    /// The handle of who sent it, while their account is there.
+    pub by: Option<String>,
+}
+
+/// What a mailing needs: the invitation, its code for the link, and the organization's name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmailMailing {
+    pub invite: EmailInvite,
+    pub code: String,
+    pub org_name: String,
+}
+
+const EMAIL_SELECT: &str = "SELECT l.id, l.email, l.created_at, l.expires_at, l.sent_at, \
+    (SELECT handle FROM accounts WHERE id = l.made_by), l.code FROM org_links l";
+
 impl Store {
     fn link_row(r: &Row<'_>) -> rusqlite::Result<OrgLink> {
         Ok(OrgLink { id: r.get(0)?, code: r.get(1)?, created_at: r.get(2)?, expires_at: r.get(3)?, max_uses: r.get(4)?, uses: r.get(5)?, by: r.get(6)? })
@@ -50,7 +80,7 @@ impl Store {
 
     /// The organization's working links, newest first.
     fn links_in(conn: &Connection, org: &str, now: i64) -> rusqlite::Result<Vec<OrgLink>> {
-        let mut stmt = conn.prepare(&format!("{LINK_SELECT} WHERE l.org_id = ?1 AND {WORKING} ORDER BY l.created_at DESC, l.rowid DESC"))?;
+        let mut stmt = conn.prepare(&format!("{LINK_SELECT} WHERE l.org_id = ?1 AND l.email IS NULL AND {WORKING} ORDER BY l.created_at DESC, l.rowid DESC"))?;
         let links = stmt.query_map(params![org, now], Self::link_row)?.filter_map(Result::ok).collect();
         Ok(links)
     }
@@ -161,6 +191,8 @@ impl Store {
             params![org, account, asker, now],
         )?;
         tx.execute("UPDATE org_links SET uses = uses + 1 WHERE code = ?1", params![code])?;
+        // An invitation by email is used once, and its address goes with it.
+        tx.execute("DELETE FROM org_links WHERE code = ?1 AND email IS NOT NULL", params![code])?;
         // An invitation that was waiting is answered by the joining, as accepting it would have answered it.
         Self::settle_invite(&tx, account, &org, "accepted", false, now)?;
         let name = Self::org_name(&tx, &org)?;
@@ -173,6 +205,97 @@ impl Store {
         let joined = Self::org_in(&tx, account, &org)?.ok_or(OrgWrite::Failed)?;
         tx.commit()?;
         Ok(joined)
+    }
+
+    // --- invitations by email -----------------------------------------------------------------------------------------
+
+    fn email_row(r: &Row<'_>) -> rusqlite::Result<(EmailInvite, String)> {
+        Ok((EmailInvite { id: r.get(0)?, email: r.get(1)?, created_at: r.get(2)?, expires_at: r.get(3)?, sent_at: r.get(4)?, by: r.get(5)? }, r.get(6)?))
+    }
+
+    /// The organization's email invitations still waiting, newest first.
+    fn emails_in(conn: &Connection, org: &str, now: i64) -> rusqlite::Result<Vec<(EmailInvite, String)>> {
+        let mut stmt = conn.prepare(&format!("{EMAIL_SELECT} WHERE l.org_id = ?1 AND l.email IS NOT NULL AND {WORKING} ORDER BY l.created_at DESC, l.rowid DESC"))?;
+        let rows = stmt.query_map(params![org, now], Self::email_row)?.filter_map(Result::ok).collect();
+        Ok(rows)
+    }
+
+    /// An invitation by email, by the owner or an admin: a link of one use until `expires_at`, kept with `email`
+    /// (lowercased by the caller). The same address asked again while one waits is that one, its fortnight started
+    /// again and mailed again, never a second. Refused when the organization has `most` waiting, or its people and
+    /// invitations, these among them, are `rows_per_org`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn make_email_invite(&self, actor: i64, org: &str, id: &str, code: &str, email: &str, expires_at: i64, now: i64, most: usize, rows_per_org: i64) -> Result<EmailMailing, OrgWrite> {
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        let seat = Self::acting(&tx, org, actor)?;
+        if !seat.role.manages() {
+            return Err(OrgWrite::AdminOnly);
+        }
+        tx.execute("DELETE FROM org_links WHERE org_id = ?1 AND email IS NOT NULL AND NOT ((expires_at IS NULL OR expires_at > ?2) AND uses < 1)", params![org, now])?;
+        let waiting = Self::emails_in(&tx, org, now)?;
+        let id = match waiting.iter().find(|(invite, _)| invite.email == email) {
+            Some((invite, _)) => {
+                tx.execute("UPDATE org_links SET expires_at = ?2, sent_at = ?3 WHERE id = ?1", params![invite.id, expires_at, now])?;
+                invite.id.clone()
+            }
+            None => {
+                if waiting.len() >= most {
+                    return Err(OrgWrite::TooManyEmails);
+                }
+                let rows: i64 = tx.query_row("SELECT COUNT(*) FROM org_members WHERE org_id = ?1 AND state IN ('member', 'invited')", params![org], |r| r.get(0))?;
+                if rows + waiting.len() as i64 >= rows_per_org {
+                    return Err(OrgWrite::Full);
+                }
+                tx.execute(
+                    "INSERT INTO org_links (id, code, org_id, made_by, created_at, expires_at, max_uses, uses, email, sent_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 0, ?7, ?5)",
+                    params![id, code, org, actor, now, expires_at, email],
+                )?;
+                id.to_string()
+            }
+        };
+        let (invite, code) = tx.query_row(&format!("{EMAIL_SELECT} WHERE l.id = ?1"), params![id], Self::email_row)?;
+        let org_name = Self::org_name(&tx, org)?;
+        tx.commit()?;
+        Ok(EmailMailing { invite, code, org_name })
+    }
+
+    /// An email invitation that is still waiting, mailed again, by the owner or an admin: its fortnight started again
+    /// at `expires_at`.
+    pub fn resend_email_invite(&self, actor: i64, org: &str, id: &str, expires_at: i64, now: i64) -> Result<EmailMailing, OrgWrite> {
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        let seat = Self::acting(&tx, org, actor)?;
+        if !seat.role.manages() {
+            return Err(OrgWrite::AdminOnly);
+        }
+        let changed = tx.execute(
+            &format!("UPDATE org_links SET expires_at = ?3, sent_at = ?2 WHERE id = ?1 AND org_id = ?4 AND email IS NOT NULL AND id IN (SELECT l.id FROM org_links l WHERE {WORKING})"),
+            params![id, now, expires_at, org],
+        )?;
+        if changed == 0 {
+            return Err(OrgWrite::NoSuchLink);
+        }
+        let (invite, code) = tx.query_row(&format!("{EMAIL_SELECT} WHERE l.id = ?1"), params![id], Self::email_row)?;
+        let org_name = Self::org_name(&tx, org)?;
+        tx.commit()?;
+        Ok(EmailMailing { invite, code, org_name })
+    }
+
+    /// The organization's email invitations still waiting, for the owner or an admin.
+    pub fn email_invites_of(&self, actor: i64, org: &str, now: i64) -> Result<Vec<EmailInvite>, OrgWrite> {
+        let conn = self.lock();
+        let seat = Self::acting(&conn, org, actor)?;
+        if !seat.role.manages() {
+            return Err(OrgWrite::AdminOnly);
+        }
+        Ok(Self::emails_in(&conn, org, now)?.into_iter().map(|(invite, _)| invite).collect())
+    }
+
+    /// Every email invitation that has expired, deleted with its address, in every organization: how many went.
+    pub fn sweep_email_invites(&self, now: i64) -> usize {
+        let conn = self.lock();
+        conn.execute("DELETE FROM org_links WHERE email IS NOT NULL AND expires_at IS NOT NULL AND expires_at <= ?1", params![now]).unwrap_or(0)
     }
 }
 
@@ -287,5 +410,32 @@ mod tests {
         s.make_link(matt.id, "org", "l1", "c1", None, None, 11, 10).unwrap();
         s.delete_org(matt.id, "org", 12).unwrap();
         assert_eq!(s.all("SELECT COUNT(*) FROM org_links", params![], |r| r.get::<_, i64>(0)), vec![0]);
+    }
+
+    #[test]
+    fn an_email_invitation_is_one_use_kept_apart_renewed_for_its_address_and_swept_with_it() {
+        let (s, matt, _dir) = fixture();
+        let kim = s.create_account("kim", "", "", None, &[], 1).unwrap();
+        s.create_org(matt.id, "org", "Ghost", None, 10, 20).unwrap();
+        let first = s.make_email_invite(matt.id, "org", "e1", "code-e1", "kim@example.com", 1000, 11, 50, 50).unwrap();
+        assert_eq!((first.code.as_str(), first.org_name.as_str(), first.invite.sent_at, first.invite.by.as_deref()), ("code-e1", "Ghost", Some(11), Some("matt")));
+        // The same address again is the same invitation, renewed.
+        let again = s.make_email_invite(matt.id, "org", "e2", "code-e2", "kim@example.com", 2000, 12, 50, 50).unwrap();
+        assert_eq!((again.invite.id.as_str(), again.code.as_str(), again.invite.expires_at, again.invite.sent_at), ("e1", "code-e1", Some(2000), Some(12)));
+        // Apart from the links, and not counted against their cap.
+        assert_eq!(s.links_of(matt.id, "org", 13).unwrap(), vec![]);
+        s.make_link(matt.id, "org", "l1", "link-code", None, None, 13, 1).unwrap();
+        assert_eq!(s.email_invites_of(matt.id, "org", 13).unwrap().len(), 1);
+        // Their own cap, and the seats.
+        assert_eq!(s.make_email_invite(matt.id, "org", "e3", "code-e3", "ali@example.com", 2000, 13, 1, 50).map(|m| m.invite.id), Err(OrgWrite::TooManyEmails));
+        assert_eq!(s.make_email_invite(matt.id, "org", "e3", "code-e3", "ali@example.com", 2000, 13, 50, 2).map(|m| m.invite.id), Err(OrgWrite::Full), "matt and kim's invitation are two");
+        // Used once, and the row and its address go.
+        s.join_by_link(kim.id, "code-e1", 14, 50).unwrap();
+        assert_eq!(s.all("SELECT COUNT(*) FROM org_links WHERE email IS NOT NULL", params![], |r| r.get::<_, i64>(0)), vec![0]);
+        // Expired ones are swept, the address with them; a link that lasts is not.
+        s.make_email_invite(matt.id, "org", "e4", "code-e4", "ali@example.com", 100, 15, 50, 50).unwrap();
+        assert_eq!(s.resend_email_invite(matt.id, "org", "e4", 200, 100).map(|m| m.invite.id), Err(OrgWrite::NoSuchLink), "expired is not resent");
+        assert_eq!(s.sweep_email_invites(100), 1);
+        assert_eq!(s.all("SELECT id FROM org_links", params![], |r| r.get::<_, String>(0)), vec!["l1".to_string()]);
     }
 }

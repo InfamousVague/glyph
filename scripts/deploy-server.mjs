@@ -113,6 +113,21 @@ function loadServerEnv() {
   if (env.GLYPH_MAILGUN_SIGNING_KEY && !/^[A-Za-z0-9_-]{16,200}$/.test(env.GLYPH_MAILGUN_SIGNING_KEY)) {
     fail("GLYPH_MAILGUN_SIGNING_KEY in .env has characters a Mailgun signing key doesn't.");
   }
+  // Email invitations to an organization (server/src/outbox.rs, docs/TEAMS.md): a Mailgun sending key, and optionally
+  // the domain mail is sent through (default GLYPH_MAIL_DOMAIN's, in.ghostmarkdown.com), the From line, and the API's
+  // base for an EU-region domain. Without the key nothing is sent and the app says invitations by email aren't set up.
+  if (env.GLYPH_MAILGUN_API_KEY && !/^[A-Za-z0-9_-]{16,200}$/.test(env.GLYPH_MAILGUN_API_KEY)) {
+    fail("GLYPH_MAILGUN_API_KEY in .env has characters a Mailgun API key doesn't.");
+  }
+  if (env.GLYPH_MAIL_SEND_DOMAIN && !/^[a-z0-9.-]{3,200}$/i.test(env.GLYPH_MAIL_SEND_DOMAIN)) {
+    fail('GLYPH_MAIL_SEND_DOMAIN in .env must be a domain name.');
+  }
+  if (env.GLYPH_MAIL_FROM && !/^[A-Za-z0-9 .'_-]{0,80}<[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+>$/.test(env.GLYPH_MAIL_FROM)) {
+    fail('GLYPH_MAIL_FROM in .env must read like Ghost Markdown <invites@in.ghostmarkdown.com>.');
+  }
+  if (env.GLYPH_MAILGUN_API_BASE && !/^https:\/\/api(\.eu)?\.mailgun\.net$/.test(env.GLYPH_MAILGUN_API_BASE)) {
+    fail('GLYPH_MAILGUN_API_BASE in .env must be https://api.mailgun.net or https://api.eu.mailgun.net.');
+  }
   // The Meet bot's key to glyph-api's internal routes (server/src/meet.rs, docs/MEET.md). Optional: without it those
   // routes are not mounted and nothing joins a meeting. The service refuses one under 32 characters; the shape is
   // checked here so a stray quote or newline cannot reach the env file.
@@ -211,6 +226,18 @@ if [ "$MCP_ONLY" != 1 ]; then
   fi
   if [ -n "$MAILGUN_SIGNING_KEY_NEW" ]; then
     printf 'GLYPH_MAILGUN_SIGNING_KEY=%s\\n' "$MAILGUN_SIGNING_KEY_NEW"
+  fi
+  if [ -n "$MAILGUN_API_KEY_NEW" ]; then
+    printf 'GLYPH_MAILGUN_API_KEY=%s\\n' "$MAILGUN_API_KEY_NEW"
+  fi
+  if [ -n "$MAIL_SEND_DOMAIN_NEW" ]; then
+    printf 'GLYPH_MAIL_SEND_DOMAIN=%s\\n' "$MAIL_SEND_DOMAIN_NEW"
+  fi
+  if [ -n "$MAIL_FROM_NEW" ]; then
+    printf 'GLYPH_MAIL_FROM=%s\\n' "$MAIL_FROM_NEW"
+  fi
+  if [ -n "$MAILGUN_API_BASE_NEW" ]; then
+    printf 'GLYPH_MAILGUN_API_BASE=%s\\n' "$MAILGUN_API_BASE_NEW"
   fi
   if [ -n "$MEET_TOKEN_NEW" ]; then
     printf 'GLYPH_MEET_TOKEN=%s\\n' "$MEET_TOKEN_NEW"
@@ -330,13 +357,15 @@ function ship(env) {
     const remote =
       `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
       `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; IFS= read -r MEET_TOKEN_NEW; IFS= read -r DISCORD_TOKEN_NEW; IFS= read -r DISCORD_APP_ID_NEW; ` +
-      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW DISCORD_TOKEN_NEW DISCORD_APP_ID_NEW; ` +
+      `IFS= read -r MAILGUN_API_KEY_NEW; IFS= read -r MAIL_SEND_DOMAIN_NEW; IFS= read -r MAIL_FROM_NEW; IFS= read -r MAILGUN_API_BASE_NEW; ` +
+      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW DISCORD_TOKEN_NEW DISCORD_APP_ID_NEW MAILGUN_API_KEY_NEW MAIL_SEND_DOMAIN_NEW MAIL_FROM_NEW MAILGUN_API_BASE_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
     const result = openBox(env, SSH_OPTS).exec(remote, {
       input: Buffer.concat([
         Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n` +
             `${env.GOOGLE_CLIENT_ID ?? ''}\n${env.GOOGLE_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n` +
-            `${env.GLYPH_MEET_TOKEN ?? ''}\n${env.GLYPH_DISCORD_TOKEN ?? ''}\n${env.DISCORD_APP_ID ?? ''}\n`,
+            `${env.GLYPH_MEET_TOKEN ?? ''}\n${env.GLYPH_DISCORD_TOKEN ?? ''}\n${env.DISCORD_APP_ID ?? ''}\n` +
+            `${env.GLYPH_MAILGUN_API_KEY ?? ''}\n${env.GLYPH_MAIL_SEND_DOMAIN ?? ''}\n${env.GLYPH_MAIL_FROM ?? ''}\n${env.GLYPH_MAILGUN_API_BASE ?? ''}\n`,
         ),
         bundle,
       ]),

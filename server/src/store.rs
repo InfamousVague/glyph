@@ -53,7 +53,7 @@ pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow, UPDATES_KEPT};
 pub use notifications::KEPT;
 pub use notifications::{MentionWrite, NotificationRow, NotificationWrite, SERVER_KINDS};
 pub use org_ais::OrgAi;
-pub use org_links::{LinkPreview, OrgLink};
+pub use org_links::{EmailInvite, EmailMailing, LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use mail::{MailClaim, MailStanding, MailWrite, SealedMail};
 pub use meet::{MeetBooking, SERIES as MEET_SERIES};
@@ -174,7 +174,9 @@ CREATE INDEX IF NOT EXISTS org_members_by_account ON org_members(account_id);
 -- An invitation by link (server/src/orgs.rs, store/org_links.rs, docs/TEAMS.md): a code anyone holding it may join
 -- the organization with, made by its owner or an admin, until it expires, is used up, or is turned off - which deletes
 -- the row. `id` names it to the people who manage it; `code` is the secret in the link, 128 random bits, kept as it is
--- so a manager can copy the link again. It goes with the organization; its maker is only a reference.
+-- so a manager can copy the link again. It goes with the organization; its maker is only a reference. An invitation
+-- by email (orgs.rs `invite_email`) is a link of one use with the address it was mailed to in `email` and when it was
+-- last mailed in `sent_at`: listed apart from the links, and deleted once it is used, turned off or has expired.
 CREATE TABLE IF NOT EXISTS org_links (
     id         TEXT PRIMARY KEY,
     code       TEXT NOT NULL UNIQUE,
@@ -183,7 +185,9 @@ CREATE TABLE IF NOT EXISTS org_links (
     created_at INTEGER NOT NULL,
     expires_at INTEGER,
     max_uses   INTEGER,
-    uses       INTEGER NOT NULL DEFAULT 0
+    uses       INTEGER NOT NULL DEFAULT 0,
+    email      TEXT,
+    sent_at    INTEGER
 );
 CREATE INDEX IF NOT EXISTS org_links_by_org ON org_links(org_id);
 -- An AI that has read or written the organization's notes through a member's connector (store/org_ais.rs): its
@@ -465,11 +469,15 @@ pub struct Store {
 /// - `shares.meta`: what a share's owner's devices sealed about it under the account key, as a site's `meta` is
 ///   (`PUT /api/v1/shares/{id}/meta`), so a device signing in afresh gets its shares back with their links; NULL on
 ///   a share no new app has written yet (2026-10-31, docs/MARKDOWN_FIRST.md §11 decision 8).
+/// - `org_links.email`, `org_links.sent_at`: an invitation by email (orgs.rs `invite_email`; Matt, 2026-11-03), the
+///   address it went to and when it was last mailed; NULL on every invite link (store/org_links.rs).
 const ADDED_COLUMNS: &[(&str, &str, &str)] = &[
     ("meet_bookings", "series", "ALTER TABLE meet_bookings ADD COLUMN series TEXT"),
     ("meet_bookings", "stopped", "ALTER TABLE meet_bookings ADD COLUMN stopped INTEGER NOT NULL DEFAULT 0"),
     ("meet_bookings", "kind", "ALTER TABLE meet_bookings ADD COLUMN kind TEXT"),
     ("shares", "meta", "ALTER TABLE shares ADD COLUMN meta TEXT"),
+    ("org_links", "email", "ALTER TABLE org_links ADD COLUMN email TEXT"),
+    ("org_links", "sent_at", "ALTER TABLE org_links ADD COLUMN sent_at INTEGER"),
 ];
 
 /// Each booking with a link and no `kind` yet given the one its link says: those booked before the column was added.

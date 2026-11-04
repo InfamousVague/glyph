@@ -94,6 +94,8 @@ pub enum OrgWrite {
     NoSuchLink,
     /// The organization has as many invite links working as it may.
     TooManyLinks,
+    /// The organization has as many email invitations waiting as it may.
+    TooManyEmails,
     /// No AI entry by that id in the organization (store/org_ais.rs).
     NoSuchAi,
     /// Something below the rules failed.

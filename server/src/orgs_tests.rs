@@ -121,6 +121,10 @@ async fn a_stranger_gets_one_404_from_every_route_of_an_organization() {
         (Method::POST, format!("/api/v1/orgs/{id}/links"), Some(json!({}))),
         (Method::GET, format!("/api/v1/orgs/{id}/links"), None),
         (Method::DELETE, format!("/api/v1/orgs/{id}/links/AAAAAAAAAAAAAAAAAAAAAA"), None),
+        (Method::POST, format!("/api/v1/orgs/{id}/emails"), Some(json!({ "email": "kim@example.com" }))),
+        (Method::GET, format!("/api/v1/orgs/{id}/emails"), None),
+        (Method::POST, format!("/api/v1/orgs/{id}/emails/AAAAAAAAAAAAAAAAAAAAAA/resend"), None),
+        (Method::DELETE, format!("/api/v1/orgs/{id}/emails/AAAAAAAAAAAAAAAAAAAAAA"), None),
         (Method::PUT, format!("/api/v1/orgs/{id}/colour"), Some(json!({ "hue": "sea" }))),
         (Method::GET, format!("/api/v1/orgs/{id}/keys"), None),
         (Method::POST, format!("/api/v1/orgs/{id}/keys"), Some(json!({ "generation": 1, "wraps": [] }))),
@@ -800,4 +804,148 @@ async fn an_ais_entry_is_removed_by_whoever_manages_or_the_member_it_came_throug
     assert_eq!(status, StatusCode::OK);
     assert_eq!(org_of(&h, &matt, &org).await["ais"].as_array().unwrap().iter().map(|a| a["via"].clone()).collect::<Vec<_>>(), [json!("matt")]);
     assert_eq!(seen(&h, &sam, &org, "Claude").await, refusal(StatusCode::NOT_FOUND, "No such organization."));
+}
+
+// --- invitations by email (Matt, 2026-11-03: "email invites to join orgs") ----------------------------------------------
+
+async fn invite_email(h: &Harness, token: &str, org: &str, email: &str) -> (StatusCode, Value) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/emails"), Some(token), Some(json!({ "email": email }))).await
+}
+
+async fn emails(h: &Harness, token: &str, org: &str) -> Value {
+    let (status, body) = h.call(Method::GET, &format!("/api/v1/orgs/{org}/emails"), Some(token), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    body["invites"].clone()
+}
+
+/// The code in a mailed letter's link, `https://ghostmarkdown.com/join#<code>`.
+fn code_in(text: &str) -> String {
+    let at = text.find("https://ghostmarkdown.com/join#").expect("the join link") + "https://ghostmarkdown.com/join#".len();
+    text[at..].chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect()
+}
+
+#[tokio::test]
+async fn an_email_invitation_is_mailed_listed_previewed_signed_out_and_joined_once() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let org = make(&h, &matt, "Ghost <b>Team</b>").await;
+
+    let (status, body) = invite_email(&h, &matt, &org, "  Kim@Example.COM ").await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let invite = body["invite"].clone();
+    assert_eq!((invite["email"].clone(), invite["by"].clone()), (json!("kim@example.com"), json!("matt")));
+    assert_eq!(invite["expiresAt"].as_i64().unwrap() - invite["createdAt"].as_i64().unwrap(), 14 * 24 * 3600 * 1000, "a fortnight");
+    assert_eq!(invite["sentAt"], invite["createdAt"]);
+    assert!(invite.get("code").is_none(), "the code is only in the mail");
+
+    let sent = h.accounts.outbox.sent();
+    assert_eq!(sent.len(), 1);
+    let letter = &sent[0];
+    assert_eq!(letter.to, "kim@example.com");
+    assert_eq!(letter.subject, "@matt invited you to Ghost <b>Team</b> on Ghost Markdown");
+    let code = code_in(&letter.text);
+    assert_eq!(code.len(), 22);
+    assert_eq!(code_in(&letter.html), code);
+    assert!(letter.html.contains("Join Ghost &lt;b&gt;Team&lt;/b&gt;") && !letter.html.contains("<b>Team"), "the name is escaped in the HTML");
+    assert!(letter.text.contains("download"), "{}", letter.text);
+
+    // Listed apart from the links.
+    assert_eq!(emails(&h, &matt, &org).await, json!([invite]));
+    let (_, links) = h.call(Method::GET, &format!("/api/v1/orgs/{org}/links"), Some(&matt), None).await;
+    assert_eq!(links["links"], json!([]));
+
+    // The join page's look, signed out, the code in the body.
+    let (status, preview) = h.call(Method::POST, "/api/v1/joins/preview", None, Some(json!({ "code": code }))).await;
+    assert_eq!((status, preview), (StatusCode::OK, json!({ "org": { "name": "Ghost <b>Team</b>", "hue": null, "members": 1 }, "by": "matt" })));
+    let gone = refusal(StatusCode::NOT_FOUND, "That invite link has expired or was turned off.");
+    assert_eq!(h.call(Method::POST, "/api/v1/joins/preview", None, Some(json!({ "code": "AAAAAAAAAAAAAAAAAAAAAA" }))).await, gone);
+    assert_eq!(h.call(Method::POST, "/api/v1/joins/preview", None, Some(json!({ "code": "x" }))).await, gone);
+
+    // Whoever signs up and follows it joins, as by a link; then it is gone, and the address with it.
+    let kim = h.signup("kim", &device()).await;
+    let (status, joined) = h.call(Method::POST, &format!("/api/v1/joins/{code}"), Some(&kim), None).await;
+    assert_eq!(status, StatusCode::OK, "{joined}");
+    assert_eq!((joined["org"]["state"].clone(), joined["org"]["invitedBy"].clone()), (json!("member"), json!("matt")));
+    assert_eq!(emails(&h, &matt, &org).await, json!([]));
+    let ali = h.signup("ali", &device()).await;
+    assert_eq!(h.call(Method::POST, &format!("/api/v1/joins/{code}"), Some(&ali), None).await, gone, "once");
+    // And the organization's key reaches them as it does anyone who joins: they are among those who lack a wrap.
+    let (_, org_now) = h.call(Method::GET, &format!("/api/v1/orgs/{org}"), Some(&kim), None).await;
+    assert!(org_now["org"]["members"].as_array().unwrap().iter().any(|m| m["handle"] == "kim" && m["state"] == "member"));
+}
+
+#[tokio::test]
+async fn an_email_invitation_is_sent_again_turned_off_and_never_twice_for_one_address() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    invite(&h, &matt, &org, "sam").await;
+    answer(&h, &sam, &org, true).await;
+
+    let (_, first) = invite_email(&h, &matt, &org, "kim@example.com").await;
+    let (status, again) = invite_email(&h, &matt, &org, "KIM@example.com").await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(again["invite"]["id"], first["invite"]["id"], "the one waiting, renewed");
+    assert_eq!(emails(&h, &matt, &org).await.as_array().unwrap().len(), 1);
+    let sent = h.accounts.outbox.sent();
+    assert_eq!(code_in(&sent[0].text), code_in(&sent[1].text), "the same link mailed again");
+
+    let id = first["invite"]["id"].as_str().unwrap().to_string();
+    let (status, resent) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/emails/{id}/resend"), Some(&matt), None).await;
+    assert_eq!(status, StatusCode::OK, "{resent}");
+    assert_eq!(h.accounts.outbox.sent().len(), 3);
+
+    // A member who does not manage may not send, see, resend or turn off.
+    let admin_only = refusal(StatusCode::FORBIDDEN, "Only the owner or an admin can do that.");
+    assert_eq!(invite_email(&h, &sam, &org, "ali@example.com").await, admin_only);
+    assert_eq!(h.call(Method::GET, &format!("/api/v1/orgs/{org}/emails"), Some(&sam), None).await, admin_only);
+    assert_eq!(h.call(Method::POST, &format!("/api/v1/orgs/{org}/emails/{id}/resend"), Some(&sam), None).await, admin_only);
+    assert_eq!(h.call(Method::DELETE, &format!("/api/v1/orgs/{org}/emails/{id}"), Some(&sam), None).await, admin_only);
+    assert_eq!(h.accounts.outbox.sent().len(), 3, "nothing more mailed");
+
+    // Turned off: gone, its link joins nobody, and an invite link's id is not one of these.
+    let code = code_in(&h.accounts.outbox.sent()[0].text);
+    let (status, body) = h.call(Method::DELETE, &format!("/api/v1/orgs/{org}/emails/{id}"), Some(&matt), None).await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "dropped": true })));
+    assert_eq!(emails(&h, &matt, &org).await, json!([]));
+    let gone = refusal(StatusCode::NOT_FOUND, "That invite link has expired or was turned off.");
+    let ali = h.signup("ali", &device()).await;
+    assert_eq!(h.call(Method::POST, &format!("/api/v1/joins/{code}"), Some(&ali), None).await, gone);
+    assert_eq!(h.call(Method::POST, &format!("/api/v1/orgs/{org}/emails/{id}/resend"), Some(&matt), None).await, gone);
+    let (_, link) = make_link(&h, &matt, &org, json!({})).await;
+    let link_id = link["link"]["id"].as_str().unwrap();
+    assert_eq!(h.call(Method::DELETE, &format!("/api/v1/orgs/{org}/emails/{link_id}"), Some(&matt), None).await, gone);
+}
+
+#[tokio::test]
+async fn an_email_invitations_address_is_checked_its_sending_limited_and_a_failed_send_never_listed() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    let bad = refusal(StatusCode::BAD_REQUEST, "That doesn't look like an email address.");
+    for no in ["", "kim", "kim@", "@example.com", "kim@example", "kim@@example.com", "kim smith@example.com", "kim@exa mple.com", "kim@example.c0m", ".kim@example.com", "kim\r\nBcc: x@y.com@example.com", "kim@-example.com"] {
+        assert_eq!(invite_email(&h, &matt, &org, no).await, bad, "{no:?}");
+    }
+    assert!(h.accounts.outbox.sent().is_empty());
+
+    // A send that fails is said in plain words, and nothing is left waiting.
+    h.accounts.outbox.fail(true);
+    assert_eq!(invite_email(&h, &matt, &org, "kim@example.com").await, refusal(StatusCode::BAD_GATEWAY, "The email couldn't be sent. Try again in a moment."));
+    assert_eq!(emails(&h, &matt, &org).await, json!([]));
+    h.accounts.outbox.fail(false);
+
+    // Three a day to one address (the failed one counted), then refused.
+    for _ in 0..2 {
+        assert_eq!(invite_email(&h, &matt, &org, "kim@example.com").await.0, StatusCode::CREATED);
+    }
+    assert_eq!(
+        invite_email(&h, &matt, &org, "kim@example.com").await,
+        refusal(StatusCode::TOO_MANY_REQUESTS, "That address has been sent enough invitations today. Try again tomorrow.")
+    );
+    // Ten an hour from one account, whoever they go to: four spent, six more, then refused.
+    for i in 0..6 {
+        assert_eq!(invite_email(&h, &matt, &org, &format!("p{i}@example.com")).await.0, StatusCode::CREATED);
+    }
+    assert_eq!(invite_email(&h, &matt, &org, "late@example.com").await, refusal(StatusCode::TOO_MANY_REQUESTS, "Too many email invitations in an hour. Try again later."));
 }

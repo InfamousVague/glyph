@@ -29,7 +29,9 @@
 //! GLYPH_API_MODEL and OLLAMA_URL (the format route's token and model, `format.rs`); GLYPH_MCP_UPSTREAM
 //! (`mcp_proxy.rs`); NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`); GOOGLE_CLIENT_ID,
 //! GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI (`google.rs`; unset, Google sign-in answers 503); and
-//! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail); GLYPH_MEET_TOKEN
+//! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail); GLYPH_MAILGUN_API_KEY,
+//! GLYPH_MAIL_SEND_DOMAIN, GLYPH_MAIL_FROM and GLYPH_MAILGUN_API_BASE (`outbox.rs`, mail sent: email invitations;
+//! unset key, nothing is sent); GLYPH_MEET_TOKEN
 //! (`meet.rs`, the Meet bot's token; unset, the bot's loopback routes are not mounted); GLYPH_DISCORD_TOKEN
 //! (`discord.rs`, the Discord bot's token to this service, not Discord's; unset, no Discord route is mounted); and GLYPH_PUBLIC_URL
 //! (`hooks.rs`, what a hook's URL starts with; default `https://ghostmarkdown.com`). On the box,
@@ -57,6 +59,7 @@ mod meet;
 mod notifications;
 mod org_notes;
 mod orgs;
+mod outbox;
 mod shares;
 mod sites;
 mod sync;
@@ -285,6 +288,8 @@ async fn main() {
     // Hook posts thirty days old go, whether or not a device ever took them (hooks.rs).
     if let Some(accounts) = &accounts {
         hooks::sweep_every_hour(accounts.clone());
+        // And email invitations past their fortnight, with the addresses they went to (orgs.rs).
+        orgs::sweep_every_hour(accounts.clone());
         // And answers to a form thirty days old, filed or not (forms.rs).
         forms::sweep_every_hour(accounts.clone());
     }

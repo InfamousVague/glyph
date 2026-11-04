@@ -121,6 +121,16 @@ impl<K: Eq + std::hash::Hash> RateLimiter<K> {
         }
     }
 
+    /// A limiter counted by the day: `per_day` at once, refilled over a day. For email invitations (src/orgs.rs), per
+    /// organization and per address mailed.
+    pub fn per_day(per_day: u32, now: Instant) -> Self {
+        Self {
+            held: Mutex::new(Held { buckets: HashMap::new(), last_prune: now }),
+            capacity: f64::from(per_day),
+            per_second: f64::from(per_day) / 86400.0,
+        }
+    }
+
     /// Spend one request for `key`, if it has one left.
     ///
     /// A poisoned lock REFUSES. Nothing below can panic while holding it, so
