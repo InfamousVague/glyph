@@ -289,7 +289,7 @@ first, and the main session submits after.
 | Version | `e0ca990a-43fd-4af8-9751-aae4aa4fa4a1`, 2.4.19, `PREPARE_FOR_SUBMISSION`, `AFTER_APPROVAL` | `2d1a8d94-d014-4ea2-b4dc-6b5855cd91a0`, 2.4.19, `PREPARE_FOR_SUBMISSION`, `AFTER_APPROVAL` |
 | en-US localization | `d14e268f-b06d-4ddd-bc3a-42e88dcbcf01` | `342ac2d8-086b-485e-9cc9-680b7b0443b7` |
 | Review detail | `9b7402f4-24fe-4c2e-b95c-5202b5917195` | `7e6fcbf2-df77-48a0-8757-f9f79b99fea9` |
-| Build | **none: blocked, see below** | 2004019, `80622879-3f29-4576-9edd-814190519b00`, `VALID`, `usesNonExemptEncryption` false, attached |
+| Build | 2004019, `e49a7ba6-538c-4930-b93e-abaca8c040dc`, `VALID`, `usesNonExemptEncryption` false, attached (see "Sent for review") | 2004019, `80622879-3f29-4576-9edd-814190519b00`, `VALID`, `usesNonExemptEncryption` false, attached |
 | Screenshots | 2.3.60's, carried over: `APP_IPHONE_67` 10, `APP_IPHONE_DUO` 10 | 2.3.60's: `APP_DESKTOP` 9 |
 
 - **The Mac build**: `tool/cutover-build-mac-store.sh 2.4.19` from ef397f54 (the `+` is the tree's unrelated
@@ -322,3 +322,30 @@ first, and the main session submits after.
   adds it), so App Store Connect asks nothing more; the Mac build reads `usesNonExemptEncryption` false.
 - **App Privacy is not in the App Store Connect API** (every path 404s); it is entered on the app's App Privacy
   page by hand, then published. The answers: docs/store/analytics-disclosures.md.
+
+### Sent for review (2026-11-04, UTC)
+
+Matt accepted the Program License Agreement and published App Privacy with the four new types (Analytics, not
+linked, not tracking), and asked for both to be submitted.
+
+- The API answered bundle ids and profiles again. `com.mattssoftware.glyph.activity` was not registered: made
+  through the API (22:12, `7ZS4M532ZW`, "Ghost Live Activity"; a name with a dot is refused), and Xcode's
+  automatic signing made its store profile during the export.
+- **`.dart_tool` was gone** from the main checkout (with three tracked `tauri/vendor/@glacier/react/dist` files
+  deleted), the cleaner of 2026-10-24 again by the look of it; `flutter pub get` made it again. The vendor files
+  were left deleted.
+- **Apple refused the first IPA** (from 710955b5, 2.4.21's tree, built as 2.4.19): "Invalid Signature. Code
+  object is not signed at all … flutter_assets/assets/publish/ghost-publish.mjs" (90035). The publisher's files in
+  assets/publish/ are git-ignored and written by tool/publish-assets.sh before a release; a peer's release had
+  written them at 21:42, and `ghost-publish.mjs` starts with `#!`, which Apple takes for a script to be signed.
+  Nothing reached Apple (validate and upload both refused). The iPhone offers no publishing
+  (lib/share/sites.dart `publishingOffered`), and neither the attached Mac build nor the first iPhone attempt had
+  them, so the four generated files were moved aside for one build and put back after it. **The next iPhone store
+  build hits this again** wherever publish-assets.sh has run: the store build should leave assets/publish's
+  generated files out, or the `.mjs` lose its `#!` line.
+- Built again 22:19 (69,164,262 bytes, the publisher's README alone in assets/publish), "VERIFY SUCCEEDED with no
+  errors", uploaded 22:23 (delivery `e49a7ba6-538c-4930-b93e-abaca8c040dc`), `VALID` by 22:26, attached to
+  `e0ca990a-…`.
+- **Submitted**, each in its own review submission: iPhone at 22:27:01, **`0a249b3d-9a56-495b-b2b6-70d9b23141e6`**;
+  Mac at 22:27:10, **`7f550e84-69de-493b-b28a-7407d1a5b65c`**. Both versions read `WAITING_FOR_REVIEW`, released
+  automatically once approved.
