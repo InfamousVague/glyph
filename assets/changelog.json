@@ -4,7 +4,7 @@
     "date": "2026-11-04",
     "title": "Maps in colour",
     "items": [
-      {"icon": "map", "words": "Maps in notes are drawn in their full colours, a little dimmer in dark mode, instead of grey.", "kind": "better"}
+      {"icon": "map-pin", "words": "Maps in notes are drawn in their full colours, a little dimmer in dark mode, instead of grey.", "kind": "better"}
     ]
   },
   {
