@@ -142,10 +142,12 @@ class ShareAppLink extends AppLink {
   final String key;
 }
 
-/// What a link is, in the order the page asks (shell/useAppLinks.ts): an invite only by the app's own scheme, then a
+/// What a link is, in the order the page asks (shell/useAppLinks.ts): an invite only by the app's own scheme or the
+/// join page (`https://ghostmarkdown.com/join#<code>`), then a
 /// note, then a place, then anything that carries a share's id and key. Null for a link that is none of them.
 AppLink? readAppLink(String link) {
-  final join = link.trim().startsWith('ghostmd://join/') ? readJoinLink(link) : null;
+  // And the join page an emailed invitation links to, which the system hands the app as it is (Android's App Links).
+  final join = link.trim().startsWith('ghostmd://join/') || isJoinPageLink(link) ? readJoinLink(link) : null;
   if (join != null) return JoinAppLink(link, join);
   final note = readNoteLink(link);
   if (note != null) return NoteAppLink(link, note);

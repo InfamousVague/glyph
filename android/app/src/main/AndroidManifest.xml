@@ -212,6 +212,22 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ghostmd" />
             </intent-filter>
+            <!--
+              An emailed invitation's link, https://ghostmarkdown.com/join#<code> (Matt, 2026-11-03: "email invites to join
+              orgs ... be redirected on the app to join an org"; server/src/orgs.rs, docs/TEAMS.md): Android's App Links,
+              verified against ghostmarkdown.com/.well-known/assetlinks.json (landing/), so a tap opens the app straight
+              away where it is installed, and the join page (landing/join.html) where it is not. The door keeps only
+              that page's address (AppLinks.linkOf).
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="ghostmarkdown.com" />
+                <data android:path="/join" />
+                <data android:path="/join/" />
+            </intent-filter>
         </activity>
 
         <!--

@@ -7,6 +7,8 @@ import 'package:ghost_md/orgs/ui/join_sheet.dart';
 import 'package:ghost_md/orgs/ui/new_organization_sheet.dart';
 import 'package:ghost_md/sheet/kit.dart';
 import 'package:ghost_md/sheet/sheet.dart';
+import 'package:ghost_md/shell/account_gate.dart';
+import 'package:glacier/glacier.dart';
 
 import 'support.dart';
 
@@ -111,6 +113,57 @@ void main() {
       await device.account.signIn(seeded.handle, seeded.password);
       await settle(tester, 14);
       expect(title(tester), 'Join Ghost?');
+      await endSettings(tester);
+    });
+
+    testWidgets('pasted on the way in before there is an account, is held through signing up and asked about then (Matt, 2026-11-03)', (tester) async {
+      // An emailed invitation followed before the app was installed: the download carried nothing, so the person
+      // pastes the link on the first screen, makes an account, and is asked to join.
+      final service = await FakeService.start();
+      final device = await Device.make(service: service, signedIn: false);
+      final code = service.peerLink('Ghost', by: 'sam');
+      final gateUp = ValueNotifier<bool>(true);
+      await device.pump(
+        tester,
+        ValueListenableBuilder<bool>(
+          valueListenable: gateUp,
+          builder: (context, up, _) => Stack(
+            children: [
+              if (up) AccountGate(services: device.services, onDone: () => gateUp.value = false),
+              JoinInvites(services: device.services, request: null, hold: up, onOpen: (_) {}, onAccount: () {}),
+            ],
+          ),
+        ),
+        scroll: false,
+      );
+      await settle(tester, 12);
+      await tapKey(tester, 'held-invite-open');
+      await settle(tester);
+      await typeInto(tester, 'Invite link', 'not a link');
+      await tapKey(tester, 'held-invite-keep');
+      await settle(tester);
+      expect(find.text('That isn’t an invite link. Paste the whole link from the invitation.'), findsOneWidget);
+      expect(heldJoin(kept: device.kept), isNull);
+      await typeInto(tester, 'Invite link', joinPageUrl(code));
+      await tapKey(tester, 'held-invite-keep');
+      await settle(tester);
+      expect(heldJoin(kept: device.kept), code);
+      expect(find.text('Invitation kept. Sign in or sign up, and Ghost.md asks you to join.'), findsOneWidget);
+
+      tester.widget<GlacierSegmentedControl>(find.byType(GlacierSegmentedControl)).onValueChange!('up');
+      await tester.pump();
+      await typeInto(tester, 'Handle', 'newbie');
+      await typeInto(tester, 'Password', 'long enough');
+      await tapKey(tester, 'account-submit');
+      await settle(tester, 12);
+      expect(title(tester), isNull, reason: 'held back while the recovery codes are up');
+      await press(tester, "I've kept them");
+      await settle(tester, 14);
+      expect(gateUp.value, isFalse);
+      expect(title(tester), 'Join Ghost?');
+      await pressRow(tester, 'Join Ghost');
+      expect(heldJoin(kept: device.kept), isNull);
+      expect(service.orgs.values.single.rows['newbie']?.state, 'member');
       await endSettings(tester);
     });
 

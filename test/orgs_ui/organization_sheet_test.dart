@@ -325,6 +325,60 @@ void main() {
       await endSettings(tester);
     });
 
+    testWidgets('invites by email (Matt, 2026-11-03): sends, lists it waiting, sends it again, turns it off, and says a bad address plainly', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      await pumpSheet(tester, device, id);
+      expect(find.text('INVITE BY EMAIL'), findsOneWidget);
+      await typeInto(tester, 'Email address', 'not an address');
+      await tapKey(tester, 'invite-email-send');
+      await settle(tester, 10);
+      expect(find.text('That doesn’t look like an email address.'), findsOneWidget);
+      expect(device.service.mailed, isEmpty);
+
+      await typeInto(tester, 'Email address', 'Kim@Example.com');
+      await tapKey(tester, 'invite-email-send');
+      await settle(tester, 10);
+      final invite = device.service.emailInvites.entries.single;
+      expect(device.service.mailed.single.to, 'kim@example.com');
+      expect(find.byKey(ValueKey('invite-email:${invite.key}')), findsOneWidget);
+      expect(find.text('kim@example.com'), findsOneWidget);
+      expect(find.text('Invitation sent to kim@example.com. The link in it works once, for 14 days.'), findsOneWidget);
+      expect(find.text('Sent just now · Stops in 14 days'), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Send the invitation to kim@example.com again'));
+      await settle(tester, 10);
+      expect(device.service.mailed.length, 2);
+      expect(find.text('Sent again to kim@example.com.'), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Turn off the invitation to kim@example.com'));
+      await settle(tester, 10);
+      expect(device.service.emailInvites, isEmpty);
+      expect(find.byKey(ValueKey('invite-email:${invite.key}')), findsNothing);
+      expect(find.text('The invitation to kim@example.com is turned off. Its link no longer works.'), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('says email invitations are not set up where the service sends no mail, with no field to type into', (tester) async {
+      final device = await Device.make();
+      device.service.sendsMail = false;
+      final id = await ghost(device);
+      await pumpSheet(tester, device, id);
+      expect(find.text('Email invitations aren’t set up on this service yet. Send an invite link instead.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('invite-email-field')), findsNothing);
+      await endSettings(tester);
+    });
+
+    testWidgets('draws no "Invite by email" section, heading and all, on a service from before it', (tester) async {
+      final service = await FakeService.start(seed: seeded);
+      final device = await Device.make(service: service, fetcher: (request) async => request.url.path.contains('/emails') ? FetchResponse(404) : service.fetcher(request));
+      final id = await ghost(device);
+      await pumpSheet(tester, device, id);
+      expect(find.text('INVITE BY EMAIL'), findsNothing);
+      expect(find.text('INVITE'), findsOneWidget);
+      await endSettings(tester);
+    });
+
     // InviteLinks.test.tsx: "invite links on an older service draw nothing".
     testWidgets('draws no "Invite by link" section, heading and all, on a service from before invite links', (tester) async {
       final service = await FakeService.start(seed: seeded);

@@ -344,6 +344,42 @@ class InviteLink {
   final String? by;
 }
 
+/// An invitation by email waiting to be followed (server/src/store/org_links.rs `EmailInvite`; Matt, 2026-11-03:
+/// "email invites to join orgs"): the address it was mailed to, and when it was made, last mailed and stops. Its code
+/// is only in the mail.
+@immutable
+class EmailInvite {
+  const EmailInvite({required this.id, required this.email, this.createdAt = 0, this.expiresAt, this.sentAt, this.by});
+
+  factory EmailInvite.fromJson(Object? raw) {
+    final map = raw is Map ? raw : const <Object?, Object?>{};
+    final id = map['id'], email = map['email'];
+    if (id is! String || email is! String) throw const FormatException('The service answered without the invitation.');
+    final createdAt = map['createdAt'], expiresAt = map['expiresAt'], sentAt = map['sentAt'];
+    return EmailInvite(
+      id: id,
+      email: email,
+      createdAt: createdAt is num ? createdAt.toInt() : 0,
+      expiresAt: expiresAt is num ? expiresAt.toInt() : null,
+      sentAt: sentAt is num ? sentAt.toInt() : null,
+      by: map['by'] is String ? map['by'] as String : null,
+    );
+  }
+
+  final String id;
+  final String email;
+  final int createdAt;
+
+  /// When it stops working, in ms.
+  final int? expiresAt;
+
+  /// When it was last mailed, in ms.
+  final int? sentAt;
+
+  /// The handle of who sent it; null once their account is gone.
+  final String? by;
+}
+
 /// What a working code says before it is followed: enough to ask "Join it?", and nothing about who is in it
 /// (`JoinPreview`).
 @immutable

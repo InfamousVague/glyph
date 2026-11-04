@@ -24,20 +24,33 @@ final RegExp _code = RegExp(r'^[A-Za-z0-9_-]{16,64}$');
 /// The link that is copied and sent: the reader page, with the code where only the browser reads it (`inviteUrl`).
 String inviteUrl(String code) => '$readerUrl#join=$code';
 
+/// The join page an emailed invitation links to, the code after the `#` (landing/join.html; server/src/orgs.rs
+/// `join_url`; Matt, 2026-11-03). The Android app claims the address, so the link opens the app where it is installed.
+String joinPageUrl(String code) => 'https://ghostmarkdown.com/join#$code';
+
 /// The link that opens the app itself, from the reader page's "Open in the Ghost.md app" (`appJoinLink`).
 String appJoinLink(String code) => 'ghostmd://join/$code';
 
 final RegExp _appLink = RegExp(r'^ghostmd://join/([^/?#\s]+)/?$');
 final RegExp _hashLink = RegExp(r'#join=([^&\s]+)$');
+final RegExp _joinPage = RegExp(r'^https://(?:www\.)?ghostmarkdown\.com/join/?#(?:join=)?([^&\s/]+)$', caseSensitive: false);
+
+/// Whether [text] is the join page's link, `https://ghostmarkdown.com/join#<code>` (an emailed invitation): the one
+/// https link the app is handed by the system (Android's App Links), and so read as an invitation wherever a link
+/// arrives (lib/share/app_links.dart).
+bool isJoinPageLink(String text) => _joinPage.hasMatch(text.trim());
 
 /// The code an invite link carries, from any of the shapes one arrives in: the link as sent, the web app's
-/// `#join=<code>`, the app's `ghostmd://join/<code>`, or the code alone, pasted. Null for anything else
+/// `#join=<code>`, the app's `ghostmd://join/<code>`, an emailed invitation's `https://ghostmarkdown.com/join#<code>`,
+/// or the code alone, pasted. Null for anything else
 /// (`readJoinLink`).
 String? readJoinLink(String text) {
   final trimmed = text.trim();
   if (_code.hasMatch(trimmed)) return trimmed;
   final app = _appLink.firstMatch(trimmed)?.group(1);
   if (app != null && app.isNotEmpty) return _code.hasMatch(app) ? app : null;
+  final page = _joinPage.firstMatch(trimmed)?.group(1);
+  if (page != null) return _code.hasMatch(page) ? page : null;
   final hash = _hashLink.firstMatch(trimmed)?.group(1);
   return hash != null && _code.hasMatch(hash) ? hash : null;
 }
@@ -84,6 +97,32 @@ String linkTermsWords(InviteLink link, int now) {
   final lasts = expiresAt == null ? 'Lasts until turned off' : 'Stops ${_within(expiresAt - now)}';
   final used = maxUses == null ? (link.uses == 0 ? 'none joined yet' : '${link.uses} joined') : '${link.uses} of $maxUses used';
   return '$lasts · $used';
+}
+
+// --- invitations by email ------------------------------------------------------------------------------------------
+
+final RegExp _email = RegExp(r'^[^\s@<>(),;:"\[\]]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$');
+
+/// Whether [text] reads as an email address, as the service checks one (server/src/orgs.rs `email_of`, which has the
+/// last word): said before anything is sent, so a slip of the thumb is caught at once.
+bool looksLikeEmail(String text) => text.trim().length <= 254 && _email.hasMatch(text.trim());
+
+/// How long ago, in the plainest words: "just now", "5 minutes ago", "3 hours ago", "2 days ago".
+String _ago(int ms) {
+  final minutes = _round(ms / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return '$minutes minute${minutes == 1 ? '' : 's'} ago';
+  final hours = _round(ms / (_hour * 1000));
+  if (hours < 48) return '$hours hour${hours == 1 ? '' : 's'} ago';
+  return '${_round(hours / 24)} days ago';
+}
+
+/// What an email invitation's row says under the address: when it was last mailed and when it stops
+/// (`emailTermsWords`).
+String emailTermsWords(EmailInvite invite, int now) {
+  final sentAt = invite.sentAt ?? invite.createdAt, expiresAt = invite.expiresAt;
+  final sent = 'Sent ${_ago(now - sentAt)}';
+  return expiresAt == null ? sent : '$sent · Stops ${_within(expiresAt - now)}';
 }
 
 // --- a code held across signing in -----------------------------------------------------------------------------------

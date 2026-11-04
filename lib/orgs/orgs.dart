@@ -299,6 +299,31 @@ class Orgs extends ChangeNotifier {
     await _call('DELETE', 'orgs/${_enc(id)}/links/${_enc(link)}', ctx);
   }
 
+  // --- invitations by email (Matt, 2026-11-03: "email invites to join orgs") ---------------------------------------
+
+  /// An invitation mailed to [email] (owner or admin): a link of one use for a fortnight, the address's waiting one
+  /// renewed rather than a second made. 400 for an address that will not do, 429 past the limits, 503 where the
+  /// service sends no mail, 502 when the mail could not be sent (`inviteByEmail`).
+  Future<EmailInvite> inviteByEmail(String id, String email, {CallContext? ctx}) async =>
+      EmailInvite.fromJson((await _call('POST', 'orgs/${_enc(id)}/emails', ctx, {'email': email.trim()}))['invite']);
+
+  /// The organization's email invitations waiting, newest first, and whether the service can mail at all (owner or
+  /// admin; `listEmailInvites`).
+  Future<({List<EmailInvite> invites, bool mail})> listEmailInvites(String id, {CallContext? ctx}) async {
+    final answer = await _call('GET', 'orgs/${_enc(id)}/emails', ctx);
+    final invites = answer['invites'];
+    return (invites: [if (invites is List) for (final each in invites) EmailInvite.fromJson(each)], mail: answer['mail'] != false);
+  }
+
+  /// One waiting, mailed again, its fortnight started again (`resendEmailInvite`).
+  Future<EmailInvite> resendEmailInvite(String id, String invite, {CallContext? ctx}) async =>
+      EmailInvite.fromJson((await _call('POST', 'orgs/${_enc(id)}/emails/${_enc(invite)}/resend', ctx))['invite']);
+
+  /// One turned off: its link joins nobody, and the address is gone from the service (`dropEmailInvite`).
+  Future<void> dropEmailInvite(String id, String invite, {CallContext? ctx}) async {
+    await _call('DELETE', 'orgs/${_enc(id)}/emails/${_enc(invite)}', ctx);
+  }
+
   /// What a code joins, before it is followed; 404 "That invite link has expired or was turned off." when it does
   /// not (`previewJoin`).
   Future<JoinPreview> previewJoin(String code, {CallContext? ctx}) async => JoinPreview.fromJson(await _call('GET', 'joins/${_enc(code)}', ctx));

@@ -28,6 +28,18 @@ class LinkHandoffTest {
   }
 
   @Test
+  fun the_door_keeps_the_join_page_an_emailed_invitation_links_to() {
+    val code = "AbCdEfGhIjKlMnOpQrSt_-"
+    assertEquals("https://ghostmarkdown.com/join#$code", LinkHandoff.handed(view, "https", "https://ghostmarkdown.com/join#$code", 0, restored = false))
+    assertEquals("https://ghostmarkdown.com/join/#$code", LinkHandoff.handed(view, "https", "https://ghostmarkdown.com/join/#$code", 0, restored = false))
+    // Any other page of the site, another site, or a code that could not be one is not the app's.
+    assertNull(LinkHandoff.handed(view, "https", "https://ghostmarkdown.com/join", 0, restored = false))
+    assertNull(LinkHandoff.handed(view, "https", "https://ghostmarkdown.com/join#short", 0, restored = false))
+    assertNull(LinkHandoff.handed(view, "https", "https://evil.example/join#$code", 0, restored = false))
+    assertNull(LinkHandoff.handed(view, "https", "https://ghostmarkdown.com/read.html#join=$code", 0, restored = false))
+  }
+
+  @Test
   fun the_door_keeps_nothing_else() {
     // Another scheme, no address, longer than any link the app makes, not a VIEW.
     assertNull(LinkHandoff.handed(view, "https", "https://ghostmarkdown.com", 0, restored = false))

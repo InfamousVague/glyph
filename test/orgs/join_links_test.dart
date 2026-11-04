@@ -18,6 +18,18 @@ void main() {
       }
     });
 
+    test('reads from the join page an emailed invitation links to (Matt, 2026-11-03), and nothing that only looks like it', () {
+      expect(joinPageUrl(code), 'https://ghostmarkdown.com/join#$code');
+      for (final shape in [joinPageUrl(code), 'https://ghostmarkdown.com/join/#$code', 'https://www.ghostmarkdown.com/join#$code', 'https://ghostmarkdown.com/join#join=$code', ' ${joinPageUrl(code)}\n']) {
+        expect(readJoinLink(shape), code, reason: shape);
+        expect(isJoinPageLink(shape), isTrue, reason: shape);
+      }
+      for (final other in ['https://evil.example/join#$code', 'http://ghostmarkdown.com/join#$code', 'https://ghostmarkdown.com.evil.example/join#$code', 'https://ghostmarkdown.com/joined#$code']) {
+        expect(isJoinPageLink(other), isFalse, reason: other);
+      }
+      expect(readJoinLink('https://ghostmarkdown.com/join#short'), isNull);
+    });
+
     test('is nothing when it is a share link, a note link, or a code that could not be one', () {
       for (final other in ['https://ghostmarkdown.com/read.html#abc.def', 'ghostmd://note/abc', 'ghostmd://join/short', '#join=has space here', 'join=$code', '', 'x' * 65]) {
         expect(readJoinLink(other), isNull, reason: other);
@@ -44,6 +56,28 @@ void main() {
     test('offers the lifetimes and the uses the service takes', () {
       expect(lifetimes.map((each) => each.seconds), [86400, 7 * 86400, 30 * 86400, null]);
       expect(uses.map((each) => each.uses), [1, 5, 25, null]);
+    });
+  });
+
+  group('an invitation by email (Matt, 2026-11-03)', () {
+    const minute = 60000, hour = 3600000;
+
+    test('says when it was sent and when it stops', () {
+      EmailInvite invite({int sentAt = 0, int? expiresAt}) => EmailInvite(id: 'e', email: 'kim@example.com', sentAt: sentAt, expiresAt: expiresAt);
+      expect(emailTermsWords(invite(expiresAt: 14 * 24 * hour), 0), 'Sent just now · Stops in 14 days');
+      expect(emailTermsWords(invite(expiresAt: 14 * 24 * hour), 5 * minute), 'Sent 5 minutes ago · Stops in 14 days');
+      expect(emailTermsWords(invite(expiresAt: 14 * 24 * hour), 3 * hour), 'Sent 3 hours ago · Stops in 14 days');
+      expect(emailTermsWords(invite(expiresAt: 14 * 24 * hour), 3 * 24 * hour), 'Sent 3 days ago · Stops in 11 days');
+      expect(emailTermsWords(invite(), minute), 'Sent 1 minute ago');
+    });
+
+    test('takes an address people type, and nothing that is not one', () {
+      for (final ok in ['kim@example.com', ' Kim.Lee+team@mail.example.co.uk ']) {
+        expect(looksLikeEmail(ok), isTrue, reason: ok);
+      }
+      for (final no in ['', 'kim', 'kim@', '@example.com', 'kim@example', 'kim smith@example.com', 'kim@@example.com', 'kim@example.c0m']) {
+        expect(looksLikeEmail(no), isFalse, reason: no);
+      }
     });
   });
 

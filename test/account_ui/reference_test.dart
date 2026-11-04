@@ -15,6 +15,8 @@ import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/account_forms.dart';
+import 'package:ghost_md/settings/invite_emails.dart';
+import 'package:ghost_md/settings/invite_links.dart';
 import 'package:ghost_md/shell/account_gate.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:glacier/glacier.dart';
@@ -81,7 +83,12 @@ void main() {
       final under = width >= 600 ? 'xwh' : 'xywh';
       held.check('headings', [for (final words in ['Notes', 'Members']) tester.getRect(find.text(words))], dims: 'yh', only: null);
       held.check('mores', [tester.getRect(key('org-all-notes'))], only: 0);
+      // Invite by email (lib/settings/invite_emails.dart, the port's own: Matt, 2026-11-03) stands between the invite field
+      // and the links, which are held as they were, that much lower, and the activity under them with them.
+      final byEmail = Offset(0, tester.getRect(find.byType(InviteLinks)).top - tester.getRect(find.byType(InviteEmails)).top);
+      held.shift -= byEmail;
       held.check('mores', [tester.getRect(key('org-audit-log'))], only: 1, dims: under);
+      held.shift += byEmail;
       held.check('cards', rectsOf(tester, find.byType(NoteCard)), dims: width >= 600 ? 'xyw' : 'xywh');
       held.check('members', [for (final handle in ['matt', 'sam', 'lee']) tester.getRect(key('member:$handle'))]);
       held.check('avatars', rectsOf(tester, key('member-avatar')));
@@ -93,6 +100,7 @@ void main() {
       // On a wide page each member's row stands about 0.07 lower here than the page's, the one before it, so the
       // invite links under them end up a little more than half a pixel down: held for their place across and size.
       final links = width >= 600 ? 'xwh' : 'xywh';
+      held.shift -= byEmail;
       held.check('linkRows', rectsOf(tester, find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('invite-link:'))), dims: links);
       held.check('newLink', rectsOf(tester, key('invite-link-new')), dims: links);
       held.check('news', [tester.getRect(key('news:n2')), tester.getRect(key('news:n1'))], dims: under);
@@ -107,6 +115,9 @@ void main() {
       await device.pump(tester, AccountGate(services: device.services, onDone: () {}), size: size, scroll: false);
       await settle(tester);
       final held = Held(reference);
+      // "Have an invite link?" (lib/orgs/ui/held_invite.dart, the port's own: Matt, 2026-11-03) is the last line, and
+      // the column is centred, so everything the page has stands half its height higher: held that much lower.
+      held.shift += Offset(0, (tester.getRect(key('account-gate-invite')).bottom - tester.getRect(key('account-gate-skip')).bottom) / 2);
       held.check('card', rectsOf(tester, key('sign-in-card')));
       held.check('title', rectsOf(tester, find.text('Sign in to Ghost.md')), dims: 'xyh');
       held.check('line', rectsOf(tester, find.text('Your notes, the same on every device, encrypted before they leave this one.')), dims: 'xy');

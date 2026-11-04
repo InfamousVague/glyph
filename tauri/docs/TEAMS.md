@@ -335,6 +335,73 @@ as a new one is made, and every link goes with its organization. A code that is 
 the same 404 in the same words. The routes share the sixty-a-minute change limit: a link names nobody, so it is no
 handle oracle, and 128 bits are not guessed at sixty a minute.
 
+## Invite by email
+
+Matt, 2026-11-03: "I'd like you to update our app so we can email invites to join orgs on ghost markdown so people can
+click a link download the app and be redirected on the app to join an org". The owner or an admin types an address
+under **Invite by email** on the organization's Members page or its dashboard (`lib/settings/invite_emails.dart`), in
+Simple mode too, and presses Send. The service mails one link; the invitation is listed as waiting with when it was
+sent and when it stops, and each row has Send again and Turn off.
+
+**The link** is `https://ghostmarkdown.com/join#<code>`: the code after the `#`, so it reaches no log. It is an invite
+link of one use that lasts fourteen days (`org_links` with `email` and `sent_at` set). Joining by it is joining by a
+link, so everything above holds, and the new member gets the organization key the same way, wrapped by a member who
+holds it (`/keys`).
+
+- **On Android with the app installed**, the app opens straight away. The manifest claims `https://ghostmarkdown.com/join`
+  with `autoVerify` (on `LinkDoor`), and `landing/.well-known/assetlinks.json` names `com.mattssoftware.glyph` (and
+  `.flutter`) with the release certificate's SHA-256 (the one `tauri/src-tauri/apk-signer.sha256` pins). The app reads
+  the link as an invitation (`lib/orgs/join_links.dart` `isJoinPageLink`, `lib/share/app_links.dart`) and asks "Join
+  Ghost?".
+- **Anywhere else** (no app yet, a computer, an iPhone), the link opens `landing/join.html`. It asks the service what
+  the code joins (`POST /api/v1/joins/preview { code }`, signed out, the code in the body, sixty a minute per address)
+  and shows "Join Ghost" and who invited them. It offers this device's download (as the home page picks it), **Open in
+  Ghost.md** (`ghostmd://join/<code>`, which the Mac, Windows, iPhone and Android apps all take), Copy the invite link,
+  and joining on the web. A download cannot carry the code, so the page says to come back and tap Open.
+- **Opened fresh**, the first screen (`lib/shell/account_gate.dart`) has **Have an invite link?** under the sign-in card
+  (`lib/orgs/ui/held_invite.dart`). A link pasted there is held on the device as a followed one is
+  (`glyph-join-held`), and once the account is signed in or made, "Join it?" asks. Pasting it into + › From a shared
+  link works too.
+
+**The mail** (`server/src/outbox.rs`) goes through Mailgun's messages API, from `Ghost Markdown <invites@in.ghostmarkdown.com>`
+by default. Its subject is "@matt invited you to Ghost on Ghost Markdown". It comes as plain text and simple HTML,
+with who asked, the organization's name (escaped), one Join button, and a line on getting the app. Sending the same
+address again while one waits renews that invitation (a fresh fortnight, mailed again) rather than making a second.
+A mail that fails is said ("The email couldn't be sent. Try again in a moment.", 502) and nothing is left listed.
+
+**Limits**, since this is mail from our domain carrying words a stranger chose: ten an hour per account and twenty per
+client address, fifty a day per organization, three a day to any one address. A resend counts as a send. An
+organization may have fifty waiting, and they count against its fifty seats. Accounts keep no addresses, so the answer
+says nothing about whether an address has an account.
+
+**What is kept**: the address and when it was mailed, only while the invitation can be followed. The row goes when it
+is used, when it is turned off, and within the hour after its fourteen days (`orgs::sweep_every_hour`). The privacy
+page says so.
+
+| Route | |
+|---|---|
+| `POST /api/v1/orgs/{id}/emails` | `{ email }` → 201 `{ invite: { id, email, createdAt, expiresAt, sentAt, by } }` |
+| `GET /api/v1/orgs/{id}/emails` | `{ invites: [...], mail }`; `mail` false where the service sends none |
+| `POST /api/v1/orgs/{id}/emails/{invite}/resend` | mailed again, a fresh fortnight |
+| `DELETE /api/v1/orgs/{id}/emails/{invite}` | turned off, the address gone |
+| `POST /api/v1/joins/preview` | `{ code }` → `{ org: { name, hue, members }, by }`, signed out |
+
+Refusals: 400 "That doesn't look like an email address."; 429 "Too many email invitations in an hour. Try again
+later." / "This organization has sent as many email invitations as it can today. Try again tomorrow." / "That address
+has been sent enough invitations today. Try again tomorrow."; 409 "This organization has as many email invitations
+waiting as it can. Turn one off first." / "The organization is full."; 503 "Email invitations aren't set up on this
+service yet. Send an invite link instead."; 502 as above; and the 403 and 404 every route of an organization gives.
+
+**To go live (Matt)**: (1) in `tauri/.env`, `GLYPH_MAILGUN_API_KEY=` a Mailgun sending key for the sending domain
+(Mailgun › Sending › Domain settings › Sending API keys), plus, if needed, `GLYPH_MAIL_SEND_DOMAIN` (default
+`in.ghostmarkdown.com`, which Mailgun has verified for sending when its SPF and DKIM records are at Gandi), `GLYPH_MAIL_FROM`
+and `GLYPH_MAILGUN_API_BASE` (`https://api.eu.mailgun.net` for an EU domain). `scripts/deploy-server.mjs` writes them
+into the box's env file. (2) Deploy glyph-api. (3) Deploy the site with `node scripts/deploy-landing.mjs --caddy` once,
+for the `/join` block (join.html and `.well-known/assetlinks.json` ship with the site). (4) Ship the app, for the
+Android App Link, the email UI and Have an invite link?. Android checks the App Link when the app is installed or
+updated, so a phone that updated before `assetlinks.json` was up opens the page until the next update. The page's Open
+in Ghost.md works either way.
+
 ## AIs in an organization
 
 Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)". A member's connector reads a team's notes

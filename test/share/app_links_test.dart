@@ -194,6 +194,13 @@ void main() {
       expect(readAppLink('ghostmd://join/short'), isNull);
     });
 
+    test('is an invite by the join page an emailed invitation links to, which Android hands the app (Matt, 2026-11-03)', () {
+      expect(readAppLink('https://ghostmarkdown.com/join#$code'), isA<JoinAppLink>().having((l) => l.code, 'code', code));
+      expect(readAppLink('https://ghostmarkdown.com/join/#$code'), isA<JoinAppLink>().having((l) => l.code, 'code', code));
+      // The reader page's invite is still an invite only by the app's own scheme, as before.
+      expect(readAppLink('https://ghostmarkdown.com/join#short'), isNot(isA<JoinAppLink>()));
+    });
+
     test('goes to the door that does what it asks', () async {
       final door = Door();
       for (final link in ['ghostmd://join/$code', noteLink, 'ghostmd://org/o1', 'ghostmd://notifications', 'ghostmd://market/font/lora', share, 'ghostmd://something-else']) {

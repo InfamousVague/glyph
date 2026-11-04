@@ -305,6 +305,14 @@ class FakeService {
 
   /// Invite links as stored, by code.
   final Map<String, StoredLink> links = {};
+
+  /// Email invitations waiting, by id, as the service keeps them (server/src/store/org_links.rs `EmailInvite`), and
+  /// every mail it would have sent them in (server/src/outbox.rs): to whom, and the code in the link.
+  final Map<String, ({String orgId, String email, String code, int createdAt, int expiresAt, int sentAt, String by})> emailInvites = {};
+  final List<({String to, String code})> mailed = [];
+
+  /// Whether the service sends mail (GLYPH_MAILGUN_API_KEY on the box): without it the email routes answer 503.
+  bool sendsMail = true;
   final Map<String, String> _peerHues = {};
   final Map<String, String> _peerKeys = {};
 
@@ -363,6 +371,8 @@ class FakeService {
     mail.clear();
     orgs.clear();
     links.clear();
+    emailInvites.clear();
+    mailed.clear();
     feed.clear();
     _counter = 0;
     _tokens.clear();
@@ -1125,6 +1135,45 @@ class FakeService {
         final link = links.values.where((l) => l.orgId == org.id && l.id == wanted).firstOrNull;
         if (link == null) return _refuse(404, 'That invite link has expired or was turned off.');
         links.remove(link.code);
+        return _json(200, {'dropped': true});
+      }
+    }
+    // Invitations by email (server/src/orgs.rs `invite_email`), as the service answers them.
+    final orgEmails = RegExp(r'^orgs/([^/]+)/emails(?:/([^/]+))?(/resend)?$').firstMatch(path);
+    if (orgEmails != null) {
+      final found = inOrg(Uri.decodeComponent(orgEmails[1]!));
+      if (found == null) return _refuse(404, 'No such organization.');
+      final (:org, :row) = found;
+      if (row.role == 'member') return _refuse(403, 'Only the owner or an admin can do that.');
+      Map<String, Object?> emailJson(String id) {
+        final e = emailInvites[id]!;
+        return {'id': id, 'email': e.email, 'createdAt': e.createdAt, 'expiresAt': e.expiresAt, 'sentAt': e.sentAt, 'by': e.by};
+      }
+
+      final waiting = [for (final MapEntry(:key, :value) in emailInvites.entries) if (value.orgId == org.id && value.expiresAt > clock()) key];
+      final wanted = orgEmails[2] == null ? null : Uri.decodeComponent(orgEmails[2]!);
+      if (method == 'GET' && wanted == null) return _json(200, {'invites': [for (final id in waiting.reversed) emailJson(id)], 'mail': sendsMail});
+      if (method == 'POST' && wanted == null) {
+        final email = (body['email'] as String? ?? '').trim().toLowerCase();
+        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$').hasMatch(email)) return _refuse(400, "That doesn't look like an email address.");
+        if (!sendsMail) return _refuse(503, "Email invitations aren't set up on this service yet. Send an invite link instead.");
+        final same = waiting.where((id) => emailInvites[id]!.email == email).firstOrNull;
+        final id = same ?? shortId();
+        final had = emailInvites[id];
+        emailInvites[id] = (orgId: org.id, email: email, code: had?.code ?? shortId(), createdAt: had?.createdAt ?? clock(), expiresAt: clock() + 14 * 86400000, sentAt: clock(), by: me);
+        mailed.add((to: email, code: emailInvites[id]!.code));
+        return _json(201, {'invite': emailJson(id)});
+      }
+      if (wanted != null && (!waiting.contains(wanted))) return _refuse(404, 'That invite link has expired or was turned off.');
+      if (method == 'POST' && orgEmails[3] != null) {
+        if (!sendsMail) return _refuse(503, "Email invitations aren't set up on this service yet. Send an invite link instead.");
+        final e = emailInvites[wanted]!;
+        emailInvites[wanted!] = (orgId: e.orgId, email: e.email, code: e.code, createdAt: e.createdAt, expiresAt: clock() + 14 * 86400000, sentAt: clock(), by: e.by);
+        mailed.add((to: e.email, code: e.code));
+        return _json(200, {'invite': emailJson(wanted)});
+      }
+      if (method == 'DELETE' && wanted != null && orgEmails[3] == null) {
+        emailInvites.remove(wanted);
         return _json(200, {'dropped': true});
       }
     }

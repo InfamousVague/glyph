@@ -15,6 +15,7 @@ import '../orgs/orgs.dart';
 import '../orgs/ui/parts.dart';
 import 'account_forms.dart';
 import 'invite_actions.dart';
+import 'invite_emails.dart';
 import 'invite_links.dart';
 import 'kit/settings_kit.dart';
 import 'panes/pane_parts.dart';
@@ -595,6 +596,18 @@ class _Members extends StatelessWidget {
           ),
         if (row.state == 'member') YourColourCard(services: services, row: row),
         if (canInvite) InviteCard(onInvite: onInvite),
+        // Invite by email (Matt, 2026-11-03): a mailed link that opens the app, or helps get it first.
+        if (canInvite)
+          InviteEmails(
+            services: services,
+            orgId: row.id,
+            inset: true,
+            around: (panel) => PaneSection(
+              title: 'Invite by email',
+              description: const Text('We email them a link to join. It opens Ghost.md if they have it, or helps them get it first, and works once, for 14 days.'),
+              children: [panel],
+            ),
+          ),
         if (canInvite)
           InviteLinks(
             services: services,

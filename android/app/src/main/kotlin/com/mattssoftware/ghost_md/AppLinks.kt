@@ -91,10 +91,24 @@ class AppLinks {
       synchronized(waiting) { waiting.add(link) }
     }
 
-    /** The link an intent carries, as text, when it is one of the app's own and no longer than one could be. */
+    /**
+     * The join page an emailed invitation links to, `https://ghostmarkdown.com/join#<code>` (Matt, 2026-11-03: "email
+     * invites to join orgs ... be redirected on the app to join an org"), which the manifest claims for the app by
+     * Android's App Links (landing/.well-known/assetlinks.json). Dart reads the code (lib/orgs/join_links.dart).
+     */
+    private val JOIN_PAGE = Regex("^https://(www\\.)?ghostmarkdown\\.com/join/?#[A-Za-z0-9_=-]{16,72}$", RegexOption.IGNORE_CASE)
+
+    /**
+     * The link an intent carries, as text, when it is one of the app's own - its scheme, or the join page - and no
+     * longer than one could be.
+     */
     internal fun linkOf(scheme: String?, text: String?): String? {
-      if (scheme?.lowercase() != "ghostmd" || text == null) return null
-      return text.takeIf { it.length <= LONGEST }
+      if (text == null || text.length > LONGEST) return null
+      return when (scheme?.lowercase()) {
+        "ghostmd" -> text
+        "https" -> text.takeIf { JOIN_PAGE.matches(it) }
+        else -> null
+      }
     }
   }
 }

@@ -75,6 +75,7 @@ import '../../notes/pull_to_refresh.dart';
 import '../../notes/when.dart';
 import '../../notes/workspace_swatch.dart';
 import '../../settings/invite_actions.dart';
+import '../../settings/invite_emails.dart';
 import '../../settings/invite_links.dart';
 import '../../settings/kit/settings_kit.dart' show GoWord, SettingsWord;
 import '../../sheet/css.dart';
@@ -545,6 +546,25 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
               unawaited(services.syncNotificationsNow());
               await _read();
             },
+          ),
+        // Invite by email (Matt, 2026-11-03): a mailed link that opens the app, or helps get it first.
+        if (canInvite)
+          InviteEmails(
+            services: services,
+            orgId: widget.orgId,
+            now: widget.now,
+            around: (panel) => Padding(
+              padding: EdgeInsets.only(top: t.space(4)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Invite by email', style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
+                  SizedBox(height: t.space(1)),
+                  panel,
+                ],
+              ),
+            ),
           ),
         if (canInvite)
           InviteLinks(

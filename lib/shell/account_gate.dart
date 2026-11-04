@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
+import '../orgs/ui/held_invite.dart';
 import '../settings/kit/settings_kit.dart' show SettingsWord;
 import '../settings/panes/account_pane.dart' show SignInFlow;
 import '../settings/panes/settings_host.dart' show SettingsWayIn;
@@ -114,6 +115,10 @@ class AccountGate extends StatelessWidget {
                             ),
                           ),
                         ],
+                        // An invitation followed before the app was installed (Matt, 2026-11-03): pasted, held, asked about
+                        // once in. Last, so the card and the words the page has stand as they do there.
+                        SizedBox(height: t.space(2)),
+                        HeldInviteField(key: const ValueKey('account-gate-invite'), kept: services?.kept),
                       ],
                     ),
                   ),
