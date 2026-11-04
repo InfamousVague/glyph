@@ -42,7 +42,7 @@ import '../figma/frames.dart' show figmaFramesOn;
 const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Lovart keys', 'access key secret key ak sk lovart api credits'),
   SettingsFindable('Header images for notes', 'banner header cover image painted illustration automatic'),
-  SettingsFindable('Style', 'style painterly coloured colored pencil rough sketch ultra hd photo realistic preset swap header image'),
+  SettingsFindable('Style', 'style painterly coloured colored pencil field journal sketch sepia ink ultra hd photo realistic preset swap header image'),
   SettingsFindable('Header image prompt', 'prompt style words banner header research assets edit change reset'),
   SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),

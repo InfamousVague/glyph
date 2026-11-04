@@ -1212,7 +1212,7 @@ void main() {
 
   group('styles (Matt, 2026-11-04: "the ability to swap between prompt styles at the top of the lovart settings")', () {
     test('are four, each a whole prompt with the note\'s slot and the house\'s framing, and look different', () {
-      expect(bannerPresets.map((p) => p.id), ['painterly', 'pencil', 'sketch', 'photo']);
+      expect(bannerPresets.map((p) => p.id), ['painterly', 'pencil', 'journal', 'photo']);
       expect(bannerPresets.first.words, bannerStyleDefault);
       for (final preset in bannerPresets) {
         expect(preset.words, contains(bannerNoteSlot), reason: preset.id);
@@ -1220,10 +1220,12 @@ void main() {
         expect(preset.words, contains('No ghost, no mascot'), reason: preset.id);
         expect(preset.words, endsWith('Make one image.'), reason: preset.id);
       }
-      // Matt, 2026-11-04: "the sketch should be black and white, the colored pencil / watercolor is too detailed".
-      final sketch = bannerPresets.firstWhere((p) => p.id == 'sketch').words;
-      expect(sketch, contains('black-and-white'));
-      expect(sketch, contains('no colour of any kind'));
+      // Matt, 2026-11-04: the rough sketch made a naturalist's field journal, from a prompt of his ("tailor ... the rough
+      // sketch one to use inspiration from this image").
+      final journal = bannerPresets.firstWhere((p) => p.id == 'journal').words;
+      expect(journal, contains('field-journal sketch'));
+      expect(journal, contains('sepia-brown pen-and-ink'));
+      expect(journal, contains('no handwriting, no labels or annotations'));
       final pencil = bannerPresets.firstWhere((p) => p.id == 'pencil').words;
       expect(pencil, contains('very little detail'));
       expect(pencil, contains('watercolour'));
@@ -1234,12 +1236,12 @@ void main() {
 
     test('choosing one makes it the prompt, and the prompt\'s words say which is chosen', () {
       expect(bannerPresetNow()?.id, 'painterly');
-      final sketch = bannerPresets.firstWhere((p) => p.id == 'sketch');
-      chooseBannerPreset(sketch);
-      expect(bannerTemplate(), sketch.words);
-      expect(bannerPresetNow()?.id, 'sketch');
-      expect(bannerPrompt('# Tokyo trip', template: bannerTemplate()), contains('graphite pencil and black ink only'));
-      setBannerTemplate('${sketch.words} And a cat.');
+      final journal = bannerPresets.firstWhere((p) => p.id == 'journal');
+      chooseBannerPreset(journal);
+      expect(bannerTemplate(), journal.words);
+      expect(bannerPresetNow()?.id, 'journal');
+      expect(bannerPrompt('# Tokyo trip', template: bannerTemplate()), contains('sepia-brown pen-and-ink'));
+      setBannerTemplate('${journal.words} And a cat.');
       expect(bannerPresetNow(), isNull, reason: 'words of the person\'s own');
       chooseBannerPreset(bannerPresets.first);
       expect(bannerTemplate(), isNull, reason: 'Painterly is the house\'s, nothing kept');

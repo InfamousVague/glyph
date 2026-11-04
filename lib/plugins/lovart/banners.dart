@@ -105,7 +105,7 @@ $style
 
 The scene: {note} Spread it across the full width of the frame, edge to edge.
 
-$finish No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
+$finish No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no handwriting, no labels or annotations, no logos, no watermark, no border or frame.
 
 Make one image.""";
 
@@ -121,12 +121,12 @@ final List<BannerPreset> bannerPresets = [
     ),
   ),
   BannerPreset(
-    id: 'sketch',
-    name: 'Rough sketch',
-    blurb: 'Loose lines and quick washes',
+    id: 'journal',
+    name: 'Field journal',
+    blurb: 'Sepia ink and light watercolour',
     words: _preset(
-      'A rough black-and-white sketch in graphite pencil and black ink only: loose, fast, gestural lines, scribbled shading and hatching, construction lines left in, unfinished edges fading into the blank white page, like a quick drawing in an artist\'s sketchbook. Strictly monochrome: black, greys and white, with no colour of any kind.',
-      'Black and white only, pencil and ink on white paper: no colour at all, no washes, not photographic and not polished.',
+      'A hand-drawn naturalist\'s field-journal sketch, like a page from a 19th-century explorer\'s sketchbook: fine warm sepia-brown pen-and-ink linework with delicate cross-hatching, stippling and varied line weight, finished with a few light, translucent watercolour washes in soft, earthy, naturalistic colours that let the warm paper show through. Careful observation and true proportions with the charm of imperfect hand-drawn strokes and slightly irregular pigment. Not cartoonish, not photographic, no digital gradients, no heavy outlines, no vector look.',
+      'Sepia ink and light watercolour washes on warm paper.',
     ),
   ),
   BannerPreset(
