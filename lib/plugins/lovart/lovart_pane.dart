@@ -18,6 +18,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../activity/activity_cost.dart' show askJobCost;
 import '../../claude/claude_settings.dart' show maskKey;
+import '../../art/art.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/kit/settings_type.dart' show pageText;
 import '../../settings/panes/pane_parts.dart' show armedFor;
@@ -30,7 +31,7 @@ import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
 import 'banner_run.dart' show BannerRun, bannerCandidates, bannerRunEstimate, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
-import 'banners.dart' show bannerNoteSlot, bannerStyleDefault, bannerTemplate, bannersOn, lovartExtra, setBannerTemplate, setBanners, setLovartExtra;
+import 'banners.dart' show BannerPreset, bannerNoteSlot, bannerPresetNow, bannerPresets, chooseBannerPreset, bannerStyleDefault, bannerTemplate, bannersOn, lovartExtra, setBannerTemplate, setBanners, setLovartExtra;
 import 'lovart_queue.dart';
 import 'lovart_setup.dart';
 import 'figma_refs.dart' show figmaRefsOn, setFigmaRefs;
@@ -41,6 +42,7 @@ import '../figma/frames.dart' show figmaFramesOn;
 const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Lovart keys', 'access key secret key ak sk lovart api credits'),
   SettingsFindable('Header images for notes', 'banner header cover image painted illustration automatic'),
+  SettingsFindable('Style', 'style painterly coloured colored pencil rough sketch ultra hd photo realistic preset swap header image'),
   SettingsFindable('Header image prompt', 'prompt style words banner header research assets edit change reset'),
   SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
@@ -144,6 +146,12 @@ class _LovartPaneState extends State<LovartPane> {
         : 'Kept. There is no $bannerNoteSlot in it, so the note goes at its end.');
   }
 
+  void _choosePreset(BannerPreset preset) {
+    chooseBannerPreset(preset);
+    _prompt.text = preset.words;
+    setState(() => _promptSaid = '${preset.name} chosen.');
+  }
+
   void _resetPrompt() {
     setBannerTemplate(null);
     _prompt.text = bannerStyleDefault;
@@ -229,6 +237,11 @@ class _LovartPaneState extends State<LovartPane> {
         PluginSetupCard(setup: _setup),
         if (_problem != null) SettingsCallout(child: Text(_problem!)),
         if (_said != null) SettingsCallout(child: Text(_said!)),
+        PaneSection(
+          title: 'Style',
+          description: const Text('How header images are drawn. Choosing one puts its words in the header image prompt below, where you can still change them.'),
+          children: [_StylePicker(chosen: bannerPresetNow(), onChoose: _choosePreset)],
+        ),
         PaneSection(
           title: 'Lovart keys',
           description: const Text('Lovart makes the images with its design agent, using your own Lovart account: in Lovart, click your profile, then Lovart Agent › OpenClaw, and copy the two keys. Each image is made with your Lovart credits.'),
@@ -382,6 +395,103 @@ class _LovartPaneState extends State<LovartPane> {
 
 /// A prompt's words: a field of several lines that grows with them, Enter a new line, nothing corrected, since what
 /// is typed is sent to Lovart as it is (the snippets page's field, lib/settings/panes/snippets_pane.dart).
+/// The styles as cards with a sample each, two or four across as the page allows; the one the prompt holds is marked.
+class _StylePicker extends StatelessWidget {
+  const _StylePicker({required this.chosen, required this.onChoose});
+
+  final BannerPreset? chosen;
+  final ValueChanged<BannerPreset> onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gap = t.space(2);
+    return Padding(
+      padding: EdgeInsets.all(t.space(3)),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final across = box.maxWidth >= 560 ? 4 : 2;
+          final width = (box.maxWidth - gap * (across - 1)) / across;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final preset in bannerPresets)
+                SizedBox(width: width, child: _StyleCard(key: ValueKey('lovart-style-${preset.id}'), preset: preset, chosen: chosen?.id == preset.id, onPress: () => onChoose(preset))),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _StyleCard extends StatelessWidget {
+  const _StyleCard({super.key, required this.preset, required this.chosen, required this.onPress});
+
+  final BannerPreset preset;
+  final bool chosen;
+  final VoidCallback onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ink = t.color('app-ink');
+    final muted = t.color('glacier-text-muted');
+    final accent = t.color('glacier-accent-solid');
+    final radius = t.radius('lg');
+    return Semantics(
+      selected: chosen,
+      child: GlacierPressable(
+        onPressed: onPress,
+        semanticLabel: '${preset.name}, ${preset.blurb}',
+        builder: (context, state) => GlacierFocusRing(
+          visible: state.focused,
+          radius: radius,
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(ink.withValues(alpha: state.pressed ? 0.08 : 0.04), t.color('glacier-bg')),
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: chosen ? accent : t.colorOf('color-mix(in oklch, var(--app-ink) 10%, transparent)'), width: chosen ? 2 : t.len('glacier-hairline')),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.asset(
+                    preset.sample,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stack) => ColoredBox(color: ink.withValues(alpha: 0.06), child: Center(child: AppIcon(Lucide.image, size: 20, color: muted))),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.all(t.space(2)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(preset.name, style: pageText(t, t.fontSize('sm'), weight: 'semibold'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          if (chosen) AppIcon(Lucide.check, size: 16, color: accent),
+                        ],
+                      ),
+                      Text(preset.blurb, style: pageText(t, t.fontSize('xs'), color: muted), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PromptField extends StatefulWidget {
   const _PromptField({super.key, required this.label, required this.controller, required this.placeholder, this.lines = 3});
 

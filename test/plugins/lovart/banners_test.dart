@@ -1,6 +1,7 @@
 // Header banners made by Lovart in the ghost's dotwork (lib/plugins/lovart/banners.dart, lib/core/banner.dart), and
 // the run over the recent notes as the app's own job (lib/plugins/lovart/banner_run.dart).
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -1209,7 +1210,65 @@ void main() {
     });
   });
 
+  group('styles (Matt, 2026-11-04: "the ability to swap between prompt styles at the top of the lovart settings")', () {
+    test('are four, each a whole prompt with the note\'s slot and the house\'s framing, and look different', () {
+      expect(bannerPresets.map((p) => p.id), ['painterly', 'pencil', 'sketch', 'photo']);
+      expect(bannerPresets.first.words, bannerStyleDefault);
+      for (final preset in bannerPresets) {
+        expect(preset.words, contains(bannerNoteSlot), reason: preset.id);
+        expect(preset.words, contains('Fill the whole frame'), reason: preset.id);
+        expect(preset.words, contains('No ghost, no mascot'), reason: preset.id);
+        expect(preset.words, endsWith('Make one image.'), reason: preset.id);
+      }
+      // Matt, 2026-11-04: "the sketch should be black and white, the colored pencil / watercolor is too detailed".
+      final sketch = bannerPresets.firstWhere((p) => p.id == 'sketch').words;
+      expect(sketch, contains('black-and-white'));
+      expect(sketch, contains('no colour of any kind'));
+      final pencil = bannerPresets.firstWhere((p) => p.id == 'pencil').words;
+      expect(pencil, contains('very little detail'));
+      expect(pencil, contains('watercolour'));
+      final photo = bannerPresets.firstWhere((p) => p.id == 'photo').words;
+      expect(photo, contains('photorealistic'));
+      expect(photo, isNot(contains('illustration,')));
+    });
+
+    test('choosing one makes it the prompt, and the prompt\'s words say which is chosen', () {
+      expect(bannerPresetNow()?.id, 'painterly');
+      final sketch = bannerPresets.firstWhere((p) => p.id == 'sketch');
+      chooseBannerPreset(sketch);
+      expect(bannerTemplate(), sketch.words);
+      expect(bannerPresetNow()?.id, 'sketch');
+      expect(bannerPrompt('# Tokyo trip', template: bannerTemplate()), contains('graphite pencil and black ink only'));
+      setBannerTemplate('${sketch.words} And a cat.');
+      expect(bannerPresetNow(), isNull, reason: 'words of the person\'s own');
+      chooseBannerPreset(bannerPresets.first);
+      expect(bannerTemplate(), isNull, reason: 'Painterly is the house\'s, nothing kept');
+    });
+
+    test('have their samples in the app', () {
+      for (final preset in bannerPresets) {
+        expect(File(preset.sample).existsSync(), isTrue, reason: preset.sample);
+      }
+    });
+  });
+
   group('the Lovart page', () {
+    testWidgets('has the styles at its head; a card chooses one and fills the prompt', (tester) async {
+      await pumpPane(tester, const LovartPane());
+      for (final preset in bannerPresets) {
+        expect(find.byKey(ValueKey('lovart-style-${preset.id}')), findsOneWidget);
+      }
+      final keys = find.byKey(const ValueKey('lovart-keys-new'));
+      expect(tester.getTopLeft(find.byKey(const ValueKey('lovart-style-painterly'))).dy, lessThan(tester.getTopLeft(keys).dy));
+      await tester.tap(find.byKey(const ValueKey('lovart-style-photo')));
+      await settle(tester);
+      expect(bannerPresetNow()?.id, 'photo');
+      final field = find.descendant(of: find.byKey(const ValueKey('lovart-prompt-field')), matching: find.byType(EditableText));
+      expect(tester.widget<EditableText>(field).controller.text, bannerPresets.last.words);
+      expect(find.text('Ultra HD chosen.'), findsOneWidget);
+      await away(tester);
+    });
+
     testWidgets('switches Header images for notes, on until then', (tester) async {
       await pumpPane(tester, const LovartPane());
       expect(bannersOn(), isTrue);

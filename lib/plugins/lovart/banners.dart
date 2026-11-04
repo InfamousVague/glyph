@@ -78,6 +78,80 @@ Full colour, painted, not photographic and not flat vector art. No ghost, no mas
 
 Make one image.''';
 
+/// The header image styles to choose from at the head of the plugin's page (Matt, 2026-11-04: "Please generate 4
+/// prompts for the painter style. Colored pencil style, rough sketch and ultra HD non stylized versions ... and add the
+/// ability to swap between prompt styles at the top of the lovart settings"). Each is a whole prompt, the house's framing
+/// round a style of its own; choosing one writes it into "Header image prompt", where it can still be changed, and the
+/// one whose words the prompt holds is the one shown chosen. Painterly is the house's ([bannerStyleDefault]).
+class BannerPreset {
+  const BannerPreset({required this.id, required this.name, required this.blurb, required this.words});
+
+  final String id;
+  final String name;
+
+  /// A line under its name.
+  final String blurb;
+
+  /// The whole prompt, with [bannerNoteSlot] where the note goes.
+  final String words;
+
+  /// Its sample picture, a street in Tokyo drawn in this style (assets/plugins/lovart/styles).
+  String get sample => 'assets/plugins/lovart/styles/$id.webp';
+}
+
+String _preset(String style, String finish) => """A wide 16:9 landscape image, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Fill the whole frame: the scene runs from the left edge to the right edge, with no empty margins or blank thirds, and its main subjects sit across the middle of the picture so a wider crop keeps them.
+
+$style
+
+The scene: {note} Spread it across the full width of the frame, edge to edge.
+
+$finish No ghost, no mascot and no cartoon character: the things themselves tell the note. No text, no letters, no words, no logos, no watermark, no border.
+
+Make one image.""";
+
+final List<BannerPreset> bannerPresets = [
+  const BannerPreset(id: 'painterly', name: 'Painterly', blurb: 'Realistic, with visible brushwork', words: bannerStyleDefault),
+  BannerPreset(
+    id: 'pencil',
+    name: 'Coloured pencil',
+    blurb: 'Layered pencil on textured paper',
+    words: _preset(
+      'A simple, loose coloured-pencil and watercolour drawing with very little detail: a few soft, light washes of watercolour and quick coloured-pencil lines over them, shapes suggested rather than drawn out, no fine detail, no small textures and no crisp edges, lots of bare white paper left showing around and between things. A light, airy, gentle children\'s-book feel in a few soft colours, simple and calm, never busy.',
+      'Light and simple, mostly white paper with soft pencil and watercolour: not detailed, not realistic, not photographic and not painted in oils.',
+    ),
+  ),
+  BannerPreset(
+    id: 'sketch',
+    name: 'Rough sketch',
+    blurb: 'Loose lines and quick washes',
+    words: _preset(
+      'A rough black-and-white sketch in graphite pencil and black ink only: loose, fast, gestural lines, scribbled shading and hatching, construction lines left in, unfinished edges fading into the blank white page, like a quick drawing in an artist\'s sketchbook. Strictly monochrome: black, greys and white, with no colour of any kind.',
+      'Black and white only, pencil and ink on white paper: no colour at all, no washes, not photographic and not polished.',
+    ),
+  ),
+  BannerPreset(
+    id: 'photo',
+    name: 'Ultra HD',
+    blurb: 'Photorealistic, no style',
+    words: _preset(
+      'An ultra high definition, photorealistic image with no stylisation at all: true-to-life detail, materials, colour and light, sharp focus, a believable camera perspective and natural depth of field, like a professional travel photograph taken in good light.',
+      'Photorealistic and ultra HD: no illustration style, no painterly or sketch effects, no filters.',
+    ),
+  ),
+];
+
+/// The preset the header prompt is now, or null where it has been made a person's own.
+BannerPreset? bannerPresetNow([PluginHost? via]) {
+  final words = (bannerTemplate(via) ?? bannerStyleDefault).trim();
+  for (final preset in bannerPresets) {
+    if (preset.words.trim() == words) return preset;
+  }
+  return null;
+}
+
+/// Chooses [preset]: its words become the header prompt (the house's, for Painterly), on every device.
+void chooseBannerPreset(BannerPreset preset, [PluginHost? via]) => setBannerTemplate(preset.words, via);
+
 /// [template] with the note's [subject] where [bannerNoteSlot] is, or after it where the template has no slot; and
 /// [extra], the words "Added to every image" holds, before its last line.
 String bannerStyle(String subject, {String? template, String? extra}) {

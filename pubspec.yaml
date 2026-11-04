@@ -78,6 +78,8 @@ flutter:
     # www.lovart.ai, as read on 2026-10-26 (docs/LOVART.md). A third party's mark: drawn only in the Lovart plugin's
     # own places (its page, its actions, the chip by a cue, the badge on a picture it made), never in the store's.
     - assets/plugins/lovart/lovart-mark.svg
+    # The header image styles' samples, a street in Tokyo in each (Lovart settings, Style; made by Matt with Lovart).
+    - assets/plugins/lovart/styles/
     # The sound packs (lib/sounds/sound_pack.dart; Matt, 2026-10-27: "build ... the sounds settings"): each event's
     # file, .ogg for Android and .caf for Apple's. Ghostly's are placeholders until Matt's own drop in
     # (assets/sounds/README.md).
