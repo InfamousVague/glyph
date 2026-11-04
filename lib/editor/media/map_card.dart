@@ -170,24 +170,12 @@ class _MapMarkIcon extends CustomPainter {
   bool shouldRepaint(_MapMarkIcon old) => old.ink != ink;
 }
 
-/// A CSS filter list as one colour matrix: `grayscale(1)`, then each step in turn.
+/// The tiles in their own colours (Matt, 2026-11-04: "Change the tiles of the maps linked in notes to use the full
+/// color versions (not satellite view)"), where they were grey with a wash of paper over them. In dark mode only a
+/// little dimmer, so the map does not glare from a dark page: `brightness(0.82)`.
 List<double> _tileFilter(bool dark) {
-  // grayscale(1): the luminance in every channel.
-  const r = 0.2126, g = 0.7152, b = 0.0722;
-  // Then a slope and an offset on each channel: contrast(c) is `c x + (0.5 - 0.5 c)`, brightness(k) is `k x`,
-  // invert(1) is `1 - x`.
-  double slope, offset;
-  if (dark) {
-    // invert(1) brightness(1.1)
-    slope = -1.1;
-    offset = 1.1;
-  } else {
-    // contrast(0.92) brightness(1.04)
-    slope = 0.92 * 1.04;
-    offset = (0.5 - 0.5 * 0.92) * 1.04;
-  }
-  final o = offset * 255;
-  return <double>[r * slope, g * slope, b * slope, 0, o, r * slope, g * slope, b * slope, 0, o, r * slope, g * slope, b * slope, 0, o, 0, 0, 0, 1, 0];
+  final k = dark ? 0.82 : 1.0;
+  return <double>[k, 0, 0, 0, 0, 0, k, 0, 0, 0, 0, 0, k, 0, 0, 0, 0, 0, 1, 0];
 }
 
 class MapCard extends StatefulWidget {
@@ -357,8 +345,7 @@ class _MapCardState extends State<MapCard> with SingleTickerProviderStateMixin {
                   child: Stack(
                     fit: StackFit.expand,
                     children: <Widget>[
-                      // '.map .leaflet-tile-pane': { filter: grayscale(1) contrast(0.92) brightness(1.04) }
-                      // '.card[data-dark] .map .leaflet-tile-pane': { filter: grayscale(1) invert(1) brightness(1.1) }
+                      // Full colour since 2026-11-04 ([_tileFilter]), no longer the web's grayscale and inverted dark.
                       ColorFiltered(
                         colorFilter: ColorFilter.matrix(_tileFilter(dark)),
                         child: widget.tiles!(
@@ -370,9 +357,6 @@ class _MapCardState extends State<MapCard> with SingleTickerProviderStateMixin {
                           },
                         ),
                       ),
-                      // '.map::after': { content: ''; position: absolute; inset: 0; background: var(--app-paper-2);
-                      //   opacity: 0.45 }
-                      ColoredBox(color: paper2.withValues(alpha: paper2.a * 0.45)),
                     ],
                   ),
                 ),
