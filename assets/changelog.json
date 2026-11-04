@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.14",
+    "date": "2026-11-04",
+    "title": "Notion import fixed",
+    "items": [
+      {"icon": "download", "words": "Importing from Notion no longer stops on a file with a % in its name.", "kind": "fixed"},
+      {"icon": "download", "words": "A Notion page that can't be brought in is skipped and named, and the rest still come in.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.13",
     "date": "2026-11-04",
     "title": "Header image styles, and importing all of Notion",
