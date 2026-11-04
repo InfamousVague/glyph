@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.12",
+    "date": "2026-11-04",
+    "title": "Inviting people in one place",
+    "items": [
+      {"icon": "users", "words": "Invite opens one window with Email, Link and Handle, starting on email, from the organization's page and its settings.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.11",
     "date": "2026-11-04",
     "title": "Invite people to an organization by email",
