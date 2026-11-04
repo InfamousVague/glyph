@@ -140,6 +140,9 @@ class _Said {
   int icons = 0;
   int covers = 0;
   int unreadable = 0;
+
+  /// Pages that went wrong as they were written, by title: left out, the rest brought in.
+  final List<String> failed = [];
 }
 
 /// Brings in everything [notion] can see through [target]: into the workspace [into] where it is given (a sync
@@ -384,7 +387,16 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
         if (stopped?.call() ?? false) break;
         final item = items[queue.removeAt(0)]!;
         if (done.contains(item.id)) continue;
-        await write(item);
+        // One page that goes wrong is left out and named; the rest still come in. Notion refusing the sign-in still
+        // stops it all.
+        try {
+          await write(item);
+        } on NotionImportFailure catch (failure) {
+          if (failure.status == 401) rethrow;
+          said.failed.add(item.title);
+        } catch (_) {
+          said.failed.add(item.title);
+        }
         count += 1;
         progress?.call((done: count, total: total, on: item.title));
         queue.insertAll(0, [for (final id in item.children) if (!done.contains(id)) id]);
@@ -407,6 +419,11 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
       final names = said.unresolved.take(4).join(', ');
       final more = said.unresolved.length > 4 ? ' and ${said.unresolved.length - 4} more' : '';
       report.skipped.add('links to ${said.unresolved.length == 1 ? 'a page' : '${said.unresolved.length} pages'} Notion didn’t share, left as words: $names$more');
+    }
+    if (said.failed.isNotEmpty) {
+      final names = said.failed.take(5).map((title) => '“$title”').join(', ');
+      final more = said.failed.length > 5 ? ' and ${said.failed.length - 5} more' : '';
+      report.skipped.add('${said.failed.length == 1 ? 'a page' : '${said.failed.length} pages'} that went wrong as ${said.failed.length == 1 ? 'it was' : 'they were'} written: $names$more');
     }
     if (said.unreadable > 0) report.skipped.add('${said.unreadable} ${said.unreadable == 1 ? 'page' : 'pages'} Notion wouldn’t read out');
     if (said.icons > 0) report.skipped.add('${said.icons} ${said.icons == 1 ? 'icon that is a picture' : 'icons that are pictures'}');

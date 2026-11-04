@@ -264,7 +264,8 @@ const Set<String> _listKinds = {'bulleted_list_item', 'numbered_list_item', 'to_
   var name = body['name'] is String ? body['name'] as String : '';
   if (name.isEmpty) {
     final path = Uri.tryParse(url)?.pathSegments ?? const [];
-    name = path.isEmpty ? 'file' : Uri.decodeComponent(path.last);
+    // pathSegments are decoded already: decoding again throws on a name with a % in it (Matt, 2026-11-04: "The import failed with illegal percent parsing uri").
+    name = path.isEmpty || path.last.isEmpty ? 'file' : path.last;
   }
   return (url: url, hosted: kind == 'file' || kind == 'file_upload', name: name);
 }

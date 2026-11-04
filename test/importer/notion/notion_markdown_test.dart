@@ -164,6 +164,11 @@ void main() {
       expect(writing.kept.length, 3);
     });
 
+    test('a file whose name has a % in it (Matt, 2026-11-04: "The import failed with illegal percent parsing uri")', () async {
+      final writing = Writing();
+      expect(await md([fileBlock('pdf', 'https://prod-files-secure.s3.us-west-2.amazonaws.com/x/50%25%20off.pdf')], writing), '[50% off.pdf](file/50% off.pdf)');
+    });
+
     test('sub-pages, databases and links to pages as wiki links; columns and synced blocks as their blocks in order', () async {
       final writing = Writing({idA: 'Plans', idB: 'Tasks'});
       expect(
