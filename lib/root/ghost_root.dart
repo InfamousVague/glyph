@@ -78,6 +78,7 @@ import '../core/core_library.dart';
 import '../core/docs_book.dart' show DocsPart, docsBookBody, docsStarterPart, isDocsBody;
 import '../core/export_all.dart' show ExportAll;
 import '../export/ghostex_calls.dart';
+import '../plugins/notion/notion_import_job.dart' show notionImport;
 import '../importer/importer.dart' show Importer;
 import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../integrations/webhooks/outgoing.dart' show webhooks;
@@ -2035,6 +2036,7 @@ class _GhostRootState extends State<GhostRoot> {
     _bannerJob.dispose();
     _lovartHold.dispose();
     _voiceOverHold.dispose();
+    notionImport.stopKeeping();
     if (identical(elevenLabsPlayer, _voicePreviews)) elevenLabsPlayer = null;
     _voicePreviews?.dispose();
     _aiReady.dispose();
@@ -2155,6 +2157,10 @@ class _GhostRootState extends State<GhostRoot> {
     unawaited(_bannerJob.resume(changes: _pluginsHeard));
     _lovartHold.start();
     _voiceOverHold.start();
+    // Notion's Keep in sync (Matt, 2026-11-04: "we need a way to sync changes and update in real time"): every two
+    // minutes while the app is open, and as it comes to the front, into where the import went.
+    final importer = _importer;
+    if (importer != null) notionImport.keepInSync(target: importer.target, workspaces: importer.workspaces);
     if (_voicePreviews != null) elevenLabsPlayer = _voicePreviews;
     // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
     // build has an account signed in (lib/plugins/discord/discord.dart).

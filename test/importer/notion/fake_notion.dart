@@ -137,7 +137,19 @@ class FakeNotion {
     asked.add('$method $path');
     if (script.isNotEmpty) return script.removeAt(0);
     final cursor = body is Map ? body['start_cursor'] as String? : Uri.parse('https://x/$path').queryParameters['start_cursor'];
-    if (method == 'POST' && path == 'search') return _page(found, cursor);
+    if (method == 'POST' && path == 'search') {
+      // Newest edited first where the search asks for it, as a sync does.
+      final sort = body is Map ? body['sort'] : null;
+      final descending = sort is Map && sort['direction'] == 'descending';
+      final list = descending ? ([...found]..sort((a, b) => '${b['last_edited_time']}'.compareTo('${a['last_edited_time']}'))) : found;
+      return _page(list, cursor);
+    }
+    final one = RegExp(r'^databases/([^/]+)$').firstMatch(path);
+    if (method == 'GET' && one != null) {
+      final id = notionIdOf(one.group(1));
+      final db = found.where((each) => notionIdOf('${each['id']}') == id).firstOrNull;
+      return db == null ? (status: 404, body: {'message': 'Could not find database'}, headers: const <String, String>{}) : (status: 200, body: db, headers: const <String, String>{});
+    }
     final query = RegExp(r'^databases/([^/]+)/query$').firstMatch(path);
     if (method == 'POST' && query != null) return _page(rows[notionIdOf(query.group(1))] ?? const [], cursor);
     final children = RegExp(r'^blocks/([^/?]+)/children').firstMatch(path);

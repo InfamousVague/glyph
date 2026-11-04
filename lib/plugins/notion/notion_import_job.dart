@@ -14,7 +14,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../core/background_jobs.dart';
 import '../../core/workspaces.dart' show Workspace, WorkspaceStore;
@@ -31,23 +31,67 @@ const String notionImportJobId = 'notion-import';
 
 const String _importKey = 'glyph-notion-import';
 
-/// Where the last import went: its workspace and when it ran.
+/// Where the last import went: its workspace and when it ran; and Keep in sync's own (Matt, 2026-11-04: "we need a
+/// way to sync changes and update in real time"): whether it is on, the newest `last_edited_time` seen (the mark the
+/// next check reads down to), when Notion was last checked, and what went wrong last, in words.
 @immutable
 class NotionImportPlace {
-  const NotionImportPlace({required this.workspaceId, required this.name, required this.at});
+  const NotionImportPlace({required this.workspaceId, required this.name, required this.at, this.mark, this.live = true, this.checked, this.error, this.both = 0});
   final String workspaceId;
   final String name;
 
   /// Milliseconds since the epoch.
   final int at;
 
+  /// Notion's `last_edited_time` of the newest page read; null before Keep in sync, when the import's time stands in.
+  final String? mark;
+
+  /// Keep in sync: on once an import has run, until switched off.
+  final bool live;
+
+  /// When Notion was last checked, in milliseconds; and what that check could not do, or null.
+  final int? checked;
+  final String? error;
+
+  /// How many pages the last sync found changed in both, Ghost.md's kept.
+  final int both;
+
+  /// The mark a check reads down to: [mark], else the import's own time as Notion writes one.
+  String get since => mark ?? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toIso8601String();
+
   static NotionImportPlace? fromJson(Object? raw) {
     if (raw is! Map || raw['workspace'] is! String || raw['name'] is! String || raw['at'] is! num) return null;
-    return NotionImportPlace(workspaceId: raw['workspace'] as String, name: raw['name'] as String, at: (raw['at'] as num).toInt());
+    return NotionImportPlace(
+      workspaceId: raw['workspace'] as String,
+      name: raw['name'] as String,
+      at: (raw['at'] as num).toInt(),
+      mark: raw['mark'] is String ? raw['mark'] as String : null,
+      live: raw['live'] != false,
+      checked: raw['checked'] is num ? (raw['checked'] as num).toInt() : null,
+      error: raw['error'] is String ? raw['error'] as String : null,
+      both: raw['both'] is num ? (raw['both'] as num).toInt() : 0,
+    );
   }
 
-  Map<String, Object?> toJson() => {'workspace': workspaceId, 'name': name, 'at': at};
+  NotionImportPlace copyWith({String? mark, bool? live, int? checked, String? Function()? error, int? both}) => NotionImportPlace(
+        workspaceId: workspaceId,
+        name: name,
+        at: at,
+        mark: mark ?? this.mark,
+        live: live ?? this.live,
+        checked: checked ?? this.checked,
+        error: error == null ? this.error : error(),
+        both: both ?? this.both,
+      );
+
+  Map<String, Object?> toJson() => {'workspace': workspaceId, 'name': name, 'at': at, 'mark': ?mark, 'live': live, 'checked': ?checked, 'error': ?error, if (both > 0) 'both': both};
 }
+
+/// How often Keep in sync checks Notion while the app is open.
+const Duration notionSyncEvery = Duration(minutes: 2);
+
+/// How many pages a sync changes before it shows in the tray: fewer are quiet.
+const int notionSyncQuietMost = 5;
 
 /// Where an import is.
 sealed class NotionImportState {
@@ -116,6 +160,102 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
     return null;
   }
 
+  void _keep(NotionImportPlace place) {
+    host.storage.set(_importKey, place.toJson());
+    notifyListeners();
+  }
+
+  /// A sync under way (Keep in sync's, or Sync now's quick one).
+  bool get syncing => _syncing;
+  bool _syncing = false;
+
+  /// What the last sync brought, for the page: null before one changed anything.
+  ImportReport? get lastSync => _lastSync;
+  ImportReport? _lastSync;
+
+  /// Keep in sync on or off.
+  void setLive(bool on) {
+    final place = last;
+    if (place == null) return;
+    _keep(place.copyWith(live: on));
+    if (on) unawaited(sync());
+  }
+
+  /// Checks Notion for what changed since the last mark and brings it in place, quietly: one search where nothing
+  /// changed, a chip in the tray only where more than [notionSyncQuietMost] pages did. Never while an import runs,
+  /// never two at once. Into the workspace the import went into; where it is gone, Keep in sync says so and stops.
+  Future<void> sync({ImportTarget? target, WorkspaceStore? workspaces}) async {
+    final to = target ?? _target?.call();
+    final among = workspaces ?? _workspaces;
+    final place = last;
+    if (running || _syncing || to == null || among == null || place == null) return;
+    final into = lastIn(among);
+    if (into == null) {
+      _keep(place.copyWith(live: false, checked: _now(), error: () => 'The workspace ${place.name} is gone, so Keep in sync is off. Import again to bring Notion in.'));
+      return;
+    }
+    _syncing = true;
+    notifyListeners();
+    var mark = place.since;
+    JobHandle? job;
+    try {
+      final report = await syncNotion(_reader(), to, into: into, mark: mark, newest: (newest) => mark = newest, progress: (p) {
+        if (job == null && p.total > notionSyncQuietMost) {
+          job = activity.begin(notionImportJobId, kind: JobKind.downloads, title: 'Syncing from Notion', line: 'Reading what changed', plugin: manifest.id);
+        }
+        if (p.total > 0) job?.progress(done: p.done, total: p.total, steps: '${p.done} of ${p.total} pages', line: p.on);
+      });
+      if (report != null) _lastSync = report;
+      job?.done(result: report == null ? null : JobResult(importDoneSaid(report), action: 'Open'), tally: JobTally('page synced', 'pages synced', report == null ? 0 : report.notes + report.notebooks + report.updated));
+      _keep((last ?? place).copyWith(mark: mark, checked: _now(), error: () => null, both: report?.conflicts ?? 0));
+    } catch (failure) {
+      final why = failureWords(failure);
+      job?.failed(why);
+      _keep((last ?? place).copyWith(checked: _now(), error: () => why));
+    } finally {
+      _syncing = false;
+      notifyListeners();
+    }
+  }
+
+  int _now() => notionNow();
+
+  ImportTarget Function()? _target;
+  WorkspaceStore? _workspaces;
+  Timer? _timer;
+  _Resumed? _resumed;
+
+  /// Keep in sync, for the app's life (the root hands where imports write): a check now, every [notionSyncEvery]
+  /// while the app is open, and as it comes back to the front, each while the switch is on and Notion signed in.
+  void keepInSync({required ImportTarget Function() target, required WorkspaceStore workspaces, Duration every = notionSyncEvery}) {
+    _target = target;
+    _workspaces = workspaces;
+    _timer?.cancel();
+    _timer = Timer.periodic(every, (_) => _tick());
+    if (_resumed == null) {
+      _resumed = _Resumed(_tick);
+      WidgetsBinding.instance.addObserver(_resumed!);
+    }
+    _tick();
+  }
+
+  /// Stops [keepInSync]'s checks.
+  void stopKeeping() {
+    _timer?.cancel();
+    _timer = null;
+    final resumed = _resumed;
+    if (resumed != null) WidgetsBinding.instance.removeObserver(resumed);
+    _resumed = null;
+    _target = null;
+    _workspaces = null;
+  }
+
+  void _tick() {
+    final place = last;
+    if (place == null || !place.live || !notionAccountNow().connected) return;
+    unawaited(sync());
+  }
+
   /// How much Notion shows the sign-in.
   Future<NotionShared> look() => notionShared(_reader());
 
@@ -136,7 +276,8 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
     });
     unawaited(_device.running(notionImportJobId, title: title, text: 'Reading what Notion shares'));
     try {
-      final report = await importNotion(_reader(), target, into: into, stopped: () => _stop, progress: (p) {
+      String? newest;
+      final report = await importNotion(_reader(), target, into: into, stopped: () => _stop, newest: (mark) => newest = mark, progress: (p) {
         value = NotionImportRunning(done: p.done, total: p.total, on: p.on);
         if (p.total > 0) {
           job.progress(done: p.done, total: p.total, steps: '${p.done} of ${p.total} pages', line: p.on);
@@ -144,7 +285,12 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
         }
       });
       final id = report.groupId;
-      if (id != null) host.storage.set(_importKey, NotionImportPlace(workspaceId: id, name: report.groupName ?? notionWorkspaceName, at: DateTime.now().millisecondsSinceEpoch).toJson());
+      final before = last;
+      if (id != null) {
+        // Keep in sync stays as it was set for the same place, and is on for a new one.
+        final same = before != null && before.workspaceId == id;
+        _keep(NotionImportPlace(workspaceId: id, name: report.groupName ?? notionWorkspaceName, at: _now(), mark: newest ?? before?.mark, live: same ? before.live : true, checked: _now()));
+      }
       value = NotionImportDone(report, stopped: _stop);
       final made = report.notes + report.notebooks + report.updated;
       if (_stop) {
@@ -167,6 +313,17 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
   /// Back to the start: what the page shows after its result is read.
   void clear() {
     if (!running) value = const NotionImportIdle();
+  }
+}
+
+/// Hears the app come back to the front.
+class _Resumed with WidgetsBindingObserver {
+  _Resumed(this._heard);
+  final VoidCallback _heard;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _heard();
   }
 }
 

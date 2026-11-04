@@ -165,14 +165,24 @@ class _NotionImportSectionState extends State<NotionImportSection> {
                   : 'Missing some? Choose more pages on Notion’s page (or every top-level page), then come back.'),
               control: RowAction(onPress: () => unawaited(_chooseMore()), child: const Text('Choose more pages')),
             ),
+            // Keep in sync (Matt, 2026-11-04: "we need a way to sync changes and update in real time"): once an import
+            // has run into this place, on until switched off; how it went last, in words.
+            if (again)
+              SettingRow(
+                key: const ValueKey('notion-import-live'),
+                icon: const AppIcon(Lucide.refreshCw, size: 16),
+                label: 'Keep in sync',
+                hint: Text(_liveWords(last)),
+                control: GlacierSwitch(ariaLabel: 'Keep in sync', checked: last.live, onCheckedChange: _job.setLive),
+              ),
             SettingRow(
               key: const ValueKey('notion-import-run'),
               icon: AppIcon(again ? Lucide.refreshCw : Lucide.folderInput, size: 16),
-              label: again ? 'Sync again' : 'Import everything',
+              label: again ? 'Sync now' : 'Import everything',
               hint: Text(again
-                  ? 'Brings what is new or changed since ${_day(last.at)} into $where. Nothing here is deleted.'
+                  ? 'Reads all of what Notion shares and brings what is new or changed since ${_day(last.at)} into $where. Nothing here is deleted.'
                   : 'Into $where. Running it again later brings only what changed.'),
-              control: RowAction(onPress: _run, disabled: !can, child: Text(again ? 'Sync' : 'Import')),
+              control: RowAction(onPress: _run, disabled: !can || _job.syncing, child: Text(again ? 'Sync' : 'Import')),
             ),
             if (!full)
               SettingRow(
@@ -195,6 +205,25 @@ class _NotionImportSectionState extends State<NotionImportSection> {
           ),
       ],
     );
+  }
+
+  /// What Keep in sync says: syncing now, or when it last checked, what changed on both sides, and what went wrong.
+  String _liveWords(NotionImportPlace place) {
+    if (!place.live) return 'Off. Sync now brings what changed when you ask.';
+    final parts = <String>[
+      if (_job.syncing) 'Syncing…' else if (place.checked != null) 'Synced ${_ago(place.checked!)}.' else 'Checks Notion every 2 minutes while Ghost.md is open.',
+      if (place.both > 0) '${place.both == 1 ? '1 page' : '${place.both} pages'} changed in both; kept Ghost’s.',
+      if (place.error != null && !_job.syncing) 'Last check: ${place.error}',
+    ];
+    return parts.join(' ');
+  }
+
+  static String _ago(int at) {
+    final since = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(at));
+    if (since.inMinutes < 1) return 'just now';
+    if (since.inMinutes < 60) return since.inMinutes == 1 ? '1 minute ago' : '${since.inMinutes} minutes ago';
+    if (since.inHours < 24) return since.inHours == 1 ? '1 hour ago' : '${since.inHours} hours ago';
+    return 'on ${_day(at)}';
   }
 
   Widget _choice(String? id, String label, bool picked, LucideIcon icon, {String? hint}) => SettingRow(

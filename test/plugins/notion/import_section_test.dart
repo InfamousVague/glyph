@@ -60,7 +60,8 @@ void main() {
     // The record: the job ended well, counted, and the place kept for Sync again.
     expect(activity.lastEnded?.id, notionImportJobId);
     expect(job.last?.name, 'Notion');
-    expect(find.text('Sync again'), findsOneWidget);
+    expect(find.text('Sync now'), findsOneWidget);
+    expect(find.text('Keep in sync'), findsOneWidget);
     await endSettings(tester);
   });
 
@@ -77,5 +78,47 @@ void main() {
     expect(find.text('Into Work. Running it again later brings only what changed.'), findsOneWidget);
     expect(find.byType(SettingRow), findsWidgets);
     await endSettings(tester);
+  });
+
+  Future<void> imported(WidgetTester tester) async {
+    await tester.runAsync(() => job.start(it.target()));
+    expect(job.value, isA<NotionImportDone>());
+  }
+
+  testWidgets('Keep in sync is on once an import ran, says when it last checked, and switches off', (tester) async {
+    await imported(tester);
+    expect(job.last!.live, isTrue);
+    expect(job.last!.mark, '2026-11-01T10:00:00.000Z');
+    await section(tester);
+    expect(find.text('Keep in sync'), findsOneWidget);
+    expect(find.textContaining('Synced just now.'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Keep in sync').last);
+    await settleSettings(tester);
+    expect(job.last!.live, isFalse);
+    expect(find.text('Off. Sync now brings what changed when you ask.'), findsOneWidget);
+    await endSettings(tester);
+  });
+
+  testWidgets('a sync with nothing changed is one search and quiet; a few changes are quiet too; a failure is said', (tester) async {
+    await imported(tester);
+    notion.asked.clear();
+    await tester.runAsync(() => job.sync(target: it.target(), workspaces: it.workspaces));
+    expect(notion.asked, ['POST search']);
+    expect(job.lastSync, isNull);
+
+    final started = <JobEvent>[];
+    final heard = activity.events.where((e) => e.kind == JobEventKind.started).listen(started.add);
+    addTearDown(heard.cancel);
+    notion.add(page(idOf(1), 'Home', edited: '2026-11-04T10:00:00.000Z'), children: [block('paragraph', rich: 'Hello again.')]);
+    await tester.runAsync(() => job.sync(target: it.target(), workspaces: it.workspaces));
+    expect(job.lastSync!.updated, 1);
+    expect(job.last!.mark, '2026-11-04T10:00:00.000Z');
+    // Quiet: one page changed, so nothing was begun on the record.
+    expect(started, isEmpty);
+    expect(it.library.value.where((n) => n.body.contains('Hello again.')), hasLength(1));
+
+    notion.script.add((status: 401, body: {'message': 'API token is invalid.'}, headers: const <String, String>{}));
+    await tester.runAsync(() => job.sync(target: it.target(), workspaces: it.workspaces));
+    expect(job.last!.error, contains('Sign in again'));
   });
 }

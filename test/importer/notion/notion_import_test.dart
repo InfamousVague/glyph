@@ -4,6 +4,7 @@ import 'package:ghost_md/core/front_matter.dart' show frontMatterValue;
 import 'package:ghost_md/importer/import_report.dart';
 import 'package:ghost_md/importer/notion/notion_import.dart';
 import 'package:ghost_md/importer/notion/notion_source.dart';
+import 'package:ghost_md/core/workspaces.dart' show Workspace;
 
 import '../support.dart';
 import 'fake_notion.dart';
@@ -22,8 +23,8 @@ const String coverUrl = 'https://prod-files-secure.s3.us-west-2.amazonaws.com/x/
 
 /// A small workspace: Home with Plans under it (Plans with Q1 under it, and Q1 inside a column), a Tasks database in
 /// Home with two rows, a Notes page at the top, and a second page called Plans at the top.
-FakeNotion workspace() {
-  final notion = FakeNotion();
+FakeNotion workspace({int pageSize = 2}) {
+  final notion = FakeNotion(pageSize: pageSize);
   notion.files[coverUrl] = pngBytes;
   notion.add(page(home, 'Home', icon: {'type': 'emoji', 'emoji': '🏠'}, cover: {'type': 'file', 'file': {'url': coverUrl}}), children: [
     block('paragraph', rich: 'Welcome.'),
@@ -245,6 +246,88 @@ void main() {
       expect(notionLinkId('https://www.notion.so/team/Plans-$idA?pvs=4'), idA);
       expect(notionLinkId('/${dashed(idA)}'), idA);
       expect(notionLinkId('https://example.com/$idA'), isNull);
+    });
+  });
+
+  group('keep in sync', () {
+    late ImportHarness it;
+    late FakeNotion notion;
+    late String mark;
+    late Workspace into;
+    setUp(() async {
+      it = ImportHarness();
+      notion = workspace(pageSize: 100);
+      var newest = '';
+      final first = await importNotion(notion.reader(), it.target(), newest: (said) => newest = said);
+      mark = newest;
+      into = it.workspaces.value.list.firstWhere((w) => w.id == first.groupId);
+      notion.asked.clear();
+    });
+    tearDown(() => it.dispose());
+
+    test('the import says the newest edit it read, the mark the next check reads down to', () {
+      expect(mark, '2026-11-01T10:00:00.000Z');
+      expect(frontMatterValue(it.at('$root/Notes.md')!.body, 'notion-hash'), hasLength(16));
+    });
+
+    test('a check with nothing changed is one search, and writes nothing', () async {
+      final before = [for (final note in it.library.value) note.body];
+      String? next;
+      final report = await syncNotion(notion.reader(), it.target(), into: into, mark: mark, newest: (said) => next = said);
+      expect(report, isNull);
+      expect(notion.asked, ['POST search']);
+      expect(next, isNull);
+      expect([for (final note in it.library.value) note.body], before);
+    });
+
+    test('picks up what changed since the mark: a page rewritten in place, a new one under an unchanged page, a new row in its database', () async {
+      final ids = {for (final note in it.library.value) note.path: note.id};
+      notion.add(page(notes, 'Notes', created: '2026-09-01T10:00:00.000Z', edited: '2026-11-04T10:00:00.000Z'), children: [block('to_do', rich: 'Buy oat milk')]);
+      notion.add(page(idOf(97), 'Retro', parent: plans, created: '2026-11-04T09:00:00.000Z', edited: '2026-11-04T10:01:00.000Z'), children: [block('paragraph', rich: 'What went well.')]);
+      notion.addRow(tasks, page(idOf(96), 'Ship it', parent: tasks, parentKind: 'database_id', titleProperty: 'Name', created: '2026-11-04T09:00:00.000Z', edited: '2026-11-04T10:02:00.000Z', properties: {
+        'Status': {'type': 'status', 'status': {'name': 'Done'}},
+      }));
+      String? next;
+      final report = await syncNotion(notion.reader(), it.target(), into: into, mark: mark, newest: (said) => next = said);
+      expect(next, '2026-11-04T10:02:00.000Z');
+      expect(report!.updated, 2);
+      expect(report.notes, 2);
+      expect(it.at('$root/Notes.md')!.id, ids['$root/Notes.md']);
+      expect(it.at('$root/Notes.md')!.body, contains('- [ ] Buy oat milk'));
+      expect(it.at('$root/Home/Plans/Retro.md'), isNotNull);
+      expect(it.at('$root/Home/Tasks/Ship it.md')!.body, contains('status: Done'));
+      expect([for (final c in chaptersOf(it.at('$root/Home/Tasks/index.md')!.body)) c.title], ['Write the doc', 'Review: final', 'Ship it']);
+      // Only the changed pages' blocks were read, and the database once for its index.
+      expect(notion.asked.where((a) => a.startsWith('GET blocks/${dashed(home)}')), isEmpty);
+      expect(notion.asked, contains('GET databases/${dashed(tasks)}'));
+      expect(it.library.value.length, 10);
+    });
+
+    test('a page edited in Ghost.md and in Notion both is left as Ghost.md has it, and said', () async {
+      final mine = it.at('$root/Notes.md')!;
+      await it.library.apply(mine.copyWith(body: '${mine.body}\nMy own line.\n'));
+      notion.add(page(notes, 'Notes', created: '2026-09-01T10:00:00.000Z', edited: '2026-11-04T10:00:00.000Z'), children: [block('to_do', rich: 'Buy oat milk')]);
+      final report = await syncNotion(notion.reader(), it.target(), into: into, mark: mark);
+      expect(it.at('$root/Notes.md')!.body, contains('My own line.'));
+      expect(it.at('$root/Notes.md')!.body, isNot(contains('oat milk')));
+      expect(report!.conflicts, 1);
+      expect(importSkippedSaid(report), contains('1 page changed in both; kept Ghost’s: “Notes”'));
+      expect(notion.asked.where((a) => a.startsWith('GET blocks/')), isEmpty);
+    });
+
+    test('a note edited only in Ghost.md is left alone by a full run too', () async {
+      final mine = it.at('$root/Notes.md')!;
+      await it.library.apply(mine.copyWith(body: '${mine.body}\nMine.\n'));
+      final again = await importNotion(notion.reader(), it.target(), into: into);
+      expect(it.at('$root/Notes.md')!.body, contains('Mine.'));
+      expect(again.conflicts, 0);
+    });
+
+    test('the library’s own keys in the front matter are not an edit', () {
+      final body = it.at('$root/Notes.md')!.body;
+      final withKeys = body.replaceFirst('---\n', '---\nid: n7\ncreated: 2026-11-04\n');
+      expect(notionHashOf(withKeys), notionHashOf(body));
+      expect(notionHashOf('$body\nmore'), isNot(notionHashOf(body)));
     });
   });
 }

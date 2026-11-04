@@ -22,7 +22,7 @@ teamspace page) shares everything under them. The section says how many pages an
   pages" and the page it is on, with **Stop**. On Android the foreground service keeps it going with the screen off.
   The import keeps running when the page is closed.
 - At the end the page and the tray chip say what came in, what was renamed and what was left out.
-- **Sync again** (once it has run) brings in new and changed pages, into the same place.
+- **Sync now** (once it has run) brings in new and changed pages, into the same place, and **Keep in sync** does it by itself (below).
 
 ## The shape
 
@@ -106,8 +106,56 @@ Each note's front matter is the map from Notion to Ghost.md. A run reads `notion
 - Nothing is deleted. A page gone from Notion stays, and the report counts it.
 
 A run that was stopped or cut short is finished by running it again. The plugin's storage key `glyph-notion-import`
-keeps only where the last run went (workspace id, name, time), for **Sync again**. Because the map lives in the files,
+keeps where the last run went (workspace id, name, time) and Keep in sync's mark, switch and last check. Because the map lives in the files,
 a sync after a reinstall, or from another device, still updates rather than duplicates.
+
+## Keep in sync
+
+Matt, 2026-11-04: "we need a way to sync changes and update in real time".
+
+Once an import has run, the section has a **Keep in sync** switch. It is on by default and kept per device in
+`glyph-notion-import`, next to where the import went. While it is on and the app is open, the app checks Notion every
+2 minutes, at launch, and whenever the app comes back to the front. The root starts this with
+`notionImport.keepInSync` (lib/plugins/notion/notion_import_job.dart). It checks only while Notion is signed in, and
+never while an import is running.
+
+- **Incremental.** A check is a search sorted by `last_edited_time` descending (`NotionReader.since`). It stops at the
+  first page older than the **mark**: the newest `last_edited_time` the previous run read, kept as `mark` in the
+  plugin's storage. Imports from before Keep in sync use the import's own time as the mark. Pages whose
+  `notion-edited:` already matches are dropped. When nothing changed, a check is **one search request** and writes
+  nothing.
+- **Then it writes as the re-run does** (`syncNotion` → `importNotion(found:)`). Only the changed pages' blocks are
+  read and those pages are rewritten in place. A new page lands under its parent's folder even when the parent didn't
+  change. A changed row brings its database (`GET databases/<id>`) so the notebook's index lists it. Titles of
+  everything else are taken from the notes as they are, so links still resolve.
+- **Quiet.** A sync makes no tray chip or job unless more than 5 pages change (`notionSyncQuietMost`).
+- **What the page says.** "Syncing…", or "Synced 2 minutes ago". It also shows "N pages changed in both; kept Ghost's"
+  and the last error in words ("Last check: Notion signed Ghost.md out…"). **Sync now** is the full re-run, which
+  reads all of what Notion shares.
+- **Never over an edit made in Ghost.md.** Each note the import writes carries `notion-hash:`, a SHA-1 of the note as
+  written (16 hex digits). The hash leaves out its own line and the library's own front matter keys (`id`, `created`,
+  `updated`…). When a note's words no longer match its hash, it was edited here. That note is skipped by a sync and by
+  Sync now. If Notion changed it too, it is counted and named: "1 page changed in both; kept Ghost's: “Notes”". Notes
+  imported before the hash existed have no hash, so they are written over as before, and get a hash then.
+- **The workspace is gone.** Keep in sync turns itself off and says so.
+
+### True real time: Notion webhooks (not built)
+
+Polling every 2 minutes is as close as the device can get alone. The follow-up is Notion's webhooks:
+
+1. **glyph-api**: `POST /api/notion/webhook`, a public endpoint registered as the integration's webhook URL in
+   Notion's developer settings. It answers Notion's verification handshake (`verification_token`) once. After that it
+   checks each event's `X-Notion-Signature` (HMAC-SHA256 of the body with the verification token) and keeps only the
+   event's kind (`page.content_updated`, `page.created`, `page.deleted`, `database.schema_updated`…), the entity id,
+   the workspace id and the time. No page content comes with an event, and none is stored.
+2. **glyph-api**: Notion's OAuth claim already knows the workspace id and the account (server/src/notion.rs). Map the
+   workspace id to the account, and push "Notion changed: <ids>" to that account's devices over the existing sync
+   push (or a small `GET /api/notion/changes?since=` long-poll for devices without push).
+3. **The device**: on that push, run `syncNotion` with the ids as hints, with no wait for the 2-minute tick. Keep the
+   poll as the fallback for a missed event. `page.deleted` could move the note to the trash. That would be a decision
+   for Matt, since today nothing is deleted.
+4. **Cost**: one route, one table (workspace id → account), the signature check, and a push. Notion delivers events
+   within about a minute and batches bursts, so a device would still see a short lag.
 
 ## Limits and what is not 1:1
 
@@ -137,7 +185,7 @@ a sync after a reinstall, or from another device, still updates rather than dupl
   `notionLinkId`.
 - `lib/importer/notion/notion_markdown.dart`: blocks and rich text as Markdown.
 - `lib/importer/notion/notion_properties.dart`: properties as front matter, the database's queries.
-- `lib/importer/notion/notion_import.dart`: the tree, titles, paths, the re-run.
+- `lib/importer/notion/notion_import.dart`: the tree, titles, paths, the re-run, `syncNotion`, `notionHashOf`.
 - `lib/importer/import_target.dart`: `begin(named:, into:)`, `note(id:)` to update in place. `import_paths.dart`
   `placeIn`.
 - `lib/plugins/notion/notion_import_job.dart`: the job on the app's record. `notion_import_section.dart`: the page's

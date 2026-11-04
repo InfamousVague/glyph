@@ -161,6 +161,47 @@ class NotionReader {
         'sort': {'direction': 'ascending', 'timestamp': 'last_edited_time'},
       });
 
+  /// What changed since [mark] (an ISO moment, Notion's `last_edited_time` of the newest page seen before): the
+  /// search the newest edited first, a page of it at a time, stopping at the first older than [mark]. Pages edited
+  /// in [mark]'s own minute come again, since Notion keeps the minute only; the caller leaves alone what it already
+  /// has. When nothing changed this is one request (Matt, 2026-11-04: "we need a way to sync changes and update in
+  /// real time").
+  Future<List<Map<String, Object?>>> since(String mark) async {
+    final rows = <Map<String, Object?>>[];
+    String? cursor;
+    for (var page = 0; page < notionMostPages; page += 1) {
+      final answer = await ask('POST', 'search', {
+        'sort': {'direction': 'descending', 'timestamp': 'last_edited_time'},
+        'page_size': notionPageSize,
+        'start_cursor': ?cursor,
+      });
+      if (answer is! Map) break;
+      final results = answer['results'];
+      var older = false;
+      if (results is List) {
+        for (final row in results) {
+          if (row is! Map) continue;
+          final edited = '${row['last_edited_time'] ?? ''}';
+          if (edited.compareTo(mark) < 0) {
+            older = true;
+            break;
+          }
+          rows.add(row.cast<String, Object?>());
+        }
+      }
+      final next = answer['next_cursor'];
+      if (older || answer['has_more'] != true || next is! String || next.isEmpty) break;
+      cursor = next;
+    }
+    return rows;
+  }
+
+  /// One database, as Notion has it now: for a sync whose rows changed while the database itself did not.
+  Future<Map<String, Object?>?> database(String id) async {
+    final answer = await ask('GET', 'databases/$id');
+    return answer is Map ? answer.cast<String, Object?>() : null;
+  }
+
   /// A database's rows, in the order Notion lists them.
   Future<List<Map<String, Object?>>> rows(String databaseId) => _all('POST', 'databases/$databaseId/query');
 

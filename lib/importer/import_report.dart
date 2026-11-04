@@ -27,6 +27,9 @@ class ImportReport {
   /// Notes an earlier import made that had not changed since, left as they are.
   int unchanged = 0;
 
+  /// Notes changed on both sides since an earlier import, left as this app has them (Notion's sync).
+  int conflicts = 0;
+
   /// The notes made, by id, the notebooks among them.
   final List<String> noteIds = [];
 

@@ -26,9 +26,12 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart' show sha1;
 
 import '../../core/banner.dart' show bannerValue;
-import '../../core/front_matter.dart' show frontMatterValue, quotedTitle;
+import '../../core/front_matter.dart' show frontMatterValue, libraryKeys, quotedTitle;
 import '../../core/note.dart';
 import '../../core/shared_files.dart' show SharedBytes, sharedFileMarkdown;
 import '../../core/title_key.dart' show titleKey;
@@ -143,13 +146,21 @@ class _Said {
 
   /// Pages that went wrong as they were written, by title: left out, the rest brought in.
   final List<String> failed = [];
+
+  /// Pages changed in Notion and in Ghost.md both, by title: Ghost.md's kept.
+  final List<String> both = [];
 }
 
 /// Brings in everything [notion] can see through [target]: into the workspace [into] where it is given (a sync
 /// again, or a folder the person chose), else a new one called [named]. [progress] hears each page as it is done,
 /// of how many; [stopped] is asked between pages, and a run stopped keeps what it wrote. Throws, in the app's
 /// words, what stopped it before anything was written ([NotionImportFailure]).
-Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Workspace? into, String named = notionWorkspaceName, void Function(ImportProgress progress)? progress, bool Function()? stopped}) async {
+///
+/// [found] in place of the search is a sync's few pages (lib/importer/notion/notion_import.dart [syncNotion]): the
+/// rest of the library's Notion notes are taken as they are, their titles kept for links and their folders for
+/// what goes in them. [newest] hears the newest `last_edited_time` among what was read, the sync's next mark.
+Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Workspace? into, String named = notionWorkspaceName, void Function(ImportProgress progress)? progress, bool Function()? stopped, List<Map<String, Object?>>? found, void Function(String newest)? newest}) async {
+  final partial = found != null;
   progress?.call((done: 0, total: 0, on: null));
   final items = <String, _Item>{};
   final order = <String>[];
@@ -160,8 +171,8 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
     items[item.id] = item;
   }
 
-  for (final found in await notion.search()) {
-    add(found);
+  for (final each in found ?? await notion.search()) {
+    add(each);
   }
   final said = _Said();
   // Each database's rows, in its own order: the search finds rows too, but not always all of them.
@@ -194,10 +205,30 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
     }
   }
 
-  // A title for each, unique across the import, the oldest page keeping the plain one.
+  // What an import before this one made, by the Notion id each note says it came from.
+  final made = <String, Note>{};
+  for (final note in target.library.value) {
+    final id = notionIdOf(frontMatterValue(note.body, 'notion-id'));
+    if (id != null) made[id] = note;
+  }
+
+  final mark = [for (final item in items.values) item.edited].fold<String>('', (a, b) => b.compareTo(a) > 0 ? b : a);
+  if (mark.isNotEmpty) newest?.call(mark);
+
+  // A title for each, unique across the import, the oldest page keeping the plain one. A sync's other pages keep
+  // the titles they have, and links to them read those.
   final byAge = [...items.values]..sort((a, b) => a.created == b.created ? a.id.compareTo(b.id) : a.created.compareTo(b.created));
   final used = <String>{};
   final titles = <String, String>{};
+  if (partial) {
+    for (final MapEntry(key: id, value: note) in made.entries) {
+      if (items.containsKey(id)) continue;
+      final title = frontMatterValue(note.body, 'title');
+      if (title == null || title.isEmpty) continue;
+      titles[id] = title;
+      used.add(titleKey(title));
+    }
+  }
   for (final item in byAge) {
     var title = linkTitle(headingTitle(item.notionTitle));
     if (titleKey(title).isEmpty) title = 'Untitled';
@@ -208,13 +239,6 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
     used.add(titleKey(unique));
     item.title = unique;
     titles[item.id] = unique;
-  }
-
-  // What an import before this one made, by the Notion id each note says it came from.
-  final made = <String, Note>{};
-  for (final note in target.library.value) {
-    final id = notionIdOf(frontMatterValue(note.body, 'notion-id'));
-    if (id != null) made[id] = note;
   }
 
   final run = target.begin('Notion', named: named, into: into);
@@ -239,9 +263,24 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
   Future<void> write(_Item item) async {
     done.add(item.id);
     final had = made[item.id];
-    final parentDir = item.parent == null ? run.paths.root : (childDir[item.parent] ?? run.paths.root);
+    final parentDir = item.parent == null ? (_dirOfParent(item, made) ?? run.paths.root) : (childDir[item.parent] ?? run.paths.root);
     var blocks = const <Map<String, Object?>>[];
-    final unchanged = had != null && !item.database && frontMatterValue(had.body, 'notion-edited') == item.edited;
+    final sameEdit = had != null && frontMatterValue(had.body, 'notion-edited') == item.edited;
+    final unchanged = sameEdit && !item.database;
+    // Edited in Ghost.md since it came in: its words are not what was written (`notion-hash:`). Never written over:
+    // where Notion changed it too, it is said ("changed in both; kept Ghost's").
+    final hash = had == null ? null : frontMatterValue(had.body, 'notion-hash');
+    if (had != null && hash != null && notionHashOf(had.body) != hash) {
+      final kept = had.path;
+      if (kept != null && _folderPage(kept)) childDir[item.id] = kept.substring(0, kept.lastIndexOf('/'));
+      if (sameEdit) {
+        report.unchanged += 1;
+      } else {
+        report.conflicts += 1;
+        said.both.add(item.title);
+      }
+      return;
+    }
     if (!item.database && !unchanged) {
       try {
         blocks = await notion.tree(item.json['id'] as String);
@@ -285,9 +324,8 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
     final kept = had?.path;
     if (kept != null) {
       final parts = kept.split('/');
-      final name = parts.last;
       final dir = parts.sublist(0, parts.length - 1).join('/');
-      final asFolder = name == 'index.md' || (parts.length >= 2 && name == '${parts[parts.length - 2]}.md');
+      final asFolder = _folderPage(kept);
       if (folder && !asFolder) {
         path = run.paths.placeIn(folderIn(dir, item.title), 'index');
       } else {
@@ -322,7 +360,11 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
       }
     }
     final cover = item.json['cover'];
-    if (cover is Map) {
+    final hadBanner = sameEdit ? frontMatterValue(had.body, 'banner') : null;
+    if (hadBanner != null && hadBanner.contains('](image/')) {
+      // The same cover as before: not fetched again.
+      head.add('banner: "$hadBanner"');
+    } else if (cover is Map) {
       final kind = cover['type'];
       var url = cover[kind] is Map ? '${(cover[kind] as Map)['url'] ?? ''}' : '';
       if (url.startsWith('/')) url = 'https://www.notion.so$url';
@@ -370,7 +412,10 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
     } else {
       words = await blocksMarkdown(blocks, writing);
     }
-    final body = '---\n${head.join('\n')}\n---\n# ${item.title}\n${words.isEmpty ? '' : '\n$words\n'}';
+    final written = '---\n${head.join('\n')}\n---\n# ${item.title}\n${words.isEmpty ? '' : '\n$words\n'}';
+    // What was written, as a hash beside it: a later run knows the note was edited here when its words no longer
+    // match (notionHashOf leaves its own line and the library's keys out).
+    final body = written.replaceFirst('notion-edited: ${item.edited}\n', 'notion-edited: ${item.edited}\nnotion-hash: ${notionHashOf(written)}\n');
     if (had != null && had.body == body && had.path == path) {
       report.unchanged += 1;
       return;
@@ -428,12 +473,92 @@ Future<ImportReport> importNotion(NotionReader notion, ImportTarget target, {Wor
     if (said.unreadable > 0) report.skipped.add('${said.unreadable} ${said.unreadable == 1 ? 'page' : 'pages'} Notion wouldn’t read out');
     if (said.icons > 0) report.skipped.add('${said.icons} ${said.icons == 1 ? 'icon that is a picture' : 'icons that are pictures'}');
     if (said.covers > 0) report.skipped.add('${said.covers} ${said.covers == 1 ? 'cover' : 'covers'} from a site Ghost.md doesn’t fetch from');
-    if (gone > 0) report.skipped.add('nothing deleted: $gone ${gone == 1 ? 'page' : 'pages'} no longer in Notion stayed here');
-    report.skipped.add('comments, which stay in Notion');
+    if (said.both.isNotEmpty) report.skipped.add('${said.both.length == 1 ? '1 page' : '${said.both.length} pages'} changed in both; kept Ghost’s: ${said.both.take(4).map((t) => '“$t”').join(', ')}${said.both.length > 4 ? ' and ${said.both.length - 4} more' : ''}');
+    if (!partial && gone > 0) report.skipped.add('nothing deleted: $gone ${gone == 1 ? 'page' : 'pages'} no longer in Notion stayed here');
+    if (!partial) report.skipped.add('comments, which stay in Notion');
   } finally {
     run.finish();
   }
   return report;
+}
+
+/// Whether [path] is a folder's page: its `index.md`, or the note named as its folder (`Plan/Plan.md`).
+bool _folderPage(String path) {
+  final parts = path.split('/');
+  return parts.last == 'index.md' || (parts.length >= 2 && parts.last == '${parts[parts.length - 2]}.md');
+}
+
+/// Where a page goes whose parent is not among what is written now but is a note here already (a sync's new
+/// sub-page under a page that did not change): in that page's folder, else beside it.
+String? _dirOfParent(_Item item, Map<String, Note> made) {
+  final parent = item.json['parent'];
+  if (parent is! Map) return null;
+  final id = notionIdOf('${parent[parent['type']]}');
+  final path = id == null ? null : made[id]?.path;
+  if (path == null || !path.contains('/')) return null;
+  return path.substring(0, path.lastIndexOf('/'));
+}
+
+/// A note's words as the import wrote them, hashed: the front matter's `notion-hash:` and the keys the library
+/// writes of its own (front_matter.dart `libraryKeys`: id, created, updated…) left out, and the trailing space.
+String notionHashOf(String body) {
+  final lines = body.split('\n');
+  final kept = <String>[];
+  var front = lines.isNotEmpty && lines.first.trim() == '---';
+  for (var i = 0; i < lines.length; i += 1) {
+    final line = lines[i];
+    if (front && i > 0) {
+      if (line.trim() == '---') {
+        front = false;
+      } else {
+        final key = RegExp(r'^\s*([\w.-]+)\s*:').firstMatch(line)?.group(1)?.toLowerCase();
+        if (key == 'notion-hash' || libraryKeys.contains(key)) continue;
+      }
+    }
+    kept.add(line);
+  }
+  return sha1.convert(utf8.encode(kept.join('\n').trimRight())).toString().substring(0, 16);
+}
+
+/// What changed in Notion since [mark], brought into [into] as [importNotion] would (Matt, 2026-11-04: "we need a
+/// way to sync changes and update in real time"): the search newest first down to [mark] ([NotionReader.since]),
+/// then only the pages that are new or whose `last_edited_time` moved, with the database of a changed row so its
+/// index lists it. Null where nothing had changed: one request, nothing written. [newest] hears the next mark.
+Future<ImportReport?> syncNotion(NotionReader notion, ImportTarget target, {required Workspace into, required String mark, void Function(String newest)? newest, void Function(ImportProgress progress)? progress, bool Function()? stopped}) async {
+  final recent = await notion.since(mark);
+  final top = [for (final each in recent) '${each['last_edited_time'] ?? ''}'].fold<String>(mark, (a, b) => b.compareTo(a) > 0 ? b : a);
+  if (top.compareTo(mark) > 0) newest?.call(top);
+  final had = <String, String?>{};
+  for (final note in target.library.value) {
+    final id = notionIdOf(frontMatterValue(note.body, 'notion-id'));
+    if (id != null) had[id] = frontMatterValue(note.body, 'notion-edited');
+  }
+  final changed = <Map<String, Object?>>[];
+  final ids = <String>{};
+  for (final each in recent) {
+    if (_gone(each)) continue;
+    final id = notionIdOf('${each['id']}');
+    if (id == null || ids.contains(id)) continue;
+    if (had.containsKey(id) && had[id] == '${each['last_edited_time'] ?? ''}') continue;
+    ids.add(id);
+    changed.add(each);
+  }
+  if (changed.isEmpty) return null;
+  // A changed row's database, so its index and its queries list the row.
+  for (final row in [...changed]) {
+    final parent = row['parent'];
+    if (parent is! Map || parent['type'] != 'database_id') continue;
+    final db = notionIdOf('${parent['database_id']}');
+    if (db == null || ids.contains(db) || !had.containsKey(db)) continue;
+    ids.add(db);
+    try {
+      final json = await notion.database('${parent['database_id']}');
+      if (json != null) changed.add(json);
+    } on NotionImportFailure catch (failure) {
+      if (failure.status == 401) rethrow;
+    }
+  }
+  return importNotion(notion, target, into: into, found: changed, progress: progress, stopped: stopped);
 }
 
 String _plural(String kind) => switch (kind) {
