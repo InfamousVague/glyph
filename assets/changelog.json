@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.11",
+    "date": "2026-11-04",
+    "title": "Invite people to an organization by email",
+    "items": [
+      {"icon": "users", "words": "Invite someone to an organization by email: they get a link that opens Ghost Markdown, or helps them get it, and asks to join.", "kind": "new"},
+      {"icon": "link", "words": "Have an invite link? Paste it on the sign-in screen, and you're asked to join once you're in.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.10",
     "date": "2026-11-03",
     "title": "Painted header images that show the whole note",
