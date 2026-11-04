@@ -1,0 +1,26 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mattssoftware.glyph",
+      "sha256_cert_fingerprints": [
+        "3C:A6:86:B5:EE:56:D9:23:B9:A6:45:68:5E:20:11:B6:67:62:AE:99:AA:3A:5B:44:4B:1E:E7:54:88:4C:63:AA"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mattssoftware.glyph.flutter",
+      "sha256_cert_fingerprints": [
+        "3C:A6:86:B5:EE:56:D9:23:B9:A6:45:68:5E:20:11:B6:67:62:AE:99:AA:3A:5B:44:4B:1E:E7:54:88:4C:63:AA"
+      ]
+    }
+  }
+]

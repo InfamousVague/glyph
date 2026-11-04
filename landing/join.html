@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en" class="reading">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Join a team · Ghost.md</title>
+    <meta name="description" content="You're invited to a team on Ghost.md. Open the invitation in the app, or get the app first." />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <!--
+      The page an emailed invitation opens (Matt, 2026-11-03: "email invites to join orgs on ghost markdown so people
+      can click a link download the app and be redirected on the app to join an org"; docs/TEAMS.md, "Invite by email").
+      The link is https://ghostmarkdown.com/join#<code>: the code after the #, which the browser never sends, so it is
+      in no log (server/src/orgs.rs; the site block serves this file at /join, scripts/deploy-landing.mjs). On Android
+      the app claims the address (android/app/src/main/AndroidManifest.xml, landing/.well-known/assetlinks.json), so
+      this page is seen by someone without the app, or on a computer or an iPhone.
+
+      It asks the service what the code joins (POST /api/v1/joins/preview, the code in the body) to say the
+      organization's name and who asked, then offers: the download for this device (as the home page picks it,
+      home.js), "Open in Ghost.md" (ghostmd://join/<code>, which every app takes), copying the link to paste into the
+      app when signing up, and joining on the web. Styled as privacy.html is.
+    -->
+    <link rel="stylesheet" href="glacier/tokens.css" />
+    <link rel="stylesheet" href="site.css" />
+    <script src="theme.js"></script>
+    <style>
+      .reading .invite {
+        margin: 24px 0 0;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+      }
+      .reading .invite h1 {
+        overflow-wrap: anywhere;
+      }
+      .reading .steps {
+        list-style: none;
+        margin: 20px 0 0;
+        padding: 0;
+        counter-reset: step;
+      }
+      .reading .steps > li {
+        counter-increment: step;
+        position: relative;
+        padding-left: 2.2rem;
+      }
+      .reading .steps > li + li {
+        margin-top: 20px;
+      }
+      .reading .steps > li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 0.1rem;
+        display: grid;
+        place-items: center;
+        inline-size: 1.5rem;
+        block-size: 1.5rem;
+        border-radius: 999px;
+        background: var(--paper-2);
+        color: var(--ink-2);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+      .reading .steps p {
+        margin: 0 0 10px;
+      }
+      .ways {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        min-block-size: 2.75rem;
+        padding: 0 1.2rem;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        background: var(--paper);
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .reading a.pill {
+        color: var(--ink);
+      }
+      .pill:hover {
+        border-color: var(--ink-3);
+      }
+      .pill-ink,
+      .reading a.pill-ink {
+        border-color: var(--ink);
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .pill .i {
+        inline-size: 1.1em;
+        block-size: 1.1em;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .reading .fine {
+        margin: 10px 0 0;
+        font-size: 0.9rem;
+        color: var(--ink-3);
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icon.png" width="40" height="40" alt="" />
+        <a href="/">Ghost.md</a>
+      </header>
+
+      <section class="invite" aria-labelledby="join-title" aria-live="polite">
+        <p class="muted" id="join-kicker">An invitation</p>
+        <h1 id="join-title">You're invited to a team</h1>
+        <p class="muted" id="join-who">Ghost.md is a notes app you write in by typing or by voice. A team shares notes with its members, encrypted so only they can read them.</p>
+
+        <div id="join-broken" hidden>
+          <p>This invitation link is missing its code. Open the link from the email again, or ask whoever invited you for a new one.</p>
+        </div>
+
+        <div id="join-gone" hidden>
+          <p>This invitation has expired, was already used, or was turned off. Ask whoever invited you to send a new one.</p>
+        </div>
+
+        <ol class="steps" id="join-steps" hidden>
+          <li id="step-get">
+            <p><strong>Get Ghost.md</strong> <span class="muted">if you don't have it yet.</span></p>
+            <div class="ways">
+              <a class="pill pill-ink" id="join-get" href="/#download">
+                <svg class="i" aria-hidden="true"><use href="icons.svg#i-download" /></svg>
+                <span id="join-get-word">Get Ghost.md</span>
+              </a>
+            </div>
+            <p class="fine" id="join-after-get" hidden>When it's installed, come back to this page (or the email) and tap <strong>Open in Ghost.md</strong>.</p>
+          </li>
+          <li>
+            <p><strong>Open the invitation in the app.</strong> <span class="muted">It asks to join once you're signed in; signing up takes a handle and a password.</span></p>
+            <div class="ways">
+              <a class="pill" id="join-open" href="#">
+                <svg class="i" aria-hidden="true"><use href="icons.svg#i-ghost" /></svg>
+                <span>Open in Ghost.md</span>
+              </a>
+              <button class="pill" type="button" id="join-copy">
+                <svg class="i" aria-hidden="true"><use href="icons.svg#i-copy" /></svg>
+                <span id="join-copy-word">Copy the invite link</span>
+              </button>
+            </div>
+            <p class="fine">If the app doesn't open, copy the link and paste it into Ghost.md: on the sign-in screen under <strong>Have an invite link?</strong>, or after signing in, in the + menu's <strong>From a shared link</strong>.</p>
+          </li>
+          <li>
+            <p><strong>Or join on the web.</strong></p>
+            <div class="ways">
+              <a class="pill" id="join-web" href="https://attack.fm/glyph/">
+                <svg class="i" aria-hidden="true"><use href="icons.svg#i-globe" /></svg>
+                <span>Join in your browser</span>
+              </a>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <footer class="muted"><a href="/">ghostmarkdown.com</a> · <a href="privacy.html">Privacy</a></footer>
+    </main>
+    <script src="join.js"></script>
+  </body>
+</html>

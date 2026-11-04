@@ -18,6 +18,9 @@
  * A page's own address, /docs/<page>, opens its own copy of the page, or the index's for one the build did not write,
  * which is the block's try_files: a block that predates the docs needs --caddy once.
  *
+ * An emailed invitation (server/src/orgs.rs, docs/TEAMS.md) links to /join#<code>, which the block serves as join.html
+ * (2026-11-03): a block that predates it needs --caddy once, or /join answers 404.
+ *
  * THE CADDYFILE IS SHARED: attack.fm, the registry, prettycardboard.com and more are on it. So --caddy touches only
  * ghostmarkdown.com's own block (from its first line to the closing brace at the start of a line), and only this way:
  * a timestamped backup; every other site on it asked for its page, on the box, before; the block written; `caddy
@@ -81,6 +84,17 @@ ${DOMAIN} {
 	handle /s/* {
 		root * ${RELEASE}
 		rewrite * /read.html
+		header Cache-Control "no-cache"
+		header X-Robots-Tag "noindex, nofollow"
+		header Referrer-Policy "no-referrer"
+		file_server
+	}
+	# An emailed invitation's link, /join#<code> (landing/join.html, server/src/orgs.rs): the code after the #, which never
+	# reaches here. Never indexed, no referrer sent on. Android's App Links read /.well-known/assetlinks.json, served
+	# as the site's other files are, below.
+	handle /join {
+		root * ${SITE}
+		rewrite * /join.html
 		header Cache-Control "no-cache"
 		header X-Robots-Tag "noindex, nofollow"
 		header Referrer-Policy "no-referrer"
