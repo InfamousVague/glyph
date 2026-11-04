@@ -17,7 +17,10 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../account/ui_state.dart' show AccountScope;
+import '../../core/library.dart' show NoteLibrary;
 import '../../core/preferences.dart' show preferences;
+import '../../orgs/types.dart' show Org;
 import '../../core/workspaces.dart' show Workspace, WorkspaceStore, isOrgWorkspace, workspacePathName;
 import '../../importer/import_report.dart';
 import '../../importer/import_target.dart';
@@ -29,7 +32,7 @@ import 'client.dart' show startNotionSignIn;
 import 'notion_import_job.dart';
 
 class NotionImportSection extends StatefulWidget {
-  const NotionImportSection({super.key, this.job, this.target, this.workspaces, this.simple});
+  const NotionImportSection({super.key, this.job, this.target, this.workspaces, this.simple, this.makeOrg, this.library});
 
   /// The import; the app's own ([notionImport]) unless a test hands one.
   final NotionImportJob? job;
@@ -42,6 +45,13 @@ class NotionImportSection extends StatefulWidget {
   /// Simple mode; the preferences' unless handed.
   final bool? simple;
 
+  /// How a new organization is made: the signed-in account's `Orgs.createOrg` (AccountScope) unless a test hands
+  /// one. None signed in, and A new organization says so rather than importing elsewhere.
+  final Future<Org> Function(String name)? makeOrg;
+
+  /// The notes Remove what was imported reads; the target's library unless handed.
+  final NoteLibrary? library;
+
   @override
   State<NotionImportSection> createState() => _NotionImportSectionState();
 }
@@ -52,9 +62,16 @@ class _NotionImportSectionState extends State<NotionImportSection> {
   String? _trouble;
   bool _more = false;
 
-  /// The workspace picked to import into, by id; null for a new workspace (or, once one ran, the last one).
+  /// Where the person picked to import into: [_newOrg], [_newWorkspace] or a workspace's id; null for the default,
+  /// the last import's workspace, else a new organization (Matt, 2026-11-04: "I want the import to start a new org").
   String? _into;
-  bool _chosen = false;
+  static const String _newOrg = '<new organization>';
+  static const String _newWorkspace = '<new workspace>';
+
+  /// Remove what was imported, asked twice: armed by the first press for a few seconds.
+  bool _armed = false;
+  Timer? _disarm;
+  String? _removed;
 
   @override
   void initState() {
@@ -65,12 +82,51 @@ class _NotionImportSectionState extends State<NotionImportSection> {
 
   @override
   void dispose() {
+    _disarm?.cancel();
     _job.removeListener(_changed);
     super.dispose();
   }
 
+  Future<Org> Function(String name)? get _makeOrg {
+    if (widget.makeOrg != null) return widget.makeOrg;
+    final services = AccountScope.maybeOf(context);
+    final orgs = services?.orgs;
+    if (orgs == null || !(services?.signedIn ?? false)) return null;
+    return (name) => orgs.createOrg(name);
+  }
+
+  Future<void> _remove() async {
+    _disarm?.cancel();
+    if (!_armed) {
+      setState(() => _armed = true);
+      _disarm = Timer(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _armed = false);
+      });
+      return;
+    }
+    setState(() => _armed = false);
+    final library = widget.library ?? _target?.call().library;
+    final workspaces = _workspaces;
+    if (library == null || workspaces == null) return;
+    try {
+      final moved = await _job.removeImported(library: library, workspaces: workspaces);
+      if (mounted) {
+        setState(() {
+          _removed = moved == 1 ? '1 note moved to the trash.' : '$moved notes moved to the trash.';
+          _into = null;
+        });
+      }
+    } catch (failure) {
+      if (mounted) setState(() => _trouble = failureWords(failure));
+    }
+  }
+
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      // Once an import has gone somewhere, that is where the next goes: Sync now, into the same place.
+      if (_job.value is NotionImportDone) _into = null;
+    });
   }
 
   Future<void> _look() async {
@@ -93,18 +149,34 @@ class _NotionImportSectionState extends State<NotionImportSection> {
   ImportTarget Function()? get _target => widget.target ?? SettingsHost.maybeOf(context)?.features.importer?.target;
   WorkspaceStore? get _workspaces => widget.workspaces ?? SettingsHost.maybeOf(context)?.features.importer?.workspaces;
 
-  /// Where the import goes: the one picked, else the last import's workspace, else null for a new one.
+  /// What is picked: the person's choice, else the last import's workspace, else a new organization.
+  String _pick(WorkspaceStore? workspaces) {
+    final chosen = _into;
+    if (chosen != null && (chosen == _newOrg || chosen == _newWorkspace || (workspaces?.value.list.any((w) => w.id == chosen) ?? false))) return chosen;
+    final last = workspaces == null ? null : _job.lastIn(workspaces);
+    return last?.id ?? _newOrg;
+  }
+
+  /// The workspace the import goes into, where it is one already there.
   Workspace? _destination(WorkspaceStore? workspaces) {
-    if (workspaces == null) return null;
-    if (_chosen) return _into == null ? null : workspaces.value.list.where((w) => w.id == _into).firstOrNull;
-    return _job.lastIn(workspaces);
+    final pick = _pick(workspaces);
+    return workspaces?.value.list.where((w) => w.id == pick).firstOrNull;
   }
 
   void _run() {
     final target = _target;
+    final workspaces = _workspaces;
     if (target == null) return;
-    setState(() => _trouble = null);
-    unawaited(_job.start(target(), into: _destination(_workspaces)));
+    setState(() {
+      _trouble = null;
+      _removed = null;
+    });
+    final pick = _pick(workspaces);
+    if (pick == _newOrg && workspaces != null) {
+      unawaited(_job.startInNewOrg(target(), makeOrg: _makeOrg, workspaces: workspaces));
+    } else {
+      unawaited(_job.start(target(), into: _destination(workspaces)));
+    }
   }
 
   static String _day(int at) {
@@ -126,7 +198,12 @@ class _NotionImportSectionState extends State<NotionImportSection> {
     final simple = widget.simple ?? preferences.value.simple;
     final full = !simple || _more;
     final shared = _shared;
-    final where = into == null ? 'a new workspace, $notionWorkspaceName' : (workspaces == null ? into.name : workspacePathName(workspaces.value.list, into.id));
+    final pick = _pick(workspaces);
+    final where = into != null
+        ? (workspaces == null ? into.name : workspacePathName(workspaces.value.list, into.id))
+        : pick == _newWorkspace
+            ? 'a new workspace, $notionWorkspaceName'
+            : 'a new organization named for your Notion workspace${_makeOrg == null ? ' (sign in to Ghost.md first)' : ''}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -152,6 +229,7 @@ class _NotionImportSectionState extends State<NotionImportSection> {
         if (state is NotionImportDone) _done(context, state),
         if (state is NotionImportFailed) SettingsCallout(key: const ValueKey('notion-import-failed'), child: Text(state.why)),
         if (_trouble != null) SettingsCallout(child: Text(_trouble!)),
+        if (_removed != null) SettingsCallout(key: const ValueKey('notion-import-removed'), icon: const AppIcon(Lucide.trash2, size: 20), child: Text(_removed!)),
         PaneSection(
           title: 'Import from Notion',
           description: const Text('Brings every page and database Notion shares with Ghost.md into your notes as Markdown files: sub-pages as folders, databases as notebooks with a live table of their rows. For your whole Notion, pick your top-level pages on Notion’s page.'),
@@ -184,6 +262,15 @@ class _NotionImportSectionState extends State<NotionImportSection> {
                   : 'Into $where. Running it again later brings only what changed.'),
               control: RowAction(onPress: _run, disabled: !can || _job.syncing, child: Text(again ? 'Sync' : 'Import')),
             ),
+            // Taking the last import away (Matt, 2026-11-04: "also delete the notes from my most recent notion import").
+            if (last != null)
+              SettingRow(
+                key: const ValueKey('notion-import-remove'),
+                icon: const AppIcon(Lucide.trash2, size: 16),
+                label: 'Remove what was imported',
+                hint: const Text('Moves the notes that came from Notion to the trash; they can be put back from there.'),
+                control: RowAction(onPress: () => unawaited(_remove()), disabled: !can || _job.syncing, child: Text(_armed ? 'Tap again' : 'Remove')),
+              ),
             if (!full)
               SettingRow(
                 key: const ValueKey('notion-import-more'),
@@ -199,8 +286,9 @@ class _NotionImportSectionState extends State<NotionImportSection> {
             title: 'Where it goes',
             description: const Text('Pick a folder or an organization to bring Notion into it; an organization’s members see what comes in.'),
             children: [
-              _choice(null, last == null || workspaces.value.list.every((w) => w.id != last.workspaceId) ? 'A new workspace, $notionWorkspaceName' : 'A new workspace', into == null, Lucide.folderPlus),
-              for (final w in workspaces.value.list) _choice(w.id, workspacePathName(workspaces.value.list, w.id), into?.id == w.id, isOrgWorkspace(w.id) ? Lucide.users : Lucide.folder, hint: w.id == last?.workspaceId ? 'Where the last import went' : null),
+              _choice(_newOrg, 'A new organization', pick == _newOrg, Lucide.users, hint: 'Named for your Notion workspace, with you as its owner.'),
+              _choice(_newWorkspace, 'A new workspace on this account', pick == _newWorkspace, Lucide.folderPlus),
+              for (final w in workspaces.value.list) _choice(w.id, workspacePathName(workspaces.value.list, w.id), pick == w.id, isOrgWorkspace(w.id) ? Lucide.users : Lucide.folder, hint: w.id == last?.workspaceId ? 'Where the last import went' : null),
             ],
           ),
       ],
@@ -226,18 +314,15 @@ class _NotionImportSectionState extends State<NotionImportSection> {
     return 'on ${_day(at)}';
   }
 
-  Widget _choice(String? id, String label, bool picked, LucideIcon icon, {String? hint}) => SettingRow(
-        key: ValueKey('notion-import-into-${id ?? 'new'}'),
+  Widget _choice(String id, String label, bool picked, LucideIcon icon, {String? hint}) => SettingRow(
+        key: ValueKey('notion-import-into-${id == _newOrg ? 'org' : id == _newWorkspace ? 'new' : id}'),
         icon: AppIcon(icon, size: 16),
         label: label,
         hint: hint == null ? null : Text(hint),
         control: picked ? const AppIcon(Lucide.check, size: 16) : null,
         onPress: _job.running
             ? null
-            : () => setState(() {
-                  _chosen = true;
-                  _into = id;
-                }),
+            : () => setState(() => _into = id),
       );
 
   Widget _done(BuildContext context, NotionImportDone state) {

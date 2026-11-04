@@ -103,6 +103,9 @@ class FakeNotion {
   FakeNotion({this.pageSize = 2});
 
   final int pageSize;
+
+  /// What `users/me` says the workspace is called.
+  String workspaceName = 'Acme HQ';
   final List<Map<String, Object?>> found = [];
   final Map<String, List<Map<String, Object?>>> blocks = {};
   final Map<String, List<Map<String, Object?>>> rows = {};
@@ -143,6 +146,9 @@ class FakeNotion {
       final descending = sort is Map && sort['direction'] == 'descending';
       final list = descending ? ([...found]..sort((a, b) => '${b['last_edited_time']}'.compareTo('${a['last_edited_time']}'))) : found;
       return _page(list, cursor);
+    }
+    if (method == 'GET' && path == 'users/me') {
+      return (status: 200, body: {'object': 'user', 'type': 'bot', 'bot': {'workspace_name': workspaceName}}, headers: const <String, String>{});
     }
     final one = RegExp(r'^databases/([^/]+)$').firstMatch(path);
     if (method == 'GET' && one != null) {

@@ -17,7 +17,12 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../../core/background_jobs.dart';
-import '../../core/workspaces.dart' show Workspace, WorkspaceStore;
+import '../../account/ui_state.dart' show accountFailureText;
+import '../../core/front_matter.dart' show frontMatterValue;
+import '../../core/library.dart' show NoteLibrary;
+import '../../core/note_folders.dart' show folderFor;
+import '../../core/workspaces.dart' show Workspace, WorkspaceStore, isOrgWorkspace, workspaceFamily;
+import '../../orgs/types.dart' show Org;
 import '../../importer/import_report.dart';
 import '../../importer/import_target.dart';
 import '../../importer/notion/notion_import.dart';
@@ -36,7 +41,7 @@ const String _importKey = 'glyph-notion-import';
 /// next check reads down to), when Notion was last checked, and what went wrong last, in words.
 @immutable
 class NotionImportPlace {
-  const NotionImportPlace({required this.workspaceId, required this.name, required this.at, this.mark, this.live = true, this.checked, this.error, this.both = 0});
+  const NotionImportPlace({required this.workspaceId, required this.name, required this.at, this.mark, this.live = true, this.checked, this.error, this.both = 0, this.made = false});
   final String workspaceId;
   final String name;
 
@@ -56,6 +61,11 @@ class NotionImportPlace {
   /// How many pages the last sync found changed in both, Ghost.md's kept.
   final int both;
 
+  /// Whether the import made the workspace itself (a new workspace, or a new organization's), so taking the import
+  /// away may take an empty workspace with it. A place kept before this was said reads as made where its name is the
+  /// import's own (`Notion`, `Notion 2`) and it is not an organization's.
+  final bool made;
+
   /// The mark a check reads down to: [mark], else the import's own time as Notion writes one.
   String get since => mark ?? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toIso8601String();
 
@@ -70,6 +80,7 @@ class NotionImportPlace {
       checked: raw['checked'] is num ? (raw['checked'] as num).toInt() : null,
       error: raw['error'] is String ? raw['error'] as String : null,
       both: raw['both'] is num ? (raw['both'] as num).toInt() : 0,
+      made: raw['made'] == true,
     );
   }
 
@@ -82,9 +93,10 @@ class NotionImportPlace {
         checked: checked ?? this.checked,
         error: error == null ? this.error : error(),
         both: both ?? this.both,
+        made: made,
       );
 
-  Map<String, Object?> toJson() => {'workspace': workspaceId, 'name': name, 'at': at, 'mark': ?mark, 'live': live, 'checked': ?checked, 'error': ?error, if (both > 0) 'both': both};
+  Map<String, Object?> toJson() => {'workspace': workspaceId, 'name': name, 'at': at, 'mark': ?mark, 'live': live, 'checked': ?checked, 'error': ?error, if (both > 0) 'both': both, if (made) 'made': true};
 }
 
 /// How often Keep in sync checks Notion while the app is open.
@@ -256,6 +268,95 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
     unawaited(sync());
   }
 
+  /// What Notion calls the workspace signed in to: the sign-in's own name for it, else the integration's
+  /// (`GET users/me`, its `bot.workspace_name`), else "Notion".
+  Future<String> notionWorkspaceTitle() async {
+    try {
+      final said = (await notionAccount()).workspaceName?.trim();
+      if (said != null && said.isNotEmpty) return said;
+    } catch (_) {
+      // No sign-in to read: asked of Notion instead.
+    }
+    try {
+      final me = await _reader().ask('GET', 'users/me');
+      final bot = me is Map ? me['bot'] : null;
+      final name = bot is Map ? '${bot['workspace_name'] ?? ''}'.trim() : '';
+      if (name.isNotEmpty) return name;
+    } catch (_) {
+      // Notion did not say: the plain name.
+    }
+    return notionWorkspaceName;
+  }
+
+  /// Import into a new organization (Matt, 2026-11-04: "I want the import to start a new org"): named for the Notion
+  /// workspace, made by [makeOrg] (the app's own `Orgs.createOrg`, so its key, owner and workspace are made as any
+  /// new organization's are), then imported into its workspace, which Sync now and Keep in sync go to after. Not
+  /// signed in to Ghost.md ([makeOrg] null), or the organization refused: said in words, and nothing imported.
+  Future<void> startInNewOrg(ImportTarget target, {required Future<Org> Function(String name)? makeOrg, required WorkspaceStore workspaces}) async {
+    if (running || _syncing) return;
+    if (makeOrg == null) {
+      value = const NotionImportFailed('A new organization needs your Ghost.md account. Sign in under Settings › Account, or pick a workspace under Where it goes.');
+      return;
+    }
+    value = const NotionImportRunning();
+    final name = await notionWorkspaceTitle();
+    final Org org;
+    try {
+      org = await makeOrg(name);
+    } catch (failure) {
+      value = NotionImportFailed('Ghost.md couldn’t make the organization “$name”: ${accountFailureText(failure)} Nothing was imported.');
+      return;
+    }
+    final into = workspaces.ensureOrgWorkspace(org);
+    value = const NotionImportIdle();
+    await start(target, into: into, madeHere: true);
+  }
+
+  /// Takes away what the last import brought (Matt, 2026-11-04: "also delete the notes from my most recent notion
+  /// import"): every note in its workspace (and the folders in it) whose front matter says `notion-id:`, into the
+  /// trash the app's own Delete uses, so each can be put back; never deleted for good. Notes without `notion-id:`, the
+  /// person's own, stay. Then the folders it emptied go, the workspace too where the import made it and nothing is
+  /// left in it (never an organization's), and Keep in sync is off. Answers how many notes went to the trash.
+  Future<int> removeImported({required NoteLibrary library, required WorkspaceStore workspaces}) async {
+    if (running || _syncing) throw StateError('Wait for the import to finish first.');
+    final place = last;
+    if (place == null) throw StateError('Nothing has been imported from Notion on this device.');
+    final trash = workspaces.trash;
+    if (trash == null) throw StateError('The trash isn’t ready, so nothing was moved.');
+    final ws = lastIn(workspaces);
+    var moved = 0;
+    if (ws != null) {
+      final list = workspaces.value.list;
+      final family = workspaceFamily(list, ws.id);
+      final filed = workspaces.value.of;
+      final root = folderFor(ws, list);
+      final emptied = <String>{};
+      final now = _now();
+      for (final note in library.value) {
+        if (note.inTrash || trash.isTrashed(note.id)) continue;
+        if (notionIdOf(frontMatterValue(note.body, 'notion-id')) == null) continue;
+        final here = filed[note.id];
+        final inside = (here != null && family.contains(here)) || (root != null && (note.path ?? '').startsWith('$root/'));
+        if (!inside) continue;
+        trash.trashNote(note.id, now);
+        if (here != null) emptied.add(here);
+        moved += 1;
+      }
+      // The folders it emptied, the deepest first: each with nothing left in it and no folder left inside it.
+      bool bare(String id) => workspaces.notesInWorkspace(id).isEmpty && !workspaces.value.list.any((w) => w.parent == id);
+      for (final id in family.reversed) {
+        if (id == ws.id || !emptied.contains(id) && !workspaceFamily(list, id).any(emptied.contains)) continue;
+        if (bare(id) && !isOrgWorkspace(id)) workspaces.removeWorkspace(id);
+      }
+      final ours = place.made || RegExp(r'^Notion( \d+)?$').hasMatch(ws.name);
+      if (ours && !isOrgWorkspace(ws.id) && bare(ws.id)) workspaces.removeWorkspace(ws.id);
+    }
+    _keep(place.copyWith(live: false, error: () => null));
+    _lastSync = null;
+    if (value is! NotionImportRunning) value = const NotionImportIdle();
+    return moved;
+  }
+
   /// How much Notion shows the sign-in.
   Future<NotionShared> look() => notionShared(_reader());
 
@@ -264,7 +365,7 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
 
   /// Begins the import through [target]: into [into], or a new workspace called Notion. Answers when it ends; its
   /// state says how it went.
-  Future<void> start(ImportTarget target, {Workspace? into}) async {
+  Future<void> start(ImportTarget target, {Workspace? into, bool madeHere = false}) async {
     if (running) return;
     _stop = false;
     value = const NotionImportRunning();
@@ -289,7 +390,7 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
       if (id != null) {
         // Keep in sync stays as it was set for the same place, and is on for a new one.
         final same = before != null && before.workspaceId == id;
-        _keep(NotionImportPlace(workspaceId: id, name: report.groupName ?? notionWorkspaceName, at: _now(), mark: newest ?? before?.mark, live: same ? before.live : true, checked: _now()));
+        _keep(NotionImportPlace(workspaceId: id, name: report.groupName ?? notionWorkspaceName, at: _now(), mark: newest ?? before?.mark, live: same ? before.live : true, checked: _now(), made: report.madeGroup || madeHere || (same && before.made)));
       }
       value = NotionImportDone(report, stopped: _stop);
       final made = report.notes + report.notebooks + report.updated;

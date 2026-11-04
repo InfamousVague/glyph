@@ -15,9 +15,21 @@ teamspace page) shares everything under them. The section says how many pages an
 
 ## Running it
 
-- **Import everything** goes into a new workspace called **Notion** (`Notion 2` where that name is taken), or into the
-  folder or organization picked under **Where it goes**. In Simple that choice waits behind **More**, and the import
-  itself stays.
+- **Import everything** goes into **a new organization** by default (Matt, 2026-11-04: "I want the import to start a
+  new org"). It is named for the Notion workspace: the sign-in's `workspace_name`, else `GET users/me`'s
+  `bot.workspace_name`, else "Notion". It is made by the app's own `Orgs.createOrg`, so its key, owner and workspace
+  come about exactly as from New organization, and the import goes into that organization's workspace
+  (`orgs/<name>/`). Not signed in to Ghost.md, or the service refusing, is said in words and nothing is imported; it
+  never falls back to somewhere else.
+- **Where it goes** lists A new organization, A new workspace on this account (**Notion**, or `Notion 2` where that
+  name is taken), then every folder and organization there is. In Simple it waits behind **More**, and the default
+  still applies. Once an import has run, the next goes where it went.
+- **Remove what was imported** (Matt, 2026-11-04: "also delete the notes from my most recent notion import") asks
+  twice. It moves to the trash, the one the app's own Delete uses, every note in the last import's workspace and its
+  folders whose front matter has `notion-id:`. Notes without `notion-id` are left. Every note can be put back from
+  the trash; nothing is deleted for good. The folders it emptied go. The workspace goes too where the import made it
+  and nothing is left in it. A place kept before the made mark existed (2.4.13–2.4.15) counts as made when it is called `Notion` or `Notion 2`; an
+  organization is never removed. Keep in sync turns off, and the page says "N notes moved to the trash".
 - It runs as the app's job `notion-import` (lib/core/background_jobs.dart): the ring and the tray show "142 of 380
   pages" and the page it is on, with **Stop**. On Android the foreground service keeps it going with the screen off.
   The import keeps running when the page is closed.

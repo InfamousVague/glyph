@@ -44,6 +44,11 @@ void main() {
     expect(find.text('2 pages and 1 database shared'), findsOneWidget);
     expect(find.text('Choose more pages'), findsOneWidget);
     expect(find.text('Import everything'), findsOneWidget);
+    // A new organization by default (Matt, 2026-11-04); this test has no Ghost.md sign-in, and picks a workspace.
+    expect(find.text('Into a new organization named for your Notion workspace (sign in to Ghost.md first). Running it again later brings only what changed.'), findsOneWidget);
+    expect(find.text('A new organization'), findsOneWidget);
+    await tester.tap(find.text('A new workspace on this account'));
+    await settleSettings(tester);
     expect(find.text('Into a new workspace, Notion. Running it again later brings only what changed.'), findsOneWidget);
 
     await tester.tap(find.text('Import'));
@@ -73,6 +78,7 @@ void main() {
     await tester.tap(find.text('Show'));
     await settleSettings(tester);
     expect(find.text('WHERE IT GOES'), findsOneWidget);
+    expect(find.text('A new organization'), findsOneWidget);
     await tester.tap(find.text('Work'));
     await settleSettings(tester);
     expect(find.text('Into Work. Running it again later brings only what changed.'), findsOneWidget);
@@ -120,5 +126,31 @@ void main() {
     notion.script.add((status: 401, body: {'message': 'API token is invalid.'}, headers: const <String, String>{}));
     await tester.runAsync(() => job.sync(target: it.target(), workspaces: it.workspaces));
     expect(job.last!.error, contains('Sign in again'));
+  });
+
+  testWidgets('A new organization without a sign-in says so in words and imports nothing', (tester) async {
+    await section(tester);
+    await tester.tap(find.text('Import'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await settleSettings(tester);
+    expect(find.textContaining('A new organization needs your Ghost.md account.'), findsOneWidget);
+    expect(it.library.value, isEmpty);
+    await endSettings(tester);
+  });
+
+  testWidgets('Remove what was imported asks twice, then says how many went to the trash', (tester) async {
+    await imported(tester);
+    await section(tester);
+    expect(find.text('Moves the notes that came from Notion to the trash; they can be put back from there.'), findsOneWidget);
+    await tester.tap(find.text('Remove'));
+    await settleSettings(tester);
+    expect(it.workspaces.trash!.value, isEmpty);
+    await tester.tap(find.text('Tap again'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await settleSettings(tester);
+    expect(find.text('3 notes moved to the trash.'), findsOneWidget);
+    expect(it.workspaces.trash!.value.length, 3);
+    expect(job.last!.live, isFalse);
+    await endSettings(tester);
   });
 }
