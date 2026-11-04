@@ -18,6 +18,8 @@ import 'package:ghost_md/sync/prefs.dart' show merged;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/lovart/lovart.dart';
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart;
+import 'package:ghost_md/plugins/lovart/models.dart';
+import 'package:ghost_md/settings/kit/settings_kit.dart' show Pick;
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/root/note_desk.dart' show headerImageMenu;
 import 'package:glacier/glacier.dart' show GlacierSwitch;
@@ -1255,6 +1257,32 @@ void main() {
   });
 
   group('the Lovart page', () {
+    testWidgets('Image model: Lovart chooses until one is picked from Change; picking closes the list', (tester) async {
+      await pumpPane(tester, const LovartPane());
+      final row = find.byKey(const ValueKey('lovart-model'));
+      await tester.ensureVisible(row);
+      expect(find.descendant(of: row, matching: find.text('Let Lovart choose')), findsOneWidget);
+      await tester.tap(find.descendant(of: row, matching: find.text('Change')));
+      await settle(tester);
+      final pro = find.byKey(const ValueKey('lovart-model:generate_image_nano_banana_pro'));
+      await tester.ensureVisible(pro);
+      await tester.tap(find.descendant(of: pro, matching: find.byType(Pick)));
+      await settle(tester);
+      expect(lovartModel()?.name, 'Nano Banana Pro');
+      expect(pro, findsNothing, reason: 'the list shut');
+      expect(find.descendant(of: row, matching: find.text('Nano Banana Pro')), findsOneWidget);
+      await tester.ensureVisible(row);
+      await settle(tester);
+      await tester.tap(find.descendant(of: row, matching: find.text('Change')));
+      await settle(tester);
+      final auto = find.byKey(const ValueKey('lovart-model:auto'));
+      await tester.ensureVisible(auto);
+      await tester.tap(find.descendant(of: auto, matching: find.byType(Pick)));
+      await settle(tester);
+      expect(lovartModel(), isNull);
+      await away(tester);
+    });
+
     testWidgets('has the styles at its head; a card chooses one and fills the prompt', (tester) async {
       await pumpPane(tester, const LovartPane());
       for (final preset in bannerPresets) {

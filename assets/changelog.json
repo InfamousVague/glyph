@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.18",
+    "date": "2026-11-04",
+    "title": "Choose Lovart's image model",
+    "items": [
+      {"icon": "image", "words": "Pick the image model Lovart draws with in its settings: Nano Banana, GPT Image, Midjourney, Seedream, Flux and more.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.17",
     "date": "2026-11-04",
     "title": "A quieter sync check",

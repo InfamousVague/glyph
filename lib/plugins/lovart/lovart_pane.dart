@@ -33,6 +33,7 @@ import 'manifest.dart';
 import 'banner_run.dart' show BannerRun, bannerCandidates, bannerRunEstimate, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
 import 'banners.dart' show BannerPreset, bannerNoteSlot, bannerPresetNow, bannerPresets, chooseBannerPreset, bannerStyleDefault, bannerTemplate, bannersOn, lovartExtra, setBannerTemplate, setBanners, setLovartExtra;
 import 'lovart_queue.dart';
+import 'models.dart' show LovartModel, lovartModel, lovartModels, setLovartModel;
 import 'lovart_setup.dart';
 import 'figma_refs.dart' show figmaRefsOn, setFigmaRefs;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
@@ -43,6 +44,7 @@ const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Lovart keys', 'access key secret key ak sk lovart api credits'),
   SettingsFindable('Header images for notes', 'banner header cover image painted illustration automatic'),
   SettingsFindable('Style', 'style painterly coloured colored pencil field journal sketch sepia ink ultra hd photo realistic preset swap header image'),
+  SettingsFindable('Image model', 'image model generation midjourney nano banana gpt image seedream flux ideogram luma qwen'),
   SettingsFindable('Header image prompt', 'prompt style words banner header research assets edit change reset'),
   SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
@@ -152,6 +154,47 @@ class _LovartPaneState extends State<LovartPane> {
     setState(() => _promptSaid = '${preset.name} chosen.');
   }
 
+  /// Whether the list of models is open under the chosen one.
+  bool _models = false;
+
+  void _chooseModel(LovartModel? model) {
+    setLovartModel(model);
+    setState(() => _models = false);
+  }
+
+  /// Image model (Matt, 2026-11-04: "add the ability to change the image generation model on the lovart plugin"):
+  /// the one chosen, and Change opening the list in place.
+  Widget _modelSection() {
+    final chosen = lovartModel();
+    return PaneSection(
+      title: 'Image model',
+      description: const Text('Which model Lovart draws with, for header images, {image: …} and inspiration, on every device. Lovart takes it as a preference and may still pick another; a premium model can wait for your approval in Lovart.'),
+      children: [
+        SettingRow(
+          key: const ValueKey('lovart-model'),
+          label: chosen?.name ?? 'Let Lovart choose',
+          hint: Text(chosen?.about ?? 'Lovart’s agent picks a model for each image.'),
+          value: RowAction(onPress: () => setState(() => _models = !_models), child: Text(_models ? 'Done' : 'Change')),
+        ),
+        if (_models) ...[
+          SettingRow(
+            key: const ValueKey('lovart-model:auto'),
+            label: 'Let Lovart choose',
+            hint: const Text('Lovart’s agent picks a model for each image.'),
+            control: Pick(checked: chosen == null, label: 'Let Lovart choose', onPress: () => _chooseModel(null)),
+          ),
+          for (final model in lovartModels)
+            SettingRow(
+              key: ValueKey('lovart-model:${model.id}'),
+              label: model.name,
+              hint: Text(model.about),
+              control: Pick(checked: chosen?.id == model.id, label: 'Use ${model.name}', onPress: () => _chooseModel(model)),
+            ),
+        ],
+      ],
+    );
+  }
+
   void _resetPrompt() {
     setBannerTemplate(null);
     _prompt.text = bannerStyleDefault;
@@ -242,6 +285,7 @@ class _LovartPaneState extends State<LovartPane> {
           description: const Text('How header images are drawn. Choosing one puts its words in the header image prompt below, where you can still change them.'),
           children: [_StylePicker(chosen: bannerPresetNow(), onChoose: _choosePreset)],
         ),
+        _modelSection(),
         PaneSection(
           title: 'Lovart keys',
           description: const Text('Lovart makes the images with its design agent, using your own Lovart account: in Lovart, click your profile, then Lovart Agent › OpenClaw, and copy the two keys. Each image is made with your Lovart credits.'),

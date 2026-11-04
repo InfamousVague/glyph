@@ -9,6 +9,7 @@ import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/lovart/lovart.dart';
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart;
+import 'package:ghost_md/plugins/lovart/models.dart';
 
 import '../support.dart';
 
@@ -201,6 +202,28 @@ void main() {
     final plain = ground.asked.lastWhere((asked) => asked.url.path == '/v1/openapi/chat');
     expect((jsonDecode(utf8.decode(plain.body!)) as Map).containsKey('attachments'), isFalse);
     expect(asking.dropped, isEmpty);
+  });
+
+  test('the image model chosen goes as the chat’s tool_config, as Lovart’s own model picker sends it; none unchosen (Matt, 2026-11-04)', () async {
+    final asking = client();
+    await asking.generate('a banner');
+    Map sent() => jsonDecode(utf8.decode(ground.asked.lastWhere((asked) => asked.url.path == '/v1/openapi/chat').body!)) as Map;
+    expect(sent().containsKey('tool_config'), isFalse, reason: 'Lovart chooses');
+    final midjourney = lovartModels.firstWhere((model) => model.name == 'Midjourney');
+    setLovartModel(midjourney);
+    expect(lovartModel()?.id, 'generate_image_midjourney');
+    server.runs = 0;
+    await asking.generate('a banner');
+    expect(sent()['tool_config'], {
+      'prefer_tool_categories': {
+        'IMAGE': ['generate_image_midjourney'],
+      },
+    });
+    // A model Lovart no longer lists reads as Lovart's choice.
+    lovart.host.storage.set(lovart.lovartModelKey, 'generate_image_gone');
+    expect(lovartModel(), isNull);
+    setLovartModel(null);
+    expect(lovart.host.storage.get<Object?>(lovart.lovartModelKey, null), isNull);
   });
 
   test('done with no image is the agent’s refusal, in its words', () async {

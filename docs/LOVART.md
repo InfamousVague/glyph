@@ -202,8 +202,8 @@ never in the store listing or its screenshots. The catalogue card uses the Lucid
 
 ## Left for later
 
-- A model picker (the skill's `tool_config.include_tools`, e.g. Midjourney, Nano Banana Pro, GPT Image) and fast vs
-  unlimited mode (`/mode/set`).
+- Fast vs unlimited mode (`/mode/set`). (The model picker is built: Image model on the plugin's page, 2026-11-04,
+  sent as `tool_config.prefer_tool_categories` `{"IMAGE": [tool]}`; lib/plugins/lovart/models.dart.)
 - Approving a pending costly step from the app (a confirm button that names the cost), and resuming a thread that timed
   out (`/chat/result` again later).
 - Attachments: a note's own pictures as references (`/file/upload`, then the address it answers as an attachment).

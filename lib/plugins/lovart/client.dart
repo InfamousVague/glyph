@@ -31,6 +31,7 @@ import '../../account/api.dart' show FetchRequest, FetchResponse;
 import '../../core/ids.dart' show randomId;
 import '../types.dart';
 import 'manifest.dart' as lovart;
+import 'models.dart' show lovartToolConfig;
 
 /// Where the API is.
 const String lovartBase = 'https://lgw.lovart.ai';
@@ -304,7 +305,8 @@ class LovartClient {
   /// itself, sent as the chat's `attachments` (the skill's `send`; lovart/figma_refs.dart).
   Future<String> start(String prompt, {String? project, List<String> references = const []}) async {
     final id = project ?? await ensureProject();
-    final sent = await _call('POST', '/chat', body: {'prompt': prompt, 'project_id': id, 'mode': 'fast', if (references.isNotEmpty) 'attachments': references});
+    final tools = lovartToolConfig(_on);
+    final sent = await _call('POST', '/chat', body: {'prompt': prompt, 'project_id': id, 'mode': 'fast', if (references.isNotEmpty) 'attachments': references, 'tool_config': ?tools});
     final thread = sent['thread_id'];
     if (thread is! String || thread.isEmpty) throw const LovartFailure('Lovart didn’t start on that.');
     return thread;

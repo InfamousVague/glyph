@@ -96,7 +96,7 @@ import '../plugins/figma/manifest.dart' as figma show host, tokenSecret;
 import '../plugins/git_backup/manifest.dart' as git show host, tokenSecret;
 import '../plugins/github/manifest.dart' as github show host, tokenSecret;
 import '../plugins/host.dart' show onPluginStorage;
-import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, bannerPromptKey, host, lovartExtraKey, secretKeySecret;
+import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, bannerPromptKey, host, lovartExtraKey, lovartModelKey, secretKeySecret;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/manifest.dart' as slack show host, webhookPrefix;
 import '../plugins/types.dart' show PluginHost;
@@ -190,7 +190,7 @@ List<SyncedItem> connectionItems(
     // The header image prompt and the words added to every image (Matt, 2026-11-03: "I updated the lovart prompt to have
     // high detailed illustrations but it's still doing dotwork styles"): kept on the device it was changed on, so the
     // phone, which makes the headers as notes are left, went on with the house's dotwork. Now the account's.
-    for (final key in const [lovart.bannerPromptKey, lovart.lovartExtraKey]) _storageItem(lovartHost ?? lovart.host, key),
+    for (final key in const [lovart.bannerPromptKey, lovart.lovartExtraKey, lovart.lovartModelKey]) _storageItem(lovartHost ?? lovart.host, key),
     _secretItem(elevenHost ?? eleven.host, eleven.apiKeySecret),
     for (final key in const [eleven.voiceKey, eleven.modelKey]) _storageItem(elevenHost ?? eleven.host, key),
     _secretItem(figmaHost ?? figma.host, figma.tokenSecret),
