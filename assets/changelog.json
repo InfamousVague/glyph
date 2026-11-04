@@ -2,9 +2,10 @@
   {
     "version": "2.4.13",
     "date": "2026-11-04",
-    "title": "Header image styles to choose from",
+    "title": "Header image styles, and importing all of Notion",
     "items": [
-      {"icon": "palette", "words": "Pick how header images are drawn at the top of the Lovart settings: Painterly, Coloured pencil, Rough sketch or Ultra HD, each with a sample to see.", "kind": "new"}
+      {"icon": "palette", "words": "Pick how header images are drawn at the top of the Lovart settings: Painterly, Coloured pencil, Rough sketch or Ultra HD, each with a sample to see.", "kind": "new"},
+      {"icon": "download", "words": "Import a whole Notion workspace from the Notion plugin: pages, sub-pages, databases, pictures and links, with Sync again to bring in what changed.", "kind": "new"}
     ]
   },
   {
