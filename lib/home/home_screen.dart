@@ -53,6 +53,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/metrics.dart' show trackSearchSoon;
 import '../core/page_scroll.dart';
 import '../core/back.dart';
 import '../core/book.dart';
@@ -576,6 +577,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Under a search the page is what was found, the nearest first, whatever its layout.
     final searching = _query.trim().isNotEmpty;
     final found = searching ? homeFound(inSpace, _query, _filter, scope: SearchScope(notes: notes, workspaces: spaces)) : const <Found>[];
+    // The anonymous usage stats (lib/core/metrics.dart): how many it found, once the words settle; never the words.
+    if (searching && had?.query != _query) trackSearchSoon(found.length);
     final lists = searching
         ? HomeLists(books: [for (final one in found) if (NoteFacts.of(one.note).isBook) one.note], notes: [for (final one in found) if (!NoteFacts.of(one.note).isBook) one.note])
         : homeLists(inSpace, _query, _filter);

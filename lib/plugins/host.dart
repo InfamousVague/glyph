@@ -23,6 +23,7 @@ import 'package:flutter/foundation.dart';
 
 import '../account/api.dart' show FetchRequest, FetchResponse, Fetcher;
 import '../account/device_keys.dart' show MemorySecureStore, SecureStore;
+import '../core/metrics.dart' show MetricEvent, track;
 import '../core/stored.dart';
 import 'types.dart';
 
@@ -219,6 +220,12 @@ class _Host implements PluginHost, PluginStorage, PluginSecrets {
   @override
   Future<void> write(String name, String? value) async {
     _keeps(name);
+    // A plugin's first secret is its setup finished; its last taken away, it is disconnected (lib/core/metrics.dart):
+    // by the plugin's id, never the secret's name or what it holds.
+    final had = _held[name];
+    if ((had == null || had.isEmpty) != (value == null || value.isEmpty)) {
+      track(value == null || value.isEmpty ? MetricEvent.pluginDisconnected : MetricEvent.pluginSetupFinished, {'plugin': manifest.id});
+    }
     _held[name] = value;
     try {
       await _on.secrets.write(name, value);

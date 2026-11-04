@@ -14,7 +14,9 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../core/metrics.dart' show MetricEvent, track;
 import '../core/stored.dart';
+import 'pages.dart' show walkthroughPagesNow;
 import 'too_soon.dart';
 
 /// The key that says the guide was seen (`glyph-guide-seen`).
@@ -38,6 +40,10 @@ class GuideController extends ChangeNotifier {
     tooSoonAtBoot = launchedTooSoon(_seen().isMarked);
     _open = !_seen().isMarked && (!launchedByKey || tooSoonAtBoot);
     _tooSoon = tooSoonAtBoot;
+    if (_open && !tooSoonAtBoot) {
+      track(MetricEvent.onboardingStarted);
+      _step(MetricEvent.onboardingStep);
+    }
     _keep();
   }
 
@@ -70,19 +76,31 @@ class GuideController extends ChangeNotifier {
   void show([int page = 0]) {
     _page = page;
     _open = true;
+    // The anonymous usage stats (lib/core/metrics.dart): the walkthrough begun, and each page reached, by its name.
+    if (!_seen().isMarked) track(MetricEvent.onboardingStarted);
+    _step(MetricEvent.onboardingStep);
     _told();
+  }
+
+  void _step(MetricEvent event) {
+    final pages = walkthroughPagesNow;
+    if (_page >= 0 && _page < pages.length) track(event, {'step': pages[_page].name});
   }
 
   /// To [page], from the guide's own arrows: the too-soon line has been read (`turn`).
   void turn(int page) {
+    final moved = page != _page;
     _page = page;
     _tooSoon = false;
+    if (moved) _step(MetricEvent.onboardingStep);
     _told();
   }
 
   /// Closed and seen: it will not open by itself again, and its progress goes (`close`). Not kept, it is seen for
   /// this run, at least.
   void close() {
+    // Finished, with the page it was closed on: the last one, or where it was left early.
+    if (_open && !_seen().isMarked) _step(MetricEvent.onboardingFinished);
     _seen().mark();
     clearGuideProgress();
     _open = false;

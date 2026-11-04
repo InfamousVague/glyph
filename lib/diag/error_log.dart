@@ -21,6 +21,8 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../core/metrics.dart' show trackError;
+
 /// One uncaught error, as it is kept.
 @immutable
 class LoggedError {
@@ -111,12 +113,17 @@ void installErrorLog({ErrorLog? log}) {
   final framework = FlutterError.onError;
   FlutterError.onError = (details) {
     // An error the framework says is not worth a report (an image that failed to load, say) is passed on as it was.
-    if (!details.silent) kept.record(details.exception, details.stack, where: details.context?.toDescription() ?? 'in ${details.library ?? 'the framework'}');
+    if (!details.silent) {
+      kept.record(details.exception, details.stack, where: details.context?.toDescription() ?? 'in ${details.library ?? 'the framework'}');
+      // Counted by its type alone, never its message (lib/core/metrics.dart).
+      trackError(details.exception, 'framework');
+    }
     framework?.call(details);
   };
   final outside = PlatformDispatcher.instance.onError;
   PlatformDispatcher.instance.onError = (error, stack) {
     kept.record(error, stack, where: 'in a callback nothing was waiting on');
+    trackError(error, 'platform');
     final handled = outside?.call(error, stack) ?? false;
     // A debug build is told it was not handled, and the engine reports it in full; any other has kept and said it.
     return handled || !kDebugMode;

@@ -113,6 +113,9 @@ tool/build-native.sh mac
 mode="--release"
 config="Release"
 [ -z "$tour" ] || { mode="--debug"; config="Debug"; }
+# The anonymous usage stats' project key and host (tool/posthog-defines.sh), for the release, not a tour's debug build.
+posthog=""
+[ -n "$tour" ] || . tool/posthog-defines.sh
 GHOST_CUTOVER=1 GHOST_MAC_STORE=1 flutter build macos $mode --no-pub \
   --build-name="$version" \
   --build-number="$build" \
@@ -122,6 +125,7 @@ GHOST_CUTOVER=1 GHOST_MAC_STORE=1 flutter build macos $mode --no-pub \
   --dart-define=GHOST_COMMIT="$commit" \
   ${api:+--dart-define=GHOST_API="$api"} \
   ${local_run:+--dart-define=GHOST_MODELS=http://127.0.0.1:9} \
+  $posthog \
   "$@"
 
 built="build/macos/Build/Products/$config/Ghost.md.app"

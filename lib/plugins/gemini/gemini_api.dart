@@ -26,6 +26,7 @@
 /// tier's is daily) or too many requests; 404 no such model; 5xx Google's trouble; no answer the connection.
 library;
 
+import '../../core/metrics.dart' show MetricEvent, track;
 import 'dart:convert';
 import 'dart:io';
 
@@ -339,6 +340,8 @@ class GeminiApi implements AiProvider {
 
   @override
   AiCall stream(Map<String, Object?> body) {
+    // The anonymous usage stats (lib/core/metrics.dart): that Gemini answered something, never what.
+    track(MetricEvent.aiUsed, {'feature': 'request', 'provider': 'gemini'});
     final model = geminiModelId(body['model'] as String? ?? '');
     final known = settings?.toolsRefused(model) ?? false;
     AiRequest request({required bool tools}) => AiRequest(

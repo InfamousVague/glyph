@@ -45,6 +45,7 @@
 ///   differs.
 library;
 
+import '../core/metrics.dart' show MetricEvent, track;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -544,6 +545,8 @@ class Shares extends ChangeNotifier {
   /// "Include the recording"): the words go first, and the link with them, and the recording follows on its own,
   /// [audioSending] saying how far it is.
   Future<String> shareNote(Note note, List<Note> notes, {bool? recording}) async {
+    // The anonymous usage stats (lib/core/metrics.dart): that a note was shared by link, never which or where.
+    track(MetricEvent.noteShared);
     final auth = _token();
     final made = _readKept()[note.id] ?? ShareEntry(id: newShareId(crypto), key: newShareKey(crypto));
     final kept = recording == null || recording == made.recording ? made : made.copyWith(recording: recording);

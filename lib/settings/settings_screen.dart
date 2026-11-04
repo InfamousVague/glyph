@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/blur_edge.dart';
 import '../core/back.dart';
+import '../core/metrics.dart' show CodeProp, MetricEvent, track;
 import '../perf/frame_log.dart';
 import '../shell/desktop/mac_drag_strip.dart';
 import '../shell/desktop/mac_lights.dart' show titlebarOverlay;
@@ -236,7 +237,21 @@ class SettingsScreen extends StatefulWidget {
 
 /// The state of a [SettingsScreen]. Public for [back] and [forward], which a shell with gestures of its own may call.
 class SettingsScreenState extends State<SettingsScreen> with SingleTickerProviderStateMixin {
-  String? _activeId;
+  String? _activeIdHeld;
+  String? get _activeId => _activeIdHeld;
+
+  /// A page entered is told to the anonymous usage stats (lib/core/metrics.dart): a section by its id, and a plugin's
+  /// page as that plugin's setup begun, by the plugin's id.
+  set _activeId(String? id) {
+    if (id != null && id != _activeIdHeld) {
+      if (id.startsWith('plugin:')) {
+        track(MetricEvent.pluginSetupStarted, {'plugin': id.substring('plugin:'.length)});
+      } else if (CodeProp.shape.hasMatch(id)) {
+        track(id == 'changelog' ? MetricEvent.changelogViewed : MetricEvent.settingsOpened, {if (id != 'changelog') 'pane': id});
+      }
+    }
+    _activeIdHeld = id;
+  }
 
   /// Which way the pane came in: pushed from the right going deeper, from the left coming back.
   bool _out = false;

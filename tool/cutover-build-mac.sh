@@ -41,6 +41,8 @@ code=$((major * 1000000 + minor * 1000 + patch))
 
 cd "$(dirname "$0")/.."
 [ "${GHOST_KEEP_CORE:-}" = 1 ] || tool/build-native.sh mac
+# The anonymous usage stats' project key and host (tool/posthog-defines.sh).
+. tool/posthog-defines.sh
 GHOST_CUTOVER=1 flutter build macos --release --no-pub \
   --build-name="$version" \
   --build-number="$code" \
@@ -48,6 +50,7 @@ GHOST_CUTOVER=1 flutter build macos --release --no-pub \
   --dart-define=GHOST_VERSION="$version" \
   --dart-define=GHOST_BUILD="$(date -u +%Y%m%d%H%M%S)" \
   --dart-define=GHOST_COMMIT="$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- . 2>/dev/null || echo +)" \
+  $posthog \
   "$@"
 
 built="build/macos/Build/Products/Release/Ghost.md.app"

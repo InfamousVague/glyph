@@ -8,6 +8,7 @@
 /// table, the quality levels of one model left to its Auto; re-read it when Lovart adds or drops one.
 library;
 
+import '../../core/metrics.dart' show trackPlugin;
 import '../types.dart';
 import 'manifest.dart' show host, lovartModelKey;
 
@@ -54,6 +55,8 @@ LovartModel? lovartModel([PluginHost? via]) {
 void setLovartModel(LovartModel? model, [PluginHost? via]) {
   final on = via ?? host;
   model == null ? on.storage.remove(lovartModelKey) : on.storage.set(lovartModelKey, model.id);
+  // The anonymous usage stats (lib/core/metrics.dart): the tool id from the list above, or `auto` for Lovart's own.
+  trackPlugin('lovart', 'model_chosen', choice: model?.id ?? 'auto');
 }
 
 /// The chat's `tool_config` for the model chosen, or null to send none.

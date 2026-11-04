@@ -41,6 +41,7 @@ import '../perf/frame_log.dart';
 import 'attachment_refs.dart' show noteGoneForGood, tellNoteGone;
 import 'command_mutations.dart';
 import 'library.dart';
+import 'metrics.dart' show MetricEvent, track, trackNoteEdited;
 import 'native/core.dart';
 import 'note.dart';
 import 'note_json.dart';
@@ -364,6 +365,8 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     _touch();
     _put(stored);
     _saved(before, stored);
+    // The anonymous usage stats (lib/core/metrics.dart): that a note was made, and by which of the two ways.
+    if (fresh) track(MetricEvent.noteCreated, {'source': source.name});
     return stored;
   }
 
@@ -375,6 +378,8 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     _touch();
     _put(stored);
     _saved(before, stored);
+    // Once per note per run, and its id never leaves the device.
+    if (before == null || before.body != stored.body) trackNoteEdited(id);
     return stored;
   }
 
@@ -446,10 +451,16 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   // A move into or out of `.trash/` (library/trash.rs): like a pin, not an edit, and the note answered takes its
   // place in the list with its new path.
   @override
-  Future<void> putInTrash(String id) => _flag('trash_note', {'id': id});
+  Future<void> putInTrash(String id) async {
+    await _flag('trash_note', {'id': id});
+    track(MetricEvent.noteTrashed);
+  }
 
   @override
-  Future<void> takeFromTrash(String id) => _flag('restore_note', {'id': id});
+  Future<void> takeFromTrash(String id) async {
+    await _flag('restore_note', {'id': id});
+    track(MetricEvent.noteRestored);
+  }
 
   @override
   Future<void> destroy(String id) async {
@@ -462,6 +473,7 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
       }
     }
     await _invoke('delete_note', {'id': id});
+    track(MetricEvent.noteDeleted);
     // The files it linked, where no other note does: the core has just done the same for its pictures.
     tellNoteGone(id, body);
     _touch();

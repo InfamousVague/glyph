@@ -53,6 +53,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart' show sha1;
 import 'package:flutter/foundation.dart';
 
+import 'metrics.dart' show MetricEvent, track;
 import 'note_folders.dart' show folderName;
 import 'trash.dart';
 
@@ -419,6 +420,8 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     }
     final made = Workspace(id: _idFor(sheet.list, clean, inside), name: clean, hue: _wornHue(hue), parent: inside);
     _write(WorkspaceSheet(list: [...sheet.list, made], notes: sheet.notes, current: sheet.current));
+    // The anonymous usage stats (lib/core/metrics.dart): a workspace at the top, a folder inside one; never its name.
+    track(inside == null ? MetricEvent.workspaceCreated : MetricEvent.folderCreated);
     return made;
   }
 
@@ -565,6 +568,7 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   void _remove(String id) {
     final sheet = _current;
     final gone = sheet.list.where((w) => w.id == id).firstOrNull;
+    if (gone != null) track(gone.parent == null ? MetricEvent.workspaceDeleted : MetricEvent.folderDeleted);
     // Its notes go a level up with the folders inside it: into its parent, where it has one (Matt, 2026-10-23: a
     // folder of an organization's deleted keeps its notes the team's, where unfiling them took them out of the
     // organization and so from every other member); at the top, they are not filed any more and their files go back to
@@ -620,6 +624,7 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     if (isOrgWorkspace(id)) return null;
     final sheet = _current;
     if (!sheet.list.any((w) => w.id == id)) return null;
+    track(sheet.list.firstWhere((w) => w.id == id).parent == null ? MetricEvent.workspaceDeleted : MetricEvent.folderDeleted);
     final gone = workspaceFamily(sheet.list, id).toSet();
     final folders = [
       for (var at = 0; at < sheet.list.length; at += 1)

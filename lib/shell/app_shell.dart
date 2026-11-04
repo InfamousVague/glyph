@@ -6,6 +6,7 @@ import '../activity/activity_chips.dart';
 import '../activity/activity_ring.dart';
 import '../core/back.dart';
 import '../core/live_titles.dart';
+import '../core/metrics.dart' show MetricEvent, durationBucket, track;
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/tabs.dart';
@@ -429,7 +430,23 @@ class AppShellState extends State<AppShell> {
       _sync();
     });
     if (_screen != was) widget.onScreenChanged?.call(_screen);
+    // The anonymous usage stats (lib/core/metrics.dart): the screen by its name, and a note opened, never which.
+    final now = _screen;
+    if (now.name != was.name) track(MetricEvent.screenViewed, {'screen': now.name});
+    if (now.noteOnScreen != null && now.noteOnScreen != was.noteOnScreen) track(MetricEvent.noteOpened);
+    // A recording is its screen: begun as it comes up, finished as it goes, with how long it was up as a bucket.
+    String? mode(Screen screen) => screen is ScreenCapture ? 'note' : (screen is ScreenMeeting ? 'meeting' : null);
+    final from = mode(was), to = mode(now);
+    if (from != to) {
+      final began = _recordingSince;
+      if (from != null && began != null) track(MetricEvent.recordingFinished, {'mode': from, 'took': durationBucket(DateTime.now().difference(began))});
+      _recordingSince = to == null ? null : DateTime.now();
+      if (to != null) track(MetricEvent.recordingStarted, {'mode': to});
+    }
   }
+
+  /// When the recording on screen came up, for its length.
+  DateTime? _recordingSince;
 
   Note? _noteOf(String id) {
     for (final note in _library) {

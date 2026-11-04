@@ -41,6 +41,7 @@
 /// - [syncedWhen] writes a time past the hour as "7 Oct, 18:05", where the page asks the device's language for it.
 library;
 
+import '../core/metrics.dart' show CodeProp, MetricEvent, errorType, track;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -602,6 +603,14 @@ class SyncEngine {
 
   /// Whether [failure] is the network blinking, or the service a moment away (a 5xx): the next pass, minutes away or
   /// at the next change, is its try again, so the job goes quietly rather than red.
+  static String _reasonCode(Object failure) {
+    if (failure is ApiError) return 'http_${failure.status}';
+    if (failure is TimeoutException) return 'timeout';
+    if (isNetworkBlip(failure)) return 'network';
+    final type = (errorType(failure) ?? 'other').toLowerCase();
+    return CodeProp.shape.hasMatch(type) ? type : 'other';
+  }
+
   static bool _passing(Object failure) => isNetworkBlip(failure) || (failure is ApiError && failure.status >= 500);
 
   /// The rolling job ended, as the last pass it covered ended.
@@ -615,6 +624,8 @@ class SyncEngine {
     _count = null;
     _moved = 0;
     _failure = null;
+    // The anonymous usage stats (lib/core/metrics.dart): a pass that failed, by a code for why, never its words.
+    if (failure != null) track(MetricEvent.syncFailed, {'reason': _reasonCode(failure.error)});
     if (job == null) return;
     final tally = JobTally('note synced', 'notes synced', moved);
     if (failed) {

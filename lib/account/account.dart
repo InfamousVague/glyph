@@ -21,6 +21,7 @@
 library;
 
 
+import '../core/metrics.dart' show MetricEvent, track;
 import 'package:flutter/foundation.dart';
 
 import 'api.dart';
@@ -146,6 +147,8 @@ class Account extends ValueNotifier<AccountState> implements AccountSource {
     await keys.setAccountKey(await crypto.settle(accountKey));
     await keys.setDeviceKey(device);
     await _settle(answer.session);
+    // The anonymous usage stats (lib/core/metrics.dart): that an account was made, never which.
+    track(MetricEvent.signedUp);
     return Made(sheet.codes);
   }
 
@@ -164,6 +167,7 @@ class Account extends ValueNotifier<AccountState> implements AccountSource {
     await keys.setAccountKey(accountKey);
     await _enrolDevice(answer.token);
     await _settle(answer.session);
+    track(MetricEvent.signedIn);
   }
 
   /// In with a recovery code, which is spent, and a new password set at once - the old one is presumably what was
@@ -283,6 +287,7 @@ class Account extends ValueNotifier<AccountState> implements AccountSource {
   /// Off this device: the session and every key (`signOut`). Notes on the device stay; only what made it an account
   /// goes.
   Future<void> signOut() async {
+    track(MetricEvent.signedOut);
     await keys.setAccountKey(null);
     await keys.setDeviceKey(null);
     await keys.setEncryptionKey(null);

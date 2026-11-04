@@ -32,6 +32,7 @@
 /// of that model go without them.
 library;
 
+import '../../core/metrics.dart' show MetricEvent, track;
 import 'dart:convert';
 import 'dart:io';
 
@@ -359,6 +360,8 @@ class OpenAiChatApi implements AiProvider {
 
   @override
   AiCall stream(Map<String, Object?> body) {
+    // The anonymous usage stats (lib/core/metrics.dart): which kind of provider answered, never what.
+    track(MetricEvent.aiUsed, {'feature': 'request', 'provider': official ? 'openai' : (who == 'Aster' ? 'aster' : 'custom')});
     final model = body['model'] as String? ?? '';
     final known = settings?.toolsRefused(model) ?? false;
     AiRequest request({required bool tools, bool usage = true}) => AiRequest(

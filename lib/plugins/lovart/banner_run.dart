@@ -54,6 +54,7 @@
 /// that syncs nothing (signed out, Local only) claims only for itself.
 library;
 
+import '../../core/metrics.dart' show trackPlugin;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -685,6 +686,9 @@ class BannerJob {
       estimate: bannerRunEstimate(total - made - skipped),
       plugin: manifest.id,
     );
+    // The anonymous usage stats (lib/core/metrics.dart): a run begun, with how many images it should make as a bucket
+    // (the credits are that times [lovartCreditsPerImage]).
+    trackPlugin('lovart', 'banner_run_started', count: total - made - skipped);
 
     void keep() => _on.storage.set(
           bannerRunKey,

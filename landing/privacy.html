@@ -24,7 +24,7 @@
       </header>
 
       <h1>Privacy</h1>
-      <p class="muted">Last updated 3 November 2026</p>
+      <p class="muted">Last updated 4 November 2026</p>
 
       <p>
         Ghost.md is a notes app made by Matt Wisniewski ("we", "us"). This page says what happens to your notes and your
@@ -42,7 +42,10 @@
             by handle. Notes you file in it are shared with its members, encrypted so that only they can read them. Your
             other notes stay yours alone.
           </li>
-          <li>No ads, no analytics, no tracking, and we never sell or share your data.</li>
+          <li>
+            No ads and no tracking, and we never sell or share your data. The apps send anonymous usage statistics (which
+            features are used, never what you write), and you can turn them off in Settings › Privacy.
+          </li>
           <li>You can delete your account, and everything it keeps on our servers, from the app at any time.</li>
         </ul>
       </div>
@@ -56,6 +59,35 @@
       <p>
         Your device's own backup (for example Android's backup to your Google account) may include the app's files. That
         backup is between you and your device's maker, under their terms.
+      </p>
+
+      <h2>Anonymous usage statistics</h2>
+      <p>
+        The Android, iPhone and Mac apps send anonymous usage statistics to help us see which features are used and what
+        goes wrong. They go to PostHog, an analytics service, whose servers for our project are in the United States. Each
+        one is an event, such as "app opened", "note created", "plugin switched on", "background job failed" or "screen
+        viewed", with a few details from fixed lists: the app's version, the kind of device (phone, Fold, tablet or
+        computer) and its operating system, the language your device is set to (for example "en", never the region),
+        whether the app is in Simple or Advanced mode, which plugins are on, and buckets such as how long something took
+        ("5-30s") or how many ("6-20"). An uncaught error is counted by the name of its kind (for example
+        "FormatException"), never its message.
+      </p>
+      <p>
+        They are tied only to a random ID that the app makes on your device the first time it sends them. That ID is never
+        linked to your account, your handle, an email address or an organization, is never sent to our own service, and does
+        not sync between your devices. PostHog is set not to build a profile of you, not to record your screen, and to
+        discard your IP address; the app also asks it not to look up where you are.
+      </p>
+      <p>
+        <strong>They never contain your content</strong>: not your notes, their titles or words, file or folder names, what
+        you search for, prompts you write, links, names, handles, email addresses, organization names, or ids from Notion,
+        GitHub, Figma or any other service.
+      </p>
+      <p>
+        You can turn them off in <strong>Settings › Privacy › Anonymous usage stats</strong>, or on the privacy page of the
+        walkthrough when you first open the app. Turning them off deletes the random ID and anything not yet sent, and
+        nothing more is sent; turning them on again makes a new ID. With <strong>Local only</strong> on, nothing is sent
+        either. The web version sends none.
       </p>
 
       <h2>Your account, if you make one</h2>
@@ -230,7 +262,9 @@
 
       <h2>What we don't do</h2>
       <p>
-        We don't use analytics, crash reporting, advertising or tracking of any kind, and there's no advertising id. We don't sell
+        Apart from the anonymous usage statistics above, which you can turn off, we don't use analytics or crash reporting,
+        and we don't use advertising or tracking of any kind: there's no advertising id, and nothing is linked to you across
+        other companies' apps or sites. We don't sell
         your data, share it with anyone (the location, map and place-name requests above are the one exception, and you can
         switch them off), or use it to train AI models.
       </p>

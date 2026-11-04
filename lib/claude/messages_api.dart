@@ -13,6 +13,7 @@
 /// offers its three, lib/claude/claude_settings.dart `claudeModels`).
 library;
 
+import '../core/metrics.dart' show MetricEvent, track;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -82,6 +83,8 @@ class ClaudeApi implements AiProvider {
   /// [stream], with the betas the request opts into in its `anthropic-beta` header (a meeting's write-up asks for
   /// the server-side fallback, lib/ai/summary_claude.dart).
   ClaudeCall streamWith(Map<String, Object?> body, {List<String> betas = const []}) {
+    // The anonymous usage stats (lib/core/metrics.dart): that Claude answered something, never what.
+    track(MetricEvent.aiUsed, {'feature': 'request', 'provider': 'claude'});
     final client = _client();
     HttpClientRequest? sent;
     var cancelled = false;

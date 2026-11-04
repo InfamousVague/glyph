@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 
 import '../narration.dart';
 import '../pages.dart';
+import '../../settings/usage_stats.dart' show GuideUsageStats;
 import 'parts.dart';
 
 /// Each saying page's headline: short, the promise in a few words.
@@ -29,6 +30,12 @@ class GuideAbout extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     mainAxisSize: MainAxisSize.min,
-    children: [GuideTitle(aboutTitles[page]!), GuideLead(narration[page]!)],
+    children: [
+      GuideTitle(aboutTitles[page]!),
+      GuideLead(narration[page]!),
+      // The anonymous usage stats' switch, on the page about privacy (lib/settings/usage_stats.dart): the same one as
+      // Settings › Privacy's, and it reads Simple for its words.
+      if (page == GuidePage.sync) const GuideUsageStats(),
+    ],
   );
 }

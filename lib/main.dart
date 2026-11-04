@@ -51,6 +51,7 @@ import 'root/ghost_root.dart';
 import 'root/opening.dart';
 import 'root/iphone_wiring.dart';
 import 'root/plugin_ground.dart';
+import 'root/metrics_wiring.dart' show markLaunchBegan;
 import 'root/voice_wiring.dart';
 import 'share/share_in.dart' show PhoneShares;
 import 'shell/desktop/desktop_commands.dart';
@@ -70,6 +71,8 @@ Future<void> main() async {
   if (kIsWeb && !kIsWasm) return runApp(const TooOldBrowser());
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
   GhostBinding.ensureInitialized();
+  // The cold start's clock, for the anonymous usage stats' `app_opened` (lib/root/metrics_wiring.dart).
+  markLaunchBegan();
   // A build made to be measured times its own start and every frame after (lib/perf); any other does none of it.
   PerfLaunch.begin();
   // Every error nobody catches, from here on, is kept and said (lib/diag/error_log.dart), and in a debug build

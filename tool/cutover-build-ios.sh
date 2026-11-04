@@ -113,6 +113,8 @@ tool/build-native.sh ios
 # Flutter writes what the build is (ios/Flutter/Generated.xcconfig: the version, the build, the defines) and
 # builds nothing; Xcode's own "Run Script" phase then builds the Dart in release, with --no-load_cse
 # (ios/Flutter/Release.xcconfig).
+# The anonymous usage stats' project key and host (tool/posthog-defines.sh): the store's build only, not the simulator's.
+. tool/posthog-defines.sh
 GHOST_CUTOVER=1 flutter build ios --release --no-codesign --config-only --no-pub \
   --build-name="$version" --build-number="$build" \
   --dart-define=GHOST_CUTOVER=true \
@@ -120,6 +122,7 @@ GHOST_CUTOVER=1 flutter build ios --release --no-codesign --config-only --no-pub
   --dart-define=GHOST_BUILD="$stamp" \
   --dart-define=GHOST_COMMIT="$commit" \
   $look \
+  $posthog \
   "$@"
 
 archive="$out/Ghost.md.xcarchive"

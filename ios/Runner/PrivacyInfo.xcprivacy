@@ -6,7 +6,13 @@
   (tauri/src-tauri/gen/apple/glyph_iOS/PrivacyInfo.xcprivacy) is what this was made from, and the App Privacy
   answers in App Store Connect were given to match that one.
 
-  Tracking: none. No analytics, no ads, no third-party SDK (landing/privacy.html).
+  Tracking: none. No ads, no third-party SDK (landing/privacy.html).
+
+  Anonymous usage stats (lib/core/metrics.dart, docs/ANALYTICS.md; since 2.4.19): on by default, off in Settings ›
+  Privacy, sent to PostHog by the app's own client over its capture API. Declared as Product Interaction (events:
+  screens, features, plugins), Crash Data (uncaught errors counted by their type alone), Performance Data (a cold
+  start's time and jobs' durations, as buckets) and Device ID (a random install ID made on the device, not the
+  vendor's or the advertising identifier), each not linked to the person and not used for tracking, for Analytics.
 
   Collected data: only with an account, and only to sync, as the Tauri app's four. The handle is the account's
   user id; notes and their pictures are uploaded sealed on the phone, which the service cannot read, and are
@@ -80,6 +86,54 @@
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCrashData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePerformanceData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
 	</array>

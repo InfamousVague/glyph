@@ -24,6 +24,7 @@
 ///   ([Orgs.inviteAnswerWith]; lib/sync/feed.dart).
 library;
 
+import '../core/metrics.dart' show MetricEvent, track;
 import 'package:flutter/foundation.dart';
 
 import '../account/api.dart';
@@ -163,6 +164,8 @@ class Orgs extends ChangeNotifier {
   /// A new organization, owned by the caller, with its workspace made here at once (`createOrg`).
   Future<Org> createOrg(String name, {String? hue, CallContext? ctx}) async {
     final org = Org.fromJson((await _call('POST', 'orgs', ctx, {'name': name.trim(), 'hue': hue}))['org']);
+    // The anonymous usage stats (lib/core/metrics.dart): that one was made, never its name or who.
+    track(MetricEvent.orgCreated);
     _keepRow(org.id, org.row);
     workspaces.ensureOrgWorkspace(org);
     return org;
@@ -226,7 +229,11 @@ class Orgs extends ChangeNotifier {
   /// Someone invited by handle (owner or admin; `inviteByHandle`). The service resolves the handle - 404 "No one has
   /// that handle." - and says when they are already in, declined lately, have too many invitations waiting, or the
   /// organization is full.
-  Future<Member> inviteByHandle(String id, String handle, {CallContext? ctx}) async => _member((await _call('POST', 'orgs/${_enc(id)}/members', ctx, {'handle': handle.trim()}))['member']);
+  Future<Member> inviteByHandle(String id, String handle, {CallContext? ctx}) async {
+    final member = _member((await _call('POST', 'orgs/${_enc(id)}/members', ctx, {'handle': handle.trim()}))['member']);
+    track(MetricEvent.inviteSent, {'way': 'handle'});
+    return member;
+  }
 
   static Member _member(Object? raw) => Member.fromJson(raw) ?? (throw const FormatException('The service answered without the member.'));
 
@@ -265,6 +272,7 @@ class Orgs extends ChangeNotifier {
     final answer = await _call('POST', 'orgs/${_enc(id)}/invite', ctx, {'accept': accept});
     if (answer.containsKey('org')) {
       final org = Org.fromJson(answer['org']);
+      if (accept) track(MetricEvent.orgJoined);
       _keepRow(org.id, org.row);
       workspaces.ensureOrgWorkspace(org);
       return org;
@@ -285,7 +293,9 @@ class Orgs extends ChangeNotifier {
   /// (`makeInviteLink`).
   Future<InviteLink> makeInviteLink(String id, {LinkTerms terms = const LinkTerms(), CallContext? ctx}) async {
     final body = <String, Object?>{if (terms.expiresIn != null) 'expiresIn': terms.expiresIn, if (terms.maxUses != null) 'maxUses': terms.maxUses};
-    return InviteLink.fromJson((await _call('POST', 'orgs/${_enc(id)}/links', ctx, body))['link']);
+    final link = InviteLink.fromJson((await _call('POST', 'orgs/${_enc(id)}/links', ctx, body))['link']);
+    track(MetricEvent.inviteSent, {'way': 'link'});
+    return link;
   }
 
   /// The organization's working links, newest first (owner or admin; `listInviteLinks`).
@@ -304,8 +314,11 @@ class Orgs extends ChangeNotifier {
   /// An invitation mailed to [email] (owner or admin): a link of one use for a fortnight, the address's waiting one
   /// renewed rather than a second made. 400 for an address that will not do, 429 past the limits, 503 where the
   /// service sends no mail, 502 when the mail could not be sent (`inviteByEmail`).
-  Future<EmailInvite> inviteByEmail(String id, String email, {CallContext? ctx}) async =>
-      EmailInvite.fromJson((await _call('POST', 'orgs/${_enc(id)}/emails', ctx, {'email': email.trim()}))['invite']);
+  Future<EmailInvite> inviteByEmail(String id, String email, {CallContext? ctx}) async {
+    final invite = EmailInvite.fromJson((await _call('POST', 'orgs/${_enc(id)}/emails', ctx, {'email': email.trim()}))['invite']);
+    track(MetricEvent.inviteSent, {'way': 'email'});
+    return invite;
+  }
 
   /// The organization's email invitations waiting, newest first, and whether the service can mail at all (owner or
   /// admin; `listEmailInvites`).
@@ -332,6 +345,7 @@ class Orgs extends ChangeNotifier {
   /// (`joinByLink`).
   Future<Org> joinByLink(String code, {CallContext? ctx}) async {
     final org = Org.fromJson((await _call('POST', 'joins/${_enc(code)}', ctx))['org']);
+    track(MetricEvent.orgJoined);
     _keepRow(org.id, org.row);
     workspaces.ensureOrgWorkspace(org);
     return org;

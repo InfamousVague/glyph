@@ -75,7 +75,7 @@ In a browser, Ghost.md uses the browser's own speech recognition. In Chrome, tha
 
 ## No ads, no tracking
 
-There is no analytics, no crash reporting, no advertising and no tracking of any kind, and no advertising id. Nothing of yours is sold, shared, or used to train AI models.
+There is no advertising and no tracking of any kind, and no advertising id. The app sends anonymous usage stats, counts of which screens, features and plugins are used and errors by their type, tied to a random ID made on the device and never to you; they never include your notes, titles, searches or names. Turn them off in Settings › Privacy › Anonymous usage stats, and Local only sends none. Nothing of yours is sold, shared, or used to train AI models.
 
 ## Deleting your account
 

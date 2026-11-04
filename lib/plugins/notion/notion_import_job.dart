@@ -12,6 +12,7 @@
 ///   (`notion-id:`), so a run after a reinstall or on another device still updates rather than duplicates.
 library;
 
+import '../../core/metrics.dart' show trackPlugin;
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -218,10 +219,15 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
         if (p.total > 0) job?.progress(done: p.done, total: p.total, steps: '${p.done} of ${p.total} pages', line: p.on);
       });
       if (report != null) _lastSync = report;
+      // The anonymous usage stats (lib/core/metrics.dart): a sync pass and how many pages it changed, as a bucket.
+      // A pass that changed nothing (most of them, every two minutes) is not counted.
+      final changed = report == null ? 0 : report.notes + report.notebooks + report.updated;
+      if (changed > 0) trackPlugin('notion', 'sync_run', count: changed, ok: true);
       job?.done(result: report == null ? null : JobResult(importDoneSaid(report), action: 'Open'), tally: JobTally('page synced', 'pages synced', report == null ? 0 : report.notes + report.notebooks + report.updated));
       _keep((last ?? place).copyWith(mark: mark, checked: _now(), error: () => null, both: report?.conflicts ?? 0));
     } catch (failure) {
       final why = failureWords(failure);
+      trackPlugin('notion', 'sync_run', ok: false);
       job?.failed(why);
       _keep((last ?? place).copyWith(checked: _now(), error: () => why));
     } finally {
@@ -352,6 +358,7 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
       if (ours && !isOrgWorkspace(ws.id) && bare(ws.id)) workspaces.removeWorkspace(ws.id);
     }
     _keep(place.copyWith(live: false, error: () => null));
+    trackPlugin('notion', 'import_removed', count: moved);
     _lastSync = null;
     if (value is! NotionImportRunning) value = const NotionImportIdle();
     return moved;
@@ -376,6 +383,7 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
       if (id == notionImportJobId) stop();
     });
     unawaited(_device.running(notionImportJobId, title: title, text: 'Reading what Notion shares'));
+    trackPlugin('notion', 'import_started', choice: again ? 'again' : 'new');
     try {
       String? newest;
       final report = await importNotion(_reader(), target, into: into, stopped: () => _stop, newest: (mark) => newest = mark, progress: (p) {
@@ -394,6 +402,7 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
       }
       value = NotionImportDone(report, stopped: _stop);
       final made = report.notes + report.notebooks + report.updated;
+      trackPlugin('notion', _stop ? 'import_stopped' : 'import_finished', count: made, ok: true);
       if (_stop) {
         job.stopped(tally: JobTally('page imported', 'pages imported', made));
       } else {
@@ -403,6 +412,7 @@ class NotionImportJob extends ValueNotifier<NotionImportState> {
     } catch (failure) {
       final why = failureWords(failure);
       value = NotionImportFailed(why);
+      trackPlugin('notion', 'import_failed', ok: false);
       final signedOut = failure is NotionImportFailure && failure.status == 401;
       job.failed(why, fix: signedOut ? activityRoutes.signIn(manifest.id) : null);
       unawaited(_device.ended(notionImportJobId, title: 'Notion import stopped', text: why));

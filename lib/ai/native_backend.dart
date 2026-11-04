@@ -15,6 +15,7 @@
 /// ```
 library;
 
+import '../core/metrics.dart' show MetricEvent, track;
 import 'dart:async';
 
 import '../core/native/ghost_core.dart';
@@ -57,7 +58,11 @@ class NativeAiBackend implements AiBackend {
   Future<ModelInfo> deleteModel(String id) async => ModelInfo.fromJson(_map(await core.invoke('ai_delete_model', {'id': id})));
 
   @override
-  Future<Output> generate(GenerateRequest request) async => Output.fromJson(_map(await _job('ai_generate', {'request': request.toJson()})));
+  Future<Output> generate(GenerateRequest request) async {
+    // The anonymous usage stats (lib/core/metrics.dart): that the phone's own model answered, never what.
+    track(MetricEvent.aiUsed, {'feature': 'request', 'provider': 'local'});
+    return Output.fromJson(_map(await _job('ai_generate', {'request': request.toJson()})));
+  }
 
   @override
   Future<Object?> inferCommand(InferCommandRequest request) => _job('ai_infer_command', {'request': request.toJson()});

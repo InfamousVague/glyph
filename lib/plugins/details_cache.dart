@@ -17,6 +17,7 @@
 /// words are [failureWords]'s.
 library;
 
+import '../core/metrics.dart' show trackPlugin;
 import 'dart:async';
 import 'dart:collection';
 
@@ -149,6 +150,9 @@ class DetailsCache {
         _batchDone += 1;
         _pump();
         if (_running == 0 && _queue.isEmpty) {
+          // The anonymous usage stats (lib/core/metrics.dart): a batch of a plugin's links read (a Figma frame, a
+          // GitHub pull request, a Notion page drawn as itself), as a count; never which.
+          trackPlugin(host.manifest.id, 'links_read', count: _batchDone);
           _job?.done();
           _job = null;
         } else {

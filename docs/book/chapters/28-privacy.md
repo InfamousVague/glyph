@@ -10,7 +10,7 @@ Ghost.md is built so that your notes stay yours. This chapter says what stays on
 - **If you join an organization**, its name and members are kept in the clear so teammates can be invited by handle. Notes you file in it are shared with its members, encrypted so only they can read them. Your other notes stay yours alone.
 - **Two features are read by the service in passing**: mail sent to your note address, and the link and title of a meeting you invite Ghost to. Both are below.
 - **Plugins talk to other services only when you add them.** Claude, Lovart, Slack, Discord, Notion, GitHub and the calendars each send what you ask them to, to that service.
-- **No ads, no analytics, no tracking.** Your data is never sold or shared, and never used to train AI models.
+- **No ads, no tracking.** The app sends anonymous usage stats (which features are used, never what you write), and Settings › Privacy › Anonymous usage stats turns them off. Your data is never sold or shared, and never used to train AI models.
 - **You can delete your account**, and everything it keeps on the servers, from the app at any time.
 
 ## On your device

@@ -40,6 +40,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'activity_log.dart';
+import 'metrics.dart';
 import 'mac_app.dart' show runsAsMacApp;
 import 'stored.dart';
 
@@ -737,6 +738,7 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
       _put(had.copyWith(title: title, line: line == null ? null : () => line, onStop: onStop == null ? null : () => onStop, onOpen: onOpen == null ? null : () => onOpen, estimate: estimate, personStarted: personStarted || had.personStarted, plugin: plugin == null ? null : () => plugin), JobEventKind.changed);
       return JobHandle._(this, id);
     }
+    _counted(MetricEvent.jobStarted, id, kind, plugin, person: personStarted);
     _put(
       Job(
         id: id,
@@ -827,12 +829,37 @@ class Activity extends ChangeNotifier implements ValueListenable<List<Job>> {
       _jobs[id] = ended;
     }
     log.record(ended);
+    _counted(
+      state == JobState.failed ? MetricEvent.jobFailed : (stopped ? MetricEvent.jobStopped : MetricEvent.jobFinished),
+      id,
+      had.kind,
+      had.plugin,
+      took: ended.took,
+      fix: state == JobState.failed ? (fix?.kind.name ?? 'none') : null,
+    );
     _changed();
     if (!seen) return;
     _lastEnded = ended;
     _events.add(JobEvent(JobEventKind.ended, ended));
     if (!quiet && ended.personStarted && ended.kind != JobKind.sync && (ended.took ?? Duration.zero) >= longJob) onChime?.call(ended);
     if (idle && state == JobState.done) _bloom();
+  }
+
+  /// A job's start or end, told to the anonymous usage stats (lib/core/metrics.dart) by its code (`summary`, never the
+  /// note after it), kind, plugin and how long it took; never its title, line or cause. A sync's passes come every few
+  /// minutes and are not counted, only a sync that failed.
+  static void _counted(MetricEvent event, String id, JobKind kind, String? plugin, {bool? person, Duration? took, String? fix}) {
+    if (kind == JobKind.sync && event != MetricEvent.jobFailed) return;
+    final code = jobCode(id);
+    if (code == null) return;
+    track(event, {
+      'job': code,
+      'kind': kind.name,
+      if (plugin != null && const PluginProp().allows(plugin)) 'plugin': plugin,
+      if (person == true) 'person': true,
+      if (took != null) 'took': durationBucket(took),
+      'fix': ?fix,
+    });
   }
 
   void _bloom() {

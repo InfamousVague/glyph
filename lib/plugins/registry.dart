@@ -22,6 +22,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../core/item_links.dart' show registerMarkName;
+import '../core/metrics.dart' show ChoiceProp, MetricEvent, track, trackPlugin;
 import '../core/notifications.dart' show FeedNotification;
 import '../core/stored.dart';
 import 'host.dart';
@@ -146,6 +147,9 @@ class Registry extends ChangeNotifier {
     if (byId(id) == null || isEnabled(id) == on) return;
     _switches = {..._switches, id: on};
     _store.write(_switches);
+    // The person's own switch, told to the anonymous usage stats by the plugin's id (lib/core/metrics.dart); another
+    // device's ([setSwitch]) is that device's to count.
+    track(on ? MetricEvent.pluginEnabled : MetricEvent.pluginDisabled, {'plugin': id});
     _told();
   }
 
@@ -186,7 +190,27 @@ class Registry extends ChangeNotifier {
           if (link.linked?.call(noteId) case final String name when name.isNotEmpty) NoteLinked(link, name),
       ];
 
-  List<NoteAction> noteActions() => [for (final p in enabled()) ...p.noteActions];
+  List<NoteAction> noteActions() => [
+        for (final p in enabled())
+          for (final action in p.noteActions) _countedAction(p.manifest.id, action),
+      ];
+
+  /// [action] as run from the note's menu, told to the anonymous usage stats (lib/core/metrics.dart) by its plugin and
+  /// its id from the plugin's source; never the note or the choice made. The same object each time it is asked.
+  static final Expando<NoteAction> _counted = Expando();
+  static NoteAction _countedAction(String plugin, NoteAction action) => _counted[action] ??= NoteAction(
+        id: action.id,
+        label: action.label,
+        icon: action.icon,
+        visible: action.visible,
+        hint: action.hint,
+        enabled: action.enabled,
+        choices: action.choices,
+        run: (editing, [choice]) {
+          trackPlugin(plugin, 'note_action', choice: ChoiceProp.shape.hasMatch(action.id) ? action.id : null);
+          return action.run(editing, choice);
+        },
+      );
 
   /// What the switched-on plugins put in a line from the +'s list.
   List<PluginInsert> inserts() => [for (final p in enabled()) ...p.inserts];
@@ -194,10 +218,22 @@ class Registry extends ChangeNotifier {
   ItemAction? itemAction(String noteId) {
     for (final p in enabled()) {
       final action = p.itemAction;
-      if (action != null && action.available(noteId)) return action;
+      if (action != null && action.available(noteId)) return _countedItem(p.manifest.id, action);
     }
     return null;
   }
+
+  static final Expando<ItemAction> _countedItems = Expando();
+  static ItemAction _countedItem(String plugin, ItemAction action) => _countedItems[action] ??= ItemAction(
+        id: action.id,
+        label: action.label,
+        busyLabel: action.busyLabel,
+        available: action.available,
+        run: (text, editing) {
+          trackPlugin(plugin, 'item_action', choice: ChoiceProp.shape.hasMatch(action.id) ? action.id : null);
+          return action.run(text, editing);
+        },
+      );
 
   List<Tip> tips(String? recentTitle) => [for (final p in enabled()) ...?p.tips?.call(recentTitle)];
 

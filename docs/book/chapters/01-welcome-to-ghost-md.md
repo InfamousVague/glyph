@@ -44,7 +44,7 @@ You can change this any time on the **Mode** card in Settings › Appearance. No
 - **No account needed.** Without one, nothing of yours is on a server.
 - **Sealed before it syncs.** With an account, notes, recordings and pictures are encrypted on your device. The service can't read them.
 - **Heard on the device.** Speech you record is turned into words on your phone or Mac. The microphone is on only while you record. A meeting Ghost joins for you is sealed to your account before it's kept, and written up on your own device.
-- **No ads, no analytics, no tracking.**
+- **No ads, no tracking.** Anonymous usage stats, which never include your notes, can be turned off in Settings › Privacy.
 
 [[Privacy]] has the whole story.
 

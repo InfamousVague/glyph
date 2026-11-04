@@ -298,6 +298,7 @@ import 'account_wiring.dart';
 import 'capture_route.dart';
 import 'desktop_wiring.dart';
 import 'library_reads.dart';
+import 'metrics_wiring.dart' show startMetrics;
 import 'note_desk.dart';
 import 'page_drawing.dart' show pageDrawingOf;
 import 'note_keeping.dart';
@@ -2114,6 +2115,9 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void initState() {
     super.initState();
+    // The anonymous usage stats (lib/root/metrics_wiring.dart, docs/ANALYTICS.md): nothing is sent by a build with no
+    // project key, with the switch off, or under Local only.
+    startMetrics();
     _startWhatsNew();
     _smoke();
     // Where the library is, for the menus' Show in Finder: asked now, on a desktop only.

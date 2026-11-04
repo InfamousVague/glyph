@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.19",
+    "date": "2026-11-04",
+    "title": "Anonymous usage stats",
+    "items": [
+      {"icon": "shield-check", "words": "Anonymous usage stats: counts of which features are used, never your notes or who you are. Turn them off in Settings › Privacy.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.18",
     "date": "2026-11-04",
     "title": "Choose Lovart's image model",

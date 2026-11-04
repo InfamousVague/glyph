@@ -4,13 +4,14 @@ import 'package:glacier/glacier.dart';
 import '../art/art.dart';
 import '../core/preferences.dart';
 import 'kit/settings_kit.dart';
+import 'usage_stats.dart';
 import '../core/iphone_app.dart' show recordsVoice;
 
 /// The privacy policy (landing/privacy.html), on the download site (`PRIVACY_URL`).
 const String privacyUrl = 'https://ghostmarkdown.com/privacy.html';
 
 /// Port of `PrivacyCard` (src/app/settings/PrivacyCard.tsx): the switches that decide what leaves the device, and the
-/// policy with what it comes to in two lines. Local only is the whole network switch; Link previews says whether a
+/// policy with what it comes to in two lines. Local only is the whole network switch, and sends no usage stats either; Anonymous usage stats is their own switch (usage_stats.dart); Link previews says whether a
 /// link's card is drawn at all. Each is a stored preference (`localOnly`, `linkPreviews`), live at once. Look up blanks
 /// online was the card's too until 2026-11-01, when it moved to Settings › AI beside Fill blanks on their own (Matt:
 /// "see if there are other settings that can be simplified removed or moved"); Local only still holds it off.
@@ -34,14 +35,16 @@ class PrivacyCard extends StatelessWidget {
         title: 'Privacy',
         // An iPhone records nothing ([recordsVoice]), so its card says nothing of recordings or a voice.
         footer: Text(
-          '${recordsVoice ? 'Your notes, recordings and pictures stay on this device, and your voice is turned into text here.' : 'Your notes and pictures stay on this device.'} Signed in, they sync encrypted on the device first, so only your own devices can read them. No ads, no analytics, no tracking.',
+          '${recordsVoice ? 'Your notes, recordings and pictures stay on this device, and your voice is turned into text here.' : 'Your notes and pictures stay on this device.'} Signed in, they sync encrypted on the device first, so only your own devices can read them. No ads and no tracking. Anonymous usage stats help us improve the app, and you can turn them off below.',
         ),
         children: [
           SettingRow(
             label: 'Local only',
-            hint: const Text('No sync, updates, downloads or link titles, and plugins that use the internet are held off. Ghost.md runs from what is on this device.'),
+            hint: const Text('No sync, updates, downloads, link titles or usage stats, and plugins that use the internet are held off. Ghost.md runs from what is on this device.'),
             control: GlacierSwitch(ariaLabel: 'Local only', checked: prefs.localOnly, onCheckedChange: (on) => store.update((now) => now.copyWith(localOnly: on))),
           ),
+          // The anonymous usage stats (lib/core/metrics.dart): this device's own switch, on by default, in Simple too.
+          UsageStatsRow(store: store),
           SettingRow(
             label: 'Link previews',
             hint: const Text("A card under a line that is only a link. In the app, the page's title is read from that site."),

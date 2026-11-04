@@ -155,7 +155,7 @@ reset a lost password. Delete account is in Settings › Account and on the web.
 Sharing: a read-only link `ghostmarkdown.com/read.html#<id>.<key>`, the key after the # that a browser never sends.
 A note or a whole notebook; edits follow; Stop sharing takes it down; Shared links lists every one.
 
-The microphone listens only while you record. No analytics, no crash reporting, no ads, no advertising id. The web
+The microphone listens only while you record. Anonymous usage stats only (features used, errors by type, never content), which can be turned off; no ads, no advertising id. The web
 version uses the browser's own speech recognition (Chrome sends voice to Google); the apps transcribe on the device.
 Link previews ask the linked site for its title, and can be switched off.
 

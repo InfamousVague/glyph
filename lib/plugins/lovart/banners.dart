@@ -28,6 +28,7 @@
 ///   "it's not showing the generated header image", the Columbus note, whose picture was paid for and never landed).
 library;
 
+import '../../core/metrics.dart' show trackPlugin;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -150,7 +151,11 @@ BannerPreset? bannerPresetNow([PluginHost? via]) {
 }
 
 /// Chooses [preset]: its words become the header prompt (the house's, for Painterly), on every device.
-void chooseBannerPreset(BannerPreset preset, [PluginHost? via]) => setBannerTemplate(preset.words, via);
+void chooseBannerPreset(BannerPreset preset, [PluginHost? via]) {
+  setBannerTemplate(preset.words, via);
+  // The anonymous usage stats (lib/core/metrics.dart): the style's id, from the list above; never a prompt typed.
+  trackPlugin('lovart', 'style_chosen', choice: preset.id);
+}
 
 /// [template] with the note's [subject] where [bannerNoteSlot] is, or after it where the template has no slot; and
 /// [extra], the words "Added to every image" holds, before its last line.

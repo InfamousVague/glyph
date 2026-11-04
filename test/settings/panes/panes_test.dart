@@ -626,7 +626,7 @@ void main() {
       expect(cardTitles(tester), ['Sign in', null, 'Privacy', null]);
       expect(rowLabels(tester).take(2), ['Create an account', 'Lost the password']);
       expect(rowLabels(tester).last, 'Export everything');
-      expect(rowLabels(tester, 'Privacy'), ['Local only', 'Link previews', 'Privacy policy']);
+      expect(rowLabels(tester, 'Privacy'), ['Local only', 'Anonymous usage stats', 'Link previews', 'Privacy policy']);
       expect(rowCalled('Use OpenStreetMap'), findsNothing);
       // With no account service the button cannot be pressed, whatever is typed.
       await tester.enterText(find.byType(EditableText).at(0), 'sam');
