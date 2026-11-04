@@ -1099,20 +1099,21 @@
       "adds": [
         "A Notion board to link a note to, on its settings",
         "Swipe a list item left, or tap the quiet “Notion” after it, to send it as a task",
-        "Send list to Notion, once the note is linked"
+        "Send list to Notion, once the note is linked",
+        "Import from Notion on its page: every page and database you share, as folders of notes, and again for what changed"
       ],
       "settings": true,
       "permissions": [
         {
           "kind": "notes",
           "label": "Your notes",
-          "why": "Turns a sent item’s words into a link to its task, in the note it came from.",
+          "why": "Turns a sent item’s words into a link to its task, in the note it came from, and writes the notes an import brings.",
           "icon": "file-text"
         },
         {
           "kind": "network",
           "label": "The internet",
-          "why": "Signs in through ghostmarkdown.com and sends tasks to Notion. Only the items you send go. It talks to api.notion.com and ghostmarkdown.com and nowhere else.",
+          "why": "Signs in through ghostmarkdown.com, sends tasks to Notion, and reads the pages you share for an import, with their pictures and files. Only the items you send go. It talks to api.notion.com, ghostmarkdown.com, notion.so, s3.us-west-2.amazonaws.com and images.unsplash.com and nowhere else.",
           "icon": "globe"
         },
         {
@@ -1124,7 +1125,10 @@
       ],
       "hosts": [
         "api.notion.com",
-        "ghostmarkdown.com"
+        "ghostmarkdown.com",
+        "notion.so",
+        "s3.us-west-2.amazonaws.com",
+        "images.unsplash.com"
       ],
       "standard": true,
       "author": "Ghost.md",
