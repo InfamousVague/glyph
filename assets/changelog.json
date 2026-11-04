@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.15",
+    "date": "2026-11-04",
+    "title": "Notion kept in sync",
+    "items": [
+      {"icon": "refresh-cw", "words": "Keep in sync: after an import, Notion is checked every couple of minutes and changed pages update here.", "kind": "new"},
+      {"icon": "shield-check", "words": "A page you've edited in Ghost Markdown is never overwritten by a sync; you're told it changed in both.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.14",
     "date": "2026-11-04",
     "title": "Notion import fixed",
