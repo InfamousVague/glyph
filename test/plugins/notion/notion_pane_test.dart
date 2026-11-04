@@ -33,7 +33,7 @@ void main() {
     usePluginGround(PluginGround());
   });
 
-  Future<void> pane(WidgetTester tester) => pumpSettings(tester, SettingsPaneScope(finder: finder, child: const SingleChildScrollView(child: NotionPane())));
+  Future<void> pane(WidgetTester tester) => pumpSettings(tester, SettingsPaneScope(finder: finder, child: const SingleChildScrollView(child: NotionPane(withImport: false))));
   Future<void> picker(WidgetTester tester, VoidCallback onDone, {bool settle = true}) =>
       pumpSettings(tester, Align(alignment: Alignment.topLeft, child: SizedBox(width: 290, child: BoardPicker(noteId: 'n1', onDone: onDone))), settle: settle);
   String calloutWords(WidgetTester tester) => tester.widget<Text>(find.descendant(of: find.byType(SettingsCallout), matching: find.byType(Text))).data!;

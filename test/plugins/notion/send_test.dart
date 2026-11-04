@@ -195,13 +195,15 @@ void main() {
       expect((m.id, m.name, m.version, m.author, m.standard), ('notion', 'Notion', '1.0.0', 'Ghost.md', true));
       expect(m.description, 'Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.');
       expect([for (final p in m.permissions) (p.kind, p.why)], [
-        (Permission.notes, 'Turns a sent item’s words into a link to its task, in the note it came from.'),
-        (Permission.network, 'Signs in through ghostmarkdown.com and sends tasks to Notion. Only the items you send go.'),
+        // The import's (2026-11-04) said beside the web's words.
+        (Permission.notes, 'Turns a sent item’s words into a link to its task, in the note it came from, and writes the notes an import brings.'),
+        (Permission.network, 'Signs in through ghostmarkdown.com, sends tasks to Notion, and reads the pages you share for an import, with their pictures and files. Only the items you send go.'),
         (Permission.native, 'Keeps your Notion sign-in inside the app, where no page can read it.'),
       ]);
-      expect(m.hosts, ['api.notion.com', 'ghostmarkdown.com']);
+      // The last three for an import's files: Notion's storage, its covers, Unsplash's.
+      expect(m.hosts, ['api.notion.com', 'ghostmarkdown.com', 'notion.so', 's3.us-west-2.amazonaws.com', 'images.unsplash.com']);
       expect([m.native!.generation, m.native!.commands], [12, ['notion_save_account', 'notion_account', 'notion_disconnect', 'notion_request']]);
-      expect(m.storage, ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks']);
+      expect(m.storage, ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks', 'glyph-notion-import']);
       expect(notionPlugin.icon, 'square-kanban');
       expect(notionPlugin.settings!.summary(), 'Boards for your lists');
       expect(notionPlugin.settings!.hue, 'orange');

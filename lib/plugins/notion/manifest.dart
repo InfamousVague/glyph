@@ -26,16 +26,19 @@ const PluginManifest manifest = PluginManifest(
     'A Notion board to link a note to, on its settings',
     'Swipe a list item left, or tap the quiet “Notion” after it, to send it as a task',
     'Send list to Notion, once the note is linked',
+    'Import from Notion on its page: every page and database you share, as folders of notes, and again for what changed',
   ],
   standard: true,
   permissions: [
-    PluginPermission(Permission.notes, 'Turns a sent item’s words into a link to its task, in the note it came from.'),
-    PluginPermission(Permission.network, 'Signs in through ghostmarkdown.com and sends tasks to Notion. Only the items you send go.'),
+    PluginPermission(Permission.notes, 'Turns a sent item’s words into a link to its task, in the note it came from, and writes the notes an import brings.'),
+    PluginPermission(Permission.network, 'Signs in through ghostmarkdown.com, sends tasks to Notion, and reads the pages you share for an import, with their pictures and files. Only the items you send go.'),
     PluginPermission(Permission.native, 'Keeps your Notion sign-in inside the app, where no page can read it.'),
   ],
-  hosts: ['api.notion.com', 'ghostmarkdown.com'],
+  // The last three for an import's files (Matt, 2026-11-04, a whole Notion brought in): Notion's own storage, which
+  // its signed links name, its built-in covers, and Unsplash's, which its cover picker offers.
+  hosts: ['api.notion.com', 'ghostmarkdown.com', 'notion.so', 's3.us-west-2.amazonaws.com', 'images.unsplash.com'],
   native: PluginNative(generation: 12, commands: ['notion_save_account', 'notion_account', 'notion_disconnect', 'notion_request']),
-  storage: ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks'],
+  storage: ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks', 'glyph-notion-import'],
   secrets: [accountSecret],
 );
 

@@ -57,7 +57,10 @@ typedef Renamed = ({String from, String to});
 /// The paths an import may write, each one free.
 class ImportPaths {
   /// [taken] is every path the library holds now; [group] the workspace's name, whose folder holds the import.
-  ImportPaths({required Iterable<String> taken, required String group}) : root = '$workspacesFolder/${folderName(group)}' {
+  ///
+  /// [root] is where the import writes when it is not the group's own new folder: a workspace that was already there
+  /// (lib/importer/import_target.dart `begin` with `into`).
+  ImportPaths({required Iterable<String> taken, required String group, String? root}) : root = root ?? '$workspacesFolder/${folderName(group)}' {
     for (final path in taken) {
       _taken.add(path.toLowerCase());
     }
@@ -73,8 +76,11 @@ class ImportPaths {
   /// A free path for a note whose place in what was imported is [folders] (the folders it was in, outermost
   /// first, each cleaned) and whose name is [stem]: `workspaces/<group>/<folders>/<stem>.md`, or with ` 2`, ` 3`
   /// where that is taken. [original] is what the report calls it when it had to be renamed.
-  String place(List<String> folders, String stem, {String? original}) {
-    final dir = [root, for (final folder in folders) cleanStem(folder)].join('/');
+  String place(List<String> folders, String stem, {String? original}) => placeIn([root, for (final folder in folders) cleanStem(folder)].join('/'), stem, original: original);
+
+  /// A free path for a note named [stem] in the folder [dir], a path from the library's top
+  /// (`workspaces/Notion/Plans`): `<dir>/<stem>.md`, or with ` 2`, ` 3` where that is taken, as [place].
+  String placeIn(String dir, String stem, {String? original}) {
     final clean = cleanStem(stem);
     var path = '$dir/$clean.md';
     if (_taken.contains(path.toLowerCase())) {
@@ -90,4 +96,10 @@ class ImportPaths {
     _taken.add(path.toLowerCase());
     return path;
   }
+
+  /// Whether [path] is neither in the library nor given out by this import (ignoring case).
+  bool free(String path) => !_taken.contains(path.toLowerCase());
+
+  /// Takes [path] as it is, for a note that keeps the path it has.
+  void hold(String path) => _taken.add(path.toLowerCase());
 }

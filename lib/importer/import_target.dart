@@ -19,6 +19,7 @@ import 'dart:typed_data';
 import '../core/images.dart' show imageMarkdown;
 import '../core/library.dart';
 import '../core/note.dart';
+import '../core/note_folders.dart' show folderFor, folderName, workspacesFolder;
 import '../core/shared_files.dart';
 import '../core/workspaces.dart';
 import 'import_paths.dart';
@@ -60,15 +61,42 @@ class ImportTarget {
 
   /// An import from [from] (`Obsidian`, `Evernote`) begun now: its workspace made and named, and every path the
   /// library holds known, so nothing is written over.
-  ImportRun begin(String from) {
+  ///
+  /// [named] makes the workspace under that name rather than the day's (`Notion`, then `Notion 2` where a workspace
+  /// is already called that); [into] writes into a workspace that is already there, in its folder (Notion's import
+  /// into a folder or an organization the person chose, and its sync again into the one it made the first time),
+  /// which the run never takes away.
+  ImportRun begin(String from, {String? named, Workspace? into}) {
     final at = _now();
-    final name = importGroupName(from, at, [for (final w in workspaces.value.list) w.name]);
-    final group = workspaces.addWorkspace(name);
-    final report = ImportReport(from: from)
-      ..groupId = group?.id
-      ..groupName = group?.name ?? name;
-    final paths = ImportPaths(taken: [for (final note in library.value) ?note.path], group: report.groupName!);
+    final all = workspaces.value.list;
+    final taken = [for (final w in all) w.name];
+    final report = ImportReport(from: from);
+    String root;
+    if (into != null && all.any((w) => w.id == into.id)) {
+      report
+        ..groupId = into.id
+        ..groupName = into.name;
+      root = folderFor(into, all) ?? '$workspacesFolder/${folderName(into.name)}';
+    } else {
+      final name = named == null ? importGroupName(from, at, taken) : freeName(named, taken);
+      final group = workspaces.addWorkspace(name);
+      report
+        ..groupId = group?.id
+        ..groupName = group?.name ?? name
+        ..madeGroup = group != null;
+      root = '$workspacesFolder/${folderName(report.groupName!)}';
+    }
+    final paths = ImportPaths(taken: [for (final note in library.value) ?note.path], group: report.groupName!, root: root);
     return ImportRun._(this, report, paths, at.millisecondsSinceEpoch);
+  }
+}
+
+/// [name], or `name 2`, `name 3` and on, whichever no name in [taken] already is (ignoring case).
+String freeName(String name, Iterable<String> taken) {
+  final names = {for (final each in taken) each.toLowerCase()};
+  if (!names.contains(name.toLowerCase())) return name;
+  for (var n = 2;; n += 1) {
+    if (!names.contains('$name $n'.toLowerCase())) return '$name $n';
   }
 }
 
@@ -112,10 +140,23 @@ class ImportRun {
 
   /// Writes a note at [path] with [body] and its own dates, and answers its id. Never over another: [path] is one
   /// [paths] gave out, and the library itself takes another name for a path it finds taken.
-  Future<String> note({required String body, required String path, int? createdAt, int? updatedAt, bool canvas = false, bool notebook = false}) async {
-    final id = _target._newId();
+  ///
+  /// With [id], a note this import made before (Notion's sync again): that note is written again in place, its
+  /// body, its date of change and its [path] (a move, where it changed), and counted as updated; it stays filed
+  /// wherever the person has filed it since. An [id] the library no longer has is written as a new note.
+  Future<String> note({required String body, required String path, int? createdAt, int? updatedAt, bool canvas = false, bool notebook = false, String? id}) async {
+    if (id != null) {
+      final had = await _target.library.get(id) ?? _target.library.noteOf(id);
+      if (had != null) {
+        final stored = await _target.library.apply(had.copyWith(body: body, updatedAt: updatedAt ?? _target._now().millisecondsSinceEpoch, path: () => path));
+        report.noteIds.add(stored.id);
+        report.updated += 1;
+        return stored.id;
+      }
+    }
+    final made = _target._newId();
     final created = createdAt ?? updatedAt ?? startedAt;
-    final note = Note(id: id, body: body, createdAt: created, updatedAt: updatedAt ?? created, path: path);
+    final note = Note(id: made, body: body, createdAt: created, updatedAt: updatedAt ?? created, path: path);
     final stored = await _target.library.apply(note);
     report.noteIds.add(stored.id);
     if (canvas) {
@@ -144,7 +185,7 @@ class ImportRun {
       ..clear()
       ..addAll(paths.renamed);
     final id = report.groupId;
-    if (report.empty && id != null) {
+    if (report.empty && report.updated == 0 && report.madeGroup && id != null) {
       _target.workspaces.removeWorkspace(id);
       report.groupId = null;
     }

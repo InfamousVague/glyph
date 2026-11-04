@@ -25,14 +25,19 @@ import '../onboarding/setup_card.dart';
 import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'client.dart';
 import 'details.dart';
+import 'notion_import_section.dart';
 import 'notion_setup.dart';
 
 class NotionPane extends StatefulWidget {
-  const NotionPane({super.key, this.withSetup = true});
+  const NotionPane({super.key, this.withSetup = true, this.withImport = true});
 
   /// The setup's card at the page's head (lib/plugins/onboarding/setup_card.dart). Left out only where the page is
   /// measured against the web page's (reference and measured tests), which never had one.
   final bool withSetup;
+
+  /// Import from Notion (notion_import_section.dart) under the boards. Left out where the page is measured against
+  /// the web page's, which never had one.
+  final bool withImport;
 
   @override
   State<NotionPane> createState() => _NotionPaneState();
@@ -161,6 +166,8 @@ class _NotionPaneState extends State<NotionPane> {
                 const SettingRow(label: 'No boards shared yet', hint: Text("Sign in again and tick the boards you want on Notion's page.")),
             ],
           ),
+        // A whole Notion brought in (Matt, 2026-11-04), once signed in; in Simple too (notion_import_section.dart).
+        if (connected && widget.withImport) const NotionImportSection(),
         const SettingsFootnote(child: Text('Signing in goes through ghostmarkdown.com to finish the handshake with Notion. Your notes never do.')),
       ],
     );

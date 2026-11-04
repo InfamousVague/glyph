@@ -13,9 +13,19 @@ class ImportReport {
   /// `Obsidian`, `Evernote`, `Todoist` or `Things`.
   final String from;
 
-  /// The workspace the import made, which holds everything it brought in; null where it brought in nothing.
+  /// The workspace the import made, which holds everything it brought in; null where it brought in nothing. An
+  /// import into a workspace that was already there (Notion's) names that one, and [madeGroup] is false.
   String? groupId;
   String? groupName;
+
+  /// Whether the import made [groupId] itself, so taking the import back may take the workspace away.
+  bool madeGroup = false;
+
+  /// Notes an earlier import made, written again in place because they had changed (Notion's sync again).
+  int updated = 0;
+
+  /// Notes an earlier import made that had not changed since, left as they are.
+  int unchanged = 0;
 
   /// The notes made, by id, the notebooks among them.
   final List<String> noteIds = [];
@@ -46,7 +56,12 @@ String _count(int n, String one, [String? many]) => '$n ${n == 1 ? one : (many ?
 /// What the import made, in one sentence: "42 notes, 2 canvases, 10 pictures and 3 files, in Imported from Obsidian
 /// 2026-10-16." A list's import counts its to-dos beside its notes: "4 notes, 37 to-dos and 1 notebook, …".
 String importDoneSaid(ImportReport report) {
-  if (report.empty) return 'Nothing was imported.';
+  if (report.empty) {
+    // A sync again that found only what it had: said as what it did.
+    if (report.updated > 0) return 'Updated ${_count(report.updated, 'note')}${report.unchanged > 0 ? ', and ${report.unchanged} had not changed' : ''}, in ${report.groupName}.';
+    if (report.unchanged > 0) return 'Nothing had changed: ${_count(report.unchanged, 'note')} already here, in ${report.groupName}.';
+    return 'Nothing was imported.';
+  }
   final parts = [
     if (report.notes > 0) _count(report.notes, 'note'),
     if (report.tasks > 0) _count(report.tasks, 'to-do'),
@@ -56,7 +71,8 @@ String importDoneSaid(ImportReport report) {
     if (report.files > 0) _count(report.files, 'file'),
   ];
   final listed = parts.length == 1 ? parts.first : '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
-  return 'Imported $listed, in the workspace ${report.groupName}.';
+  final again = [if (report.updated > 0) '${_count(report.updated, 'note')} updated', if (report.unchanged > 0) '${report.unchanged} unchanged'];
+  return 'Imported $listed${again.isEmpty ? '' : ' (${again.join(', ')})'}, in the workspace ${report.groupName}.';
 }
 
 /// The renames, a few by name: "Two notes were given new names because theirs were taken: Alpha.md is Alpha 2.md,

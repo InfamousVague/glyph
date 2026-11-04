@@ -179,11 +179,17 @@ void main() {
           expect([for (final p in ours.permissions) p.kind], [for (final p in theirs.permissions) p.kind]);
           expect(ours.permissions[1].why, contains('each meeting’s action items'));
           expect(ours.storage, [...theirs.storage, 'glyph-slack-meetings', 'glyph-slack-meeting-queue']);
+        } else if (id == 'notion') {
+          // Notion here imports a whole Notion too (Matt, 2026-11-04; docs/NOTION_IMPORT.md): its permissions say so,
+          // one key keeps where the import went, and three hosts serve the files it brings.
+          expect([for (final p in ours.permissions) p.kind], [for (final p in theirs.permissions) p.kind]);
+          expect(ours.permissions[1].why, contains('for an import'));
+          expect(ours.storage, [...theirs.storage, 'glyph-notion-import']);
         } else {
           expect([for (final p in ours.permissions) (p.kind, p.why)], [for (final p in theirs.permissions) (p.kind, p.why)], reason: id);
           expect(ours.storage, theirs.storage, reason: id);
         }
-        expect(ours.hosts, theirs.hosts, reason: id);
+        expect(ours.hosts, id == 'notion' ? [...theirs.hosts, 'notion.so', 's3.us-west-2.amazonaws.com', 'images.unsplash.com'] : theirs.hosts, reason: id);
         expect((ours.native?.generation, ours.native?.commands), (theirs.native?.generation, theirs.native?.commands), reason: id);
         expect(plugin.icon, web[index].icon, reason: id);
         // The page's graphite is a colour here (Matt, 2026-10-24: "make sure all settings sections icons have a color").

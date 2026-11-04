@@ -327,7 +327,7 @@ Object? _jsonOf(FetchResponse response) {
   }
 }
 
-Future<({int status, Object? body})> _send(String method, String path, Object? body, String token) async {
+Future<({int status, Object? body, Map<String, String> headers})> _send(String method, String path, Object? body, String token) async {
   final FetchResponse response;
   try {
     response = await host.fetch(FetchRequest(
@@ -342,7 +342,7 @@ Future<({int status, Object? body})> _send(String method, String path, Object? b
   } catch (_) {
     throw const NotionFailure("Notion couldn't be reached. Check the connection.");
   }
-  return (status: response.status, body: _jsonOf(response));
+  return (status: response.status, body: _jsonOf(response), headers: response.headers);
 }
 
 /// A fresh pair of tokens for a refresh token, through glyph-api; null when it would not give one.
@@ -365,8 +365,9 @@ Future<_Kept?> _refreshAccount(String refreshToken) async {
 
 /// What Notion answered, whatever its status (`notion_request`): the Rust's half of a call. [method] is GET, POST
 /// or PATCH, and [path] is below `https://api.notion.com/v1/`. A 401 is answered by refreshing the sign-in once and
-/// asking again; the fresh tokens are kept.
-Future<({int status, Object? body})> notionAnswer(String method, String path, [Object? body]) async {
+/// asking again; the fresh tokens are kept. Its headers come with it, for a 429's `Retry-After` (the import's pace,
+/// lib/importer/notion/notion_source.dart).
+Future<({int status, Object? body, Map<String, String> headers})> notionAnswer(String method, String path, [Object? body]) async {
   // The Tauri app asks Notion from Rust, which is not built for an iPhone: its sentence there (core/iphone_app.dart).
   final notHere = notOnIPhone('notion');
   if (notHere != null) throw NotionFailure(notHere);
@@ -409,6 +410,23 @@ Future<Object?> notionRequest(String method, String path, [Object? body]) async 
     throw NotionFailure(message ?? 'Notion answered ${answer.status}.');
   }
   return answer.body;
+}
+
+/// A file Notion names (a picture, an attachment, a cover), fetched over the plugin's host: Notion's own storage
+/// (`*.s3.us-west-2.amazonaws.com`, `file.notion.so`), its built-in covers (`www.notion.so/images/…`) and Unsplash's,
+/// as the manifest lists them. Nothing is sent with it: the address is Notion's signed link. Null for anything that
+/// did not come back whole, and for an address on a site the manifest does not list (an external picture stays a
+/// link in its note).
+Future<Uint8List?> notionDownload(Uri url) async {
+  if (url.scheme != 'https') return null;
+  try {
+    final response = await host.fetch(FetchRequest(method: 'GET', url: url, timeout: const Duration(seconds: 120)));
+    return response.ok ? response.bytes : null;
+  } on PluginPermissionError {
+    return null;
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Plain text of a Notion rich text array.
