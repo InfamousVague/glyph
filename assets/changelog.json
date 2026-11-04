@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.20",
+    "date": "2026-11-04",
+    "title": "One refresh sign",
+    "items": [
+      {"icon": "refresh-cw", "words": "Pull down to refresh and the page springs back at once; the sync shows on the activity ring at the top.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.19",
     "date": "2026-11-04",
     "title": "Anonymous usage stats",

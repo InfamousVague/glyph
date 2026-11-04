@@ -743,13 +743,15 @@ void main() {
       await gesture.up();
       await tester.pump();
       expect(it.asked.said, ['refresh']);
-      expect(find.bySemanticsLabel('Refreshing'), findsOneWidget);
-      // It spins at least half a second, says it is done, and the page goes back up.
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(find.bySemanticsLabel('Up to date'), findsOneWidget);
+      // Let go, the page goes straight back up and draws no ring of its own: the refresh shows on the activity ring
+      // alone (Matt, 2026-11-04: "show the refresh indicator only on the activity sync area not also on the pull
+      // down area").
+      expect(find.bySemanticsLabel('Refreshing'), findsNothing);
       await tester.pump(const Duration(milliseconds: 400));
-      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.bySemanticsLabel('Let go to refresh'), findsNothing);
       expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48 - lift, 0.75));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.bySemanticsLabel('Up to date'), findsNothing);
       await away(tester);
     });
 

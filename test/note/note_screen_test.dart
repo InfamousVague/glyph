@@ -375,7 +375,8 @@ void main() {
       expect(find.bySemanticsLabel('Let go to refresh'), findsOneWidget);
       await gesture.up();
       await tester.pump();
-      expect(find.bySemanticsLabel('Refreshing'), findsOneWidget);
+      // No ring of its own once let go: the activity ring says the refresh (2026-11-04).
+      expect(find.bySemanticsLabel('Refreshing'), findsNothing);
       for (var i = 0; i < 6; i++) {
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
         await tester.pump(const Duration(milliseconds: 150));

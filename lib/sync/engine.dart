@@ -678,7 +678,17 @@ class SyncEngine {
 
   /// A sync, waited for [wait] at most: a pull to refresh holds its ring that long and no longer, on a slow
   /// connection too (`syncWithin`). The sync goes on after it, and its notes arrive as it lands.
-  Future<void> syncWithin([Duration wait = const Duration(seconds: 5)]) => Future.any([syncNow(), Future<void>.delayed(wait)]);
+  ///
+  /// Its ring shows at once rather than after [syncShownAfter]: a pull's only sign is the activity ring (Matt,
+  /// 2026-11-04: "show the refresh indicator only on the activity sync area not also on the pull down area").
+  Future<void> syncWithin([Duration wait = const Duration(seconds: 5)]) {
+    _shownAtOnce = true;
+    // Never left set for a later sync of the app's own, where one was already running and this joined it.
+    return Future.any([syncNow().whenComplete(() => _shownAtOnce = false), Future<void>.delayed(wait)]);
+  }
+
+  /// The next pass's job shows on the ring at once ([syncWithin]).
+  bool _shownAtOnce = false;
 
   /// The sync running now, finished, and the one it queued; at once when none is (`syncSettled`). For a reset, which
   /// signs out first and then waits here: a sync already under way holds the session it began with and the
@@ -718,7 +728,11 @@ class SyncEngine {
     }
     final accountKey = key;
     // Its bar at 0 until the pass knows what it will do: a sync fills, it never sweeps.
-    if (parts != _Parts.notifications) _job ??= activity.begin(syncJobId, kind: JobKind.sync, title: 'Syncing', fraction: 0, showAfter: syncShownAfter);
+    if (parts != _Parts.notifications) {
+      final atOnce = _shownAtOnce;
+      _shownAtOnce = false;
+      _job ??= activity.begin(syncJobId, kind: JobKind.sync, title: 'Syncing', fraction: 0, showAfter: atOnce ? Duration.zero : syncShownAfter);
+    }
     final count = parts == _Parts.notifications ? null : _counting();
     _failure = null;
     // The notes lately out of a team here, kept from an old build's deletion and put again for it (lib/sync/notes.dart

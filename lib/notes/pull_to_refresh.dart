@@ -177,7 +177,9 @@ class _PullToRefreshState extends State<PullToRefresh> {
       return;
     }
     _busy = true;
-    _lower(pullRestPx, settle: true, phase: _Phase.refreshing);
+    // The page goes straight back up, and the refresh shows only on the activity ring (Matt, 2026-11-04: "show the
+    // refresh indicator only on the activity sync area not also on the pull down area"); no ring of its own here.
+    _lower(0, settle: true, phase: _Phase.refreshing);
     final fire = HapticsProvider.of(context);
     final least = Completer<void>();
     _timers.add(Timer(const Duration(milliseconds: pullLeastMs), least.complete));
@@ -186,20 +188,16 @@ class _PullToRefreshState extends State<PullToRefresh> {
     Future.wait<void>([refresh, least.future]).then((_) {
       if (!mounted) return;
       fire(HapticKind.light);
-      setState(() => _phase = _Phase.done);
-      _timers.add(
-        Timer(const Duration(milliseconds: 350), () {
-          _busy = false;
-          _lower(0, settle: true, phase: _Phase.idle);
-        }),
-      );
+      _busy = false;
+      _lower(0, settle: true, phase: _Phase.idle);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final pulling = _phase != _Phase.idle;
+    // Drawn only under the finger: once let go, the activity ring says the refresh.
+    final pulling = _phase == _Phase.pulling;
     final armed = pullArmed(_offset);
     final progress = math.min(1.0, _offset / pullDetentPx);
     final lit = armed || _phase == _Phase.refreshing || _phase == _Phase.done;

@@ -91,6 +91,23 @@ void main() {
     expect(record.blooms, 1);
   });
 
+  test('a pull to refresh shows its sync on the ring at once, the next pass of the app\'s own after a second again (Matt, 2026-11-04)', () async {
+    final rig = await Rig.make();
+    var held = rig.heldPass();
+    final pulled = rig.engine.syncWithin();
+    await pumpEventQueue();
+    expect(record.value.single.id, syncJobId, reason: 'at once, with no second to wait');
+    held.complete(Outcome());
+    await pulled;
+    await rig.engine.syncSettled();
+    held = rig.heldPass();
+    final own = rig.engine.syncNow();
+    await pumpEventQueue();
+    expect(record.value, isEmpty, reason: 'the app\'s own pass waits its second as before');
+    held.complete(Outcome());
+    await own;
+  });
+
   test('a blip, or the service a moment away, goes quietly: the next pass is its try again', () async {
     final rig = await Rig.make();
     rig.notesPass = (_) async {
