@@ -15,7 +15,11 @@ import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home/home_icons.dart';
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
+import 'package:ghost_md/app/preferences.dart' show AppPreferences;
 import 'package:ghost_md/notes/collection_screen.dart';
+import 'package:ghost_md/plugins/registry.dart';
+import 'package:ghost_md/plugins/types.dart';
+import 'package:ghost_md/plugins/wrapped/wrapped.dart' show wrappedPlugin;
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/page_dock.dart';
 import 'package:ghost_md/shell/screen.dart' show CollectionKind;
@@ -64,6 +68,40 @@ void main() {
         expect(rects[i].top - rects[i - 1].bottom, closeTo(t.space(2), 0.01));
       }
       semantics.dispose();
+      await done(tester);
+    });
+
+    testWidgets('a plugin\'s ring stands after the page\'s and before the foot while it is on, and goes when it is off (Matt, 2026-11-05)', (tester) async {
+      final opened = <String>[];
+      final plugin = GlyphPlugin(
+        manifest: wrappedPlugin.manifest,
+        icon: 'sparkles',
+        dockButtons: [PluginDockButton(id: 'dockie', label: 'Open Dockie', icon: 'sparkles', open: (_) => opened.add('dockie'))],
+      );
+      final registry = createRegistry([plugin], store: MemorySwitches());
+      usePlugins(registry);
+      addTearDown(() => usePlugins(createRegistry(const [])));
+      Widget dock() => Align(
+            alignment: Alignment.bottomRight,
+            child: PageDock(
+              actions: [DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, onPressed: () {})],
+              foot: DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: () {}),
+            ),
+          );
+      await pumpApp(tester, home: dock());
+      expect(dockOrder(tester), ['search', 'settings'], reason: 'off: no ring of its');
+      registry.setEnabled(wrappedPlugin.manifest.id, true);
+      await tester.pump();
+      expect(dockOrder(tester), ['search', 'plugin-dockie', 'settings']);
+      await tester.tap(find.byKey(const ValueKey('dock-plugin-dockie')));
+      expect(opened, ['dockie']);
+      expect(find.bySemanticsLabel('Open Dockie'), findsOneWidget);
+      // Simple mode's dock keeps it only where the plugin says so.
+      await pumpApp(tester, prefs: const AppPreferences(theme: 'light', experience: 'simple'), home: dock());
+      expect(dockOrder(tester), ['search', 'settings']);
+      registry.setEnabled(wrappedPlugin.manifest.id, false);
+      await pumpApp(tester, home: dock());
+      expect(dockOrder(tester), ['search', 'settings'], reason: 'switched off again');
       await done(tester);
     });
 

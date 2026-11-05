@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.25",
+    "date": "2026-11-05",
+    "title": "Plugins on the dock",
+    "items": [
+      {"icon": "sparkles", "words": "Plugins can put a button on the dock; Wrapped's opens your Wrapped from any page while the plugin is on.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.24",
     "date": "2026-11-05",
     "title": "Wrapped",

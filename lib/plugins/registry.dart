@@ -224,6 +224,14 @@ class Registry extends ChangeNotifier {
             if (!simple || place.simple) place,
       ];
 
+  /// The dock buttons of the plugins that are on ([GlyphPlugin.dockButtons]), in the registry's order; with [simple],
+  /// only those Simple mode keeps.
+  List<PluginDockButton> dockButtons({bool simple = false}) => [
+        for (final p in enabled())
+          for (final button in p.dockButtons)
+            if (!simple || button.simple) button,
+      ];
+
   /// The home cards of the plugins that are on ([GlyphPlugin.homeCard]), keyed by the plugin's id.
   List<({String id, WidgetBuilder card})> homeCards() => [
         for (final p in enabled())

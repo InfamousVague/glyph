@@ -41,7 +41,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app/plain.dart';
-import '../art/art.dart' show AppIcon, LucideIcon;
+import '../art/art.dart' show AppIcon, Lucide, LucideIcon;
+import '../plugins/registry.dart' show plugins;
 import '../core/preferences.dart' show DockLayout, DockPrefs, preferences;
 import '../home/home_icons.dart';
 import 'wide_screen.dart' show mousePointer, wideScreen;
@@ -137,7 +138,25 @@ class PageDock extends StatelessWidget {
     return ValueListenableBuilder<DockPrefs>(valueListenable: dockPrefs, builder: (context, prefs, _) => _drawn(context, dockLayoutAt(context, prefs)));
   }
 
-  Widget _drawn(BuildContext context, DockLayout layout) {
+  /// The plugins' rings (lib/plugins/types.dart [PluginDockButton]), drawn after the page's own and before the foot.
+  /// Their ids are `plugin-<id>`, never one of the app's buttons, so the person's order leaves them where they are.
+  static List<DockAction> pluginRings(BuildContext context, {required bool simple}) => [
+        for (final button in plugins.dockButtons(simple: simple))
+          DockAction(
+            id: 'plugin-${button.id}',
+            label: button.label,
+            icon: Lucide.all[button.icon] ?? Lucide.sparkles,
+            onPressed: () => button.open(context),
+          ),
+      ];
+
+  Widget _drawn(BuildContext context, DockLayout layout) => ListenableBuilder(
+        // Again as a plugin is switched on or off.
+        listenable: plugins,
+        builder: (context, _) => _drawnWith(context, layout, pluginRings(context, simple: preferences.value.simple)),
+      );
+
+  Widget _drawnWith(BuildContext context, DockLayout layout, List<DockAction> added) {
     final t = context.tokens;
     final gap = t.space(2);
     final radius = BorderRadius.circular(t.radius('full'));
@@ -147,6 +166,8 @@ class PageDock extends StatelessWidget {
       if (claude != null) 'claude': DockTip(key: const ValueKey<Object>((#dockRing, 'claude')), message: claudeTip, child: claude!),
       if (talk != null) 'talk': DockTip(key: const ValueKey<Object>((#dockRing, 'talk')), message: 'Talk to Claude', child: talk!),
       for (final action in actions) action.id: DockRing(key: ValueKey('$keyPrefix-${action.id}'), action: action),
+      for (final action in added)
+        if (!actions.any((a) => a.id == action.id)) action.id: DockRing(key: ValueKey('$keyPrefix-${action.id}'), action: action),
       if (foot != null) foot!.id: DockRing(key: ValueKey('$keyPrefix-${foot!.id}'), action: foot!),
     };
     final rings = [for (final id in layout.arrange(given.keys.toList())) given[id]!];

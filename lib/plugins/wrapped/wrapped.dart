@@ -65,4 +65,8 @@ final GlyphPlugin wrappedPlugin = GlyphPlugin(
     ),
   ],
   homeCard: (context) => const WrappedHomeCard(),
+  // Matt, 2026-11-05: "add the ability for plugins to add UI elements to the dock".
+  dockButtons: [
+    PluginDockButton(id: wrappedId, label: 'Open my Wrapped', icon: 'sparkles', open: (context) => unawaited(openWrappedPage(context))),
+  ],
 );

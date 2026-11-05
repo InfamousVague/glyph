@@ -389,6 +389,7 @@ class GlyphPlugin {
     this.setup,
     this.places = const [],
     this.homeCard,
+    this.dockButtons = const [],
   });
 
   final PluginManifest manifest;
@@ -433,6 +434,32 @@ class GlyphPlugin {
   /// since the home page is a main surface. It hears its own state; null where it has none to show now
   /// ([SizedBox.shrink] is as good).
   final WidgetBuilder? homeCard;
+
+  /// Its buttons on the dock, the floating column of rings on every page, while the plugin is on ([PluginDockButton]).
+  final List<PluginDockButton> dockButtons;
+}
+
+/// A ring a plugin puts on the dock (Matt, 2026-11-05: "add the ability for plugins to add UI elements to the dock"):
+/// drawn on every page's dock (lib/shell/page_dock.dart) after the page's own rings and before its foot (Settings, a
+/// note's ⋯), while the plugin is on and never otherwise ([Registry.dockButtons]). The shell names none.
+@immutable
+class PluginDockButton {
+  const PluginDockButton({required this.id, required this.label, required this.icon, required this.open, this.simple = false});
+
+  /// Its key, unique in the app: `wrapped`. The ring is `dock-plugin-<id>`.
+  final String id;
+
+  /// What a screen reader says for it, and its tip on a desktop: "Open my Wrapped".
+  final String label;
+
+  /// A Lucide icon's name, as [GlyphPlugin.icon] is.
+  final String icon;
+
+  /// Whether Simple mode's dock has it too: off unless the plugin says so, Simple's dock being the barest.
+  final bool simple;
+
+  /// Opens it, from the dock's [context].
+  final void Function(BuildContext context) open;
 }
 
 /// A place a plugin adds to the app's own (Matt, 2026-11-05: "Have this plugin add a card to the home page to view the
