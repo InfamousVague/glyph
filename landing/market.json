@@ -527,6 +527,51 @@
       "link": "ghostmd://market/plugin/openai"
     },
     {
+      "id": "wrapped",
+      "name": "Wrapped",
+      "line": "Your year in notes, and what to tidy",
+      "description": "Your year in notes, as a story: how much you wrote, your busiest days, your streaks, your themes and the note you forgot. Then the useful part: the to-dos you never finished, the notes that went stale and the tidying your AI suggests, each with its own button. It reads your notes slowly in the background with the AI you have connected, and changes nothing until you press.",
+      "category": "ai",
+      "icon": "sparkles",
+      "mark": null,
+      "hue": "magenta",
+      "colours": [
+        "#b5279f",
+        "#f07ae0"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A story of your year in notes, to swipe through and share",
+        "Unfinished to-dos, stale notes and tidying, each a press away",
+        "A Wrapped card on the home page and a row in the sidebar"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads your own notes to count them and find what is unfinished or stale. Checks off, removes, archives, moves or merges only what you press, and each can be undone.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "ai",
+          "label": "The model on your phone",
+          "why": "Asks the AI you have connected for a one-line gist of each note, a few at a time, and once for themes and tidying. Its page says what is sent and about what it costs.",
+          "icon": "sparkles"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/wrapped"
+    },
+    {
       "id": "calendar",
       "name": "Calendar",
       "line": "Your events in queries and on Today",
