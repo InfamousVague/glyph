@@ -55,6 +55,7 @@ import 'slack/slack.dart' show slackPlugin;
 import 'things/things.dart' show thingsPlugin;
 import 'todoist/todoist.dart' show todoistPlugin;
 import 'types.dart';
+import 'wrapped/wrapped.dart' show wrappedPlugin;
 
 /// The plugins that ship with Ghost.md (`BUILT_IN`): the page's five in its order, then the app's own, which the
 /// page never had, one a line: Place reminders (places/places.dart), Webhooks (docs/INTEGRATIONS.md, §1), and the
@@ -119,6 +120,10 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // changed (a renamed ticket, a merged PR on GitHub, an old date) get a quiet 'may be out of date' mark with the
   // reason", off until added (note_decay/note_decay.dart, docs/NOTE_DECAY.md).
   noteDecayPlugin,
+  // Matt, 2026-11-05: "create a plugin called "Wrapped" which gives you a "ghost markdown wrapped" kinda like spotify
+  // wrapped": the year in notes as a story, then the to-dos, stale notes and tidying it found, each a press away; off
+  // until added (wrapped/wrapped.dart, docs/WRAPPED.md).
+  wrappedPlugin,
 ]);
 
 void Function()? _unhear;

@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.4.24",
+    "date": "2026-11-05",
+    "title": "Wrapped",
+    "items": [
+      {"icon": "sparkles", "words": "Wrapped, a new plugin: your year in notes as a story to swipe through, with your busiest days, streaks and themes.", "kind": "new"},
+      {"icon": "square-check-big", "words": "After the story, check off or remove old to-dos, archive stale notes and apply tidying, each with Undo.", "kind": "new"},
+      {"icon": "share-2", "words": "Share your Wrapped as a picture of the numbers; your themes go in only if you tick them.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.23",
     "date": "2026-11-05",
     "title": "Pictures for the AI",

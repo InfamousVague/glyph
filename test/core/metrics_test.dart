@@ -144,6 +144,24 @@ void main() {
       expect(() => Metrics.checkProps(MetricEvent.aiImageAttached, {'bytes': 482113}), throwsA(isA<AssertionError>()));
     });
 
+    // Wrapped (lib/plugins/wrapped, docs/WRAPPED.md): how many notes in a bucket, the period, the provider and what kind
+    // of press; never a note's words, its title or a theme.
+    test('Wrapped is counted in buckets and kinds, never in words', () {
+      expect(MetricEvent.wrappedStarted.wire, 'wrapped_started');
+      expect(MetricEvent.wrappedStarted.props.keys.toSet(), {'notes', 'period', 'provider'});
+      expect(MetricEvent.wrappedFinished.props.keys.toSet(), {'notes', 'took'});
+      expect(MetricEvent.wrappedViewed.props.keys.toSet(), {'period'});
+      expect(MetricEvent.wrappedAction.props.keys.toSet(), {'kind', 'count'});
+      expect(MetricEvent.wrappedStarted.props['notes']!.allows('101-500'), isTrue);
+      expect(MetricEvent.wrappedStarted.props['notes']!.allows(312), isFalse);
+      expect(MetricEvent.wrappedStarted.props['period']!.allows('year'), isTrue);
+      for (final kind in ['check_off', 'remove_todo', 'archive', 'trash', 'move', 'merge', 'link', 'undo', 'share']) {
+        expect(MetricEvent.wrappedAction.props['kind']!.allows(kind), isTrue, reason: kind);
+      }
+      expect(MetricEvent.wrappedAction.props['kind']!.allows('Book the ferry'), isFalse);
+      expect(() => Metrics.checkProps(MetricEvent.wrappedViewed, {'theme': 'Travel plans'}), throwsA(isA<AssertionError>()));
+    });
+
     test('the screens it may name are the shell\'s', () {
       expect(screenNames, containsAll([const Screen.list().name, const Screen.academy().name, const Screen.market().name, const Screen.tickets().name, const Screen.notes().name]));
     });

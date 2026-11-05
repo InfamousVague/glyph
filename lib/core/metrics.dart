@@ -91,6 +91,12 @@ const Set<String> onboardingSteps = {'welcome', 'speak', 'meetings', 'ai', 'sync
 /// The kinds of AI that can answer (lib/assistant): a provider's kind, never its model's name or a prompt.
 const Set<String> aiProviders = {'local', 'claude', 'openai', 'gemini', 'custom', 'aster', 'lovart', 'elevenlabs', 'none'};
 
+/// The periods a Wrapped is made for (lib/plugins/wrapped/stats.dart `WrappedPeriod`).
+const Set<String> wrappedPeriods = {'year', 'last12', 'all'};
+
+/// What a press on Wrapped's review lists did (lib/plugins/wrapped/actions.dart `WrappedActionKind`).
+const Set<String> wrappedActionKinds = {'check_off', 'remove_todo', 'keep', 'archive', 'trash', 'later', 'move', 'merge', 'link', 'superseded', 'not_conflict', 'dismiss', 'undo', 'share'};
+
 /// What a job is (lib/core/background_jobs.dart `JobKind`).
 const Set<String> jobKinds = {'sync', 'ai', 'images', 'audio', 'meetings', 'downloads'};
 
@@ -266,6 +272,13 @@ enum MetricEvent {
   // AI.
   aiUsed('ai_used', {'feature': _code, 'provider': WordProp(aiProviders)}),
   aiImageAttached('ai_image_attached', {'count': _counts, 'provider': WordProp(aiProviders)}),
+
+  // Wrapped (lib/plugins/wrapped, docs/WRAPPED.md): how many notes, in a bucket, and what kind of press; never a note's
+  // words, its title or a theme.
+  wrappedStarted('wrapped_started', {'notes': _counts, 'period': WordProp(wrappedPeriods), 'provider': WordProp(aiProviders)}),
+  wrappedFinished('wrapped_finished', {'notes': _counts, 'took': _durations}),
+  wrappedViewed('wrapped_viewed', {'period': WordProp(wrappedPeriods)}),
+  wrappedAction('wrapped_action', {'kind': WordProp(wrappedActionKinds), 'count': _counts}),
 
   // Account, organizations, sharing: never who.
   signedUp('signed_up', {}),

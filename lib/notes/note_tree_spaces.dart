@@ -188,6 +188,9 @@ extension _SpacesTree on _NoteTreeState {
         _ShelfRow(look: look, icon: Lucide.ticket, name: 'My tickets', count: count == null || count.all == 0 ? null : count.all, late: count != null && count.overdue > 0, tall: coarse, onPressed: onTickets),
       );
     }
+    for (final place in widget.places) {
+      add(ValueKey('plugin-place-${place.id}'), _ShelfRow(look: look, icon: place.icon, name: place.name, tall: coarse, onPressed: place.onPressed));
+    }
     final onTriage = given.onTriage;
     Widget triage() => _ShelfRow(look: look, icon: Lucide.listFilter, name: 'Triage', tall: coarse, onPressed: onTriage!);
     if (onTriage != null && !widget.simple) add(const ValueKey('space-triage'), triage());

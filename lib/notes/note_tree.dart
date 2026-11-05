@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../art/art.dart' show AppIcon, HouseIcon;
+import '../art/art.dart' show AppIcon, HouseIcon, LucideIcon;
 import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
@@ -40,6 +40,9 @@ import '../shell/wide_screen.dart' show hoverPointer, mousePointer;
 import '../plugins/more/more_tools.dart' show canvasTool, moreToolOn;
 
 part 'note_tree_spaces.dart';
+
+/// A plugin's row in the sidebar's shelf: its key, its words, its icon and what a press does.
+typedef ShelfPlace = ({String id, String name, LucideIcon icon, VoidCallback onPressed});
 
 /// The sidebar: one tree of notes, the same whether it sits beside the note on a desktop or opens over it on a phone
 /// (Matt: "Make the sidebar on desktop the same sidebar that shows up in the pop-up sidebar. Make it more similar to
@@ -117,6 +120,7 @@ class NoteTree extends StatefulWidget {
     this.onMarket,
     this.onTickets,
     this.ticketCount,
+    this.places = const [],
     this.simple = false,
     this.spaces,
   });
@@ -184,6 +188,11 @@ class NoteTree extends StatefulWidget {
   /// how many of those are overdue, there only with this.
   final VoidCallback? onTickets;
   final ({int all, int overdue})? ticketCount;
+
+  /// The plugins' own places (lib/plugins/types.dart `PluginPlace`; Matt, 2026-11-05: "Have this plugin add a card to the
+  /// home page to view the wrapped section or in the sidebar dock"): a row each under My tickets, in the order given.
+  /// The root hands those of the plugins that are on, and Simple mode's alone in Simple; none is named here.
+  final List<ShelfPlace> places;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the tools over the notes are
   /// New note, Search and commands, Open or Fold every folder where there are folders, and Close; no New workspace
@@ -738,6 +747,16 @@ class _NoteTreeState extends State<NoteTree> {
           SliverToBoxAdapter(
             key: const ValueKey('tree-tickets'),
             child: Padding(padding: EdgeInsets.only(top: gap), child: _ShelfRow(look: look, icon: Lucide.ticket, name: 'My tickets', count: count == null || count.all == 0 ? null : count.all, late: count != null && count.overdue > 0, onPressed: onTickets)),
+          ),
+        );
+        pending = 1;
+      }
+      for (final place in extrasOnly ? const <ShelfPlace>[] : widget.places) {
+        final gap = over(1);
+        slivers.add(
+          SliverToBoxAdapter(
+            key: ValueKey('plugin-place-${place.id}'),
+            child: Padding(padding: EdgeInsets.only(top: gap), child: _ShelfRow(look: look, icon: place.icon, name: place.name, onPressed: place.onPressed)),
           ),
         );
         pending = 1;

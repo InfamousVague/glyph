@@ -250,7 +250,7 @@ class JobFix {
 /// What a job will cost, said before it starts where it is a lot ([asks]) and in the tray as it runs.
 @immutable
 class JobEstimate {
-  const JobEstimate({this.credits, this.provider, this.duration, this.count, this.one, this.many});
+  const JobEstimate({this.credits, this.provider, this.duration, this.count, this.one, this.many, this.cost, this.asksAlways = false});
 
   /// Its credits, and whose ("Lovart").
   final int? credits;
@@ -263,17 +263,25 @@ class JobEstimate {
   final int? count;
   final String? one, many;
 
+  /// What a job on the person's own AI key spends, in words where it is not credits: "~120k tokens · about \$0.40"
+  /// (Wrapped's pass, lib/plugins/wrapped).
+  final String? cost;
+
+  /// Asked before it starts whatever its size: a job that spends the person's own key for the first time.
+  final bool asksAlways;
+
   /// Over about 20 credits or 2 minutes, a job asks first (docs/ACTIVITY.md, Cost).
   static const int askCredits = 20;
   static const Duration askDuration = Duration(minutes: 2);
 
   /// Whether the person is asked before it starts.
-  bool get asks => (credits ?? 0) > askCredits || (duration ?? Duration.zero) > askDuration;
+  bool get asks => asksAlways || (credits ?? 0) > askCredits || (duration ?? Duration.zero) > askDuration;
 
   /// "12 banners · ~72 Lovart credits · ~4 min".
   String get words => [
         if (count != null && one != null) '$count ${count == 1 ? one : (many ?? '${one}s')}',
         if (credits != null) '~$credits ${provider == null ? '' : '$provider '}credit${credits == 1 ? '' : 's'}',
+        ?cost,
         if (duration != null) '~${durationWords(duration!)}',
       ].join(' · ');
 }

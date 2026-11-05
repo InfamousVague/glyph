@@ -166,6 +166,8 @@ extension _RootParts on _GhostRootState {
       _claudeShown,
       // The project tools switched: My tickets and Triage (lib/plugins/projects/suite.dart).
       _toolsAt,
+      // The plugins' places and home cards (Wrapped's).
+      _pluginPlacesNow,
     );
   }
 
@@ -455,6 +457,8 @@ extension _RootParts on _GhostRootState {
                   shell.showTickets();
                 },
           ticketCount: _reads.entries.isEmpty ? null : _myTicketCount(),
+          // The plugins' own rows (Wrapped's), under My tickets, while each plugin is on.
+          places: _shelfPlaces(close),
           // The Market's row under Tags: advanced mode's, as Settings › Plugins was.
           onMarket: simple
               ? null
@@ -543,7 +547,27 @@ extension _RootParts on _GhostRootState {
   /// What the narrow window's sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there
   /// is a folder to browse and a recorder to speak to, and the update it carries.
   Object _sidebarReads(AppShellState shell) =>
-      (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, _bannerShown, preferences.value.simple, favoritesIn(preferences.value).join(' '));
+      (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, _bannerShown, preferences.value.simple, favoritesIn(preferences.value).join(' '), _pluginPlacesNow);
+
+  /// The plugins' places and home cards that are on now, as one word for the parts' reads: a plugin switched on or off
+  /// builds again the sidebar, the shell and the home page that draw them (lib/plugins/types.dart `PluginPlace`).
+  String get _pluginPlacesNow => [for (final place in plugins.places(simple: preferences.value.simple)) place.id, '|', for (final card in plugins.homeCards()) card.id].join(' ');
+
+  /// The plugins' places as the sidebar's rows (Matt, 2026-11-05: "Have this plugin add a card to the home page to
+  /// view the wrapped section or in the sidebar dock"): Simple mode's alone in Simple, each opened from the shell.
+  List<ShelfPlace> _shelfPlaces(VoidCallback close) => [
+        for (final place in plugins.places(simple: preferences.value.simple))
+          (
+            id: place.id,
+            name: place.name,
+            icon: Lucide.all[place.icon] ?? Lucide.sparkles,
+            onPressed: () {
+              close();
+              final at = _shell.currentContext;
+              if (at != null) place.open(at);
+            },
+          ),
+      ];
 
   /// The sidebar as spaces and pages (docs/TEAMSPACES.md; Matt, 2026-10-31: "Space switcher + sections";
   /// lib/notes/note_tree_spaces.dart): a drag and a new page written through the page tree's mover, the account's
@@ -679,6 +703,8 @@ extension _RootParts on _GhostRootState {
           preferences.value.meetings,
           // Simple mode's Academy card (GHST-103): whether it is due now.
           _academyCardDue,
+          // The plugins' home cards (Wrapped's), switched on or off.
+          _pluginPlacesNow,
           // Simple mode's page (GHST-105): which list it is on, whether it is a column, and whose microphone.
           _simpleTab,
           listPane,
@@ -996,6 +1022,19 @@ extension _RootParts on _GhostRootState {
         stopTimer: _ticketsWired.timers == null ? null : _ticketsWired.stopTimer,
         backUpNow: _gitWired.backUpNow,
         asks: _askCommands,
+        // The plugins' places (Wrapped's Open my Wrapped), opened from the shell.
+        places: [
+          for (final place in plugins.places(simple: preferences.value.simple))
+            (
+              key: place.id,
+              title: place.command,
+              words: '${place.name} ${place.words}',
+              run: () {
+                final at = _shell.currentContext;
+                if (at != null) place.open(at);
+              },
+            ),
+        ],
       ),
     );
   }
@@ -1384,6 +1423,8 @@ extension _RootParts on _GhostRootState {
       if (_bannerShown) _bannerNotice(),
       // What may be out of date (lib/plugins/contradictions/; Matt, 2026-11-02): a quiet line while anything is.
       ?_contradictionsWired.notice(),
+      // The plugins' own cards (lib/plugins/types.dart `GlyphPlugin.homeCard`: Wrapped's), in Simple too.
+      for (final card in plugins.homeCards()) KeyedSubtree(key: ValueKey('plugin-home-${card.id}'), child: Builder(builder: card.card)),
     ];
   }
 

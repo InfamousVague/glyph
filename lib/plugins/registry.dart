@@ -20,6 +20,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetBuilder;
 
 import '../core/item_links.dart' show registerMarkName;
 import '../core/metrics.dart' show ChoiceProp, MetricEvent, track, trackPlugin;
@@ -214,6 +215,20 @@ class Registry extends ChangeNotifier {
 
   /// What the switched-on plugins put in a line from the +'s list.
   List<PluginInsert> inserts() => [for (final p in enabled()) ...p.inserts];
+
+  /// The places of the plugins that are on ([GlyphPlugin.places]), in the registry's order; with [simple], only those
+  /// Simple mode keeps.
+  List<PluginPlace> places({bool simple = false}) => [
+        for (final p in enabled())
+          for (final place in p.places)
+            if (!simple || place.simple) place,
+      ];
+
+  /// The home cards of the plugins that are on ([GlyphPlugin.homeCard]), keyed by the plugin's id.
+  List<({String id, WidgetBuilder card})> homeCards() => [
+        for (final p in enabled())
+          if (p.homeCard case final card?) (id: p.manifest.id, card: card),
+      ];
 
   ItemAction? itemAction(String noteId) {
     for (final p in enabled()) {

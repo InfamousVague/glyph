@@ -55,6 +55,7 @@ class NotesDrawer extends StatelessWidget {
     this.onTags,
     this.onMarket,
     this.onTickets,
+    this.places = const [],
     this.ticketCount,
     this.simple = false,
     this.spaces,
@@ -110,6 +111,9 @@ class NotesDrawer extends StatelessWidget {
 
   /// My tickets, and how many are yours: its row over Tags is there only with this.
   final VoidCallback? onTickets;
+
+  /// The plugins' places, a row each in the tree's shelf (note_tree.dart [NoteTree.places]).
+  final List<ShelfPlace> places;
   final ({int all, int overdue})? ticketCount;
 
   /// Simple mode (GHST-103), passed through to the tree.
@@ -164,6 +168,7 @@ class NotesDrawer extends StatelessWidget {
         onMarket: onMarket,
         onTickets: onTickets,
         ticketCount: ticketCount,
+        places: places,
         simple: simple,
         spaces: spaces,
       ),

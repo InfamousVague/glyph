@@ -181,6 +181,7 @@ import '../editor/tickets/ticket_follow.dart' show LikelyDuplicate, TicketFollow
 import '../notes/ticket_digest_sheet.dart' show showTicketDigest;
 import '../reminders/reminder_scheduler.dart' show extraReminders;
 import '../sheet/ask_first.dart' show FirstAsk, askFirst;
+import '../notes/note_tree.dart' show ShelfPlace;
 import '../notes/notes_drawer.dart';
 import '../notes/space_pages.dart' show SidebarSpaces, withPageTitle;
 import '../notes/notices.dart' as notices;
@@ -242,6 +243,7 @@ import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove
 import '../plugins/host.dart' show PluginNotes, onPluginStorage, usePluginNotes;
 import '../plugins/note_decay/note_decay.dart' show startNoteDecay;
 import '../plugins/registry.dart' show Registry, plugins;
+import '../plugins/wrapped/wrapped.dart' show WrappedService, WrappedStore, StorageWrappedFile, openWrappedPage, wrappedFileFor, wrappedHost, wrappedId, wrappedOpenNote;
 import '../plugins/slack/channels.dart' show channels, postToChannel;
 import '../plugins/slack/mrkdwn.dart' show noteMessage;
 import '../plugins/discord/channels.dart' show discordChannels, postToDiscord;
@@ -832,6 +834,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// Cleanup's service (lib/plugins/cleanup): made once the library is read.
   CleanupService? _cleanup;
+  WrappedService? _wrapped;
 
   /// Clean up with AI… from a folder's menu: Cleanup's page, at [folder].
   void _cleanUp(Workspace folder) {
@@ -2082,6 +2085,9 @@ class _GhostRootState extends State<GhostRoot> {
     _contradictionsWired.dispose();
     if (identical(CleanupService.current, _cleanup)) CleanupService.current = null;
     _cleanup?.dispose();
+    if (identical(WrappedService.current, _wrapped)) WrappedService.current = null;
+    _wrapped?.dispose();
+    wrappedOpenNote = null;
     webhooks.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
@@ -2247,6 +2253,30 @@ class _GhostRootState extends State<GhostRoot> {
       localOnly: () => preferences.value.localOnly,
       onOpen: () => _openSettingsAt('plugin:cleanup'),
     );
+    // Wrapped (lib/plugins/wrapped, docs/WRAPPED.md; Matt, 2026-11-05): the year in notes, read slowly by the AI the
+    // person has connected, with the review's presses through the library, the folders and the Trash. Its state is the
+    // plugin's storage until the Library's file is found (_readLibraryDescription); a run asked for and not finished
+    // goes on once the notes are read.
+    WrappedService.current = _wrapped = WrappedService(
+      library: _library,
+      workspaces: _workspaces,
+      trash: _trash,
+      store: WrappedStore(file: StorageWrappedFile(wrappedHost.storage)),
+      choice: appAssistant,
+      on: () => plugins.isEnabled(wrappedId),
+      switches: _pluginsHeard,
+      localOnly: () => preferences.value.localOnly,
+      background: ChannelBackgroundJobs(),
+      // Held while anything else is at work: a recording, a meeting, a sync, another job.
+      busy: () => (_voice?.live?.state?.recording ?? false) || (_shell.currentState?.screen.isRecording ?? false) || activity.value.any((job) => job.state.live && job.id != 'wrapped'),
+      plugins: () => plugins.enabled().length,
+      onOpen: () {
+        final at = _shell.currentContext;
+        if (at != null) unawaited(openWrappedPage(at));
+      },
+    );
+    wrappedOpenNote = (id, line) => _shell.currentState?.openNote(id, at: line == null ? null : 'line:${line + 1}');
+    unawaited(_wrapped!.store.reread().then((_) => _wrapped?.resume()));
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);
@@ -2454,6 +2484,8 @@ class _GhostRootState extends State<GhostRoot> {
         final status = await folder.status();
         // Cleanup's runs of personal folders, kept in the Library beside its config (lib/plugins/cleanup/records.dart).
         unawaited(_cleanup?.records.useFile(cleanupRunsFileFor(status)));
+        // Wrapped's state, in the Library beside it (lib/plugins/wrapped/state.dart), where the Library has a file.
+        if (wrappedFileFor(status) case final file?) unawaited(_wrapped?.store.useFile(file).then((_) => _wrapped?.resume()));
         final file = configFileFor(status);
         if (file != null) {
           final keeper = _libraryConfig = LibraryConfigKeeper(file: file, preferences: preferences, stored: _stored);

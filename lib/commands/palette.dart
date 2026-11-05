@@ -198,6 +198,7 @@ class PaletteDoing {
     this.settingsAt,
     this.marketPlugin,
     this.asks = const [],
+    this.places = const [],
   });
 
   final void Function(String id) openNote;
@@ -294,6 +295,10 @@ class PaletteDoing {
   /// Ask my notes, and Ask each organization (docs/ASK_THE_ORG.md; Matt, 2026-11-02: "'Ask the org' with receipts"):
   /// a scope each, its key and its command's words; offered in simple mode too.
   final List<({String key, String title, VoidCallback run})> asks;
+
+  /// The plugins' own places, each a command (lib/plugins/types.dart `PluginPlace`: Wrapped's Open my Wrapped): those of
+  /// the plugins that are on, Simple mode's alone in Simple, as the root hands them.
+  final List<({String key, String title, String words, VoidCallback run})> places;
 
   /// Focus mode on or off (Matt, 2026-10-27: "build ... focus mode"); offered in simple mode too, being one switch.
   final void Function(bool on)? setFocusMode;
@@ -474,6 +479,9 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
   final today = doing.today;
   if (today != null) add('today', 'Today’s note', 'Notes', 'daily day date journal today page', today, shortcut: '⇧⌘D');
+  for (final place in doing.places) {
+    add('place:${place.key}', place.title, settingsPluginsGroup, place.words, place.run);
+  }
   for (final each in doing.asks) {
     add('ask:${each.key}', each.title, 'Ask', 'ask question answer receipts cited sources search notes org team organization', each.run);
   }

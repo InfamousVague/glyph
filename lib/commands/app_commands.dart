@@ -164,6 +164,7 @@ PaletteDoing paletteDoingFor({
   void Function(String page, {String? setting})? settingsAt,
   void Function(String id)? marketPlugin,
   List<({String key, String title, VoidCallback run})> asks = const [],
+  List<({String key, String title, String words, VoidCallback run})> places = const [],
   void Function(String noteId)? startTimer,
   VoidCallback? stopTimer,
   VoidCallback? backUpNow,
@@ -220,6 +221,7 @@ PaletteDoing paletteDoingFor({
     settingsAt: settingsAt == null ? null : (page, setting) => settingsAt(page, setting: setting),
     marketPlugin: marketPlugin,
     asks: asks,
+    places: places,
   );
 }
 

@@ -387,6 +387,8 @@ class GlyphPlugin {
     this.formats = const [],
     this.newRows,
     this.setup,
+    this.places = const [],
+    this.homeCard,
   });
 
   final PluginManifest manifest;
@@ -422,4 +424,42 @@ class GlyphPlugin {
   /// plugin is added while it still needs it, and its page in Settings has Set up, or Run setup again. Made when it is
   /// asked for, so a test's ground or settings are the ones it reads.
   final PluginSetup Function()? setup;
+
+  /// Its places of its own, each a row in the sidebar (the wide window's and the phone's drawer) and a command in the
+  /// bar, drawn while the plugin is on and never otherwise ([PluginPlace]).
+  final List<PluginPlace> places;
+
+  /// Its card on the home page, among the notices over the notes, while the plugin is on: drawn in Simple mode too,
+  /// since the home page is a main surface. It hears its own state; null where it has none to show now
+  /// ([SizedBox.shrink] is as good).
+  final WidgetBuilder? homeCard;
+}
+
+/// A place a plugin adds to the app's own (Matt, 2026-11-05: "Have this plugin add a card to the home page to view the
+/// wrapped section or in the sidebar dock"): a row in the sidebar's shelf beside My tickets and Tags, and a command in
+/// the bar. The sidebar and the bar read every plugin's that is on ([Registry.places]); none is named by the shell.
+@immutable
+class PluginPlace {
+  const PluginPlace({required this.id, required this.name, required this.icon, required this.command, required this.open, this.words = '', this.simple = true});
+
+  /// Its key, unique in the app: `wrapped`. The sidebar's row is `plugin-place-<id>`.
+  final String id;
+
+  /// The row's words: "Wrapped".
+  final String name;
+
+  /// A Lucide icon's name, as [GlyphPlugin.icon] is.
+  final String icon;
+
+  /// The bar's words for it: "Open my Wrapped".
+  final String command;
+
+  /// More words the bar finds it by.
+  final String words;
+
+  /// Whether Simple mode's sidebar has it too (My tickets does, Triage does not).
+  final bool simple;
+
+  /// Opens it, from [context]: the row's, or the root's for the bar.
+  final void Function(BuildContext context) open;
 }
