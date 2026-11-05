@@ -33,6 +33,8 @@ class MainFlutterWindow: NSWindow {
   private var activity: ActivitySurfaces?
   private var lastPress: NSEvent?
   private var pressMonitor: Any?
+  /// Pictures dropped on the window, for the assistant's chat (GhostChannels.swift `PictureDrops`).
+  private var drops: PictureDrops?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -109,6 +111,11 @@ class MainFlutterWindow: NSWindow {
     jobsChannel = jobs
     (NSApp.delegate as? AppDelegate)?.window = self
 
+    // A picture dragged onto the window goes to the assistant's chat while it is up (lib/core/picture_drops.dart). The
+    // window is the destination, not a view over the page, so no press or scroll is taken from the page.
+    drops = PictureDrops(messenger: messenger)
+    registerForDraggedTypes(PictureDrops.types)
+
     // The press a drag of the window starts from: `performDrag` wants the event itself, and the page's word that a
     // drag began arrives a turn after it.
     pressMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
@@ -126,6 +133,11 @@ class MainFlutterWindow: NSWindow {
     super.awakeFromNib()
     placeLights()
   }
+
+  // A drag over the window: taken only while the chat asks for pictures, and only where it carries one.
+  @objc func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { drops?.operation(sender) ?? [] }
+  @objc func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { drops?.operation(sender) ?? [] }
+  @objc func performDragOperation(_ sender: NSDraggingInfo) -> Bool { drops?.perform(sender) ?? false }
 
   /// A link the system handed the app (AppDelegate), kept for the page (`ghost_md/links`).
   func arrived(_ url: URL) {

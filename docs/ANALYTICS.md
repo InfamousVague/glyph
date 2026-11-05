@@ -95,6 +95,7 @@ Buckets: durations `<1s 1-5s 5-30s 30s-2m 2-10m 10-60m >1h`; counts `0 1 2-5 6-2
 | `job_failed` | `job`, `kind`, `plugin`, `took`, `fix` (`topUp signIn retry open none`) | `Activity._end`; never the cause's words |
 | `recording_started`, `recording_finished` | `mode` (`note`, `meeting`), `took` | `app_shell.dart`, the capture and meeting screens coming and going |
 | `ai_used` | `feature: request`, `provider`: `claude openai gemini custom aster local` | each provider's stream: `lib/claude/messages_api.dart`, `lib/plugins/openai/chat_api.dart`, `lib/plugins/gemini/gemini_api.dart`, `lib/ai/native_backend.dart` |
+| `ai_image_attached` | `count` (bucket), `provider`: `claude openai gemini custom aster` | `lib/claude/claude_runner.dart` `_sent`: a message sent to the assistant with pictures; never the pictures, their names or their sizes |
 | `signed_up`, `signed_in`, `signed_out` | | `lib/account/account.dart` |
 | `org_created`, `org_joined` | | `lib/orgs/orgs.dart` `createOrg`, `joinByLink`, an invite accepted |
 | `invite_sent` | `way`: `email`, `link`, `handle` | `orgs.dart` |

@@ -36,7 +36,7 @@ import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../core/geocode.dart' show PlaceSearch;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/films.dart' show Films;
-import '../core/phone_pictures.dart' show corePictureAdopter;
+import '../core/phone_pictures.dart' show corePictureAdopter, pictureAdopted;
 import '../core/place_tags.dart';
 import '../editor/ai/blanks.dart' show openNoteBlanks;
 import '../editor/editor.dart' as ed show Change, EditorViewLike, TransactionSpec;
@@ -199,6 +199,7 @@ import '../ask/ask_note.dart' show askNoteBody, askNoteTitle;
 import '../ask/ask_scope.dart';
 import '../ask/ask_sheet.dart' show AskSheet;
 import '../assistant/app_assistant.dart' show appAssistant;
+import '../claude/chat_device_pictures.dart' show deviceChatPictures;
 import '../claude/claude_chat.dart';
 import '../claude/claude_books.dart' show ClaudeBookProblem, ClaudeBooks, ClaudeShelf;
 import '../claude/claude_folders.dart' show ClaudeFolders;
@@ -1223,6 +1224,16 @@ class _GhostRootState extends State<GhostRoot> {
     route: () => appAssistant.chatRoute,
     routeChanges: appAssistant,
     loadRoute: appAssistant.load,
+    // A picture sent in the chat put into a note, where the person lets the AI (lib/claude/chat_images.dart): kept
+    // among the library's pictures as a picture added to a note is, its words read soon after.
+    keepPicture: _pictures == null
+        ? null
+        : (bytes, extension) async {
+            final name = '${randomId('img')}.$extension';
+            await _pictures.keep(name, bytes);
+            pictureAdopted?.call(name);
+            return name;
+          },
   );
 
   /// The "Ask Claude" note, worked through as requests are written in it.

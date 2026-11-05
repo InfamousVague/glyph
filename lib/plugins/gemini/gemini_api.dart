@@ -7,7 +7,7 @@
 ///
 /// **Translated both ways** (lib/assistant/provider.dart): the run's request, in the Messages API's shape, becomes
 /// Gemini's ([geminiBody]): the system prompt its `systemInstruction`; each turn a `content` of `role` `user` or
-/// `model` with its `parts`, words a `text` part, a `tool_use` block a `functionCall` part, a `tool_result` block a
+/// `model` with its `parts`, words a `text` part, a picture's `image` block an `inlineData` part, a `tool_use` block a `functionCall` part, a `tool_result` block a
 /// `functionResponse` part named by the call it answers; Claude's thinking blocks, `thinking` and `output_config`
 /// dropped. The tools are one `functionDeclarations` list, their schemas cut to what Gemini's schema knows
 /// ([geminiSchema]: types, descriptions, properties, required, items, enums and bounds). Its stream becomes the
@@ -33,6 +33,7 @@ import 'dart:io';
 import '../../assistant/http_stream.dart';
 import '../../assistant/provider.dart';
 import '../../assistant/provider_settings.dart';
+import '../../claude/chat_images.dart' show imageBlockData;
 import '../openai/chat_api.dart' show noToolsNotice;
 
 /// The API's address.
@@ -164,6 +165,14 @@ List<Map<String, Object?>> geminiContents(Map<String, Object?> body) {
           case 'text':
             final text = block['text'];
             if (text is String && text.isNotEmpty) parts.add({'text': text});
+          case 'image':
+            // A picture is an `inlineData` part, its bytes as they came (lib/claude/chat_images.dart).
+            final picture = imageBlockData(block);
+            if (picture != null) {
+              parts.add({
+                'inlineData': {'mimeType': picture.mediaType, 'data': picture.data},
+              });
+            }
           case 'tool_use':
             final id = block['id'], name = block['name'] as String? ?? '';
             if (id is String) names[id] = name;

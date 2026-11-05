@@ -178,6 +178,8 @@ extension _RootClaude on _GhostRootState {
       onOpenAi: _openForAi,
       onInbox: _toClaudeInbox,
       onShareLink: _services?.shares == null ? null : _shareLinkFor,
+      // Pictures for the AI to read, where the device has a chooser and the root a library (not a test's).
+      pictures: widget.core == null ? null : deviceChatPictures(),
     );
   }
 

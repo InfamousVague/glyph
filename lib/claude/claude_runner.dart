@@ -23,7 +23,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../assistant/assistant.dart' show AiRoute;
+import '../core/metrics.dart' show MetricEvent, countBucket, track;
 
+import 'chat_images.dart';
 import 'claude_books.dart' show ClaudeBooks;
 import 'claude_folders.dart';
 import 'claude_run.dart';
@@ -43,7 +45,7 @@ const String claudeRulesTitle = 'Claude rules';
 ClaudeApi Function(String key)? debugClaudeApi;
 
 class ClaudeRunner extends ChangeNotifier {
-  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed, this.folders, this.books, this.route, this.routeChanges, this.loadRoute})
+  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed, this.folders, this.books, this.route, this.routeChanges, this.loadRoute, this.keepPicture})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
         _now = now ?? DateTime.now {
     settings.addListener(notifyListeners);
@@ -71,6 +73,20 @@ class ClaudeRunner extends ChangeNotifier {
 
   /// The model asked: Claude's chosen one, or the other provider's.
   String get model => _route?.model ?? settings.model;
+
+  /// Whether the model asked now reads pictures (lib/claude/chat_images.dart [aiSeesImages]): the chat's attach button
+  /// is offered only where it does.
+  bool get seesImages => ready && aiSeesImages(_route?.id ?? 'claude', model);
+
+  /// Keeps a picture among the library's pictures, for an ask that lets the AI put one into a note; none, as in a
+  /// test, and that is never offered.
+  final ChatPictureKeeper? keepPicture;
+
+  /// The pictures sent in this conversation so far, oldest first: what [ClaudePictureTool.add] counts from.
+  final List<ChatImage> _pictures = [];
+
+  /// How many more pictures this conversation may take ([chatConversationImageLimit]).
+  int get picturesLeft => chatConversationImageLimit - _pictures.length;
 
   /// The provider of the conversation so far: `claude`, or another's id.
   String _by = 'claude';
@@ -119,19 +135,33 @@ class ClaudeRunner extends ChangeNotifier {
   /// Asks Claude. In the sheet's conversation unless [alone] (the inbox's requests are each their own). Answers the
   /// run once it has started, which is after any run before it has ended. [desk] in place of the screen's, for a run
   /// that writes out of sight (a request from the watch with the app in the background).
-  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem, ClaudeDesk? desk}) {
+  ///
+  /// [images] go with the ask, before its words, where the model reads pictures (the chat offers them only then);
+  /// [keepPictures] lets the AI put them into notes ([ClaudePictureTool.add]).
+  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem, ClaudeDesk? desk, List<ChatImage> images = const [], bool keepPictures = false}) {
     final started = Completer<ClaudeRun>();
-    _queue = _queue.then((_) => _start(prompt, started, alone: alone, extraSystem: extraSystem, desk: desk)).catchError((Object error) {
+    _queue = _queue.then((_) => _start(prompt, started, alone: alone, extraSystem: extraSystem, desk: desk, images: images, keepPictures: keepPictures)).catchError((Object error) {
       // A failure here never stops the asks after it.
       if (!started.isCompleted) started.completeError(error);
     });
     return started.future;
   }
 
-  Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk}) async {
+  Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk, List<ChatImage> images = const [], bool keepPictures = false}) async {
     await loadRoute?.call();
     final other = _route;
-    if (other != null) return _startOther(other, prompt, started, alone: alone, extraSystem: extraSystem, desk: desk);
+    if (images.isNotEmpty) {
+      // Never sent where it would be dropped (lib/claude/chat_images.dart), nor past the conversation's limit.
+      if (!aiSeesImages(other?.id ?? 'claude', other?.model ?? settings.model)) {
+        started.completeError(ClaudeError('${other?.name ?? 'Claude'} can’t see pictures with ${other?.model ?? claudeModelLabel(settings.model)}. $chatImageHint'));
+        return;
+      }
+      if (images.length > chatImageLimit || (!alone && images.length > picturesLeft)) {
+        started.completeError(ClaudeError(images.length > chatImageLimit ? 'Send $chatImageLimit pictures at most at once.' : 'This chat holds $chatConversationImageLimit pictures at most. Start a new chat to send more.'));
+        return;
+      }
+    }
+    if (other != null) return _startOther(other, prompt, started, alone: alone, extraSystem: extraSystem, desk: desk, images: images, keepPictures: keepPictures);
     if (!(allowed?.call() ?? true)) {
       started.completeError(const ClaudeError('Claude is switched off on this device. Add it in the Market.'));
       return;
@@ -161,7 +191,8 @@ class ClaudeRunner extends ChangeNotifier {
       system = [claudeSystem(now: _now(), rules: rules, folders: folders != null, books: books != null), ?extraSystem].join('\n\n');
       if (!alone) _system = system;
     }
-    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk ?? this.desk, folders: folders, books: books, prompt: prompt, system: system, spend: settings.spend, history: alone ? null : _history);
+    final pictures = _sent(images, alone: alone, provider: 'claude');
+    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk ?? this.desk, folders: folders, books: books, prompt: prompt, system: system, spend: settings.spend, history: alone ? null : _history, images: images, pictures: pictures, keepPicture: keepPictures && pictures.isNotEmpty ? keepPicture : null);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);
@@ -195,6 +226,7 @@ class ClaudeRunner extends ChangeNotifier {
     if (working) return;
     _history = const [];
     _system = null;
+    _pictures.clear();
     conversation.clear();
     notifyListeners();
   }
@@ -213,10 +245,22 @@ class ClaudeRunner extends ChangeNotifier {
     _by = by;
     _history = const [];
     _system = null;
+    _pictures.clear();
+  }
+
+  /// [images] counted into the conversation's pictures (none kept for an ask [alone]) and in the usage stats, by
+  /// their number and who they went to, never what is in them (docs/ANALYTICS.md `ai_image_attached`). Answers the
+  /// pictures the run may name.
+  List<ChatImage> _sent(List<ChatImage> images, {required bool alone, required String provider}) {
+    if (images.isEmpty) return alone ? const [] : List.unmodifiable(_pictures);
+    track(MetricEvent.aiImageAttached, {'count': countBucket(images.length), 'provider': provider == 'custom-ai' ? 'custom' : provider});
+    if (alone) return images;
+    _pictures.addAll(images);
+    return List.unmodifiable(_pictures);
   }
 
   /// [_start], for another provider (see the header).
-  Future<void> _startOther(AiRoute other, String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk}) async {
+  Future<void> _startOther(AiRoute other, String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk, List<ChatImage> images = const [], bool keepPictures = false}) async {
     final provider = other.by.settings;
     if (!other.by.allowed()) {
       started.completeError(ClaudeError('${other.name} is switched off on this device. Add it in the Market.'));
@@ -246,7 +290,8 @@ class ClaudeRunner extends ChangeNotifier {
       system = [claudeSystem(now: _now(), rules: rules, folders: folders != null, books: books != null, who: 'an AI assistant'), ?extraSystem].join('\n\n');
       if (!alone) _system = system;
     }
-    final made = ClaudeRun(api: other.api(), model: other.model, notes: notes, desk: desk ?? this.desk, folders: folders, books: books, prompt: prompt, system: system, spend: provider.spend, tools: other.tools, history: alone ? null : _history);
+    final pictures = _sent(images, alone: alone, provider: other.id);
+    final made = ClaudeRun(api: other.api(), model: other.model, notes: notes, desk: desk ?? this.desk, folders: folders, books: books, prompt: prompt, system: system, spend: provider.spend, tools: other.tools, history: alone ? null : _history, images: images, pictures: pictures, keepPicture: keepPictures && pictures.isNotEmpty && other.tools ? keepPicture : null);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);

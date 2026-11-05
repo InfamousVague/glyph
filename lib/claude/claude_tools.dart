@@ -13,6 +13,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import 'chat_images.dart' show claudePictureSystem;
 import 'claude_books.dart' show claudeBookSystem;
 import 'claude_folders.dart' show claudeFolderSystem;
 
@@ -179,6 +180,7 @@ String claudeSystem({required DateTime now, String? rules, bool folders = false,
     'Find a note before changing it: search or list, then read it. To change part of a note use replace_in_note; to add to it, append_to_note; rewrite_note only when most of it changes.',
     if (folders) claudeFolderSystem,
     if (books) claudeBookSystem,
+    claudePictureSystem,
     'When you are done, say in a sentence or two what you did, naming the notes. Do not paste a note’s contents back into the reply.',
     if (rules != null && rules.trim().isNotEmpty) 'The person’s standing instructions for you (their “Claude rules” note):\n\n${rules.trim()}',
   ].join('\n\n');

@@ -265,6 +265,7 @@ enum MetricEvent {
 
   // AI.
   aiUsed('ai_used', {'feature': _code, 'provider': WordProp(aiProviders)}),
+  aiImageAttached('ai_image_attached', {'count': _counts, 'provider': WordProp(aiProviders)}),
 
   // Account, organizations, sharing: never who.
   signedUp('signed_up', {}),

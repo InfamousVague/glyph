@@ -36,6 +36,7 @@ import 'package:flutter/foundation.dart';
 
 import '../assistant/provider.dart' show AiStreamer, aiNoticeEvent;
 import '../editor/editor.dart' show EditorViewLike;
+import 'chat_images.dart';
 import 'claude_books.dart';
 import 'claude_folders.dart';
 import 'claude_spend.dart';
@@ -65,13 +66,16 @@ enum ClaudeState { idle, thinking, writing, done, stopped, failed }
 /// One thing a run did, as its sheet lists it.
 @immutable
 class ClaudeStep {
-  const ClaudeStep({required this.kind, required this.words, this.noteId});
+  const ClaudeStep({required this.kind, required this.words, this.noteId, this.pictures = const []});
 
   /// `said` for Claude's words, `asked` for the person's, `tool` for what a tool did, `thought` for the summary of
   /// what Claude thought before it went on, `notice` for what the app says (the spending limit's warning).
   final String kind;
   final String words;
   final String? noteId;
+
+  /// The pictures the person sent with an `asked` step (lib/claude/chat_images.dart), for the chat to show.
+  final List<ChatImage> pictures;
 }
 
 /// The note a writing tool is in, for the bar and the dock.
@@ -112,8 +116,22 @@ class ClaudeRun extends ChangeNotifier {
     this.maxTokens = 16000,
     this.spend,
     this.tools = true,
+    this.images = const [],
+    this.pictures,
+    this.keepPicture,
     List<Map<String, Object?>>? history,
   }) : _messages = [...?history];
+
+  /// The pictures sent with this ask, each an `image` block before its words (lib/claude/chat_images.dart).
+  final List<ChatImage> images;
+
+  /// Every picture of the conversation, this ask's last, by which [ClaudePictureTool.add] names one (counting from 1);
+  /// [images] where not given.
+  final List<ChatImage>? pictures;
+
+  /// Keeps a picture among the library's pictures: given only where the person lets the AI put pictures into notes
+  /// (the chat's "Keep pictures in notes", off by default), and then [ClaudePictureTool.add] is offered.
+  final ChatPictureKeeper? keepPicture;
 
   /// Claude's client ([ClaudeApi]) or another provider's (see the header).
   final AiStreamer api;
@@ -267,10 +285,11 @@ class ClaudeRun extends ChangeNotifier {
     _messages.add({
       'role': 'user',
       'content': [
+        for (final image in images) claudeImageBlock(image),
         {'type': 'text', 'text': prompt},
       ],
     });
-    _steps.add(ClaudeStep(kind: 'asked', words: prompt));
+    _steps.add(ClaudeStep(kind: 'asked', words: prompt, pictures: images));
     _set(ClaudeState.thinking);
     try {
       _notice();
@@ -322,7 +341,7 @@ class ClaudeRun extends ChangeNotifier {
       'thinking': ?thinking,
       if (effort != null) 'output_config': {'effort': effort},
       if (system != null) 'system': system,
-      if (tools) 'tools': [...claudeTools, if (folders != null) ...claudeFolderTools, if (books != null) ...claudeBookTools],
+      if (tools) 'tools': [...claudeTools, if (folders != null) ...claudeFolderTools, if (books != null) ...claudeBookTools, if (keepPicture != null) claudePictureTool],
       'messages': _messages,
     });
     final call = _call = spend == null ? asked : meterClaude(asked, model: model, spend: spend);
@@ -507,6 +526,7 @@ class ClaudeRun extends ChangeNotifier {
         throw _ToolProblem(problem.message);
       }
     }
+    if (name == ClaudePictureTool.add && keepPicture != null) return _keepPicture(input);
     switch (name) {
       case ClaudeTool.list:
         final query = (input['query'] as String?)?.trim();
@@ -536,6 +556,24 @@ class ClaudeRun extends ChangeNotifier {
         return 'Opened.';
     }
     throw _ToolProblem('There is no tool called $name.');
+  }
+
+  /// [ClaudePictureTool.add]: the picture kept among the library's pictures and put at the note's end.
+  Future<String> _keepPicture(Map<String, Object?> input) async {
+    final all = pictures ?? images;
+    final noteId = input['id'] as String? ?? '';
+    final which = (input['picture'] as num?)?.toInt() ?? 0;
+    if (which < 1 || which > all.length) throw _ToolProblem(all.isEmpty ? 'No picture was sent in this chat.' : 'Give `picture` from 1 to ${all.length}.');
+    final note = await notes.read(id: noteId);
+    if (note == null) throw const _ToolProblem('No such note. List or search to find its id.');
+    final picture = all[which - 1];
+    final name = await keepPicture!(picture.bytes, picture.extension);
+    final caption = (input['caption'] as String? ?? '').replaceAll(RegExp(r'[\[\]\n]'), ' ').trim();
+    final line = '![$caption](image/$name)';
+    await desk.change(note.id, (body) => body.isEmpty ? '$line\n' : '${body.endsWith('\n') ? body : '$body\n'}\n$line\n');
+    touched[note.id] = note.title;
+    _tool('Put the picture in ${note.title.isEmpty ? 'a note' : note.title}', note.id);
+    return jsonEncode({'id': note.id, 'picture': name, 'done': true});
   }
 
   void _tool(String words, [String? noteId]) {

@@ -132,6 +132,18 @@ void main() {
       expect(settingWords['iconPack'], {...iconPackChoices});
     });
 
+    // A picture given to the assistant (lib/claude/chat_images.dart): how many, as a bucket, and to whom; never what is
+    // in it, its name or its size.
+    test('a picture sent to the AI is counted by a bucket and the provider, nothing else', () {
+      expect(MetricEvent.aiImageAttached.wire, 'ai_image_attached');
+      expect(MetricEvent.aiImageAttached.props.keys.toSet(), {'count', 'provider'});
+      expect(MetricEvent.aiImageAttached.props['count']!.allows('2-5'), isTrue);
+      expect(MetricEvent.aiImageAttached.props['count']!.allows(3), isFalse);
+      expect(MetricEvent.aiImageAttached.props['provider']!.allows('gemini'), isTrue);
+      expect(MetricEvent.aiImageAttached.props['provider']!.allows('appointments.jpg'), isFalse);
+      expect(() => Metrics.checkProps(MetricEvent.aiImageAttached, {'bytes': 482113}), throwsA(isA<AssertionError>()));
+    });
+
     test('the screens it may name are the shell\'s', () {
       expect(screenNames, containsAll([const Screen.list().name, const Screen.academy().name, const Screen.market().name, const Screen.tickets().name, const Screen.notes().name]));
     });
@@ -344,6 +356,7 @@ void main() {
       track(MetricEvent.searchUsed, {'results': countBucket(3)});
       track(MetricEvent.settingChanged, {'setting': 'theme', 'value': 'dusk'});
       track(MetricEvent.aiUsed, {'feature': 'request', 'provider': 'claude'});
+      track(MetricEvent.aiImageAttached, {'count': countBucket(2), 'provider': 'openai'});
       trackError(ArgumentError('Dr. Alvarez'), 'framework');
       await metrics.flush();
       expect(send.events.length, greaterThan(10));

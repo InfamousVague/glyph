@@ -10,7 +10,8 @@
 /// translator serves them all, and it streams tool calls and usage as the run needs them.
 ///
 /// **Translated both ways** (lib/assistant/provider.dart): the run's request, in the Messages API's shape, becomes
-/// Chat Completions' ([openAiBody]): the system prompt a `system` message; a user turn's `tool_result` blocks each a
+/// Chat Completions' ([openAiBody]): the system prompt a `system` message; a user turn with a picture's `image` block
+/// its `content` as parts, the picture an `image_url` part with a data URL; a user turn's `tool_result` blocks each a
 /// `tool` message, in order, before any words of the turn; an assistant turn's `tool_use` blocks its `tool_calls`, their
 /// input as JSON text; Claude's thinking blocks, `thinking` and `output_config` dropped. The tools are `{type:
 /// function, function: {name, description, parameters}}`, their schemas as they are. Its stream becomes the Messages
@@ -39,6 +40,7 @@ import 'dart:io';
 import '../../assistant/http_stream.dart';
 import '../../assistant/provider.dart';
 import '../../assistant/provider_settings.dart';
+import '../../claude/chat_images.dart' show imageBlockData;
 
 /// OpenAI's own API.
 const String openAiBase = 'https://api.openai.com/v1';
@@ -117,18 +119,34 @@ List<Map<String, Object?>> openAiMessages(Map<String, Object?> body) {
         continue;
       }
       final words = <String>[];
+      // A picture is an `image_url` part with its bytes as a data URL, in the order the blocks have them; a turn with
+      // one is sent as parts, a turn of words alone as a string, as before.
+      final parts = <Map<String, Object?>>[];
+      var pictures = false;
       if (content is List) {
         for (final block in content) {
           if (block is! Map) continue;
+          final picture = imageBlockData(block);
           if (block['type'] == 'tool_result') {
             final text = aiToolResultText(block['content']);
             out.add({'role': 'tool', 'tool_call_id': block['tool_use_id'], 'content': block['is_error'] == true ? 'Error: $text' : text});
           } else if (block['type'] == 'text' && block['text'] is String) {
             words.add(block['text'] as String);
+            parts.add({'type': 'text', 'text': block['text']});
+          } else if (picture != null) {
+            pictures = true;
+            parts.add({
+              'type': 'image_url',
+              'image_url': {'url': 'data:${picture.mediaType};base64,${picture.data}'},
+            });
           }
         }
       }
-      if (words.isNotEmpty) out.add({'role': 'user', 'content': words.join('\n\n')});
+      if (pictures) {
+        out.add({'role': 'user', 'content': parts});
+      } else if (words.isNotEmpty) {
+        out.add({'role': 'user', 'content': words.join('\n\n')});
+      }
     } else if (role == 'assistant') {
       final words = content is String ? content : aiContentText(content);
       final calls = [

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
+import 'package:ghost_md/claude/chat_images.dart' show ChatImage;
 import 'package:ghost_md/claude/claude_inbox.dart';
 import 'package:ghost_md/claude/claude_run.dart' show ClaudeDesk, ClaudeRun;
 import 'package:ghost_md/claude/claude_runner.dart';
@@ -115,7 +116,7 @@ class _Asking extends ClaudeRunner {
   final List<String> asked = [];
 
   @override
-  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem, ClaudeDesk? desk}) {
+  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem, ClaudeDesk? desk, List<ChatImage> images = const [], bool keepPictures = false}) {
     asked.add(prompt);
     return Future<ClaudeRun>.error(const ClaudeError('refused'));
   }

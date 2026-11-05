@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.23",
+    "date": "2026-11-05",
+    "title": "Pictures for the AI",
+    "items": [
+      {"icon": "image-plus", "words": "Give the AI chat a picture, like a schedule, receipt or whiteboard, and it writes what’s in it into your notes.", "kind": "new"},
+      {"icon": "calendar-days", "words": "A photo of appointments becomes a to-do for each, with its day on the calendar and its time and place.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.22",
     "date": "2026-11-04",
     "title": "Header images in their own colours",

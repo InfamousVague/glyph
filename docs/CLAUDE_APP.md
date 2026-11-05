@@ -303,6 +303,50 @@ library (`ClaudeDesk.change`).
 Every note's editor has `claudeTyping` (lib/root/note_desk.dart): the caret's field, which rides every change, and an
 observer of the person's presses and keys.
 
+## Pictures
+
+Matt, 2026-11-05: "Add the ability to upload images to Claude in app (or whatever AI were using) so that it can inject
+contents of images broken apart into notes such as a list of appointments". lib/claude/chat_images.dart, the chat's
+tray in lib/claude/claude_chat.dart, the device's half in lib/claude/chat_device_pictures.dart.
+
+- **Attaching.** The round picture button before the chat's field opens the device's own chooser, the one notes use
+  (`ghost_md/pictures` `pick`): Android's chooser, the iPhone's menu of Photo Library, Take Photo and Choose File, a
+  Mac's open panel. On a Mac a picture pasted into the field (⌘V; words on the clipboard still go in as words) or
+  dropped on the window while the chat is up is attached too (the window takes a drag only then:
+  macos/Runner/GhostChannels.swift `PictureDrops`, `ghost_md/drops`). Up to five a message wait above the field as
+  thumbnails, each with its ×; twenty a conversation, every follow-up sending them again (New chat starts over). It is
+  the same in Simple mode: the chat has no More row.
+- **Made smaller.** Each platform half hands over a JPEG it has already shrunk (the right way up, its long side at most
+  1600, at 85). [readyChatImage] reads its kind from its first bytes (JPEG, PNG, WebP or GIF; anything else refused
+  in words) and draws a picture whose long side is over 1568 by more than a twentieth again: a JPEG at 85 where the
+  device writes one (Android's `smaller`), else a PNG. One still over 3.75 MB is refused.
+- **Sent in each provider's shape.** The run (lib/claude/claude_run.dart) puts each picture before the ask's words as a
+  Messages API block, `{type: image, source: {type: base64, media_type, data}}`; OpenAI's client sends the turn as
+  parts with an `image_url` whose URL is a `data:` URL; Gemini's an `inlineData` part `{mimeType, data}`. The pictures
+  stay in the conversation for follow-ups.
+- **Who can see them** ([aiSeesImages]). Claude: every model from the third on (all three the app offers). OpenAI: GPT-4o,
+  4.1, 4.5, GPT-5 and on, o1, o3 and o4 (not o1-mini, o3-mini, 3.5, GPT-4, audio, realtime or search models). Gemini:
+  every `gemini-` model but 1.0 Pro, and Gemma 3. A custom endpoint and Aster: only a model whose name says it sees
+  (`vision`, `-vl`, LLaVA, Pixtral, Qwen-VL, Llama 3.2 Vision, Llama 4, Gemma 3, or a GPT-4o, Claude or Gemini through
+  OpenRouter). The device's own model: never (it is never the chat's anyway). Where the model asked cannot, the button
+  is faded and, pressed, says "(Claude) can't see pictures with (the model). Pick a model that can see images in
+  Settings › AI."; the runner refuses such an ask too, so nothing is ever sent where a picture would be dropped.
+- **Into notes.** With a picture attached and nothing written, chips offer Make a note of this, Add these
+  appointments, Make a to-do list and Summarise, each sent as the ask (Send with no words asks Make a note of this).
+  The system prompt (claude_tools.dart `claudeSystem`, chat_images.dart `claudePictureSystem`) tells the model to read
+  everything in the picture, and, asked or where it is plainly a list, to write it as markdown with the note tools in
+  the app's own marks: `- [ ] Dentist, Dr Lee, 14:30, 12 High St 📅 2026-11-12`, the day as Obsidian Tasks' `📅`
+  so the line is on the app's calendar and its queries, the time and the place in the words, nothing invented and
+  what cannot be read said so. One note unless asked for one per item; then it names each note as `[[Title]]`, and
+  the chat's card links them as for any run.
+- **Kept nowhere.** The bytes are in the chat's conversation in memory, until New chat or the app closes; the platform's
+  cache file is deleted as soon as it is read. They go only to the provider chosen, under the person's key, never to
+  Ghost.md's servers. "Keep pictures in notes", under the thumbnails and off for each chat until switched on, offers the
+  AI `add_picture_to_note {id, picture, caption}`, which keeps that picture among the library's pictures
+  (`PictureStore.keep`, its words read after as any picture's) and puts `![caption](image/<name>)` at the note's end.
+- **Usage stats.** `ai_image_attached`, with the count as a bucket and the provider (docs/ANALYTICS.md); nothing of
+  the picture.
+
 ## Honest limits
 
 - An agent working through the connector cannot be messaged while it works: it is a tool call away, in Claude's own
@@ -310,6 +354,9 @@ observer of the person's presses and keys.
   note.
 - Words typed by the app's Claude reach another device only where the note is live there (docs/LIVE.md); that device
   sees the words arrive but no caret, since the app's Claude says nothing in the presence rooms.
+- Pictures: Android's chooser has no camera of its own (it offers the gallery and files apps), and a picture can't be
+  pasted into the chat on a phone, only chosen. Windows and Linux have no picture chooser yet, so no button there. A
+  custom endpoint's model whose name doesn't say it sees can't be sent pictures, even where it could read them.
 - Not built in this cloud session's checkout: it could not fetch Flutter or the packages (pub.dev and Google's storage
   are refused here). `flutter analyze` and the tests below are to be run on the Mac before it is merged and shipped.
 
@@ -330,4 +377,5 @@ observer of the person's presses and keys.
 | Chat on an AI's row | lib/orgs/ui/organization_screen.dart (`onChat`) |
 | Where a connector AI last typed, for Follow | lib/live/follow.dart |
 | Ask Claude in the command bar | lib/commands/palette.dart, app_commands.dart |
+| Pictures in the chat | lib/claude/chat_images.dart, chat_device_pictures.dart, claude_chat.dart's tray; macos/Runner/GhostChannels.swift `PictureDrops` |
 | Tests | test/claude/, test/plugins/claude/, test/editor_ai/wisp_typed_test.dart, test/root/wiring_test.dart, test/settings/settings_sheet_test.dart |

@@ -531,3 +531,49 @@ final class MacDocuments {
     return ["pages": pages]
   }
 }
+
+/// Pictures dropped on the Mac's window, for the assistant's chat (lib/core/picture_drops.dart, `ghost_md/drops`).
+/// Taken only while the page asks for them (`listen` true, while the chat is up), and only a drag that carries a
+/// picture: picture files from Finder or Photos, or a picture's own data from another app. Each is kept as the
+/// chooser keeps one (PictureKeep: a JPEG in the cache, the right way up, its long side at most 1600) and said to the
+/// page as `dropped [paths]`, five at most; the page reads and deletes them.
+final class PictureDrops {
+  static let types: [NSPasteboard.PasteboardType] = [.fileURL, .png, .tiff]
+
+  private let channel: FlutterMethodChannel
+  private var listening = false
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(name: "ghost_md/drops", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "listen" else { return result(FlutterMethodNotImplemented) }
+      self?.listening = (call.arguments as? Bool) ?? false
+      result(nil)
+    }
+  }
+
+  private func files(_ info: NSDraggingInfo) -> [URL] {
+    let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: [UTType.image.identifier]]
+    return info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL] ?? []
+  }
+
+  private func data(_ info: NSDraggingInfo) -> Data? {
+    let board = info.draggingPasteboard
+    guard let type = board.availableType(from: [.png, .tiff]) else { return nil }
+    return board.data(forType: type)
+  }
+
+  func operation(_ info: NSDraggingInfo) -> NSDragOperation {
+    guard listening else { return [] }
+    return !files(info).isEmpty || info.draggingPasteboard.availableType(from: [.png, .tiff]) != nil ? .copy : []
+  }
+
+  func perform(_ info: NSDraggingInfo) -> Bool {
+    guard listening, let dirs = GhostChannels.dirs() else { return false }
+    var paths = files(info).prefix(5).compactMap { PictureKeep.keep($0, cache: dirs.cache) }
+    if paths.isEmpty, let data = data(info), let path = PictureKeep.keep(data, cache: dirs.cache) { paths = [path] }
+    guard !paths.isEmpty else { return false }
+    channel.invokeMethod("dropped", arguments: paths)
+    return true
+  }
+}

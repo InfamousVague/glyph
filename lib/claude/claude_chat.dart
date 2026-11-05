@@ -23,10 +23,20 @@
 /// in the field ready to ask about ([ClaudeChat.initial]); the chat holds no subject of its own. Down the right of a
 /// wide window it says how much of the window's end it covers ([windowEndCover]), so the page's dock stands clear of
 /// it.
+///
+/// **Pictures** (lib/claude/chat_images.dart; Matt, 2026-11-05: "Add the ability to upload images to Claude in app"):
+/// the round + picture button before the field opens the device's chooser ([ClaudeChat.pictures]); on a Mac a picture
+/// pasted into the field or dropped on the window is attached too. Up to [chatImageLimit] wait above the field as
+/// thumbnails, each with its ×, with chips to send ("Make a note of this", "Add these appointments", …) while nothing
+/// is written; "Keep pictures in notes", off unless switched on, lets the AI put the picture itself into a note. Where
+/// the model asked cannot see pictures the button is drawn faded and, pressed, says so and where to pick one that can.
 library;
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInputAction;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey, TextInputAction, TextSelection, Uint8List;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -37,6 +47,7 @@ import '../live/follow.dart';
 import '../live/presence.dart' show AiOnline;
 import '../sheet/css.dart';
 import '../shell/page_dock.dart' show windowEndCover;
+import 'chat_images.dart';
 import 'claude_mark.dart';
 import 'claude_run.dart';
 import 'claude_runner.dart';
@@ -58,6 +69,7 @@ class ClaudeChat extends StatefulWidget {
     this.onInbox,
     this.onShareLink,
     this.initial,
+    this.pictures,
   });
 
   final ClaudeRunner runner;
@@ -87,6 +99,9 @@ class ClaudeChat extends StatefulWidget {
   /// (a wide window's dock pressed on another note) takes the field's place, where nothing has been written in it.
   final String? initial;
 
+  /// Where pictures come from (see the header); none, and nothing can be attached.
+  final ChatPictureSource? pictures;
+
   @override
   State<ClaudeChat> createState() => _ClaudeChatState();
 }
@@ -103,6 +118,117 @@ class _ClaudeChatState extends State<ClaudeChat> {
   bool _choosing = false;
   void _toggleChoosing() => setState(() => _choosing = !_choosing);
   VoidCallback? _stopBack;
+
+  /// The pictures waiting to go with the next message.
+  final List<ChatImage> _images = [];
+
+  /// How many pictures are being made ready.
+  int _readying = 0;
+
+  /// What the pictures' row says: why one was not added, or that the model cannot see them.
+  String? _imageNote;
+
+  /// "Keep pictures in notes": off until switched on, for this chat.
+  bool _keepPictures = false;
+  StreamSubscription<Uint8List>? _drops;
+
+  @override
+  void initState() {
+    super.initState();
+    _drops = widget.pictures?.dropped?.listen(_add);
+  }
+
+  /// How many more pictures the next message may take: its own limit, and the conversation's.
+  int get _room {
+    final left = widget.runner.picturesLeft - _images.length - _readying;
+    final own = chatImageLimit - _images.length - _readying;
+    return left < own ? left : own;
+  }
+
+  /// Why a picture cannot be added now, or null.
+  String? get _cannotAttach {
+    final runner = widget.runner;
+    if (!runner.ready) return 'Pictures go to the AI you set up. Add one in Settings › AI.';
+    if (!runner.seesImages) return '${runner.speaker} can’t see pictures with ${runner.claudeAnswers ? claudeModelLabel(runner.model) : runner.model}. $chatImageHint';
+    if (widget.runner.picturesLeft - _images.length - _readying <= 0) return 'This chat holds $chatConversationImageLimit pictures at most. Start a new chat to send more.';
+    if (_room <= 0) return 'Up to $chatImageLimit pictures a message.';
+    return null;
+  }
+
+  /// The attach button: the chooser, or what stands in its way.
+  Future<void> _attach() async {
+    final cannot = _cannotAttach;
+    if (cannot != null) {
+      setState(() => _imageNote = cannot);
+      return;
+    }
+    final pick = widget.pictures?.pick;
+    if (pick == null) return;
+    try {
+      final bytes = await pick();
+      if (bytes != null) await _add(bytes);
+    } catch (error) {
+      if (mounted) setState(() => _imageNote = error is StateError ? error.message : '$error');
+    }
+  }
+
+  /// A picture chosen, pasted or dropped, made ready and put with the next message.
+  Future<void> _add(Uint8List bytes) async {
+    if (!mounted) return;
+    final cannot = _cannotAttach;
+    if (cannot != null) {
+      setState(() => _imageNote = cannot);
+      return;
+    }
+    setState(() {
+      _readying += 1;
+      _imageNote = null;
+    });
+    try {
+      final image = await readyChatImage(bytes, jpeg: widget.pictures?.jpeg);
+      if (mounted) setState(() => _images.add(image));
+    } on ChatImageProblem catch (problem) {
+      if (mounted) setState(() => _imageNote = problem.message);
+    } finally {
+      if (mounted) setState(() => _readying -= 1);
+    }
+  }
+
+  void _remove(int index) => setState(() {
+        _images.removeAt(index);
+        _imageNote = null;
+      });
+
+  void _toggleKeep() => setState(() => _keepPictures = !_keepPictures);
+
+  /// A Mac's paste in the field: a picture on the clipboard is attached, words go in as the field's own paste puts
+  /// them.
+  KeyEventResult _key(KeyEvent event) {
+    final clipboard = widget.pictures?.clipboard;
+    if (clipboard == null || event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyV) return KeyEventResult.ignored;
+    final keys = HardwareKeyboard.instance;
+    final command = defaultTargetPlatform == TargetPlatform.macOS ? keys.isMetaPressed : keys.isControlPressed;
+    if (!command || keys.isAltPressed) return KeyEventResult.ignored;
+    unawaited(_paste(clipboard));
+    return KeyEventResult.handled;
+  }
+
+  Future<void> _paste(Future<({Uint8List? picture, String? text})> Function() clipboard) async {
+    final ({Uint8List? picture, String? text}) got;
+    try {
+      got = await clipboard();
+    } catch (_) {
+      return;
+    }
+    final picture = got.picture;
+    if (picture != null) return _add(picture);
+    final text = got.text;
+    if (text == null || text.isEmpty || !mounted) return;
+    final value = _field.value;
+    final selection = value.selection.isValid ? value.selection : TextSelection.collapsed(offset: value.text.length);
+    final next = value.text.replaceRange(selection.start, selection.end, text);
+    _field.value = value.copyWith(text: next, selection: TextSelection.collapsed(offset: selection.start + text.length));
+  }
 
   @override
   void didChangeDependencies() {
@@ -138,17 +264,38 @@ class _ClaudeChatState extends State<ClaudeChat> {
   void dispose() {
     if (_covers > 0) SchedulerBinding.instance.addPostFrameCallback((_) => windowEndCover.value = 0);
     _stopBack?.call();
+    unawaited(_drops?.cancel());
     _field.dispose();
     _focus.dispose();
     super.dispose();
   }
 
-  Future<void> _send() async {
-    final words = _field.text.trim();
-    if (words.isEmpty) return;
-    setState(() => _problem = null);
-    _field.clear();
+  Future<void> _send([String? said]) async {
     final runner = widget.runner;
+    final images = runner.ready ? List<ChatImage>.of(_images) : const <ChatImage>[];
+    var words = (said ?? _field.text).trim();
+    if (words.isEmpty && images.isNotEmpty) words = chatImageDefaultAsk;
+    if (words.isEmpty || _readying > 0) return;
+    setState(() {
+      _problem = null;
+      _imageNote = null;
+      _images.clear();
+    });
+    if (said == null) _field.clear();
+    if (images.isNotEmpty) {
+      try {
+        await runner.ask(words, images: images, keepPictures: _keepPictures);
+      } catch (error) {
+        // Not sent: the pictures wait again, for another model or a fix.
+        if (mounted) {
+          setState(() {
+            _problem = '$error';
+            _images.insertAll(0, images);
+          });
+        }
+      }
+      return;
+    }
     if (!runner.ready) {
       final inbox = widget.onInbox;
       if (inbox == null) return;
@@ -172,7 +319,7 @@ class _ClaudeChatState extends State<ClaudeChat> {
     final t = context.tokens;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final listen = Listenable.merge([widget.runner, widget.runner.settings, if (widget.follow != null) widget.follow!]);
+    final listen = Listenable.merge([widget.runner, widget.runner.settings, _field, if (widget.follow != null) widget.follow!]);
     final panel = Semantics(
       scopesRoute: true,
       explicitChildNodes: true,
@@ -444,7 +591,7 @@ class _Messages extends StatelessWidget {
   static List<Widget> _runItems(BuildContext context, ClaudeRun run, ClaudeChat chat) => [
         for (final step in run.steps)
           switch (step.kind) {
-            'asked' => _Bubble(words: step.words, mine: true),
+            'asked' => step.pictures.isEmpty ? _Bubble(words: step.words, mine: true) : _Sent(step: step),
             'said' => _Bubble(words: step.words),
             'thought' => _Thought(words: step.words),
             'notice' => _Quiet(step.words),
@@ -787,10 +934,17 @@ class _Composer extends StatelessWidget {
                 ),
               ]),
             ),
+          if (hasKey) _PictureTray(state: state),
           // One field, Send inside its trailing end (Matt, 2026-10-17: "a more streamlined text input that's inline
           // with the button, the send button should be nested inside the input as well to the right"): the kit's
-          // GlacierInput, at its large size, with Send (Stop while Claude works) as its trailing control.
-          GlacierInput(
+          // GlacierInput, at its large size, with Send (Stop while Claude works) as its trailing control. Before it,
+          // the picture button, where pictures can come from.
+          Row(children: [
+            if (hasKey && chat.pictures != null) ...[
+              _AttachButton(state: state),
+              SizedBox(width: t.space(2)),
+            ],
+            Expanded(child: GlacierInput(
             key: const ValueKey('claude-ask'),
             size: GlacierFieldSize.lg,
             ariaLabel: hasKey ? 'Message $speaker' : 'A request for your Ask Claude note',
@@ -804,13 +958,170 @@ class _Composer extends StatelessWidget {
             autoFocus: runner.conversation.isEmpty,
             enterKeyHint: TextInputAction.send,
             onSubmitted: (_) => state._send(),
+            onKeyDown: chat.pictures?.clipboard == null ? null : state._key,
             trailingExtent: send,
             trailing: runner.working
                 ? _Round(key: const ValueKey('claude-stop'), label: 'Stop Claude', onPressed: runner.stop, filled: true, side: send, child: const AppIcon(Lucide.square, size: 11, color: claudeIvory))
                 : _Round(key: const ValueKey('claude-send'), label: 'Send', onPressed: state._send, filled: true, side: send, child: const AppIcon(Lucide.arrowUp, size: 15, color: claudeIvory)),
-          ),
+          )),
+          ]),
         ],
       ),
     );
+  }
+}
+
+/// The picture button before the field: the device's chooser, or, faded, why not (the model cannot see pictures, no AI
+/// is set up, the limit is reached), said under the pictures' row when pressed.
+class _AttachButton extends StatelessWidget {
+  const _AttachButton({required this.state});
+
+  final _ClaudeChatState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final cannot = state._cannotAttach;
+    final ink = t.color('app-ink');
+    return Opacity(
+      opacity: cannot == null ? 1 : 0.4,
+      child: _Round(
+        key: const ValueKey('claude-attach'),
+        label: cannot == null ? 'Attach a picture' : 'Attach a picture, not available: $cannot',
+        onPressed: state._attach,
+        child: AppIcon(Lucide.imagePlus, size: 20, color: ink),
+      ),
+    );
+  }
+}
+
+/// The pictures waiting to go, each a thumbnail with its ×; the chips to send while nothing is written; "Keep pictures
+/// in notes"; and what the row has to say.
+class _PictureTray extends StatelessWidget {
+  const _PictureTray({required this.state});
+
+  final _ClaudeChatState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final images = state._images;
+    final note = state._imageNote;
+    if (images.isEmpty && state._readying == 0 && note == null) return const SizedBox.shrink();
+    final subtle = t.color('glacier-text-subtle');
+    final xs = t.fontSize('xs');
+    final runner = state.widget.runner;
+    final empty = state._field.text.trim().isEmpty;
+    return Padding(
+      padding: EdgeInsets.only(bottom: t.space(2)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (images.isNotEmpty || state._readying > 0)
+            SingleChildScrollView(
+              key: const ValueKey('claude-pictures'),
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                for (var i = 0; i < images.length; i += 1) _Thumb(image: images[i], index: i, onRemove: () => state._remove(i)),
+                for (var i = 0; i < state._readying; i += 1)
+                  Container(
+                    width: 56,
+                    height: 56,
+                    margin: EdgeInsets.only(right: t.space(2)),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('md')), color: t.colorOf('color-mix(in oklch, var(--app-ink) 8%, transparent)')),
+                  ),
+              ]),
+            ),
+          if (images.isNotEmpty && empty && !runner.working) ...[
+            SizedBox(height: t.space(2)),
+            Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+              for (final chip in chatImageChips) _Pill(key: ValueKey('claude-chip:$chip'), words: chip, onPressed: () => state._send(chip)),
+            ]),
+          ],
+          if (images.isNotEmpty && runner.keepPicture != null) ...[
+            SizedBox(height: t.space(2)),
+            GlacierPressable(
+              key: const ValueKey('claude-keep-pictures'),
+              onPressed: state._toggleKeep,
+              semanticLabel: 'Keep pictures in notes: ${state._keepPictures ? 'on' : 'off'}',
+              builder: (context, pressing) => Row(children: [
+                AppIcon(state._keepPictures ? Lucide.squareCheckBig : Lucide.square, size: 14, color: state._keepPictures ? claudeOrange : subtle),
+                SizedBox(width: t.space(2)),
+                Flexible(child: Text('Keep pictures in notes', style: pageText(t, xs, color: subtle))),
+              ]),
+            ),
+          ],
+          if (note != null) ...[
+            SizedBox(height: t.space(1)),
+            Text(note, key: const ValueKey('claude-picture-note'), style: pageText(t, xs, color: subtle)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One picture waiting to go: a thumbnail, its × at the corner.
+class _Thumb extends StatelessWidget {
+  const _Thumb({required this.image, required this.index, required this.onRemove});
+
+  final ChatImage image;
+  final int index;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.only(right: t.space(2), top: 4),
+      child: Stack(clipBehavior: Clip.none, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(t.radius('md')),
+          child: Image.memory(image.bytes, key: ValueKey('claude-picture:$index'), width: 56, height: 56, fit: BoxFit.cover, cacheWidth: 168, gaplessPlayback: true, semanticLabel: 'Picture ${index + 1}'),
+        ),
+        Positioned(
+          top: -4,
+          right: -4,
+          child: GlacierPressable(
+            key: ValueKey('claude-picture-remove:$index'),
+            onPressed: onRemove,
+            semanticLabel: 'Remove picture ${index + 1}',
+            builder: (context, state) => Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: claudeSlate, border: Border.all(color: t.color('app-paper'), width: 1.5)),
+              child: const AppIcon(Lucide.x, size: 11, color: claudeIvory),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// The person's message with the pictures it carried: the pictures over the bubble, on the right.
+class _Sent extends StatelessWidget {
+  const _Sent({required this.step});
+
+  final ClaudeStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+      Padding(
+        padding: EdgeInsets.only(top: t.space(1)),
+        child: Wrap(alignment: WrapAlignment.end, spacing: t.space(1), runSpacing: t.space(1), children: [
+          for (final picture in step.pictures)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(t.radius('md')),
+              child: Image.memory(picture.bytes, width: 72, height: 72, fit: BoxFit.cover, cacheWidth: 216, gaplessPlayback: true, excludeFromSemantics: true),
+            ),
+        ]),
+      ),
+      _Bubble(words: step.words, mine: true),
+    ]);
   }
 }
