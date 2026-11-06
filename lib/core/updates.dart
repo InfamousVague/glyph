@@ -97,6 +97,13 @@ const bool _walk = bool.fromEnvironment('GHOST_UPDATES_TEST_WALK');
 /// Whether this is the build that replaces the Tauri app (`--dart-define=GHOST_CUTOVER=true`; the header).
 const bool _cutover = bool.fromEnvironment('GHOST_CUTOVER');
 
+/// Whether this is the build made for Google Play (`--dart-define=GHOST_STORE=play`: tool/cutover-build.sh --play;
+/// docs/store/play/README.md). Play updates what it installs and refuses an app that updates itself, so this build
+/// never looks, whatever else it is told ([UpdatesConfig.of]), and its Gradle half takes REQUEST_INSTALL_PACKAGES and
+/// the installer's FileProvider out of the manifest (android/app/src/play/AndroidManifest.xml). False in every other
+/// build, by a constant.
+const bool playStoreBuild = String.fromEnvironment('GHOST_STORE') == 'play';
+
 /// Where the Tauri app's installs look for a release (`tauri/src-tauri/ota-sources.txt`, its one line; the
 /// directory `tauri/scripts/deploy-ota.mjs` publishes `glyph.apk` and `apk.json` into).
 const String tauriReleases = 'https://attack.fm/glyph';
@@ -162,12 +169,14 @@ class UpdatesConfig {
   final bool http;
 
   /// What this build was told, or null where it does not check.
-  static UpdatesConfig? fromBuild() => of(source: _source, keys: trustedUpdateKeys, debug: kDebugMode, testing: _testing, testKey: _testKey, cutover: _cutover);
+  static UpdatesConfig? fromBuild() => of(source: _source, keys: trustedUpdateKeys, debug: kDebugMode, testing: _testing, testKey: _testKey, cutover: _cutover, playStore: playStoreBuild);
 
   /// The rule, with everything it reads handed in. Null for: no address (but in the build that replaces the Tauri
   /// app, [cutover], which then looks at [tauriReleases]); a debug build not under test; an address that is not
-  /// https (http, under test); the Tauri app's own in any build but that one; and no key to believe.
-  static UpdatesConfig? of({required String source, required List<String> keys, required bool debug, bool testing = false, String testKey = '', bool cutover = false}) {
+  /// https (http, under test); the Tauri app's own in any build but that one; no key to believe; and Google Play's
+  /// build ([playStore]), whatever it is told, since the store updates it.
+  static UpdatesConfig? of({required String source, required List<String> keys, required bool debug, bool testing = false, String testKey = '', bool cutover = false, bool playStore = false}) {
+    if (playStore) return null;
     final test = debug && testing;
     if (debug && !test) return null;
     var base = source.trim();

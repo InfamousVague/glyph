@@ -27,7 +27,7 @@ import '../ai/available.dart';
 import '../ai/fills/queue.dart' show lookupsHere;
 import '../core/blanks_syntax.dart' show hasBlank;
 import '../core/mac_app.dart' show macAppStore;
-import '../core/updates.dart' show describeBuild, ghostBuild;
+import '../core/updates.dart' show describeBuild, ghostBuild, playStoreBuild;
 import '../editor/ai/blanks.dart' show BlankHooks, blanks;
 import '../editor/ai/fill_panel.dart' show fillPanel;
 import '../editor/state/state.dart' show Extension;
@@ -41,9 +41,17 @@ bool _iPhone(TargetPlatform? platform) => (platform ?? defaultTargetPlatform) ==
 /// Null anywhere else, where the update client says (lib/root/update_wiring.dart `settingsUpdatesOf`).
 ///
 /// The Mac App Store's build is told the same ([macAppStore], lib/core/mac_app.dart): no Mac build has an updater,
-/// and the one from the store says whose its updates are.
-SettingsUpdates? appStoreUpdates({TargetPlatform? platform, bool? macStore}) =>
-    _iPhone(platform) || ((macStore ?? macAppStore) && (platform ?? defaultTargetPlatform) == TargetPlatform.macOS) ? SettingsUpdates(version: ghostVersion, built: ghostBuild.isEmpty ? null : describeBuild(ghostBuild), store: 'appstore') : null;
+/// and the one from the store says whose its updates are. So is Google Play's build on a phone ([playStoreBuild],
+/// lib/core/updates.dart), with `play` for whose.
+SettingsUpdates? appStoreUpdates({TargetPlatform? platform, bool? macStore, bool? playStore}) {
+  final on = platform ?? defaultTargetPlatform;
+  final store = _iPhone(platform) || ((macStore ?? macAppStore) && on == TargetPlatform.macOS)
+      ? 'appstore'
+      : (playStore ?? playStoreBuild) && on == TargetPlatform.android
+          ? 'play'
+          : null;
+  return store == null ? null : SettingsUpdates(version: ghostVersion, built: ghostBuild.isEmpty ? null : describeBuild(ghostBuild), store: store);
+}
 
 /// Whether the + beside a line offers A picture here (`canPickPicture`).
 bool plusOffersPicture({TargetPlatform? platform}) => !_iPhone(platform);

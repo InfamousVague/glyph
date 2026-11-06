@@ -68,6 +68,20 @@ val ghostCutover = (!System.getenv("GHOST_CUTOVER").isNullOrEmpty() && System.ge
 val tauriLastVersionCode = 1015000
 if (ghostCutover && ghostPerfId) throw GradleException("GHOST_CUTOVER and GHOST_PERF_ID are two different apps: a measured build never replaces Ghost.md.")
 
+/*
+ * THE BUILD FOR GOOGLE PLAY (docs/store/play/README.md). Not the default: built with
+ *
+ *   tool/cutover-build.sh 2.4.25 --play      (GHOST_STORE=play, or --android-project-arg=ghost.store=play, beside GHOST_CUTOVER)
+ *
+ * it is the cutover build (the id com.mattssoftware.glyph, its version code, its key, which Play App Signing takes as
+ * the upload key) with the one thing Play refuses taken out: the app updating itself. The manifest of
+ * src/play/ is laid over the release build's, and removes REQUEST_INSTALL_PACKAGES and the FileProvider that hands
+ * a downloaded APK to Android's installer; Dart's half, `--dart-define=GHOST_STORE=play` (lib/core/updates.dart
+ * `playStoreBuild`), never looks for an update. Every other build has neither and is exactly as it was.
+ */
+val ghostPlay = System.getenv("GHOST_STORE") == "play" || (project.findProperty("ghost.store") as String?) == "play"
+if (ghostPlay && !ghostCutover) throw GradleException("GHOST_STORE=play is the cutover build for Play: give GHOST_CUTOVER=1 too (tool/cutover-build.sh --play).")
+
 /** A version name as Tauri numbered it: 1.15.0 is 1015000. */
 fun tauriVersionCode(name: String): Int {
     val parts = name.substringBefore('-').substringBefore('+').split('.').map { it.toIntOrNull() ?: throw GradleException("GHOST_CUTOVER needs a version name of three numbers (--build-name=2.0.0), not $name.") }
@@ -130,6 +144,11 @@ android {
         resValue("bool", "ghost_cutover", ghostCutover.toString())
         manifestPlaceholders["ghostOwnLauncher"] = if (ghostCutover) "com.mattssoftware.glyph.category.NOT_THE_LAUNCHER" else "android.intent.category.LAUNCHER"
         manifestPlaceholders["ghostTauriLauncher"] = if (ghostCutover) "android.intent.category.LAUNCHER" else "com.mattssoftware.glyph.category.NOT_THE_LAUNCHER"
+        // Google Play's build (`ghostPlay`, above) is arm64 alone, as the core is: a library's own .so for another ABI
+        // (DataStore's libdatastore_shared_counter.so, for armeabi-v7a and x86_64) would otherwise have Play offer
+        // the bundle to phones with no Flutter engine and no core for them, where it could not start. Flutter's plugin has
+        // already filled the list with its three ABIs (FlutterPlugin.configureAbiWithoutSplits), so it is emptied first.
+        if (ghostPlay) ndk { abiFilters.clear(); abiFilters += listOf("arm64-v8a") }
     }
 
     buildFeatures {
@@ -141,6 +160,8 @@ android {
         // The words the watch app and this one speak (the paths, the capability names, a take's frame), from the one
         // file both compile (android/wear-shared/; docs/WATCH.md).
         getByName("main").java.srcDir("../wear-shared/kotlin")
+        // Google Play's build (`ghostPlay`, above): its manifest over the release build's, which has none of its own.
+        if (ghostPlay) getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
     }
 
     signingConfigs {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Google Play's build only (GHOST_STORE=play; android/app/build.gradle.kts `ghostPlay`, docs/store/play/README.md),
+  laid over the release build's manifest. Play updates the app itself and refuses one that installs its own updates,
+  so the two things in src/main that only the updater uses are taken out: the permission to hand an APK to Android's
+  installer, and the FileProvider that hands it (UpdateInstaller.kt is still compiled, and never called: Dart's half,
+  lib/core/updates.dart `playStoreBuild`, makes no updater).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <application>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            tools:node="remove" />
+    </application>
+</manifest>

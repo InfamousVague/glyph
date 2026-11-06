@@ -70,6 +70,8 @@ String updatesStatus(SettingsUpdates updates) {
 String updatesSummary(SettingsUpdates updates) {
   // An iPhone's copy checks nothing (Matt, 2026-10-13): its row says whose its updates are, as its page does.
   if (updates.store == 'appstore') return 'Updates through the App Store';
+  // Google Play's build checks nothing either: Play updates it (lib/core/updates.dart `playStoreBuild`).
+  if (updates.store == 'play') return 'Updates through Google Play';
   if (updates.restarting != null) return 'Restarting';
   if (updates.restartable != null) return '${updates.restartable} in Activity';
   if (updates.checking) return 'Checking';
@@ -213,7 +215,8 @@ class AboutPane extends StatelessWidget {
           ],
         ),
         // The releases are over-the-air builds, which an iPhone never runs: the App Store says what's new there.
-        if (updates != null && updates.store != 'appstore') releasesSection(updates),
+        // Nor does Google Play's build, whose updates are the store's too.
+        if (updates != null && updates.store != 'appstore' && updates.store != 'play') releasesSection(updates),
         // What this build is made of, as the build itself knows it: for saying which one a thing was seen in. Last on the
         // page, under everything the web app's About has (the owner asked for it on 2026-10-11; the page has none).
         PaneSection(
@@ -236,6 +239,12 @@ List<Widget> updatesSection(SettingsUpdates updates) {
   if (updates.store == 'appstore') {
     return const [
       PaneSection(title: 'Updates', children: [SettingRow(label: 'Ghost.md updates through the App Store.')]),
+    ];
+  }
+  // From Google Play, the same: Play installs every new version, and this build never looks.
+  if (updates.store == 'play') {
+    return const [
+      PaneSection(title: 'Updates', children: [SettingRow(label: 'Ghost.md updates through Google Play.')]),
     ];
   }
   final alerts = updates.alerts;

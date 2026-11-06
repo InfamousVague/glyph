@@ -569,7 +569,7 @@ final List<SettingsSectionSpec> _sections = [
     webFile: 'settings/AboutPane.tsx',
     // The version and where it stands, now that updates live on this page too.
     summary: (facts) => aboutSummary(facts.updates),
-    settings: (facts) => aboutFindable(updates: facts.updates != null, alerts: facts.updates?.alerts != null, whatsNew: facts.updates?.store != 'appstore'),
+    settings: (facts) => aboutFindable(updates: facts.updates != null, alerts: facts.updates?.alerts != null, whatsNew: facts.updates?.store != 'appstore' && facts.updates?.store != 'play'),
     pane: AboutPane.hosted,
   ),
   // Help, not settings: pages behind About's Help card, still searched, and found by their own names alone.
