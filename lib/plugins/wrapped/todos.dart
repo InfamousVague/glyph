@@ -102,3 +102,12 @@ String? withoutTodos(String body, Iterable<WrappedTodo> todos) {
   if (drop.isEmpty) return null;
   return [for (var i = 0; i < lines.length; i += 1) if (!drop.contains(i)) lines[i]].join('\n');
 }
+
+final RegExp _boxed = RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]\s+(\S.*)$');
+
+/// Every to-do of [body], note [noteId]'s, by its [WrappedTodo.key], and whether it is done: what the weekly report
+/// compares with the last report's to tell a to-do added from one done (weekly.dart).
+Map<String, bool> todoStates(String noteId, String body) => {
+      for (final (_, line) in _lines(body.split('\n')))
+        if (_boxed.firstMatch(line) case final m?) '$noteId|${stableHash(m.group(2)!.trim())}': m.group(1) != ' ',
+    };

@@ -9,6 +9,9 @@
 /// - **The sidebar**: a Wrapped row, and **the bar**: Open my Wrapped ([GlyphPlugin.places]); both open the page
 ///   (page.dart) with the story and the review.
 /// - **The Activity tray**: the pass as a job with Stop, and a foreground service on Android while it reads.
+/// - **The weekly report** (weekly.dart; Matt, 2026-11-06: "Wrapped should also give weekly reports and work using the
+///   attached AI such as Claude"): "Your week in notes", a note in the Weekly reports journal each Monday, with a
+///   notification, the home card's This week, and its next steps on the page.
 ///
 /// The parts: stats.dart (the counts), todos.dart (to-dos read and changed), pass.dart (the slow pass and its asks),
 /// state.dart (what is kept, in the Library), actions.dart (each press, and Undo), service.dart, story.dart,
@@ -39,6 +42,8 @@ export 'state.dart';
 export 'stats.dart';
 export 'story.dart';
 export 'todos.dart';
+export 'weekly.dart';
+export 'weekly_section.dart';
 
 /// Whether Wrapped is on.
 bool wrappedOn() => pluginOn(wrappedManifest);

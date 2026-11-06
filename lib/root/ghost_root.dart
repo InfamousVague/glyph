@@ -243,7 +243,8 @@ import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove
 import '../plugins/host.dart' show PluginNotes, onPluginStorage, usePluginNotes;
 import '../plugins/note_decay/note_decay.dart' show startNoteDecay;
 import '../plugins/registry.dart' show Registry, plugins;
-import '../plugins/wrapped/wrapped.dart' show WrappedService, WrappedStore, StorageWrappedFile, openWrappedPage, wrappedFileFor, wrappedHost, wrappedId, wrappedOpenNote;
+import '../core/phone_notices.dart' show PhoneNoticesHost;
+import '../plugins/wrapped/wrapped.dart' show firstWeekdayOf, WrappedService, WrappedStore, StorageWrappedFile, openWrappedPage, wrappedFileFor, wrappedHost, wrappedId, wrappedOpenNote;
 import '../plugins/slack/channels.dart' show channels, postToChannel;
 import '../plugins/slack/mrkdwn.dart' show noteMessage;
 import '../plugins/discord/channels.dart' show discordChannels, postToDiscord;
@@ -1996,6 +1997,7 @@ class _GhostRootState extends State<GhostRoot> {
     _stopDesktop?.call();
     _stopConfigTouch?.call();
     _configLife?.dispose();
+    _wrappedLife?.dispose();
     unawaited(_libraryConfig?.flush());
     _libraryConfig?.dispose();
     if (identical(snippetsSource, _snippets)) snippetsSource = null;
@@ -2268,15 +2270,27 @@ class _GhostRootState extends State<GhostRoot> {
       localOnly: () => preferences.value.localOnly,
       background: ChannelBackgroundJobs(),
       // Held while anything else is at work: a recording, a meeting, a sync, another job.
-      busy: () => (_voice?.live?.state?.recording ?? false) || (_shell.currentState?.screen.isRecording ?? false) || activity.value.any((job) => job.state.live && job.id != 'wrapped'),
+      busy: () => (_voice?.live?.state?.recording ?? false) || (_shell.currentState?.screen.isRecording ?? false) || activity.value.any((job) => job.state.live && !job.id.startsWith('wrapped')),
       plugins: () => plugins.enabled().length,
+      // The weekly report (lib/plugins/wrapped/weekly.dart; Matt, 2026-11-06): its notification through the phone's own
+      // notices, and its weeks starting on the first day where the device is.
+      notices: const PhoneNoticesHost(),
+      firstWeekday: () => firstWeekdayOf(WidgetsBinding.instance.platformDispatcher.locale.countryCode),
+      notesRead: () => _notesRead.isCompleted,
       onOpen: () {
         final at = _shell.currentContext;
         if (at != null) unawaited(openWrappedPage(at));
       },
     );
     wrappedOpenNote = (id, line) => _shell.currentState?.openNote(id, at: line == null ? null : 'line:${line + 1}');
-    unawaited(_wrapped!.store.reread().then((_) => _wrapped?.resume()));
+    final wrappedRead = _wrapped!.store.reread();
+    unawaited(wrappedRead.then((_) => _wrapped?.resume()));
+    // The week due made now if it was missed (once the notes are read too, so an empty list is never taken for an
+    // empty week), then looked at again each hour and as the app comes back.
+    unawaited(Future.wait([wrappedRead, _notesRead.future]).then((_) => _wrapped?.lookWeekly()));
+    _wrappedLife = AppLifecycleListener(onResume: () {
+      if (_notesRead.isCompleted) unawaited(_wrapped?.lookWeekly());
+    });
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);
@@ -2510,6 +2524,9 @@ class _GhostRootState extends State<GhostRoot> {
 
   VoidCallback? _stopConfigTouch;
   AppLifecycleListener? _configLife;
+
+  /// Wrapped's weekly report looked at again as the app comes back (lib/plugins/wrapped/weekly.dart).
+  AppLifecycleListener? _wrappedLife;
 
   /// The key that says the example notes were given, or passed over (GHST-103).
   static const String starterExamplesKey = 'glyph-starter-examples';

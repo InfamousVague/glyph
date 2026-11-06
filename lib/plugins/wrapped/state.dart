@@ -10,6 +10,9 @@
 /// - **The library's read**: the themes of the period, and the tidying suggested ([WrappedSuggestion]).
 /// - **The run**: which period, whether a run was asked for and has not finished ([WrappedState.wanted], so it goes on
 ///   after the app is opened again), when it began and ended, and when the story was last seen.
+/// - **The weekly report** ([WeeklyState], weekly.dart): its choices, the weeks made, the last report and its next
+///   steps, and what the last report saw (each to-do by its note and the hash of its words, each note's revision).
+/// - **Which AI** the person picked on the page, where they picked one.
 /// - **What the person said**: each Keep and Dismiss, remembered by key; each Later, until when; and each change a press
 ///   made, as Cleanup's record, so it can be taken back ([WrappedState.records]).
 ///
@@ -28,6 +31,7 @@ import '../cleanup/records.dart' show CleanupRecord;
 import '../types.dart' show PluginStorage;
 import 'manifest.dart';
 import 'stats.dart';
+import 'weekly.dart' show WeeklyState;
 
 /// The file's name inside the Library's dot folder, and its version.
 const String wrappedFileName = 'wrapped.json';
@@ -159,6 +163,8 @@ class WrappedState {
     this.later = const {},
     this.records = const [],
     this.aiName,
+    this.chosenAi,
+    this.weekly = const WeeklyState(),
   });
 
   final WrappedPeriod period;
@@ -186,6 +192,13 @@ class WrappedState {
   /// Who read the notes last.
   final String? aiName;
 
+  /// The AI the person picked on the page ("Which AI"), by id; null for the app's own choice (cleanup/ai.dart
+  /// `defaultAiId`).
+  final String? chosenAi;
+
+  /// The weekly report's choices and what it keeps (weekly.dart).
+  final WeeklyState weekly;
+
   /// The most records kept.
   static const int mostRecords = 30;
 
@@ -208,6 +221,8 @@ class WrappedState {
     Map<String, int>? later,
     List<CleanupRecord>? records,
     String? aiName,
+    String? Function()? chosenAi,
+    WeeklyState? weekly,
   }) =>
       WrappedState(
         period: period ?? this.period,
@@ -222,6 +237,8 @@ class WrappedState {
         later: later ?? this.later,
         records: records ?? this.records,
         aiName: aiName ?? this.aiName,
+        chosenAi: chosenAi == null ? this.chosenAi : chosenAi(),
+        weekly: weekly ?? this.weekly,
       );
 
   Map<String, Object?> toJson() => {
@@ -232,6 +249,8 @@ class WrappedState {
         'finished': ?finished?.toUtc().toIso8601String(),
         'seen': ?seen?.toUtc().toIso8601String(),
         'ai': ?aiName,
+        'chosenAi': ?chosenAi,
+        'weekly': weekly.toJson(),
         'themes': themes,
         'suggestions': [for (final s in suggestions) s.toJson()],
         'dismissed': (dismissed.toList()..sort()),
@@ -251,6 +270,8 @@ class WrappedState {
       finished: at('finished'),
       seen: at('seen'),
       aiName: json['ai'] is String ? json['ai'] as String : null,
+      chosenAi: json['chosenAi'] is String ? json['chosenAi'] as String : null,
+      weekly: WeeklyState.fromJson(json['weekly']),
       themes: [if (themes is List) for (final t in themes) if (t is String) t],
       suggestions: [if (suggestions is List) for (final s in suggestions) ?WrappedSuggestion.fromJson(s)],
       dismissed: {if (dismissed is List) for (final d in dismissed) if (d is String) d},
@@ -302,7 +323,7 @@ class WrappedStore extends ChangeNotifier implements ValueListenable<WrappedStat
     final had = _value;
     _file = file;
     final text = file == null ? null : await file.read().catchError((Object _) => null);
-    if (file != null && (text == null || text.trim().isEmpty) && (had.made || had.reads.isNotEmpty)) {
+    if (file != null && (text == null || text.trim().isEmpty) && (had.made || had.reads.isNotEmpty || had.weekly.weeks.isNotEmpty)) {
       set(had);
       _read = true;
       return;

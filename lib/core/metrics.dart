@@ -279,6 +279,10 @@ enum MetricEvent {
   wrappedFinished('wrapped_finished', {'notes': _counts, 'took': _durations}),
   wrappedViewed('wrapped_viewed', {'period': WordProp(wrappedPeriods)}),
   wrappedAction('wrapped_action', {'kind': WordProp(wrappedActionKinds), 'count': _counts}),
+  // The weekly report (lib/plugins/wrapped/weekly.dart): made, with how many notes, to-dos done and next steps, each a
+  // bucket; viewed, with its steps' bucket.
+  wrappedWeeklyMade('wrapped_weekly_made', {'notes': _counts, 'todos': _counts, 'steps': _counts}),
+  wrappedWeeklyViewed('wrapped_weekly_viewed', {'steps': _counts}),
 
   // Account, organizations, sharing: never who.
   signedUp('signed_up', {}),

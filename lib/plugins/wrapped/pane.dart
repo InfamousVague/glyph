@@ -1,6 +1,7 @@
-/// Wrapped's page in Settings (docs/WRAPPED.md, "Where it lives"): the period, View the story, Make or Refresh with
-/// the estimate and how far a run is (wrapped's head, page.dart), the review a press away, and what is sent. In Simple
-/// (`Preferences.simple`) Read everything again waits behind More, which opens in place.
+/// Wrapped's page in Settings (docs/WRAPPED.md, "Where it lives"): This week's report (weekly_section.dart), the
+/// period, View the story, Make or Refresh with the estimate and how far a run is (wrapped's head, page.dart), the
+/// review a press away, Which AI, the weekly reports' choices, and what is sent. In Simple (`Preferences.simple`) the
+/// weekly reports' choices and Read everything again wait behind More, which opens in place.
 library;
 
 import 'dart:async';
@@ -14,12 +15,15 @@ import '../../settings/settings_search.dart' show SettingsFindable;
 import 'page.dart';
 import 'pass.dart' show WrappedPacing;
 import 'service.dart';
+import 'weekly_section.dart';
 
 /// What Settings' search finds on the page.
 const List<SettingsFindable> wrappedFindable = [
   SettingsFindable('Your Wrapped', 'wrapped year review story spotify recap make refresh period this year last 12 months all time'),
   SettingsFindable('Review', 'unfinished to-dos todo check off stale archive trash tidy reorganise move merge duplicates links'),
   SettingsFindable('What is sent', 'wrapped ai sent cost tokens key privacy gist'),
+  SettingsFindable('Which AI', 'wrapped which ai provider model claude openai gemini device choose'),
+  SettingsFindable('Weekly reports', 'wrapped weekly report week in notes monday day time summary notify notification'),
 ];
 
 class WrappedPane extends StatefulWidget {
@@ -53,6 +57,8 @@ class _WrappedPaneState extends State<WrappedPane> {
       return const PaneBody(children: [
         PaneSection(title: 'Your Wrapped', children: [SettingRow(label: 'Wrapped starts once your notes are read.')]),
         PaneSection(title: 'Review', children: []),
+        PaneSection(title: 'Which AI', children: []),
+        PaneSection(title: 'Weekly reports', children: []),
         PaneSection(title: 'What is sent', description: Text('Your notes go only to the AI you have connected, with your own key, a few at a time.'), children: []),
       ]);
     }
@@ -61,12 +67,13 @@ class _WrappedPaneState extends State<WrappedPane> {
 
   Widget _page(BuildContext context, WrappedService service) {
     final simple = preferences.value.simple;
-    if (!_more && settingsSought(context, const ['Read everything again'])) _more = true;
+    if (!_more && settingsSought(context, const ['Read everything again', 'Weekly reports', 'Include AI summary', 'Notify me'])) _more = true;
     final full = !simple || _more;
     final ai = service.ai;
     final pace = ai == null ? WrappedPacing.cloud : WrappedPacing.of(ai);
     return PaneBody(
       children: [
+        WrappedWeekSection(service: service),
         WrappedHead(service: service),
         PaneSection(
           title: 'Review',
@@ -80,12 +87,14 @@ class _WrappedPaneState extends State<WrappedPane> {
             ),
           ],
         ),
+        WrappedWhichAi(service: service),
+        if (full) WrappedWeeklySettings(service: service),
         PaneSection(
           title: 'What is sent',
           description: Text(
             ai == null
                 ? 'With no AI connected, your Wrapped is made of counts alone, on this device.'
-                : '${ai.local ? 'Your notes stay on this device: the model on it reads them.' : 'Sent to ${ai.name} with your own key: each note’s title, folder, dates and first ${pace.charsPerNote} characters, ${pace.notesPerAsk} notes at a time, then one ask with a one-line gist of each.'} Your organizations’ notes are never read. A note is sent again only once its words change. What is found is kept in your Library’s .glyph folder.',
+                : '${ai.local ? 'Your notes stay on this device: the model on it reads them.' : 'Sent to ${ai.name} with your own key: each note’s title, folder, dates and first ${pace.charsPerNote} characters, ${pace.notesPerAsk} notes at a time, then one ask with a one-line gist of each.'} Your organizations’ notes are never read. A note is sent again only once its words change. A weekly report sends the gists of the week’s notes, its counts and a few open to-dos’ lines. What is found is kept in your Library’s .glyph folder.',
           ),
           children: const [],
         ),
@@ -106,7 +115,7 @@ class _WrappedPaneState extends State<WrappedPane> {
               SettingRow(
                 key: const ValueKey('wrapped-pane-more'),
                 label: 'More',
-                hint: const Text('Read everything again.'),
+                hint: const Text('Weekly reports’ day, time, AI summary and notification; read everything again.'),
                 control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
               ),
             ],

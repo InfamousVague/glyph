@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.4.26",
+    "date": "2026-11-06",
+    "title": "Your week in notes",
+    "items": [
+      {"icon": "calendar-days", "words": "Wrapped writes a weekly report each Monday: notes written, to-dos done, your busiest day and what went stale.", "kind": "new"},
+      {"icon": "sparkles", "words": "With an AI connected, it sums up your week and suggests three next steps you can do from Wrapped, with Undo.", "kind": "new"},
+      {"icon": "settings", "words": "Choose which AI Wrapped uses, and the report's day, time, AI summary and notification on Wrapped's page.", "kind": "new"}
+    ]
+  },
+  {
     "version": "2.4.25",
     "date": "2026-11-05",
     "title": "Plugins on the dock",

@@ -20,7 +20,11 @@ import '../../core/background_jobs.dart';
 import '../../core/library.dart';
 import '../../core/metrics.dart' show MetricEvent, countBucket, durationBucket, track;
 import '../../core/note.dart';
+import '../../core/front_matter.dart' show frontMatterValue;
 import '../../core/note_text.dart' show noteTitle;
+import '../../core/phone_notices.dart' show NoticesHost, NoticesState;
+import '../../book/journal.dart' show withEntry;
+import '../../core/book.dart' show isJournalBody;
 import '../../core/trash.dart';
 import '../../core/workspaces.dart';
 import '../cleanup/ai.dart';
@@ -31,12 +35,20 @@ import '../note_decay/decay.dart' show noteDecay;
 import 'actions.dart';
 import 'manifest.dart';
 import 'pass.dart';
+import 'review.dart' show wrappedOpenNote;
 import 'state.dart';
 import 'stats.dart';
 import 'todos.dart';
+import 'weekly.dart';
 
 /// The job a pass is on the Activity tray as.
 const String wrappedJobId = 'wrapped';
+
+/// The job a weekly report's AI part is on the tray as: neither holds the other back as "the app is busy".
+const String wrappedWeeklyJobId = 'wrapped-weekly';
+
+/// The most notes a weekly report reads again for their gists: the most recently edited of the week's.
+const int weeklyMostGists = 60;
 
 /// A note not edited for this long is taken for stale without the AI, where it is short too.
 const Duration staleAfter = Duration(days: 270);
@@ -71,6 +83,9 @@ class WrappedService extends ChangeNotifier {
     this.onOpen,
     this.plugins,
     ContradictionRunner? Function()? contradictions,
+    NoticesHost? notices,
+    int Function()? firstWeekday,
+    bool Function()? notesRead,
   })  : store = store ?? WrappedStore(),
         _on = on ?? (() => true),
         _switches = switches,
@@ -83,6 +98,9 @@ class WrappedService extends ChangeNotifier {
         _wait = wait,
         _pacing = pacing,
         _contradictions = contradictions ?? (() => contradictionRunner.value),
+        _notices = notices,
+        _firstWeekday = firstWeekday ?? (() => DateTime.monday),
+        _notesRead = notesRead ?? (() => true),
         editing = WrappedEditing(library: library, workspaces: workspaces, trash: trash, clock: clock) {
     this.store.addListener(notifyListeners);
     _switches?.addListener(_switched);
@@ -108,6 +126,11 @@ class WrappedService extends ChangeNotifier {
   final Future<void> Function(Duration wait)? _wait;
   final WrappedPacing? _pacing;
   final ContradictionRunner? Function() _contradictions;
+  final NoticesHost? _notices;
+  final int Function() _firstWeekday;
+
+  /// Whether the library has been read: before, an empty list would be taken for an empty week.
+  final bool Function() _notesRead;
 
   /// Opens the Wrapped page: the tray's View.
   final VoidCallback? onOpen;
@@ -141,17 +164,34 @@ class WrappedService extends ChangeNotifier {
   WrappedEstimate? get estimate => _estimate;
   bool get aisRead => _aisRead;
 
-  /// The AI a run would ask: the app's own choice for the assistant where it is connected, else the first.
+  /// The AI a run would ask: the one picked on the page ("Which AI") where it is connected, else the app's own choice
+  /// for the assistant, else the first (Cleanup's rule, cleanup/ai.dart `defaultAiId`).
   CleanupAi? get ai {
-    final id = defaultAiId(_connected, choice: choice, localOnly: _localOnly());
+    final id = defaultAiId(_connected, choice: choice, chosen: state.chosenAi, localOnly: _localOnly());
     return _connected.where((a) => a.id == id).firstOrNull;
+  }
+
+  /// The AIs that can be asked now, as last read ([readAis]).
+  List<CleanupAi> get ais => _connected;
+
+  /// "Which AI": [id] asked from now on, kept in Wrapped's file; its estimate made again.
+  void chooseAi(String id) {
+    store.change((now) => now.copyWith(chosenAi: () => id));
+    final ai = this.ai;
+    final notes = passNotes;
+    _estimate = ai == null ? null : wrappedEstimate(notesToRead(notes, state.reads), notes.length, ai, pacing: _pacing);
+    notifyListeners();
   }
 
   void _switched() {
     if (!on) {
       stop();
-    } else if (state.wanted && !_running) {
-      unawaited(resume());
+      _weeklyStop?.stop();
+      _weeklyTimer?.cancel();
+    } else {
+      if (state.wanted && !_running) unawaited(resume());
+      // Switched on (or back on): the weekly report looked at, and timed from now.
+      unawaited(lookWeekly());
     }
     notifyListeners();
   }
@@ -164,10 +204,11 @@ class WrappedService extends ChangeNotifier {
     return at == null || workspaces.orgOf(at) == null;
   }
 
-  /// The person's own notes out of the Trash, archived ones too: what the counts read.
+  /// The person's own notes out of the Trash, archived ones too: what the counts read. The weekly reports and their
+  /// journal are the app's own, and left out.
   List<Note> get ownNotes => [
         for (final note in library.value)
-          if (!trashedNote(note, trash.value) && _own(note)) note,
+          if (!trashedNote(note, trash.value) && _own(note) && !isWeeklyNote(note)) note,
       ];
 
   /// The notes a pass reads: the person's own, out of the Archive too.
@@ -264,7 +305,7 @@ class WrappedService extends ChangeNotifier {
 
   String _provider(CleanupAi ai) => ai.local ? 'local' : (const {'claude', 'openai', 'gemini', 'aster'}.contains(ai.id) ? ai.id : 'custom');
 
-  bool _busyNow() => _busy?.call() ?? _record.value.any((job) => job.state.live && job.id != wrappedJobId);
+  bool _busyNow() => _busy?.call() ?? _record.value.any((job) => job.state.live && job.id != wrappedJobId && job.id != wrappedWeeklyJobId);
 
   Future<void> _run(CleanupAi ai) async {
     final stop = _stop = WrappedStop();
@@ -551,8 +592,316 @@ class WrappedService extends ChangeNotifier {
   /// Kept Clear: the reads forgotten, so the next Make my Wrapped reads every note again.
   void forgetReads() => store.change((now) => now.copyWith(reads: const {}, themes: const [], suggestions: const []));
 
+  // ---- the weekly report (weekly.dart) ---------------------------------------------------------------------------------
+
+  Timer? _weeklyTimer;
+  bool _weeklyMaking = false;
+  WrappedStop? _weeklyStop;
+
+  WeeklySettings get weeklySettings => state.weekly.settings;
+
+  /// The first day of the week where the device is (weekly.dart `firstWeekdayOf`).
+  int get firstWeekday => _firstWeekday();
+
+  /// Whether a weekly report is being made now.
+  bool get weeklyMaking => _weeklyMaking;
+
+  /// The weekly report's choices changed: kept, and the next look timed again.
+  void setWeekly(WeeklySettings settings) {
+    store.change((now) => now.copyWith(weekly: now.weekly.copyWith(settings: settings)));
+    _scheduleWeekly();
+  }
+
+  /// The last report, while its note is still in the library and out of the Trash.
+  WeeklyReport? get weeklyReport {
+    final report = state.weekly.report;
+    if (report == null) return null;
+    final note = library.noteOf(report.noteId);
+    return note == null || trashedNote(note, trash.value) ? null : report;
+  }
+
+  /// A report made in the last week: the home card reads "This week" while there is one.
+  WeeklyReport? get thisWeek {
+    final report = weeklyReport;
+    if (report == null || !on || !weeklySettings.on) return null;
+    return _clock().difference(report.made) < const Duration(days: 7) ? report : null;
+  }
+
+  /// The AI the weekly report would ask, where its summary is on; null for the counts alone.
+  CleanupAi? get weeklyAi => weeklySettings.ai ? ai : null;
+
+  /// Whether the weekly report needs the person's yes before it spends their key: a cloud AI not yet allowed.
+  bool get weeklyAsks {
+    final ai = weeklyAi;
+    return ai != null && !ai.local && !state.weekly.allowed.contains(ai.id);
+  }
+
+  /// The notes of the week from [start] the report's AI part reads (the week's, newest edit first) and those it must
+  /// read again for a gist (no read yet, or words changed), at most [weeklyMostGists].
+  ({List<WrappedNote> notes, List<WrappedNote> toGist}) _weeklyNotes(WeeklyCounts counts) {
+    final byId = {for (final n in passNotes) n.id: n};
+    final notes = [for (final id in counts.touched) ?byId[id]].take(weeklyMostGists).toList();
+    return (notes: notes, toGist: notesToRead(notes, state.reads));
+  }
+
+  /// The counts of the week from [start], as the notes are now, against what the last report saw.
+  WeeklyCounts weeklyCountsFor(DateTime start) => weeklyCounts(ownNotes, start: start, todosBefore: state.weekly.todos, revsBefore: state.weekly.revs, dismissed: state.dismissed, staleAfter: staleAfter);
+
+  /// About what this week's report costs with the AI, for the page: "~6k tokens · about $0.02 a week".
+  String? get weeklyCostWords {
+    final ai = weeklyAi;
+    if (ai == null) return null;
+    final counts = weeklyCountsFor(weekStartOf(_clock(), firstWeekday));
+    final (:notes, :toGist) = _weeklyNotes(counts);
+    return weeklyEstimate(ai, toGist: toGist.length, notes: notes.length, todos: counts.unfinished.length + counts.todosOpen, pacing: _pacing).words;
+  }
+
+  /// The weekly report looked at (see weekly.dart): as the app opens, comes back, and every hour while it runs. The
+  /// week due is made once: not when made here before, nor when its note is in the library already (made on another
+  /// device and synced). A week missed is made at the next look. Answers the report made, if one was.
+  Future<WeeklyReport?> lookWeekly() async {
+    _scheduleWeekly();
+    if (!on || !weeklySettings.on || _weeklyMaking || _running || !store.read || !_notesRead()) return null;
+    final start = dueWeek(_clock(), weeklySettings, firstWeekday);
+    if (start == null) return null;
+    final key = weekKeyOf(start);
+    if (state.weekly.made(key)) return null;
+    final there = library.value.where((n) => weekOfNote(n) == key && !trashedNote(n, trash.value)).firstOrNull;
+    if (there != null) {
+      store.change((now) => now.copyWith(weekly: now.weekly.copyWith(weeks: _withWeek(now.weekly.weeks, key))));
+      return null;
+    }
+    return makeWeekly(start);
+  }
+
+  List<String> _withWeek(List<String> weeks, String key) {
+    final next = [...weeks.where((w) => w != key), key];
+    return next.length > WeeklyState.mostWeeks ? next.sublist(next.length - WeeklyState.mostWeeks) : next;
+  }
+
+  void _scheduleWeekly() {
+    _weeklyTimer?.cancel();
+    if (!on || !weeklySettings.on) return;
+    final now = _clock();
+    final until = nextDue(now, weeklySettings, firstWeekday).difference(now);
+    final wait = until.inMilliseconds.clamp(1000, const Duration(hours: 1).inMilliseconds);
+    _weeklyTimer = Timer(Duration(milliseconds: wait), () => unawaited(lookWeekly()));
+  }
+
+  /// Makes the report of the week from [start] (see weekly.dart): the counts, the AI's part where it is on and
+  /// allowed, the note filed in the reports' journal, and a notification where the device lets the app notify and the
+  /// person asked for one. A week with nothing written or edited makes no note. Null when none was made.
+  Future<WeeklyReport?> makeWeekly(DateTime start) async {
+    if (_weeklyMaking) return null;
+    final key = weekKeyOf(start);
+    if (state.weekly.made(key)) return null;
+    _weeklyMaking = true;
+    notifyListeners();
+    try {
+      await readAis();
+      final counts = weeklyCountsFor(start);
+      final snapshot = weeklySnapshot(library.value.where((n) => !trashedNote(n, trash.value) && _own(n)).toList());
+      if (counts.empty) {
+        store.change((now) => now.copyWith(weekly: now.weekly.copyWith(weeks: _withWeek(now.weekly.weeks, key), todos: snapshot.todos, revs: snapshot.revs)));
+        return null;
+      }
+      final ai = weeklyAi;
+      final asked = ai != null && !weeklyAsks ? await _weeklyAsk(ai, counts) : null;
+      // A second look meanwhile is held by [_weeklyMaking]; the week is written down as made with its note, so one
+      // that failed to be filed is tried again at the next look.
+      final noteId = await _fileReport(weeklyMarkdown(counts, ai: asked, aiName: ai?.name, titleOf: _titleOf), weekTitle(start));
+      final report = WeeklyReport(week: key, noteId: noteId, made: _clock(), line: counts.line, summary: asked?.summary ?? '', steps: asked?.steps ?? const [], ai: asked != null && !asked.isEmpty, numbers: counts.numbers);
+      store.change((now) => now.copyWith(weekly: now.weekly.copyWith(weeks: _withWeek(now.weekly.weeks, key), todos: snapshot.todos, revs: snapshot.revs, report: () => report)));
+      track(MetricEvent.wrappedWeeklyMade, {'notes': countBucket(counts.written + counts.edited), 'todos': countBucket(counts.todosDone), 'steps': countBucket(report.steps.length)});
+      await _notifyWeekly(report);
+      return report;
+    } catch (failure) {
+      debugPrint('[glyph] Wrapped’s weekly report was not made: $failure');
+      return null;
+    } finally {
+      _weeklyMaking = false;
+      notifyListeners();
+    }
+  }
+
+  String _titleOf(String id) {
+    final note = library.noteOf(id);
+    return note == null ? '' : noteTitle(note.body).trim();
+  }
+
+  /// The AI's part: gists for the week's notes that have none or changed, then the one small ask. Null where it
+  /// failed or was stopped: the report is the counts alone.
+  Future<WeeklyAi?> _weeklyAsk(CleanupAi ai, WeeklyCounts counts) async {
+    final (:notes, :toGist) = _weeklyNotes(counts);
+    final stop = _weeklyStop = WrappedStop();
+    final job = _record.begin(wrappedWeeklyJobId, kind: JobKind.ai, title: 'Your week in notes', line: 'Writing with ${ai.name}', onStop: stop.stop, onOpen: onOpen, plugin: ai.plugin ?? wrappedId);
+    try {
+      if (toGist.isNotEmpty) {
+        final read = await readNotes(
+          toRead: toGist,
+          ai: ai,
+          pacing: _pacing,
+          busy: _busyNow,
+          stop: stop,
+          wait: _wait,
+          now: _clock,
+          kept: (reads) => store.change((now) => now.copyWith(reads: {...now.reads, ...reads})),
+        );
+        if (read.end != PassEnd.done) {
+          read.end == PassEnd.stopped ? job.stopped() : job.failed(read.problem ?? 'The AI didn’t answer.');
+          return null;
+        }
+      }
+      final todos = [...counts.unfinished];
+      for (final row in todosOf(counts.touched)) {
+        if (todos.length >= weeklyMostTodos) break;
+        if (!todos.any((t) => t.key == row.key)) todos.add(row);
+      }
+      final asking = ai.ask(weeklySystem, weeklyPrompt(counts, notes, state.reads, todos), maxTokens: 900);
+      final answer = readWeeklyAnswer(await asking.done, notes, todos);
+      job.done(result: JobResult('Your week in notes is ready', action: 'View', onOpen: onOpen));
+      return answer;
+    } catch (failure) {
+      job.failed('$failure'.replaceFirst('Exception: ', ''));
+      return null;
+    } finally {
+      _weeklyStop = null;
+    }
+  }
+
+  /// The open to-dos of [ids]' notes, for the AI to say which look finished.
+  List<WeeklyTodo> todosOf(List<String> ids) => [
+        for (final id in ids)
+          if (library.noteOf(id) case final note?)
+            for (final todo in openTodos(id, note.body))
+              if (!state.dismissed.contains('todo:${todo.key}')) (key: todo.key, noteId: id, title: noteTitle(note.body).trim(), words: todo.words.trim()),
+      ];
+
+  /// The reports' journal: the one marked `wrapped: weekly`, made where there is none; then [body] as a new note, and
+  /// its line added to the journal's index. Answers the report's id.
+  Future<String> _fileReport(String body, String title) async {
+    Note? journal = library.value.where((n) => isJournalBody(n.body) && frontMatterValue(n.body, weeklyJournalKey)?.trim() == 'weekly' && !trashedNote(n, trash.value)).firstOrNull;
+    journal ??= await library.createNote(weeklyJournalBody());
+    final made = await library.createNote(body);
+    for (var tries = 0; tries < 3; tries += 1) {
+      final now = library.noteOf(journal!.id) ?? journal;
+      try {
+        await library.update(now.id, withEntry(now.body, title), now.revision);
+        break;
+      } catch (_) {
+        // Changed meanwhile (a sync, the journal open): read again and try once more.
+        journal = await library.get(now.id) ?? now;
+      }
+    }
+    return made.id;
+  }
+
+  Future<void> _notifyWeekly(WeeklyReport report) async {
+    final host = _notices;
+    if (host == null || !weeklySettings.notify) return;
+    try {
+      if (await host.state() == NoticesState.blocked) return;
+      await host.post((id: 'wrapped-weekly-${report.week}', title: 'Your week in notes is ready', text: report.line.isEmpty ? null : report.line, link: 'ghostmd://note/${report.noteId}'));
+    } catch (_) {
+      // A phone that cannot post says nothing: the home card says it instead.
+    }
+  }
+
+  /// The person's yes to spending their key each week ([weeklyAsks]), asked as the main pass asks (askJobCost, always
+  /// the first time), and the last report given its AI part at once. Answers whether it was allowed.
+  Future<bool> allowWeeklyAi(BuildContext context) async {
+    await readAis();
+    final ai = weeklyAi;
+    if (ai == null) return false;
+    final report = weeklyReport;
+    final start = report == null ? weekStartOf(_clock(), firstWeekday) : weekOfKey(report.week)!;
+    final counts = weeklyCountsFor(start);
+    final (:notes, :toGist) = _weeklyNotes(counts);
+    final cost = weeklyEstimate(ai, toGist: toGist.length, notes: notes.length, todos: counts.todosOpen, pacing: _pacing);
+    if (!ai.local) {
+      if (!context.mounted) return false;
+      final yes = await askJobCost(context, JobEstimate(count: 1, one: 'report', many: 'reports', duration: const Duration(minutes: 1), cost: cost.words, asksAlways: true), title: 'Write your weekly report with ${ai.name}?');
+      if (!yes) return false;
+    }
+    store.change((now) => now.copyWith(weekly: now.weekly.copyWith(allowed: {...now.weekly.allowed, ai.id})));
+    if (report != null && !report.ai) await _addAiTo(report, ai);
+    return true;
+  }
+
+  /// [report], made from the counts alone, given the AI's part: its note written over, the person's edits kept.
+  Future<void> _addAiTo(WeeklyReport report, CleanupAi ai) async {
+    final start = weekOfKey(report.week);
+    if (start == null || _weeklyMaking) return;
+    _weeklyMaking = true;
+    notifyListeners();
+    try {
+      final counts = weeklyCountsFor(start).withNumbers(report.numbers);
+      final asked = await _weeklyAsk(ai, counts);
+      if (asked == null || asked.isEmpty) return;
+      final note = await library.get(report.noteId);
+      if (note == null) return;
+      await library.update(note.id, withWeeklyAi(note.body, asked, titleOf: _titleOf), note.revision);
+      store.change((now) => now.copyWith(weekly: now.weekly.copyWith(report: () => report.copyWith(summary: asked.summary, steps: asked.steps, ai: true))));
+    } catch (failure) {
+      debugPrint('[glyph] the weekly report’s summary was not added: $failure');
+    } finally {
+      _weeklyMaking = false;
+      notifyListeners();
+    }
+  }
+
+  /// View report: the note opened (the root's way), the report marked seen, and counted.
+  void viewWeekly() {
+    final report = weeklyReport;
+    if (report == null) return;
+    if (!report.viewed) store.change((now) => now.copyWith(weekly: now.weekly.copyWith(report: () => report.copyWith(viewed: true))));
+    track(MetricEvent.wrappedWeeklyViewed, {'steps': countBucket(report.steps.length)});
+    wrappedOpenNote?.call(report.noteId, null);
+  }
+
+  void _setStep(int index, WeeklyStep Function(WeeklyStep step) change) {
+    final report = state.weekly.report;
+    if (report == null || index < 0 || index >= report.steps.length) return;
+    final steps = [...report.steps];
+    steps[index] = change(steps[index]);
+    store.change((now) => now.copyWith(weekly: now.weekly.copyWith(report: () => report.copyWith(steps: steps))));
+  }
+
+  /// Next step [index] done by Wrapped's own press: the to-dos checked off, the notes archived, the link added. Its
+  /// record kept on the step, so Undo takes it back. A step to look at a note opens it.
+  Future<WrappedDone> applyStep(int index) async {
+    final step = weeklyReport?.steps.elementAtOrNull(index);
+    if (step == null) return WrappedDone();
+    final done = switch (step.kind) {
+      WeeklyStepKind.checkOff => await checkOff([
+          for (final row in todos)
+            if (step.todos.contains(row.todo.key)) row.todo,
+        ]),
+      WeeklyStepKind.archive => await archive(step.notes),
+      WeeklyStepKind.link => await apply(WrappedSuggestion(kind: SuggestionKind.link, notes: step.notes, why: step.words)),
+      WeeklyStepKind.look => WrappedDone(),
+    };
+    if (step.kind == WeeklyStepKind.look && step.notes.isNotEmpty) wrappedOpenNote?.call(step.notes.first, null);
+    if (done.record != null) _setStep(index, (s) => s.copyWith(record: () => done.record!.id));
+    return done;
+  }
+
+  /// Next step [index]'s press taken back whole.
+  Future<String> undoStep(int index) async {
+    final record = weeklyReport?.steps.elementAtOrNull(index)?.record;
+    if (record == null) return 'Nothing to undo.';
+    final said = await undo(record);
+    _setStep(index, (s) => s.copyWith(record: () => null));
+    return said;
+  }
+
+  /// Next step [index] put away.
+  void dismissStep(int index) => _setStep(index, (s) => s.copyWith(dismissed: true));
+
   @override
   void dispose() {
+    _weeklyTimer?.cancel();
+    _weeklyStop?.stop();
     _stop?.stop();
     store.removeListener(notifyListeners);
     _switches?.removeListener(_switched);

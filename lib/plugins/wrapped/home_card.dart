@@ -2,6 +2,8 @@
 /// section"), among the notices over the notes while the plugin is on, in Simple mode too. Three ways it reads:
 /// - **Not made**: "Your Wrapped", what it is, Make my Wrapped (the estimate asked first, service.dart `make`).
 /// - **Making**: "Making your Wrapped… 40%", with Open for the page.
+/// - **This week**: a weekly report made in the last seven days (weekly.dart): "This week", its line ("12 notes · 4
+///   to-dos done"), View report for its note.
 /// - **Ready**: the period, one headline count ("312 notes this year"), the ghost, View for the story; a fresh one says
 ///   it is new.
 library;
@@ -18,15 +20,16 @@ import 'service.dart';
 import 'story.dart' show WrappedPill, storyHues;
 
 /// Which way the card reads.
-enum WrappedCardState { notMade, making, ready }
+enum WrappedCardState { notMade, making, thisWeek, ready }
 
 WrappedCardState wrappedCardState(WrappedService service) {
   if (service.running || service.state.wanted) return WrappedCardState.making;
+  if (service.thisWeek != null) return WrappedCardState.thisWeek;
   return service.state.made ? WrappedCardState.ready : WrappedCardState.notMade;
 }
 
 class WrappedHomeCard extends StatelessWidget {
-  const WrappedHomeCard({super.key, this.service, this.onView, this.onOpen});
+  const WrappedHomeCard({super.key, this.service, this.onView, this.onOpen, this.onWeek});
 
   /// A test's own; else the app's.
   final WrappedService? service;
@@ -34,6 +37,9 @@ class WrappedHomeCard extends StatelessWidget {
   /// The story, and the page: the app's own ways unless a test says.
   final VoidCallback? onView;
   final VoidCallback? onOpen;
+
+  /// View report: the service's own (the note opened) unless a test says.
+  final VoidCallback? onWeek;
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +55,13 @@ class WrappedHomeCard extends StatelessWidget {
         final (lead, line) = switch (state) {
           WrappedCardState.notMade => ('Your Wrapped', 'Your year in notes as a story, then the to-dos and stale notes to tidy.'),
           WrappedCardState.making => (wrapped.running ? 'Making your Wrapped… ${(wrapped.fraction * 100).round()}%' : 'Making your Wrapped…', wrapped.held ? 'Paused while the app is busy.' : 'Reading your notes slowly in the background.'),
+          WrappedCardState.thisWeek => ('${wrapped.thisWeek!.viewed ? '' : 'New · '}This week', wrapped.thisWeek!.line.isEmpty ? 'Your week in notes is ready.' : 'Your week in notes: ${wrapped.thisWeek!.line}.'),
           WrappedCardState.ready => ('${wrapped.state.fresh ? 'New · ' : ''}Your Wrapped · ${wrapped.state.period.label}', headlineOf(stats)),
         };
         final action = switch (state) {
           WrappedCardState.notMade => WrappedPill(key: const ValueKey('wrapped-card-make'), label: 'Make my Wrapped', hue: hue, onPressed: () => unawaited(wrapped.make(context))),
           WrappedCardState.making => WrappedPill(key: const ValueKey('wrapped-card-open'), label: 'Open', hue: hue, onPressed: onOpen ?? () => unawaited(openWrappedPage(context, service: wrapped))),
+          WrappedCardState.thisWeek => WrappedPill(key: const ValueKey('wrapped-card-week'), label: 'View report', hue: hue, onPressed: onWeek ?? wrapped.viewWeekly),
           WrappedCardState.ready => WrappedPill(key: const ValueKey('wrapped-card-view'), label: 'View', hue: hue, onPressed: onView ?? () => unawaited(openWrappedStoryFrom(context, wrapped))),
         };
         return Semantics(

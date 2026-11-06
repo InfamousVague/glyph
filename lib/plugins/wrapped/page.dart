@@ -16,6 +16,7 @@ import 'review.dart';
 import 'service.dart';
 import 'stats.dart';
 import 'story.dart';
+import 'weekly_section.dart';
 
 /// Opens the Wrapped page over everything, for [service] (the app's unless given).
 Future<void> openWrappedPage(BuildContext context, {WrappedService? service}) {
@@ -87,6 +88,7 @@ class WrappedPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: t.space(5),
                       children: [
+                        WrappedWeekSection(service: service),
                         WrappedHead(service: service),
                         WrappedReview(service: service),
                       ],
