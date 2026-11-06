@@ -40,7 +40,7 @@ AN AI ASSISTANT, IF YOU WANT ONE
 Bring a key from the AI provider you prefer. It stays on this phone. Ask from any page and watch the assistant search your notes, write into them and plan with them. Give it a photo of a schedule or a whiteboard and it writes what is in it into a note, with appointments as dated to-dos. Without a key, everything else works.
 
 TO-DOS, REMINDERS AND YOUR CALENDAR
-To-dos from every note gather on one page under Overdue, Today, Later and Someday. Give one a time and it rings on the minute, or a place and it rings when you get there. Add your calendar and today's events sit above your to-dos.
+To-dos from every note gather on one page under Overdue, Today, Later and Someday. Give one a time and it rings on the minute. Add your calendar and today's events sit above your to-dos.
 
 THE MARKDOWN
 Headings, lists, tables, code, footnotes and links between notes are drawn as you type with the marks dimmed, so a note reads the same in any other app. Seven marks of Ghost.md's own, from highlight to spoiler, which sits in smoke until you tap it. Diagrams and timelines are drawn from text in the note.
