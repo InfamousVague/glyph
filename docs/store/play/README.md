@@ -22,6 +22,9 @@ three things only the Play build has:
   new card after an update stays (it reads the bundled changelog).
 - **No REQUEST_INSTALL_PACKAGES and no installer FileProvider.** `GHOST_STORE=play` lays
   android/app/src/play/AndroidManifest.xml over the release manifest (android/app/build.gradle.kts `ghostPlay`).
+- **No ACCESS_BACKGROUND_LOCATION** (the same manifest, 2026-11-05), so no background location declaration: place
+  reminders ring only while the app is open (forms.md, "Location permissions"), and nothing asks for "Allow all the
+  time".
 - **arm64 only**, as the core is: Flutter's Gradle plugin lists three ABIs, and DataStore ships a .so for the other
   two, which would have Play offer the app to phones it cannot run on.
 - **Signed with the upload key**, `~/.config/glyph/play-signing.properties` (keystore `play-upload.keystore`, alias
@@ -34,19 +37,20 @@ as it was: the same command, manifest, ABIs and key.
 The core is not rebuilt by the script: check `libghost_core.so` is newer than `git log -1 -- native/src
 tauri/src-tauri/src` first (2.4.25's: the .so 2026-10-31 19:50, the last core change 18:27 that day).
 
-## 2.4.25 as built (2026-11-05)
+## 2.4.25 as built (2026-11-05, rebuilt the same evening without background location)
 
 | Check | Result |
 |---|---|
-| File | build/play/ghost-md-2.4.25.aab, 89,035,464 bytes |
+| File | build/play/ghost-md-2.4.25.aab, 89,040,255 bytes, SHA-256 `a52082d48c46889ae029ad5c73dd3860d2a09089b9c14d3e40b6ab5f76d6a155` |
 | Package, version | com.mattssoftware.glyph, versionCode 2004025, versionName 2.4.25 |
 | SDK | minSdk 24, targetSdk 36 (Play's floor for new apps and updates is 35) |
 | Signature | `jarsigner -verify`: verified. CN=Matt Wisniewski, O=MattsSoftware, C=US, RSA 4096, SHA384withRSA |
 | Upload certificate SHA-256 | `0D:C9:03:90:69:0B:2C:C2:1A:96:C2:1F:28:3D:24:27:1A:67:3E:C0:6D:33:35:1D:FA:AA:C9:AA:26:C1:B3:76` |
 | Upload certificate SHA-1 | `96:A0:BF:AF:E5:4D:E5:A0:EB:A9:1F:0C:AD:E4:EB:2E:24:0D:9C:C2` |
-| REQUEST_INSTALL_PACKAGES, updates provider, AD_ID | absent from the bundle's manifest (`bundletool dump manifest`) |
+| REQUEST_INSTALL_PACKAGES, ACCESS_BACKGROUND_LOCATION, updates provider, AD_ID | absent from the bundle's manifest (`bundletool dump manifest`) |
+| Special use subtype | BackgroundJobService's reads "Long jobs the person starts in the app and can stop from the notification at any time: …" |
 | Native libraries | arm64-v8a only: libapp, libflutter, libghost_core, libdatastore_shared_counter |
-| 16 KB pages | `bundletool build-apks` then `zipalign -c -P 16`: verification successful; every .so stored uncompressed; ELF LOAD alignment 0x4000 (core, DataStore) and 0x10000 (Flutter) |
+| 16 KB pages | `bundletool build-apks` then `zipalign -c -P 16` on all 249 splits: verification successful; every .so stored uncompressed; ELF LOAD alignment 0x4000 (core, DataStore) and 0x10000 (Flutter) |
 | Usage stats | on (the PostHog key from tool/posthog-defines.sh) |
 
 bundletool is not installed; it runs from Gradle's cache (`com.android.tools.build:bundletool:1.18.3` and its
@@ -81,9 +85,10 @@ on 2026-11-05.
    ours, and both are `com.mattssoftware.glyph`: Android refuses either over the other. They uninstall first, which
    deletes notes only on that phone, so they sign in and sync (or export) before. The Play copy also never gets the
    OTA, and the sideload copy never Play's updates.
-3. The privacy page needs the sentences listed under "Privacy policy" in forms.md before review.
-4. The background location declaration and its video are new (forms.md); special use needs a clip of a long job too.
-5. Before review: check the demo account `test` still signs in with its examples; consider widening
-   BackgroundJobService's special-use subtype string, and a Report row for AI output (forms.md).
+3. The privacy page is brought up to date in landing/privacy.html (5 November 2026); deploy the landing site before
+   review.
+4. No background location declaration any more (forms.md); special use needs a clip of a long job too.
+5. Before review: check the demo account `test` still signs in with its examples; consider a Report row for AI output
+   (forms.md).
 6. Screenshots of the Flutter app on Android.
 7. A personal account's 12 testers for 14 days before production, if not done.

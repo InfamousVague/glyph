@@ -205,7 +205,7 @@ class SetupDone extends SetupStep {
 
 /// A plugin's setup: its steps, its look, and whether it is needed.
 class PluginSetup {
-  const PluginSetup({required this.id, required this.name, required this.hues, required this.steps, required this.ready, required this.watch, this.tiles = const [], this.mark, this.prepare, this.about, this.again});
+  const PluginSetup({required this.id, required this.name, required this.hues, required this.steps, required this.ready, required this.watch, this.tiles = const [], this.mark, this.prepare, this.about, this.again, this.captions = const {}});
 
   /// The plugin's id: its words' and its memory's key.
   final String id;
@@ -244,8 +244,16 @@ class PluginSetup {
   /// The steps shown, [simple] or not.
   List<SetupStep> stepsFor({required bool simple}) => [for (final step in steps) if (!simple || !step.advanced) step];
 
+  /// Words shown for a step instead of its voiced ones, by `<step>` and `<step>-simple`, and never spoken: a build
+  /// whose steps differ from what the voice says (Google Play's place reminders, places_setup.dart). Give both forms
+  /// for a step, as Simple reads `<step>-simple` first. Empty in most setups.
+  final Map<String, String> captions;
+
+  /// [step]'s words in [captions], or null where it is voiced as usual.
+  String? captionOf(SetupStep step, {required bool simple}) => (simple ? captions['${step.id}-simple'] : null) ?? captions[step.id];
+
   /// [step]'s words, [simple] or not.
-  String wordsOf(SetupStep step, {required bool simple}) => setupWords('$id-${step.id}', simple: simple);
+  String wordsOf(SetupStep step, {required bool simple}) => captionOf(step, simple: simple) ?? setupWords('$id-${step.id}', simple: simple);
 }
 
 /// How a setup ended.

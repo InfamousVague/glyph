@@ -7,7 +7,7 @@
 ///   reminders' channel, whose tap opens the note at the to-do and whose Done ticks it, as a reminder's does
 ///   (reminder_host.dart, Reminders.kt).
 /// - `clear`: none at all.
-/// - `access` -> `always`, `whileUsing`, `approximate`, `ask` or `blocked` ([PlaceAccess]).
+/// - `access` -> `always`, `whileUsing`, `whileOpen`, `approximate`, `ask` or `blocked` ([PlaceAccess]).
 /// - `askForeground` -> the same, once Android's prompt for location while the app is in use is answered.
 /// - `askBackground` -> the same, once Android's "Allow all the time" is answered (from Android 11 a page of its
 ///   settings, not a dialog).
@@ -21,7 +21,14 @@ library;
 import 'package:flutter/foundation.dart' show ValueNotifier, defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 
+import '../core/updates.dart' show playStoreBuild;
 import 'place_plan.dart';
+
+/// Whether place reminders ring only while the app is in front: Google Play's build ([playStoreBuild]), whose
+/// manifest has no ACCESS_BACKGROUND_LOCATION (android/app/src/play/AndroidManifest.xml), so no geofence registers and
+/// the phone watches the places itself while the app is open (Places.kt). Nothing asks for "Allow all the time" there,
+/// and what the app says of place reminders says "while the app is open". False in every other build.
+const bool placesInFrontOnly = playStoreBuild;
 
 /// What the phone lets the app know of where it is, as a geofence needs it.
 enum PlaceAccess {
@@ -30,6 +37,10 @@ enum PlaceAccess {
 
   /// Precise, but only while the app is in use: Android keeps the geofences from ringing.
   whileUsing,
+
+  /// Precise while the app is in use, in a build with no "all the time" to ask for ([placesInFrontOnly]): the places
+  /// ring while the app is open, which is all this build does, so nothing is missing.
+  whileOpen,
 
   /// Approximate only: a geofence needs the precise location.
   approximate,
@@ -45,6 +56,7 @@ enum PlaceAccess {
 PlaceAccess placeAccessOf(Object? said) => switch (said) {
   'always' => PlaceAccess.always,
   'whileUsing' => PlaceAccess.whileUsing,
+  'whileOpen' => PlaceAccess.whileOpen,
   'approximate' => PlaceAccess.approximate,
   'blocked' => PlaceAccess.blocked,
   _ => PlaceAccess.ask,
@@ -92,10 +104,21 @@ const MethodChannel placesChannel = MethodChannel('ghost_md/places');
 
 /// The phone's own half, on Android; nothing anywhere else.
 class PhonePlaceHost implements PlaceHost {
-  PhonePlaceHost({MethodChannel channel = placesChannel, bool? android}) : _channel = channel, _android = android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+  PhonePlaceHost({MethodChannel channel = placesChannel, bool? android, bool inFrontOnly = placesInFrontOnly})
+    : _channel = channel,
+      _android = android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
+      _inFrontOnly = inFrontOnly;
 
   final MethodChannel _channel;
   final bool _android;
+
+  /// [placesInFrontOnly]: "while using" is all there is, whatever the phone's half says (it reads the manifest too).
+  final bool _inFrontOnly;
+
+  PlaceAccess _read(Object? said) {
+    final access = placeAccessOf(said);
+    return _inFrontOnly && access == PlaceAccess.whileUsing ? PlaceAccess.whileOpen : access;
+  }
 
   Future<Object?> _ask(String method, [Object? arguments]) async {
     if (!_android) return null;
@@ -117,14 +140,14 @@ class PhonePlaceHost implements PlaceHost {
   @override
   Future<PlaceAccess?> access() async {
     final said = await _ask('access');
-    return said is String ? placeAccessOf(said) : null;
+    return said is String ? _read(said) : null;
   }
 
   @override
-  Future<PlaceAccess> askForeground() async => placeAccessOf(await _ask('askForeground'));
+  Future<PlaceAccess> askForeground() async => _read(await _ask('askForeground'));
 
   @override
-  Future<PlaceAccess> askBackground() async => placeAccessOf(await _ask('askBackground'));
+  Future<PlaceAccess> askBackground() async => _inFrontOnly ? (await access() ?? PlaceAccess.ask) : _read(await _ask('askBackground'));
 
   @override
   Future<LatLon?> lastKnown() async {

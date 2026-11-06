@@ -9,6 +9,9 @@
 /// - **Precise while in use**: the app's own sheet first ([PlaceAccessFlow.explain], which says why and what to pick),
 ///   and only on its Continue Android's "Allow all the time" (from Android 11 a page of the phone's settings).
 /// - **Refused for good**: nothing is asked; the chip warns, and Settings › Notifications › Reminders says how.
+/// - **Precise while open, in Google Play's build** ([PlaceAccess.whileOpen], [placesInFrontOnly]): done. That build
+///   has no "all the time" in its manifest, so it is never asked and its sheet never shown; the places ring while the
+///   app is open, and nothing warns.
 ///
 /// Each step is [placeStepFor], pure, so every state is a test (test/reminders/place_access_test.dart).
 library;
@@ -32,21 +35,24 @@ enum PlaceStep {
 
 /// The step after [access].
 PlaceStep placeStepFor(PlaceAccess access) => switch (access) {
-  PlaceAccess.always => PlaceStep.done,
+  PlaceAccess.always || PlaceAccess.whileOpen => PlaceStep.done,
   PlaceAccess.ask || PlaceAccess.approximate => PlaceStep.askForeground,
   PlaceAccess.whileUsing => PlaceStep.explainBackground,
   PlaceAccess.blocked => PlaceStep.settings,
 };
 
-/// Whether a place reminder warns with [access]: anything but all the time, where the phone could say.
-bool placeAccessWarns(PlaceAccess? access) => access != null && access != PlaceAccess.always;
+/// Whether a place reminder warns with [access]: anything short of what this build can have, where the phone could
+/// say.
+bool placeAccessWarns(PlaceAccess? access) => access != null && access != PlaceAccess.always && access != PlaceAccess.whileOpen;
 
 /// What Settings and the chip say for an access that keeps place reminders from ringing; null where none does.
-String? placeAccessWords(PlaceAccess? access) => switch (access) {
-  null || PlaceAccess.always => null,
+/// [inFrontOnly] is [placesInFrontOnly]: the phone's settings are told to allow while using the app, not all the time.
+String? placeAccessWords(PlaceAccess? access, {bool inFrontOnly = placesInFrontOnly}) => switch (access) {
+  null || PlaceAccess.always || PlaceAccess.whileOpen => null,
   PlaceAccess.whileUsing => 'Android only lets Ghost.md know where you are while it is open, so it can’t tell when you arrive. Allow location all the time below.',
   PlaceAccess.approximate => 'Android only gives Ghost.md your approximate location, and a place reminder needs the precise one. Allow precise location below.',
   PlaceAccess.ask => 'Ghost.md hasn’t been allowed your location yet, so it can’t tell when you arrive. Allow it below.',
+  PlaceAccess.blocked when inFrontOnly => 'Location is turned off for Ghost.md. In the phone’s settings, open Permissions › Location and choose Allow only while using the app.',
   PlaceAccess.blocked => 'Location is turned off for Ghost.md. In the phone’s settings, open Permissions › Location and choose Allow all the time.',
 };
 

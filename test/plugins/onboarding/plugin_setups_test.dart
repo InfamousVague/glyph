@@ -338,6 +338,30 @@ void main() {
       expect(result.words, startsWith('Android only lets Ghost.md know where you are while it is open'));
     });
 
+    test('Google Play’s build: the location while in use only, a check that says while open, and its own unspoken words', () async {
+      phone.afterForeground = PlaceAccess.whileOpen;
+      final setup = placesSetup(places: () => phone, inFrontOnly: true);
+      expect(await setup.steps.whereType<SetupAct>().single.run(), isNull);
+      expect(phone.asked, ['foreground']);
+      final result = await setup.steps.whereType<SetupCheck>().single.run();
+      expect(result.kind, SetupCheckKind.ok);
+      expect(result.words, startsWith('Allowed while the app is open.'));
+      expect(setup.ready(), isTrue);
+      expect(setup.about, isNot(contains('all the time')));
+      for (final step in setup.steps) {
+        for (final simple in [false, true]) {
+          expect(setup.wordsOf(step, simple: simple), isNot(contains('all the time')), reason: '${step.id}, simple $simple');
+          expect(setup.wordsOf(step, simple: simple), isNot(contains('closed')), reason: '${step.id}, simple $simple');
+        }
+      }
+      expect(setup.captionOf(setup.steps.first, simple: false), placesInFrontCaptions['intro']);
+      expect(setup.captionOf(setup.steps.last, simple: false), isNull, reason: 'the last step is voiced as it is');
+      expect((setup.steps.first as SetupIntro).points[1].$2, endsWith('while the app is open'));
+      phone.now = PlaceAccess.blocked;
+      expect(await placesAllow(phone, inFrontOnly: true), contains('Allow only while using the app'));
+      expect(placesSetup(places: () => phone).captions, isEmpty, reason: 'the sideload build’s words are the voice’s');
+    });
+
     test('refused for good: the phone’s settings, and what to choose there', () async {
       phone.now = PlaceAccess.blocked;
       expect(await placesAllow(phone), 'In the phone’s settings, open Permissions › Location and choose Allow all the time, then come back and check.');

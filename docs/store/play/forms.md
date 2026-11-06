@@ -13,16 +13,12 @@ Console alone.
 
 `https://ghostmarkdown.com/privacy.html`. Account deletion: `https://ghostmarkdown.com/delete-account.html`.
 
-**Before review, the policy needs a few sentences** (Play reads it against Data safety), because the Flutter app does
-things the page does not mention yet:
-- the in-app AI assistant with the person's own key: what they ask, the notes it reads, and pictures given to the chat
-  go straight from the phone to the provider they chose, under that provider's policy;
-- the plugins that send note text to a service the person connects (header images, voice-overs, team chat, calendar
-  sign-in and dated to-dos written to that calendar);
-- email to a note: the account's own address, whose mail the service receives in the clear and seals at once;
-- Google Play services on Android: the document scanner and text reading (on the phone; Google may receive anonymous
-  diagnostics), place reminders' geofences, and the fused location;
-- "the apps check attack.fm for updates": not the Play build, which never looks.
+**Brought up to date on 2026-11-05** (landing/privacy.html, "Last updated 5 November 2026"; not deployed with this
+change): the in-app AI assistant on the person's own key and what goes straight to the provider, pictures in the AI
+chat, each plugin by name and what it sends (Lovart, ElevenLabs, Notion, GitHub, Back up to git, Figma, Calendar,
+Slack and Discord, Meet and Zoom, Email to a note, Publishing and forms, Todoist), the map tiles' rough area, place
+reminders in each build, Google Play services (document scanner, text reading, location, Wear OS), and updates: the
+Play build is updated by Play and never checks attack.fm.
 
 ## Ads: unchanged
 
@@ -74,7 +70,7 @@ The data types, in the Console's order. Every type not listed is **not collected
 | Console type | Collected | Shared | Ephemeral | Required? | Purposes | What and why (the change from 10-05) |
 |---|---|---|---|---|---|---|
 | Location › Approximate location | Yes | Yes | No | Optional | App functionality | **New row.** A rough tag (two decimals) sent to OpenStreetMap for the place's name. |
-| Location › Precise location | Yes | Yes | No | Optional | App functionality | As 10-05: tiles and the place's name from OpenStreetMap, asked at three decimals (about 100 m). **Now on by default** for new notes once the person allows location (Settings › Account › Location turns it off). In sync it is inside the note's encrypted front matter, so not collected by us. Place reminders' geofences stay on the phone. |
+| Location › Precise location | Yes | Yes | No | Optional | App functionality | As 10-05: tiles and the place's name from OpenStreetMap, asked at three decimals (about 100 m). **Now on by default** for new notes once the person allows location (Settings › Account › Location turns it off). In sync it is inside the note's encrypted front matter, so not collected by us. Place reminders stay on the phone (in this build, checked while the app is open). |
 | Personal info › Email address | Yes | No | No | Optional | App functionality | **New row.** An organization's invitation by email: the address kept until the invitation is used, ends or expires, and one email sent through the email provider (a processor). Also the sender's address on mail sent to the account's email-to-note address. |
 | Personal info › User IDs | Yes | No | No | Optional | App functionality, Account management | Unchanged: the handle. |
 | Messages › Emails | Yes | No | No | Optional | App functionality | **New row.** Email to a note (a plugin, off by default): the service receives the mail in the clear and seals it at once to the account's key. The email provider keeps its usual logs, so not ephemeral. |
@@ -97,28 +93,28 @@ App functionality, optional. Nothing reaches our servers.
 The Play build's merged manifest asks for: INTERNET, ACCESS_NETWORK_STATE, RECORD_AUDIO, MODIFY_AUDIO_SETTINGS,
 POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE,
 FOREGROUND_SERVICE_MEDIA_PROCESSING, FOREGROUND_SERVICE_MEDIA_PROJECTION, FOREGROUND_SERVICE_SPECIAL_USE, WAKE_LOCK,
-ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, ACCESS_BACKGROUND_LOCATION, SCHEDULE_EXACT_ALARM,
-RECEIVE_BOOT_COMPLETED, READ_CONTACTS, and the app's own DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION.
-**REQUEST_INSTALL_PACKAGES is gone** (android/app/src/play/AndroidManifest.xml). No SYSTEM_ALERT_WINDOW,
+ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, SCHEDULE_EXACT_ALARM, RECEIVE_BOOT_COMPLETED, READ_CONTACTS, and the
+app's own DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION. **REQUEST_INSTALL_PACKAGES and ACCESS_BACKGROUND_LOCATION are
+gone** (android/app/src/play/AndroidManifest.xml). No SYSTEM_ALERT_WINDOW,
 QUERY_ALL_PACKAGES, MANAGE_EXTERNAL_STORAGE, READ_MEDIA_*, SMS, call log, accessibility or USE_EXACT_ALARM.
 
-### Location permissions: NEW declaration (background location)
+### Location permissions: no declaration (background location taken out, 2026-11-05)
 
-Play asks for this because of ACCESS_BACKGROUND_LOCATION, and wants a video. 1.14.0 had no location at all.
+ACCESS_BACKGROUND_LOCATION is removed from the Play build (`tools:node="remove"` in
+android/app/src/play/AndroidManifest.xml), so Play asks for no background location declaration and no video. The
+sideload APK keeps it.
 
-- **Feature:** place reminders. A to-do given a place rings when the phone arrives there, through Google Play
-  services' geofences, with the app closed.
-- **Paste:** "Ghost.md lets a person attach a place to a to-do (Remind me at a place). When the phone arrives there,
-  the reminder rings, even with the app closed, through geofences, which need the location all the time. The app
-  asks for background location only after the person makes their first place reminder, and only after its own screen
-  explains why; refused, the reminder is kept and says it will not ring. Location is never sent to our servers."
-- **Video:** make a to-do, Remind me at a place, the app's own explanation, Android's "Allow all the time", then the
-  reminder ringing on arrival (a mock location is fine).
-- **If Play refuses:** a Play-only manifest line (`tools:node="remove"` on ACCESS_BACKGROUND_LOCATION in
-  android/app/src/play/AndroidManifest.xml) leaves place reminders saying they will not ring, and changes nothing
-  else.
+What changes in the Play build: no geofence registers without it, so **place reminders ring only while the app is
+open**. reminders/Places.kt reads the manifest (`backgroundDeclared`): the access is `whileOpen`, "Allow all the time"
+and the app's sheet before it are never shown, and while the activity is resumed the fused location is asked about
+once a minute (balanced power) and a place rings as the phone comes inside it (what was inside at the last look is
+kept, so opening the app on arriving rings, and a to-do written at the shop does not). Dart says the same from
+`--dart-define=GHOST_STORE=play` (lib/reminders/place_host.dart `placesInFrontOnly`): the plugin's page says "Allowed
+while the app is open", and its setup's three voiced steps show their own words, unspoken
+(lib/plugins/places/places_setup.dart `placesInFrontCaptions`). Tests: test/reminders/place_host_test.dart, places_test,
+plugin_setups_test, play_store_test.
 
-Foreground location (geotags, Add my location) needs no declaration of its own.
+Foreground location (geotags, Add my location, place reminders in front) needs no declaration of its own.
 
 ### Foreground service permissions (changed: special use now has two services)
 
@@ -132,10 +128,10 @@ use needs a second clip, because it now also holds BackgroundJobService.
 | Media processing | MeetingService, WorkManager's SystemForegroundService | Other (as 10-05) | After a meeting is stopped, the recording is transcribed and summarised on the device, with its progress in the notification. Nothing leaves the phone. |
 | Special use | MeetingService, SystemForegroundService, **BackgroundJobService (new)** | Other | The meeting write-up on Android 14, which has no media processing type (as 10-05). New: long jobs the person starts in the app and can stop from the notification (header images for their notes, voice-overs, a Notion import, a git backup, Wrapped's slow pass over their notes, AI summaries). The service only keeps the app from being frozen while the job runs; it is never started without the person. |
 
-**For Matt, later:** BackgroundJobService's PROPERTY_SPECIAL_USE_FGS_SUBTYPE still reads "Making header images for
-the person's notes, a job they started in the app", though it now holds all those jobs. A reviewer reads that string.
-Widen it in src/main (changes the sideload APK too) before review if you can, e.g. "Long jobs the person started in
-the app, such as making header images or importing notes, with Stop on the notification".
+BackgroundJobService's PROPERTY_SPECIAL_USE_FGS_SUBTYPE, widened on 2026-11-05 in src/main (so the sideload APK's
+too), reads: "Long jobs the person starts in the app and can stop from the notification at any time: making header
+images and voice-overs for their notes, importing notes, backing up their notes, Wrapped's pass over their notes, and
+AI summaries".
 
 ### Other permissions, no form
 
@@ -146,7 +142,7 @@ the app, such as making header images or importing notes, with Stop on the notif
 | SCHEDULE_EXACT_ALARM | No (USE_EXACT_ALARM is the one with a form) | Reminders ring on their minute once the person allows Alarms and reminders; otherwise a few minutes late. |
 | RECEIVE_BOOT_COMPLETED | No | Arms the reminders again after a restart. No service is started. |
 | POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS | No | Recording, write-up and reminder notifications; a long job's progress as a Live Update. |
-| ACCESS_COARSE/FINE_LOCATION | No | Where a note was written, after the person allows it. |
+| ACCESS_COARSE/FINE_LOCATION | No | Where a note was written, after the person allows it; place reminders while the app is open. |
 | WAKE_LOCK | No | Keeps the CPU on while a meeting records with the screen off. |
 | VoiceInteractionService (in the manifest, disabled) | No | `@bool/ghost_assistant` is false: the app is not offered as the phone's assistant. Said in the App access notes. |
 

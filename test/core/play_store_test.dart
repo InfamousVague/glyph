@@ -7,7 +7,7 @@ import 'package:ghost_md/root/iphone_wiring.dart';
 import 'package:ghost_md/settings/panes/about_pane.dart';
 
 /// Google Play's build (tool/cutover-build.sh --play; docs/store/play/README.md): it never updates itself, About says
-/// Play does, its manifest drops the installer's permission and provider, and no other build is changed by any of it.
+/// Play does, its manifest drops the installer's permission and provider and the location all the time, and no other build is changed by any of it.
 void main() {
   String read(String path) => File(path).readAsStringSync();
 
@@ -40,9 +40,12 @@ void main() {
     final play = read('android/app/src/play/AndroidManifest.xml').replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
     expect(play, contains('android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove"'));
     expect(play, contains(r'android:authorities="${applicationId}.updates"'));
-    expect(RegExp('tools:node="remove"').allMatches(play), hasLength(2));
+    expect(play, contains('android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove"'), reason: 'no background location declaration on Play');
+    expect(RegExp('tools:node="remove"').allMatches(play), hasLength(3));
     final main = read('android/app/src/main/AndroidManifest.xml');
     expect(main, contains('android.permission.REQUEST_INSTALL_PACKAGES'), reason: 'the sideloaded APK still updates itself');
+    expect(main, contains('android.permission.ACCESS_BACKGROUND_LOCATION'), reason: 'the sideloaded APK’s place reminders ring with the app closed');
+    expect(main, contains('android:value="Long jobs the person starts in the app and can stop from the notification at any time:'), reason: 'BackgroundJobService’s special use, as a reviewer reads it');
     final gradle = read('android/app/build.gradle.kts');
     expect(gradle, contains('if (ghostPlay) getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")'));
     expect(gradle, contains('if (ghostPlay) ndk { abiFilters.clear(); abiFilters += listOf("arm64-v8a") }'), reason: 'Play offers the bundle only where the core runs');

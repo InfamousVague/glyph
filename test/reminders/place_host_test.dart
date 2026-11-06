@@ -1,3 +1,5 @@
+import 'dart:io';
+
 // The channel `ghost_md/places` (lib/reminders/place_host.dart, android/…/reminders/Places.kt), heard by a phone of
 // the test's own: each method's name and what it carries, and what an answer is read as. And the permission's steps
 // (lib/reminders/place_access.dart): the location while in use first, the app's own words, then "all the time".
@@ -93,6 +95,69 @@ void main() {
     });
   });
 
+  group('Google Play’s build: no “all the time” in its manifest', () {
+    late List<MethodCall> calls;
+
+    setUp(() {
+      calls = [];
+      messenger.setMockMethodCallHandler(placesChannel, (call) async {
+        calls.add(call);
+        return switch (call.method) {
+          'access' || 'askForeground' => 'whileUsing',
+          'askBackground' => 'always',
+          _ => null,
+        };
+      });
+    });
+    tearDown(() => messenger.setMockMethodCallHandler(placesChannel, null));
+
+    test('this run is not Play’s, so it asks for all the time as before', () {
+      expect(placesInFrontOnly, isFalse);
+      expect(placeStepFor(PlaceAccess.whileUsing), PlaceStep.explainBackground);
+    });
+
+    test('the phone’s word for the manifest without it is while open, done, no warning, no words', () {
+      expect(placeAccessOf('whileOpen'), PlaceAccess.whileOpen);
+      expect(placeStepFor(PlaceAccess.whileOpen), PlaceStep.done);
+      expect(placeAccessWarns(PlaceAccess.whileOpen), isFalse);
+      expect(placeAccessWords(PlaceAccess.whileOpen), isNull);
+      expect(placeAccessWords(PlaceAccess.blocked, inFrontOnly: true), allOf(contains('Allow only while using the app'), isNot(contains('all the time'))));
+    });
+
+    test('in front only, while using reads as while open and “Allow all the time” is never asked of the phone', () async {
+      final host = PhonePlaceHost(android: true, inFrontOnly: true);
+      expect(await host.access(), PlaceAccess.whileOpen);
+      expect(await host.askForeground(), PlaceAccess.whileOpen);
+      expect(await host.askBackground(), PlaceAccess.whileOpen);
+      expect([for (final call in calls) call.method], isNot(contains('askBackground')));
+    });
+
+    test('the flow asks the location while in use and stops there: no sheet, no all the time, no warning', () async {
+      final phone = FakePlaces()
+        ..now = PlaceAccess.ask
+        ..afterForeground = PlaceAccess.whileOpen;
+      var explained = 0;
+      expect(await PlaceAccessFlow(host: phone, explain: () async => (explained += 1) > 0).run(), PlaceAccess.whileOpen);
+      expect(phone.asked, ['foreground']);
+      expect(explained, 0);
+      expect(placeWarning.value, isFalse);
+      final already = FakePlaces()..now = PlaceAccess.whileOpen;
+      expect(await PlaceAccessFlow(host: already, explain: () async => (explained += 1) > 0).run(), PlaceAccess.whileOpen);
+      expect(already.asked, isEmpty);
+      expect(explained, 0);
+    });
+
+    test('the Play manifest takes the permission out, the sideload APK’s keeps it, and the phone reads which', () {
+      final play = File('android/app/src/play/AndroidManifest.xml').readAsStringSync().replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+      expect(play, contains('android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove"'));
+      expect(File('android/app/src/main/AndroidManifest.xml').readAsStringSync(), contains('<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />'));
+      final kotlin = File('android/app/src/main/kotlin/com/mattssoftware/ghost_md/reminders/Places.kt').readAsStringSync();
+      expect(kotlin, contains('requestedPermissions'));
+      expect(kotlin, contains('"whileOpen"'));
+      expect(kotlin, contains('!backgroundDeclared(app)'), reason: 'askBackground answers as things stand without it');
+    });
+  });
+
   group('the permission', () {
     test('each access’s next step', () {
       expect(placeStepFor(PlaceAccess.always), PlaceStep.done);
@@ -100,7 +165,14 @@ void main() {
       expect(placeStepFor(PlaceAccess.approximate), PlaceStep.askForeground);
       expect(placeStepFor(PlaceAccess.whileUsing), PlaceStep.explainBackground);
       expect(placeStepFor(PlaceAccess.blocked), PlaceStep.settings);
-      expect([for (final access in PlaceAccess.values) placeAccessWarns(access)], [false, true, true, true, true]);
+      expect({for (final access in PlaceAccess.values) access: placeAccessWarns(access)}, {
+        PlaceAccess.always: false,
+        PlaceAccess.whileUsing: true,
+        PlaceAccess.whileOpen: false,
+        PlaceAccess.approximate: true,
+        PlaceAccess.ask: true,
+        PlaceAccess.blocked: true,
+      });
       expect(placeAccessWarns(null), isFalse);
       expect(placeAccessWords(PlaceAccess.always), isNull);
       expect(placeAccessWords(PlaceAccess.whileUsing), contains('Allow location all the time'));

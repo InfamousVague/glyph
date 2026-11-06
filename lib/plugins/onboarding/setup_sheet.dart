@@ -195,9 +195,14 @@ class _PluginSetupSheetState extends State<PluginSetupSheet> {
     if (_step is SetupCheck) unawaited(_check());
   }
 
-  /// The step's clip, Simple's shorter one where it has one: none where its words have no clip yet.
+  /// The step's clip, Simple's shorter one where it has one: none where its words have no clip yet, or are the setup's
+  /// own captions instead (PluginSetup.captions).
   void _speak() {
     final name = '${_setup.id}-${_step.id}';
+    if (_setup.captionOf(_step, simple: _simple) != null) {
+      unawaited(_voice.hush());
+      return;
+    }
     final clip = _simple && setupVoice.containsKey('$name-simple') ? '$name-simple' : name;
     if (!setupVoice.containsKey(clip)) {
       unawaited(_voice.hush());

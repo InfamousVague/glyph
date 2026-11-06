@@ -6,6 +6,9 @@
 ///
 /// Where the phone has no geofences (a Mac, an iPhone for now: docs/INTEGRATIONS.md §3) the page says so: a place
 /// written on a to-do is still drawn and kept there, and reminds on an Android phone.
+///
+/// Google Play's build ([placesInFrontOnly]) says a place reminder rings while the app is open, and the location while
+/// in use is all it offers to allow ([PlaceAccess.whileOpen]).
 library;
 
 import 'dart:async';
@@ -22,13 +25,16 @@ import '../onboarding/setup_flow.dart' show PluginSetup;
 import 'places_setup.dart';
 
 class PlacesPane extends StatefulWidget {
-  const PlacesPane({super.key, this.places, this.reminders});
+  const PlacesPane({super.key, this.places, this.reminders, this.inFrontOnly = placesInFrontOnly});
 
   /// The phone's geofences: [phonePlaces] unless given.
   final PlaceHost? places;
 
   /// Settings › Notifications › Reminders: the app's own unless given.
   final ReminderSettingsStore? reminders;
+
+  /// [placesInFrontOnly] unless a test says.
+  final bool inFrontOnly;
 
   @override
   State<PlacesPane> createState() => _PlacesPaneState();
@@ -41,7 +47,7 @@ class _PlacesPaneState extends State<PlacesPane> {
 
   PlaceHost? get _places => widget.places ?? phonePlaces.value;
   ReminderSettingsStore get _reminders => widget.reminders ?? reminderSettings;
-  late final PluginSetup _setup = placesSetup(places: widget.places == null ? null : () => widget.places);
+  late final PluginSetup _setup = placesSetup(places: widget.places == null ? null : () => widget.places, inFrontOnly: widget.inFrontOnly);
 
   @override
   void initState() {
@@ -91,7 +97,11 @@ class _PlacesPaneState extends State<PlacesPane> {
   Widget build(BuildContext context) {
     final places = _places;
     final access = _access;
-    final kept = placeAccessWords(access);
+    final inFront = widget.inFrontOnly;
+    final kept = placeAccessWords(access, inFrontOnly: inFront);
+    final (allowed, allowedHint) = access == PlaceAccess.whileOpen
+        ? ('Allowed while the app is open', 'Ghost.md tells you when your phone arrives at a place on one of your to-dos while the app is open. Closed, it can’t tell.')
+        : ('Allowed all the time', 'Your phone tells Ghost.md when it arrives at a place on one of your to-dos.');
     return PaneBody(
       children: [
         PluginSetupCard(setup: _setup),
@@ -105,7 +115,11 @@ class _PlacesPaneState extends State<PlacesPane> {
         ),
         PaneSection(
           title: 'Location',
-          description: const Text('A place reminder rings while Ghost.md is closed, so Android has to let it know where your phone is all the time. Where you are stays on the phone.'),
+          description: Text(
+            inFront
+                ? 'Ghost.md looks where your phone is only while the app is open, so a place reminder rings as you arrive with the app open, not while it is closed. Where you are stays on the phone.'
+                : 'A place reminder rings while Ghost.md is closed, so Android has to let it know where your phone is all the time. Where you are stays on the phone.',
+          ),
           children: [
             if (places == null)
               const SettingRow(label: 'Not on this device', hint: Text('Place reminders ring on an Android phone. Here a place on a to-do is shown and kept, and reminds on your phone.'))
@@ -113,8 +127,8 @@ class _PlacesPaneState extends State<PlacesPane> {
               const SettingRow(label: 'Location', hint: Text('Asking the phone…'))
             else
               SettingRow(
-                label: kept == null ? 'Allowed all the time' : 'Not allowed all the time',
-                hint: Text(kept ?? 'Your phone tells Ghost.md when it arrives at a place on one of your to-dos.'),
+                label: kept == null ? allowed : (inFront ? 'Not allowed' : 'Not allowed all the time'),
+                hint: Text(kept ?? allowedHint),
               ),
           ],
         ),

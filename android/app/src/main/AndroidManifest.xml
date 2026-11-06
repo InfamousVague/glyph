@@ -334,10 +334,11 @@
         </service>
 
         <!--
-          A job the app runs by itself, held up while it runs (BackgroundJobs.kt; lib/core/background_jobs.dart):
-          Lovart's header images for the recent notes, made with the screen off or the app behind another. The work
-          is the app's own engine's; the service keeps the process from being frozen, with a notification that says
-          how far it is and has Stop. specialUse from Android 14, said in the property as a store reads it.
+          A long job the person started in the app, held up while it runs (BackgroundJobs.kt;
+          lib/core/background_jobs.dart): Lovart's header images, an import, a git backup, Wrapped's slow pass, AI
+          summaries, made with the screen off or the app behind another. The work is the app's own engine's; the
+          service keeps the process from being frozen, with a notification that says how far it is and has Stop.
+          specialUse from Android 14, said in the property as a store reads it (docs/store/play/forms.md).
         -->
         <service
             android:name="com.mattssoftware.ghost_md.BackgroundJobService"
@@ -345,7 +346,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Making header images for the person's notes, a job they started in the app" />
+                android:value="Long jobs the person starts in the app and can stop from the notification at any time: making header images and voice-overs for their notes, importing notes, backing up their notes, Wrapped's pass over their notes, and AI summaries" />
         </service>
 
         <!--

@@ -228,6 +228,8 @@ class MainActivity : FlutterActivity() {
         resumed = WeakReference(this)
         meeting?.onResume()
         hinge.onResume()
+        // Google Play's build watches place reminders only while in front (reminders/Places.kt).
+        Places.resumed(applicationContext)
     }
 
     override fun onPause() {
@@ -238,6 +240,7 @@ class MainActivity : FlutterActivity() {
         film?.pauseAll()
         hinge.onPause()
         meeting?.onPause()
+        Places.paused(applicationContext)
         super.onPause()
     }
 

@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -17,7 +18,11 @@ import android.util.Log
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import com.google.android.gms.location.GeofencingRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
@@ -33,7 +38,7 @@ import java.lang.ref.WeakReference
  *   the nearest: Play services' own limit for an app), kept here (SharedPreferences, so a restart and an update can
  *   register it again with the app closed: ReminderRestart) and registered; what was registered before is let go.
  * - `clear`: none.
- * - `access` -> "always", "whileUsing", "approximate", "ask" or "blocked".
+ * - `access` -> "always", "whileUsing", "whileOpen", "approximate", "ask" or "blocked".
  * - `askForeground`, `askBackground` -> the access once Android's prompt is answered: the precise location while in
  *   use, then "Allow all the time" (a page of the phone's settings from Android 11). The app says why before the
  *   second (lib/reminders/place_access.dart).
@@ -47,6 +52,14 @@ import java.lang.ref.WeakReference
  * allowed. Play services drops them after a restart and when the app is updated (ReminderRestart registers them again),
  * and when location is turned off for the phone (the next set from the app, as it comes back to the front).
  *
+ * **Google Play's build has no "all the time"** (android/app/src/play/AndroidManifest.xml takes
+ * ACCESS_BACKGROUND_LOCATION out; docs/store/play/README.md). Without it in the manifest no geofence registers, so the
+ * access is "whileOpen", nothing asks for "Allow all the time", and the places are watched only while the app is in
+ * front ([resumed], [paused]): the fused location every minute or so, at Play services' balanced power, and a place
+ * rings as the phone comes inside it, the way a geofence's ENTER does. What was inside at the last look is kept, so
+ * opening the app on arriving rings, and a place first seen with the phone already in it (a to-do written at the shop)
+ * does not.
+ *
  * **What rings** is a reminder's notification (Reminders.kt): on the "Reminders" channel, "Buy diapers — you're at
  * Target" over the note's title, a tap opening the note at the to-do and Done ticking it (GhostBackground.kt). No
  * Snooze: an hour from now the phone may be anywhere. Its Done lets that to-do's geofence go at once, before the app
@@ -58,6 +71,8 @@ object Places {
   private const val PREFS = "ghost_places"
   private const val KEY_PLAN = "plan"
   private const val KEY_BLOCKED = "blocked"
+  private const val KEY_INSIDE = "inside"
+  private const val KEY_SEEN = "seen"
   private const val MOST = 100
 
   /** The prefix a place's notification is known by among the reminders' (Reminders.find). */
@@ -75,6 +90,15 @@ object Places {
 
   private val main = Handler(Looper.getMainLooper())
 
+  /** Whether the manifest asks for the location all the time: not in Google Play's build. Read once. */
+  @Volatile private var declared: Boolean? = null
+
+  /** Whether the app is in front (MainActivity's onResume to onPause). */
+  private var front = false
+
+  /** The in-front watch's callback while the app is in front and watching ([look]). */
+  private var watch: LocationCallback? = null
+
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   // ---- the channel -------------------------------------------------------------------------------------------------
@@ -88,6 +112,7 @@ object Places {
           val taken = try {
             keep(app, (call.arguments as? List<*>) ?: emptyList<Any?>())
             arm(app)
+            if (front) look(app)
             true
           } catch (error: Throwable) {
             Log.w(TAG, "the places were not taken", error)
@@ -103,8 +128,9 @@ object Places {
         "access" -> result.success(access(app))
         "askForeground" -> ask(app, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_FOREGROUND, result)
         "askBackground" -> {
-          // Before Android 10 the precise location is all the time already; without it there is nothing to widen.
-          if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !held(app, Manifest.permission.ACCESS_FINE_LOCATION)) {
+          // Before Android 10 the precise location is all the time already; without it there is nothing to widen,
+          // and a build whose manifest has no ACCESS_BACKGROUND_LOCATION (Google Play's) never asks for it.
+          if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !held(app, Manifest.permission.ACCESS_FINE_LOCATION) || !backgroundDeclared(app)) {
             result.success(access(app))
           } else {
             ask(app, arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), REQUEST_BACKGROUND, result)
@@ -253,6 +279,96 @@ object Places {
     }
   }
 
+  // ---- in front only: Google Play's build ------------------------------------------------------------------------
+
+  /** Whether this build's manifest asks for ACCESS_BACKGROUND_LOCATION (the sideload APK does, Google Play's not). */
+  fun backgroundDeclared(context: Context): Boolean {
+    declared?.let { return it }
+    val asked = try {
+      @Suppress("DEPRECATION")
+      context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions
+        ?.contains(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == true
+    } catch (error: Throwable) {
+      Log.w(TAG, "the manifest's permissions were not read", error)
+      true
+    }
+    declared = asked
+    return asked
+  }
+
+  /** Whether the places are watched in front instead of by geofences: no "all the time" in this build. */
+  private fun watchesInFront(context: Context): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !backgroundDeclared(context)
+
+  /** The app came to the front (MainActivity.onResume): the places are watched, where this build watches in front. */
+  fun resumed(context: Context) {
+    front = true
+    look(context)
+  }
+
+  /** The app left the front (MainActivity.onPause): the watch stops, and nothing is watched until it is back. */
+  fun paused(context: Context) {
+    front = false
+    stop(context)
+  }
+
+  /** Watching as things stand, in front: started where there are places and the precise location, else stopped. */
+  private fun look(context: Context) {
+    val app = context.applicationContext
+    if (!front || !watchesInFront(app) || !held(app, Manifest.permission.ACCESS_FINE_LOCATION) || held(app).isEmpty()) {
+      stop(app)
+      return
+    }
+    if (watch != null) return
+    val callback = object : LocationCallback() {
+      override fun onLocationResult(result: LocationResult) {
+        result.lastLocation?.let { looked(app, it) }
+      }
+    }
+    val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 60_000L).setMinUpdateIntervalMillis(30_000L).build()
+    try {
+      LocationServices.getFusedLocationProviderClient(app).requestLocationUpdates(request, callback, Looper.getMainLooper())
+      watch = callback
+    } catch (error: SecurityException) {
+      Log.w(TAG, "the location to watch the places is not allowed", error)
+    }
+  }
+
+  private fun stop(context: Context) {
+    val callback = watch ?: return
+    watch = null
+    try {
+      LocationServices.getFusedLocationProviderClient(context.applicationContext).removeLocationUpdates(callback)
+    } catch (error: Throwable) {
+      Log.w(TAG, "the watch was not stopped", error)
+    }
+  }
+
+  /** A look at where the phone is, in front: each place it has come inside since the last look rings. */
+  @Synchronized
+  private fun looked(context: Context, location: Location) {
+    // A fix too rough to tell a place's 150 m from the next street is not a look.
+    if (location.hasAccuracy() && location.accuracy > 500f) return
+    val items = held(context)
+    val prefs = prefs(context)
+    val seen = prefs.getStringSet(KEY_SEEN, emptySet())!!.toMutableSet()
+    val inside = prefs.getStringSet(KEY_INSIDE, emptySet())!!.toMutableSet()
+    val ids = items.map { it.id }.toSet()
+    seen.retainAll(ids)
+    inside.retainAll(ids)
+    val distance = FloatArray(1)
+    for (item in items) {
+      Location.distanceBetween(location.latitude, location.longitude, item.lat, item.lon, distance)
+      val now = distance[0] <= item.radius
+      val first = seen.add(item.id)
+      if (!now) {
+        inside.remove(item.id)
+      } else if (inside.add(item.id) && !first) {
+        Reminders.ringPlace(context, item.reminder())
+      }
+    }
+    prefs.edit().putStringSet(KEY_SEEN, seen).putStringSet(KEY_INSIDE, inside).apply()
+  }
+
   // ---- the permission ----------------------------------------------------------------------------------------------
 
   private fun held(context: Context, permission: String): Boolean = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
@@ -261,7 +377,7 @@ object Places {
   fun access(context: Context): String {
     if (held(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
       prefs(context).edit().remove(KEY_BLOCKED).apply()
-      return if (canWatch(context)) "always" else "whileUsing"
+      return if (canWatch(context)) "always" else if (watchesInFront(context)) "whileOpen" else "whileUsing"
     }
     if (held(context, Manifest.permission.ACCESS_COARSE_LOCATION)) return "approximate"
     val from = activity?.get()
@@ -304,6 +420,7 @@ object Places {
     asking?.success(access(context))
     asking = null
     arm(context)
+    look(context)
     return true
   }
 

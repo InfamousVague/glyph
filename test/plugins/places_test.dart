@@ -114,6 +114,19 @@ void main() {
       await endSettings(tester);
     });
 
+    testWidgets('Google Play’s build: allowed while open, said so, and nothing offers all the time', (tester) async {
+      places.now = PlaceAccess.whileOpen;
+      await pumpSettings(tester, SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: PlacesPane(places: places, inFrontOnly: true))));
+      await tester.pump();
+      expect(hintOf(tester, 'Allowed while the app is open'), startsWith('Ghost.md tells you when your phone arrives at a place on one of your to-dos while the app is open.'));
+      expect(find.textContaining('only while the app is open'), findsOneWidget);
+      expect(find.textContaining('all the time'), findsNothing);
+      expect(find.text('Allow location all the time'), findsNothing);
+      expect(placeWarning.value, isFalse);
+      expect(places.asked, isEmpty);
+      await endSettings(tester);
+    });
+
     testWidgets('never asked: the prompt while in use first, then all the time', (tester) async {
       places.now = PlaceAccess.ask;
       await open(tester, places);

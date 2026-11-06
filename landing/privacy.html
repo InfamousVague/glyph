@@ -9,8 +9,9 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <!--
       The privacy policy the App Store and Google Play listings link to (docs/store/). Written from what the code does
-      (docs/SYNC.md, SHARING.md, LIVE.md, MCP.md, TEAMS.md, and the data inventory in docs/DESIGN.md §113): change it
-      when that changes, and move the date. Styled as the download page is (index.html), with a reading column.
+      (docs/SYNC.md, SHARING.md, LIVE.md, MCP.md, TEAMS.md, CLAUDE_APP.md, WRAPPED.md, and the data inventory in
+      docs/DESIGN.md §113; each plugin's own code for what it sends): change it when that changes, and move the date.
+      Google Play's review reads it against the Data safety answers (docs/store/play/forms.md). Styled as the download page is (index.html), with a reading column.
     -->
     <link rel="stylesheet" href="glacier/tokens.css" />
     <link rel="stylesheet" href="site.css" />
@@ -24,7 +25,7 @@
       </header>
 
       <h1>Privacy</h1>
-      <p class="muted">Last updated 4 November 2026</p>
+      <p class="muted">Last updated 5 November 2026</p>
 
       <p>
         Ghost.md is a notes app made by Matt Wisniewski ("we", "us"). This page says what happens to your notes and your
@@ -43,8 +44,13 @@
             other notes stay yours alone.
           </li>
           <li>
-            No ads and no tracking, and we never sell or share your data. The apps send anonymous usage statistics (which
-            features are used, never what you write), and you can turn them off in Settings › Privacy.
+            The AI assistant and the plugins are optional. They work only with an account or key you set up yourself, and
+            they send your notes only to the service you chose, from your device.
+          </li>
+          <li>
+            No ads and no tracking, and we never sell your data or share it beyond the services you choose to use. The apps
+            send anonymous usage statistics (which features are used, never what you write), and you can turn them off in
+            Settings › Privacy.
           </li>
           <li>You can delete your account, and everything it keeps on our servers, from the app at any time.</li>
         </ul>
@@ -188,9 +194,34 @@
         service as it's typed. It's encrypted the same way as your notes, and our service doesn't store it.
       </p>
 
-      <h2>Connecting an AI assistant (optional)</h2>
+      <h2>The AI assistant in the app (optional)</h2>
       <p>
-        You can connect an AI assistant, such as Claude, to your notes. If you connect it through our hosted connection, you
+        Ghost.md has an AI assistant that answers questions about your notes and writes into them. It works only once you
+        choose an AI provider in Settings › AI and give it your own key from that provider: Anthropic (Claude), OpenAI,
+        Google (Gemini), Aster, or an address of your own (for example OpenRouter, or a model running on your own computer).
+        The provider bills your key for what you ask. Your key is kept in your device's secure storage. If you sync, it
+        follows you to your other devices sealed inside your encrypted settings, so we can't read it.
+      </p>
+      <p>
+        When you ask the assistant something, your device sends the request straight to the provider you chose, never
+        through our servers: what you asked, the conversation so far, and the notes the assistant reads to answer. Once you
+        have set a provider up, a few features also send to it without asking each time: meeting write-ups (unless you
+        choose On this device under Settings › AI › Meeting summaries), the to-dos you write in your Ask Claude note, and
+        short recordings from a watch. Cleanup, Wrapped, the contradiction finder and Note decay's AI checks do the same
+        once you add them, and Wrapped asks before its first pass. Several of these can use an AI model that runs on your
+        device instead, which sends nothing. What a provider receives is covered by its own privacy policy and terms.
+      </p>
+      <p>
+        <strong>Pictures in the AI chat</strong>: you can give the assistant pictures, for example a photo of a list of
+        appointments to turn into to-dos. Your device makes each picture smaller and sends it with your message to the
+        provider you chose, and only if its model can read pictures. The copy the picture chooser makes is deleted as soon
+        as it is read. A picture is kept only in the app's memory for that conversation, unless you turn on "Keep pictures
+        in notes", which lets the assistant put it in a note.
+      </p>
+
+      <h2>Connecting an AI assistant from outside the app (optional)</h2>
+      <p>
+        You can also connect an AI assistant, such as Claude, to your notes. If you connect it through our hosted connection, you
         sign in on a page that gives our server your notes' key for the length of that connection, so it can read and write
         your notes when the assistant asks. The key is held in memory while it is used. So that a restart of our server doesn't
         disconnect you, it is also kept on disk, but only sealed: it opens only with a token the assistant holds, and we don't
@@ -200,15 +231,84 @@
       </p>
 
       <h2>Plugins (optional)</h2>
+      <p>
+        Plugins add features that work with other services. Most are off until you switch them on in Settings › Plugins or
+        the Market, and the few that are on from the start, such as Notion and GitHub, send nothing until you connect them.
+        Each uses your own account, key or address, kept in your device's secure storage (and, if you sync, sealed inside
+        your encrypted settings). Unless it says otherwise below, your device talks to the service directly, not through our
+        servers. Local only holds every plugin that uses the network off.
+      </p>
       <ul>
         <li>
+          <strong>Header images and pictures (Lovart)</strong>: with your own Lovart keys, Lovart draws pictures for your
+          notes, using your Lovart credits. While "Header images for notes" is on (it is, once Lovart is set up), leaving a
+          note of 25 words or more sends its title, its first 1,500 characters and some of its headings to Lovart to draw a
+          banner. A picture you ask for in a note sends only its description. Switch header images off on the plugin's page.
+        </li>
+        <li>
+          <strong>Voice-overs (ElevenLabs)</strong>: with your own ElevenLabs key, a voice-over you ask for sends the readable
+          words of that note to ElevenLabs, which sends back the audio.
+        </li>
+        <li>
           <strong>Notion</strong>: if you connect Notion, your device talks to Notion directly, sending the tasks you choose to
-          send. Signing in to Notion passes through our server, which holds the sign-in tokens in memory for up to ten minutes
-          until your device collects them. The tokens are then kept on your device.
+          send, and an import reads the pages you shared with Ghost.md, with their pictures and files. Signing in to Notion
+          passes through our server, which holds the sign-in tokens in memory for up to ten minutes until your device
+          collects them. The tokens are then kept on your device.
         </li>
         <li>
           <strong>GitHub</strong>: if you connect GitHub, your device talks to GitHub directly with the token you give it, which is
-          kept on your device.
+          kept on your device. It sends the to-dos you turn into issues, as their titles, and reads the repositories your
+          notes link to.
+        </li>
+        <li>
+          <strong>Back up to git</strong>: commits your Library to a git repository you choose (on GitHub, GitLab, Codeberg or
+          any git host) and pushes it there. The backup is plain Markdown files and their pictures, not encrypted, so anyone
+          who can read that repository can read those notes: keep it private. Recordings and your teams' notes are left out
+          unless you switch each on.
+        </li>
+        <li>
+          <strong>Figma</strong>: with your own Figma token, a linked Figma frame is shown with its name and picture, asked of
+          Figma by its link.
+        </li>
+        <li>
+          <strong>Calendar</strong>: shows your events beside your notes. A calendar address (iCal) you add is fetched by your
+          device. Signing in to Google Calendar passes through our server in the same way as Notion's, and after that your
+          device talks to Google directly. If you turn on adding dated to-dos to your calendar (off unless you do), each
+          open to-do with a date is written to your Google Calendar as an event with the to-do's words.
+        </li>
+        <li>
+          <strong>Team chat (Slack and Discord)</strong>: with a channel's webhook address, your device posts what you send
+          there: a note, and, if you turn them on, a meeting's title, time, action items, decisions, one-sentence summary and
+          an encrypted share link, or your organization's news (who joined or left). With the Ghost bot added to a Discord
+          server and your account linked (we keep your Discord user id and name), <code>/ghost join</code> has the bot record
+          that voice channel, and it says so in the channel. The recording is encrypted to your account's key as it reaches
+          our server, which keeps only that encrypted copy; while the call runs, its title, channel and times are kept in
+          the clear.
+        </li>
+        <li>
+          <strong>Meetings (Google Meet and Zoom)</strong>: when you invite Ghost to a meeting, a bot on our server joins it,
+          says in the meeting's chat that it is there, and records the sound and captions. They are encrypted to your
+          account's key as they reach our server and deleted once one of your devices has collected them; the write-up is
+          made on your device, or by your AI provider. Our server sees the meeting's link, title and times, which it blanks
+          an hour after the meeting ends, and deletes the booking after 30 days. An invitation's organizer and guest list
+          are read and not kept.
+        </li>
+        <li>
+          <strong>Email to a note</strong>: if you turn it on, you get an address at in.ghostmarkdown.com. Mail sent to it
+          reaches our server through our email provider, Mailgun. Like any mail server, ours receives the mail as it was
+          sent; at once it encrypts it to your account's key and keeps only the encrypted copy, which waits until one of
+          your devices collects it, files it as a note and deletes it. The unencrypted mail is never written to disk or
+          logged. Mailgun handles the mail under its own terms.
+        </li>
+        <li>
+          <strong>Publishing and forms</strong>: a note or notebook you publish as a site is encrypted like a shared link,
+          with the key in the link after the "#", so we can't read it. A form you share takes answers from anyone with its
+          link; each answer is encrypted in the visitor's browser to your account's key (or your organization members'),
+          so it reaches our server already encrypted and waits there until one of your devices files it.
+        </li>
+        <li>
+          <strong>Importing from Todoist</strong>: the token you paste is used for that import, sent only to Todoist, and not
+          kept.
         </li>
       </ul>
       <p>What you send to those services is covered by their own privacy policies.</p>
@@ -217,7 +317,9 @@
       <ul>
         <li>
           <strong>Link previews</strong>: to show a preview of a link in a note, your device fetches that page directly. The site
-          sees your IP address, as it would if you opened the link. You can turn previews off in Settings › Account › Privacy.
+          sees your IP address, as it would if you opened the link. A YouTube, Spotify or Figma link on a line of its own is
+          shown as a card, with its title and picture asked of that service by its link; its player loads only when you
+          tap it. You can turn previews off in Settings › Account › Privacy.
         </li>
         <li>
           <strong>Where a note was written</strong>: a new note you make starts with where you are, once you allow Ghost.md to
@@ -231,9 +333,11 @@
           fetches from openstreetmap.org when you open the note, and asks OpenStreetMap's Nominatim once, when the location is
           written into the note, for the place's name, which is then kept in the note. A new note that never gets a word
           asks neither. Those servers see your IP address and the coordinates
-          asked about (to about 100 m for the name). Both are off under Local only, and each has its own switch in Settings ›
+          asked about (to about 100 m for the name). The map's tiles show OpenStreetMap's tile servers the rough area being
+          shown, the squares of map around the place rather than the point itself. A place you search for by name, in
+          Remind me at a place, is looked up on Nominatim too. Both are off under Local only, and each has its own switch in Settings ›
           Account › Location. A note's location is part of the note: it syncs with it, end-to-end encrypted like the rest of the note, it
-          is in the note's file in the phone's Files app, and a connected AI assistant sees it. A shared link leaves it out
+          is in the note's file in the phone's Files app, and a connected AI assistant sees it. We never see where you are. A shared link leaves it out
           unless you tick "Share where it was written" on that note.
         </li>
         <li>
@@ -248,9 +352,27 @@
           too.
         </li>
         <li>
-          <strong>Updates and models</strong>: the apps check attack.fm for updates, and download the voice and formatting models
-          from attack.fm, or from Hugging Face if attack.fm can't be reached. These are plain downloads: no account, device id or
-          anything about you is sent. The servers see your IP address.
+          <strong>Place reminders</strong>: a to-do can remind you when your phone arrives at a place. Where your phone is
+          stays on it. In the Android app from ghostmarkdown.com, Google Play services' geofences notice the arrival with
+          the app closed, which needs your location all the time. In the Google Play version, place reminders work only
+          while the app is open, and the phone's location is checked about once a minute while it is.
+        </li>
+        <li>
+          <strong>Google Play services on Android</strong>: scanning a document and reading the words in pictures and PDFs
+          use Google's tools from Google Play services, which run on the phone (Google may receive anonymous diagnostics
+          about them, under its terms), and place reminders use its location service. A Wear OS watch app talks to your
+          phone through Google's Wear OS connection.
+        </li>
+        <li>
+          <strong>Updates</strong>: the Google Play version is updated by Google Play, and the App Store versions by the App
+          Store; they never check with us. The Android app downloaded from ghostmarkdown.com checks attack.fm, our update
+          server, for a new version. These are plain requests: no account, device id or anything about you is sent. The
+          server sees your IP address.
+        </li>
+        <li>
+          <strong>Models</strong>: the apps download the voice and formatting models, and the AI models that run on your
+          device if you choose one, from attack.fm, or from Hugging Face if attack.fm can't be reached. These are plain
+          downloads too.
         </li>
       </ul>
 
@@ -265,8 +387,9 @@
         Apart from the anonymous usage statistics above, which you can turn off, we don't use analytics or crash reporting,
         and we don't use advertising or tracking of any kind: there's no advertising id, and nothing is linked to you across
         other companies' apps or sites. We don't sell
-        your data, share it with anyone (the location, map and place-name requests above are the one exception, and you can
-        switch them off), or use it to train AI models.
+        your data or use it to train AI models, and we don't share it with anyone beyond what this page describes: the AI
+        provider and the services you connect yourself, and the location, map and place-name requests, which you can switch
+        off.
       </p>
 
       <h2>Deleting your data</h2>
