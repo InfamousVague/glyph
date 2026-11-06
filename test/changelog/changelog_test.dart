@@ -266,7 +266,10 @@ void main() {
       final script = File('tool/cutover-build.sh').readAsStringSync();
       final at = script.indexOf('tool/changelog_check.sh "\$version"');
       expect(at, greaterThan(0));
-      expect(at, lessThan(script.indexOf('flutter build apk')));
+      // The build is `flutter build "\$artifact"` since the Play bundle (2026-11-05): apk, or appbundle with --play.
+      final build = script.indexOf('flutter build ');
+      expect(build, greaterThan(0));
+      expect(at, lessThan(build));
       expect(script, contains('if [ "\$mode" = "--release" ]; then tool/changelog_check.sh'));
     });
   });
