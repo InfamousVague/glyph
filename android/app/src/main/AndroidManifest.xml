@@ -379,6 +379,13 @@
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="ocr" />
+        <!-- Ghost Keyboard's Ghostwriter asking which notes match a request (KeyboardNotes.kt). Exported, and the
+             provider itself answers only Ghost Keyboard signed with its own key, and only while Settings > AI >
+             Ghost Keyboard is on. Read-only. -->
+        <provider
+            android:name=".KeyboardNotes"
+            android:authorities="${applicationId}.keyboard"
+            android:exported="true" />
         <!-- A file in a note, handed to another app to open or share (Documents.kt): a copy under its own name in
              <cacheDir>/open and nothing else (res/xml/ghost_attachment_paths.xml), each grant for the one intent. -->
         <provider

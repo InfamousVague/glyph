@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -21,6 +22,7 @@ const List<SettingsFindable> aiFindable = [
   SettingsFindable('Look up blanks online', 'fill blank weather rates wikipedia web live internet privacy'),
   SettingsFindable('Assistant', 'assistant ai chat ask claude openai gpt gemini google custom openrouter ollama lm studio provider which model'),
   // The one place who writes meetings up is chosen (2026-11-01; Recording's and each provider's page's rows open it).
+  SettingsFindable('Ghost Keyboard', 'keyboard ghost kbd ghostwriter search notes context phone android'),
   SettingsFindable('Meeting summaries', 'meeting meetings summary summaries write up written by claude openai gemini device model provider'),
 ];
 
@@ -198,6 +200,7 @@ class _AiPaneState extends State<AiPane> {
               ],
             ),
             AssistantSection(choice: widget.assistant ?? appAssistant),
+            if (android) const KeyboardSection(),
           ],
         );
       },
@@ -281,4 +284,55 @@ class _AssistantSectionState extends State<AssistantSection> {
       ),
     );
   }
+}
+
+/// Settings › AI › Ghost Keyboard (Android): whether Ghost Keyboard's Ghostwriter may search the notes on this phone
+/// for a request's context (android KeyboardNotes.kt). On by default; only Ghost Keyboard signed with its own key is
+/// answered, and it reads, never writes.
+class KeyboardSection extends StatefulWidget {
+  const KeyboardSection({super.key});
+
+  static const channel = MethodChannel('ghost_md/keyboard');
+
+  @override
+  State<KeyboardSection> createState() => _KeyboardSectionState();
+}
+
+class _KeyboardSectionState extends State<KeyboardSection> {
+  bool _on = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(() async {
+      try {
+        final on = await KeyboardSection.channel.invokeMethod<bool>('get');
+        if (mounted && on != null) setState(() => _on = on);
+      } on MissingPluginException {
+        return;
+      }
+    }());
+  }
+
+  Future<void> _set(bool on) async {
+    setState(() => _on = on);
+    try {
+      await KeyboardSection.channel.invokeMethod<bool>('set', {'on': on});
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PaneSection(
+        title: 'Ghost Keyboard',
+        footer: const Text('Ghost Keyboard’s Ghostwriter fills <<what you want>> in any app. With this on, it can search your notes on this phone for what it needs. Nothing is sent anywhere by Ghost.md; the keyboard sends the notes it uses to the AI you chose there.'),
+        children: [
+          SettingRow(
+            label: 'Let Ghost Keyboard search my notes',
+            hint: const Text('Read-only, and only the real Ghost Keyboard is answered.'),
+            control: GlacierSwitch(ariaLabel: 'Let Ghost Keyboard search my notes', checked: _on, onCheckedChange: (on) => unawaited(_set(on))),
+          ),
+        ],
+      );
 }

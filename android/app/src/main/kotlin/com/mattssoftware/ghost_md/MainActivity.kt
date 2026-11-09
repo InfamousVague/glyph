@@ -142,6 +142,14 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        // Settings > AI > Ghost Keyboard: whether the keyboard may search the notes (KeyboardNotes.kt).
+        MethodChannel(messenger, "ghost_md/keyboard").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "get" -> result.success(KeyboardNotes.on(applicationContext))
+                "set" -> { KeyboardNotes.set(applicationContext, call.argument<Boolean>("on") != false); result.success(KeyboardNotes.on(applicationContext)) }
+                else -> result.notImplemented()
+            }
+        }
         // The session and the account's keys, under a key the Android Keystore holds (SecureStore.kt;
         // lib/account/device_keys.dart).
         val secrets = SecureStore(applicationContext).also { it.register(messenger) }
