@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -555,10 +556,11 @@ void main() {
     testWidgets('lists the catalogue, with Get waiting for a downloader, and keeps Fill blanks on their own', (tester) async {
       await openPane(tester, 'ai', size: const Size(390, 1200));
       // And under it, which AI answers the chat and which writes meetings up (docs/AI_PROVIDERS.md; Matt, 2026-10-29).
-      expect(cardTitles(tester), ['Model', 'Assistant', 'Meeting summaries']);
+      // And on Android, Ghost Keyboard's switch for searching the notes (android KeyboardNotes.kt; Matt, 2026-11-09).
+      expect(cardTitles(tester), ['Model', 'Assistant', 'Meeting summaries', if (defaultTargetPlatform == TargetPlatform.android) 'Ghost Keyboard']);
       const ais = ['Automatic', 'Claude', 'OpenAI', 'Gemini', 'Custom AI model', 'Aster'];
       // Look up blanks online beside Fill blanks on their own since 2026-11-01 (it was on Account's Privacy card).
-      expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own', 'Look up blanks online', ...ais, ...ais, 'On this device']);
+      expect(rowLabels(tester), ['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own', 'Look up blanks online', ...ais, ...ais, 'On this device', if (defaultTargetPlatform == TargetPlatform.android) 'Let Ghost Keyboard search my notes']);
       expect(hintOf(tester, 'Qwen3.5 4B'), 'The balance. Fits most phones; check a fact it answers from memory. 2.7 GB.');
       expect(find.text('Get'), findsNWidgets(4));
       expect([for (final get in tester.widgetList<RowAction>(find.byType(RowAction))) get.disabled], everyElement(isTrue));
