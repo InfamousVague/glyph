@@ -67,7 +67,10 @@ import java.util.concurrent.atomic.AtomicReference
  * (`RecordingJob.finish`), and then carries on as the write-up under a
  * `mediaProcessing` type (`specialUse` on Android 14), with the chain request
  * enqueued first so a kill mid-write-up is picked up by WorkManager's backoff
- * (recordings/RecordingWorker.kt) rather than at the next launch. No new
+ * (recordings/RecordingWorker.kt) rather than at the next launch. Google
+ * Play's build declares neither `specialUse` nor `mediaProjection`
+ * (ForegroundTypes.kt): on Android 14 there its write-up is the chain's
+ * ordinary work, and other apps' sound is never offered. No new
  * meeting starts while a Stop is being put away (`isEnding`): the Stop's
  * bookkeeping would otherwise clear the new meeting's state and change the
  * service's type from under its open microphone. The write-up runs on a thread
@@ -625,6 +628,17 @@ class MeetingService : Service() {
     } catch (error: Exception) {
       Log.w(TAG, "the chain request was not confirmed", error)
     }
+    // No foreground type for the write-up in this build on this phone (Google Play's on Android 14, which has no
+    // mediaProcessing and no specialUse): the microphone's foreground goes now, and the chain request made above is
+    // the write-up, as WorkManager's ordinary work (RecordingWorker.kt), with its progress as a plain notification.
+    if (ForegroundTypes.writeUpType(this) == null) {
+      Log.i(TAG, "no foreground write-up in this build: the chain writes it up")
+      if (writingUp == id) writingUp = null
+      stopForeground(STOP_FOREGROUND_REMOVE)
+      ending.set(false)
+      settleAfter()
+      return
+    }
     holdWakeLock(WRITE_UP_WAKE_MS)
     try {
       startWriteUpForeground(RecordingAlerts.writeUp(this, name, RecordingAlerts.progressLine("listening", 0)))
@@ -856,7 +870,12 @@ class MeetingService : Service() {
     if (recording || writingUp != null || ending.get()) return
     RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     try {
-      startWriteUpForeground(RecordingAlerts.writeUp(this, null, "Writing up"))
+      if (ForegroundTypes.writeUpType(this) != null) {
+        startWriteUpForeground(RecordingAlerts.writeUp(this, null, "Writing up"))
+      } else {
+        // Google Play's build on Android 14 has no write-up type: the microphone's, for the moment the start demands.
+        startRecordingForeground(RecordingAlerts.writeUp(this, null, "Writing up"), projection = false)
+      }
     } catch (error: Exception) {
       Log.i(TAG, "idle start could not be foreground: $error")
     }
@@ -872,12 +891,9 @@ class MeetingService : Service() {
   private fun startRecordingForeground(notification: android.app.Notification, projection: Boolean): Boolean {
     if (projection) {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+      // Only where the manifest declares mediaProjection (never in Google Play's build: ForegroundTypes.kt).
+      val types = ForegroundTypes.recordingTypes(this, projection = true) ?: return false
       return try {
-        val types = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-        } else {
-          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-        }
         startForeground(RecordingAlerts.RECORDING_ID, notification, types)
         true
       } catch (error: Exception) {
@@ -936,14 +952,17 @@ class MeetingService : Service() {
     sound.stop()
   }
 
-  /** The write-up's type: `mediaProcessing` exists from Android 15, `specialUse` from 14, and below that types are not asked for. */
+  /**
+   * The write-up's type: `mediaProcessing` exists from Android 15, `specialUse` from 14 (the sideload APK only), and
+   * below that types are not asked for. Read from the manifest (ForegroundTypes.kt): callers check [ForegroundTypes.writeUpType]
+   * is not null first, and this throws, as an undeclared type would, where it is.
+   */
   private fun startWriteUpForeground(notification: android.app.Notification) {
-    when {
-      Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ->
-        startForeground(RecordingAlerts.RECORDING_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
-      Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
-        startForeground(RecordingAlerts.RECORDING_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-      else -> startForeground(RecordingAlerts.RECORDING_ID, notification)
+    val type = ForegroundTypes.writeUpType(this) ?: throw IllegalStateException("no write-up type in this build")
+    if (type == ForegroundTypes.UNTYPED || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+      startForeground(RecordingAlerts.RECORDING_ID, notification)
+    } else {
+      startForeground(RecordingAlerts.RECORDING_ID, notification, type)
     }
   }
 

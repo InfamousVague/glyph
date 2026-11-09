@@ -11,7 +11,7 @@ console-2026-10-05.md there for what it holds). This folder is the Flutter app's
 ## The build
 
 ```sh
-tool/cutover-build.sh 2.4.25 --play        # build/play/ghost-md-2.4.25.aab
+tool/cutover-build.sh 2.4.27 --play        # build/play/ghost-md-2.4.27.aab
 ```
 
 The cutover build (id `com.mattssoftware.glyph`, version code 2004025 from the version name) as an App Bundle, with
@@ -25,6 +25,14 @@ three things only the Play build has:
 - **No ACCESS_BACKGROUND_LOCATION** (the same manifest, 2026-11-05), so no background location declaration: place
   reminders ring only while the app is open (forms.md, "Location permissions"), and nothing asks for "Allow all the
   time".
+- **Foreground services: microphone and the write-up only** (2026-11-09, after Play rejected the update on
+  2026-11-06 under "Permissions for Foreground Services"; forms.md has the declaration). The same manifest removes
+  FOREGROUND_SERVICE_SPECIAL_USE and FOREGROUND_SERVICE_MEDIA_PROJECTION, every special-use property, the long-jobs
+  service (BackgroundJobService) and WorkManager's foreground types; MeetingService is `microphone|mediaProcessing`.
+  The Kotlin reads what is declared (glyph/capture/ForegroundTypes.kt) and Dart hides "Include sound from other apps"
+  (`playStoreBuild`). What a Play user loses: long jobs pause in the background (their notification says so), no
+  other apps' sound in meetings, and on Android 14 the write-up is WorkManager's ordinary work, not a foreground
+  service.
 - **arm64 only**, as the core is: Flutter's Gradle plugin lists three ABIs, and DataStore ships a .so for the other
   two, which would have Play offer the app to phones it cannot run on.
 - **Signed with the upload key**, `~/.config/glyph/play-signing.properties` (keystore `play-upload.keystore`, alias
@@ -36,6 +44,19 @@ as it was: the same command, manifest, ABIs and key.
 
 The core is not rebuilt by the script: check `libghost_core.so` is newer than `git log -1 -- native/src
 tauri/src-tauri/src` first (2.4.25's: the .so 2026-10-31 19:50, the last core change 18:27 that day).
+
+## 2.4.27 as built (2026-11-09: microphone and media processing only)
+
+| Check | Result |
+|---|---|
+| File | build/play/ghost-md-2.4.27.aab, 89,150,842 bytes, SHA-256 `0c988d066e9f96fa3fcde5b6f154297c30ee4b2b1f32f29cd5c594a6509073d5` |
+| Package, version | com.mattssoftware.glyph, versionCode 2004027, versionName 2.4.27 (2.4.26 was the newest in the changelog; 2.4.25 the bundle Play rejected) |
+| Signature | the upload key, certificate SHA-256 `0D:C9:…:B3:76` as below |
+| Foreground service permissions | FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE, FOREGROUND_SERVICE_MEDIA_PROCESSING only (`bundletool dump manifest`) |
+| Services | MeetingService `0x2080` (microphone 0x80 + mediaProcessing 0x2000); SystemForegroundService no type; BackgroundJobService absent; no PROPERTY_SPECIAL_USE_FGS_SUBTYPE |
+| Sideload APK | the same version's merged manifest is identical to 2.4.26's but for versionCode/versionName (`diff` of build/app/intermediates/merged_manifests/release/…, before and after) |
+| Emulator (API 36, ghostflutter2) | a meeting: `dumpsys activity services` types=0x80 while recording (screen off, app left), 0x2000 from Stop until written up, then none. A model download, app sent home: no service at all, its notification "Pauses while Ghost.md is in the background", and Android cut its network once the app was cached (it failed with Retry on return). |
+| Declaration video | fgs-2026-11/meeting-mic-and-writeup.mp4, 82 s, 720 px: + › Meeting, the recording notification, Home, screen off and on, back, Done, "Listening to the recording" › "Summarizing" › "Written up" (that stretch at 4x), the note. Make-up meeting: macOS `say` speech fed to the emulator's microphone through its gRPC injectAudio, host microphone off. |
 
 ## 2.4.25 as built (2026-11-05, rebuilt the same evening without background location)
 
@@ -80,14 +101,15 @@ on 2026-11-05.
 
 ## For Matt
 
-1. Upload `build/play/ghost-md-2.4.25.aab`. Closed testing "Alpha" has 1014000 (1.14.0, the Tauri app).
+1. Upload `build/play/ghost-md-2.4.27.aab` (2.4.25 was rejected for its foreground services). Closed testing "Alpha" has 1014000 (1.14.0, the Tauri app).
 2. **People who sideloaded the APK cannot move to Play by updating.** Play signs with Google's key, the APK with
    ours, and both are `com.mattssoftware.glyph`: Android refuses either over the other. They uninstall first, which
    deletes notes only on that phone, so they sign in and sync (or export) before. The Play copy also never gets the
    OTA, and the sideload copy never Play's updates.
 3. The privacy page is brought up to date in landing/privacy.html (5 November 2026); deploy the landing site before
    review.
-4. No background location declaration any more (forms.md); special use needs a clip of a long job too.
+4. No background location declaration any more (forms.md). Foreground services from 2.4.27: microphone and media
+   processing only, the one video for both (forms.md, "What to paste, per type"); no special use, no clip of a long job.
 5. Before review: check the demo account `test` still signs in with its examples; consider a Report row for AI output
    (forms.md).
 6. Screenshots of the Flutter app on Android.

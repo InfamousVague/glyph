@@ -4,7 +4,6 @@ package com.mattssoftware.glyph.recordings
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 8). Nothing differs.
 
 import android.content.Context
-import android.content.pm.ServiceInfo
 import android.os.Build
 import android.util.Log
 import androidx.work.BackoffPolicy
@@ -18,6 +17,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.mattssoftware.glyph.capture.ForegroundTypes
 import com.mattssoftware.glyph.capture.MeetingService
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -65,18 +65,31 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
 
     // Foreground when Android allows it (from the background on Android 12+ it does not, and the call throws:
     // then the job runs without, resumable by span, and a ten-minute stop loses at most the span in hand).
-    val foregrounded = try {
-      setForegroundAsync(foregroundInfo(context, title, RecordingAlerts.progressLine(progress?.optString("phase"), 0))).get()
+    // Never in Google Play's build (ForegroundTypes.workerType is null there: WorkManager's service has no type and
+    // the build no special use): the worker is ordinary deferrable work, its progress a plain notification.
+    val type = ForegroundTypes.workerType(context)
+    val foregrounded = type != null && try {
+      setForegroundAsync(foregroundInfo(context, title, RecordingAlerts.progressLine(progress?.optString("phase"), 0), type)).get()
       true
     } catch (error: Exception) {
       Log.i(TAG, "write-up runs without a foreground notification: $error")
       false
     }
+    val plain = type == null
+    if (plain) RecordingAlerts.show(context, RecordingAlerts.WORKER_ID, RecordingAlerts.writeUp(context, title, RecordingAlerts.progressLine(progress?.optString("phase"), 0)))
     running = noteId
     val outcome = try {
-      WriteUp.runOnce(context, noteId, title, now, fresh, requestedAt, if (foregrounded) { line -> setForegroundAsync(foregroundInfo(context, title, line)) } else null)
+      WriteUp.runOnce(
+        context, noteId, title, now, fresh, requestedAt,
+        when {
+          foregrounded -> { line -> setForegroundAsync(foregroundInfo(context, title, line, type!!)) }
+          plain -> { line -> RecordingAlerts.show(context, RecordingAlerts.WORKER_ID, RecordingAlerts.writeUp(context, title, line)) }
+          else -> null
+        },
+      )
     } finally {
       running = null
+      if (plain) RecordingAlerts.cancel(context, RecordingAlerts.WORKER_ID)
     }
     WriteUp.settle(context, noteId, title, outcome)
     return if (outcome is Outcome.Retry && outcome.reason != "battery") Result.retry() else Result.success()
@@ -100,14 +113,13 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
     }, "glyph-write-up-stop").start()
   }
 
-  private fun foregroundInfo(context: Context, title: String?, line: String): ForegroundInfo {
+  /** [type] is ForegroundTypes.workerType's: mediaProcessing (15+), specialUse (14, sideload only), or untyped below. */
+  private fun foregroundInfo(context: Context, title: String?, line: String, type: Int): ForegroundInfo {
     val notification = RecordingAlerts.writeUp(context, title, line)
-    return when {
-      Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ->
-        ForegroundInfo(RecordingAlerts.WORKER_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
-      Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
-        ForegroundInfo(RecordingAlerts.WORKER_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-      else -> ForegroundInfo(RecordingAlerts.WORKER_ID, notification)
+    return if (type == ForegroundTypes.UNTYPED || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+      ForegroundInfo(RecordingAlerts.WORKER_ID, notification)
+    } else {
+      ForegroundInfo(RecordingAlerts.WORKER_ID, notification, type)
     }
   }
 

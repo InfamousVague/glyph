@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.27",
+    "date": "2026-11-09",
+    "title": "Meetings on Google Play",
+    "items": [
+      {"icon": "shield-check", "words": "Google Play version: meetings record your microphone only, and are written up after you press Stop.", "kind": "better"},
+      {"icon": "activity", "words": "Google Play version: long jobs like imports run while Ghost.md is open and pause in the background.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.26",
     "date": "2026-11-06",
     "title": "Your week in notes",

@@ -124,7 +124,7 @@ class MeetingBridge(private val activity: Activity) {
       "startMeeting" -> result.success(startMeeting(noteId, call.argument<String>("title") ?: ""))
       "startMeetingWith" -> result.success(startMeetingWith(noteId, call.argument<String>("title") ?: "", call.argument<Boolean>("otherApps") == true))
       "meetingSound" -> {
-        val reason = OtherApps.unsupported()
+        val reason = OtherApps.unsupported(activity)
         result.success(JSONObject().put("supported", reason == null).put("reason", reason ?: JSONObject.NULL).toString())
       }
       "stopMeeting" -> {
@@ -226,7 +226,7 @@ class MeetingBridge(private val activity: Activity) {
   }
 
   private fun startMeetingWith(noteId: String, title: String, otherApps: Boolean): String {
-    if (!otherApps || OtherApps.unsupported() != null) return startMeeting(noteId, title)
+    if (!otherApps || OtherApps.unsupported(activity) != null) return startMeeting(noteId, title)
     if (!isNoteId(noteId)) return "not a note id"
     if (MeetingService.isRecording()) return "recording"
     if (MeetingService.isEnding()) return MeetingService.STILL_STOPPING

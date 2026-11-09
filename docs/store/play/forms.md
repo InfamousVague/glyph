@@ -92,10 +92,10 @@ App functionality, optional. Nothing reaches our servers.
 
 The Play build's merged manifest asks for: INTERNET, ACCESS_NETWORK_STATE, RECORD_AUDIO, MODIFY_AUDIO_SETTINGS,
 POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE,
-FOREGROUND_SERVICE_MEDIA_PROCESSING, FOREGROUND_SERVICE_MEDIA_PROJECTION, FOREGROUND_SERVICE_SPECIAL_USE, WAKE_LOCK,
+FOREGROUND_SERVICE_MEDIA_PROCESSING, WAKE_LOCK,
 ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, SCHEDULE_EXACT_ALARM, RECEIVE_BOOT_COMPLETED, READ_CONTACTS, and the
-app's own DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION. **REQUEST_INSTALL_PACKAGES and ACCESS_BACKGROUND_LOCATION are
-gone** (android/app/src/play/AndroidManifest.xml). No SYSTEM_ALERT_WINDOW,
+app's own DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION. **REQUEST_INSTALL_PACKAGES, ACCESS_BACKGROUND_LOCATION,
+FOREGROUND_SERVICE_SPECIAL_USE and FOREGROUND_SERVICE_MEDIA_PROJECTION are gone** (android/app/src/play/AndroidManifest.xml). No SYSTEM_ALERT_WINDOW,
 QUERY_ALL_PACKAGES, MANAGE_EXTERNAL_STORAGE, READ_MEDIA_*, SMS, call log, accessibility or USE_EXACT_ALARM.
 
 ### Location permissions: no declaration (background location taken out, 2026-11-05)
@@ -116,22 +116,62 @@ plugin_setups_test, play_store_test.
 
 Foreground location (geotags, Add my location, place reminders in front) needs no declaration of its own.
 
-### Foreground service permissions (changed: special use now has two services)
+### Foreground service permissions (changed 2026-11-09: microphone and media processing only)
 
-1.14.0's video (https://youtube.com/shorts/FH7vLpg-3AU) shows a meeting and still covers the first three. Special
-use needs a second clip, because it now also holds BackgroundJobService.
+Play rejected the update on 2026-11-06 (Policy status, "Update rejected", all three under "Permissions for Foreground
+Services": no material user impact if deferred, not initiated by or perceptible to the user, permission not or
+incorrectly declared). Matt's decision, 2026-11-09: "Keep mic + write-up only". From 2.4.27 the Play build declares
+**only** these two types, both on capture/MeetingService:
 
-| Type | Service | Play's task | Paste |
+| Type | Service | Play's task (preset list) | When it runs |
 |---|---|---|---|
-| Microphone | capture/MeetingService | Background audio input (as 10-05) | Records a meeting the person started by hand in the app. The screen can go off; a notification shows the whole time with Stop and Discard. The microphone is open for that recording and nothing else. |
-| Media projection | MeetingService | Other (as 10-05) | Optional, off by default: other apps' sound in a meeting ("Include sound from other apps"), behind Android's screen-share prompt each time. Only the audio is kept, never calls. |
-| Media processing | MeetingService, WorkManager's SystemForegroundService | Other (as 10-05) | After a meeting is stopped, the recording is transcribed and summarised on the device, with its progress in the notification. Nothing leaves the phone. |
-| Special use | MeetingService, SystemForegroundService, **BackgroundJobService (new)** | Other | The meeting write-up on Android 14, which has no media processing type (as 10-05). New: long jobs the person starts in the app and can stop from the notification (header images for their notes, voice-overs, a Notion import, a git backup, Wrapped's slow pass over their notes, AI summaries). The service only keeps the app from being frozen while the job runs; it is never started without the person. |
+| Microphone | capture/MeetingService | Background Audio Access | While a meeting the person started by hand records. |
+| Media processing | capture/MeetingService | Media transcoding | The write-up the person's Stop starts at once (Android 15 and later). |
 
-BackgroundJobService's PROPERTY_SPECIAL_USE_FGS_SUBTYPE, widened on 2026-11-05 in src/main (so the sideload APK's
-too), reads: "Long jobs the person starts in the app and can stop from the notification at any time: making header
-images and voice-overs for their notes, importing notes, backing up their notes, Wrapped's pass over their notes, and
-AI summaries".
+**Removed from the Play build** (android/app/src/play/AndroidManifest.xml, `tools:node="remove"` /
+`tools:replace` / `tools:remove`; the code reads what is declared, glyph/capture/ForegroundTypes.kt):
+
+- **Special use**, everywhere: FOREGROUND_SERVICE_SPECIAL_USE, every PROPERTY_SPECIAL_USE_FGS_SUBTYPE, and
+  ghost_md/BackgroundJobService whole. Long jobs (header images, voice-overs, imports, git backup, Wrapped's pass, AI
+  summaries) run while the app is open; behind another app or with the screen off Android freezes the app within
+  seconds, the job pauses, its notification says "Paused while Ghost.md is in the background. Open it to go on."
+  (ActivityNotices.kt `paused`), and it carries on when the app comes back. A request cut off by the freeze is tried
+  again (the jobs' network-blip retry). If Android kills the app meanwhile the job ends with it.
+- **Media projection**: "Include sound from other apps" is not offered (no switch in Settings or the + sheet, not in
+  Settings' search, never asked for); meetings record the microphone only.
+- **WorkManager's foreground service types**: SystemForegroundService has no type, and RecordingWorker never calls
+  setForegroundAsync. The write-up's retry path (a kill mid-write-up, a hot phone, "Write up now") is ordinary
+  WorkManager work, its progress a plain notification.
+- **Android 14** (no media processing type, special use gone): the write-up after Stop is ordinary WorkManager work
+  (the chain request MeetingService already makes), started at once, about ten minutes per run and resumed where it
+  left off, with a plain progress notification. Android 15+ is unchanged: the foreground write-up.
+
+The sideload APK keeps all four types, the job service and the worker's types: its merged manifest is byte for byte
+the same as before (docs/store/play/README.md, 2.4.27).
+
+#### What to paste, per type
+
+Each type asks: the task (preset list), a description of the functionality, the user impact if deferred or
+interrupted, and a video link.
+
+**Microphone**
+
+- Task: **Background Audio Access** (the preset; Google's description: "voice recording").
+- Description: `Ghost.md records a meeting only after the person taps Meeting in the app and starts it. The recording keeps going while the screen is off or another app is open, so a whole meeting is captured with the phone on the table. A notification with Stop and Discard shows for the entire recording, and the microphone is used for that recording and nothing else. The recording ends when the person presses Stop.`
+- User impact if deferred or interrupted: `The meeting would not be recorded. If the start were deferred, the first part of the meeting would be lost; if the service were paused or stopped, everything said after that point would be missing from the recording and from the notes written from it, and it cannot be recorded again later.`
+- Video: docs/store/play/fgs-2026-11/meeting-mic-and-writeup.mp4, uploaded by Matt (YouTube, unlisted) and the link
+  pasted here.
+
+**Media processing**
+
+- Task: **Media transcoding** (the preset; Google's description: "time-consuming operations on media assets, like
+  converting media to different formats"). The write-up converts the meeting's audio into text. If the Console
+  offers no closer match, choose Other and paste the description.
+- Description: `When the person presses Stop on a meeting they recorded, Ghost.md immediately converts the recording into text on the device: it transcribes the audio and writes up the meeting note. This starts only from that Stop and runs until the note is written, typically a few minutes, with a notification showing its progress the whole time. Nothing leaves the phone.`
+- User impact if deferred or interrupted: `The person is waiting for the meeting note they just asked for. If the work were deferred or paused, the note would stay empty until the app was opened again, and a long recording would take far longer to write up because it would restart its current part each time it was interrupted.`
+- Video: the same video (the Stop, then the progress notification until the note is written).
+
+Do not tick or describe special use, media projection, data sync or any other type: the bundle declares none.
 
 ### Other permissions, no form
 
@@ -141,7 +181,7 @@ AI summaries".
 | READ_CONTACTS | No (not a restricted group) | Settings › Contacts, off until switched on: a person named on a to-do gets their picture and a tap to call or write. Read only, never sent. |
 | SCHEDULE_EXACT_ALARM | No (USE_EXACT_ALARM is the one with a form) | Reminders ring on their minute once the person allows Alarms and reminders; otherwise a few minutes late. |
 | RECEIVE_BOOT_COMPLETED | No | Arms the reminders again after a restart. No service is started. |
-| POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS | No | Recording, write-up and reminder notifications; a long job's progress as a Live Update. |
+| POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS | No | Recording, write-up and reminder notifications; a long job's progress (or that it is paused) as a Live Update. |
 | ACCESS_COARSE/FINE_LOCATION | No | Where a note was written, after the person allows it; place reminders while the app is open. |
 | WAKE_LOCK | No | Keeps the CPU on while a meeting records with the screen off. |
 | VoiceInteractionService (in the manifest, disabled) | No | `@bool/ghost_assistant` is false: the app is not offered as the phone's assistant. Said in the App access notes. |

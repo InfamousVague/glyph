@@ -8,7 +8,10 @@ import com.mattssoftware.ghost_md.reminders.Places
 import com.mattssoftware.ghost_md.reminders.Reminders
 import com.mattssoftware.ghost_md.watch.WatchBridge
 import com.mattssoftware.glyph.capture.DictationMic
+import com.mattssoftware.glyph.capture.ForegroundTypes
+import com.mattssoftware.glyph.capture.MeetingService
 import com.mattssoftware.glyph.files.LibraryTree
+import com.mattssoftware.glyph.recordings.RecordingWorker
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -230,6 +233,22 @@ class MainActivity : FlutterActivity() {
         hinge.onResume()
         // Google Play's build watches place reminders only while in front (reminders/Places.kt).
         Places.resumed(applicationContext)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Google Play's build: a job paused behind another app goes on now (ActivityNotices.kt `paused`).
+        if (!ForegroundTypes.jobServiceDeclared(applicationContext)) ActivityNotices.paused(applicationContext, false)
+    }
+
+    override fun onStop() {
+        // Google Play's build has no service for long jobs (BackgroundJobs.kt): behind another app or with the screen
+        // off Android freezes the app within seconds, so its jobs' notifications say they are paused. Not while a
+        // meeting records or is written up, whose foreground service (or WorkManager's work) keeps the app running.
+        if (!ForegroundTypes.jobServiceDeclared(applicationContext) && !MeetingService.isRecording() && MeetingService.writingUp == null && RecordingWorker.running == null) {
+            ActivityNotices.paused(applicationContext, true)
+        }
+        super.onStop()
     }
 
     override fun onPause() {

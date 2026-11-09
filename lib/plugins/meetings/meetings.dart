@@ -46,6 +46,7 @@ library;
 
 import '../../account/ui_state.dart';
 import '../../core/more_tools.dart' show meetingsTool;
+import '../../core/updates.dart' show playStoreBuild;
 import '../../meet/meet_api.dart' show MeetBooking;
 import '../../meet/meet_kinds.dart';
 import '../../meet/ui/meet_card.dart' show meetCardShown;
@@ -166,7 +167,8 @@ const PluginManifest meetingsManifest = PluginManifest(
     'Meeting in New, and Meeting instead in the recorder',
     'A meeting’s Note and Transcript, and its live transcript',
     'The shelf of meetings on the home page',
-    'Where meetings go, their recordings, sound from other apps and when they are written up, on this page',
+    // Google Play's build records the microphone only (no media projection: docs/store/play/forms.md).
+    playStoreBuild ? 'Where meetings go, their recordings and when they are written up, on this page' : 'Where meetings go, their recordings, sound from other apps and when they are written up, on this page',
     'Google Meet and Zoom, which need it',
   ],
   standard: false,

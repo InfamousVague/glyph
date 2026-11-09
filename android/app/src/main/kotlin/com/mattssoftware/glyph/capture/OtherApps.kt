@@ -137,8 +137,16 @@ internal class OtherApps private constructor(
     private const val FALLBACK_RATE = 48_000
 
     /** Whether this phone can hear other apps at all, and why not when it cannot. */
-    fun unsupported(): String? =
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) "Android 10 or later can record the sound of other apps. This phone records the microphone." else null
+    fun unsupported(context: Context): String? = when {
+      // Google Play's build declares no mediaProjection (ForegroundTypes.kt; the app hides the switch there too).
+      !ForegroundTypes.otherAppsAllowed(context) -> NOT_IN_THIS_BUILD
+      Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> "Android 10 or later can record the sound of other apps. This phone records the microphone."
+      else -> null
+    }
+
+    /** What [unsupported] says in a build without mediaProjection: Google Play's. */
+    const val NOT_IN_THIS_BUILD = "This version of Ghost.md records the microphone only."
+
 
     /**
      * The capture opened on `projection` and started, or null when it would

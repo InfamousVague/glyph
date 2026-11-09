@@ -35,21 +35,26 @@ import 'meeting_live.dart';
 import 'meeting_live_words.dart' show LiveWordsHost;
 import 'system_sound.dart' show SoundSupport;
 import '../core/host_platform.dart';
+import '../core/updates.dart' show playStoreBuild;
 
 /// One thing the phone said without being asked: [name] is the Tauri page's inbound call (`meeting`,
 /// `recordingDone`, `notified`, `capture`, `screenOff`) and [argument] what it was called with (JSON, or null).
 typedef HostEvent = ({String name, String? argument});
 
 class DeviceMeetingHost implements MeetingHost, LiveWordsHost {
-  DeviceMeetingHost._(this._visible);
+  DeviceMeetingHost._(this._visible, {this.playStore = playStoreBuild});
+
+  /// Google Play's build ([playStoreBuild]): microphone only, never other apps' sound (no media projection declared,
+  /// docs/store/play/forms.md). A test hands its own.
+  final bool playStore;
 
   static const MethodChannel channel = MethodChannel('ghost_md/meeting');
   static const EventChannel eventChannel = EventChannel('ghost_md/meeting/events');
 
   /// Starts listening to the phone and reads the service's state once. Off Android there is no service: the host
   /// answers that it has none, and nothing is ever asked of it.
-  static Future<DeviceMeetingHost> attach({bool Function()? visible}) async {
-    final host = DeviceMeetingHost._(visible ?? _inFront);
+  static Future<DeviceMeetingHost> attach({bool Function()? visible, bool playStore = playStoreBuild}) async {
+    final host = DeviceMeetingHost._(visible ?? _inFront, playStore: playStore);
     if (!Platform.isAndroid) return host;
     host._subscription = eventChannel.receiveBroadcastStream().listen(host._pushed);
     try {
@@ -166,8 +171,11 @@ class DeviceMeetingHost implements MeetingHost, LiveWordsHost {
   /// asks to share the screen). "started" (`meeting {event: started}` confirms it and `failed` undoes it),
   /// "permission" (the microphone was asked for; retry on `meeting {event: permission, granted: true}`),
   /// "recording" (one is being recorded already), or a reason in the app's words.
-  Future<String> startMeeting(String noteId, String title, {bool otherApps = false}) async =>
-      await channel.invokeMethod<String>(otherApps ? 'startMeetingWith' : 'startMeeting', {'noteId': noteId, 'title': title, 'otherApps': otherApps}) ?? 'The meeting could not start.';
+  /// Google Play's build never asks for other apps' sound ([playStore]): it declares no media projection.
+  Future<String> startMeeting(String noteId, String title, {bool otherApps = false}) async {
+    final withOthers = otherApps && !playStore;
+    return await channel.invokeMethod<String>(withOthers ? 'startMeetingWith' : 'startMeeting', {'noteId': noteId, 'title': title, 'otherApps': withOthers}) ?? 'The meeting could not start.';
+  }
 
   /// Done: the service stops recording and carries on as the write-up.
   Future<void> stopMeeting() => channel.invokeMethod<void>('stopMeeting');
@@ -175,8 +183,11 @@ class DeviceMeetingHost implements MeetingHost, LiveWordsHost {
   /// Discard: the service stops and deletes the tape; the app deletes the note itself.
   Future<void> discardMeeting() => channel.invokeMethod<void>('discardMeeting');
 
-  /// Whether this phone can put other apps' sound in a meeting (Android 10 and later), and why not.
+  /// Whether this phone can put other apps' sound in a meeting (Android 10 and later), and why not. Null in Google
+  /// Play's build ([playStore]): the question does not arise there, so no switch is drawn for it anywhere (the +
+  /// sheet's, Settings' row, the meeting screen's line), and the phone is not asked.
   Future<SoundSupport?> meetingSound() async {
+    if (playStore) return null;
     final json = await channel.invokeMethod<String>('meetingSound');
     if (json == null) return null;
     final said = (jsonDecode(json) as Map).cast<String, Object?>();

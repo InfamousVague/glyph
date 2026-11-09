@@ -65,6 +65,25 @@ object ActivityNotices {
   /** Whether this process has looked for what an earlier one left. */
   private var swept = false
 
+  /**
+   * Google Play's build, the app behind another or the screen off ([paused]): every job shown says it is paused, since
+   * with no job service (BackgroundJobs.kt) Android freezes the app within seconds and the work stops until it is back.
+   */
+  @Volatile private var pausedNow = false
+
+  /** What a paused job says, in place of what it was doing. */
+  const val PAUSED_LINE = "Pauses while Ghost.md is in the background. Open Ghost.md to carry on."
+
+  /**
+   * The activity stopped ([on]) or started again, in Google Play's build only (MainActivity): each job shown is drawn
+   * paused (still bar, [PAUSED_LINE]) or as it last was. What the app said is kept, so nothing is lost either way.
+   */
+  fun paused(context: Context, on: Boolean) = synchronized(shown) {
+    if (pausedNow == on) return@synchronized
+    pausedNow = on
+    for ((job, _) in shown.values.toList()) show(context, job)
+  }
+
   /** `activity {event, job, jobs}`: the job shown, moved, or gone; and anything the app no longer says, gone too. */
   fun told(context: Context, event: String, job: Map<*, *>?, jobs: List<*>?) = synchronized(shown) {
     val one = NoticeJob.from(job)
@@ -111,7 +130,8 @@ object ActivityNotices {
 
   private fun show(context: Context, job: NoticeJob) {
     val id = ids.of(job.id)
-    val notification = if (Build.VERSION.SDK_INT >= 36) progressStyle(context, job, id) else compat(context, job, id)
+    val drawn = if (pausedNow) job.copy(look = "waiting", line = PAUSED_LINE, steps = null) else job
+    val notification = if (Build.VERSION.SDK_INT >= 36) progressStyle(context, drawn, id) else compat(context, drawn, id)
     shown[job.id] = job to notification
     val manager = NotificationManagerCompat.from(context)
     manager.cancel(FAILED_TAG, job.id.hashCode())

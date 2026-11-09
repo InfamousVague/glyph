@@ -41,7 +41,7 @@ void main() {
     expect(play, contains('android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove"'));
     expect(play, contains(r'android:authorities="${applicationId}.updates"'));
     expect(play, contains('android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove"'), reason: 'no background location declaration on Play');
-    expect(RegExp('tools:node="remove"').allMatches(play), hasLength(3));
+    expect(RegExp('tools:node="remove"').allMatches(play), hasLength(8), reason: 'and the foreground services (test/settings/play_fgs_test.dart): two permissions, two properties, the job service');
     final main = read('android/app/src/main/AndroidManifest.xml');
     expect(main, contains('android.permission.REQUEST_INSTALL_PACKAGES'), reason: 'the sideloaded APK still updates itself');
     expect(main, contains('android.permission.ACCESS_BACKGROUND_LOCATION'), reason: 'the sideloaded APK’s place reminders ring with the app closed');

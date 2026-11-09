@@ -17,6 +17,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.mattssoftware.glyph.capture.ForegroundTypes
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 
@@ -31,9 +32,13 @@ import io.flutter.plugin.common.MethodChannel
  * held up (glyph/capture/MeetingService.kt), a foreground service with a notification, and a partial wake lock with
  * it. No WorkManager: a worker would need an engine of its own to run Dart in, and the job is the one running already.
  *
- * - `running {id, title, text, done?, total?}` -> "started" | "running" | "refused". The service is started for the
- *   job, or told what to say now: "Making header images", "12 of 100", with a bar and Stop. Refused where Android will
- *   not start one (the app not in front on Android 12 and later); the job runs anyway, for as long as the app does.
+ * - `running {id, title, text, done?, total?}` -> "started" | "running" | "refused" | "inApp". The service is started
+ *   for the job, or told what to say now: "Making header images", "12 of 100", with a bar and Stop. Refused where
+ *   Android will not start one (the app not in front on Android 12 and later); the job runs anyway, for as long as
+ *   the app does. "inApp" in Google Play's build, which has no job service (android/app/src/play/AndroidManifest.xml,
+ *   docs/store/play/forms.md): the job is kept by its id for its ending's notification, and runs while the app is
+ *   open. Behind another app or with the screen off Android freezes the app within seconds, so the job pauses there:
+ *   [ActivityNotices.paused] says so on its notification as the activity stops, and it goes on as the app comes back.
  * - `ended {id, title, text?}` -> "ended". The service goes, and a notification says how it ended ("Header images
  *   made for 97 notes · 3 skipped"), as a meeting's "Written up" does; tapping it opens the app.
  * - Stop on the notification is said back to Dart as `stop {id}`.
@@ -261,6 +266,8 @@ class BackgroundJobService : Service() {
         service.show(job)
         return "running"
       }
+      // Google Play's build: no service to start (ForegroundTypes.kt). Kept above for `ended`'s notification.
+      if (!ForegroundTypes.jobServiceDeclared(context)) return "inApp"
       return try {
         ContextCompat.startForegroundService(context, Intent(context, BackgroundJobService::class.java).setAction(ACTION_RUN))
         "started"

@@ -11,6 +11,7 @@ import '../../capture/voice_log.dart';
 import '../../claude/claude_settings.dart' show ClaudeSettings, claudeSettings;
 import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart';
+import '../../core/updates.dart' show playStoreBuild;
 import '../../meet/ui/meeting_settings.dart';
 import '../../plugins/claude/claude.dart' show claudeInApp;
 import '../../plugins/more/more_tools.dart' show meetingsTool, moreToolOn;
@@ -30,7 +31,9 @@ import 'watch_section.dart';
 /// is the Meetings card with the rest behind More, and More opens in place for a row of the rest that is looked for
 /// ([recordingBehindMore]; Matt, 2026-10-29: "Add the ability to search settings and plugins from the command
 /// search"). Until then Simple's search listed the Meetings card's alone.
-List<SettingsFindable> recordingFindable({required bool android, bool signedIn = false, bool simple = false}) => [
+/// [playStore] is Google Play's build ([playStoreBuild]), which has no "Include sound from other apps": it declares no
+/// media projection (docs/store/play/forms.md, "Foreground service permissions"), so the row is not there to find.
+List<SettingsFindable> recordingFindable({required bool android, bool signedIn = false, bool simple = false, bool playStore = playStoreBuild}) => [
       ...const [
         SettingsFindable('Stop when I go quiet', 'silence auto stop'),
         SettingsFindable('Voice log', 'voice commands what the app understood model transcript copy clear debug'),
@@ -41,10 +44,8 @@ List<SettingsFindable> recordingFindable({required bool android, bool signedIn =
       // The Meetings card's, where Meetings is on (docs/PM_PLUGINS.md §10).
       if (moreToolOn(meetingsTool)) ...[
         const SettingsFindable('Live transcript during meetings', 'real time live words captions meeting transcript as they speak battery charging'),
-        if (android) ...const [
-          SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
-          SettingsFindable('Write up straight away', 'meeting battery charging background'),
-        ],
+        if (android && !playStore) const SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
+        if (android) const SettingsFindable('Write up straight away', 'meeting battery charging background'),
         // The desktop's own Meetings card: one switch, for the computer's sound.
         if (!android) const SettingsFindable("Record the computer's sound too", 'system audio meeting call both sides zoom'),
         if (signedIn && recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
@@ -94,7 +95,7 @@ String recordingSummary(Preferences prefs) => prefs.improve ? 'Improved after re
 ///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
-  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude, this.services, this.liveWords});
+  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude, this.services, this.liveWords, this.playStore = playStoreBuild});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -105,6 +106,10 @@ class RecordingPane extends StatefulWidget {
 
   /// Whether this is an Android phone; asked of the platform when null.
   final bool? android;
+
+  /// Google Play's build ([playStoreBuild]): no "Include sound from other apps" row on a phone, since that build
+  /// declares no media projection (android/app/src/play/AndroidManifest.xml).
+  final bool playStore;
 
   /// The watch, for its card (watch_section.dart); the app's own ([watchLink]) when null, which is null itself off an
   /// Android phone.
@@ -284,7 +289,7 @@ class _RecordingPaneState extends State<RecordingPane> {
         // sound, the live words and when it is written up; on the desktop the computer's sound and the live words.
         final deviceRows = <Widget>[
           if (android && features.meetings) ...[
-            sound,
+            if (!widget.playStore) sound,
             words,
             SettingRow(
               label: 'Write up straight away',
