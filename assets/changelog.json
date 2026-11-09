@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.28",
+    "date": "2026-11-09",
+    "title": "Ghost Keyboard reads your notes",
+    "items": [
+      {"icon": "sparkles", "words": "Ghost Keyboard can search your notes on this phone when it fills <<a request>>, so what it writes draws on your notes.", "kind": "new"},
+      {"icon": "shield-check", "words": "Only the real Ghost Keyboard can ask, and only to read. Turn it off under Settings › AI › Ghost Keyboard.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.27",
     "date": "2026-11-09",
     "title": "Meetings on Google Play",
