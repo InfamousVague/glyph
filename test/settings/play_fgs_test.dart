@@ -27,14 +27,14 @@ void main() {
   const features = SettingsFeatures(meetings: true, meetingSound: true);
 
   group('the manifests', () {
-    test('Play’s removes special use, media projection, the job service and WorkManager’s types, and keeps microphone and media processing', () {
+    test('Play’s removes special use, media projection, the job service and WorkManager’s types, media processing (2026-11-11), and keeps the microphone', () {
       final play = uncommented(read('android/app/src/play/AndroidManifest.xml'));
       expect(play, contains('android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:node="remove"'));
       expect(play, contains('android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" tools:node="remove"'));
       expect(play, isNot(contains('FOREGROUND_SERVICE_MICROPHONE')), reason: 'the microphone permission is kept from src/main');
-      expect(play, isNot(contains('FOREGROUND_SERVICE_MEDIA_PROCESSING')), reason: 'and the write-up’s');
+      expect(play, contains('android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" tools:node="remove"'));
       final meeting = RegExp(r'<service\s+android:name="com\.mattssoftware\.glyph\.capture\.MeetingService"(.*?)</service>', dotAll: true).firstMatch(play)!.group(1)!;
-      expect(meeting, contains('android:foregroundServiceType="microphone|mediaProcessing"'));
+      expect(meeting, contains('android:foregroundServiceType="microphone"'));
       expect(meeting, contains('tools:replace="android:foregroundServiceType"'));
       expect(meeting, contains('android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" tools:node="remove"'));
       expect(play, contains(RegExp(r'android:name="com\.mattssoftware\.ghost_md\.BackgroundJobService"\s+tools:node="remove"')));

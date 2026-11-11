@@ -10,9 +10,10 @@ import android.util.Log
  * Which foreground service types this build may pass, read from its own merged manifest, never assumed.
  *
  * Google Play's build (GHOST_STORE=play; android/app/src/play/AndroidManifest.xml; docs/store/play/forms.md,
- * "Foreground service permissions") keeps two types, both on MeetingService: `microphone` while a meeting the person
- * started records, and `mediaProcessing` for the write-up their Stop starts (Android 15 and later). It removes
- * FOREGROUND_SERVICE_SPECIAL_USE and FOREGROUND_SERVICE_MEDIA_PROJECTION, the job service (BackgroundJobs.kt) and
+ * "Foreground service permissions") keeps one type: `microphone` on MeetingService while a meeting the person started
+ * records. Since 2026-11-11 (Play's second look: the write-up "can be deferred") it removes mediaProcessing too, so
+ * the write-up their Stop starts is ordinary WorkManager work on every Android version. It removes
+ * FOREGROUND_SERVICE_MEDIA_PROCESSING, FOREGROUND_SERVICE_SPECIAL_USE and FOREGROUND_SERVICE_MEDIA_PROJECTION, the job service (BackgroundJobs.kt) and
  * WorkManager's foreground service's types. The sideload APK keeps everything. A type passed to startForeground that
  * the manifest does not declare throws, so every caller asks here first:
  *
@@ -130,6 +131,9 @@ object ForegroundTypes {
   internal fun writeUpType(sdk: Int, declared: Int?): Int? = when {
     sdk >= V -> if (hasBit(declared, MEDIA_PROCESSING, sdk)) MEDIA_PROCESSING else null
     sdk >= U -> if (hasBit(declared, SPECIAL_USE, sdk)) SPECIAL_USE else null
+    // Below 14 the call is untyped, but a build that declares neither write-up type (Google Play's since 2026-11-11,
+    // after Play called the write-up deferrable) never keeps the write-up in the foreground: it is ordinary work.
+    sdk >= Q && declared != null && declared and (MEDIA_PROCESSING or SPECIAL_USE) == 0 -> null
     else -> UNTYPED
   }
 

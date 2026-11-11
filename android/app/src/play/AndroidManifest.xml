@@ -11,10 +11,10 @@
   the manifest: the access is "whileOpen", "Allow all the time" is never asked, the places are watched in front), and
   the app says so instead of asking (lib/reminders/place_access.dart). The sideload APK keeps it.
 
-  Foreground services: microphone and the write-up only (Matt, 2026-11-09, after Play's rejection of 2026-11-06 under
-  "Permissions for Foreground Services"; docs/store/play/forms.md). Kept: MeetingService as `microphone` while a
-  meeting the person started records, and `mediaProcessing` for the write-up their Stop starts (Android 15+). Taken
-  out: special use everywhere (FOREGROUND_SERVICE_SPECIAL_USE, every PROPERTY_SPECIAL_USE_FGS_SUBTYPE, the long-jobs
+  Foreground services: the microphone only (Matt, 2026-11-11, after Play's rejection of 2026-11-06 named the
+  write-up's "Media Processing - Other" as deferrable; 2026-11-09 had kept it). Kept: MeetingService as `microphone`
+  while a meeting the person started records. Taken out: media processing (the write-up their Stop starts is ordinary
+  WorkManager work on every Android version, ForegroundTypes.writeUpType null), special use everywhere (FOREGROUND_SERVICE_SPECIAL_USE, every PROPERTY_SPECIAL_USE_FGS_SUBTYPE, the long-jobs
   service BackgroundJobService whole, so long jobs run while the app is open), media projection (other apps' sound
   in a meeting; the app hides its switch, lib/capture/meeting_host.dart), and WorkManager's foreground service's
   types (RecordingWorker never comes to the front: the write-up's retry and Android 14's write-up are ordinary
@@ -26,10 +26,11 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:node="remove" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" tools:node="remove" />
     <application>
         <service
             android:name="com.mattssoftware.glyph.capture.MeetingService"
-            android:foregroundServiceType="microphone|mediaProcessing"
+            android:foregroundServiceType="microphone"
             tools:replace="android:foregroundServiceType">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" tools:node="remove" />
         </service>

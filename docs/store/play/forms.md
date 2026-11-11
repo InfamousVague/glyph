@@ -91,11 +91,10 @@ App functionality, optional. Nothing reaches our servers.
 ## Sensitive permissions and foreground services (changed)
 
 The Play build's merged manifest asks for: INTERNET, ACCESS_NETWORK_STATE, RECORD_AUDIO, MODIFY_AUDIO_SETTINGS,
-POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE,
-FOREGROUND_SERVICE_MEDIA_PROCESSING, WAKE_LOCK,
+POST_NOTIFICATIONS, POST_PROMOTED_NOTIFICATIONS, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE, WAKE_LOCK,
 ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, SCHEDULE_EXACT_ALARM, RECEIVE_BOOT_COMPLETED, READ_CONTACTS, and the
 app's own DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION. **REQUEST_INSTALL_PACKAGES, ACCESS_BACKGROUND_LOCATION,
-FOREGROUND_SERVICE_SPECIAL_USE and FOREGROUND_SERVICE_MEDIA_PROJECTION are gone** (android/app/src/play/AndroidManifest.xml). No SYSTEM_ALERT_WINDOW,
+FOREGROUND_SERVICE_SPECIAL_USE, FOREGROUND_SERVICE_MEDIA_PROJECTION and FOREGROUND_SERVICE_MEDIA_PROCESSING are gone** (android/app/src/play/AndroidManifest.xml). No SYSTEM_ALERT_WINDOW,
 QUERY_ALL_PACKAGES, MANAGE_EXTERNAL_STORAGE, READ_MEDIA_*, SMS, call log, accessibility or USE_EXACT_ALARM.
 
 ### Location permissions: no declaration (background location taken out, 2026-11-05)
@@ -116,17 +115,17 @@ plugin_setups_test, play_store_test.
 
 Foreground location (geotags, Add my location, place reminders in front) needs no declaration of its own.
 
-### Foreground service permissions (changed 2026-11-09: microphone and media processing only)
+### Foreground service permissions (changed 2026-11-11: the microphone only)
 
 Play rejected the update on 2026-11-06 (Policy status, "Update rejected", all three under "Permissions for Foreground
 Services": no material user impact if deferred, not initiated by or perceptible to the user, permission not or
-incorrectly declared). Matt's decision, 2026-11-09: "Keep mic + write-up only". From 2.4.27 the Play build declares
-**only** these two types, both on capture/MeetingService:
+incorrectly declared). Matt's decision, 2026-11-09: "Keep mic + write-up only" (2.4.27, never sent). The first issue
+names "Media Processing - Other" outright as deferrable, so on 2026-11-11 Matt chose "Build 2.4.28 without Media
+processing": from 2.4.28 the Play build declares **one** type:
 
 | Type | Service | Play's task (preset list) | When it runs |
 |---|---|---|---|
 | Microphone | capture/MeetingService | Background Audio Access | While a meeting the person started by hand records. |
-| Media processing | capture/MeetingService | Media transcoding | The write-up the person's Stop starts at once (Android 15 and later). |
 
 **Removed from the Play build** (android/app/src/play/AndroidManifest.xml, `tools:node="remove"` /
 `tools:replace` / `tools:remove`; the code reads what is declared, glyph/capture/ForegroundTypes.kt):
@@ -142,9 +141,10 @@ incorrectly declared). Matt's decision, 2026-11-09: "Keep mic + write-up only". 
 - **WorkManager's foreground service types**: SystemForegroundService has no type, and RecordingWorker never calls
   setForegroundAsync. The write-up's retry path (a kill mid-write-up, a hot phone, "Write up now") is ordinary
   WorkManager work, its progress a plain notification.
-- **Android 14** (no media processing type, special use gone): the write-up after Stop is ordinary WorkManager work
-  (the chain request MeetingService already makes), started at once, about ten minutes per run and resumed where it
-  left off, with a plain progress notification. Android 15+ is unchanged: the foreground write-up.
+- **Media processing** (2.4.28): FOREGROUND_SERVICE_MEDIA_PROCESSING removed and MeetingService is `microphone`
+  alone. On every Android version the write-up after Stop is ordinary WorkManager work (the chain request
+  MeetingService already makes; `ForegroundTypes.writeUpType` is null), started at once, about ten minutes per run and
+  resumed where it left off, with a plain progress notification.
 
 The sideload APK keeps all four types, the job service and the worker's types: its merged manifest is byte for byte
 the same as before (docs/store/play/README.md, 2.4.27).
@@ -162,16 +162,8 @@ interrupted, and a video link.
 - Video: docs/store/play/fgs-2026-11/meeting-mic-and-writeup.mp4, uploaded by Matt (YouTube, unlisted) and the link
   pasted here.
 
-**Media processing**
-
-- Task: **Media transcoding** (the preset; Google's description: "time-consuming operations on media assets, like
-  converting media to different formats"). The write-up converts the meeting's audio into text. If the Console
-  offers no closer match, choose Other and paste the description.
-- Description: `When the person presses Stop on a meeting they recorded, Ghost.md immediately converts the recording into text on the device: it transcribes the audio and writes up the meeting note. This starts only from that Stop and runs until the note is written, typically a few minutes, with a notification showing its progress the whole time. Nothing leaves the phone.`
-- User impact if deferred or interrupted: `The person is waiting for the meeting note they just asked for. If the work were deferred or paused, the note would stay empty until the app was opened again, and a long recording would take far longer to write up because it would restart its current part each time it was interrupted.`
-- Video: the same video (the Stop, then the progress notification until the note is written).
-
-Do not tick or describe special use, media projection, data sync or any other type: the bundle declares none.
+Do not tick or describe media processing, special use, media projection, data sync or any other type: the bundle
+declares none. The Console drops the media processing declaration once no active bundle asks for it.
 
 ### Other permissions, no form
 

@@ -16,7 +16,8 @@ import org.junit.Test
  */
 class ForegroundTypesTest {
   private val sideMeeting = MICROPHONE or MEDIA_PROJECTION or MEDIA_PROCESSING or SPECIAL_USE
-  private val playMeeting = MICROPHONE or MEDIA_PROCESSING
+  private val playMeeting = MICROPHONE
+  private val playMeetingNov9 = MICROPHONE or MEDIA_PROCESSING
   private val sideWorker = MEDIA_PROCESSING or SPECIAL_USE
   private val playWorker = UNTYPED
 
@@ -41,12 +42,15 @@ class ForegroundTypesTest {
   @Test
   fun theWriteUpIsMediaProcessingFrom15AndSpecialUseOn14OnlyInTheSideloadApk() {
     assertEquals(MEDIA_PROCESSING, ForegroundTypes.writeUpType(35, sideMeeting))
-    assertEquals(MEDIA_PROCESSING, ForegroundTypes.writeUpType(36, playMeeting))
     assertEquals(SPECIAL_USE, ForegroundTypes.writeUpType(34, sideMeeting))
-    // Play on Android 14: no foreground write-up; the chain's ordinary work does it.
-    assertNull(ForegroundTypes.writeUpType(34, playMeeting))
-    assertEquals(UNTYPED, ForegroundTypes.writeUpType(33, playMeeting))
     assertEquals(UNTYPED, ForegroundTypes.writeUpType(33, sideMeeting))
+    // Google Play's build declares the microphone alone since 2026-11-11: never a foreground write-up, on any
+    // Android that reads types; the chain's ordinary work does it.
+    for (sdk in listOf(29, 30, 33, 34, 35, 36)) assertNull("sdk $sdk", ForegroundTypes.writeUpType(sdk, playMeeting))
+    // Below Android 10 types cannot be read: the untyped call, as always.
+    assertEquals(UNTYPED, ForegroundTypes.writeUpType(28, UNTYPED))
+    // The 2026-11-09 Play build (microphone and media processing) kept the foreground write-up from Android 15.
+    assertEquals(MEDIA_PROCESSING, ForegroundTypes.writeUpType(36, playMeetingNov9))
   }
 
   @Test

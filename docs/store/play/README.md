@@ -11,7 +11,7 @@ console-2026-10-05.md there for what it holds). This folder is the Flutter app's
 ## The build
 
 ```sh
-tool/cutover-build.sh 2.4.27 --play        # build/play/ghost-md-2.4.27.aab
+tool/cutover-build.sh 2.4.28 --play        # build/play/ghost-md-2.4.28.aab
 ```
 
 The cutover build (id `com.mattssoftware.glyph`, version code 2004025 from the version name) as an App Bundle, with
@@ -25,14 +25,14 @@ three things only the Play build has:
 - **No ACCESS_BACKGROUND_LOCATION** (the same manifest, 2026-11-05), so no background location declaration: place
   reminders ring only while the app is open (forms.md, "Location permissions"), and nothing asks for "Allow all the
   time".
-- **Foreground services: microphone and the write-up only** (2026-11-09, after Play rejected the update on
+- **Foreground services: the microphone only** (2026-11-11; 2.4.27 kept the write-up too, 2026-11-09, after Play rejected the update on
   2026-11-06 under "Permissions for Foreground Services"; forms.md has the declaration). The same manifest removes
-  FOREGROUND_SERVICE_SPECIAL_USE and FOREGROUND_SERVICE_MEDIA_PROJECTION, every special-use property, the long-jobs
-  service (BackgroundJobService) and WorkManager's foreground types; MeetingService is `microphone|mediaProcessing`.
+  FOREGROUND_SERVICE_SPECIAL_USE, FOREGROUND_SERVICE_MEDIA_PROJECTION and FOREGROUND_SERVICE_MEDIA_PROCESSING, every
+  special-use property, the long-jobs
+  service (BackgroundJobService) and WorkManager's foreground types; MeetingService is `microphone`.
   The Kotlin reads what is declared (glyph/capture/ForegroundTypes.kt) and Dart hides "Include sound from other apps"
   (`playStoreBuild`). What a Play user loses: long jobs pause in the background (their notification says so), no
-  other apps' sound in meetings, and on Android 14 the write-up is WorkManager's ordinary work, not a foreground
-  service.
+  other apps' sound in meetings, and the write-up after Stop is WorkManager's ordinary work, not a foreground service.
 - **arm64 only**, as the core is: Flutter's Gradle plugin lists three ABIs, and DataStore ships a .so for the other
   two, which would have Play offer the app to phones it cannot run on.
 - **Signed with the upload key**, `~/.config/glyph/play-signing.properties` (keystore `play-upload.keystore`, alias
@@ -45,7 +45,17 @@ as it was: the same command, manifest, ABIs and key.
 The core is not rebuilt by the script: check `libghost_core.so` is newer than `git log -1 -- native/src
 tauri/src-tauri/src` first (2.4.25's: the .so 2026-10-31 19:50, the last core change 18:27 that day).
 
-## 2.4.27 as built (2026-11-09: microphone and media processing only)
+## 2.4.28 as built (2026-11-11: the microphone only)
+
+| Check | Result |
+|---|---|
+| File | build/play/ghost-md-2.4.28.aab, 89,161,356 bytes, SHA-256 `9c89ace4856330f98cce54ff89cffd3e8327b2530fdb333a08eaec57163b0501` |
+| Package, version | com.mattssoftware.glyph, versionCode 2004028, versionName 2.4.28 |
+| Foreground service permissions | FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE only (`strings` of base/manifest/AndroidManifest.xml and the merged release manifest) |
+| Services | MeetingService `microphone`; no REQUEST_INSTALL_PACKAGES, ACCESS_BACKGROUND_LOCATION, special use or BackgroundJobService |
+| Tests | ForegroundTypesTest (JVM, 6/6), test/settings/play_fgs_test.dart (7/7) |
+
+## 2.4.27 as built (2026-11-09: microphone and media processing only) — never sent
 
 | Check | Result |
 |---|---|
@@ -101,15 +111,15 @@ on 2026-11-05.
 
 ## For Matt
 
-1. Upload `build/play/ghost-md-2.4.27.aab` (2.4.25 was rejected for its foreground services). Closed testing "Alpha" has 1014000 (1.14.0, the Tauri app).
+1. Upload `build/play/ghost-md-2.4.28.aab` (2.4.25 was rejected for its foreground services; 2.4.27 was never sent). Closed testing "Alpha" has 1014000 (1.14.0, the Tauri app).
 2. **People who sideloaded the APK cannot move to Play by updating.** Play signs with Google's key, the APK with
    ours, and both are `com.mattssoftware.glyph`: Android refuses either over the other. They uninstall first, which
    deletes notes only on that phone, so they sign in and sync (or export) before. The Play copy also never gets the
    OTA, and the sideload copy never Play's updates.
 3. The privacy page is brought up to date in landing/privacy.html (5 November 2026); deploy the landing site before
    review.
-4. No background location declaration any more (forms.md). Foreground services from 2.4.27: microphone and media
-   processing only, the one video for both (forms.md, "What to paste, per type"); no special use, no clip of a long job.
+4. No background location declaration any more (forms.md). Foreground services from 2.4.28: the microphone only,
+   the one video (forms.md, "What to paste, per type"); no special use, no clip of a long job.
 5. Before review: check the demo account `test` still signs in with its examples; consider a Report row for AI output
    (forms.md).
 6. Screenshots of the Flutter app on Android.
