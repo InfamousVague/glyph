@@ -63,7 +63,7 @@ class GhostPage extends StatelessWidget {
 
 /// A round icon button, the kit's press and focus ring round it.
 class IconTap extends StatelessWidget {
-  const IconTap({super.key, required this.icon, required this.label, required this.onPressed, this.size = 20, this.color, this.filled = false});
+  const IconTap({super.key, required this.icon, required this.label, required this.onPressed, this.size = 20, this.color, this.filled = false, this.box});
 
   final LucideIcon icon;
   final String label;
@@ -74,10 +74,13 @@ class IconTap extends StatelessWidget {
   /// Ink-filled disc with the icon in paper: the one main action on a screen (Send).
   final bool filled;
 
+  /// The button's side; 2.75rem (a full touch target) by default.
+  final double? box;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final box = t.lenOf('2.75rem');
+    final box = this.box ?? t.lenOf('2.75rem');
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: label,

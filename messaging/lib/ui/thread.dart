@@ -398,35 +398,43 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
+              // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
               child: Container(
                 constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
-                padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
+                padding: EdgeInsets.only(left: t.space(4), right: t.lenOf('0.25rem'), top: t.lenOf('0.25rem'), bottom: t.lenOf('0.25rem')),
                 decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
-                alignment: Alignment.centerLeft,
-                child: Stack(children: [
-                  if (_text.text.isEmpty)
-                    IgnorePointer(child: Text(isMms ? 'Picture message' : 'Text message', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-3')))),
-                  EditableText(
-                    controller: _text,
-                    focusNode: _focus,
-                    style: pageText(t, t.fontSize('md'), color: t.color('app-ink')),
-                    cursorColor: t.color('app-ink'),
-                    backgroundCursorColor: t.color('app-ink-3'),
-                    selectionColor: t.colorOf('color-mix(in srgb, #4f5bd5 30%, transparent)'),
-                    minLines: 1,
-                    maxLines: 6,
-                    keyboardType: TextInputType.multiline,
-                    textCapitalization: TextCapitalization.sentences,
-                    selectionControls: emptyTextSelectionControls,
-                    contextMenuBuilder: (context, state) => _contextMenu(context, state),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: t.lenOf('0.5rem') - t.lenOf('0.25rem') + 2),
+                      child: Stack(children: [
+                        if (_text.text.isEmpty)
+                          IgnorePointer(child: Text(isMms ? 'Picture message' : 'Text message', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-3')))),
+                        EditableText(
+                          controller: _text,
+                          focusNode: _focus,
+                          style: pageText(t, t.fontSize('md'), color: t.color('app-ink')),
+                          cursorColor: t.color('app-ink'),
+                          backgroundCursorColor: t.color('app-ink-3'),
+                          selectionColor: t.colorOf('color-mix(in srgb, #4f5bd5 30%, transparent)'),
+                          minLines: 1,
+                          maxLines: 6,
+                          keyboardType: TextInputType.multiline,
+                          textCapitalization: TextCapitalization.sentences,
+                          selectionControls: emptyTextSelectionControls,
+                          contextMenuBuilder: (context, state) => _contextMenu(context, state),
+                        ),
+                      ]),
+                    ),
                   ),
+                  SizedBox(width: t.space(1)),
+                  editing
+                      ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
+                      : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
                 ]),
               ),
             ),
             SizedBox(width: t.space(1)),
-            editing
-                ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 18, onPressed: canSend ? _saveEdit : null)
-                : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 18, onPressed: canSend ? _send : null),
           ]),
           if (!isMms && !editing && parts > 1)
             Padding(
