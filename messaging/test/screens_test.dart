@@ -8,6 +8,7 @@ import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
+import 'package:ghost_messaging/ui/background_picker.dart';
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
@@ -45,7 +46,17 @@ final _conversations = [
   {'id': 5, 'date': _ago(days: 3), 'people': [_p('+15551230006', 'Priya Natarajan')], 'snippet': 'haha yes 😂', 'unread': false, 'error': true, 'archived': false},
   {'id': 6, 'date': _ago(days: 12), 'people': [_p('+15551230007')], 'snippet': 'Your package was delivered', 'unread': false, 'error': false, 'archived': false, 'draft': 'Thanks, I\'ll pick it up tom'},
   {'id': 7, 'date': _ago(days: 40), 'people': [_p('+15551230008', 'Old Thread')], 'snippet': 'ok', 'unread': false, 'error': false, 'archived': true},
+  {'id': 8, 'date': _ago(minutes: 30), 'people': [_p('+15551230011', 'Riley Fox')], 'snippet': 'Only our two phones can read this now', 'unread': false, 'error': false, 'archived': false, 'encrypted': true},
+  {'id': 9, 'date': _ago(hours: 2), 'people': [_p('+15551230012', 'Noor Haddad')], 'snippet': 'Encryption key', 'unread': false, 'error': false, 'archived': false},
 ];
+
+/// Where encryption stands with each person (android/.../E2e.kt): on and verified with Riley, Noor's key waiting
+/// for a yes, nothing with anyone else.
+Map<String, Object?> _e2e(String address) => switch (address) {
+      '+15551230011' => {'address': address, 'state': 'on', 'verified': true, 'changed': false, 'safety': '04821 77310 59264 10388 92745 36601', 'person': _p(address, 'Riley Fox')},
+      '+15551230012' => {'address': address, 'state': 'pending', 'verified': false, 'changed': false, 'safety': '61120 08347 55902 73418 20056 94471', 'person': _p(address, 'Noor Haddad')},
+      _ => {'address': address, 'state': 'none', 'verified': false, 'changed': false},
+    };
 
 List<Map<String, Object?>> _messages(int thread) {
   if (thread == 2) {
@@ -57,6 +68,24 @@ List<Map<String, Object?>> _messages(int thread) {
       {'id': 9, 'kind': 'mms', 'address': '+15551230004', 'body': 'Same, any time after noon', 'date': _ago(hours: 1, minutes: 5), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 8, 'kind': 'mms', 'address': '+15551230002', 'body': 'Hike this weekend?', 'date': _ago(hours: 1, minutes: 8), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 7, 'kind': 'mms', 'address': '+15551230002', 'body': 'Who\'s around Saturday', 'date': _ago(hours: 1, minutes: 9), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
+    ];
+  }
+  if (thread == 8) {
+    // An encrypted conversation: the two keys as lines, sealed texts opened with their locks, and one from before a
+    // reinstall that this phone can no longer open.
+    return [
+      {'id': 26, 'kind': 'sms', 'address': '+15551230011', 'body': 'Only our two phones can read this now', 'date': _ago(minutes: 30), 'outgoing': false, 'state': 'received', 'read': true, 'encrypted': true},
+      {'id': 25, 'kind': 'sms', 'address': '', 'body': 'Door code is 4417, don\'t tell anyone 🤫', 'date': _ago(minutes: 31), 'outgoing': true, 'state': 'delivered', 'read': true, 'encrypted': true},
+      {'id': 24, 'kind': 'sms', 'address': '+15551230011', 'body': '', 'date': _ago(minutes: 33), 'outgoing': false, 'state': 'received', 'read': true, 'notice': 'undecryptable'},
+      {'id': 23, 'kind': 'sms', 'address': '+15551230011', 'body': '', 'date': _ago(minutes: 40), 'outgoing': false, 'state': 'received', 'read': true, 'notice': 'key'},
+      {'id': 22, 'kind': 'sms', 'address': '', 'body': '', 'date': _ago(minutes: 41), 'outgoing': true, 'state': 'delivered', 'read': true, 'notice': 'key'},
+      {'id': 21, 'kind': 'sms', 'address': '+15551230011', 'body': 'Did you get the app?', 'date': _ago(minutes: 50), 'outgoing': false, 'state': 'received', 'read': true},
+    ];
+  }
+  if (thread == 9) {
+    return [
+      {'id': 31, 'kind': 'sms', 'address': '+15551230012', 'body': '', 'date': _ago(hours: 2), 'outgoing': false, 'state': 'received', 'read': true, 'notice': 'key'},
+      {'id': 30, 'kind': 'sms', 'address': '+15551230012', 'body': 'Sending you my key, one sec', 'date': _ago(hours: 2, minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
     ];
   }
   return [
@@ -93,17 +122,30 @@ void _answerChannel() {
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
       case 'update':
-        return {'phase': 'available', 'current': '0.3.0', 'available': '0.3.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+        return {'phase': 'available', 'current': '0.4.0', 'available': '0.4.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
+      case 'e2e':
+        return _e2e(args['address'] as String);
+      case 'e2eList':
+        return [_e2e('+15551230011'), _e2e('+15551230012')];
+      case 'e2eMine':
+        return '9C41 D07A';
+      case 'blockedNumbers':
+        return [_p('+15551230090', 'Spam Likely'), _p('+18005550199')];
+      case 'prefs':
+        return <String, String>{};
       default:
         return null;
     }
   });
 }
 
-Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String name, {required bool dark}) async {
+Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String name, {required bool dark, Map<String, String> prefs = const {}}) async {
   final state = AppState()..setTheme(dark ? 'dark' : 'light');
+  for (final e in prefs.entries) {
+    state.set(e.key, e.value);
+  }
   await tester.pumpWidget(AppScope(
     state: state,
     child: WidgetsApp(
@@ -153,9 +195,19 @@ void main() {
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread', dark: dark);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
+      // Settings: its home, a search over it, and a few of its sections' pages.
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
-      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
-      await _shootAgain(tester, '5-settings-more', dark: dark);
+      await tester.enterText(find.byType(EditableText).first, 'read');
+      await _shootAgain(tester, '5-settings-search', dark: dark);
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'updates']) {
+        await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
+      }
+      // Encryption in a conversation: on and verified, and a key waiting for a yes.
+      await _shoot(tester, sheet, const ThreadScreen(thread: 8, people: [Person(address: '+15551230011', name: 'Riley Fox')]), '8-encrypted', dark: dark);
+      await _shoot(tester, sheet, const ThreadScreen(thread: 9, people: [Person(address: '+15551230012', name: 'Noor Haddad')]), '8-encryption-asked', dark: dark);
+      // Chat backgrounds: the picker, and a conversation wearing a wash.
+      await _shoot(tester, sheet, const BackgroundPicker(), '9-background-picker', dark: dark);
+      await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-background-dusk', dark: dark, prefs: const {'chat_bg': 'preset:dusk'});
       await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup', dark: dark);
       // Each effect at a moment of its run, over the conversation.
       const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};

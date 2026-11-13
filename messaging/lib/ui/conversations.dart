@@ -274,7 +274,14 @@ class _Row extends StatelessWidget {
                     children: [
                       Row(children: [
                         Expanded(
-                          child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: unread ? 'bold' : 'semibold', color: t.color('app-ink'))),
+                          child: Row(children: [
+                            Flexible(child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: unread ? 'bold' : 'semibold', color: t.color('app-ink')))),
+                            // Texts with this person go sealed (Ghost Messaging's own encryption).
+                            if (c.encrypted) ...[
+                              SizedBox(width: t.space(1)),
+                              Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 12, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))),
+                            ],
+                          ]),
                         ),
                         if (c.pinned) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.pin, size: 13, color: t.color('app-ink-3'))],
                         if (c.muted) ...[SizedBox(width: t.space(1)), AppIcon(GhostIcons.bellOff, size: 13, color: t.color('app-ink-3'))],

@@ -134,6 +134,9 @@ class MainActivity : FlutterActivity() {
                     try { startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", call.argument<String>("address")!!, null))) } catch (_: Exception) {}
                     result.success(null)
                 }
+                "systemPalette" -> result.success(systemPalette())
+                "importBackground" -> bg { importBackground(call.argument<String>("uri")!!, call.argument<String>("name") ?: "all") }
+                "deleteBackground" -> bg { backgroundFiles(call.argument<String>("name") ?: "all").forEach { it.delete() }; null }
                 "prefs" ->result.success(getSharedPreferences("ui", MODE_PRIVATE).all.mapValues { it.value.toString() })
                 "setPref" -> {
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString(call.argument<String>("key")!!, call.argument<String>("value")).apply()
@@ -179,6 +182,70 @@ class MainActivity : FlutterActivity() {
     private fun Uri.getQueryParameterSafe(name: String): String? = try {
         Uri.parse("x://h?" + (toString().substringAfter('?', ""))).getQueryParameter(name)
     } catch (_: Exception) { null }
+
+    /**
+     * The colours Android takes from the wallpaper (Material You, Android 12 on): what the phone's own apps wear, so a
+     * chat background made of them follows the phone as theirs do. Null before Android 12.
+     */
+    private fun systemPalette(): Map<String, Int>? {
+        if (android.os.Build.VERSION.SDK_INT < 31) return null
+        return try {
+            mapOf(
+                "accent1_50" to android.R.color.system_accent1_50, "accent1_100" to android.R.color.system_accent1_100,
+                "accent1_200" to android.R.color.system_accent1_200, "accent1_600" to android.R.color.system_accent1_600,
+                "accent1_800" to android.R.color.system_accent1_800, "accent1_900" to android.R.color.system_accent1_900,
+                "accent2_100" to android.R.color.system_accent2_100, "accent2_800" to android.R.color.system_accent2_800,
+                "accent3_100" to android.R.color.system_accent3_100, "accent3_800" to android.R.color.system_accent3_800,
+                "neutral1_50" to android.R.color.system_neutral1_50, "neutral1_900" to android.R.color.system_neutral1_900,
+            ).mapValues { getColor(it.value) }
+        } catch (_: Exception) { null }
+    }
+
+    private fun backgroundFiles(name: String): List<java.io.File> {
+        val safe = name.filter { it.isLetterOrDigit() }.ifEmpty { "all" }
+        return java.io.File(filesDir, "backgrounds").listFiles { f -> f.name.startsWith("$safe-") }?.toList() ?: emptyList()
+    }
+
+    /**
+     * A chat background from the person's pictures: read once through the picker's grant, turned the way its EXIF
+     * says, scaled to at most 2400 on its longer side and kept in the app's own files, since the grant ends with the
+     * app. Each copy has a new name, so the screen never draws the one before it from its cache.
+     */
+    private fun importBackground(uri: String, name: String): String? {
+        val source = Uri.parse(uri)
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        // Asked for its size alone, decodeStream answers null by design: the size is in [bounds].
+        (contentResolver.openInputStream(source) ?: return null).use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2400) sample *= 2
+        var bitmap = contentResolver.openInputStream(source)?.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: return null
+        val turn = try {
+            contentResolver.openInputStream(source)?.use {
+                when (android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {
+                    android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                    android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                    android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                    else -> 0f
+                }
+            } ?: 0f
+        } catch (_: Exception) { 0f }
+        val longer = maxOf(bitmap.width, bitmap.height)
+        if (turn != 0f || longer > 2400) {
+            val m = android.graphics.Matrix()
+            if (longer > 2400) m.postScale(2400f / longer, 2400f / longer)
+            if (turn != 0f) m.postRotate(turn)
+            bitmap = android.graphics.Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+        }
+        val safe = name.filter { it.isLetterOrDigit() }.ifEmpty { "all" }
+        val dir = java.io.File(filesDir, "backgrounds").apply { mkdirs() }
+        val file = java.io.File(dir, "$safe-${System.currentTimeMillis()}.jpg")
+        file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+        backgroundFiles(name).forEach { if (it != file) it.delete() }
+        return file.absolutePath
+    }
 
     private fun granted(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
 

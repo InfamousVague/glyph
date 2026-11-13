@@ -301,7 +301,8 @@ class _ChoiceSheet extends StatelessWidget {
                 if (title != null)
                   Padding(
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(2)),
-                    child: Text(title!, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                    // A message's own words are cut short by whoever asks; what a sheet explains is said whole.
+                    child: Text(title!, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
                   ),
                 ?header,
                 for (final c in choices)

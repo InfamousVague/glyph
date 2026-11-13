@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
+import 'backgrounds.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'sms.dart';
@@ -22,6 +23,8 @@ Future<void> main() async {
   installSettingsStyles(sheet);
   final state = AppState();
   await state.load();
+  // The colours Android takes from the wallpaper, for a chat background and bubbles that follow the phone.
+  await PhonePalette.load();
   Sms.instance.listen();
   runApp(GhostMessagingApp(sheet: sheet, state: state));
 }
@@ -102,7 +105,12 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _check();
+    if (state != AppLifecycleState.resumed) return;
+    _check();
+    // The wallpaper may have changed while the app was away: what is drawn from its palette is drawn again.
+    PhonePalette.load().then((changed) {
+      if (changed && mounted) AppState.of(context).changed();
+    });
   }
 
   Future<void> _check({bool first = false}) async {

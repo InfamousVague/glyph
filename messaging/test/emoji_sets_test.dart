@@ -59,7 +59,10 @@ void main() {
       ),
     ));
     await tester.pump();
-    await expectLater(find.byType(ColoredBox), matchesGoldenFile('shots/7-emoji-sets.png'));
+    // The picture is Linux's: its test engine draws fonts with FreeType, as Android does. A Mac's draws them with
+    // Core Text, which leaves Twemoji's row blank (seen 2026-11-13, Flutter 3.47.6), so there the picture is neither
+    // compared nor written over, and the widths below are the check.
+    if (Platform.isLinux) await expectLater(find.byType(ColoredBox), matchesGoldenFile('shots/7-emoji-sets.png'));
     for (final set in sets) {
       for (var i = 0; i < _hard.length; i++) {
         // One glyph is about one em wide (26 here); two or more unjoined would be 50 and up.

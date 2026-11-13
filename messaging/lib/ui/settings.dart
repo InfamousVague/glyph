@@ -1,17 +1,129 @@
+/// Ghost Messaging's Settings, in Ghost Keyboard's shape (its lib/settings/settings_screen.dart; Matt, 2026-11-13:
+/// "make the settings page more like ghost kbd where it's nested sections and expand on the settings available"):
+/// a search field over a list of sections in groups, each a row with its icon on a chip in the section's colour, its
+/// name and a line of its state, opening the section's page; a page is the kit's cards (kit/settings_kit.dart) under
+/// the bar with the way back. The sections themselves are settings_panes.dart.
+library;
+
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
-import '../art/app_icon.dart';
-import '../art/lucide.g.dart';
-import '../emoji_sets.dart';
+import '../effects.dart';
+import '../kit/fold.dart';
+import '../kit/settings_icons.dart';
 import '../kit/settings_kit.dart';
+import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'settings_panes.dart';
 
-/// Settings: the look, this phone's number, and what Android has allowed.
+/// What Settings shows that is not a choice of the person's: what Android has allowed, this phone's number, where
+/// the app's update stands, who encryption is on with, the blocked numbers. Asked for as Settings opens and again
+/// after anything changes it; the choices themselves are [app].
+class SettingsModel extends ChangeNotifier {
+  SettingsModel(this.app) {
+    app.addListener(notifyListeners);
+  }
+
+  final AppState app;
+  SmsStatus? status;
+  String? ownNumber;
+  UpdateState update = const UpdateState();
+  List<E2eState> e2e = const [];
+
+  /// A short name for this phone's encryption key; null until one is made (the first time a key is sent).
+  String? myKey;
+  List<Person> blocked = const [];
+  int archived = 0;
+
+  StreamSubscription<UpdateState>? _updates;
+  StreamSubscription<int>? _changes;
+  bool _gone = false;
+
+  void start() {
+    _updates = Sms.instance.updates.stream.listen((u) {
+      update = u;
+      _say();
+    });
+    _changes = Sms.instance.changes.stream.listen((_) => refresh());
+    refresh();
+  }
+
+  void _say() {
+    if (!_gone) notifyListeners();
+  }
+
+  /// Each asked for on its own: one that Android refuses leaves the rest.
+  Future<void> refresh() async {
+    Future<void> ask(Future<void> Function() what) async {
+      try {
+        await what();
+      } catch (_) {}
+    }
+
+    await Future.wait([
+      ask(() async => status = await Sms.instance.status()),
+      ask(() async => ownNumber = await Sms.instance.ownNumber()),
+      ask(() async => update = await Sms.instance.update()),
+      ask(() async => e2e = await Sms.instance.e2eList()),
+      ask(() async => myKey = await Sms.instance.e2eMine()),
+      ask(() async => blocked = await Sms.instance.blockedNumbers()),
+      ask(() async => archived = (await Sms.instance.conversations()).where((c) => c.archived).length),
+    ]);
+    _say();
+  }
+
+  @override
+  void dispose() {
+    _gone = true;
+    app.removeListener(notifyListeners);
+    _updates?.cancel();
+    _changes?.cancel();
+    super.dispose();
+  }
+}
+
+/// One section: a row on the list and the page it opens.
+@immutable
+class SettingsSection {
+  const SettingsSection({required this.id, required this.label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen});
+
+  final String id;
+  final String label;
+  final Widget icon;
+
+  /// Its colour, by the names settings.css keeps (kit/settings_css.dart).
+  final String hue;
+
+  /// Rows with the same group share one card.
+  final String group;
+
+  /// The row's second line, read live.
+  final String Function(SettingsModel model)? summary;
+
+  /// Its page's cards.
+  final List<Widget> Function(BuildContext context, SettingsModel model) page;
+
+  /// A screen of its own in place of a page of cards: Archived, the chat background.
+  final Widget Function(BuildContext context, SettingsModel model)? screen;
+}
+
+/// A section's page can play a message effect over itself (Effects): asked for from a row on it.
+class EffectsHost extends InheritedWidget {
+  const EffectsHost({super.key, required this.play, required super.child});
+  final void Function(ScreenEffect effect) play;
+
+  static EffectsHost? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<EffectsHost>();
+
+  @override
+  bool updateShouldNotify(EffectsHost old) => false;
+}
+
+/// Settings' home: a search field over the list of sections. While words are typed the list gives way to what they
+/// find: sections and settings, each with where it is, opening there.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -19,258 +131,385 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  SmsStatus? _status;
-  String? _own;
-  UpdateState _update = const UpdateState();
-  StreamSubscription<UpdateState>? _updates;
-  final _number = TextEditingController();
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
+  SettingsModel? _model;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _refresh();
-    _updates = Sms.instance.updates.stream.listen((u) { if (mounted) setState(() => _update = u); });
-    Sms.instance.update().then((u) { if (mounted) setState(() => _update = u); }).catchError((_) {});
+    WidgetsBinding.instance.addObserver(this);
   }
 
-  /// Where the update stands, in a sentence.
-  String _updateLine(UpdateState u) => switch (u.phase) {
-        'checking' => 'Checking ${_host(u)}…',
-        'upToDate' => 'Up to date.',
-        'available' => '${u.available} is available.',
-        'downloading' => 'Downloading ${u.available}${u.progress == null ? '' : ' · ${(u.progress! * 100).round()}%'}',
-        'ready' => u.error == 'needsPermission' || !u.canInstall
-            ? '${u.available} is downloaded. Allow Ghost Messaging to install its own updates, then tap Update now.'
-            : '${u.available} is downloaded and ready.',
-        'installing' => 'Installing ${u.available}…',
-        'failed' => u.error != null && u.error!.contains('not signed by this app')
-            ? 'This copy is a test build, signed differently from the release. Install the release from ${_host(u)} once, and it updates itself from then on.'
-            : 'Couldn\'t update: ${u.error ?? 'something went wrong'}',
-        'disabled' => 'Updates are off in debug builds.',
-        _ => 'Looks for a new version when the app opens, at most twice a day.',
-      };
-
-  static String _host(UpdateState u) => u.source.replaceFirst('https://', '');
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _model ??= SettingsModel(AppState.of(context))..start();
+  }
 
   @override
   void dispose() {
-    _updates?.cancel();
-    _number.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _model?.dispose();
     super.dispose();
   }
 
-  Future<void> _refresh() async {
-    final s = await Sms.instance.status();
-    final own = await Sms.instance.ownNumber();
-    if (!mounted) return;
-    setState(() {
-      _status = s;
-      _own = own;
-      if (_number.text.isEmpty && own != null) _number.text = own;
-    });
+  /// Back from one of Android's own pages (a permission, the default SMS app): what it allowed is asked again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _model?.refresh();
+  }
+
+  void _open(SettingsHit hit) {
+    final model = _model!;
+    final s = hit.section;
+    push<void>(context, (context) => s.screen != null ? s.screen!(context, model) : SectionPage(section: s, model: model, seek: hit.setting));
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final app = AppState.of(context);
-    final s = _status;
-    Widget chip(LucideIcon icon) => AppIcon(icon, size: 18);
+    final model = _model!;
     return GhostPage(
       title: 'Settings',
-      body: SettingsPaneScope(
-        finder: SettingsFinder(),
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          children: [
-            GlacierScope(
-              attrs: const {'hue': 'indigo'},
-              child: PaneSection(title: 'Look', children: [
-                SettingRow(
-                  icon: chip(Lucide.sunMoon),
-                  label: 'Theme',
-                  layout: SettingRowLayout.stacked,
-                  control: GlacierSegmentedControl(
-                    fullWidth: true,
-                    value: app.theme,
-                    onValueChange: app.setTheme,
-                    options: const [
-                      GlacierSegmentedOption(value: 'system', label: Text('System')),
-                      GlacierSegmentedOption(value: 'light', label: Text('Light')),
-                      GlacierSegmentedOption(value: 'dark', label: Text('Dark')),
-                    ],
-                  ),
-                ),
-                SettingRow(
-                  icon: chip(Lucide.messageSquare),
-                  label: 'Your bubbles',
-                  layout: SettingRowLayout.stacked,
-                  control: GlacierSegmentedControl(
-                    fullWidth: true,
-                    value: app.bubble,
-                    onValueChange: app.setBubble,
-                    options: const [
-                      GlacierSegmentedOption(value: 'ghost', label: Text('Ghost')),
-                      GlacierSegmentedOption(value: 'ink', label: Text('Ink')),
-                    ],
-                  ),
-                ),
-                SettingRow(
-                  icon: chip(Lucide.sparkles),
-                  label: 'Message effects',
-                  hint: const Text('Confetti for "Congratulations", balloons for "Happy birthday", and more, as a message arrives or is sent.'),
-                  control: GlacierSwitch(checked: app.effects, onCheckedChange: app.setEffects, ariaLabel: 'Message effects'),
-                ),
-              ]),
-            ),
-            SizedBox(height: t.space(6)),
-            GlacierScope(
-              attrs: const {'hue': 'amber'},
-              child: PaneSection(
-                title: 'Emoji',
-                footer: const Text('How emoji are drawn in this app. What the other person sees is drawn by their own phone.'),
-                children: [
-                  for (final set in emojiSets)
-                    SettingRow(
-                      label: set.name,
-                      hint: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        Text(set.about),
-                        SizedBox(height: t.space(1)),
-                        // Each row in its own set, whichever is chosen: no fallback but the set's (or the phone's).
-                        Row(mainAxisSize: MainAxisSize.min, children: [
-                          for (final e in emojiSample)
-                            Padding(
-                              padding: EdgeInsets.only(right: t.space(2)),
-                              child: Text(e, style: TextStyle(inherit: false, fontFamily: set.family, fontFamilyFallback: const [], fontSize: t.lenOf('1.35rem'), height: 1.3, color: t.color('app-ink'))),
-                            ),
-                        ]),
-                      ]),
-                      control: Pick(checked: app.emoji == set.id, label: 'Use ${set.name} emoji', onPress: () => app.setEmoji(set.id)),
+      body: ListenableBuilder(
+        listenable: model,
+        builder: (context, _) {
+          final query = _query.trim();
+          final hits = query.isEmpty ? const <SettingsHit>[] : searchSettings(context, model, settingsSections, query);
+          return ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              GlacierSearchField(placeholder: 'Search settings', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
+              SizedBox(height: t.space(5)),
+              if (query.isEmpty)
+                SettingsList(model: model, sections: settingsSections)
+              else if (hits.isEmpty)
+                Padding(
+                  padding: EdgeInsets.all(t.space(4)),
+                  child: Text('Nothing called “$query”.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
+                )
+              else
+                _Group(rows: [
+                  for (var i = 0; i < hits.length; i++)
+                    _SectionRow(
+                      label: hits[i].setting ?? hits[i].section.label,
+                      icon: hits[i].section.icon,
+                      hue: hits[i].section.hue,
+                      // A setting says where it is; a section, what it is set to.
+                      summary: hits[i].setting != null ? hits[i].section.label : hits[i].section.summary?.call(model),
+                      index: i,
+                      onPress: () => _open(hits[i]),
                     ),
-                ],
-              ),
-            ),
-            SizedBox(height: t.space(6)),
-            GlacierScope(
-              attrs: const {'hue': 'cyan'},
-              child: PaneSection(
-                title: 'Receipts',
-                footer: const Text('One tick is sent, two is delivered, two in colour is read. Delivered needs your carrier to send delivery reports. Read exists only for picture and group messages, and only from phones that send read reports; a plain text can\'t say it was read.'),
-                children: [
-                  SettingRow(
-                    icon: chip(Lucide.checkCheck),
-                    label: 'Ask for read receipts',
-                    hint: const Text('On picture and group messages.'),
-                    control: GlacierSwitch(checked: app.readReports, onCheckedChange: app.setReadReports, ariaLabel: 'Ask for read receipts'),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: t.space(6)),
-            GlacierScope(
-              attrs: const {'hue': 'green'},
-              child: PaneSection(
-                title: 'Your number',
-                footer: Text(_own == null || _own!.isEmpty
-                    ? 'Android didn\'t say this phone\'s number. Type it here so group picture messages don\'t list you as one of the people.'
-                    : 'Used to leave you out of a group message\'s list of people.'),
-                children: [
-                  SettingRow(
-                    icon: chip(Lucide.phone),
-                    label: 'This phone',
-                    layout: SettingRowLayout.stacked,
-                    control: GlacierInput(
-                      controller: _number,
-                      placeholder: '+1 555 123 4567',
-                      ariaLabel: 'This phone\'s number',
-                      inputMode: TextInputType.phone,
-                      size: GlacierFieldSize.md,
-                      onSubmitted: (v) async {
-                        await Sms.instance.setOwnNumber(v.trim());
-                        if (context.mounted) toast(context, 'Saved');
-                        _refresh();
-                      },
-                      onBlur: () => Sms.instance.setOwnNumber(_number.text.trim()),
+                ]),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A section's page: its cards, staggered in as Ghost Keyboard's arrive. Opened from a search with [seek], the
+/// setting of that name is scrolled into view and lit once the page is drawn.
+class SectionPage extends StatefulWidget {
+  const SectionPage({super.key, required this.section, required this.model, this.seek});
+
+  final SettingsSection section;
+  final SettingsModel model;
+  final String? seek;
+
+  @override
+  State<SectionPage> createState() => _SectionPageState();
+}
+
+class _SectionPageState extends State<SectionPage> {
+  final _finder = SettingsFinder();
+  final _effects = GlobalKey<EffectLayerState>();
+
+  @override
+  void initState() {
+    super.initState();
+    final seek = widget.seek;
+    if (seek == null) return;
+    // Two frames: one to build the page whole, one for it to be laid out.
+    WidgetsBinding.instance.addPostFrameCallback((_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+          final found = _finder.find(seek);
+          if (found == null || !mounted) return;
+          Scrollable.ensureVisible(found.context, alignment: 0.25, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+          found.light();
+        }));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final section = widget.section;
+    final model = widget.model;
+    return GlacierScope(
+      attrs: {'hue': section.hue},
+      child: ListenableBuilder(
+        listenable: model,
+        builder: (context, _) {
+          final t = context.tokens;
+          return SettingsPaneScope(
+            finder: _finder,
+            whole: widget.seek != null,
+            seeking: widget.seek,
+            child: EffectsHost(
+              play: (effect) => _effects.currentState?.play(effect, text: effectLabel(effect)),
+              child: GhostPage(
+                title: section.label,
+                body: Stack(children: [
+                  Positioned.fill(
+                    child: ListView(
+                      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      children: [Builder(builder: (context) => PaneBody(children: section.page(context, model)))],
                     ),
                   ),
-                ],
+                  Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
+                ]),
               ),
             ),
-            SizedBox(height: t.space(6)),
-            GlacierScope(
-              attrs: const {'hue': 'blue'},
-              child: PaneSection(title: 'Android', children: [
-                SettingRow(
-                  icon: chip(Lucide.messageSquare),
-                  label: 'Default SMS app',
-                  value: Text(s == null ? '' : (s.isDefault ? 'Yes' : 'No')),
-                  onPress: s == null || s.isDefault ? null : () async { await Sms.instance.requestDefault(); _refresh(); },
-                ),
-                SettingRow(
-                  icon: chip(Lucide.users),
-                  label: 'Contacts',
-                  hint: const Text('Names and photos in place of numbers.'),
-                  value: Text(s == null ? '' : (s.contacts ? 'Allowed' : 'Off')),
-                  onPress: s == null || s.contacts ? null : () async { await Sms.instance.requestPermissions(); _refresh(); },
-                ),
-                SettingRow(
-                  icon: chip(Lucide.bell),
-                  label: 'Notifications',
-                  value: Text(s == null ? '' : (s.notifications ? 'Allowed' : 'Off')),
-                  onPress: s == null || s.notifications ? null : () async { await Sms.instance.requestPermissions(); _refresh(); },
-                ),
-              ]),
-            ),
-            SizedBox(height: t.space(6)),
-            GlacierScope(
-              attrs: const {'hue': 'mint'},
-              child: PaneSection(
-                title: 'Updates',
-                footer: Text(_updateLine(_update)),
-                children: [
-                  SettingRow(
-                    icon: chip(Lucide.download),
-                    label: 'Automatic updates',
-                    hint: Text('New versions from ${_update.source.isEmpty ? 'ghost-sms.com' : _host(_update)}, downloaded and installed by the app.'),
-                    control: GlacierSwitch(
-                      checked: _update.auto,
-                      ariaLabel: 'Automatic updates',
-                      onCheckedChange: (on) async {
-                        await Sms.instance.setAutoUpdate(on);
-                        final u = await Sms.instance.update();
-                        if (mounted) setState(() => _update = u);
-                      },
-                    ),
-                  ),
-                  if (_update.phase == 'downloading')
-                    SettingRowBox(child: GlacierProgressBar(value: (_update.progress ?? 0) * 100, ariaLabel: 'Downloading the update')),
-                  if (_update.phase == 'ready' && (!_update.canInstall || _update.error == 'needsPermission'))
-                    SettingRow(icon: chip(Lucide.settings), label: 'Allow installing updates', onPress: () => Sms.instance.allowInstalls()),
-                  if (const {'available', 'ready', 'failed'}.contains(_update.phase) && _update.available != null)
-                    SettingRow(icon: chip(Lucide.rotateCcw), label: 'Update now', value: Text(_update.available!), onPress: () => Sms.instance.updateInstall())
-                  else if (!const {'checking', 'downloading', 'installing', 'disabled'}.contains(_update.phase))
-                    SettingRow(icon: chip(Lucide.refreshCw), label: 'Check for updates', onPress: () => Sms.instance.updateCheck()),
-                ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// One section's page by its [id], with a model of its own: the way in from outside Settings.
+class SettingsSectionScreen extends StatefulWidget {
+  const SettingsSectionScreen(this.id, {super.key});
+  final String id;
+
+  @override
+  State<SettingsSectionScreen> createState() => _SettingsSectionScreenState();
+}
+
+class _SettingsSectionScreenState extends State<SettingsSectionScreen> {
+  SettingsModel? _model;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _model ??= SettingsModel(AppState.of(context))..start();
+  }
+
+  @override
+  void dispose() {
+    _model?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final section = settingsSections.firstWhere((s) => s.id == widget.id);
+    return section.screen != null ? section.screen!(context, _model!) : SectionPage(section: section, model: _model!);
+  }
+}
+
+/// The list of sections: Settings' home.
+class SettingsList extends StatelessWidget {
+  const SettingsList({super.key, required this.model, required this.sections});
+
+  final SettingsModel model;
+  final List<SettingsSection> sections;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final groups = <String, List<SettingsSection>>{};
+    for (final section in sections) {
+      groups.putIfAbsent(section.group, () => []).add(section);
+    }
+    var index = 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final group in groups.values) ...[
+          _Group(rows: [
+            for (final section in group)
+              _SectionRow(
+                label: section.label,
+                icon: section.icon,
+                hue: section.hue,
+                summary: section.summary?.call(model),
+                index: index++,
+                onPress: () => push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model)),
               ),
-            ),
-            SizedBox(height: t.space(6)),
-            GlacierScope(
-              attrs: const {'hue': 'graphite'},
-              child: PaneSection(
-                title: 'About',
-                footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
-                children: [
-                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: Text(_update.current.isEmpty ? '0.3.1' : _update.current)),
-                  SettingRow(icon: chip(Lucide.info), label: 'Texts and picture messages', hint: const Text('SMS and MMS through your carrier. RCS and iMessage aren\'t available to apps other than Google\'s and Apple\'s own.')),
-                  SettingRow(icon: chip(Lucide.info), label: 'Emoji sets', hint: const Text('Noto Color Emoji and Noto Emoji © Google (SIL OFL 1.1). Twemoji © Twitter and contributors (CC-BY 4.0). All emojis designed by OpenMoji, the open-source emoji and icon project (CC BY-SA 4.0).')),
-                ],
-              ),
-            ),
-          ],
+          ]),
+          SizedBox(height: t.space(5)),
+        ],
+      ],
+    );
+  }
+}
+
+/// `.settingsScreen__group`: rows sharing one card, a hairline between them.
+class _Group extends StatelessWidget {
+  const _Group({required this.rows});
+  final List<Widget> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final hairline = t.len('glacier-hairline');
+    final rule = t.color('app-rule');
+    return GlacierScope(
+      classes: const {'settingsScreen__group'},
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(t.radius('lg')),
+        child: ColoredBox(
+          color: t.color('app-paper-2'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < rows.length; i++)
+                i == 0 ? rows[i] : DecoratedBox(decoration: BoxDecoration(border: Border(top: BorderSide(color: rule, width: hairline))), child: Padding(padding: EdgeInsets.only(top: hairline), child: rows[i])),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// `.settingsScreen__row`: the section's chip in its colour, its name and a line under it, and a chevron.
+class _SectionRow extends StatelessWidget {
+  const _SectionRow({required this.label, required this.icon, required this.hue, required this.summary, required this.index, required this.onPress});
+
+  final String label;
+  final Widget icon;
+  final String hue;
+  final String? summary;
+  final int index;
+  final VoidCallback onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gap = t.space(3);
+    final chip = t.lenOf('1.85rem');
+    final hasSummary = summary != null && summary!.isNotEmpty;
+    return SettingsRise(
+      index: index,
+      child: GlacierPressable(
+        onPressed: onPress,
+        semanticLabel: label,
+        builder: (context, state) => ColoredBox(
+          color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: t.lenOf('3.5rem')),
+            child: Padding(
+              padding: EdgeInsets.all(gap),
+              child: Row(
+                children: [
+                  GlacierScope(
+                    attrs: {'hue': hue},
+                    child: Builder(
+                      builder: (context) {
+                        final hued = context.tokens;
+                        return Container(
+                          width: chip,
+                          height: chip,
+                          decoration: BoxDecoration(color: settingsHueWash(hued), borderRadius: BorderRadius.circular(t.lenOf('0.55rem'))),
+                          alignment: Alignment.center,
+                          child: ExcludeSemantics(child: IconTheme.merge(data: IconThemeData(color: settingsHue(hued)), child: icon)),
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(width: gap),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
+                        if (hasSummary) ...[
+                          SizedBox(height: t.lenOf('0.1rem')),
+                          Text(summary!, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                        ],
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: gap),
+                  ExcludeSemantics(child: SettingsIcon(SettingsGlyph.chevronRight, size: 18, color: t.color('app-ink-4'))),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- the search -------------------------------------------------------------------------------------------------------
+// Ghost Keyboard's settings_search.dart: nothing is listed by hand. The index is read off the pages themselves (each
+// is a list of the kit's cards and rows, which say their own names), so a setting is found the day it is added.
+
+final RegExp _notWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
+
+List<String> _words(String text) => fold(text).split(_notWord).where((w) => w.isNotEmpty).toList();
+
+/// Every word of [query] starts a word of [text].
+bool settingsMatch(String query, String text) {
+  final want = _words(query);
+  if (want.isEmpty) return false;
+  final have = _words(text);
+  return want.every((w) => have.any((h) => h.startsWith(w)));
+}
+
+/// One thing found: a section, or a setting on its page.
+class SettingsHit {
+  const SettingsHit(this.section, {this.setting});
+  final SettingsSection section;
+
+  /// The setting found on the section's page, as the page names it; null when the section itself was found.
+  final String? setting;
+}
+
+/// What a page draws that can be looked for: each card's title, each row's label with its hint. A card is found by
+/// its title alone: what its footnote says is about its rows, which are found themselves.
+List<(String, String)> pageEntries(List<Widget> widgets) {
+  final out = <(String, String)>[];
+  String textOf(Widget? w) => w is Text ? (w.data ?? '') : '';
+  void walk(Widget w) {
+    if (w is PaneSection) {
+      if ((w.title ?? '').isNotEmpty) out.add((w.title!, ''));
+      for (final c in w.children) {
+        walk(c);
+      }
+    } else if (w is SettingRow) {
+      out.add((w.label, textOf(w.hint)));
+    } else if (w is PaneHero) {
+      out.add((w.title, textOf(w.meta)));
+    }
+  }
+
+  for (final w in widgets) {
+    walk(w);
+  }
+  return out;
+}
+
+/// What [query] finds: sections by their names and state lines first, then settings on their pages by their names
+/// and hints (with their section's name counting too, so "notifications preview" finds the switch).
+List<SettingsHit> searchSettings(BuildContext context, SettingsModel model, List<SettingsSection> sections, String query, {int limit = 40}) {
+  final found = <SettingsHit>[];
+  final settings = <SettingsHit>[];
+  final seen = <String>{};
+  for (final s in sections) {
+    if (settingsMatch(query, '${s.label} ${s.summary?.call(model) ?? ''}')) found.add(SettingsHit(s));
+    if (s.screen != null) continue;
+    for (final (label, detail) in pageEntries(s.page(context, model))) {
+      if (label == s.label || !seen.add('${s.id}|$label')) continue;
+      if (settingsMatch(query, '$label $detail ${s.label}')) settings.add(SettingsHit(s, setting: label));
+    }
+  }
+  return [...found, ...settings].take(limit).toList();
 }

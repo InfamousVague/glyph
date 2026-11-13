@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show utf8;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/services.dart';
@@ -8,12 +9,15 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../app_state.dart';
 import '../art/lucide.g.dart';
+import '../backgrounds.dart';
 import '../effects.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
+import 'background_picker.dart';
 import 'common.dart';
+import 'encryption.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -54,6 +58,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   final Set<String> _revealed = {};
   Timer? _draftSave;
 
+  /// Where Ghost Messaging's own encryption stands with the one person here (android/.../E2e.kt); none in a group.
+  E2eState _e2e = const E2eState();
+
+  /// Settings › Messages: reaction texts hung on their messages. Read as the page's choices change.
+  bool _foldOn = true;
+
   bool get _group => _people.length > 1;
 
   @override
@@ -62,7 +72,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     Sms.instance.setOpenThread(widget.thread);
     _load(markRead: true);
-    if (_people.isEmpty) Sms.instance.people(widget.thread).then((p) { if (mounted) setState(() => _people = p); });
+    if (_people.isEmpty) {
+      Sms.instance.people(widget.thread).then((p) {
+        if (!mounted) return;
+        setState(() => _people = p);
+        _loadE2e();
+      });
+    }
     _changes = Sms.instance.changes.stream.listen((t) {
       if (t == widget.thread || t < 0) _load(markRead: true);
     });
@@ -100,13 +116,50 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final fold = AppState.of(context).foldReactions;
+    if (fold == _foldOn) return;
+    _foldOn = fold;
+    if (_messages != null) _load();
+  }
+
+  /// Where encryption stands with the one person here: asked again each time the conversation changes, since a key
+  /// arriving is a text like any other.
+  Future<void> _loadE2e() async {
+    if (_group || _people.isEmpty) return;
+    try {
+      final s = await Sms.instance.e2e(_people.first.address);
+      if (mounted) setState(() => _e2e = s);
+    } catch (_) {}
+  }
+
+  void _e2eChanged() {
+    _loadE2e();
+    _load();
+  }
+
+  /// Their key is here and yours goes back: encryption is on from this text.
+  Future<void> _e2eAccept() async {
+    final person = _people.first;
+    try {
+      await Sms.instance.e2eOffer(person.address);
+      if (mounted) toast(context, 'Encryption is on with ${person.label}');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the key: $e', tone: GlacierToastTone.danger);
+    }
+    _e2eChanged();
+  }
+
   Future<void> _load({bool markRead = false}) async {
+    _loadE2e();
     final list = await Sms.instance.messages(widget.thread);
     if (!mounted) return;
     final edits = foldCorrections(list);
     setState(() {
       _messages = list;
-      _folded = foldReactions(edits.messages);
+      _folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
       _corrected = edits.corrected;
     });
     // A message that came or went while the conversation is open sets off its effect, once.
@@ -255,7 +308,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   void _messageMenu(Message m) {
-    final canReact = m.state != 'sending' && m.state != 'failed' && m.state != 'pending_download';
+    final canReact = m.state != 'sending' && m.state != 'failed' && m.state != 'pending_download' && m.notice == null;
     final mine = {for (final r in _folded.reactions[m.key] ?? const <Reaction>[]) if (r.by.isEmpty) r.emoji};
     showChoices(
       context,
@@ -292,14 +345,33 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     showChoices(context, title: _group ? '${_people.length} people' : null, choices: [
       for (final p in _people)
         Choice(p.name != null ? '${p.name}  ·  ${p.address}' : p.address, Lucide.phone, () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': p.address})),
+      // One person at a time: a group is MMS, which is not sealed.
+      if (!_group && _people.isNotEmpty)
+        Choice(
+          switch (_e2e.state) {
+            'on' => _e2e.verified ? 'Encryption: on, verified' : 'Encryption: on',
+            'pending' => _e2e.changed ? 'Encryption: a new key to review' : 'Encryption: waiting for your yes',
+            'offered' => 'Encryption: waiting for them',
+            _ => 'Encryption',
+          },
+          Lucide.lock,
+          () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
+        ),
+      // What is behind this conversation's messages: its own, or every chat's (lib/backgrounds.dart).
+      Choice('Chat background', Lucide.image, () => push<void>(context, (_) => BackgroundPicker(thread: widget.thread, who: _people.isEmpty ? null : (_group ? null : _people.first.label)))),
     ]);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final background = ChatBackground.of(AppState.of(context), widget.thread);
     final title = _people.isEmpty ? '' : (_group ? _people.map((p) => p.label.split(' ').first).join(', ') : _people.first.label);
-    final subtitle = _group ? '${_people.length} people' : (_people.isNotEmpty && _people.first.name != null ? _people.first.address : null);
+    final subtitle = _group
+        ? '${_people.length} people'
+        : _e2e.on
+            ? (_e2e.verified ? 'Encrypted · verified' : 'Encrypted')
+            : (_people.isNotEmpty && _people.first.name != null ? _people.first.address : null);
 
     return GhostPage(
       title: title,
@@ -311,7 +383,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           Expanded(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold')),
-              if (subtitle != null) Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+              if (subtitle != null)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (_e2e.on && !_group) ...[AppIcon(Lucide.lock, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3')), const SizedBox(width: 3)],
+                  Flexible(child: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
+                ]),
             ]),
           ),
         ]),
@@ -321,26 +397,35 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
       ],
       body: Stack(children: [
-        Positioned.fill(child: _messages == null ? const SizedBox.shrink() : _list(t)),
+        if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),
+        Positioned.fill(child: _messages == null ? const SizedBox.shrink() : _list(t, background)),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
       ]),
       footer: _composer(t),
     );
   }
 
-  Widget _list(Tokens t) {
+  Widget _list(Tokens t, ChatBackground background) {
     final msgs = _folded.messages;
+    final busy = background.busy;
     // Newest first, drawn bottom up.
     final items = <Widget>[];
     String? lastOutgoingKey;
     for (final m in msgs) {
-      if (m.outgoing) { lastOutgoingKey = m.key; break; }
+      if (m.outgoing && m.notice != 'key') { lastOutgoingKey = m.key; break; }
     }
     for (var i = 0; i < msgs.length; i++) {
       final m = msgs[i];
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
-      bool joins(Message? a, Message b) => a != null && a.outgoing == b.outgoing && a.address == b.address && a.date.difference(b.date).inMinutes.abs() < 3;
+      bool joins(Message? a, Message b) => a != null && a.notice != 'key' && a.outgoing == b.outgoing && a.address == b.address && a.date.difference(b.date).inMinutes.abs() < 3;
+      if (m.notice == 'key') {
+        // A text that carried an encryption key: a line saying so, where its letters would have been a bubble.
+        final who = _people.isEmpty ? 'They' : _people.first.label;
+        items.add(_Notice(icon: Lucide.keyRound, text: m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key', busy: busy, onLongPress: () => _messageMenu(m)));
+        if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
+        continue;
+      }
       final firstOfRun = !joins(older, m) || !_sameDay(older!.date, m.date);
       final lastOfRun = !joins(newer, m) || !_sameDay(newer!.date, m.date);
       final failed = m.state == 'failed';
@@ -364,13 +449,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         playEntrance: _freshKey == m.key && AppState.of(context).effects,
         concealed: !_revealed.contains(m.key),
         onReveal: () => setState(() => _revealed.add(m.key)),
+        onBackground: !background.isNone,
+        busy: busy,
       ));
-      if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date));
+      if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
     if (msgs.isEmpty) {
       items.add(Padding(
         padding: EdgeInsets.all(t.space(8)),
-        child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        child: Center(child: OnBackground(busy: busy, child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))),
       ));
     }
     return ListView(
@@ -398,10 +485,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final composerText = pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
     final composerStrut = StrutStyle.fromTextStyle(composerText, forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
-    final len = _text.text.length;
     final isMms = _group || _attachments.isNotEmpty;
+    // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
+    // typed, and plain letters whatever was typed.
+    final sealed = _e2e.on && !isMms;
+    final len = sealed ? 9 + ((28 + utf8.encode(_text.text.trim()).length) * 4 / 3).ceil() : _text.text.length;
     // An SMS is 160 GSM characters (70 with an emoji or other Unicode), and 153 / 67 a part once it is split.
-    final unicode = _text.text.runes.any((r) => r > 0x7F);
+    final unicode = !sealed && _text.text.runes.any((r) => r > 0x7F);
+    final enterSends = AppState.of(context).enterSends;
     final per = unicode ? 67 : 153;
     final single = unicode ? 70 : 160;
     final parts = len <= single ? 1 : (len / per).ceil();
@@ -410,6 +501,22 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       child: Padding(
         padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (!_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
+            _E2eBar(
+              text: switch (_e2e.state) {
+                'pending' => _e2e.changed ? '${_people.first.label} sent a NEW encryption key' : '${_people.first.label} wants to encrypt this conversation',
+                _ => 'Waiting for ${_people.first.label} to accept encryption',
+              },
+              // A new key is looked at before it is taken: the sheet says why.
+              action: _e2e.state != 'pending' ? null : (_e2e.changed ? 'Review' : 'Turn on'),
+              onAction: _e2e.changed ? () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged) : _e2eAccept,
+              onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
+            ),
+          if (_e2e.on && _attachments.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(left: t.space(3), right: t.space(3), bottom: t.space(2)),
+              child: Text('Pictures aren\'t encrypted. This goes as an ordinary picture message.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+            ),
           if (_attachments.isNotEmpty)
             Padding(
               padding: EdgeInsets.only(left: t.space(2), bottom: t.space(2)),
@@ -486,7 +593,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
                         if (_text.text.isEmpty)
-                          IgnorePointer(child: Text(isMms ? 'Picture message' : 'Text message', style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
+                          IgnorePointer(child: Text(isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
                         EditableText(
                           controller: _text,
                           focusNode: _focus,
@@ -498,7 +605,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           selectionColor: t.colorOf('color-mix(in srgb, #4f5bd5 30%, transparent)'),
                           minLines: 1,
                           maxLines: 6,
-                          keyboardType: TextInputType.multiline,
+                          // Settings › Messages › Enter sends: the keyboard's Enter is Send, and the words still wrap.
+                          keyboardType: enterSends ? TextInputType.text : TextInputType.multiline,
+                          textInputAction: enterSends ? TextInputAction.send : TextInputAction.newline,
+                          onSubmitted: enterSends ? (_) => editing ? _saveEdit() : _send() : null,
+                          // Sending leaves the keyboard up for the next one.
+                          onEditingComplete: enterSends ? () {} : null,
                           textCapitalization: TextCapitalization.sentences,
                           selectionControls: emptyTextSelectionControls,
                           contextMenuBuilder: (context, state) => _contextMenu(context, state),
@@ -520,7 +632,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           if (!isMms && !editing && parts > 1)
             Padding(
               padding: EdgeInsets.only(top: t.space(1), right: t.space(3)),
-              child: Text('$len · $parts texts', textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+              child: Text(sealed ? '$parts texts once encrypted' : '$len · $parts texts', textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
         ]),
       ),
@@ -561,16 +673,92 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       };
 }
 
+/// Over the composer while encryption waits on someone: their key is here and wants a yes, or yours went and theirs
+/// has not come. A press anywhere opens what can be done about it.
+class _E2eBar extends StatelessWidget {
+  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction});
+  final String text;
+  final VoidCallback onPress;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.only(left: t.space(1), right: t.space(1), bottom: t.space(2)),
+      child: GlacierPressable(
+        onPressed: onPress,
+        builder: (context, state) => Container(
+          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
+          decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg'))),
+          child: Row(children: [
+            AppIcon(Lucide.lock, size: 16, color: t.color('app-ink-2')),
+            SizedBox(width: t.space(2)),
+            Expanded(child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'), height: 1.3))),
+            if (action != null) ...[
+              SizedBox(width: t.space(2)),
+              GlacierPressable(
+                onPressed: onAction,
+                semanticLabel: action,
+                builder: (context, s) => Container(
+                  padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                  decoration: BoxDecoration(color: t.color(s.pressed ? 'app-ink-2' : 'app-ink'), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+                  child: Text(action!, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-paper'))),
+                ),
+              ),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _DayHeading extends StatelessWidget {
-  const _DayHeading({required this.date});
+  const _DayHeading({required this.date, this.busy = false});
   final DateTime date;
+
+  /// Over a picture or a colour of the person's: the words stand on a pill ([OnBackground]).
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
       padding: EdgeInsets.only(top: t.space(4), bottom: t.space(2)),
-      child: Text(dayHeading(date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
+      child: Center(child: OnBackground(busy: busy, child: Text(dayHeading(date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))))),
+    );
+  }
+}
+
+/// A line in the conversation that is not a message's words: a text that carried an encryption key.
+class _Notice extends StatelessWidget {
+  const _Notice({required this.icon, required this.text, this.onLongPress, this.busy = false});
+  final LucideIcon icon;
+  final String text;
+  final VoidCallback? onLongPress;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: t.space(2)),
+        child: Center(
+          child: OnBackground(
+            busy: busy,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              AppIcon(icon, size: 12, strokeWidth: 2.2, wash: false, color: t.color('app-ink-3')),
+              SizedBox(width: t.space(1)),
+              Flexible(child: Text(text, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3')))),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -595,6 +783,8 @@ class _Bubble extends StatelessWidget {
     this.playEntrance = false,
     this.concealed = true,
     this.onReveal,
+    this.onBackground = false,
+    this.busy = false,
   });
 
   final Message message;
@@ -624,13 +814,20 @@ class _Bubble extends StatelessWidget {
   final bool concealed;
   final VoidCallback? onReveal;
 
+  /// The conversation has a background (lib/backgrounds.dart), and one the small words need a pill on.
+  final bool onBackground;
+  final bool busy;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final m = message;
     // The words without an iPhone's "(sent with Slam)" at their end, which is played and not shown.
     final sent = sentWith(m.body);
-    final body = sent.text;
+    // Sealed, and the key that opens it is not on this phone (a reinstall, a new key since): said in its place.
+    final unopened = m.notice == 'undecryptable';
+    final body = unopened ? 'Encrypted message that can\'t be opened on this phone' : sent.text;
+    final app = AppState.of(context);
     final out = m.outgoing;
     final failed = m.state == 'failed';
     final big = t.lenOf('1.15rem');
@@ -641,16 +838,13 @@ class _Bubble extends StatelessWidget {
       topRight: Radius.circular(out && !top ? small : big),
       bottomRight: Radius.circular(out && !bottom ? small : big),
     );
-    // Your own bubbles are Ghost Keyboard's primary unless Settings says ink (KeyboardTheme.kt's accent and onAccent:
-    // #51FCFB under #00302F on the dark page, #008B8A under white on the light).
-    final ghost = AppState.of(context).bubble == 'ghost';
-    final mine = ghost ? Color(t.isDark ? 0xFF51FCFB : 0xFF008B8A) : t.color('app-ink');
-    final onMine = ghost ? Color(t.isDark ? 0xFF00302F : 0xFFFFFFFF) : t.color('app-paper');
-    final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : t.color(t.isDark ? 'app-paper-3' : 'app-paper-2');
+    // Your own bubbles are Ghost Keyboard's primary unless Settings says ink or the wallpaper's accent.
+    final (mine, onMine) = myBubble(t, app);
+    final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : theirBubble(t, onBackground: onBackground);
     final ink = out && !failed ? onMine : t.color('app-ink');
     final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
     final faceSize = t.lenOf('1.75rem');
-    final emojis = m.attachments.isEmpty ? emojiOnly(body) : 0;
+    final emojis = m.attachments.isEmpty && !unopened && app.bigEmoji ? emojiOnly(body) : 0;
     final jumbo = emojis >= 1 && emojis <= 3;
 
     final content = <Widget>[
@@ -674,10 +868,17 @@ class _Bubble extends StatelessWidget {
           constraints: BoxConstraints(maxWidth: maxWidth),
           padding: EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
           decoration: BoxDecoration(color: ground, borderRadius: radius),
-          child: Text.rich(
-            _linked(body, ink),
-            style: pageText(t, t.fontSize('md'), color: ink, height: 1.35),
-          ),
+          child: unopened
+              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                  AppIcon(Lucide.lock, size: 14, strokeWidth: 2.2, wash: false, color: ink),
+                  SizedBox(width: t.space(2)),
+                  Flexible(child: Text(body, style: pageText(t, t.fontSize('sm') * app.textScale, color: ink, height: 1.35).copyWith(fontStyle: FontStyle.italic))),
+                ])
+              : Text.rich(
+                  _linked(body, ink),
+                  // Settings › Appearance › Text size.
+                  style: pageText(t, t.fontSize('md') * app.textScale, color: ink, height: 1.35),
+                ),
         ),
     ];
 
@@ -726,7 +927,7 @@ class _Bubble extends StatelessWidget {
           if (sender != null)
             Padding(
               padding: EdgeInsets.only(left: (group ? faceSize + t.space(2) : 0) + t.space(3), bottom: 2),
-              child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+              child: OnBackground(busy: busy, child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3')))),
             ),
           Row(
             mainAxisAlignment: out ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -744,14 +945,16 @@ class _Bubble extends StatelessWidget {
               onTap: onEditedTap,
               child: Padding(
                 padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2)),
-                child: Text(edited!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+                child: OnBackground(busy: busy, child: Text(edited!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3')))),
               ),
             ),
           if (status != null)
             Padding(
               padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
+              child: OnBackground(busy: busy, child: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (failed) ...[AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30')), const SizedBox(width: 4)],
+                // It travelled sealed, and was opened here.
+                if (m.encrypted) ...[Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))), const SizedBox(width: 4)],
                 Text(status!, style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3'))),
                 // Your messages' ticks: a clock while it goes, one for sent, two for delivered, two in colour for read.
                 if (out && !failed) ...[
@@ -767,7 +970,7 @@ class _Bubble extends StatelessWidget {
                     ),
                   ),
                 ],
-              ]),
+              ])),
             ),
         ],
       ),

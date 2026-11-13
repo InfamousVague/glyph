@@ -301,6 +301,17 @@ class Sms {
   Future<String?> ownNumber() => _calls.invokeMethod<String>('ownNumber');
   Future<void> setOwnNumber(String number) => _calls.invokeMethod('setOwnNumber', {'number': number});
 
+  /// The colours Android takes from the wallpaper (Material You), by name ("accent1_100"…); null before Android 12.
+  Future<Map<String, int>?> systemPalette() async {
+    final m = await _calls.invokeMethod<Map>('systemPalette');
+    return m == null ? null : {for (final e in m.entries) e.key as String: (e.value as num).toInt()};
+  }
+
+  /// A copy of the picture at [uri] kept by the app as a chat background, [name] saying whose ("all", or a
+  /// conversation's number); the copy's path, or null when the picture could not be read.
+  Future<String?> importBackground(String uri, String name) => _calls.invokeMethod<String>('importBackground', {'uri': uri, 'name': name});
+  Future<void> deleteBackground(String name) => _calls.invokeMethod('deleteBackground', {'name': name});
+
   Future<Map<String, String>> prefs() async => {for (final e in ((await _calls.invokeMethod<Map>('prefs')) ?? const {}).entries) e.key as String: e.value as String};
   Future<void> setPref(String key, String value) => _calls.invokeMethod('setPref', {'key': key, 'value': value});
 

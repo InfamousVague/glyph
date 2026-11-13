@@ -1,5 +1,14 @@
 # Handoff: Ghost Messaging, 2026-11-13
 
+**Since this was written (the same day, on Matt's Mac):** section 1 is done: ghost-sms.com has its Caddy block and
+its certificate, and 0.3.1 was published as the first release, signed with the key now in `~/.config/ghostmessaging/`
+(Matt was told to back it up, and to uninstall the cloud build and install from ghost-sms.com once). Section 2 is
+done in 0.4.0: encryption in the conversation and the list, the nested Settings with its search, the expanded
+settings read where they act, and Updates' plain words. 0.4.0 also has chat backgrounds, asked for that afternoon
+(README). Section 3, the phone, is what is left. The branch is checked out as a worktree at
+`~/Development/Apps/glyph-messaging`, so the shared checkout stays on main; the scripts are run from there with
+`--glyph ~/Development/Apps/glyph`.
+
 Written by the cloud session that built 0.1.0 to 0.3.1, for the session that carries on from Matt's Mac (Matt:
 "give me a full prompt to have another session pick up the work on my mac"). The cloud session had no account on the
 box, no release key, no phone and no emulator, so nothing here has been published or run on a device.

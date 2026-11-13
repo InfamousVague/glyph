@@ -207,9 +207,27 @@ object Updater {
     }
 
     /** A check or a download that did not finish. */
+    /**
+     * What went wrong, for Settings › Updates. Two of them the screen says in its own words rather than Java's:
+     * "offline" (this phone has no connection) and "notServing" (the site is not there to ask: no certificate, no
+     * such name, nothing answering, or no release published yet).
+     */
     private fun failed(context: Context, e: Exception) {
-        set(state.copy(phase = "failed", progress = null, error = e.message ?: e.javaClass.simpleName))
+        val error = when {
+            !online(context) -> "offline"
+            e is NotServing || e is javax.net.ssl.SSLException || e is java.net.UnknownHostException || e is java.net.ConnectException -> "notServing"
+            else -> e.message ?: e.javaClass.simpleName
+        }
+        set(state.copy(phase = "failed", progress = null, error = error))
     }
+
+    private class NotServing(message: String) : IllegalStateException(message)
+
+    /** Whether Android says there is a connection at all; true where it will not say. */
+    private fun online(context: Context): Boolean = try {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: false
+    } catch (_: Exception) { true }
 
     // --- the steps --------------------------------------------------------------------------------------------------
 
@@ -228,6 +246,7 @@ object Updater {
     private fun fetchRelease(context: Context): Release {
         val conn = open("$BASE/apk.json?t=${System.currentTimeMillis()}")
         try {
+            if (conn.responseCode == 404) throw NotServing("The update server answered 404.")
             if (conn.responseCode != 200) throw IllegalStateException("The update server answered ${conn.responseCode}.")
             val body = conn.inputStream.use { it.readBytes() }
             if (body.size > 64 * 1024) throw IllegalStateException("apk.json is too large.")

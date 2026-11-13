@@ -27,6 +27,9 @@ class AppState extends ChangeNotifier {
 
   void setFlag(String key, bool on) => set(key, on ? 'on' : 'off');
 
+  /// Something the screens draw from has changed that is not one of these choices: the phone's wallpaper palette.
+  void changed() => notifyListeners();
+
   /// system, light, dark.
   String get theme => choice('theme', 'system');
   void setTheme(String v) => set('theme', v);
@@ -35,7 +38,8 @@ class AppState extends ChangeNotifier {
   String get emoji => choice('emoji', 'system');
   void setEmoji(String v) => set('emoji', v);
 
-  /// Your own bubbles: 'ghost' is Ghost Keyboard's primary, 'ink' the page's ink on paper.
+  /// Your own bubbles: 'ghost' is Ghost Keyboard's primary, 'ink' the page's ink on paper, 'wallpaper' the accent
+  /// Android takes from the phone's wallpaper (lib/backgrounds.dart).
   String get bubble => choice('bubble', 'ghost');
   void setBubble(String v) => set('bubble', v);
 

@@ -43,8 +43,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   Google Messages plays on a phrase (snow, kisses, wow, thank you, good night, good morning, get well soon, bye bye,
   hungry, sorry, party time), and ghosts for "Boo". An iPhone's "(sent with Lasers)" is read, played and not shown,
   and so are its bubble effects (slam, loud, gentle, invisible ink). One to three emoji alone are drawn large. An
-  animated WebP in `assets/effects/` named for an effect plays in place of the one drawn. Settings › Look turns
-  effects off.
+  animated WebP in `assets/effects/` named for an effect plays in place of the one drawn. Settings › Effects turns
+  them off, and lists every one with what sets it off; a tap plays it there.
 - **Emoji sets** (0.3.0; `lib/emoji_sets.dart`, `assets/emoji/LICENSES.md`): the phone's own, Noto, Twemoji, OpenMoji
   or Noto's outline face, chosen in Settings and drawn everywhere in the app. `test/emoji_sets_test.dart` holds each
   set to drawing joined emoji (families, skin tones, flags, keycaps) as one glyph.
@@ -59,9 +59,45 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   newer release, checks its size, hash and signing certificate, and installs it (`Updater.kt`, Ghost Keyboard's).
   Settings › Updates has the switch, "Check for updates" and "Update now". It is the only connection the app opens.
 - **Your bubbles** (0.3.1): Ghost Keyboard's primary by default (its accent: #51FCFB under dark teal on the dark
-  page, #008B8A under white on the light), or the page's ink, in Settings › Look.
-- **Settings**: theme, effects, emoji, receipts, this phone's number, the state of the SMS role, contacts and
-  notifications, and updates.
+  page, #008B8A under white on the light), or the page's ink, or (0.4.0) the accent Android takes from the phone's
+  wallpaper, in Settings › Appearance.
+- **Encryption** (0.4.0; Matt, 2026-11-13: "enable an option for an additional level of E2E encryption by allowing
+  users to exchange keys somehow and then encrypt all messages so only others with the app can read them"). With one
+  person who also has Ghost Messaging, texts go sealed so only the two phones can read them. It is turned on from a
+  conversation's header (tap the name, Encryption): that sends one text with this phone's key, and the other person
+  gets a bar over their composer, "Maya wants to encrypt this conversation", with Turn on, which sends theirs back.
+  From then the header says "Encrypted" with a lock, the composer "Encrypted message", each sealed message has a small
+  lock by its time, the conversation has one after its name in the list, and the two key texts are drawn as lines
+  ("You sent your encryption key"), not bubbles. The header's Encryption also shows the safety number, thirty digits
+  that are the same on both phones when nobody swapped a key on the way, with "They match: mark as verified". A
+  DIFFERENT key from someone already exchanged with turns encryption off until it is looked at and accepted. A sealed
+  text whose key is gone (a reinstall, a new key) says "Encrypted message that can't be opened on this phone".
+  What it is and is not, as Settings › Encryption says it: one person at a time (groups and pictures are MMS and go
+  as they always have, and attaching a picture says so); the keys travel by SMS, so the safety number is what rules
+  out a swapped key; no forward secrecy (no ratchet: it is not Signal's protocol); a sealed text is longer, so the
+  composer counts the texts it will cost; to any other app a sealed text is a line of letters. The cryptography is
+  `E2eCrypto.kt` (P-256, ECDH, HKDF-SHA256, AES-256-GCM; `E2eCryptoTest`), what the phone keeps is `E2e.kt`, and the
+  screens are `lib/ui/thread.dart` and `lib/ui/encryption.dart`.
+- **Chat backgrounds** (0.4.0; Matt, 2026-11-13: "allow changing the backgrounds for chats, there should be a standard
+  way to have the backgrounds sync between apps as my google background syncs with samsung messenger"). One for every
+  chat (Settings › Chat background) and one a conversation may have of its own (its header › Chat background): none,
+  eight washes made for the app (pale in light, deep in dark), a colour (twelve offered, or mixed), a picture from
+  the phone (a copy the app keeps, drawn under a veil, with the small words on pills), or **Match my wallpaper**.
+  There is no standard by which texting apps share a background: Google Messages keeps its own on the phone that set
+  it, for RCS chats only, where no other app can read it. What every app can share is the palette Android takes from
+  the wallpaper (Material You, Android 12 on), and that is what Match my wallpaper wears, so it follows the phone as
+  Google's and Samsung's apps do (`lib/backgrounds.dart`, `MainActivity.systemPalette`). Nothing is sent to the other
+  person: SMS has no way to carry it.
+- **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
+  expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
+  own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
+  Appearance (theme, your bubbles, text size), Chat background, Emoji (the sets, large emoji), Effects; Messages
+  (Enter sends, attach reactions to messages), Receipts (delivery reports, read receipts, the ticks explained),
+  Notifications (Android's permission, message previews, the copy-code button, sound and vibration); Encryption (what
+  it is, the people, this phone's key, a new key), Blocked numbers (tap to unblock), Archived; Your number, Android
+  (default SMS app, contacts, phone number); Updates, About. Settings › Updates says "ghost-sms.com isn't serving
+  updates yet" where the site has no certificate, no such name, nothing answering or no release, and "This phone is
+  offline" where that is why, in place of Java's own error.
 
 Not yet: RCS and iMessage (no API exists for apps other than Google's and Apple's own, so no typing indicators and
 no read receipts for plain texts), sending video or audio, scheduled messages, search inside messages, dual-SIM
@@ -83,9 +119,13 @@ choice (the phone's default SMS SIM is used), and a backup.
 ```sh
 flutter pub get
 flutter build apk --release --target-platform android-arm64   # build/app/outputs/flutter-apk/app-release.apk
-flutter test --update-goldens                                 # reactions and edits; every screen, light and dark, to test/shots/
-cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder
+flutter test                                                  # reactions, edits, effects, emoji sets, settings and backgrounds; builds every screen
+flutter test --update-goldens test/screens_test.dart          # every screen, light and dark, written to test/shots/
+cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, and the encryption
 ```
+
+The emoji sets' picture (`test/shots/7-emoji-sets.png`) is compared on Linux only: a Mac's test engine draws fonts
+with Core Text, which leaves Twemoji's row blank, where Linux's and Android's draw it with FreeType.
 
 ## Releasing (ghost-sms.com)
 
@@ -98,6 +138,12 @@ node tool/deploy-site.mjs --caddy   # once: site/ into /opt/ghost-sms-site, and 
 node tool/release.mjs               # each release: build, sign, check, upload to /opt/ghost-sms-release, verify it is served
 node tool/deploy-site.mjs           # when site/ changes
 ```
+
+Both ran for the first time on 2026-11-13 (one box login, 19:56:05 UTC, held for both: `--keep-connection` on each
+after Ghost.md's `build/diag/hold-box.mjs`): the Caddy block went in with every other site answering as before
+(backup `/etc/caddy/Caddyfile.bak-20261113-195607`), and 0.3.1 (code 6) was the first release. From a worktree of
+this repository the scripts need `--glyph ~/Development/Apps/glyph`: the box's `.env` is only in the main checkout.
+`www.ghost-sms.com` has no DNS record yet, so its redirect has no certificate (ghostkbd.com's www is the same).
 
 - **The release key** is made by the first `tool/release.mjs` in `~/.config/ghostmessaging/` (back it up) and its
   certificate is pinned there; `android/app/build.gradle.kts` signs release builds with it when it is present.
@@ -114,4 +160,5 @@ of each effect are drawn in Flutter's test harness with made-up conversations (`
 reports and the sign-in code finder are checked by `PduTest`, reactions, effects and emoji sets by the Dart tests, and
 the manifest was checked for every component Android looks for before it offers an app as the default SMS app.
 Sending, receiving, MMS download and reports through a real carrier, notifications, blocking and the updater's
-install have not run on a device. Nothing has been published to ghost-sms.com yet.
+install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
+Match my wallpaper. `docs/HANDOFF.md` section 3 is the list to go through on a phone.
