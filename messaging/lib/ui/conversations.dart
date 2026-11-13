@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
+import '../art/ghost_icons.dart';
 import '../art/lucide.g.dart';
 import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
@@ -59,12 +60,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   List<Conversation> get _shown {
-    final list = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived);
-    if (_query.trim().isEmpty) return list.toList();
+    // Pinned conversations first, each group newest first (the order they arrive in).
+    final all = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived).toList();
+    final list = [...all.where((c) => c.pinned), ...all.where((c) => !c.pinned)];
+    if (_query.trim().isEmpty) return list;
     final q = fold(_query.trim());
     final digits = q.replaceAll(RegExp(r'[^0-9]'), '');
     return list.where((c) {
-      if (fold(c.snippet).contains(q)) return true;
+      if (fold(c.snippet).contains(q) || (c.draft != null && fold(c.draft!).contains(q))) return true;
       for (final p in c.people) {
         if (fold(p.label).contains(q)) return true;
         if (digits.length >= 3 && p.address.replaceAll(RegExp(r'[^0-9]'), '').contains(digits)) return true;
@@ -81,6 +84,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   void _menu(Conversation c) {
     showChoices(context, title: c.title, choices: [
       if (c.unread) Choice('Mark as read', Lucide.checkCheck, () async { await Sms.instance.markRead(c.id); _load(); }),
+      Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () async { await Sms.instance.threadFlag('pinned', c.id, !c.pinned); _load(); }),
+      Choice(c.muted ? 'Unmute' : 'Mute notifications', c.muted ? Lucide.bell : GhostIcons.bellOff, () async {
+        await Sms.instance.threadFlag('muted', c.id, !c.muted);
+        await _load();
+        if (mounted) toast(context, c.muted ? 'Notifications on' : 'Muted. Messages still arrive, quietly.');
+      }),
       Choice(c.archived ? 'Unarchive' : 'Archive', c.archived ? Lucide.archiveRestore : Lucide.archive, () async {
         await Sms.instance.archive(c.id, !c.archived);
         await _load();
@@ -88,8 +97,27 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         toast(context, c.archived ? 'Moved back to Messages' : 'Archived',
             action: GlacierToastAction(label: 'Undo', onPress: () async { await Sms.instance.archive(c.id, c.archived); _load(); }));
       }),
+      if (!c.group && c.people.isNotEmpty)
+        Choice(c.blocked ? 'Unblock' : 'Block number', Lucide.ban, () => c.blocked ? _setBlocked(c, false) : _confirmBlock(c), danger: !c.blocked),
       Choice('Delete conversation', Lucide.trash2, () => _confirmDelete(c), danger: true),
     ]);
+  }
+
+  void _confirmBlock(Conversation c) {
+    showChoices(context, title: 'Block ${c.title}? Android will stop their texts and calls before they reach you.', choices: [
+      Choice('Block', Lucide.ban, () => _setBlocked(c, true), danger: true),
+    ]);
+  }
+
+  Future<void> _setBlocked(Conversation c, bool blocked) async {
+    try {
+      await Sms.instance.setBlocked(c.people.first.address, blocked);
+      if (blocked) await Sms.instance.archive(c.id, true);
+      await _load();
+      if (mounted) toast(context, blocked ? 'Blocked and archived' : 'Unblocked');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t change the block: $e', tone: GlacierToastTone.danger);
+    }
   }
 
   void _confirmDelete(Conversation c) {
@@ -248,6 +276,9 @@ class _Row extends StatelessWidget {
                         Expanded(
                           child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: unread ? 'bold' : 'semibold', color: t.color('app-ink'))),
                         ),
+                        if (c.pinned) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.pin, size: 13, color: t.color('app-ink-3'))],
+                        if (c.muted) ...[SizedBox(width: t.space(1)), AppIcon(GhostIcons.bellOff, size: 13, color: t.color('app-ink-3'))],
+                        if (c.blocked) ...[SizedBox(width: t.space(1)), AppIcon(Lucide.ban, size: 13, color: t.colorOf('#dd3a30'))],
                         SizedBox(width: t.space(2)),
                         Text(listWhen(c.date), style: pageText(t, t.fontSize('xs'), weight: unread ? 'semibold' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-3'))),
                       ]),
@@ -255,8 +286,13 @@ class _Row extends StatelessWidget {
                       Row(children: [
                         if (c.error) ...[AppIcon(Lucide.circleAlert, size: 14, color: t.colorOf('#dd3a30')), SizedBox(width: t.space(1))],
                         Expanded(
-                          child: Text(
-                            c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' '),
+                          child: Text.rich(
+                            c.draft != null && c.draft!.trim().isNotEmpty
+                                ? TextSpan(children: [
+                                    TextSpan(text: 'Draft: ', style: TextStyle(color: t.colorOf('#dd3a30'), fontWeight: t.weight('medium'))),
+                                    TextSpan(text: c.draft!.replaceAll('\n', ' ')),
+                                  ])
+                                : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' ')),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),

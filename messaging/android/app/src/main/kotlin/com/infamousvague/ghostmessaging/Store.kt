@@ -126,6 +126,9 @@ class Store(private val context: Context) {
         val out = ArrayList<Map<String, Any?>>()
         val uri = Uri.parse("content://mms-sms/conversations?simple=true")
         val archived = archivedThreads()
+        val pinned = threadFlags("pinned")
+        val muted = threadFlags("muted")
+        val drafts = drafts()
         // No projection: OEM providers (Samsung's among them) differ in the columns they keep, and naming one they
         // lack fails the whole query. Each column is read if it is there.
         try {
@@ -148,6 +151,10 @@ class Store(private val context: Context) {
                         "error" to (iErr >= 0 && c.getInt(iErr) != 0),
                         "attachment" to (iAtt >= 0 && c.getInt(iAtt) != 0),
                         "archived" to archived.contains(id),
+                        "pinned" to pinned.contains(id),
+                        "muted" to muted.contains(id),
+                        "draft" to drafts[id.toString()],
+                        "blocked" to (recipients.size == 1 && isBlocked(recipients[0])),
                     )
                 }
             }
@@ -188,6 +195,7 @@ class Store(private val context: Context) {
     /** The newest [limit] messages of [thread], SMS and MMS together, the newest first. */
     fun messages(thread: Long, limit: Int = 300): List<Map<String, Any?>> {
         val out = ArrayList<Map<String, Any?>>()
+        val receipts = receipts()
         resolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf("_id", "address", "body", "date", "type", "status", "read", "date_sent"),
@@ -209,7 +217,7 @@ class Store(private val context: Context) {
         }
         resolver.query(
             Telephony.Mms.CONTENT_URI,
-            arrayOf("_id", "date", "msg_box", "read", "m_type", "sub"),
+            arrayOf("_id", "date", "msg_box", "read", "m_type", "sub", "m_id"),
             "thread_id = ?", arrayOf(thread.toString()), "date DESC LIMIT $limit",
         )?.use { c ->
             while (c.moveToNext()) {
@@ -231,7 +239,7 @@ class Store(private val context: Context) {
                         mType == 130 -> "pending_download" // a notification whose message never came down
                         box == Telephony.Mms.MESSAGE_BOX_OUTBOX -> "sending"
                         box == Telephony.Mms.MESSAGE_BOX_FAILED -> "failed"
-                        outgoing -> "sent"
+                        outgoing -> receipts[c.getString(6) ?: ""] ?: "sent"
                         else -> "received"
                     },
                     "read" to (c.getInt(3) != 0),
@@ -418,6 +426,23 @@ class Store(private val context: Context) {
         return n
     }
 
+    // --- receipts: what came back about an MMS of ours, by the name the MMSC gave it --------------------------------
+
+    private val receiptPrefs get() = context.getSharedPreferences("receipts", Context.MODE_PRIVATE)
+
+    /** Message-ID -> "delivered" or "read". */
+    fun receipts(): Map<String, String> = receiptPrefs.all.mapValues { it.value.toString() }
+
+    /** Read outranks delivered: a delivery report arriving after a read report changes nothing. */
+    fun setReceipt(messageId: String, state: String) {
+        if (state == "delivered" && receiptPrefs.getString(messageId, null) == "read") return
+        receiptPrefs.edit().putString(messageId, state).apply()
+    }
+
+    fun setMmsMessageId(uri: Uri, messageId: String) {
+        resolver.update(uri, ContentValues().apply { put("m_id", messageId) }, null, null)
+    }
+
     // --- edits (this app's own record: SMS has no edit, so the original is kept here) ------------------------------
 
     private val editsPrefs get() = context.getSharedPreferences("edits", Context.MODE_PRIVATE)
@@ -456,6 +481,46 @@ class Store(private val context: Context) {
     // --- archive (this app's own, not the provider's) ----------------------------------------------------------------
 
     private val prefs get() = context.getSharedPreferences("ghost", Context.MODE_PRIVATE)
+
+    /** A set of conversations kept by this app under [name]: "pinned", "muted". */
+    fun threadFlags(name: String): Set<Long> = prefs.getStringSet(name, emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
+
+    fun setThreadFlag(name: String, thread: Long, on: Boolean) {
+        val s = prefs.getStringSet(name, emptySet())!!.toMutableSet()
+        if (on) s += thread.toString() else s -= thread.toString()
+        prefs.edit().putStringSet(name, s).apply()
+    }
+
+    fun isMuted(thread: Long) = threadFlags("muted").contains(thread)
+
+    // --- drafts: what was typed into a conversation and not sent ----------------------------------------------------
+
+    private val draftPrefs get() = context.getSharedPreferences("drafts", Context.MODE_PRIVATE)
+
+    fun drafts(): Map<String, String> = draftPrefs.all.mapValues { it.value.toString() }
+
+    fun draft(thread: Long): String? = draftPrefs.getString(thread.toString(), null)
+
+    fun setDraft(thread: Long, text: String) {
+        if (text.isBlank()) draftPrefs.edit().remove(thread.toString()).apply() else draftPrefs.edit().putString(thread.toString(), text).apply()
+    }
+
+    // --- blocked numbers: Android's own list, which the default SMS app may read and write --------------------------
+
+    fun isBlocked(address: String): Boolean = try {
+        android.provider.BlockedNumberContract.isBlocked(context, address)
+    } catch (_: Exception) { false }
+
+    /** Android itself stops a blocked number's texts and calls before any app sees them. */
+    fun setBlocked(address: String, blocked: Boolean) {
+        if (blocked) {
+            resolver.insert(android.provider.BlockedNumberContract.BlockedNumbers.CONTENT_URI, ContentValues().apply {
+                put(android.provider.BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER, address)
+            })
+        } else {
+            android.provider.BlockedNumberContract.unblock(context, address)
+        }
+    }
 
     fun archivedThreads(): Set<Long> = prefs.getStringSet("archived", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 

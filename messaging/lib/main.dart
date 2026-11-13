@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
+import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'sms.dart';
 import 'ui/compose.dart';
@@ -27,6 +28,16 @@ Future<void> main() async {
 
 final _navigator = GlobalKey<NavigatorState>();
 
+/// The page's faces, with the emoji set chosen first among their fallbacks: Inter draws no emoji, so every one is
+/// the set's. The phone's own set adds no fallback, and Android's emoji font is what is left.
+GlacierTypography ghostTypography(String emoji) {
+  final family = emojiSet(emoji).family;
+  return GlacierTypography(
+    features: const [FontFeature('cv11'), FontFeature('ss01')],
+    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family]},
+  );
+}
+
 class GhostMessagingApp extends StatelessWidget {
   const GhostMessagingApp({super.key, required this.sheet, required this.state});
   final TokenSheet sheet;
@@ -48,7 +59,7 @@ class GhostMessagingApp extends StatelessWidget {
           builder: (context, child) => GlacierTheme(
             sheet: sheet,
             attrs: {'platform': 'mobile', if (state.theme != 'system') 'theme': state.theme},
-            typography: const GlacierTypography(features: [FontFeature('cv11'), FontFeature('ss01')]),
+            typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,
               child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
@@ -99,6 +110,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _isDefault = s.isDefault);
     if (first && s.isDefault) {
+      // The app's own updates: a look at most twice a day, as it opens.
+      Sms.instance.updateBackground();
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
       final req = await Sms.instance.openRequest();
       if (req != null) _open(req);

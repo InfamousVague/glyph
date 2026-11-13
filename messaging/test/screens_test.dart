@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
-import 'package:ghost_messaging/main.dart' show InkOverrides;
+import 'package:ghost_messaging/effects.dart';
+import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/compose.dart';
@@ -25,6 +26,10 @@ Future<void> _fonts() async {
 
   await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
   await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
+  await family('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf');
+  await family('Ghost Emoji Twemoji', 'assets/emoji/Twemoji.ttf');
+  await family('Ghost Emoji OpenMoji', 'assets/emoji/OpenMoji.ttf');
+  await family('Ghost Emoji Outline', 'assets/emoji/NotoOutline.ttf');
 }
 
 final _now = DateTime.now();
@@ -35,10 +40,10 @@ Map<String, Object?> _p(String address, [String? name]) => {'address': address, 
 final _conversations = [
   {'id': 1, 'date': _ago(minutes: 4), 'people': [_p('+15551230001', 'Maya Chen')], 'snippet': 'Sounds good, see you at 7! Bring the projector cable if you still have it', 'unread': true, 'error': false, 'archived': false},
   {'id': 2, 'date': _ago(minutes: 52), 'people': [_p('+15551230002', 'Jordan Park'), _p('+15551230003', 'Sam Rivera'), _p('+15551230004', 'Alex Kim')], 'snippet': 'Picture', 'unread': true, 'error': false, 'archived': false},
-  {'id': 3, 'date': _ago(hours: 5), 'people': [_p('+15551230005', 'Dad')], 'snippet': 'Call me when you land', 'unread': false, 'error': false, 'archived': false},
-  {'id': 4, 'date': _ago(days: 1, hours: 2), 'people': [_p('28849')], 'snippet': 'Your verification code is 482913. Don\'t share it with anyone.', 'unread': false, 'error': false, 'archived': false},
+  {'id': 3, 'date': _ago(hours: 5), 'people': [_p('+15551230005', 'Dad')], 'snippet': 'Call me when you land', 'unread': false, 'error': false, 'archived': false, 'pinned': true},
+  {'id': 4, 'date': _ago(days: 1, hours: 2), 'people': [_p('28849')], 'snippet': 'Your verification code is 482913. Don\'t share it with anyone.', 'unread': false, 'error': false, 'archived': false, 'muted': true},
   {'id': 5, 'date': _ago(days: 3), 'people': [_p('+15551230006', 'Priya Natarajan')], 'snippet': 'haha yes 😂', 'unread': false, 'error': true, 'archived': false},
-  {'id': 6, 'date': _ago(days: 12), 'people': [_p('+15551230007')], 'snippet': 'Your package was delivered', 'unread': false, 'error': false, 'archived': false},
+  {'id': 6, 'date': _ago(days: 12), 'people': [_p('+15551230007')], 'snippet': 'Your package was delivered', 'unread': false, 'error': false, 'archived': false, 'draft': 'Thanks, I\'ll pick it up tom'},
   {'id': 7, 'date': _ago(days: 40), 'people': [_p('+15551230008', 'Old Thread')], 'snippet': 'ok', 'unread': false, 'error': false, 'archived': true},
 ];
 
@@ -48,13 +53,14 @@ List<Map<String, Object?>> _messages(int thread) {
       {'id': 13, 'kind': 'mms', 'address': '+15551230004', 'body': '👍 to "Hike this weekend?"', 'date': _ago(minutes: 50), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 12, 'kind': 'mms', 'address': '+15551230003', 'body': 'Liked “Hike this weekend?”', 'date': _ago(minutes: 51), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 11, 'kind': 'mms', 'address': '+15551230003', 'body': 'Look at this view 🏔️', 'date': _ago(minutes: 52), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
-      {'id': 10, 'kind': 'mms', 'address': '', 'body': 'Saturday works for me', 'date': _ago(hours: 1), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': []},
+      {'id': 10, 'kind': 'mms', 'address': '', 'body': 'Saturday works for me', 'date': _ago(hours: 1), 'outgoing': true, 'state': 'read', 'read': true, 'parts': []},
       {'id': 9, 'kind': 'mms', 'address': '+15551230004', 'body': 'Same, any time after noon', 'date': _ago(hours: 1, minutes: 5), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 8, 'kind': 'mms', 'address': '+15551230002', 'body': 'Hike this weekend?', 'date': _ago(hours: 1, minutes: 8), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 7, 'kind': 'mms', 'address': '+15551230002', 'body': 'Who\'s around Saturday', 'date': _ago(hours: 1, minutes: 9), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
     ];
   }
   return [
+    {'id': 10, 'kind': 'sms', 'address': '+15551230001', 'body': '🎉🍿', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
     {'id': 9, 'kind': 'sms', 'address': '', 'body': 'Laughed at “Sounds good, see you at 7! Bring the projector…”', 'date': _ago(minutes: 2), 'outgoing': true, 'state': 'delivered', 'read': true},
     {'id': 6, 'kind': 'sms', 'address': '+15551230001', 'body': 'Sounds good, see you at 7! Bring the projector cable if you still have it', 'date': _ago(minutes: 4), 'outgoing': false, 'state': 'received', 'read': true},
     {'id': 8, 'kind': 'sms', 'address': '+15551230001', 'body': '❤️ to “Dinner at mine first?”', 'date': _ago(minutes: 20), 'outgoing': false, 'state': 'received', 'read': true},
@@ -86,6 +92,8 @@ void _answerChannel() {
           {'name': 'Mark Ortiz', 'address': '+1 555-123-0099', 'photo': null, 'label': 'Work'},
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
+      case 'update':
+        return {'phase': 'available', 'current': '0.3.0', 'available': '0.3.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
       default:
@@ -105,6 +113,7 @@ Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String
       builder: (context, child) => GlacierTheme(
         sheet: sheet,
         attrs: {'platform': 'mobile', 'theme': state.theme},
+        typography: ghostTypography('noto'),
         child: InkOverrides(child: GlacierToastProvider(child: child!)),
       ),
       home: KeyedSubtree(key: ValueKey(name), child: screen),
@@ -115,7 +124,18 @@ Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String
   }
   await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
   await tester.pump(const Duration(milliseconds: 500));
-  await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
+  // The pictures hold the time of day, so they are written (--update-goldens), never compared: a plain run only
+  // builds every screen and fails on an exception.
+  if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
+}
+
+Future<void> _shootAgain(WidgetTester tester, String name, {required bool dark}) async {
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  // The pictures hold the time of day, so they are written (--update-goldens), never compared: a plain run only
+  // builds every screen and fails on an exception.
+  if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
 }
 
 void main() {
@@ -134,7 +154,33 @@ void main() {
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
+      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+      await _shootAgain(tester, '5-settings-more', dark: dark);
       await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup', dark: dark);
+      // Each effect at a moment of its run, over the conversation.
+      const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};
+      for (final effect in ScreenEffect.values) {
+        final at = switch (effect) { ScreenEffect.fireworks || ScreenEffect.celebration => 0.3, ScreenEffect.lasers => 0.4, ScreenEffect.wow => 0.35, _ => 0.5 };
+        if (dark != night.contains(effect)) continue;
+        await _shoot(
+          tester,
+          sheet,
+          Stack(children: [
+            const Positioned.fill(child: ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')])),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Builder(
+                  builder: (context) => CustomPaint(
+                    painter: EffectPainter(effect, AlwaysStoppedAnimation(at), 7, style: context.tokens.textAt(26, color: context.tokens.color('app-ink')), text: 'See you at 7!'),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+          '6-effect-${effect.name}',
+          dark: dark,
+        );
+      }
     }
   });
 }

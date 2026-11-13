@@ -24,6 +24,10 @@ class Conversation {
     required this.unread,
     required this.error,
     required this.archived,
+    this.pinned = false,
+    this.muted = false,
+    this.blocked = false,
+    this.draft,
   });
   final int id;
   final DateTime date;
@@ -32,6 +36,14 @@ class Conversation {
   final bool unread;
   final bool error;
   final bool archived;
+  final bool pinned;
+  final bool muted;
+
+  /// The one person of the conversation is on Android's blocked list.
+  final bool blocked;
+
+  /// What was typed here and not sent.
+  final String? draft;
 
   String get title => people.isEmpty ? 'Unknown' : people.map((p) => people.length > 1 ? p.label.split(' ').first : p.label).join(', ');
   bool get group => people.length > 1;
@@ -44,6 +56,10 @@ class Conversation {
         unread: m['unread'] == true,
         error: m['error'] == true,
         archived: m['archived'] == true,
+        pinned: m['pinned'] == true,
+        muted: m['muted'] == true,
+        blocked: m['blocked'] == true,
+        draft: m['draft'] as String?,
       );
 }
 
@@ -110,6 +126,31 @@ class SmsStatus {
   factory SmsStatus.from(Map m) => SmsStatus(isDefault: m['isDefault'] == true, contacts: m['contacts'] == true, notifications: m['notifications'] == true, phone: m['phone'] == true);
 }
 
+/// Where the app's own update stands: idle, disabled, checking, upToDate, available, downloading, ready, installing,
+/// failed.
+class UpdateState {
+  const UpdateState({this.phase = 'idle', this.current = '', this.available, this.progress, this.error, this.auto = true, this.canInstall = true, this.source = ''});
+  final String phase;
+  final String current;
+  final String? available;
+  final double? progress;
+  final String? error;
+  final bool auto;
+  final bool canInstall;
+  final String source;
+
+  factory UpdateState.from(Map m) => UpdateState(
+        phase: (m['phase'] as String?) ?? 'idle',
+        current: (m['current'] as String?) ?? '',
+        available: m['available'] as String?,
+        progress: (m['progress'] as num?)?.toDouble(),
+        error: m['error'] as String?,
+        auto: m['auto'] != false,
+        canInstall: m['canInstall'] != false,
+        source: (m['source'] as String?) ?? '',
+      );
+}
+
 /// What a notification or another app asked to open.
 class OpenRequest {
   const OpenRequest({this.thread, this.addresses = const [], this.body});
@@ -134,6 +175,9 @@ class Sms {
   /// The conversation that changed, each time one does (-1: some conversation, which is not known).
   final changes = StreamController<int>.broadcast();
   final opens = StreamController<OpenRequest>.broadcast();
+
+  /// Where the app's own update stands, each time it moves (android/.../Updater.kt).
+  final updates = StreamController<UpdateState>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -141,6 +185,7 @@ class Sms {
       final m = e as Map;
       if (m['type'] == 'changed') changes.add((m['thread'] as num?)?.toInt() ?? -1);
       if (m['type'] == 'open') opens.add(OpenRequest.from(m));
+      if (m['type'] == 'update') updates.add(UpdateState.from(m));
     });
   }
 
@@ -172,6 +217,17 @@ class Sms {
   Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id});
   Future<void> editMessage(Message m, String body) => _calls.invokeMethod('editMessage', {'kind': m.kind, 'id': m.id, 'body': body});
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
+  Future<void> threadFlag(String name, int thread, bool on) => _calls.invokeMethod('threadFlag', {'name': name, 'thread': thread, 'on': on});
+  Future<String?> draft(int thread) => _calls.invokeMethod<String>('draft', {'thread': thread});
+  Future<void> setDraft(int thread, String text) => _calls.invokeMethod('setDraft', {'thread': thread, 'text': text});
+  Future<void> setBlocked(String address, bool blocked) => _calls.invokeMethod('setBlocked', {'address': address, 'blocked': blocked});
+
+  Future<UpdateState> update() async => UpdateState.from((await _calls.invokeMethod('update')) as Map);
+  Future<void> updateCheck({bool install = false}) => _calls.invokeMethod('updateCheck', {'install': install});
+  Future<void> updateInstall() => _calls.invokeMethod('updateInstall');
+  Future<void> updateBackground() => _calls.invokeMethod('updateBackground');
+  Future<void> setAutoUpdate(bool on) => _calls.invokeMethod('setAutoUpdate', {'on': on});
+  Future<void> allowInstalls() => _calls.invokeMethod('allowInstalls');
   Future<void> setOpenThread(int? thread) => _calls.invokeMethod('setOpenThread', {'thread': thread ?? -1});
 
   Future<List<Map<String, String?>>> searchContacts(String query) async => [

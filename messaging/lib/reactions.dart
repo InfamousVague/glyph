@@ -56,8 +56,8 @@ String? _quoted(String rest) {
 }
 
 /// A run of emoji (with its joiners and variation selectors), and nothing else.
-bool _isEmoji(String s) {
-  if (s.isEmpty || s.runes.length > 12) return false;
+bool isEmojiRun(String s, {int max = 12}) {
+  if (s.isEmpty || s.runes.length > max) return false;
   for (final r in s.runes) {
     final emojiLike = r >= 0x1F000 ||
         (r >= 0x2190 && r <= 0x2BFF) ||
@@ -79,7 +79,7 @@ bool _isEmoji(String s) {
 /// Reads [text] as a reaction, or null when it is an ordinary message.
 ParsedReaction? parseReaction(String text) {
   final t = text.trim();
-  if (t.isEmpty || t.length > 2000 || t.contains('\n')) return null;
+  if (t.isEmpty || t.length > 2000) return null;
   final lower = t.toLowerCase();
 
   ParsedReaction? target(String emoji, String rest, {bool removed = false}) {
@@ -98,17 +98,17 @@ ParsedReaction? parseReaction(String text) {
   }
 
   // Reacted 🎉 to "…" (both phones).
-  final reacted = RegExp(r'^Reacted (.+?) to (.+)$', caseSensitive: false).firstMatch(t);
-  if (reacted != null && _isEmoji(reacted.group(1)!)) {
+  final reacted = RegExp(r'^Reacted (.+?) to (.+)$', caseSensitive: false, dotAll: true).firstMatch(t);
+  if (reacted != null && isEmojiRun(reacted.group(1)!)) {
     final r = target(reacted.group(1)!, reacted.group(2)!);
     if (r != null) return r;
   }
 
   // Removed a heart from "…" / Removed ❤️ from "…".
-  final removed = RegExp(r'^Removed (.+?) from (.+)$', caseSensitive: false).firstMatch(t);
+  final removed = RegExp(r'^Removed (.+?) from (.+)$', caseSensitive: false, dotAll: true).firstMatch(t);
   if (removed != null) {
     final what = removed.group(1)!;
-    final emoji = _removedNouns[what.toLowerCase()] ?? (_isEmoji(what) ? what : null);
+    final emoji = _removedNouns[what.toLowerCase()] ?? (isEmojiRun(what) ? what : null);
     if (emoji != null) {
       final r = target(emoji, removed.group(2)!, removed: true);
       if (r != null) return r;
@@ -116,8 +116,8 @@ ParsedReaction? parseReaction(String text) {
   }
 
   // Google Messages: ❤️ to "…".
-  final to = RegExp(r'^(\S+) to (.+)$').firstMatch(t);
-  if (to != null && _isEmoji(to.group(1)!)) {
+  final to = RegExp(r'^(\S+) to (.+)$', dotAll: true).firstMatch(t);
+  if (to != null && isEmojiRun(to.group(1)!)) {
     final r = target(to.group(1)!, to.group(2)!);
     if (r != null) return r;
   }
@@ -215,4 +215,26 @@ String? reactionSnippet(String text) {
   if (r == null) return null;
   final what = r.media ? 'a picture' : '“${r.quote}”';
   return r.removed ? 'Removed ${r.emoji} from $what' : 'Reacted ${r.emoji} to $what';
+}
+
+/// The emoji offered on a long press, the six every phone knows first.
+const reactionChoices = ['❤️', '👍', '👎', '😂', '‼️', '❓', '😮', '😢', '🙏', '🎉', '🔥'];
+
+const _verbFor = {'❤️': 'Loved', '👍': 'Liked', '👎': 'Disliked', '😂': 'Laughed at', '‼️': 'Emphasized', '❓': 'Questioned'};
+const _nounFor = {'❤️': 'a heart', '👍': 'a like', '👎': 'a dislike', '😂': 'a laugh', '‼️': 'an exclamation', '❓': 'a question mark'};
+
+/// The text that sends [emoji] as a reaction to [target] (or takes it off, [removed]): the iPhone's wording, which
+/// Google Messages and Samsung Messages turn back into a reaction on the other person's phone, and which this app
+/// folds too ([parseReaction]). A phone that knows neither shows the sentence, which still reads.
+String reactionText(String emoji, Message target, {bool removed = false}) {
+  final String what;
+  if (target.body.trim().isEmpty) {
+    what = target.attachments.any((a) => a.type.startsWith('video/')) ? 'a video' : 'an image';
+  } else {
+    final body = target.body.trim();
+    what = '“${body.length > 120 ? '${body.substring(0, 100).trimRight()}…' : body}”';
+  }
+  if (removed) return 'Removed ${_nounFor[emoji] ?? emoji} from $what';
+  final verb = _verbFor[emoji];
+  return verb != null ? '$verb $what' : 'Reacted $emoji to $what';
 }

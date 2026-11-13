@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../emoji_sets.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -19,16 +22,40 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   SmsStatus? _status;
   String? _own;
+  UpdateState _update = const UpdateState();
+  StreamSubscription<UpdateState>? _updates;
   final _number = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _refresh();
+    _updates = Sms.instance.updates.stream.listen((u) { if (mounted) setState(() => _update = u); });
+    Sms.instance.update().then((u) { if (mounted) setState(() => _update = u); }).catchError((_) {});
   }
+
+  /// Where the update stands, in a sentence.
+  String _updateLine(UpdateState u) => switch (u.phase) {
+        'checking' => 'Checking ${_host(u)}…',
+        'upToDate' => 'Up to date.',
+        'available' => '${u.available} is available.',
+        'downloading' => 'Downloading ${u.available}${u.progress == null ? '' : ' · ${(u.progress! * 100).round()}%'}',
+        'ready' => u.error == 'needsPermission' || !u.canInstall
+            ? '${u.available} is downloaded. Allow Ghost Messaging to install its own updates, then tap Update now.'
+            : '${u.available} is downloaded and ready.',
+        'installing' => 'Installing ${u.available}…',
+        'failed' => u.error != null && u.error!.contains('not signed by this app')
+            ? 'This copy is a test build, signed differently from the release. Install the release from ${_host(u)} once, and it updates itself from then on.'
+            : 'Couldn\'t update: ${u.error ?? 'something went wrong'}',
+        'disabled' => 'Updates are off in debug builds.',
+        _ => 'Looks for a new version when the app opens, at most twice a day.',
+      };
+
+  static String _host(UpdateState u) => u.source.replaceFirst('https://', '');
 
   @override
   void dispose() {
+    _updates?.cancel();
     _number.dispose();
     super.dispose();
   }
@@ -76,7 +103,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
+                SettingRow(
+                  icon: chip(Lucide.sparkles),
+                  label: 'Message effects',
+                  hint: const Text('Confetti for "Congratulations", balloons for "Happy birthday", and more, as a message arrives or is sent.'),
+                  control: GlacierSwitch(checked: app.effects, onCheckedChange: app.setEffects, ariaLabel: 'Message effects'),
+                ),
               ]),
+            ),
+            SizedBox(height: t.space(6)),
+            GlacierScope(
+              attrs: const {'hue': 'amber'},
+              child: PaneSection(
+                title: 'Emoji',
+                footer: const Text('How emoji are drawn in this app. What the other person sees is drawn by their own phone.'),
+                children: [
+                  for (final set in emojiSets)
+                    SettingRow(
+                      label: set.name,
+                      hint: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                        Text(set.about),
+                        SizedBox(height: t.space(1)),
+                        // Each row in its own set, whichever is chosen: no fallback but the set's (or the phone's).
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          for (final e in emojiSample)
+                            Padding(
+                              padding: EdgeInsets.only(right: t.space(2)),
+                              child: Text(e, style: TextStyle(inherit: false, fontFamily: set.family, fontFamilyFallback: const [], fontSize: t.lenOf('1.35rem'), height: 1.3, color: t.color('app-ink'))),
+                            ),
+                        ]),
+                      ]),
+                      control: Pick(checked: app.emoji == set.id, label: 'Use ${set.name} emoji', onPress: () => app.setEmoji(set.id)),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(height: t.space(6)),
+            GlacierScope(
+              attrs: const {'hue': 'cyan'},
+              child: PaneSection(
+                title: 'Receipts',
+                footer: const Text('One tick is sent, two is delivered, two in colour is read. Delivered needs your carrier to send delivery reports. Read exists only for picture and group messages, and only from phones that send read reports; a plain text can\'t say it was read.'),
+                children: [
+                  SettingRow(
+                    icon: chip(Lucide.checkCheck),
+                    label: 'Ask for read receipts',
+                    hint: const Text('On picture and group messages.'),
+                    control: GlacierSwitch(checked: app.readReports, onCheckedChange: app.setReadReports, ariaLabel: 'Ask for read receipts'),
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: t.space(6)),
             GlacierScope(
@@ -135,13 +211,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             SizedBox(height: t.space(6)),
             GlacierScope(
+              attrs: const {'hue': 'mint'},
+              child: PaneSection(
+                title: 'Updates',
+                footer: Text(_updateLine(_update)),
+                children: [
+                  SettingRow(
+                    icon: chip(Lucide.download),
+                    label: 'Automatic updates',
+                    hint: Text('New versions from ${_update.source.isEmpty ? 'ghost-sms.com' : _host(_update)}, downloaded and installed by the app.'),
+                    control: GlacierSwitch(
+                      checked: _update.auto,
+                      ariaLabel: 'Automatic updates',
+                      onCheckedChange: (on) async {
+                        await Sms.instance.setAutoUpdate(on);
+                        final u = await Sms.instance.update();
+                        if (mounted) setState(() => _update = u);
+                      },
+                    ),
+                  ),
+                  if (_update.phase == 'downloading')
+                    SettingRowBox(child: GlacierProgressBar(value: (_update.progress ?? 0) * 100, ariaLabel: 'Downloading the update')),
+                  if (_update.phase == 'ready' && (!_update.canInstall || _update.error == 'needsPermission'))
+                    SettingRow(icon: chip(Lucide.settings), label: 'Allow installing updates', onPress: () => Sms.instance.allowInstalls()),
+                  if (const {'available', 'ready', 'failed'}.contains(_update.phase) && _update.available != null)
+                    SettingRow(icon: chip(Lucide.rotateCcw), label: 'Update now', value: Text(_update.available!), onPress: () => Sms.instance.updateInstall())
+                  else if (!const {'checking', 'downloading', 'installing', 'disabled'}.contains(_update.phase))
+                    SettingRow(icon: chip(Lucide.refreshCw), label: 'Check for updates', onPress: () => Sms.instance.updateCheck()),
+                ],
+              ),
+            ),
+            SizedBox(height: t.space(6)),
+            GlacierScope(
               attrs: const {'hue': 'graphite'},
               child: PaneSection(
                 title: 'About',
                 footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
                 children: [
-                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: const Text('0.2.2')),
+                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: Text(_update.current.isEmpty ? '0.3.0' : _update.current)),
                   SettingRow(icon: chip(Lucide.info), label: 'Texts and picture messages', hint: const Text('SMS and MMS through your carrier. RCS and iMessage aren\'t available to apps other than Google\'s and Apple\'s own.')),
+                  SettingRow(icon: chip(Lucide.info), label: 'Emoji sets', hint: const Text('Noto Color Emoji and Noto Emoji © Google (SIL OFL 1.1). Twemoji © Twitter and contributors (CC-BY 4.0). All emojis designed by OpenMoji, the open-source emoji and icon project (CC BY-SA 4.0).')),
                 ],
               ),
             ),

@@ -253,14 +253,14 @@ void toast(BuildContext context, String message, {GlacierToastTone tone = Glacie
 }
 
 /// A sheet rising from the foot of the screen with a list of choices: a long press's menu.
-Future<void> showChoices(BuildContext context, {String? title, required List<Choice> choices}) {
+Future<void> showChoices(BuildContext context, {String? title, Widget? header, required List<Choice> choices}) {
   return Navigator.of(context).push(PageRouteBuilder<void>(
     opaque: false,
     barrierDismissible: true,
     barrierColor: const Color(0x66000000),
     transitionDuration: const Duration(milliseconds: 220),
     reverseTransitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (context, _, _) => _ChoiceSheet(title: title, choices: choices),
+    pageBuilder: (context, _, _) => _ChoiceSheet(title: title, header: header, choices: choices),
     transitionsBuilder: (context, a, _, child) => SlideTransition(
       position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
       child: child,
@@ -277,8 +277,9 @@ class Choice {
 }
 
 class _ChoiceSheet extends StatelessWidget {
-  const _ChoiceSheet({this.title, required this.choices});
+  const _ChoiceSheet({this.title, this.header, required this.choices});
   final String? title;
+  final Widget? header;
   final List<Choice> choices;
 
   @override
@@ -302,6 +303,7 @@ class _ChoiceSheet extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(2)),
                     child: Text(title!, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                   ),
+                ?header,
                 for (final c in choices)
                   GlacierPressable(
                     onPressed: () {

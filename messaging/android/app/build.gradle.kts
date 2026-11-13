@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+/*
+ * THE RELEASE KEY. Android installs an update only over an app signed with the same certificate, so every release is
+ * signed with one key kept outside the repository: ~/.config/ghostmessaging/signing.properties (or the file
+ * $GHOSTMESSAGING_SIGNING names) with storeFile, storePassword, keyAlias and keyPassword. tool/release.mjs makes it
+ * the first time. Without it a release build is signed with this machine's debug key, and tool/release.mjs refuses to
+ * publish that.
+ */
+val signingFile = file(System.getenv("GHOSTMESSAGING_SIGNING") ?: "${System.getProperty("user.home")}/.config/ghostmessaging/signing.properties")
+val signing = Properties().apply { if (signingFile.exists()) signingFile.inputStream().use { load(it) } }
 
 android {
     namespace = "com.infamousvague.ghostmessaging"
@@ -29,11 +41,22 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    signingConfigs {
+        if (signing.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = file(signing.getProperty("storeFile"))
+                storePassword = signing.getProperty("storePassword")
+                keyAlias = signing.getProperty("keyAlias")
+                keyPassword = signing.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Sideloaded builds for now. The messages live in Android's own SMS database, not the app's, so
-            // reinstalling over a differently signed build loses nothing.
-            signingConfig = signingConfigs.getByName("debug")
+            // The messages live in Android's own SMS database, not the app's, so reinstalling over a differently
+            // signed build (a debug-key build from a machine without the release key) loses nothing.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }

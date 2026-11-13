@@ -51,6 +51,7 @@ object Notifier {
         if (thread < 0) return
         if (MainActivity.openThread == thread && MainActivity.inFront) return
         val store = Store(context)
+        if (store.isMuted(thread)) return
         val people = store.threadPeople(thread)
         val unread = store.messages(thread, 8).filter { !(it["outgoing"] as Boolean) && !(it["read"] as Boolean) }.reversed()
         if (unread.isEmpty()) { cancel(context, thread); return }
@@ -85,18 +86,37 @@ object Notifier {
             }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
         ).setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
 
-        val n = Notification.Builder(context, CHANNEL)
+        // A sign-in code in the newest message gets a button that copies it.
+        val code = otp(unread.last()["body"] as String)
+
+        val builder = Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
             .setContentIntent(open(context, thread))
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setColor(0xFF4F5BD5.toInt())
-            .addAction(reply)
-            .addAction(read)
             .setShortcutId(null)
-            .build()
+        if (code != null) {
+            builder.addAction(Notification.Action.Builder(
+                Icon.createWithResource(context, android.R.drawable.ic_menu_save), "Copy $code",
+                PendingIntent.getBroadcast(context, thread.toInt() + 2_000_000, Intent(context, NotificationActionReceiver::class.java).apply {
+                    action = NotificationActionReceiver.COPY; putExtra(EXTRA_THREAD, thread); putExtra("code", code)
+                }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
+            ).build())
+        }
+        builder.addAction(reply).addAction(read)
+        val n = builder.build()
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+    }
+
+    private val codeWord = Regex("(?i)(code|passcode|password|pin|otp|verif|one[- ]time|2fa|login|log in|sign in|security)")
+    private val codeDigits = Regex("(?<![\\w.,/-])(\\d{3}[- ]\\d{3}|\\d{4,8})(?![\\w/-]|[.,]\\d)")
+
+    /** The sign-in code in [body], if it reads like one: 4 to 8 digits (or 123-456) in a text that speaks of a code. */
+    fun otp(body: String): String? {
+        if (body.length > 400 || !codeWord.containsMatchIn(body)) return null
+        return codeDigits.find(body)?.value?.filter { it.isDigit() }
     }
 
     fun cancel(context: Context, thread: Long) {
@@ -132,6 +152,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     companion object {
         const val REPLY = "ghost.REPLY"
         const val READ = "ghost.READ"
+        const val COPY = "ghost.COPY"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -149,6 +170,13 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 Notifier.cancel(context, thread)
             }
             READ -> {
+                store.markRead(thread)
+                Notifier.cancel(context, thread)
+            }
+            COPY -> {
+                val code = intent.getStringExtra("code") ?: return
+                val clip = context.getSystemService(android.content.ClipboardManager::class.java)
+                clip.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
                 store.markRead(thread)
                 Notifier.cancel(context, thread)
             }

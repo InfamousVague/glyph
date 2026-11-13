@@ -96,7 +96,9 @@ object Sender {
         if (body.isNotEmpty()) parts += Pdu.Part("text/plain", body.toByteArray(), contentLocation = "text0.txt", contentId = "text0")
         val row = store.insertMms(Telephony.Mms.MESSAGE_BOX_OUTBOX, thread, null, to, emptyList(), parts, System.currentTimeMillis() / 1000, null, null, null, sub)
             ?: throw IllegalStateException("Could not save the message")
-        val pdu = Pdu.sendReq(to, parts)
+        // Delivery reports are asked for always; read reports unless switched off in Settings (few phones answer).
+        val wantRead = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("read_reports", "on") != "off"
+        val pdu = Pdu.sendReq(to, parts, deliveryReport = true, readReport = wantRead)
         val file = File(MmsFileProvider.dir(context), "send-${System.nanoTime()}.pdu")
         file.writeBytes(pdu)
         val uri = MmsFileProvider.uriFor(context, file)
@@ -204,6 +206,18 @@ class MmsPushReceiver : BroadcastReceiver() {
         val data = intent.getByteArrayExtra("data") ?: return
         val sub = intent.getIntExtra("android.telephony.extra.SUBSCRIPTION_INDEX", intent.getIntExtra("subscription", defaultSub()))
         val ind = try { Pdu.parse(data) } catch (e: Exception) { Log.e(TAG, "push", e); return }
+        // A report on a message of ours: delivered to someone's phone, or read on it.
+        if (ind.type == Pdu.DELIVERY_IND || ind.type == Pdu.READ_ORIG_IND) {
+            val id = ind.messageId ?: return
+            val store = Store(context)
+            val state = when {
+                ind.type == Pdu.READ_ORIG_IND -> if (ind.readStatus == null || ind.readStatus == 0x80) "read" else null
+                ind.status == 0x81 -> "delivered" // retrieved
+                else -> null
+            }
+            if (state != null) { store.setReceipt(id, state); Bus.changed(-1) }
+            return
+        }
         if (ind.type != Pdu.NOTIFICATION_IND || ind.contentLocation == null) return
         download(context, ind.contentLocation, ind.transactionId, sub)
     }
@@ -243,8 +257,15 @@ class MmsResultReceiver : BroadcastReceiver() {
         when (intent.action) {
             SENT -> {
                 val row = intent.data ?: return
-                if (resultCode == Activity.RESULT_OK) store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_SENT)
-                else {
+                if (resultCode == Activity.RESULT_OK) {
+                    store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_SENT)
+                    // The MMSC's answer names the message: its delivery and read reports come back under that name.
+                    try {
+                        val conf = intent.getByteArrayExtra(SmsManager.EXTRA_MMS_DATA)
+                        val id = conf?.let { Pdu.parse(it).messageId }
+                        if (!id.isNullOrBlank()) store.setMmsMessageId(row, id)
+                    } catch (e: Exception) { Log.w(TAG, "send-conf", e) }
+                } else {
                     Log.w(TAG, "mms send result $resultCode")
                     store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED)
                     Notifier.failed(context, store.threadOfMms(row))

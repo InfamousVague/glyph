@@ -120,4 +120,53 @@ class PduTest {
         assertEquals("pic", m.parts[2].contentId)
         assertArrayEquals(img, m.parts[2].data)
     }
+
+    @Test
+    fun reportsAskedForAndReadBack() {
+        val parts = listOf(Pdu.Part("text/plain", "hi".toByteArray(), contentLocation = "text0.txt", contentId = "text0"))
+        // X-Mms-Delivery-Report (0x86) and X-Mms-Read-Report (0x90): 0x80 yes, 0x81 no.
+        fun flag(bytes: ByteArray, header: Int): Int { val at = bytes.indexOfFirst { (it.toInt() and 0xFF) == header }; return bytes[at + 1].toInt() and 0xFF }
+        val asked = Pdu.sendReq(listOf("+15551234567"), parts, deliveryReport = true, readReport = true)
+        val plain = Pdu.sendReq(listOf("+15551234567"), parts)
+        assertEquals(Pdu.SEND_REQ, Pdu.parse(asked).type)
+        assertEquals(1, Pdu.parse(asked).parts.count { it.isText })
+        assert(asked.size == plain.size)
+        assert(!asked.contentEquals(plain))
+
+        // m-delivery-ind: type, version, message id, to, date, status retrieved.
+        val d = ByteArrayOutputStream()
+        d.write(0x8C); d.write(0x86); d.write(0x8D); d.write(0x92)
+        d.write(0x8B); text(d, "MSG-42")
+        d.write(0x97); text(d, "+15551234567/TYPE=PLMN")
+        d.write(0x85); d.write(4); d.write(0x65); d.write(0); d.write(0); d.write(0)
+        d.write(0x95); d.write(0x81)
+        val delivered = Pdu.parse(d.toByteArray())
+        assertEquals(Pdu.DELIVERY_IND, delivered.type)
+        assertEquals("MSG-42", delivered.messageId)
+        assertEquals(0x81, delivered.status)
+
+        // m-read-orig-ind: type, version, message id, to, from, date, read-status read.
+        val r = ByteArrayOutputStream()
+        r.write(0x8C); r.write(0x88); r.write(0x8D); r.write(0x92)
+        r.write(0x8B); text(r, "MSG-42")
+        r.write(0x97); text(r, "+15550009999/TYPE=PLMN")
+        val from = "+15551234567/TYPE=PLMN"
+        r.write(0x89); r.write(from.length + 2); r.write(0x80); text(r, from)
+        r.write(0x85); r.write(4); r.write(0x65); r.write(0); r.write(0); r.write(0)
+        r.write(0x9B); r.write(0x80)
+        val read = Pdu.parse(r.toByteArray())
+        assertEquals(Pdu.READ_ORIG_IND, read.type)
+        assertEquals("MSG-42", read.messageId)
+        assertEquals(0x80, read.readStatus)
+    }
+
+    @Test
+    fun signInCodes() {
+        assertEquals("482913", Notifier.otp("Your verification code is 482913. Don't share it with anyone."))
+        assertEquals("123456", Notifier.otp("123-456 is your Example login code"))
+        assertEquals("9041", Notifier.otp("Use PIN 9041 to sign in"))
+        assertEquals(null, Notifier.otp("Call me at 5551234567 when you land"))
+        assertEquals(null, Notifier.otp("See you at 7"))
+        assertEquals(null, Notifier.otp("Your order 48291333 has shipped"))
+    }
 }

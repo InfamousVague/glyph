@@ -31,6 +31,7 @@ class MainActivity : FlutterActivity() {
     private val main = Handler(Looper.getMainLooper())
     private var events: EventChannel.EventSink? = null
     private var pendingOpen: Map<String, Any?>? = null
+    private var updateListener: ((Updater.State) -> Unit)? = null
     private var roleResult: MethodChannel.Result? = null
     private var permsResult: MethodChannel.Result? = null
     private var pickResult: MethodChannel.Result? = null
@@ -46,8 +47,10 @@ class MainActivity : FlutterActivity() {
             override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
                 events = sink
                 Bus.listener = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
+                updateListener = { state -> events?.success(mapOf("type" to "update") + state.toMap(applicationContext)) }
+                Updater.addListener(updateListener!!)
             }
-            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null }
+            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
         MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
@@ -76,6 +79,24 @@ class MainActivity : FlutterActivity() {
                 "editMessage" -> bg {
                     store.editMessage(call.argument<String>("kind")!!, call.argument<Number>("id")!!.toLong(), call.argument<String>("body") ?: "")
                     Bus.changed(-1); null
+                }
+                "threadFlag" -> bg {
+                    store.setThreadFlag(call.argument<String>("name")!!, call.argument<Number>("thread")!!.toLong(), call.argument<Boolean>("on") ?: true)
+                    Bus.changed(-1); null
+                }
+                "draft" -> bg { store.draft(call.argument<Number>("thread")!!.toLong()) }
+                "setDraft" -> bg { store.setDraft(call.argument<Number>("thread")!!.toLong(), call.argument<String>("text") ?: ""); null }
+                "setBlocked" -> bg { store.setBlocked(call.argument<String>("address")!!, call.argument<Boolean>("blocked") ?: true); Bus.changed(-1); null }
+                "update" -> { Updater.restore(applicationContext); result.success(Updater.state.toMap(applicationContext)) }
+                "updateCheck" -> { Updater.check(applicationContext, install = call.argument<Boolean>("install") ?: false); result.success(null) }
+                "updateInstall" -> { Updater.installNow(applicationContext); result.success(null) }
+                "updateBackground" -> { Updater.backgroundCheck(applicationContext); result.success(null) }
+                "setAutoUpdate" -> { Updater.setAuto(applicationContext, call.argument<Boolean>("on") ?: true); result.success(null) }
+                "allowInstalls" -> {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                    } catch (_: Exception) {}
+                    result.success(null)
                 }
                 "archive" -> bg { store.setArchived(call.argument<Number>("thread")!!.toLong(), call.argument<Boolean>("archived") ?: true); null }
                 "searchContacts" -> bg { store.searchContacts(call.argument<String>("query") ?: "") }

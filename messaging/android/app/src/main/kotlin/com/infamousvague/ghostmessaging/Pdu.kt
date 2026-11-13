@@ -21,6 +21,10 @@ object Pdu {
     const val NOTIFICATION_IND = 0x82
     const val NOTIFYRESP_IND = 0x83
     const val RETRIEVE_CONF = 0x84
+    /** The MMSC saying a message reached someone's phone (asked for with X-Mms-Delivery-Report). */
+    const val DELIVERY_IND = 0x86
+    /** Someone's phone saying they read a message (asked for with X-Mms-Read-Report; few phones answer). */
+    const val READ_ORIG_IND = 0x88
 
     // Header codes, with the high bit set as they appear on the wire.
     private const val H_BCC = 0x81
@@ -35,6 +39,7 @@ object Pdu {
     private const val H_MMS_VERSION = 0x8D
     private const val H_READ_REPORT = 0x90
     private const val H_STATUS = 0x95
+    private const val H_READ_STATUS = 0x9B
     private const val H_SUBJECT = 0x96
     private const val H_TO = 0x97
     private const val H_TRANSACTION_ID = 0x98
@@ -92,6 +97,8 @@ object Pdu {
         val contentType: String? = null,
         val status: Int? = null,
         val parts: List<Part> = emptyList(),
+        /** X-Mms-Read-Status of a read report: 0x80 read, 0x81 deleted without being read. */
+        val readStatus: Int? = null,
     )
 
     // --- reading -----------------------------------------------------------------------------------------------------
@@ -214,6 +221,7 @@ object Pdu {
         var subject: String? = null
         var date: Long? = null
         var status: Int? = null
+        var readStatus: Int? = null
         var contentType: String? = null
         var parts: List<Part> = emptyList()
 
@@ -234,6 +242,7 @@ object Pdu {
                 H_BCC -> r.encodedString()
                 H_DATE -> date = r.integer()
                 H_STATUS -> status = r.u8()
+                H_READ_STATUS -> readStatus = r.u8()
                 H_FROM -> {
                     val len = r.valueLength()
                     val end = r.i + len
@@ -250,7 +259,7 @@ object Pdu {
                 else -> r.skipValue()
             }
         }
-        return Message(type, tid, location, mid, from, to, cc, subject, date, contentType, status, parts)
+        return Message(type, tid, location, mid, from, to, cc, subject, date, contentType, status, parts, readStatus)
     }
 
     private fun parseMultipart(r: Reader): List<Part> {
@@ -326,7 +335,7 @@ object Pdu {
      * An m-send-req to [recipients] with [parts], as application/vnd.wap.multipart.related with a SMIL slide in front
      * (what phones lay out; a bare mixed body is shown by most but not all).
      */
-    fun sendReq(recipients: List<String>, parts: List<Part>, subject: String? = null): ByteArray {
+    fun sendReq(recipients: List<String>, parts: List<Part>, subject: String? = null, deliveryReport: Boolean = false, readReport: Boolean = false): ByteArray {
         val w = Writer()
         w.u8(H_MESSAGE_TYPE); w.u8(SEND_REQ)
         w.u8(H_TRANSACTION_ID); w.text("T" + java.lang.Long.toHexString(System.currentTimeMillis()))
@@ -334,8 +343,8 @@ object Pdu {
         w.u8(H_FROM); w.u8(1); w.u8(0x81) // insert-address: the MMSC fills in this phone's number
         for (r in recipients) { w.u8(H_TO); w.text(addressForWire(r)) }
         if (!subject.isNullOrBlank()) { w.u8(H_SUBJECT); w.text(subject) }
-        w.u8(H_DELIVERY_REPORT); w.u8(0x81) // no
-        w.u8(H_READ_REPORT); w.u8(0x81) // no
+        w.u8(H_DELIVERY_REPORT); w.u8(if (deliveryReport) 0x80 else 0x81)
+        w.u8(H_READ_REPORT); w.u8(if (readReport) 0x80 else 0x81)
 
         val all = listOf(smil(parts)) + parts
 

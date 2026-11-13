@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.2.2+4
+version: 0.3.0+5
 
 environment:
   sdk: ^3.11.0
@@ -24,6 +24,8 @@ flutter:
     # Ghost.md's stylesheets, read by the token engine over Glacier's own (lib/main.dart).
     - assets/css/ink.css
     - assets/css/app.css
+    # Overlays that play in place of a drawn effect, where one has been added (docs/effects.md).
+    - assets/effects/
   fonts:
     - family: Inter Variable
       fonts:
@@ -31,3 +33,16 @@ flutter:
     - family: JetBrains Mono Variable
       fonts:
         - asset: assets/fonts/JetBrainsMonoVariable-latin.ttf
+    # The emoji sets the person chooses between (lib/emoji_sets.dart, assets/emoji/LICENSES.md).
+    - family: Ghost Emoji Noto
+      fonts:
+        - asset: assets/emoji/NotoColor.ttf
+    - family: Ghost Emoji Twemoji
+      fonts:
+        - asset: assets/emoji/Twemoji.ttf
+    - family: Ghost Emoji OpenMoji
+      fonts:
+        - asset: assets/emoji/OpenMoji.ttf
+    - family: Ghost Emoji Outline
+      fonts:
+        - asset: assets/emoji/NotoOutline.ttf
