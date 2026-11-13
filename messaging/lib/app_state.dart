@@ -9,6 +9,10 @@ class AppState extends ChangeNotifier {
   /// The emoji set (lib/emoji_sets.dart): 'system' is the phone's own.
   String emoji = 'system';
 
+  /// Your own bubbles: 'ghost' is Ghost Keyboard's primary (its accent: #51FCFB on the dark page, #008B8A on the
+  /// light), 'ink' the page's ink on paper.
+  String bubble = 'ghost';
+
   /// Whether messages set off their effects (lib/effects.dart).
   bool effects = true;
 
@@ -21,6 +25,7 @@ class AppState extends ChangeNotifier {
       final p = await Sms.instance.prefs();
       theme = p['theme'] ?? 'system';
       emoji = p['emoji'] ?? 'system';
+      bubble = p['bubble'] ?? 'ghost';
       effects = p['effects'] != 'off';
       readReports = p['read_reports'] != 'off';
     } catch (_) {}
@@ -35,6 +40,12 @@ class AppState extends ChangeNotifier {
   void setEmoji(String value) {
     emoji = value;
     Sms.instance.setPref('emoji', value);
+    notifyListeners();
+  }
+
+  void setBubble(String value) {
+    bubble = value;
+    Sms.instance.setPref('bubble', value);
     notifyListeners();
   }
 

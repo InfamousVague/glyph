@@ -58,6 +58,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
 - **Updates** (0.3.0): the app looks at https://ghost-sms.com/apk.json as it opens (at most twice a day), downloads a
   newer release, checks its size, hash and signing certificate, and installs it (`Updater.kt`, Ghost Keyboard's).
   Settings › Updates has the switch, "Check for updates" and "Update now". It is the only connection the app opens.
+- **Your bubbles** (0.3.1): Ghost Keyboard's primary by default (its accent: #51FCFB under dark teal on the dark
+  page, #008B8A under white on the light), or the page's ink, in Settings › Look.
 - **Settings**: theme, effects, emoji, receipts, this phone's number, the state of the SMS role, contacts and
   notifications, and updates.
 

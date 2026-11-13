@@ -104,6 +104,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 SettingRow(
+                  icon: chip(Lucide.messageSquare),
+                  label: 'Your bubbles',
+                  layout: SettingRowLayout.stacked,
+                  control: GlacierSegmentedControl(
+                    fullWidth: true,
+                    value: app.bubble,
+                    onValueChange: app.setBubble,
+                    options: const [
+                      GlacierSegmentedOption(value: 'ghost', label: Text('Ghost')),
+                      GlacierSegmentedOption(value: 'ink', label: Text('Ink')),
+                    ],
+                  ),
+                ),
+                SettingRow(
                   icon: chip(Lucide.sparkles),
                   label: 'Message effects',
                   hint: const Text('Confetti for "Congratulations", balloons for "Happy birthday", and more, as a message arrives or is sent.'),
@@ -248,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'About',
                 footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
                 children: [
-                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: Text(_update.current.isEmpty ? '0.3.0' : _update.current)),
+                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: Text(_update.current.isEmpty ? '0.3.1' : _update.current)),
                   SettingRow(icon: chip(Lucide.info), label: 'Texts and picture messages', hint: const Text('SMS and MMS through your carrier. RCS and iMessage aren\'t available to apps other than Google\'s and Apple\'s own.')),
                   SettingRow(icon: chip(Lucide.info), label: 'Emoji sets', hint: const Text('Noto Color Emoji and Noto Emoji © Google (SIL OFL 1.1). Twemoji © Twitter and contributors (CC-BY 4.0). All emojis designed by OpenMoji, the open-source emoji and icon project (CC BY-SA 4.0).')),
                 ],

@@ -641,8 +641,13 @@ class _Bubble extends StatelessWidget {
       topRight: Radius.circular(out && !top ? small : big),
       bottomRight: Radius.circular(out && !bottom ? small : big),
     );
-    final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : t.color('app-ink')) : t.color(t.isDark ? 'app-paper-3' : 'app-paper-2');
-    final ink = out && !failed ? t.color('app-paper') : t.color('app-ink');
+    // Your own bubbles are Ghost Keyboard's primary unless Settings says ink (KeyboardTheme.kt's accent and onAccent:
+    // #51FCFB under #00302F on the dark page, #008B8A under white on the light).
+    final ghost = AppState.of(context).bubble == 'ghost';
+    final mine = ghost ? Color(t.isDark ? 0xFF51FCFB : 0xFF008B8A) : t.color('app-ink');
+    final onMine = ghost ? Color(t.isDark ? 0xFF00302F : 0xFFFFFFFF) : t.color('app-paper');
+    final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : t.color(t.isDark ? 'app-paper-3' : 'app-paper-2');
+    final ink = out && !failed ? onMine : t.color('app-ink');
     final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
     final faceSize = t.lenOf('1.75rem');
     final emojis = m.attachments.isEmpty ? emojiOnly(body) : 0;
