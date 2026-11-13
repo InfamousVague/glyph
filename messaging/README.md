@@ -171,6 +171,21 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   together. On an emulator with 161 conversations the list's first read took 697 ms and each one after 7 to 9 ms
   (before, every read was a first read). `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts writes
   each call's time and the frames' to Android's log.
+- **A phone with a great many messages** (0.6.1; Matt, 2026-11-13: "Users with a ton of messages stored on their
+  phone are taking forever to load, see if we can load by most recent first so that things are faster"). Measured on
+  an emulator filled by `python3 tool/seed_store.py emulator-5586` with 3,000 conversations, 126,000 texts and 19,600
+  picture messages: 0.6.0 showed nothing for 21 seconds, read the whole list again for 5 seconds every time a text
+  came or went, and held a conversation's messages behind that read. Now the list is read the newest first
+  (`Store.conversationsPage`, `_load` in `lib/ui/conversations.dart`): the newest forty and the pinned ones at once,
+  which is the screen, in about a tenth of a second, then the rest 250 at a time behind them (4.6 seconds for all
+  3,000 the first time, under a tenth after), with "Loading older conversations…" at the list's foot. A text that
+  comes or goes reads only the newest again (13 ms). What made it slow was a question to Android for each
+  conversation where one does for all: every conversation's address (`readCanonical`), every contact's numbers
+  (`knownNumbers`, found by `ContactKey` and then compared whole as before), and the summary of a conversation whose
+  newest message is a picture, which is now read once and kept until the conversation changes (`latestSnippet`). The
+  list is read on a thread of its own, so nothing waits behind it. A conversation opens on its newest 120 messages
+  and reads 300 more each time the reader nears the oldest held; before, the newest 300 were all it could show.
+  Settings and a conversation's own settings no longer read the whole list to learn one thing.
 - **The effects' own pictures** (0.6.0; Matt: "the ghost messages assets are on the desktop, please wire them all and
   slice them up"). Each of the twenty effects has a sheet of about twelve sprites drawn for it
   ([docs/effect-sprites-prompt.md](docs/effect-sprites-prompt.md)): four ghost characters and eight props.

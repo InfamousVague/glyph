@@ -50,6 +50,20 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Timer? _slowTimer;
   int _reads = 0;
 
+  /// Older conversations are still being read behind the ones shown.
+  bool _more = false;
+
+  /// A whole read is under way, and a text came or went meanwhile: the newest are read again once it ends.
+  bool _reading = false;
+  bool _stale = false;
+
+  /// How many conversations are archived, for the row that leads to them.
+  int _archived = 0;
+
+  /// The first lot: what fills the screen a few times over. And each lot after it.
+  static const _first = 40;
+  static const _lot = 250;
+
   /// The conversations chosen, while several are being chosen. Empty: not choosing.
   final Set<int> _selected = {};
 
@@ -65,7 +79,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
       _debounce?.cancel();
-      _debounce = Timer(const Duration(milliseconds: 250), _load);
+      // A text came or went: it is among the newest, so only those are read again.
+      _debounce = Timer(const Duration(milliseconds: 250), _newest);
     });
   }
 
@@ -84,33 +99,93 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     } catch (_) {}
   }
 
+  /// Reads the conversations, the newest first (Matt, 2026-11-13: "Users with a ton of messages stored on their phone
+  /// are taking forever to load, see if we can load by most recent first so that things are faster"): the first
+  /// [_first] and the pinned ones at once, which is the screen, then the rest a lot at a time behind them. What was
+  /// shown before stays until it is read again, and what the whole read did not find has gone.
   Future<void> _load() async {
     final read = ++_reads;
+    _reading = true;
     // Said only once it has taken a moment: a quick read would only flicker.
     _slowTimer?.cancel();
     _slowTimer = Timer(const Duration(milliseconds: 350), () {
       if (mounted && read == _reads) setState(() => _slow = true);
     });
+    void quiet() {
+      _slowTimer?.cancel();
+      if (mounted && _slow) setState(() => _slow = false);
+    }
+
     try {
-      final all = await Sms.instance.conversations();
-      if (!mounted || read != _reads) return;
-      setState(() {
-        _all = all;
-        _error = null;
-        // A conversation that has gone is no longer chosen.
-        _selected.removeWhere((id) => !all.any((c) => c.id == id));
-      });
+      if (widget.archived) {
+        // The archived ones are asked for by name, all at once: there are few.
+        final page = await Sms.instance.conversationsPage(archived: true);
+        if (!mounted || read != _reads) return;
+        setState(() {
+          _all = page.items;
+          _error = null;
+          _selected.removeWhere((id) => !page.items.any((c) => c.id == id));
+        });
+        return;
+      }
+      Sms.instance.archivedCount().then((n) {
+        if (mounted && read == _reads) setState(() => _archived = n);
+      }).catchError((_) {});
+      final seen = <int>{};
+      int? at = 0;
+      while (at != null) {
+        final page = await Sms.instance.conversationsPage(limit: at == 0 ? _first : _lot, offset: at, pinned: at == 0);
+        if (!mounted || read != _reads) return;
+        seen.addAll(page.items.map((c) => c.id));
+        final last = page.next == null;
+        setState(() {
+          _all = mergeConversations(_all, page.items, only: last ? seen : null);
+          _error = null;
+          _more = !last;
+          // A conversation that has gone is no longer chosen.
+          if (last) _selected.removeWhere((id) => !seen.contains(id));
+        });
+        // The screen has its conversations: the rest arrive without a word.
+        if (at == 0) quiet();
+        at = page.next;
+      }
     } catch (e) {
       if (!mounted || read != _reads) return;
       setState(() {
         _all ??= const [];
         _error = '$e';
+        _more = false;
       });
     } finally {
       if (read == _reads) {
-        _slowTimer?.cancel();
-        if (mounted && _slow) setState(() => _slow = false);
+        quiet();
+        _reading = false;
+        if (_stale && mounted) {
+          _stale = false;
+          _newest();
+        }
       }
+    }
+  }
+
+  /// Reads the newest conversations again and lays them over the ones held: what a text that has just come or gone
+  /// changes. A whole read under way is left to finish, and this follows it.
+  Future<void> _newest() async {
+    if (widget.archived || _all == null) return _load();
+    if (_reading) {
+      _stale = true;
+      return;
+    }
+    final read = _reads;
+    try {
+      final page = await Sms.instance.conversationsPage(limit: _first, pinned: true);
+      if (!mounted || read != _reads) return;
+      setState(() {
+        _all = mergeConversations(_all, page.items);
+        _error = null;
+      });
+    } catch (_) {
+      // The list shown stands; the next whole read says what is wrong.
     }
   }
 
@@ -240,7 +315,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final shown = _shown;
-    final archivedCount = (_all ?? const <Conversation>[]).where((c) => c.archived).length;
+    // Android's own count, where it has answered: the ones held are not all of them until the read ends.
+    final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
+    // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
+    final more = _more && !widget.archived;
     final gutter = t.space(4);
     final app = AppState.of(context);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
@@ -263,9 +341,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
           icon: AppIcon(Lucide.ghost, size: 28, color: t.color('app-ink-3')),
-          title: _query.isNotEmpty ? 'Nothing found' : (widget.archived ? 'Nothing archived' : 'No conversations yet'),
+          title: _query.isNotEmpty ? (more ? 'Nothing found yet' : 'Nothing found') : (widget.archived ? 'Nothing archived' : 'No conversations yet'),
           body: Text(_query.isNotEmpty
-              ? 'No name, number or message matches "$_query".'
+              ? (more ? 'Older conversations are still being read. Nothing so far matches "$_query".' : 'No name, number or message matches "$_query".')
               : widget.archived
                   ? 'Conversations you archive wait here.'
                   : rcs
@@ -279,7 +357,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       final tail = !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting;
       body = RefreshableList(
         onRefresh: _load,
-        itemCount: extras + shown.length + (tail ? 1 : 0) + 1,
+        itemCount: extras + shown.length + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
         itemBuilder: (context, i) {
           if (notice && i == 0) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
@@ -309,6 +387,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   Text('Archived ($archivedCount)', style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color(state.pressed ? 'app-ink-4' : 'app-ink-3'))),
                 ]),
               ),
+            );
+          }
+          if (more && at == shown.length + (tail ? 1 : 0)) {
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: t.space(4)),
+              child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
             );
           }
           return SizedBox(height: t.lenOf('6rem'));

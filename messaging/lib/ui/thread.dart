@@ -177,13 +177,40 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _e2eChanged();
   }
 
+  /// How many of the newest messages are held. A conversation opens on its newest [_opening], which is several
+  /// screens of them, and takes [_step] more each time the reader nears the oldest held (Matt, 2026-11-13: "load by
+  /// most recent first so that things are faster"). Before this it held the newest 300 and no way to the rest.
+  int _limit = _opening;
+  static const _opening = 120;
+  static const _step = 300;
+
+  /// There are older messages than the ones held, and whether they are being read.
+  bool _older = false;
+  bool _readingOlder = false;
+
+  Future<void> _readOlder() async {
+    if (_readingOlder || !_older) return;
+    _readingOlder = true;
+    _limit += _step;
+    try {
+      await _load();
+    } finally {
+      // Let go once the longer list is laid out: until then the reader still looks to be at its old top, and
+      // would be read for again at once.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _readingOlder = false);
+    }
+  }
+
   Future<void> _load({bool markRead = false}) async {
     _loadE2e();
-    final list = await Sms.instance.messages(widget.thread);
+    final asked = _limit;
+    final list = await Sms.instance.messages(widget.thread, limit: asked);
     if (!mounted) return;
     final edits = foldCorrections(list);
     setState(() {
       _messages = list;
+      // As many as were asked for: there may be more behind them.
+      _older = list.length >= asked;
       _folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
       _corrected = edits.corrected;
     });
@@ -499,11 +526,25 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         child: Center(child: OnBackground(busy: busy, child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))),
       ));
     }
-    return ListView(
-      reverse: true,
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
-      children: items,
+    // Older ones are read as the reader nears the oldest held: said at the top while they come.
+    if (_older) {
+      items.add(Padding(
+        padding: EdgeInsets.symmetric(vertical: t.space(4)),
+        child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
+      ));
+    }
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        // Drawn bottom up, so what lies after is the older end.
+        if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
+        return false;
+      },
+      child: ListView(
+        reverse: true,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+        children: items,
+      ),
     );
   }
 
