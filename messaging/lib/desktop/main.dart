@@ -25,20 +25,23 @@ import 'ui/wizard.dart';
 /// Started with `GHOST_DESK_PEERS=host:port[,host:port]` it tries those addresses for the phone before any it finds
 /// (an emulator's forwarded port; a network that hides the two from each other), `GHOST_DESK_DIR` keeps what it
 /// keeps in another folder, and `GHOST_DESK_BONJOUR=off` leaves the local network unsearched.
-Future<void> desktopMain() async {
+///
+/// [peers], [folder] and [bonjour] are the same three, for a test that starts the app itself
+/// (integration_test/desk_live_test.dart).
+Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour}) async {
   WidgetsFlutterBinding.ensureInitialized();
   final env = Platform.environment;
-  final dir = env['GHOST_DESK_DIR'];
+  final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
   final store = DeskStore(dir == null || dir.isEmpty ? DeskStore.defaultDir() : Directory(dir), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
-  final envPeers = [for (final p in (env['GHOST_DESK_PEERS'] ?? '').split(',')) ?Peer.parse(p)];
+  final envPeers = peers ?? [for (final p in (env['GHOST_DESK_PEERS'] ?? '').split(',')) ?Peer.parse(p)];
   final prefs = await store.prefs();
   final link = PhoneLink(
     store: store,
     name: await MacPlatform.computerName(),
     app: appVersion,
-    finder: env['GHOST_DESK_BONJOUR'] == 'off' ? null : BonjourFinder(),
+    finder: !(bonjour ?? env['GHOST_DESK_BONJOUR'] != 'off') ? null : BonjourFinder(),
     given: [...envPeers, ?Peer.parse(prefs['peer'] ?? '')],
   );
   final calls = LinkCalls(link, store);

@@ -18,6 +18,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Starts the real Mac app and drives it against a phone on an emulator (integration_test/desk_live_test.dart).
+  integration_test:
+    sdk: flutter
   # The relay itself, so the Mac's link is tested through the real one (test/desk_link_test.dart).
   ghost_relay:
     path: relay

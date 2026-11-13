@@ -50,19 +50,63 @@ def shrunk(picture, size, mode):
     return out
 
 
-def mac_icon(picture, size):
-    """The picture as a macOS icon: a rounded square filling 824/1024 of the canvas, on nothing."""
-    work = 1024
-    inner = 824
-    radius = 185
-    art = picture.convert('RGB').resize((inner, inner), LANCZOS)
-    # The corners, drawn four times the size and shrunk so their edge is smooth.
-    big = Image.new('L', (inner * 4, inner * 4), 0)
+def _corner(r):
+    """One corner of Apple's rounded square, from where it leaves the top edge to where it joins the side: three
+    curves that ease into the straight edges (what UIBezierPath draws, measured by PaintCode), as points for a
+    corner at the top right with the edge's end at (0, 0), x leftwards and y downwards, in units of [r]."""
+    curves = [
+        ((1.528665, 0), (1.08849296, 0), (0.86840694, 0), (0.63149379, 0.07491139)),
+        ((0.63149379, 0.07491139), (0.37282383, 0.16905956), (0.16905956, 0.37282383), (0.07491139, 0.63149379)),
+        ((0.07491139, 0.63149379), (0, 0.86840694), (0, 1.08849296), (0, 1.528665)),
+    ]
+    points = []
+    for p0, p1, p2, p3 in curves:
+        for i in range(25):
+            t = i / 24
+            u = 1 - t
+            points.append((
+                (u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0]) * r,
+                (u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1]) * r,
+            ))
+    return points
+
+
+def mac_shape(side, radius):
+    """Apple's rounded square, [side] across with corners of [radius], as a mask: white inside."""
     from PIL import ImageDraw
-    ImageDraw.Draw(big).rounded_rectangle((0, 0, inner * 4 - 1, inner * 4 - 1), radius=radius * 4, fill=255)
-    mask = big.resize((inner, inner), LANCZOS)
+    big = 4
+    s, r = side * big, radius * big
+    c = _corner(r)
+    outline = (
+        [(s - x, y) for x, y in c]                      # top right, going down the right side
+        + [(s - y, s - x) for x, y in c]                # bottom right
+        + [(x, s - y) for x, y in c]                    # bottom left
+        + [(y, x) for x, y in c]                        # top left
+    )
+    mask = Image.new('L', (s, s), 0)
+    ImageDraw.Draw(mask).polygon(outline, fill=255)
+    return mask.resize((side, side), LANCZOS)
+
+
+def mac_icon(picture, size):
+    """
+    The picture as a macOS icon (Matt, 2026-11-13: "the icon on the mac app is also not full width and height, it's
+    inset"). macOS (26 and later) fills its own icon shape only with an icon whose outline is Apple's: 824 of the
+    1024 across, the corners eased into the edges, a soft shadow under it. Anything else (a plain square edge to
+    edge, or corners that are arcs of a circle, which is what this drew first) it shrinks onto a plate of its own,
+    which is the inset. Ghost.md's Mac icon has this outline, and is drawn whole.
+    """
+    from PIL import ImageFilter
+    work, inner, radius = 1024, 824, 185.4
+    at = (work - inner) // 2
+    mask = mac_shape(inner, radius)
+    # The shadow: the shape, a little lower, blurred, at a third of black.
+    shadow = Image.new('L', (work, work), 0)
+    shadow.paste(mask, (at, at + 12))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(14)).point(lambda v: int(v * 0.3))
     out = Image.new('RGBA', (work, work), (0, 0, 0, 0))
-    out.paste(art, ((work - inner) // 2, (work - inner) // 2), mask)
+    out.putalpha(shadow)
+    out.paste(picture.convert('RGB').resize((inner, inner), LANCZOS), (at, at), mask)
     return out if size == work else out.resize((size, size), LANCZOS)
 
 
@@ -104,8 +148,7 @@ def main():
     # In the app: the mark on the setup screen.
     os.makedirs(os.path.join(ROOT, 'assets', 'art'), exist_ok=True)
     silhouette(picture, 256).save(os.path.join(ROOT, 'assets', 'art', 'ghost-mark.png'), optimize=True)
-    # The Mac app's icon (macos/, the desktop companion): macOS masks nothing itself, so the square is drawn as its
-    # icons are, 824 of 1024 with rounded corners, the rest clear.
+    # The Mac app's icon (macos/, the desktop companion), in the outline macOS draws whole (mac_icon).
     for size in (16, 32, 64, 128, 256, 512, 1024):
         mac_icon(picture, size).save(os.path.join(MAC, f'app_icon_{size}.png'), optimize=True)
     print('icons written from', ART)

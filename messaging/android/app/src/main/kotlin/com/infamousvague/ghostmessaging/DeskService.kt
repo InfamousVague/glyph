@@ -240,6 +240,8 @@ class DeskService : Service() {
             try { socket.bind(InetSocketAddress(if (remembered in 1024..65535) remembered else 0)) } catch (_: IOException) { socket.bind(InetSocketAddress(0)) }
             port = socket.localPort
             Desk.port = port
+            // The port alone, never who connects: for `adb forward` when trying it on an emulator (docs/desktop.md).
+            Log.i(TAG, "listening for paired computers on port $port")
         }
 
         fun start() {
