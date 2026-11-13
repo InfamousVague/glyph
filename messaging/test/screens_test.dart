@@ -125,6 +125,17 @@ void _answerChannel() {
         return {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
       case 'conversations':
         return _conversations;
+      case 'conversationsPage':
+        // A lot at a time, as the phone hands them over: the archived ones alone, or from a row on.
+        if (args['archived'] == true) return {'items': _conversations.where((c) => c['archived'] == true).toList(), 'next': null};
+        final from = (args['offset'] as num?)?.toInt() ?? 0;
+        final limit = (args['limit'] as num?)?.toInt() ?? 0;
+        final to = limit == 0 ? _conversations.length : (from + limit).clamp(0, _conversations.length);
+        return {'items': _conversations.sublist(from.clamp(0, _conversations.length), to), 'next': to < _conversations.length ? to : null};
+      case 'conversation':
+        return _conversations.where((c) => c['id'] == args['thread']).firstOrNull;
+      case 'archivedCount':
+        return _conversations.where((c) => c['archived'] == true).length;
       case 'messages':
         return _messages((args['thread'] as num).toInt());
       case 'people':
@@ -136,7 +147,7 @@ void _answerChannel() {
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
       case 'update':
-        return {'phase': 'available', 'current': '0.6.0', 'available': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+        return {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
       case 'e2e':

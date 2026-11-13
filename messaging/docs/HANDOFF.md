@@ -40,6 +40,12 @@ first real exchange between two copies of the app: the hello, both keys, a seale
 They will not text each other, and their modems take no PDUs, so a small script carried each text across with
 `adb emu sms send`.
 
+0.6.1, that night: phones with a great many messages (README has the measurements). The list is read the newest
+first and the rest behind, the lookups that were one question to Android per conversation are one for all, and a
+conversation reads older messages as it is scrolled back. `tool/seed_store.py` fills a throwaway emulator's store
+(3,000 conversations in three seconds, as root) to measure against; `setprop log.tag.GhostPerf VERBOSE` times each
+call.
+
 0.5.0, later that day, added two more asks of Matt's (README): a conversation's background synced between phones
 that both have the app, as a text in the conversation, and sign-in codes handed to Ghost Keyboard (which needs its
 0.18.0: the `codes` branch of GhostKbd, in `~/Development/Apps/ghost-kbd-codes`, not pushed until Matt says).

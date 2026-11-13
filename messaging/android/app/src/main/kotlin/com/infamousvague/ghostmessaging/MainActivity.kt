@@ -33,6 +33,12 @@ class MainActivity : FlutterActivity() {
     /** Pictures and faces are read apart from everything else, so they do not wait behind a long read of the list. */
     private val pictures = Executors.newFixedThreadPool(3)
 
+    /**
+     * The list of conversations is read on a thread of its own, so a long read of it holds nothing else up: on a
+     * phone with three thousand conversations it once held a conversation's messages back for five seconds.
+     */
+    private val lists = Executors.newSingleThreadExecutor()
+
     /** Told when the phone's contacts change: who a number is is asked again from then (Store.contactsChanged). */
     private val contactsWatcher = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Desk.contactsChanged(); Bus.changed(-1) } }
@@ -85,7 +91,17 @@ class MainActivity : FlutterActivity() {
                 "requestDefault" -> requestDefault(result)
                 "requestPermissions" -> requestPermissions(result)
                 "openRequest" -> { result.success(pendingOpen); pendingOpen = null }
-                "conversations" -> bg { store.conversations() }
+                "conversations" -> on(lists) { store.conversations() }
+                "conversationsPage" -> on(lists) {
+                    store.conversationsPage(
+                        limit = call.argument<Int>("limit") ?: 0,
+                        offset = call.argument<Int>("offset") ?: 0,
+                        pinnedToo = call.argument<Boolean>("pinned") ?: false,
+                        only = if (call.argument<Boolean>("archived") == true) store.archivedThreads() else null,
+                    )
+                }
+                "conversation" -> bg { store.conversation(call.argument<Number>("thread")!!.toLong()) }
+                "archivedCount" -> on(lists) { (store.conversationsPage(only = store.archivedThreads())["items"] as List<*>).size }
                 "perfOn" -> result.success(timed)
                 "messages" -> bg { store.messages(call.argument<Number>("thread")!!.toLong(), call.argument<Int>("limit") ?: 300) }
                 "people" -> bg { store.threadPeople(call.argument<Number>("thread")!!.toLong()) }

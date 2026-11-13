@@ -79,6 +79,25 @@ class Attachment {
   bool get isSticker => isImage && (name ?? '').split('/').last.startsWith('ghost-sticker');
 }
 
+/// A lot of conversations, and the row of Android's list the next lot starts at: null at the end.
+class ConversationPage {
+  const ConversationPage(this.items, this.next);
+  final List<Conversation> items;
+  final int? next;
+}
+
+/// What is shown of [fresh] laid over [old]: a conversation read again replaces the one held, and all of them stand
+/// newest first. [only], where given, are the conversations still there: any other has gone.
+List<Conversation> mergeConversations(List<Conversation>? old, List<Conversation> fresh, {Set<int>? only}) {
+  final byId = <int, Conversation>{for (final c in old ?? const <Conversation>[]) c.id: c, for (final c in fresh) c.id: c};
+  final all = [for (final c in byId.values) if (only == null || only.contains(c.id)) c];
+  all.sort((a, b) {
+    final byDate = b.date.compareTo(a.date);
+    return byDate != 0 ? byDate : b.id.compareTo(a.id);
+  });
+  return all;
+}
+
 /// sending, sent, delivered, failed, received, pending_download
 class Message {
   const Message({
@@ -395,6 +414,23 @@ class Sms {
 
   Future<List<Conversation>> conversations() async =>
       [for (final c in (await _calls.invokeMethod<List>('conversations')) ?? const []) Conversation.from(c as Map)];
+
+  /// Conversations, the newest first, a lot at a time (Matt, 2026-11-13: "see if we can load by most recent first so
+  /// that things are faster"): [limit] of them from the [offset]th row of Android's list. [pinned] adds the pinned
+  /// ones wherever they are, for the first lot. [archived]: the archived ones alone, all at once.
+  Future<ConversationPage> conversationsPage({int limit = 0, int offset = 0, bool pinned = false, bool archived = false}) async {
+    final answer = (await _calls.invokeMethod<Map>('conversationsPage', {'limit': limit, 'offset': offset, 'pinned': pinned, 'archived': archived})) ?? const {};
+    return ConversationPage([for (final c in (answer['items'] as List?) ?? const []) Conversation.from(c as Map)], (answer['next'] as num?)?.toInt());
+  }
+
+  /// One conversation as the list has it, or null where it is gone.
+  Future<Conversation?> conversation(int thread) async {
+    final c = await _calls.invokeMethod<Map>('conversation', {'thread': thread});
+    return c == null ? null : Conversation.from(c);
+  }
+
+  /// How many conversations are archived.
+  Future<int> archivedCount() async => ((await _calls.invokeMethod('archivedCount')) as num?)?.toInt() ?? 0;
 
   Future<List<Message>> messages(int thread, {int limit = 300}) async =>
       [for (final m in (await _calls.invokeMethod<List>('messages', {'thread': thread, 'limit': limit})) ?? const []) Message.from(m as Map)];

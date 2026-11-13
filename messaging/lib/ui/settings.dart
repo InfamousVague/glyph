@@ -97,7 +97,7 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => computers = await Sms.instance.computers()),
       ask(() async => unrestricted = await Sms.instance.unrestrictedBattery()),
       ask(() async => phoneAddresses = await Sms.instance.phoneAddresses()),
-      ask(() async => archived = (await Sms.instance.conversations()).where((c) => c.archived).length),
+      ask(() async => archived = await Sms.instance.archivedCount()),
     ]);
     _say();
   }

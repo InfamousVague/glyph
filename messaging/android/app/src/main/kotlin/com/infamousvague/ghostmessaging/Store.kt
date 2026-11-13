@@ -28,27 +28,51 @@ class Store(private val context: Context) {
      */
     private val nameCache = java.util.concurrent.ConcurrentHashMap<String, Map<String, Any?>>()
 
-    fun contactsChanged() = nameCache.clear()
+    fun contactsChanged() { known = null; nameCache.clear() }
+
+    /** One of the phone's contacts' numbers, as the contacts keep it. */
+    private class Known(val number: String, val name: String?, val photo: String?)
+
+    /** The contacts' numbers by [ContactKey], read once and kept until Android says the contacts changed. */
+    @Volatile private var known: Map<String, List<Known>>? = null
+
+    /**
+     * Every contact's numbers in one question to Android (Matt, 2026-11-13: "Users with a ton of messages stored on
+     * their phone are taking forever to load"). Looking each conversation's number up was a question apiece: with
+     * three thousand conversations, most of the twenty seconds the list took to appear.
+     */
+    private fun knownNumbers(): Map<String, List<Known>> {
+        known?.let { return it }
+        if (!hasContacts()) return emptyMap()
+        val out = HashMap<String, ArrayList<Known>>()
+        try {
+            val phone = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+            resolver.query(phone, arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI), null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val number = c.getString(0) ?: continue
+                    val key = ContactKey.of(number) ?: continue
+                    out.getOrPut(key) { ArrayList() } += Known(ContactKey.main(number), c.getString(1), c.getString(2))
+                }
+            }
+        } catch (_: Exception) {
+            return emptyMap()   // not kept: asked again the next time a name is wanted
+        }
+        known = out
+        return out
+    }
 
     /** The contact for [address]: their name and photo's URI where the phone has them. */
     fun contact(address: String): Map<String, Any?> {
         nameCache[address]?.let { return it }
-        var name: String? = null
-        var photo: String? = null
-        if (hasContacts() && address.isNotBlank()) {
-            try {
-                val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(address))
-                resolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME, ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI), null, null, null)?.use {
-                    if (it.moveToFirst()) { name = it.getString(0); photo = it.getString(1) }
-                }
-            } catch (_: Exception) {}
-        }
-        val out = mapOf("address" to address, "name" to name, "photo" to photo)
+        // A sender's name or an email address is nobody's phone number; a number is found among the contacts by its
+        // last digits and then compared whole, as Android compares two numbers.
+        val found = ContactKey.of(address)?.let { key -> knownNumbers()[key]?.firstOrNull { sameNumber(it.number, address) } }
+        val out = mapOf("address" to address, "name" to found?.name, "photo" to found?.photo)
         nameCache[address] = out
         return out
     }
 
-    fun clearContactCache() = nameCache.clear()
+    fun clearContactCache() { known = null; nameCache.clear() }
 
     private fun hasContacts() = context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
@@ -115,10 +139,24 @@ class Store(private val context: Context) {
 
     // --- conversations -----------------------------------------------------------------------------------------------
 
-    private val canonical = HashMap<Long, String>()
+    private val canonical = java.util.concurrent.ConcurrentHashMap<Long, String>()
+    @Volatile private var canonicalRead = false
+
+    /** Every address Android keeps for conversations, in one question: each conversation's own was one apiece. */
+    private fun readCanonical() {
+        if (canonicalRead) return
+        try {
+            resolver.query(Uri.parse("content://mms-sms/canonical-addresses"), null, null, null, null)?.use { c ->
+                val iId = c.getColumnIndex("_id"); val iAddress = c.getColumnIndex("address")
+                if (iId >= 0 && iAddress >= 0) while (c.moveToNext()) c.getString(iAddress)?.let { canonical[c.getLong(iId)] = it }
+            }
+        } catch (_: Exception) {}   // a store that will not list them is asked for each, below
+        canonicalRead = true
+    }
 
     private fun canonicalAddress(id: Long): String? {
         canonical[id]?.let { return it }
+        // One that is not in the list read at the start: a conversation begun since, or a store that lists none.
         resolver.query(Uri.parse("content://mms-sms/canonical-address/$id"), null, null, null, null)?.use {
             if (it.moveToFirst()) { val a = it.getString(0); canonical[id] = a; return a }
         }
@@ -129,8 +167,25 @@ class Store(private val context: Context) {
         (ids ?: "").split(' ').mapNotNull { it.toLongOrNull() }.mapNotNull { canonicalAddress(it) }
 
     /** Every conversation, the newest first. */
-    fun conversations(): List<Map<String, Any?>> {
+    @Suppress("UNCHECKED_CAST")
+    fun conversations(): List<Map<String, Any?>> = conversationsPage()["items"] as List<Map<String, Any?>>
+
+    /** One conversation as the list has it, or null where it is gone. */
+    @Suppress("UNCHECKED_CAST")
+    fun conversation(thread: Long): Map<String, Any?>? = (conversationsPage(only = setOf(thread))["items"] as List<Map<String, Any?>>).firstOrNull()
+
+    /**
+     * Conversations, the newest first, a lot at a time (Matt, 2026-11-13: "see if we can load by most recent first
+     * so that things are faster"): [limit] of them from the [offset]th row of Android's list, or all of them where
+     * [limit] is 0. Answers with `items`, and with `next`: the row the next lot starts at, or null at the end.
+     *
+     * [pinnedToo] adds the pinned conversations wherever they are in the list, for the first lot: they head the
+     * screen however old they are. [only]: these conversations alone (the archived ones' page, or one by its id).
+     */
+    fun conversationsPage(limit: Int = 0, offset: Int = 0, pinnedToo: Boolean = false, only: Set<Long>? = null): Map<String, Any?> {
         val out = ArrayList<Map<String, Any?>>()
+        var next: Int? = null
+        if (only != null && only.isEmpty()) return mapOf("items" to out, "next" to null)
         val uri = Uri.parse("content://mms-sms/conversations?simple=true")
         val archived = archivedThreads()
         val pinned = threadFlags("pinned")
@@ -138,26 +193,33 @@ class Store(private val context: Context) {
         val drafts = drafts()
         // Android's blocked list, read once: asking it about each conversation's number is a call to Android apiece.
         val blocked = blockedKeys()
+        readCanonical()
         // No projection: OEM providers (Samsung's among them) differ in the columns they keep, and naming one they
         // lack fails the whole query. Each column is read if it is there.
         try {
-            resolver.query(uri, null, null, null, "date DESC")?.use { c ->
+            resolver.query(uri, null, only?.let { "_id IN (${it.joinToString(",")})" }, null, "date DESC")?.use { c ->
                 fun col(name: String) = c.getColumnIndex(name)
                 val iId = col("_id"); val iDate = col("date"); val iCount = col("message_count"); val iRec = col("recipient_ids")
                 val iSnip = col("snippet"); val iRead = col("read"); val iErr = col("error"); val iAtt = col("has_attachment")
-                while (c.moveToNext()) {
+                fun row(): Map<String, Any?>? {
                     val id = c.getLong(iId)
+                    // A store that takes no notice of which were asked for is held to them here.
+                    if (only != null && id !in only) return null
                     val count = if (iCount >= 0) c.getInt(iCount) else 1
                     // A count of nothing is believed only where the conversation holds nothing: some phones' stores
                     // do not keep the count, and every conversation would be left out.
-                    if (count == 0 && !hasMessages(id)) continue
+                    if (count == 0 && !hasMessages(id)) return null
                     val recipients = recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
-                    out += mapOf(
+                    val date = if (iDate >= 0) c.getLong(iDate) else 0L
+                    val summary = E2e.preview(context, recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
+                    return mapOf(
                         "id" to id,
-                        "date" to (if (iDate >= 0) c.getLong(iDate) else 0L),
+                        "date" to date,
                         "count" to count,
                         "people" to recipients.map { contact(it) },
-                        "snippet" to E2e.preview(context, recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it },
+                        // A picture message's summary in Android's list is its subject, often empty: its words, or
+                        // what it is, instead.
+                        "snippet" to summary.ifBlank { latestSnippet(id, "$date:$count") },
                         "encrypted" to (recipients.size == 1 && E2e.isOn(context, recipients[0])),
                         "unread" to (iRead >= 0 && c.getInt(iRead) == 0),
                         "error" to (iErr >= 0 && c.getInt(iErr) != 0),
@@ -169,18 +231,30 @@ class Store(private val context: Context) {
                         "blocked" to (recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
                     )
                 }
+                if (offset <= 0 || c.moveToPosition(offset - 1)) {
+                    while (c.moveToNext()) {
+                        if (limit > 0 && out.size >= limit) { next = c.position; break }
+                        row()?.let { out += it }
+                    }
+                }
+                // The pinned ones further down: the cursor stands on the first row not taken.
+                if (pinnedToo && next != null && pinned.isNotEmpty()) {
+                    val have = out.mapTo(HashSet()) { it["id"] as Long }
+                    do {
+                        val id = c.getLong(iId)
+                        if (id in pinned && id !in have) row()?.let { out += it }
+                    } while (c.moveToNext())
+                }
             }
         } catch (e: Exception) {
             // A phone whose store will not answer this way is read the plain way, from the texts themselves. If that
             // fails too the screen is told, and says so: an empty list would look like every message had gone.
             android.util.Log.e("GhostMessaging", "conversations", e)
             out.clear()
-            out += conversationsFromTexts(archived, pinned, muted, drafts)
+            next = null
+            if (offset <= 0) out += conversationsFromTexts(archived, pinned, muted, drafts).filter { only == null || (it["id"] as Long) in only }
         }
-        // An MMS's snippet in the threads table is its subject, often empty: the picture's text, or what it is, instead.
-        return out.map { t ->
-            if ((t["snippet"] as String).isBlank()) t + ("snippet" to latestSnippet(t["id"] as Long)) else t
-        }
+        return mapOf("items" to out, "next" to next)
     }
 
     /** The numbers on Android's blocked list, as conversations are told apart by them ([E2e.norm]). */
@@ -240,17 +314,47 @@ class Store(private val context: Context) {
         return seen.values.toList()
     }
 
-    private fun latestSnippet(thread: Long): String {
-        val m = messages(thread, 1).firstOrNull() ?: return ""
-        val body = m["body"] as String? ?: ""
-        if (body.isNotBlank()) return body
-        @Suppress("UNCHECKED_CAST") val parts = m["parts"] as List<Map<String, Any?>>? ?: emptyList()
+    /** What a conversation with no summary of its own shows, kept while the conversation stands as it did. */
+    private val snippets = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, String>>()
+
+    /**
+     * The summary of [thread] where Android's own is empty, as its newest message gives it. [stamp] is the
+     * conversation's date and count: while they are what they were, the answer is what it was, where it used to be
+     * read again (several questions to Android) for every such conversation each time the list was.
+     */
+    private fun latestSnippet(thread: Long, stamp: String): String {
+        snippets[thread]?.let { if (it.first == stamp) return it.second }
+        val words = try { readLatestSnippet(thread) } catch (_: Exception) { "" }
+        snippets[thread] = stamp to words
+        return words
+    }
+
+    private fun readLatestSnippet(thread: Long): String {
+        val which = arrayOf(thread.toString())
+        // The newest picture message, unless a text is newer still.
+        var mms: Long? = null
+        var mmsDate = 0L
+        resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("_id", "date"), "thread_id = ?", which, "date DESC LIMIT 1")?.use {
+            if (it.moveToFirst()) { mms = it.getLong(0); mmsDate = it.getLong(1) * 1000 }
+        }
+        resolver.query(Telephony.Sms.CONTENT_URI, arrayOf("date", "address", "body"), "thread_id = ?", which, "date DESC LIMIT 1")?.use {
+            if (it.moveToFirst() && (mms == null || it.getLong(0) >= mmsDate)) {
+                val opened = E2e.read(context, it.getString(1) ?: "", it.getString(2) ?: "").first
+                return if (BackgroundWire.valueIn(opened) != null) "Chat background" else opened
+            }
+        }
+        val id = mms ?: return ""
+        val parts = mmsPartsOf(listOf(id))[id] ?: emptyList()
+        val written = parts.filter { it["type"] == "text/plain" }.joinToString("\n") { it["text"] as String? ?: "" }
+        if (BackgroundWire.valueIn(written) != null) return "Chat background"
+        if (written.isNotBlank()) return written
+        val rest = parts.filter { it["type"] != "text/plain" && it["type"] != "application/smil" }
         return when {
-            parts.any { (it["type"] as String).startsWith("image/") && Stickers.isSticker(it["name"] as String?) } -> "Sticker"
-            parts.any { (it["type"] as String).startsWith("image/") } -> "Picture"
-            parts.any { (it["type"] as String).startsWith("video/") } -> "Video"
-            parts.any { (it["type"] as String).startsWith("audio/") } -> "Audio"
-            parts.isNotEmpty() -> "Attachment"
+            rest.any { (it["type"] as String).startsWith("image/") && Stickers.isSticker(it["name"] as String?) } -> "Sticker"
+            rest.any { (it["type"] as String).startsWith("image/") } -> "Picture"
+            rest.any { (it["type"] as String).startsWith("video/") } -> "Video"
+            rest.any { (it["type"] as String).startsWith("audio/") } -> "Audio"
+            rest.isNotEmpty() -> "Attachment"
             else -> ""
         }
     }

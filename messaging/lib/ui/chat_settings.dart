@@ -50,8 +50,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   Future<void> _load() async {
     try {
-      final all = await Sms.instance.conversations();
-      final c = all.where((c) => c.id == widget.thread).firstOrNull;
+      // This one alone: the whole list is a long read on a phone with thousands.
+      final c = await Sms.instance.conversation(widget.thread);
       if (mounted) setState(() => _conversation = c);
     } catch (_) {}
     if (_group || widget.people.isEmpty) return;
