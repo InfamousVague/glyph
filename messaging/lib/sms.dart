@@ -259,15 +259,90 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false});
   final int? thread;
   final List<String> addresses;
   final String? body;
+
+  /// The "Paired with …" notification was tapped: Settings › Computers.
+  final bool computers;
   factory OpenRequest.from(Map m) => OpenRequest(
         thread: (m['thread'] as num?)?.toInt(),
         addresses: [for (final a in (m['addresses'] as List? ?? const [])) a as String],
         body: m['body'] as String?,
+        computers: m['desk'] == true,
       );
+}
+
+/// A computer this phone is paired with (android/.../Desk.kt, docs/desktop.md).
+class Computer {
+  const Computer({required this.id, required this.name, this.mode = 'both', this.relay = '', this.since, this.seen, this.via});
+  final String id;
+  final String name;
+
+  /// How the two connect: both (the local network first, the relay when that fails), local, relay.
+  final String mode;
+  final String relay;
+  final DateTime? since;
+  final DateTime? seen;
+
+  /// How it is connected now: local, relay, or null when it is not.
+  final String? via;
+
+  factory Computer.from(Map m) => Computer(
+        id: (m['id'] as String?) ?? '',
+        name: (m['name'] as String?) ?? 'A computer',
+        mode: (m['mode'] as String?) ?? 'both',
+        relay: (m['relay'] as String?) ?? '',
+        since: (m['since'] as num?) == null || m['since'] == 0 ? null : DateTime.fromMillisecondsSinceEpoch((m['since'] as num).toInt()),
+        seen: (m['seen'] as num?) == null || m['seen'] == 0 ? null : DateTime.fromMillisecondsSinceEpoch((m['seen'] as num).toInt()),
+        via: m['via'] as String?,
+      );
+}
+
+/// A pairing with a computer while it is being made: none, waiting (for the computer to connect), code (both show
+/// six digits to compare), done, failed.
+class PairingState {
+  const PairingState({this.phase = 'none', this.name = '', this.mode = 'both', this.offered = 'both', this.relay = '', this.code, this.mine = false, this.theirs = false, this.error});
+  final String phase;
+  final String name;
+
+  /// How the two will connect, chosen here; [offered] is what the computer chose, and how it is reached to pair.
+  final String mode;
+  final String offered;
+  final String relay;
+  final String? code;
+
+  /// "They match" was said here, and on the computer.
+  final bool mine;
+  final bool theirs;
+  final String? error;
+
+  factory PairingState.from(Map m) => PairingState(
+        phase: (m['phase'] as String?) ?? 'none',
+        name: (m['name'] as String?) ?? '',
+        mode: (m['mode'] as String?) ?? 'both',
+        offered: (m['offered'] as String?) ?? 'both',
+        relay: (m['relay'] as String?) ?? '',
+        code: m['code'] as String?,
+        mine: m['mine'] == true,
+        theirs: m['theirs'] == true,
+        error: m['error'] as String?,
+      );
+}
+
+/// Where the screens' calls go. On the phone, Android's channel. On the Mac (lib/desktop), the link to the phone:
+/// the same calls by the same names, answered by the phone, so the conversations are drawn by the same screens.
+abstract class SmsCalls {
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]);
+}
+
+class _ChannelCalls implements SmsCalls {
+  const _ChannelCalls();
+  static const _channel = MethodChannel('ghost_messaging/sms');
+
+  @override
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) => _channel.invokeMethod<T>(method, arguments);
 }
 
 /// The native side (android/.../MainActivity.kt): Android's SMS database, sending, the SMS role.
@@ -275,8 +350,14 @@ class Sms {
   Sms._();
   static final Sms instance = Sms._();
 
-  static const _calls = MethodChannel('ghost_messaging/sms');
+  static SmsCalls _calls = const _ChannelCalls();
   static const _events = EventChannel('ghost_messaging/events');
+
+  /// The Mac sets this to its link to the phone before anything is drawn (lib/desktop/remote.dart).
+  static set calls(SmsCalls calls) => _calls = calls;
+
+  /// These screens are on a computer, not the phone: what only the phone can do is not offered.
+  static bool get remote => _calls is! _ChannelCalls;
 
   /// The conversation that changed, each time one does (-1: some conversation, which is not known).
   final changes = StreamController<int>.broadcast();
@@ -287,6 +368,9 @@ class Sms {
 
   /// The person's choices were changed from Android's side (a chat background someone shared): read them again.
   final prefsChanged = StreamController<void>.broadcast();
+
+  /// Something about the computers paired with this phone changed: one connected, a pairing moved on.
+  final computersChanged = StreamController<void>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -296,6 +380,7 @@ class Sms {
       if (m['type'] == 'open') opens.add(OpenRequest.from(m));
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
       if (m['type'] == 'prefs') prefsChanged.add(null);
+      if (m['type'] == 'desk') computersChanged.add(null);
     });
   }
 
@@ -419,6 +504,30 @@ class Sms {
 
   /// Sends [thread]'s background ([raw], as the choice is kept) to its people as a text their copy of the app wears.
   Future<void> shareBackground(List<String> addresses, int thread, String raw) => _calls.invokeMethod('shareBackground', {'addresses': addresses, 'thread': thread, 'raw': raw});
+
+  // --- paired computers (android/.../Desk.kt) ---------------------------------------------------------------------------
+
+  Future<List<Computer>> computers() async => [for (final m in (await _calls.invokeMethod<List>('deskList')) ?? const []) Computer.from(m as Map)];
+  Future<PairingState> pairing() async => PairingState.from((await _calls.invokeMethod('deskState')) as Map);
+
+  /// The camera, looking for a computer's QR code: its words, or null when the screen was left (or `denied`, when
+  /// the camera was refused).
+  Future<({String? text, bool denied})> scanPairingCode() async {
+    final m = (await _calls.invokeMethod('deskScan')) as Map;
+    return (text: m['text'] as String?, denied: m['denied'] == true);
+  }
+
+  /// Starts pairing with the computer whose code this is. Throws when it is not a code of ours.
+  Future<PairingState> beginPairing(String code, {String? mode}) async => PairingState.from((await _calls.invokeMethod('deskBegin', {'code': code, 'mode': mode})) as Map);
+  Future<PairingState> setPairingMode(String mode) async => PairingState.from((await _calls.invokeMethod('deskPendingMode', {'mode': mode})) as Map);
+  Future<void> confirmPairing() => _calls.invokeMethod('deskConfirm');
+  Future<void> cancelPairing() => _calls.invokeMethod('deskCancel');
+  Future<void> pairingShown() => _calls.invokeMethod('deskDone');
+  Future<void> unpairComputer(String id) => _calls.invokeMethod('deskUnpair', {'id': id});
+  Future<void> setComputerMode(String id, String mode) => _calls.invokeMethod('deskSetMode', {'id': id, 'mode': mode});
+
+  /// Whether Android lets the app use the network in deep sleep (its battery setting is "Unrestricted").
+  Future<bool> unrestrictedBattery() async => await _calls.invokeMethod<bool>('deskUnrestricted') ?? false;
 
   /// Whether timings are being written to Android's log (`adb shell setprop log.tag.GhostPerf VERBOSE`).
   Future<bool> perfOn() async => await _calls.invokeMethod<bool>('perfOn') ?? false;

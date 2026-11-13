@@ -12,6 +12,7 @@ import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
 import 'package:ghost_messaging/ui/chat_settings.dart';
 import 'package:ghost_messaging/ui/compose.dart';
+import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/setup.dart';
@@ -111,6 +112,10 @@ List<Map<String, Object?>> _messages(int thread) {
   ];
 }
 
+/// The pairing with a computer being made, as Android would say it stands (android/.../Desk.kt): set before the
+/// pairing screen is drawn at each of its steps.
+Map<String, Object?> _pairing = {'phase': 'none'};
+
 void _answerChannel() {
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   messenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
@@ -152,6 +157,16 @@ void _answerChannel() {
         return (args['addresses'] as List).every((a) => a == '+15551230011');
       case 'prefs':
         return <String, String>{};
+      // Paired computers: one connected over the local network, one last seen yesterday through the relay.
+      case 'deskList':
+        return [
+          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
+          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
+        ];
+      case 'deskState':
+        return _pairing;
+      case 'deskUnrestricted':
+        return false;
       case 'part':
         // The two stickers in the group conversation, as the phone would hand a picture message's part over.
         return switch ((args['id'] as num).toInt()) {
@@ -256,9 +271,22 @@ void main() {
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
       await _shootAgain(tester, '5-settings-search', dark: dark);
-      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates']) {
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
+      // Pairing with a computer, step by step: before a code is scanned, while the computer is looked for, the six
+      // digits to compare, and paired.
+      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+      for (final (name, state) in <(String, Map<String, Object?>)>[
+        ('start', {'phase': 'none'}),
+        ('waiting', {...mac, 'phase': 'waiting'}),
+        ('code', {...mac, 'phase': 'code', 'code': '874151'}),
+        ('done', {...mac, 'phase': 'done', 'code': '874151', 'mine': true, 'theirs': true}),
+      ]) {
+        _pairing = state;
+        await _shoot(tester, sheet, const PairComputerScreen(), '10-pair-$name', dark: dark);
+      }
+      _pairing = {'phase': 'none'};
       // Encryption in a conversation: on and verified, and a key waiting for a yes.
       await _shoot(tester, sheet, const ThreadScreen(thread: 8, people: [Person(address: '+15551230011', name: 'Riley Fox')]), '8-encrypted', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 9, people: [Person(address: '+15551230012', name: 'Noor Haddad')]), '8-encryption-asked', dark: dark);

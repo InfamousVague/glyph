@@ -15,6 +15,7 @@ import '../kit/settings_kit.dart';
 import '../sms.dart';
 import 'background_picker.dart';
 import 'common.dart';
+import 'computers.dart';
 import 'conversations.dart';
 import 'encryption.dart';
 import 'settings.dart';
@@ -152,6 +153,20 @@ final List<SettingsSection> settingsSections = [
     group: 'phone',
     summary: (m) => !m.app.flag('kbd_codes') ? 'Sign-in codes not offered' : (m.keyboardHere ? 'Offers it sign-in codes' : 'Not on this phone'),
     page: _keyboard,
+  ),
+  SettingsSection(
+    id: 'computers',
+    label: 'Computers',
+    icon: _icon(Lucide.laptop),
+    hue: 'blue',
+    group: 'phone',
+    summary: (m) {
+      if (m.computers.isEmpty) return 'None paired';
+      final on = m.computers.where((c) => c.via != null).length;
+      final names = m.computers.length == 1 ? m.computers.first.name : '${m.computers.length} computers';
+      return on > 0 ? '$names · connected' : names;
+    },
+    page: computersPane,
   ),
   SettingsSection(
     id: 'updates',

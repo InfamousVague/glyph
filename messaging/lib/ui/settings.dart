@@ -45,8 +45,14 @@ class SettingsModel extends ChangeNotifier {
   /// What can be seen of the texting app this one replaced, and of Android's store of texts.
   Arriving arriving = const Arriving();
 
+  /// The computers this phone is paired with (android/.../Desk.kt), and whether Android lets the app use the network
+  /// in deep sleep.
+  List<Computer> computers = const [];
+  bool unrestricted = false;
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
+  StreamSubscription<void>? _computers;
   bool _gone = false;
 
   void start() {
@@ -55,6 +61,12 @@ class SettingsModel extends ChangeNotifier {
       _say();
     });
     _changes = Sms.instance.changes.stream.listen((_) => refresh());
+    _computers = Sms.instance.computersChanged.stream.listen((_) async {
+      try {
+        computers = await Sms.instance.computers();
+        _say();
+      } catch (_) {}
+    });
     refresh();
   }
 
@@ -79,6 +91,8 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => blocked = await Sms.instance.blockedNumbers()),
       ask(() async => keyboardHere = await Sms.instance.keyboardHere()),
       ask(() async => arriving = await Sms.instance.arriving()),
+      ask(() async => computers = await Sms.instance.computers()),
+      ask(() async => unrestricted = await Sms.instance.unrestrictedBattery()),
       ask(() async => archived = (await Sms.instance.conversations()).where((c) => c.archived).length),
     ]);
     _say();
@@ -90,6 +104,7 @@ class SettingsModel extends ChangeNotifier {
     app.removeListener(notifyListeners);
     _updates?.cancel();
     _changes?.cancel();
+    _computers?.cancel();
     super.dispose();
   }
 }

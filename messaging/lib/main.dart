@@ -11,6 +11,7 @@ import 'kit/settings_css.dart';
 import 'sms.dart';
 import 'ui/compose.dart';
 import 'ui/conversations.dart';
+import 'ui/settings.dart';
 import 'ui/setup.dart';
 import 'ui/thread.dart';
 
@@ -166,7 +167,10 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     final nav = _navigator.currentState;
     if (nav == null || _isDefault != true) return;
     nav.popUntil((r) => r.isFirst);
-    if (req.thread != null) {
+    if (req.computers) {
+      // The "Paired with …" notification.
+      nav.push(_route((_) => const SettingsSectionScreen('computers')));
+    } else if (req.thread != null) {
       final people = await Sms.instance.people(req.thread!);
       nav.push(_route((_) => ThreadScreen(thread: req.thread!, people: people)));
     } else if (req.addresses.isNotEmpty) {
