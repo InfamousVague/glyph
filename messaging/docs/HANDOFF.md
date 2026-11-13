@@ -9,6 +9,14 @@ settings read where they act, and Updates' plain words. 0.4.0 also has chat back
 `~/Development/Apps/glyph-messaging`, so the shared checkout stays on main; the scripts are run from there with
 `--glyph ~/Development/Apps/glyph`.
 
+0.6.0, later still (README has each): what catches people coming from Google Messages (RCS, and Android's
+restricted settings), a loading indicator and read errors, choosing several conversations to delete, the invisible
+hello between two copies and the encryption banner, bubble colours, a settings cog in each conversation, the keyboard
+coming back, the new icon, and speed. Two throwaway emulators (the spare AVD started twice, read-only) carried the
+first real exchange between two copies of the app: the hello, both keys, a sealed text each way, a synced background.
+They will not text each other, and their modems take no PDUs, so a small script carried each text across with
+`adb emu sms send`.
+
 0.5.0, later that day, added two more asks of Matt's (README): a conversation's background synced between phones
 that both have the app, as a text in the conversation, and sign-in codes handed to Ghost Keyboard (which needs its
 0.18.0: the `codes` branch of GhostKbd, in `~/Development/Apps/ghost-kbd-codes`, not pushed until Matt says).

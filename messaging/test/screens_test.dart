@@ -9,6 +9,7 @@ import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
+import 'package:ghost_messaging/ui/chat_settings.dart';
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
@@ -55,6 +56,8 @@ final _conversations = [
 Map<String, Object?> _e2e(String address) => switch (address) {
       '+15551230011' => {'address': address, 'state': 'on', 'verified': true, 'changed': false, 'safety': '04821 77310 59264 10388 92745 36601', 'person': _p(address, 'Riley Fox')},
       '+15551230012' => {'address': address, 'state': 'pending', 'verified': false, 'changed': false, 'safety': '61120 08347 55902 73418 20056 94471', 'person': _p(address, 'Noor Haddad')},
+      // Maya has the app too (its hello came from her), and nothing has been exchanged: the conversation offers it.
+      '+15551230001' => {'address': address, 'state': 'none', 'verified': false, 'changed': false, 'hasGhost': true, 'declined': false},
       _ => {'address': address, 'state': 'none', 'verified': false, 'changed': false},
     };
 
@@ -123,7 +126,7 @@ void _answerChannel() {
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
       case 'update':
-        return {'phase': 'available', 'current': '0.5.0', 'available': '0.5.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+        return {'phase': 'available', 'current': '0.6.0', 'available': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
       case 'e2e':
@@ -136,6 +139,9 @@ void _answerChannel() {
         return [_p('+15551230090', 'Spam Likely'), _p('+18005550199')];
       case 'keyboardHere':
         return true;
+      case 'arriving':
+        // Coming from Google Messages, still on the phone; a copy from a file, on Android 16.
+        return {'old': 'com.google.android.apps.messaging', 'oldLabel': 'Google Messages', 'oldInstalled': true, 'oldHasRcs': true, 'texts': 1204, 'recentTexts': 38, 'pictures': 56, 'lastReceived': _ago(minutes: 4), 'samsungChats': null, 'sideloaded': true, 'android': 36};
       case 'ghostPeers':
         // Riley is known to have the app (keys were exchanged); nobody else is.
         return (args['addresses'] as List).every((a) => a == '+15551230011');
@@ -177,6 +183,12 @@ Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String
   if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
 }
 
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
 Future<void> _shootAgain(WidgetTester tester, String name, {required bool dark}) async {
   for (var i = 0; i < 12; i++) {
     await tester.pump(const Duration(milliseconds: 50));
@@ -198,6 +210,13 @@ void main() {
     installSettingsStyles(sheet);
     for (final dark in [false, true]) {
       await _shoot(tester, sheet, const ConversationsScreen(), '1-conversations', dark: dark);
+      // Several chosen at once: a long press's Select, then a tap on another.
+      await tester.longPress(find.text('Dad'));
+      await _settle(tester);
+      await tester.tap(find.text('Select'));
+      await _settle(tester);
+      await tester.tap(find.text('Priya Natarajan'));
+      await _shootAgain(tester, '1-conversations-selecting', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread', dark: dark);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
@@ -205,12 +224,16 @@ void main() {
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
       await _shootAgain(tester, '5-settings-search', dark: dark);
-      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'updates']) {
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
       // Encryption in a conversation: on and verified, and a key waiting for a yes.
       await _shoot(tester, sheet, const ThreadScreen(thread: 8, people: [Person(address: '+15551230011', name: 'Riley Fox')]), '8-encrypted', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 9, people: [Person(address: '+15551230012', name: 'Noor Haddad')]), '8-encryption-asked', dark: dark);
+      // A conversation's own settings, from its cog: its background and bubbles, encryption, mute and pin.
+      await _shoot(tester, sheet, const ChatSettingsScreen(thread: 8, people: [Person(address: '+15551230011', name: 'Riley Fox')]), '9-chat-settings', dark: dark, prefs: const {'chat_bg_8': 'preset:rose', 'bubble_8': 'white'});
+      // Your bubbles in white, with the line the light page needs round them.
+      await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-bubbles-white', dark: dark, prefs: const {'bubble': 'white'});
       // Chat backgrounds: the picker, and a conversation wearing a wash.
       await _shoot(tester, sheet, const BackgroundPicker(), '9-background-picker', dark: dark);
       // A conversation's own, synced with someone who has the app: the shared one worn, and the switch on.

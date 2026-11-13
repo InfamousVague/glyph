@@ -145,7 +145,7 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false});
   final String address;
   final String state;
   final bool verified;
@@ -157,7 +157,17 @@ class E2eState {
   final String? safety;
   final Person? person;
 
+  /// They are known to have Ghost Messaging: a text only the app writes has come from them (its invisible hello,
+  /// a key, a background).
+  final bool hasGhost;
+
+  /// The person here turned encryption off with them: it is not offered again.
+  final bool declined;
+
   bool get on => state == 'on';
+
+  /// Both phones have the app and nothing has been exchanged yet: the conversation offers encryption.
+  bool get offerable => state == 'none' && hasGhost && !declined;
 
   factory E2eState.from(Map m) => E2eState(
         address: (m['address'] as String?) ?? '',
@@ -166,6 +176,56 @@ class E2eState {
         changed: m['changed'] == true,
         safety: m['safety'] as String?,
         person: m['person'] == null ? null : Person.from(m['person'] as Map),
+        hasGhost: m['hasGhost'] == true,
+        declined: m['declined'] == true,
+      );
+}
+
+/// Coming from another texting app (android/.../Arriving.kt): what can be seen of the app being left and of Android's
+/// own store of texts. Android tells no app whether RCS is on for a number, so that is never among it.
+class Arriving {
+  const Arriving({this.old, this.oldLabel, this.oldInstalled = false, this.oldHasRcs = false, this.texts, this.recentTexts, this.pictures, this.lastReceived, this.samsungChats, this.sideloaded = false, this.android = 0});
+
+  /// The app being left, by its package and its name; null where none is known.
+  final String? old;
+  final String? oldLabel;
+  final bool oldInstalled;
+
+  /// It is one that keeps RCS chats of its own (Google Messages, Samsung Messages).
+  final bool oldHasRcs;
+
+  /// How many texts Android's store holds, how many of them are of the last thirty days, and how many picture
+  /// messages; null until this app holds the SMS role.
+  final int? texts;
+  final int? recentTexts;
+  final int? pictures;
+  final DateTime? lastReceived;
+
+  /// RCS chats Samsung Messages keeps, where its store will say how many.
+  final int? samsungChats;
+
+  /// This copy was installed from a file, not by a store: Android may refuse it the SMS role or a permission until
+  /// "Allow restricted settings" is chosen on its page.
+  final bool sideloaded;
+  final int android;
+
+  String get app => oldLabel ?? 'your old texting app';
+
+  /// RCS is worth talking about: the app being left keeps RCS chats, and is still on the phone.
+  bool get rcsLikely => oldHasRcs && oldInstalled;
+
+  factory Arriving.from(Map m) => Arriving(
+        old: m['old'] as String?,
+        oldLabel: m['oldLabel'] as String?,
+        oldInstalled: m['oldInstalled'] == true,
+        oldHasRcs: m['oldHasRcs'] == true,
+        texts: (m['texts'] as num?)?.toInt(),
+        recentTexts: (m['recentTexts'] as num?)?.toInt(),
+        pictures: (m['pictures'] as num?)?.toInt(),
+        lastReceived: m['lastReceived'] == null ? null : DateTime.fromMillisecondsSinceEpoch((m['lastReceived'] as num).toInt()),
+        samsungChats: (m['samsungChats'] as num?)?.toInt(),
+        sideloaded: m['sideloaded'] == true,
+        android: (m['android'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -261,6 +321,20 @@ class Sms {
 
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
   Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});
+  Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads});
+
+  /// Coming from another texting app: what can be seen (null where Android will not say), and the ways out.
+  Future<Arriving> arriving() async {
+    final m = await _calls.invokeMethod('arriving');
+    return m is Map ? Arriving.from(m) : const Arriving();
+  }
+
+  /// The old app's settings (RCS chats is in them), Android's page for this app (⋮ › Allow restricted settings),
+  /// Android's Default apps, and Google's page that turns RCS off for a number with a code it texts.
+  Future<void> openOldApp() => _calls.invokeMethod('openOldApp');
+  Future<void> openAppInfo() => _calls.invokeMethod('openAppInfo');
+  Future<void> openDefaultApps() => _calls.invokeMethod('openDefaultApps');
+  Future<void> openRcsOff() => _calls.invokeMethod('openRcsOff');
   Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id});
   Future<void> editMessage(Message m, String body) => _calls.invokeMethod('editMessage', {'kind': m.kind, 'id': m.id, 'body': body});
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
@@ -297,8 +371,19 @@ class Sms {
   final _photos = <String, Future<Uint8List?>>{};
   Future<Uint8List?> photo(String uri) => _photos[uri] ??= _calls.invokeMethod<Uint8List>('photo', {'uri': uri});
 
+  /// A picture's bytes, kept while it is among the last [_partsKept] asked for: a long conversation's pictures are
+  /// read again when scrolled back to, where they once stayed in memory for as long as the app ran.
   final _parts = <int, Future<Uint8List?>>{};
-  Future<Uint8List?> part(int id) => _parts[id] ??= _calls.invokeMethod<Uint8List>('part', {'id': id});
+  static const _partsKept = 40;
+  Future<Uint8List?> part(int id) {
+    final had = _parts.remove(id);
+    final bytes = had ?? _calls.invokeMethod<Uint8List>('part', {'id': id});
+    _parts[id] = bytes;
+    while (_parts.length > _partsKept) {
+      _parts.remove(_parts.keys.first);
+    }
+    return bytes;
+  }
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 
@@ -326,6 +411,9 @@ class Sms {
 
   /// Sends [thread]'s background ([raw], as the choice is kept) to its people as a text their copy of the app wears.
   Future<void> shareBackground(List<String> addresses, int thread, String raw) => _calls.invokeMethod('shareBackground', {'addresses': addresses, 'thread': thread, 'raw': raw});
+
+  /// Whether timings are being written to Android's log (`adb shell setprop log.tag.GhostPerf VERBOSE`).
+  Future<bool> perfOn() async => await _calls.invokeMethod<bool>('perfOn') ?? false;
 
   Future<Map<String, String>> prefs() async => {for (final e in ((await _calls.invokeMethod<Map>('prefs')) ?? const {}).entries) e.key as String: e.value as String};
   Future<void> setPref(String key, String value) => _calls.invokeMethod('setPref', {'key': key, 'value': value});

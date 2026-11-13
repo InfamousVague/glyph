@@ -111,6 +111,66 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   `GhostMessagingCodes.kt`, docs/ghost-messaging-codes.md there). When a text with a code arrives, a keyboard that is
   watching is told to ask. Settings › Ghost Keyboard has the switch (on to start) and says whether the keyboard is on
   the phone. Needs Ghost Keyboard 0.18.0 or later.
+- **Coming from Google Messages or Samsung Messages** (0.6.0; `Arriving.kt`; Matt, 2026-11-13, of a friend whose
+  chats "didn't load into ghost messaging" and whose texts stopped arriving: "can you detect this somehow and then
+  instruct the user how to fix it?"). Two things catch people, and neither is this app's doing. RCS chats are kept
+  inside the app that made them, where Android lets no other app read them: they do not appear here, and they are not
+  deleted (the app deletes only on Delete conversation, Delete message, and resending a failed one). And while RCS
+  chats are on, the number stays registered for RCS, so people whose phones use RCS go on sending chats that never
+  arrive as texts. Android tells no app whether RCS is on for a number, so that is never claimed; what is seen is the
+  default SMS app before this one, whether it is still on the phone, how many texts Android's store holds and how few
+  are recent, and whether this copy came from a file. The setup screen names the app being left and has "Open Google
+  Messages settings" (its General settings, RCS chats first) before the switch; after it, a dismissible notice heads
+  the list ("Texts from some people not arriving?") and Settings › Android has the two ways out: Google's page that
+  turns RCS off with a code it texts (`messages.google.com/disable-chat`; the text arrives here), or handing the role
+  back for a moment. The list's empty state says where RCS chats are, and Settings › Android says what Android's store
+  holds, so "nothing was read" can be told from "there was little to read". **This app does SMS and MMS only: no app
+  but Google's can do RCS on Android.**
+- **Allow restricted settings** (0.6.0; Matt: "until we get on the play store add a link to open the app in settings
+  to allow elevated access"). Android 13 and later may refuse a copy installed from a file the SMS role or a
+  permission. Where the switch is refused, the setup screen leads to Android's page for the app (⋮ › Allow restricted
+  settings), and Settings › Android has the same link while the copy is one from a file.
+- **Loading, and reading that fails** (0.6.0; Matt: "Show a loading indicator when messages are syncing"). The list
+  says "Loading your conversations…" under an arc the first time, shows a thin bar under the search when a later
+  read takes a moment, and a conversation says "Loading messages…". A read that fails is said, with Try again, never
+  shown as an empty list; a store that will not list its conversations is read from the texts themselves
+  (`Store.conversationsFromTexts`), and a conversation whose count the store says is nothing is checked before it is
+  left out.
+- **Several conversations at once** (0.6.0; Matt: "allow selecting multiple convos to delete them"). A conversation's
+  long press has Select; then a tap adds or takes away, the bar counts them, and they are deleted (asked first, with
+  how many) or archived together. Android's Back leaves choosing first.
+- **Finding each other, and the encryption banner** (0.6.0; `GhostMark.kt`; Matt: "detect if both users are using
+  ghost messaging", "it should show a banner that can be dismissed asking the user to enable encryption for better
+  security"). With no server to ask, a copy of the app says it is there in its texts: three invisible characters at
+  the end of one, at most once a day to a person, only while nothing has been exchanged with them, only where the
+  text stays the same number of SMS, and never on a reaction or one of the app's own `ghost:` texts. Every other app
+  draws them as nothing; another copy remembers the person has the app. Their conversation then shows a banner over
+  the composer, "Maya has Ghost Messaging too. Encrypt this conversation for better security?", with Turn on (which
+  sends this phone's key; the other person's bar then has Turn on too) and a cross that puts it away for that
+  conversation. Nothing is sent because of the hello. Settings › Encryption › Find people who have Ghost Messaging
+  turns the hello off.
+- **Bubble colours** (0.6.0; Matt: "a suite of colors to pick for the chat bubbles including white and gray"):
+  Ghost, Ink, Wallpaper, White, Silver, Gray, Graphite, Blue, Indigo, Purple, Pink, Red, Orange, Yellow, Green and
+  Mint, the words on each black or white, whichever reads, and a line round a bubble the page would swallow.
+  Settings › Appearance for every conversation, and a conversation's own in its settings.
+- **Each conversation's own settings** (0.6.0; `lib/ui/chat_settings.dart`; Matt: "each chat should get it's own
+  settings cog"): a cog at the conversation's top (and a tap on the name) opens its people, its background, your
+  bubbles in it, its encryption, and mute, pin and archive.
+- **The keyboard comes back** (0.6.0; Matt: "tabbing in and out of the app again makes it so the keyboard dissapears
+  but the input stays selected so there is no way to re open the keyboard"). A tap on a field that already has the
+  cursor where it was tapped changes nothing, so Flutter asked for no keyboard. Any tap on the message field asks
+  for it now, and coming back to the app with the cursor in the field brings the keys back.
+- **The icon** (0.6.0; Matt: "update the icon to use the one from the desktop"): the white ghost that is a speech
+  bubble, on black (`art/app-icon.png`; `python3 tool/app_icon.py` makes the adaptive icon, the themed layer, the
+  notification's icon, the setup screen's mark and the site's icons from it).
+- **Speed** (0.6.0; Matt: "work on improving speed and performance"). Who a number is is kept until Android says the
+  contacts changed, where it was asked again for every conversation on every text that came or went; Android's
+  blocked list is read once for the whole list; a conversation's picture messages are read in one question, and who
+  sent each is remembered; pictures are read apart from everything else and only the last forty are kept in memory;
+  typing no longer redraws the messages; the app's start asks for its stylesheets, choices and wallpaper colours
+  together. On an emulator with 161 conversations the list's first read took 697 ms and each one after 7 to 9 ms
+  (before, every read was a first read). `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts writes
+  each call's time and the frames' to Android's log.
 - **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
   expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
   own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
@@ -160,6 +220,7 @@ Ghost.md's own `box.mjs`, so they run where that file is: on the Mac, not in a c
 node tool/deploy-site.mjs --caddy   # once: site/ into /opt/ghost-sms-site, and ghost-sms.com's block in the Caddyfile
 node tool/release.mjs               # each release: build, sign, check, upload to /opt/ghost-sms-release, verify it is served
 node tool/deploy-site.mjs           # when site/ changes
+python3 tool/app_icon.py            # every icon from art/app-icon.png, when the icon changes
 ```
 
 Both ran for the first time on 2026-11-13 (one box login, 19:56:05 UTC, held for both: `--keep-connection` on each

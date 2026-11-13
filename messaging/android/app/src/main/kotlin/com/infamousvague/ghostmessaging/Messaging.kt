@@ -52,11 +52,24 @@ object Sender {
         require(clean.isNotEmpty()) { "No one to send to" }
         val thread = store.threadFor(clean)
         // To one person with encryption on, the words go sealed (E2e), and are kept sealed in the SMS database.
-        if (clean.size == 1 && attachments.isEmpty()) sendSms(context, store, thread, clean[0], if (plain) body else (E2e.wire(context, clean[0], body) ?: body))
-        else sendMms(context, store, thread, clean, body, attachments)
+        if (clean.size == 1 && attachments.isEmpty()) {
+            var text = if (plain) body else (E2e.wire(context, clean[0], body) ?: body)
+            // Not sealed, so nothing is exchanged with them yet: the invisible hello rides on the text where it costs
+            // nothing (the same number of SMS with it as without), so their copy of the app, if they have one, knows.
+            if (!plain && text == body && GhostMark.mayCarry(text) && E2e.wantsMark(context, clean[0]) && sameCost(text, GhostMark.add(text))) {
+                text = GhostMark.add(text)
+                E2e.marked(context, clean[0])
+            }
+            sendSms(context, store, thread, clean[0], text)
+        } else sendMms(context, store, thread, clean, body, attachments)
         Bus.changed(thread)
         return thread
     }
+
+    /** Whether [b] goes as the same number of SMS as [a]. */
+    private fun sameCost(a: String, b: String): Boolean = try {
+        android.telephony.SmsMessage.calculateLength(a, false)[0] == android.telephony.SmsMessage.calculateLength(b, false)[0]
+    } catch (_: Exception) { false }
 
     private fun sendSms(context: Context, store: Store, thread: Long, address: String, body: String) {
         val sub = defaultSub()
@@ -199,7 +212,11 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         val store = Store(context)
         val row = store.insertSmsInbox(address, body, System.currentTimeMillis(), messages[0].timestampMillis, sub) ?: return
         // Someone's encryption key: kept, and the conversation moves on (E2e.received).
-        E2eCrypto.keyIn(body)?.let { key -> try { E2e.received(context, address, key) } catch (e: Exception) { Log.e(TAG, "e2e key", e) } }
+        val key = E2eCrypto.keyIn(body)
+        key?.let { try { E2e.received(context, address, it) } catch (e: Exception) { Log.e(TAG, "e2e key", e) } }
+        // The invisible hello of another copy of the app: they have it, and their conversation now offers encryption
+        // in a banner (the screen asks E2e.state). Nothing is sent because of it.
+        try { if (GhostMark.has(body)) Backgrounds.sawGhost(context, address) } catch (e: Exception) { Log.e(TAG, "ghost mark", e) }
         val thread = store.threadOfSms(row)
         // A text only Ghost Messaging writes: they have the app. And a chat background, sealed or not, is worn.
         try {

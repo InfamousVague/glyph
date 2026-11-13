@@ -68,7 +68,7 @@ object Notifier {
             val sender = Person.Builder().setName((c["name"] as String?) ?: addr).setKey(addr).build()
             var body = m["body"] as String
             when (m["notice"]) {
-                "key" -> body = "Sent an encryption key. Open to turn encryption on."
+                "key" -> body = if (E2e.isOn(context, addr)) "Texts with them are now encrypted." else "Sent an encryption key. Open to turn encryption on."
                 "undecryptable" -> body = "Encrypted message"
                 "background" -> body = "Changed the chat background"
             }

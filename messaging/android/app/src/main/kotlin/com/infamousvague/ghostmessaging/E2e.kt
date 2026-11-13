@@ -104,6 +104,30 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    // --- finding each other (GhostMark.kt) ---------------------------------------------------------------------------
+
+    private const val DAY = 24L * 60 * 60 * 1000
+
+    /** Settings › Encryption › Find people who have Ghost Messaging: on unless switched off. */
+    fun detect(context: Context): Boolean = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("e2e_detect", "on") != "off"
+
+    /** The person turned encryption off with [address]: it is not offered to them again until they offer it. */
+    fun declined(context: Context, address: String) = prefs(context).getBoolean("declined:${norm(address)}", false)
+
+    /**
+     * Whether a text to [address] should carry the invisible mark that says this phone has the app: only while
+     * nothing has been exchanged with them, and at most once a day.
+     */
+    fun wantsMark(context: Context, address: String): Boolean {
+        if (!detect(context) || declined(context, address)) return false
+        if ((peer(context, address)?.optString("state", "none") ?: "none") != "none") return false
+        return System.currentTimeMillis() - prefs(context).getLong("marked:${norm(address)}", 0) >= DAY
+    }
+
+    fun marked(context: Context, address: String) {
+        prefs(context).edit().putLong("marked:${norm(address)}", System.currentTimeMillis()).apply()
+    }
+
     /** Whether a key of [address]'s is here: they have the app, whatever was done about the key. */
     fun hasTheirKey(context: Context, address: String): Boolean = peer(context, address)?.optString("pub", "")?.isNotEmpty() == true
 
@@ -119,6 +143,10 @@ object E2e {
             "changed" to (o?.optBoolean("changed", false) ?: false),
             "safety" to (if (pub != null && hasIdentity(context)) E2eCrypto.safetyNumber(identity(context).second, pub) else null),
             "theirKey" to pub?.let { E2eCrypto.fingerprint(it) },
+            // They are known to have the app (a text only it writes came from them): the conversation offers
+            // encryption in a banner, unless the person turned it off with them.
+            "hasGhost" to Backgrounds.allKnown(context, listOf(address)),
+            "declined" to declined(context, address),
         )
     }
 
@@ -142,6 +170,8 @@ object E2e {
         o.put("changed", false)
         o.put("state", if (o.optString("pub", "").isNotEmpty()) "on" else "offered")
         save(context, address, o)
+        // Offered again: whatever "no" was said before is over.
+        prefs(context).edit().remove("declined:${norm(address)}").apply()
     }
 
     /** A key arrived from [address]. Returns true when the conversation is now on. */
@@ -172,7 +202,9 @@ object E2e {
 
     /** Encryption off with [address]: their key is let go, and texts go as plain SMS again. */
     fun off(context: Context, address: String) {
-        prefs(context).edit().remove("peer:${norm(address)}").apply()
+        // And it stays off: the conversation does not offer it again, nor is the hello sent to them, until it is
+        // offered by hand.
+        prefs(context).edit().remove("peer:${norm(address)}").putBoolean("declined:${norm(address)}", true).apply()
         synchronized(sessions) { sessions.remove(norm(address)) }
     }
 
@@ -212,7 +244,8 @@ object E2e {
             return if (words != null) words to "encrypted" else "" to "undecryptable"
         }
         if (E2eCrypto.keyIn(body) != null) return "" to "key"
-        return body to null
+        // The invisible hello between two copies of the app (GhostMark) is not part of the words.
+        return GhostMark.strip(body) to null
     }
 
     /** One line for a conversation's preview. */

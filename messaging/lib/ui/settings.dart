@@ -42,6 +42,9 @@ class SettingsModel extends ChangeNotifier {
   /// Ghost Keyboard is on this phone (and is the real one, by its certificate).
   bool keyboardHere = false;
 
+  /// What can be seen of the texting app this one replaced, and of Android's store of texts.
+  Arriving arriving = const Arriving();
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   bool _gone = false;
@@ -75,6 +78,7 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => myKey = await Sms.instance.e2eMine()),
       ask(() async => blocked = await Sms.instance.blockedNumbers()),
       ask(() async => keyboardHere = await Sms.instance.keyboardHere()),
+      ask(() async => arriving = await Sms.instance.arriving()),
       ask(() async => archived = (await Sms.instance.conversations()).where((c) => c.archived).length),
     ]);
     _say();

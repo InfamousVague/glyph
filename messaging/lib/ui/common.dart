@@ -61,6 +61,78 @@ class GhostPage extends StatelessWidget {
   }
 }
 
+/// Something is being fetched: an arc going round, in the page's ink. Still under Android's "Remove animations".
+class GhostSpinner extends StatefulWidget {
+  const GhostSpinner({super.key, this.size = 22, this.label});
+  final double size;
+
+  /// What is being waited for, said under it.
+  final String? label;
+
+  @override
+  State<GhostSpinner> createState() => _GhostSpinnerState();
+}
+
+class _GhostSpinnerState extends State<GhostSpinner> with SingleTickerProviderStateMixin {
+  late final AnimationController _turn = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    MediaQuery.disableAnimationsOf(context) ? _turn.stop() : _turn.repeat();
+  }
+
+  @override
+  void dispose() {
+    _turn.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final arc = RotationTransition(
+      turns: _turn,
+      child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+    );
+    return Semantics(
+      label: widget.label ?? 'Loading',
+      liveRegion: true,
+      child: ExcludeSemantics(
+        child: widget.label == null
+            ? arc
+            : Column(mainAxisSize: MainAxisSize.min, children: [
+                arc,
+                SizedBox(height: t.space(3)),
+                Text(widget.label!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+              ]),
+      ),
+    );
+  }
+}
+
+class _ArcPainter extends CustomPainter {
+  const _ArcPainter(this.ink, this.track);
+  final Color ink;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * 0.12;
+    final rect = Offset.zero & size;
+    final box = rect.deflate(stroke / 2);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(box, 0, 6.2832, false, paint..color = track);
+    canvas.drawArc(box, -1.5708, 1.9, false, paint..color = ink);
+  }
+
+  @override
+  bool shouldRepaint(_ArcPainter old) => old.ink != ink || old.track != track;
+}
+
 /// A round icon button, the kit's press and focus ring round it.
 class IconTap extends StatelessWidget {
   const IconTap({super.key, required this.icon, required this.label, required this.onPressed, this.size = 20, this.color, this.filled = false, this.box});

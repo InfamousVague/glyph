@@ -129,6 +129,10 @@
     <queries>
         <!-- Ghost Keyboard, so Settings can say whether it is on this phone. -->
         <package android:name="com.infamousvague.devkeyboard" />
+        <!-- The texting apps people come from (Arriving.kt): whether one is on the phone, its name, and its settings
+             page, to say what to turn off there before switching. -->
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.samsung.android.messaging" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

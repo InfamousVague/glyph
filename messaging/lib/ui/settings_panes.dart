@@ -33,7 +33,7 @@ final List<SettingsSection> settingsSections = [
     group: 'look',
     summary: (m) => [
       switch (m.app.theme) { 'light' => 'Light', 'dark' => 'Dark', _ => 'System theme' },
-      switch (m.app.bubble) { 'ink' => 'ink bubbles', 'wallpaper' => 'wallpaper bubbles', _ => 'Ghost bubbles' },
+      '${bubbleColor(m.app.bubble).name} bubbles',
       if (m.app.textSize != 'default') '${m.app.textSize} text',
     ].join(' · '),
     page: _appearance,
@@ -174,7 +174,7 @@ final List<SettingsSection> settingsSections = [
 ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.5.0';
+const appVersion = '0.6.0';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -201,24 +201,13 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
     ]),
     PaneSection(
       title: 'Bubbles',
-      footer: Text(palette
-          ? 'Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white, and Wallpaper is the accent Android takes from this phone\'s wallpaper.'
-          : 'Ghost is Ghost Keyboard\'s teal, and Ink is the page\'s own black and white.'),
+      footer: Text('The colour of your own bubbles in every conversation. Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.messageSquare),
           label: 'Your bubbles',
           layout: SettingRowLayout.stacked,
-          control: GlacierSegmentedControl(
-            fullWidth: true,
-            value: app.bubble == 'wallpaper' && !palette ? 'ghost' : app.bubble,
-            onValueChange: app.setBubble,
-            options: [
-              const GlacierSegmentedOption(value: 'ghost', label: Text('Ghost')),
-              const GlacierSegmentedOption(value: 'ink', label: Text('Ink')),
-              if (palette) const GlacierSegmentedOption(value: 'wallpaper', label: Text('Wallpaper')),
-            ],
-          ),
+          control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'ghost' : app.bubble, onPick: app.setBubble),
         ),
       ],
     ),
@@ -435,7 +424,7 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.lock),
           label: 'Encrypted texts',
-          hint: const Text('With someone who also has Ghost Messaging, your texts can go sealed so only your two phones can read them. Not your carrier, and not another app on either phone. Turn it on from a conversation\'s header.'),
+          hint: const Text('With someone who also has Ghost Messaging, your texts go sealed so only your two phones can read them. Not your carrier, and not another app on either phone.'),
         ),
         SettingRow(
           icon: _icon(Lucide.info),
@@ -445,8 +434,20 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
       ],
     ),
     PaneSection(
+      title: 'Finding each other',
+      footer: const Text('The hello is three invisible characters at the end of a text, now and then, and only where they add nothing to what the text costs. Every other app draws them as nothing. Nothing else is sent: encryption starts only when one of you taps Turn on, which sends a key, and the other accepts. The safety number is how you check nobody is in the middle.'),
+      children: [
+        SettingRow(
+          icon: _icon(Lucide.sparkles),
+          label: 'Find people who have Ghost Messaging',
+          hint: const Text('When someone you text has Ghost Messaging too, the two phones recognise each other, and the conversation shows a banner offering to encrypt it. Off, your phone says nothing of itself, and you turn encryption on from a conversation\'s header.'),
+          control: GlacierSwitch(checked: m.app.flag('e2e_detect'), onCheckedChange: (v) => m.app.setFlag('e2e_detect', v), ariaLabel: 'Find people who have Ghost Messaging'),
+        ),
+      ],
+    ),
+    PaneSection(
       title: 'People',
-      footer: m.e2e.isEmpty ? const Text('Nobody yet. Open a conversation, tap the name at the top, and choose Encryption.') : null,
+      footer: m.e2e.isEmpty ? const Text('Nobody yet. A conversation with someone who has Ghost Messaging offers it in a banner, or open any conversation, tap the name at the top, and choose Encryption.') : null,
       children: [
         for (final e in m.e2e)
           SettingRow(
@@ -586,9 +587,72 @@ class _OwnNumberFieldState extends State<_OwnNumberField> {
 
 // --- Android ----------------------------------------------------------------------------------------------------------
 
+String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'(?<=\d)(?=(\d{3})+$)'), (_) => ',');
+
 List<Widget> _android(BuildContext context, SettingsModel m) {
   final s = m.status;
+  final a = m.arriving;
+  // What Android's store holds, said so a person can tell "nothing was read" from "there was little to read".
+  final held = a.texts == null
+      ? null
+      : '${_thousands(a.texts!)} ${a.texts == 1 ? 'text' : 'texts'}'
+          '${a.pictures == null ? '' : ', ${_thousands(a.pictures!)} picture ${a.pictures == 1 ? 'message' : 'messages'}'}'
+          '${a.recentTexts == null ? '' : ' · ${_thousands(a.recentTexts!)} in the last 30 days'}';
   return [
+    if (a.rcsLikely)
+      PaneSection(
+        title: 'Coming from ${a.app}',
+        description: Text('Android can\'t tell this app whether RCS chats are on for your number. ${a.app} is on this phone, and RCS chats are on there unless you turned them off.'),
+        footer: const Text('After RCS is off, people\'s phones go back to sending you texts. It can take a few minutes to a few hours for their phones to notice.'),
+        children: [
+          SettingRow(
+            icon: _icon(Lucide.triangleAlert),
+            label: 'Texts from some people not arriving',
+            hint: Text('While RCS chats are on in ${a.app}, people who use RCS keep sending you chats there, not texts. They never reach this app. Turn RCS chats off one of the two ways below.'),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.keyRound),
+            label: 'Turn RCS off with a code',
+            hint: const Text('Google\'s page asks for your number and texts you a six-digit code. The text arrives here. Type the code there and RCS is off for your number. No need to switch apps.'),
+            onPress: () => Sms.instance.openRcsOff(),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.rotateCcw),
+            label: 'Or turn it off in ${a.app}',
+            hint: Text('Make ${a.app} the default SMS app again here, open its settings, switch off RCS chats, then come back and make Ghost Messaging the default.'),
+            onPress: () => Sms.instance.openDefaultApps(),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.messageSquare),
+            label: 'Your old chats',
+            hint: Text('RCS chats are kept inside ${a.app}, where Android lets no other app read them. They are not deleted: they show again whenever ${a.app} is the default. Texts and picture messages are Android\'s, and all of them show here.'
+                '${a.samsungChats != null && a.samsungChats! > 0 ? ' Samsung Messages is keeping ${_thousands(a.samsungChats!)} RCS chat messages.' : ''}'),
+          ),
+        ],
+      ),
+    PaneSection(
+      title: 'Android\'s store of texts',
+      footer: Text(a.recentTexts != null && a.rcsLikely && a.recentTexts! < 10
+          ? 'Few of your recent messages are texts, so most of your chats were probably RCS. Those are in ${a.app}.'
+          : 'What this app reads and shows. If these numbers are right and the list is not, pull the list down to read it again.'),
+      children: [
+        SettingRow(icon: _icon(Lucide.archive), label: 'Held on this phone', hint: Text(held ?? 'Android hasn\'t said. It says once this is the default SMS app.')),
+        if (a.lastReceived != null) SettingRow(icon: _icon(Lucide.clock), label: 'Last text received', value: Text('${listWhen(a.lastReceived!)}${listWhen(a.lastReceived!) == clock(a.lastReceived!) ? '' : ', ${clock(a.lastReceived!)}'}')),
+      ],
+    ),
+    if (a.sideloaded)
+      PaneSection(
+        title: 'Until it is on the Play Store',
+        footer: const Text('Android does this to every app installed from a file. It is asked once.'),
+        children: [
+          SettingRow(
+            icon: _icon(LucideMore.shieldCheck),
+            label: 'Allow restricted settings',
+            hint: const Text('If Android says a setting is restricted or unavailable (the default SMS app, a permission), open Android\'s page for Ghost Messaging, tap ⋮ at the top, and choose Allow restricted settings. Then try again.'),
+            onPress: () => Sms.instance.openAppInfo(),
+          ),
+        ],
+      ),
     PaneSection(
       title: 'What Android has allowed',
       footer: const Text('Your messages are kept by Android, not by this app: every one is still there if you make another app the default.'),

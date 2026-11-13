@@ -19,18 +19,53 @@ import 'ui/thread.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  final sheet = await loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css']);
-  installSettingsStyles(sheet);
   final state = AppState();
-  await state.load();
-  // The colours Android takes from the wallpaper, for a chat background and bubbles that follow the phone.
-  await PhonePalette.load();
+  // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
+  // the phone) are asked for together: none waits on another.
+  final loaded = await Future.wait<Object?>([
+    loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css']),
+    state.load(),
+    PhonePalette.load(),
+  ]);
+  final sheet = loaded[0]! as TokenSheet;
+  installSettingsStyles(sheet);
   Sms.instance.listen();
+  _watchFrames();
   Sms.instance.prefsChanged.stream.listen((_) => state.reload());
   runApp(GhostMessagingApp(sheet: sheet, state: state));
 }
 
 final _navigator = GlobalKey<NavigatorState>();
+
+/// With `adb shell setprop log.tag.GhostPerf VERBOSE` set before the app starts, how long frames take is written to
+/// Android's log every two seconds there are any: how many, and the slowest and the middle one's build and raster
+/// times in milliseconds. Nothing is measured otherwise. (The Android side logs each of its calls the same way.)
+Future<void> _watchFrames() async {
+  try {
+    if (!await Sms.instance.perfOn()) return;
+  } catch (_) {
+    return;
+  }
+  final build = <int>[];
+  final raster = <int>[];
+  Timer.periodic(const Duration(seconds: 2), (_) {
+    if (build.isEmpty) return;
+    build.sort();
+    raster.sort();
+    double ms(int micros) => micros / 1000;
+    final slow = build.where((b) => b > 16000).length;
+    // ignore: avoid_print
+    print('GhostPerf frames=${build.length} build mid=${ms(build[build.length ~/ 2]).toStringAsFixed(1)} max=${ms(build.last).toStringAsFixed(1)} over16ms=$slow raster mid=${ms(raster[raster.length ~/ 2]).toStringAsFixed(1)} max=${ms(raster.last).toStringAsFixed(1)}');
+    build.clear();
+    raster.clear();
+  });
+  WidgetsBinding.instance.addTimingsCallback((timings) {
+    for (final t in timings) {
+      build.add(t.buildDuration.inMicroseconds);
+      raster.add(t.rasterDuration.inMicroseconds);
+    }
+  });
+}
 
 /// The page's faces, with the emoji set chosen first among their fallbacks: Inter draws no emoji, so every one is
 /// the set's. The phone's own set adds no fallback, and Android's emoji font is what is left.

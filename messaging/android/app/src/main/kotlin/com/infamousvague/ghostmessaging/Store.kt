@@ -21,7 +21,14 @@ class Store(private val context: Context) {
 
     // --- people ------------------------------------------------------------------------------------------------------
 
-    private val nameCache = HashMap<String, Map<String, Any?>>()
+    /**
+     * Who a number is, kept until Android says the contacts have changed ([contactsChanged]): the list of
+     * conversations is read again on every text that comes or goes, and asking Android for each person each time
+     * was most of what that cost.
+     */
+    private val nameCache = java.util.concurrent.ConcurrentHashMap<String, Map<String, Any?>>()
+
+    fun contactsChanged() = nameCache.clear()
 
     /** The contact for [address]: their name and photo's URI where the phone has them. */
     fun contact(address: String): Map<String, Any?> {
@@ -129,6 +136,8 @@ class Store(private val context: Context) {
         val pinned = threadFlags("pinned")
         val muted = threadFlags("muted")
         val drafts = drafts()
+        // Android's blocked list, read once: asking it about each conversation's number is a call to Android apiece.
+        val blocked = blockedKeys()
         // No projection: OEM providers (Samsung's among them) differ in the columns they keep, and naming one they
         // lack fails the whole query. Each column is read if it is there.
         try {
@@ -139,7 +148,9 @@ class Store(private val context: Context) {
                 while (c.moveToNext()) {
                     val id = c.getLong(iId)
                     val count = if (iCount >= 0) c.getInt(iCount) else 1
-                    if (count == 0) continue
+                    // A count of nothing is believed only where the conversation holds nothing: some phones' stores
+                    // do not keep the count, and every conversation would be left out.
+                    if (count == 0 && !hasMessages(id)) continue
                     val recipients = recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
                     out += mapOf(
                         "id" to id,
@@ -155,17 +166,78 @@ class Store(private val context: Context) {
                         "pinned" to pinned.contains(id),
                         "muted" to muted.contains(id),
                         "draft" to drafts[id.toString()],
-                        "blocked" to (recipients.size == 1 && isBlocked(recipients[0])),
+                        "blocked" to (recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
                     )
                 }
             }
         } catch (e: Exception) {
+            // A phone whose store will not answer this way is read the plain way, from the texts themselves. If that
+            // fails too the screen is told, and says so: an empty list would look like every message had gone.
             android.util.Log.e("GhostMessaging", "conversations", e)
+            out.clear()
+            out += conversationsFromTexts(archived, pinned, muted, drafts)
         }
         // An MMS's snippet in the threads table is its subject, often empty: the picture's text, or what it is, instead.
         return out.map { t ->
             if ((t["snippet"] as String).isBlank()) t + ("snippet" to latestSnippet(t["id"] as Long)) else t
         }
+    }
+
+    /** The numbers on Android's blocked list, as conversations are told apart by them ([E2e.norm]). */
+    private fun blockedKeys(): Set<String> {
+        val out = HashSet<String>()
+        try {
+            resolver.query(android.provider.BlockedNumberContract.BlockedNumbers.CONTENT_URI, arrayOf(android.provider.BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER), null, null, null)?.use {
+                while (it.moveToNext()) it.getString(0)?.let { n -> out += E2e.norm(n) }
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
+    /** Whether [thread] holds a text or a picture message at all. */
+    private fun hasMessages(thread: Long): Boolean {
+        for (uri in listOf(Telephony.Sms.CONTENT_URI, Telephony.Mms.CONTENT_URI)) {
+            val any = try {
+                resolver.query(uri, arrayOf("_id"), "thread_id = ?", arrayOf(thread.toString()), "_id LIMIT 1")?.use { it.count > 0 } ?: false
+            } catch (_: Exception) { false }
+            if (any) return true
+        }
+        return false
+    }
+
+    /**
+     * The conversations as the texts themselves give them, for a store that will not list its conversations: the
+     * newest text of each, by the conversation it says it is in. One person each (a text has one address); group
+     * picture messages are found by [threadPeople] where the store answers that.
+     */
+    private fun conversationsFromTexts(archived: Set<Long>, pinned: Set<Long>, muted: Set<Long>, drafts: Map<String, String>): List<Map<String, Any?>> {
+        val seen = LinkedHashMap<Long, Map<String, Any?>>()
+        resolver.query(Telephony.Sms.CONTENT_URI, arrayOf("thread_id", "address", "body", "date", "read", "type"), null, null, "date DESC")?.use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(0)
+                if (seen.containsKey(id)) continue
+                val address = c.getString(1) ?: ""
+                val people = try { threadPeople(id).ifEmpty { listOf(contact(address)) } } catch (_: Exception) { listOf(contact(address)) }
+                val one = people.singleOrNull()?.get("address") as String?
+                seen[id] = mapOf(
+                    "id" to id,
+                    "date" to c.getLong(3),
+                    "count" to 1,
+                    "people" to people,
+                    "snippet" to E2e.preview(context, one, c.getString(2) ?: "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it },
+                    "encrypted" to (one != null && E2e.isOn(context, one)),
+                    "unread" to (c.getInt(4) == 0 && c.getInt(5) == Telephony.Sms.MESSAGE_TYPE_INBOX),
+                    "error" to (c.getInt(5) == Telephony.Sms.MESSAGE_TYPE_FAILED),
+                    "attachment" to false,
+                    "archived" to archived.contains(id),
+                    "pinned" to pinned.contains(id),
+                    "muted" to muted.contains(id),
+                    "draft" to drafts[id.toString()],
+                    "blocked" to (one != null && isBlocked(one)),
+                )
+            }
+        }
+        return seen.values.toList()
     }
 
     private fun latestSnippet(thread: Long): String {
@@ -228,12 +300,16 @@ class Store(private val context: Context) {
             arrayOf("_id", "date", "msg_box", "read", "m_type", "sub", "m_id"),
             "thread_id = ?", arrayOf(thread.toString()), "date DESC LIMIT $limit",
         )?.use { c ->
-            while (c.moveToNext()) {
-                val id = c.getLong(0)
-                val box = c.getInt(2)
-                val mType = c.getInt(4)
+            // Every message's parts in one question to Android, where it was one question a message.
+            val rows = ArrayList<List<Any?>>()
+            while (c.moveToNext()) rows += listOf(c.getLong(0), c.getLong(1), c.getInt(2), c.getInt(3), c.getInt(4), c.getString(5), c.getString(6))
+            val partsOf = mmsPartsOf(rows.map { it[0] as Long })
+            for (row in rows) {
+                val id = row[0] as Long
+                val box = row[2] as Int
+                val mType = row[4] as Int
                 val outgoing = box != Telephony.Mms.MESSAGE_BOX_INBOX
-                val parts = mmsParts(id)
+                val parts = partsOf[id] ?: emptyList()
                 val written = parts.filter { it["type"] == "text/plain" }.joinToString("\n") { it["text"] as String? ?: "" }
                 // A picture or group message that carried a chat background: a notice, its picture not a message's.
                 val background = BackgroundWire.valueIn(written)
@@ -244,17 +320,17 @@ class Store(private val context: Context) {
                     "address" to (if (outgoing) "" else mmsSender(id)),
                     "body" to text,
                     "notice" to (if (background != null) "background" else null),
-                    "subject" to c.getString(5),
-                    "date" to c.getLong(1) * 1000,
+                    "subject" to row[5] as String?,
+                    "date" to (row[1] as Long) * 1000,
                     "outgoing" to outgoing,
                     "state" to when {
                         mType == 130 -> "pending_download" // a notification whose message never came down
                         box == Telephony.Mms.MESSAGE_BOX_OUTBOX -> "sending"
                         box == Telephony.Mms.MESSAGE_BOX_FAILED -> "failed"
-                        outgoing -> receipts[c.getString(6) ?: ""] ?: "sent"
+                        outgoing -> receipts[row[6] as String? ?: ""] ?: "sent"
                         else -> "received"
                     },
-                    "read" to (c.getInt(3) != 0),
+                    "read" to ((row[3] as Int) != 0),
                     "parts" to (if (background != null) emptyList() else parts.filter { it["type"] != "text/plain" && it["type"] != "application/smil" }),
                 )
             }
@@ -284,18 +360,21 @@ class Store(private val context: Context) {
         else -> if (status == Telephony.Sms.STATUS_COMPLETE) "delivered" else "sent"
     }
 
-    private fun mmsParts(id: Long): List<Map<String, Any?>> {
-        val out = ArrayList<Map<String, Any?>>()
-        resolver.query(Uri.parse("content://mms/part"), arrayOf("_id", "ct", "text", "name", "cl", "_data"), "mid = ?", arrayOf(id.toString()), "seq ASC")?.use { c ->
-            while (c.moveToNext()) {
-                val partId = c.getLong(0)
-                val type = (c.getString(1) ?: "").lowercase()
-                var text: String? = null
-                if (type == "text/plain") {
-                    text = c.getString(2)
-                    if (text == null && c.getString(5) != null) text = readPart(partId)?.toString(Charsets.UTF_8)
+    /** The parts of each of [ids], in the order each message keeps them: asked for a hundred messages at a time. */
+    private fun mmsPartsOf(ids: List<Long>): Map<Long, List<Map<String, Any?>>> {
+        val out = HashMap<Long, ArrayList<Map<String, Any?>>>()
+        for (chunk in ids.chunked(100)) {
+            resolver.query(Uri.parse("content://mms/part"), arrayOf("_id", "ct", "text", "name", "cl", "_data", "mid"), "mid IN (${chunk.joinToString(",")})", null, "mid ASC, seq ASC")?.use { c ->
+                while (c.moveToNext()) {
+                    val partId = c.getLong(0)
+                    val type = (c.getString(1) ?: "").lowercase()
+                    var text: String? = null
+                    if (type == "text/plain") {
+                        text = c.getString(2)
+                        if (text == null && c.getString(5) != null) text = readPart(partId)?.toString(Charsets.UTF_8)
+                    }
+                    out.getOrPut(c.getLong(6)) { ArrayList() } += mapOf("id" to partId, "type" to type, "text" to text, "name" to (c.getString(3) ?: c.getString(4)))
                 }
-                out += mapOf("id" to partId, "type" to type, "text" to text, "name" to (c.getString(3) ?: c.getString(4)))
             }
         }
         return out
@@ -305,11 +384,17 @@ class Store(private val context: Context) {
         resolver.openInputStream(Uri.parse("content://mms/part/$partId"))?.use { it.readBytes() }
     } catch (_: Exception) { null }
 
+    /** Who sent each picture message, remembered: a stored message's sender does not change. */
+    private val senders = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
     private fun mmsSender(id: Long): String {
+        senders[id]?.let { return it }
+        var from = ""
         resolver.query(Uri.parse("content://mms/$id/addr"), arrayOf("address", "type"), "type = 137", null, null)?.use {
-            if (it.moveToFirst()) return it.getString(0) ?: ""
+            if (it.moveToFirst()) from = it.getString(0) ?: ""
         }
-        return ""
+        if (from.isNotEmpty()) senders[id] = from
+        return from
     }
 
     // --- writing -----------------------------------------------------------------------------------------------------

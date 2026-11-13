@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
+import 'art/app_icon.dart';
+import 'art/lucide.g.dart';
 import 'sms.dart';
 
 /// What is drawn behind a conversation's messages (Matt, 2026-11-13: "allow changing the backgrounds for chats,
@@ -210,18 +212,127 @@ class ChatBackgroundLayer extends StatelessWidget {
   }
 }
 
-/// Your own bubbles and the words on them (Settings › Appearance): Ghost Keyboard's primary (KeyboardTheme.kt's accent
-/// and onAccent: #51FCFB under #00302F on the dark page, #008B8A under white on the light), the page's ink, or the
-/// accent Android takes from the phone's wallpaper.
-(Color, Color) myBubble(Tokens t, AppState app) {
-  switch (app.bubble) {
+/// A colour your own bubbles can be (Matt, 2026-11-13: "we should have a suite of colors to pick for the chat bubbles
+/// including white and gray"). Three are not one fixed colour: Ghost Keyboard's primary, the page's own ink, and the
+/// accent Android takes from the wallpaper; the rest are [color], with the words on them black or white, whichever
+/// reads.
+@immutable
+class BubbleColor {
+  const BubbleColor(this.id, this.name, [this.color]);
+  final String id;
+  final String name;
+  final Color? color;
+}
+
+const bubbleColors = <BubbleColor>[
+  BubbleColor('ghost', 'Ghost'),
+  BubbleColor('ink', 'Ink'),
+  BubbleColor('wallpaper', 'Wallpaper'),
+  BubbleColor('white', 'White', Color(0xFFFFFFFF)),
+  BubbleColor('silver', 'Silver', Color(0xFFD9DBE0)),
+  BubbleColor('gray', 'Gray', Color(0xFF8A8D93)),
+  BubbleColor('graphite', 'Graphite', Color(0xFF3A3D42)),
+  BubbleColor('blue', 'Blue', Color(0xFF0A84FF)),
+  BubbleColor('indigo', 'Indigo', Color(0xFF4F5BD5)),
+  BubbleColor('purple', 'Purple', Color(0xFF9A45C9)),
+  BubbleColor('pink', 'Pink', Color(0xFFE0457B)),
+  BubbleColor('red', 'Red', Color(0xFFDD3A30)),
+  BubbleColor('orange', 'Orange', Color(0xFFE8730C)),
+  BubbleColor('yellow', 'Yellow', Color(0xFFF2C200)),
+  BubbleColor('green', 'Green', Color(0xFF2A9D4B)),
+  BubbleColor('mint', 'Mint', Color(0xFF1F9E8F)),
+];
+
+BubbleColor bubbleColor(String id) => bubbleColors.firstWhere((b) => b.id == id, orElse: () => bubbleColors.first);
+
+/// The bubble colour [thread] wears: its own (the `bubble_<thread>` choice), else everywhere's.
+String bubbleChoice(AppState app, [int? thread]) {
+  final own = thread == null ? '' : app.choice('bubble_$thread', '');
+  return own.isNotEmpty ? own : app.bubble;
+}
+
+/// Black or white, whichever reads on [ground].
+Color inkOn(Color ground) => ground.computeLuminance() > 0.5 ? const Color(0xFF16181D) : const Color(0xFFFFFFFF);
+
+/// Your own bubbles and the words on them, in the conversation [thread] or everywhere: Ghost Keyboard's primary
+/// (KeyboardTheme.kt's accent and onAccent: #51FCFB under #00302F on the dark page, #008B8A under white on the
+/// light), the page's ink, the accent Android takes from the phone's wallpaper, or one of [bubbleColors].
+(Color, Color) myBubble(Tokens t, AppState app, [int? thread]) => bubbleOf(t, bubbleChoice(app, thread));
+
+(Color, Color) bubbleOf(Tokens t, String id) {
+  switch (id) {
     case 'ink':
       return (t.color('app-ink'), t.color('app-paper'));
     case 'wallpaper':
       final w = PhonePalette.current?.bubble(t.isDark);
       if (w != null) return w;
+    case 'ghost':
+      break;
+    default:
+      final c = bubbleColor(id).color;
+      if (c != null) return (c, inkOn(c));
   }
   return (Color(t.isDark ? 0xFF51FCFB : 0xFF008B8A), Color(t.isDark ? 0xFF00302F : 0xFFFFFFFF));
+}
+
+/// Whether a bubble of [bubble] needs a line round it to be seen on [ground]: a white bubble on the light page.
+bool bubbleNeedsRim(Color bubble, Color ground) => (bubble.computeLuminance() - ground.computeLuminance()).abs() < 0.12;
+
+/// The colours to choose a bubble from, as swatches: each drawn as the bubble it would be. [chosen] is the id worn;
+/// [same] adds "Same as everywhere" first, for one conversation's own choice ([chosen] empty when that is it).
+class BubbleSwatches extends StatelessWidget {
+  const BubbleSwatches({super.key, required this.chosen, required this.onPick, this.same = false});
+  final String chosen;
+  final ValueChanged<String> onPick;
+  final bool same;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ground = t.color('app-paper-2');
+    Widget swatch(String id, String name, (Color, Color)? colors) {
+      final on = chosen == id;
+      final side = t.lenOf('2.75rem');
+      return GlacierPressable(
+        onPressed: () => onPick(id),
+        semanticLabel: '$name${on ? ', chosen' : ''}',
+        builder: (context, state) => AnimatedScale(
+          scale: state.pressed ? 0.92 : 1,
+          duration: const Duration(milliseconds: 120),
+          child: SizedBox(
+            width: t.lenOf('3.6rem'),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: side,
+                height: side,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colors?.$1,
+                  border: Border.all(
+                    color: on ? t.color('app-ink') : (colors == null || bubbleNeedsRim(colors.$1, ground) ? t.color('app-ink-4') : const Color(0x00000000)),
+                    width: on ? 2.5 : 1,
+                  ),
+                ),
+                alignment: Alignment.center,
+                // The one worn is ticked (drawn, not a letter: not every face has a tick).
+                child: on
+                    ? AppIcon(Lucide.check, size: 20, strokeWidth: 2.6, wash: false, color: colors?.$2 ?? t.color('app-ink'))
+                    : Text(colors == null ? '=' : 'Aa', style: t.textAt(t.fontSize('sm'), weight: 'semibold', color: colors?.$2 ?? t.color('app-ink-2'))),
+              ),
+              SizedBox(height: t.space(1)),
+              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textAt(t.fontSize('xs'), weight: on ? 'semibold' : 'regular', color: t.color(on ? 'app-ink' : 'app-ink-2'))),
+            ]),
+          ),
+        ),
+      );
+    }
+
+    return Wrap(spacing: t.space(1), runSpacing: t.space(3), children: [
+      if (same) swatch('', 'Same', null),
+      for (final b in bubbleColors)
+        if (b.id != 'wallpaper' || PhonePalette.current != null) swatch(b.id, b.name, bubbleOf(t, b.id)),
+    ]);
+  }
 }
 
 /// Someone else's bubble: a shade off the plain page, and the page's own paper where a background is behind it (a

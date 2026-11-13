@@ -5,6 +5,10 @@ Every effect Ghost Messaging can play, what sets each off, and a prompt for gene
 each one has a prompt make it ghost themed", then "make sure we support all the same ones as imessage, samsung
 messenger, google messenger").
 
+A set of prompts for an image model (still sprites the app would move itself, where the prompts below are for
+animated overlays) is in [effect-sprites-prompt.md](effect-sprites-prompt.md). The app does not play sprites yet:
+that follows once the pictures exist.
+
 ## Where the set comes from
 
 | App | What it has | Here |

@@ -15,7 +15,7 @@ import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
-import 'background_picker.dart';
+import 'chat_settings.dart';
 import 'common.dart';
 import 'encryption.dart';
 
@@ -37,6 +37,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   StreamSubscription<int>? _changes;
   late final TextEditingController _text = TextEditingController(text: widget.draft ?? '');
   final _focus = FocusNode();
+
+  /// The message field itself, to ask it for the keyboard. A tap on a field that already has the cursor where it was
+  /// tapped changes nothing, so Flutter asks for no keyboard: after leaving the app and coming back, or after the
+  /// keyboard was put away, the field kept its cursor and no tap would bring the keys back (Matt, 2026-11-13:
+  /// "the keyboard disappears but the input stays selected so there is no way to re open the keyboard").
+  final _field = GlobalKey<EditableTextState>();
+  Offset? _fieldDown;
   final List<String> _attachments = [];
   bool _sending = false;
 
@@ -83,7 +90,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (t == widget.thread || t < 0) _load(markRead: true);
     });
     _text.addListener(() {
-      setState(() {});
+      // The composer draws itself again as the words change (it listens to them): the messages above are not
+      // redrawn for a keystroke.
       // What is typed and not sent is kept for this conversation, a moment after the typing stops.
       if (_editing != null) return;
       _draftSave?.cancel();
@@ -113,6 +121,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (state == AppLifecycleState.resumed) {
       Sms.instance.setOpenThread(widget.thread);
       _load(markRead: true);
+      // Back in the app with the cursor still in the field: the keys come back with it.
+      if (_focus.hasFocus) WidgetsBinding.instance.addPostFrameCallback((_) => _field.currentState?.requestKeyboard());
     }
   }
 
@@ -138,6 +148,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   void _e2eChanged() {
     _loadE2e();
     _load();
+  }
+
+  /// The banner's Turn on: this phone's key goes to them, and encryption starts when they accept.
+  Future<void> _e2eStart() async {
+    final person = _people.first;
+    try {
+      await Sms.instance.e2eOffer(person.address);
+      if (mounted) toast(context, 'Key sent. Encryption starts when ${person.label} accepts.');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the key: $e', tone: GlacierToastTone.danger);
+    }
+    _e2eChanged();
   }
 
   /// Their key is here and yours goes back: encryption is on from this text.
@@ -341,25 +363,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _load();
   }
 
-  void _showPeople() {
-    showChoices(context, title: _group ? '${_people.length} people' : null, choices: [
-      for (final p in _people)
-        Choice(p.name != null ? '${p.name}  ·  ${p.address}' : p.address, Lucide.phone, () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': p.address})),
-      // One person at a time: a group is MMS, which is not sealed.
-      if (!_group && _people.isNotEmpty)
-        Choice(
-          switch (_e2e.state) {
-            'on' => _e2e.verified ? 'Encryption: on, verified' : 'Encryption: on',
-            'pending' => _e2e.changed ? 'Encryption: a new key to review' : 'Encryption: waiting for your yes',
-            'offered' => 'Encryption: waiting for them',
-            _ => 'Encryption',
-          },
-          Lucide.lock,
-          () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
-        ),
-      // What is behind this conversation's messages: its own, or every chat's (lib/backgrounds.dart).
-      Choice('Chat background', Lucide.image, () => push<void>(context, (_) => BackgroundPicker(thread: widget.thread, who: _people.isEmpty ? null : (_group ? null : _people.first.label), people: _people))),
-    ]);
+  /// The conversation's own settings (lib/ui/chat_settings.dart): its people, its background and bubbles, its
+  /// encryption, whether it is muted or pinned. From the cog at the top, and from a tap on the name.
+  Future<void> _openSettings() async {
+    await push<void>(context, (_) => ChatSettingsScreen(thread: widget.thread, people: _people));
+    _e2eChanged();
   }
 
   @override
@@ -376,7 +384,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return GhostPage(
       title: title,
       titleWidget: GlacierPressable(
-        onPressed: _showPeople,
+        onPressed: _openSettings,
         builder: (context, state) => Row(children: [
           Avatar(people: _people, size: t.lenOf('2.1rem')),
           SizedBox(width: t.space(2)),
@@ -395,13 +403,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       actions: [
         if (!_group && _people.isNotEmpty)
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
+        // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
+        IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
       ],
       body: Stack(children: [
         if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),
-        Positioned.fill(child: _messages == null ? const SizedBox.shrink() : _list(t, background)),
+        Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : _list(t, background)),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
       ]),
-      footer: _composer(t),
+      footer: ListenableBuilder(listenable: _text, builder: (context, _) => _composer(t)),
     );
   }
 
@@ -457,6 +467,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         onReveal: () => setState(() => _revealed.add(m.key)),
         onBackground: !background.isNone,
         busy: busy,
+        thread: widget.thread,
       ));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
     }
@@ -510,6 +521,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       child: Padding(
         padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Both phones have Ghost Messaging and nothing has been exchanged: encryption is offered, until it is
+          // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
+          // to enable encryption for better security").
+          if (!_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
+            _E2eBar(
+              text: '${_people.first.label} has Ghost Messaging too. Encrypt this conversation for better security?',
+              action: 'Turn on',
+              onAction: _e2eStart,
+              onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
+              onDismiss: () => AppState.of(context).setFlag('e2e_banner_${widget.thread}', false),
+            ),
           if (!_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
             _E2eBar(
               text: switch (_e2e.state) {
@@ -594,7 +616,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                     // One line of words sits on the middle of the button beside it: the row is as tall as the button
                     // at least, and the words are centred in it, with a line box the same above and below the
                     // letters (the face's own leaves more below, which is what sat the words low).
-                    child: ConstrainedBox(
+                    // Any tap on the words' place asks for the keyboard: a Listener, so it hears the tap whatever
+                    // else takes it.
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerDown: (e) => _fieldDown = e.position,
+                      onPointerUp: (e) {
+                        final down = _fieldDown;
+                        _fieldDown = null;
+                        if (down != null && (e.position - down).distance < 18) _field.currentState?.requestKeyboard();
+                      },
+                      child: ConstrainedBox(
                       constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
                       child: Align(
                         alignment: Alignment.centerLeft,
@@ -604,6 +636,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         if (_text.text.isEmpty)
                           IgnorePointer(child: Text(isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
                         EditableText(
+                          key: _field,
                           controller: _text,
                           focusNode: _focus,
                           style: composerText,
@@ -627,7 +660,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       ]),
                     ),
                       ),
-                    ),
+                    )),
                   ),
                   SizedBox(width: t.space(1)),
                   editing
@@ -685,11 +718,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 /// Over the composer while encryption waits on someone: their key is here and wants a yes, or yours went and theirs
 /// has not come. A press anywhere opens what can be done about it.
 class _E2eBar extends StatelessWidget {
-  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction});
+  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss});
   final String text;
   final VoidCallback onPress;
   final String? action;
   final VoidCallback? onAction;
+
+  /// An offer can be put away: a small cross at its end.
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -717,6 +753,7 @@ class _E2eBar extends StatelessWidget {
                 ),
               ),
             ],
+            if (onDismiss != null) IconTap(icon: Lucide.x, label: 'Not now', size: 16, box: t.lenOf('2.25rem'), onPressed: onDismiss),
           ]),
         ),
       ),
@@ -794,6 +831,7 @@ class _Bubble extends StatelessWidget {
     this.onReveal,
     this.onBackground = false,
     this.busy = false,
+    this.thread,
   });
 
   final Message message;
@@ -827,6 +865,9 @@ class _Bubble extends StatelessWidget {
   final bool onBackground;
   final bool busy;
 
+  /// The conversation, for its own bubble colour.
+  final int? thread;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -847,8 +888,8 @@ class _Bubble extends StatelessWidget {
       topRight: Radius.circular(out && !top ? small : big),
       bottomRight: Radius.circular(out && !bottom ? small : big),
     );
-    // Your own bubbles are Ghost Keyboard's primary unless Settings says ink or the wallpaper's accent.
-    final (mine, onMine) = myBubble(t, app);
+    // Your own bubbles: this conversation's colour, else everywhere's (Settings › Appearance).
+    final (mine, onMine) = myBubble(t, app, thread);
     final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : theirBubble(t, onBackground: onBackground);
     final ink = out && !failed ? onMine : t.color('app-ink');
     final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
@@ -876,7 +917,8 @@ class _Bubble extends StatelessWidget {
         Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
           padding: EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
-          decoration: BoxDecoration(color: ground, borderRadius: radius),
+          // A bubble the page would swallow (white on the light page) wears a line round it.
+          decoration: BoxDecoration(color: ground, borderRadius: radius, border: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null),
           child: unopened
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   AppIcon(Lucide.lock, size: 14, strokeWidth: 2.2, wash: false, color: ink),

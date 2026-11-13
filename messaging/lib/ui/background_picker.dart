@@ -149,7 +149,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
             body: ListView(
               padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               children: [
-                BackgroundPreview(background: worn),
+                BackgroundPreview(background: worn, thread: thread),
                 SizedBox(height: t.space(5)),
                 if (_canSync) ...[
                   PaneSection(
@@ -176,7 +176,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                 ],
                 PaneSection(
                   footer: thread == null
-                      ? const Text('Behind the messages of every conversation. A conversation can have one of its own, from its header.')
+                      ? const Text('What a conversation wears until it has a background of its own. Each conversation\'s own is in its settings: the cog at its top.')
                       : const Text('For this conversation alone. Every other conversation keeps what it wears.'),
                   children: [
                     if (thread != null)
@@ -279,21 +279,28 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
 
 /// A few bubbles over [background], as a conversation will wear it.
 class BackgroundPreview extends StatelessWidget {
-  const BackgroundPreview({super.key, required this.background});
+  const BackgroundPreview({super.key, required this.background, this.thread});
   final ChatBackground background;
+
+  /// The conversation whose bubbles these are, for its own bubble colour.
+  final int? thread;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final app = AppState.of(context);
-    final (mine, onMine) = myBubble(t, app);
+    final (mine, onMine) = myBubble(t, app, thread);
     final theirs = theirBubble(t, onBackground: !background.isNone);
     Widget bubble(String text, {required bool out}) => Align(
           alignment: out ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             margin: EdgeInsets.only(top: t.space(1)),
             padding: EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
-            decoration: BoxDecoration(color: out ? mine : theirs, borderRadius: BorderRadius.circular(t.lenOf('1.15rem'))),
+            decoration: BoxDecoration(
+              color: out ? mine : theirs,
+              borderRadius: BorderRadius.circular(t.lenOf('1.15rem')),
+              border: background.isNone && bubbleNeedsRim(out ? mine : theirs, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null,
+            ),
             child: Text(text, style: pageText(t, t.fontSize('md') * app.textScale, color: out ? onMine : t.color('app-ink'), height: 1.35)),
           ),
         );

@@ -28,6 +28,14 @@ class MainActivity : FlutterActivity() {
     }
 
     private val io = Executors.newSingleThreadExecutor()
+
+    /** Pictures and faces are read apart from everything else, so they do not wait behind a long read of the list. */
+    private val pictures = Executors.newFixedThreadPool(3)
+
+    /** Told when the phone's contacts change: who a number is is asked again from then (Store.contactsChanged). */
+    private val contactsWatcher = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Bus.changed(-1) } }
+    }
     private val main = Handler(Looper.getMainLooper())
     private var events: EventChannel.EventSink? = null
     private var pendingOpen: Map<String, Any?>? = null
@@ -40,6 +48,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         store = Store(applicationContext)
+        try { contentResolver.registerContentObserver(android.provider.ContactsContract.Contacts.CONTENT_URI, true, contactsWatcher) } catch (_: Exception) {}
         pendingOpen = openRequest(intent)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
@@ -55,16 +64,23 @@ class MainActivity : FlutterActivity() {
         })
 
         MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
-            fun bg(work: () -> Any?) = io.execute {
+            // How long each call takes is written to Android's log when asked for
+            // (`adb shell setprop log.tag.GhostPerf VERBOSE`): the call's name and its milliseconds, never what it carried.
+            val timed = android.util.Log.isLoggable("GhostPerf", android.util.Log.VERBOSE)
+            fun on(executor: java.util.concurrent.Executor, work: () -> Any?) = executor.execute {
+                val began = android.os.SystemClock.elapsedRealtime()
                 try { val v = work(); main.post { result.success(v) } }
                 catch (e: Exception) { main.post { result.error("failed", e.message ?: e.toString(), null) } }
+                if (timed) android.util.Log.v("GhostPerf", "${call.method} ${android.os.SystemClock.elapsedRealtime() - began} ms")
             }
+            fun bg(work: () -> Any?) = on(io, work)
             when (call.method) {
                 "status" -> result.success(status())
                 "requestDefault" -> requestDefault(result)
                 "requestPermissions" -> requestPermissions(result)
                 "openRequest" -> { result.success(pendingOpen); pendingOpen = null }
-                "conversations" -> bg { store.clearContactCache(); store.conversations() }
+                "conversations" -> bg { store.conversations() }
+                "perfOn" -> result.success(timed)
                 "messages" -> bg { store.messages(call.argument<Number>("thread")!!.toLong(), call.argument<Int>("limit") ?: 300) }
                 "people" -> bg { store.threadPeople(call.argument<Number>("thread")!!.toLong()) }
                 "threadFor" -> bg { store.threadFor(call.argument<List<String>>("addresses")!!) }
@@ -123,8 +139,8 @@ class MainActivity : FlutterActivity() {
                 "archive" -> bg { store.setArchived(call.argument<Number>("thread")!!.toLong(), call.argument<Boolean>("archived") ?: true); null }
                 "searchContacts" -> bg { store.searchContacts(call.argument<String>("query") ?: "") }
                 "contact" -> bg { store.contact(call.argument<String>("address")!!) }
-                "photo" -> bg { store.photo(call.argument<String>("uri")!!) }
-                "part" -> bg { store.readPart(call.argument<Number>("id")!!.toLong()) }
+                "photo" -> on(pictures) { store.photo(call.argument<String>("uri")!!) }
+                "part" -> on(pictures) { store.readPart(call.argument<Number>("id")!!.toLong()) }
                 "pickImages" -> pickImages(result)
                 "setOpenThread" -> {
                     openThread = call.argument<Number>("thread")?.toLong() ?: -1
@@ -136,6 +152,18 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "systemPalette" -> result.success(systemPalette())
+                // Coming from another texting app (Arriving.kt): what can be seen of it, and the ways out of its traps.
+                "arriving" -> bg { Arriving.state(applicationContext) }
+                "openOldApp" -> result.success(Arriving.openOld(this))
+                "openAppInfo" -> result.success(Arriving.openAppInfo(this))
+                "openDefaultApps" -> result.success(Arriving.openDefaultApps(this))
+                "openRcsOff" -> result.success(Arriving.openRcsOff(this))
+                "deleteThreads" -> bg {
+                    val threads = (call.argument<List<Number>>("threads") ?: emptyList()).map { it.toLong() }
+                    for (t in threads) { store.deleteThread(t); Notifier.cancel(applicationContext, t) }
+                    Bus.changed(-1)
+                    threads.size
+                }
                 "keyboardHere" -> bg { CodesProvider.keyboardHere(applicationContext) }
                 "ghostPeers" -> bg { Backgrounds.allKnown(applicationContext, call.argument<List<String>>("addresses") ?: emptyList()) }
                 "shareBackground" -> bg {
@@ -169,6 +197,11 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onResume() { super.onResume(); inFront = true }
+
+    override fun onDestroy() {
+        try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
+        super.onDestroy()
+    }
     override fun onPause() { super.onPause(); inFront = false }
 
     override fun onNewIntent(intent: Intent) {
@@ -325,6 +358,6 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMS_REQUEST) { permsResult?.success(status()); permsResult = null }
+        if (requestCode == PERMS_REQUEST) { store.contactsChanged(); permsResult?.success(status()); permsResult = null }
     }
 }

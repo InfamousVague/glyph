@@ -141,6 +141,32 @@ void main() {
       expect(ChatBackground.none.busy, isFalse);
     });
 
+    test('a bubble\'s words read on its colour, and a conversation\'s own colour comes first', () {
+      // White and grey are among them, as asked.
+      expect(bubbleColors.map((b) => b.id), containsAll(['ghost', 'ink', 'white', 'gray']));
+      expect(bubbleColors.map((b) => b.id).toSet().length, bubbleColors.length);
+      for (final b in bubbleColors.where((b) => b.color != null)) {
+        final ink = inkOn(b.color!);
+        final contrast = (b.color!.computeLuminance() + 0.05) / (ink.computeLuminance() + 0.05);
+        expect(contrast > 3 || 1 / contrast > 3, isTrue, reason: '${b.name}: ${contrast.toStringAsFixed(2)}');
+      }
+      expect(inkOn(const Color(0xFFFFFFFF)), const Color(0xFF16181D));
+      expect(inkOn(const Color(0xFF3A3D42)), const Color(0xFFFFFFFF));
+      // A white bubble on a white page needs a line round it; a blue one does not.
+      expect(bubbleNeedsRim(const Color(0xFFFFFFFF), const Color(0xFFFDFDFD)), isTrue);
+      expect(bubbleNeedsRim(const Color(0xFF0A84FF), const Color(0xFFFDFDFD)), isFalse);
+      final app = AppState();
+      expect(bubbleChoice(app, 4), 'ghost');
+      app.setBubble('gray');
+      expect(bubbleChoice(app, 4), 'gray');
+      app.set('bubble_4', 'white');
+      expect(bubbleChoice(app, 4), 'white');
+      expect(bubbleChoice(app, 5), 'gray');
+      // "Same as everywhere" is kept as nothing.
+      app.set('bubble_4', '');
+      expect(bubbleChoice(app, 4), 'gray');
+    });
+
     test('every wash has a pale light pair and a deep dark pair', () {
       double light(Color c) => c.computeLuminance();
       for (final p in chatPresets) {
