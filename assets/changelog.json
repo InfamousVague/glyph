@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4.29",
+    "date": "2026-11-13",
+    "title": "A new icon",
+    "items": [
+      {"icon": "palette", "words": "Ghost.md has a new app icon: the white ghost on black.", "kind": "better"}
+    ]
+  },
+  {
     "version": "2.4.28",
     "date": "2026-11-09",
     "title": "Ghost Keyboard reads your notes",
