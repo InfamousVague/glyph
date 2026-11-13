@@ -10,8 +10,9 @@ import 'package:integration_test/integration_test.dart';
 /// How many frames a second the Mac app draws while its loading arc turns (Matt, 2026-11-13: "the desktop app also
 /// seems laggy the loading indicator is at a few fps instead of smooth"). The real app, with no phone: the wizard
 /// is taken to the code it shows, where the arc turns for as long as the phone is waited for, and the frames of
-/// five seconds are counted. `DESK_POLICY=test` draws as a test does by default, only when it asks for a frame,
-/// which is what the app looked like while desk_live_test.dart drove it; the default here draws every frame.
+/// five seconds are counted. `DESK_POLICY=test` draws as a test does by default, only when it asks for a frame, and
+/// asks every 150 ms: what the app looked like while desk_live_test.dart first drove it. `test16` asks every 16
+/// ms, as that test does now. The default here draws every frame, as when a person runs the app.
 ///
 ///     flutter drive --driver=test_driver/integration_test.dart --target=integration_test/desk_frames_test.dart -d macos --profile
 const _policy = String.fromEnvironment('DESK_POLICY', defaultValue: 'live');
@@ -40,9 +41,11 @@ void main() {
     if (_policy == 'live') {
       await tester.pump(const Duration(seconds: seconds));
     } else {
-      // As desk_live_test.dart waited: a frame asked for every 150 ms.
-      for (var i = 0; i < seconds * 1000 ~/ 150; i++) {
-        await tester.pump(const Duration(milliseconds: 150));
+      // As desk_live_test.dart waits: a frame asked for every 150 ms at first (`test`), every 16 ms now (`test16`).
+      final every = _policy == 'test16' ? 16 : 150;
+      final end = DateTime.now().add(const Duration(seconds: seconds));
+      while (DateTime.now().isBefore(end)) {
+        await tester.pump(Duration(milliseconds: every));
       }
     }
     await tester.pump(const Duration(milliseconds: 200));

@@ -9,6 +9,26 @@ settings read where they act, and Updates' plain words. 0.4.0 also has chat back
 `~/Development/Apps/glyph-messaging`, so the shared checkout stays on main; the scripts are run from there with
 `--glyph ~/Development/Apps/glyph`.
 
+**The desktop companion, the same day** (Matt: "a companion desktop app that can proxy messages encrypted from my
+phone to my desktop and then send back to the phone to send again", then "support both a relay server and local
+networking"). Built on branch `claude/vigilant-meninsky-bfd14d`, which is this branch (0.6.0, `20abf768`) and the
+companion on top; it is not merged back, and nothing of it is released or deployed. `docs/desktop.md` is the whole
+of it: how it works, how to run each part, what was tried on the emulator and what waits for the Fold.
+- The Mac app is this Flutter project's macOS platform (`macos/`, `lib/desktop/`), not a project of its own, so it
+  draws conversations with the phone's own screens. `flutter build macos`; `flutter build apk` is unchanged.
+- The phone's half is `Desk*.kt` and Settings › Computers. The version in `pubspec.yaml` was left at 0.6.0+9 for
+  whoever releases: the phone app needs a release for the Mac app to have anything to pair with.
+- The relay (`relay/`) runs on the Mac only. Putting it at `wss://ghost-sms.com/relay` is Matt's to say, each time;
+  the wizard already starts with that address and says nothing answers there.
+- To do on the Fold, in order: pair by scanning the Mac's QR code (never done with a real camera); see the Mac find
+  the phone by itself on the Wi-Fi (never done: an emulator's network hides Bonjour; if it does not, the phone's
+  address from Settings › Computers goes in the Mac's Settings); leave the phone overnight and see whether a text
+  still reaches the Mac in the morning; answer macOS's one question about the local network.
+- To do for a release of the Mac app: sign it (the Keychain holds the pairing's key only in a properly signed
+  build; `GHOST_DESK_KEYCHAIN`), notarise it, and decide where it is downloaded from. None of that is started.
+- Three things the design asked Matt and he has not answered by name (docs/desktop.md, its last section).
+- Android 16's local network permission is not asked for (targetSdk 36 does not need it); a later target will.
+
 0.6.0, later still (README has each): what catches people coming from Google Messages (RCS, and Android's
 restricted settings), a loading indicator and read errors, choosing several conversations to delete, the invisible
 hello between two copies and the encryption banner, bubble colours, a settings cog in each conversation, the keyboard

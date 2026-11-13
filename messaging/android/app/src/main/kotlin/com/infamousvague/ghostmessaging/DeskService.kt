@@ -153,6 +153,9 @@ class DeskService : Service() {
 
     /** Looks at the pairings and the pairing being made, and holds exactly what they need. */
     private fun apply() {
+        // Before anything else, and before stopping when the last computer was unpaired: the relay is told to forget
+        // the channels of pairings removed here.
+        forgetRemoved()
         if (!Desk.wanted()) { stopSelf(); return }
         if (text() != lastText) getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification())
         val all = Desk.all()
@@ -167,18 +170,23 @@ class DeskService : Service() {
         if (pending != null && pending.offer.mode != "local" && pending.offer.relay.isNotBlank()) {
             want["pairing:${pending.pairingId}"] = Triple(join(pending.offer.relay, DeskCrypto.pairingChannel(pending.offer.secret)), DeskCrypto.pairingToken(pending.offer.secret), true)
         }
-        // A pairing that was unpaired here: the relay is told to forget its channel, by the connection already open
-        // to it or by one made for the telling.
-        for (gone in Desk.takeRemoved()) {
-            val url = join(gone.relay, gone.channel)
-            val had = relays.entries.firstOrNull { it.value.url == url }
-            if (had != null) { had.value.forget(); relays.remove(had.key) } else RelayLink(url, gone.token, temp = false, forgetOnly = true).start()
-        }
         for (name in relays.keys.toList()) if (name !in want || relays[name]!!.url != want[name]!!.first) relays.remove(name)!!.stop()
         for ((name, w) in want) if (name !in relays) relays[name] = RelayLink(w.first, w.second, w.third).also { it.start() }
     }
 
     private fun join(relay: String, channel: String) = relay.trimEnd('/') + "/" + channel
+
+    /**
+     * A pairing that was unpaired here: the relay is told to forget its channel, by the connection already open to
+     * it or by one made for the telling, which goes on for the few seconds it needs even as the service stops.
+     */
+    private fun forgetRemoved() {
+        for (gone in Desk.takeRemoved()) {
+            val url = join(gone.relay, gone.channel)
+            val had = relays.entries.firstOrNull { it.value.url == url }
+            if (had != null) { had.value.forget(); relays.remove(had.key) } else RelayLink(url, gone.token, temp = false, forgetOnly = true).start()
+        }
+    }
 
     private fun networkChanged() {
         // A new network: the phone says where it is again, and the relay is tried now, not when its wait runs out.

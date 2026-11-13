@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -23,8 +24,9 @@ import 'package:integration_test/integration_test.dart';
 /// - `DESK-CODE <code>`: paste it on the phone (Settings › Computers › Pair a computer), then `adb forward` the port
 ///   the phone says it listens on to DESK_PEER's (local), or `adb reverse` the relay's port (relay).
 /// - `DESK-DIGITS <six>`: the phone should show the same; press "They match" there.
-/// - `DESK-WAITING-FOR-TEXT`: send the emulator a text from 5550100 with "Live from the emulator" in it.
+/// - `DESK-WAITING-FOR-TEXT <tag>`: send the emulator a text from 5550100 with the tag in it.
 /// - `DESK-SENT <words>`: the phone's own store should now hold those words as sent.
+/// - `DESK-UNPAIR-ON-THE-PHONE` (with DESK_UNPAIR=false): unpair this Mac in the phone's Settings › Computers.
 ///
 /// DESK_MODE is local, relay or both; DESK_RELAY is the relay's address; DESK_SHOTS is a port on this Mac that
 /// pictures of the window are sent to, if one is listening.
@@ -34,50 +36,77 @@ const _relay = String.fromEnvironment('DESK_RELAY', defaultValue: 'ws://127.0.0.
 const _shots = int.fromEnvironment('DESK_SHOTS', defaultValue: 47990);
 const _unpair = bool.fromEnvironment('DESK_UNPAIR', defaultValue: true);
 
+/// Words no text on the phone has yet, so the one that arrives during the run is told from those before it.
+final _tag = 'live${DateTime.now().millisecondsSinceEpoch ~/ 1000 % 100000}';
+
+/// How the window is drawn while this drives it. `live` (the default): the app draws every frame itself, exactly as
+/// when a person runs it, and this only waits, looks and presses. `stepped`: a frame only when this asks for one,
+/// every 16 ms, which is a test's own way.
+const _frames = String.fromEnvironment('DESK_FRAMES', defaultValue: 'live');
+
 void say(String line) {
   // ignore: avoid_print
   print(line);
 }
 
 void main() {
-  // Every frame is drawn, as when a person runs the app. A test's own way is to draw only when it asks for a frame,
-  // which made the window jerk along at a few frames a second while this drove it (Matt, 2026-11-13: "the loading
-  // indicator is at a few fps instead of smooth"; integration_test/desk_frames_test.dart counts them).
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized().framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+  // A test's own way is to draw a frame only when it asks for one. Asked for every 150 ms, as this first did, the
+  // window jerked along at seven frames a second (Matt, 2026-11-13: "the loading indicator is at a few fps instead
+  // of smooth"; integration_test/desk_frames_test.dart counts them). Live, the app draws as it does for a person.
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final live = _frames == 'live';
+  if (live) binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
   testWidgets('the Mac app pairs with the phone, lists, hears a new text and sends one ($_mode)', (tester) async {
+    /// Lets [d] pass. Live, the app is drawing by itself and time simply passes; stepped, frames are asked for.
+    Future<void> wait(Duration d) async {
+      if (live) {
+        await Future<void>.delayed(d);
+      } else {
+        final end = DateTime.now().add(d);
+        while (DateTime.now().isBefore(end)) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+      }
+    }
+
     Future<void> until(bool Function() test, String what, {Duration max = const Duration(minutes: 4)}) async {
       final end = DateTime.now().add(max);
       while (!test()) {
         if (DateTime.now().isAfter(end)) fail('Never happened: $what');
-        await tester.pump(const Duration(milliseconds: 150));
+        await wait(const Duration(milliseconds: 50));
       }
-      await tester.pump(const Duration(milliseconds: 300));
+      await wait(const Duration(milliseconds: 300));
     }
 
-    /// A picture of the window, sent to whoever listens on DESK_SHOTS.
+    /// A picture of the window, sent to whoever listens on DESK_SHOTS. Never the reason a run stops: a picture
+    /// that cannot be taken in five seconds is said and passed over.
     Future<void> shot(String name) async {
       try {
-        await tester.pump(const Duration(milliseconds: 400));
-        final view = tester.binding.renderViews.first;
-        // ignore: invalid_use_of_protected_member
-        final layer = view.debugLayer! as OffsetLayer;
-        final image = await layer.toImage(Offset.zero & (view.size * view.flutterView.devicePixelRatio), pixelRatio: 1);
-        final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+        await wait(const Duration(milliseconds: 400));
+        // The page as it was last painted: the route's own boundary, which fills the window.
+        final boundary = tester.renderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary).first);
+        final image = await boundary.toImage(pixelRatio: tester.view.devicePixelRatio).timeout(const Duration(seconds: 5));
+        final bytes = (await image.toByteData(format: ui.ImageByteFormat.png).timeout(const Duration(seconds: 5)))!;
         final socket = await Socket.connect('127.0.0.1', _shots, timeout: const Duration(seconds: 2));
         socket.add('$name\n'.codeUnits);
         socket.add(bytes.buffer.asUint8List());
-        await socket.flush();
-        await socket.close();
+        await socket.flush().timeout(const Duration(seconds: 5));
+        await socket.close().timeout(const Duration(seconds: 5));
       } catch (e) {
         say('DESK-NOTE no picture of $name: $e');
       }
     }
 
     final dir = Directory.systemTemp.createTempSync('ghost-desk-live');
+    PhoneLink? watched;
+    // Said every five seconds whatever else is happening: that the app is alive, and where the pairing stands.
+    final heartbeat = Timer.periodic(const Duration(seconds: 5), (_) => say('DESK-TICK phase=${watched?.attempt?.phase} via=${watched?.via} paired=${watched?.phone != null}'));
+    addTearDown(heartbeat.cancel);
     await desktopMain(peers: _mode == 'relay' ? const [] : [Peer.parse(_peer)!], folder: dir.path, bonjour: false);
     await until(() => find.text('Your texts, on your Mac').evaluate().isNotEmpty, 'the wizard');
     final link = DeskScope.of(tester.element(find.byType(PairWizard))).link;
+    watched = link;
     say('DESK-NAME ${link.name}');
 
     // The wizard: the three ways to connect are all there, and the first is the one chosen to start with.
@@ -88,11 +117,11 @@ void main() {
     await shot('1-wizard');
     final label = connectionModes.firstWhere((m) => m.id == _mode).label;
     await tester.tap(find.byWidgetPredicate((w) => w is Pick && w.label == 'Use ${label.toLowerCase()}'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await wait(const Duration(milliseconds: 300));
     // The relay's address is under the choices, out of a short window's view until it is scrolled to.
     await tester.scrollUntilVisible(find.byType(EditableText), 240, scrollable: find.byType(Scrollable).first);
     await tester.enterText(find.byType(EditableText).first, _relay);
-    await tester.pump(const Duration(milliseconds: 300));
+    await wait(const Duration(milliseconds: 300));
     await tester.tap(find.text('Show the pairing code'));
     await until(() => link.attempt != null, 'the pairing code');
     expect(link.attempt!.offer.mode, _mode);
@@ -113,23 +142,25 @@ void main() {
     say('DESK-LISTED');
     await shot('4-conversations');
     await tester.tap(find.textContaining('5550100').first);
-    await until(() => find.text('See you at 7').evaluate().length >= 2, 'the conversation'); // in the list and as a bubble
+    // The conversation beside the list: its first text as a bubble, and a field to type in.
+    await until(() => find.text('See you at 7').evaluate().isNotEmpty && find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send').evaluate().isNotEmpty, 'the conversation');
     await shot('5-conversation');
 
     // A text arrives on the phone while the conversation is open here.
-    say('DESK-WAITING-FOR-TEXT');
-    await until(() => find.textContaining('Live from the emulator').evaluate().length >= 2, 'the new text', max: const Duration(minutes: 5));
+    say('DESK-WAITING-FOR-TEXT $_tag');
+    // In the list (its last words) and in the conversation (a bubble).
+    await until(() => find.textContaining(_tag).evaluate().length >= 2, 'the new text', max: const Duration(minutes: 5));
     say('DESK-HEARD via=${link.via}');
     await shot('6-new-text');
 
     // And one is typed here: it goes through the phone.
     final words = 'Sent from the Mac by $_mode at ${DateTime.now().millisecondsSinceEpoch ~/ 1000}';
     await tester.enterText(find.byType(EditableText).last, words);
-    await tester.pump(const Duration(milliseconds: 300));
+    await wait(const Duration(milliseconds: 300));
     await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
     await until(() => find.text(words).evaluate().isNotEmpty, 'the sent text as a bubble', max: const Duration(minutes: 1));
     say('DESK-SENT $words');
-    await tester.pump(const Duration(seconds: 3));
+    await wait(const Duration(seconds: 3));
     await shot('7-sent');
 
     if (_unpair) {
@@ -138,14 +169,20 @@ void main() {
       await until(() => find.text('Unpair this phone').evaluate().isNotEmpty, 'Settings');
       await shot('8-settings');
       await tester.ensureVisible(find.text('Unpair this phone'));
-      await tester.pump(const Duration(milliseconds: 400));
+      await wait(const Duration(milliseconds: 400));
       await tester.tap(find.text('Unpair this phone'));
       await until(() => find.text('Unpair').evaluate().isNotEmpty, 'the question');
       await tester.tap(find.text('Unpair').last);
       await until(() => link.phone == null && find.text('Your texts, on your Mac').evaluate().isNotEmpty, 'the wizard again');
       say('DESK-UNPAIRED');
     }
+    if (!_unpair) {
+      // Unpaired on the phone while this Mac is connected: the Mac is told, and is back at its wizard.
+      say('DESK-UNPAIR-ON-THE-PHONE');
+      await until(() => link.phone == null && find.text('Your texts, on your Mac').evaluate().isNotEmpty, 'being told it was unpaired', max: const Duration(minutes: 5));
+      say('DESK-TOLD-UNPAIRED');
+    }
     say('DESK-DONE');
-    await tester.pump(const Duration(seconds: 2));
+    await wait(const Duration(seconds: 2));
   }, timeout: const Timeout(Duration(minutes: 25)));
 }

@@ -192,6 +192,22 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
+  that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
+  "I'd like to support both a relay server and local networking, it should attempt to use local networking by
+  default and show the option for both in the setup wizard"). Ghost Messaging for the Mac shows the phone's
+  conversations beside the one open, shows a new text as it arrives, and sends what is typed there through the
+  phone, which stays the only thing that texts. The two are paired by a QR code the Mac shows and the phone scans
+  (Settings › Computers › Pair a computer; or the code pasted), and both then show six digits to compare. Everything
+  between them is sealed with a key made in the pairing (the phone-to-phone encryption's construction, with a key
+  for each connection and a counter on every frame, so nothing can be replayed). They reach each other on the local
+  network (the phone announces itself, the Mac finds it) or through a relay that passes the sealed frames and keeps
+  none: both wizards offer local network then relay (the default), local only, or relay only. Settings › Computers
+  lists the paired computers, how each is connected, and Unpair; the Mac unpairs too. While a computer is paired the
+  phone shows a quiet permanent notification, which is what lets Android keep it reachable. What is typed on the Mac
+  while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps no texts on its disk. A
+  computer can read, send text, mark read, pin, mute and archive; it cannot delete, block, change encryption or
+  send pictures. The relay is not on any server yet: it runs on the Mac until Matt says.
 - **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
   expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
   own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
@@ -217,16 +233,28 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Sending and receiving | `Messaging.kt` | `SmsManager` for SMS and MMS, and the receivers Android requires of a default SMS app (`SMS_DELIVER`, `WAP_PUSH_DELIVER`). |
 | MMS bytes | `Pdu.kt` | The MMS wire format, reading m-notification-ind and m-retrieve-conf and writing m-send-req and m-notifyresp-ind. Android does the radio and the carrier's HTTP but leaves the bytes to the app. Tests: `android/app/src/test/.../PduTest.kt`. |
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
+| Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
+| The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
+| The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building
 
 ```sh
 flutter pub get
 flutter build apk --release --target-platform android-arm64   # build/app/outputs/flutter-apk/app-release.apk
-flutter test                                                  # reactions, edits, effects, emoji sets, settings and backgrounds; builds every screen
+flutter test                                                  # reactions, edits, effects, emoji sets, settings and backgrounds; builds every screen;
+                                                              # the Mac's sealing and its link to a stand-in phone through the real relay
 flutter test --update-goldens test/screens_test.dart          # every screen, light and dark, written to test/shots/
-cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, the encryption, a background as a text, the codes offered
+flutter test --update-goldens test/desk_screens_test.dart     # the Mac's screens, written to test/shots/mac-*
+cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, the encryption, a background as a text, the codes offered,
+                                                              # the sealing with a computer, a computer's connection, the WebSocket client, a QR code read
+flutter build macos                                           # the Mac app: build/macos/Build/Products/Release/Ghost Messaging.app
+(cd relay && dart test && dart run bin/relay.dart)            # the relay: its tests, then ws://127.0.0.1:8787
+flutter test integration_test/desk_live_test.dart -d macos    # the real Mac app against the phone app on an emulator (the file says how)
 ```
+
+`flutter build apk` builds the phone app exactly as before: the Mac app is the same project's other platform, and
+nothing of it is in the APK but the Settings page and the phone's half (`Desk*.kt`).
 
 The emoji sets' picture (`test/shots/7-emoji-sets.png`) is compared on Linux only: a Mac's test engine draws fonts
 with Core Text, which leaves Twemoji's row blank, where Linux's and Android's draw it with FreeType.
@@ -268,3 +296,8 @@ Sending, receiving, MMS download and reports through a real carrier, notificatio
 install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
 Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS), nor a
 0.6.0 sticker through a carrier (it is an MMS too: on an emulator it was stored and drawn, and could not go). `docs/HANDOFF.md` section 3 is the list to go through on a phone.
+
+The Mac app and the phone's half of it were tried against each other on an emulator, by each way of connecting
+([docs/desktop.md](docs/desktop.md), "Trying it"). Not on the Fold: the two finding each other on a real network
+(Bonjour and NSD), the camera reading the Mac's QR code, the Keychain in a signed build, and the phone staying
+reachable through deep sleep.
