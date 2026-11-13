@@ -28,6 +28,7 @@ class Conversation {
     this.muted = false,
     this.blocked = false,
     this.draft,
+    this.encrypted = false,
   });
   final int id;
   final DateTime date;
@@ -45,6 +46,9 @@ class Conversation {
   /// What was typed here and not sent.
   final String? draft;
 
+  /// Encryption is on with the one person of the conversation.
+  final bool encrypted;
+
   String get title => people.isEmpty ? 'Unknown' : people.map((p) => people.length > 1 ? p.label.split(' ').first : p.label).join(', ');
   bool get group => people.length > 1;
 
@@ -60,6 +64,7 @@ class Conversation {
         muted: m['muted'] == true,
         blocked: m['blocked'] == true,
         draft: m['draft'] as String?,
+        encrypted: m['encrypted'] == true,
       );
 }
 
@@ -84,6 +89,8 @@ class Message {
     this.attachments = const [],
     this.edited = false,
     this.original,
+    this.encrypted = false,
+    this.notice,
   });
   final int id;
   final String kind;
@@ -97,6 +104,13 @@ class Message {
   /// Changed on this phone after it was sent ([Sms.editMessage]); [original] is what it first said.
   final bool edited;
   final String? original;
+
+  /// It travelled sealed by Ghost Messaging's own encryption and was opened here.
+  final bool encrypted;
+
+  /// Not words to show in a bubble: 'key' (it carried an encryption key) or 'undecryptable' (sealed, and the key to
+  /// open it is not here).
+  final String? notice;
 
   String get key => '$kind:$id';
 
@@ -114,6 +128,8 @@ class Message {
         ],
         edited: m['edited'] == true,
         original: m['original'] as String?,
+        encrypted: m['encrypted'] == true,
+        notice: m['notice'] as String?,
       );
 }
 
@@ -124,6 +140,33 @@ class SmsStatus {
   final bool notifications;
   final bool phone;
   factory SmsStatus.from(Map m) => SmsStatus(isDefault: m['isDefault'] == true, contacts: m['contacts'] == true, notifications: m['notifications'] == true, phone: m['phone'] == true);
+}
+
+/// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
+/// theirs awaited), pending (theirs here, your yes awaited), on.
+class E2eState {
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person});
+  final String address;
+  final String state;
+  final bool verified;
+
+  /// A different key arrived from someone already exchanged with.
+  final bool changed;
+
+  /// Thirty digits, the same on both phones when nobody is in the middle.
+  final String? safety;
+  final Person? person;
+
+  bool get on => state == 'on';
+
+  factory E2eState.from(Map m) => E2eState(
+        address: (m['address'] as String?) ?? '',
+        state: (m['state'] as String?) ?? 'none',
+        verified: m['verified'] == true,
+        changed: m['changed'] == true,
+        safety: m['safety'] as String?,
+        person: m['person'] == null ? null : Person.from(m['person'] as Map),
+      );
 }
 
 /// Where the app's own update stands: idle, disabled, checking, upToDate, available, downloading, ready, installing,
@@ -221,6 +264,16 @@ class Sms {
   Future<String?> draft(int thread) => _calls.invokeMethod<String>('draft', {'thread': thread});
   Future<void> setDraft(int thread, String text) => _calls.invokeMethod('setDraft', {'thread': thread, 'text': text});
   Future<void> setBlocked(String address, bool blocked) => _calls.invokeMethod('setBlocked', {'address': address, 'blocked': blocked});
+
+  Future<E2eState> e2e(String address) async => E2eState.from((await _calls.invokeMethod('e2e', {'address': address})) as Map);
+  Future<E2eState> e2eOffer(String address) async => E2eState.from((await _calls.invokeMethod('e2eOffer', {'address': address})) as Map);
+  Future<void> e2eOff(String address) => _calls.invokeMethod('e2eOff', {'address': address});
+  Future<void> e2eVerify(String address, bool verified) => _calls.invokeMethod('e2eVerify', {'address': address, 'verified': verified});
+  Future<void> e2eReset() => _calls.invokeMethod('e2eReset');
+  Future<String?> e2eMine() => _calls.invokeMethod<String>('e2eMine');
+  Future<List<E2eState>> e2eList() async => [for (final m in (await _calls.invokeMethod<List>('e2eList')) ?? const []) E2eState.from(m as Map)];
+  Future<List<Person>> blockedNumbers() async => [for (final m in (await _calls.invokeMethod<List>('blockedNumbers')) ?? const []) Person.from(m as Map)];
+  Future<void> notificationSettings() => _calls.invokeMethod('notificationSettings');
 
   Future<UpdateState> update() async => UpdateState.from((await _calls.invokeMethod('update')) as Map);
   Future<void> updateCheck({bool install = false}) => _calls.invokeMethod('updateCheck', {'install': install});

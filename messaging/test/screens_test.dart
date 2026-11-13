@@ -103,7 +103,7 @@ void _answerChannel() {
 }
 
 Future<void> _shoot(WidgetTester tester, TokenSheet sheet, Widget screen, String name, {required bool dark}) async {
-  final state = AppState()..theme = dark ? 'dark' : 'light';
+  final state = AppState()..setTheme(dark ? 'dark' : 'light');
   await tester.pumpWidget(AppScope(
     state: state,
     child: WidgetsApp(

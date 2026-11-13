@@ -42,12 +42,13 @@ object Sender {
      * Sends [body] to [addresses]: one person is an SMS (in as many parts as it takes), several are one group MMS,
      * and pictures ([attachments], content URIs) make it an MMS too. Returns the conversation.
      */
-    fun send(context: Context, addresses: List<String>, body: String, attachments: List<String> = emptyList()): Long {
+    fun send(context: Context, addresses: List<String>, body: String, attachments: List<String> = emptyList(), plain: Boolean = false): Long {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         require(clean.isNotEmpty()) { "No one to send to" }
         val thread = store.threadFor(clean)
-        if (clean.size == 1 && attachments.isEmpty()) sendSms(context, store, thread, clean[0], body)
+        // To one person with encryption on, the words go sealed (E2e), and are kept sealed in the SMS database.
+        if (clean.size == 1 && attachments.isEmpty()) sendSms(context, store, thread, clean[0], if (plain) body else (E2e.wire(context, clean[0], body) ?: body))
         else sendMms(context, store, thread, clean, body, attachments)
         Bus.changed(thread)
         return thread
@@ -64,6 +65,7 @@ object Sender {
             val code = (row.toString() + i).hashCode()
             // Only the last part's result marks the message: the others would race it.
             val last = i == parts.size - 1
+            // Delivery reports are asked for unless switched off in Settings › Receipts.
             sent += PendingIntent.getBroadcast(context, code, Intent(context, SmsStatusReceiver::class.java).apply {
                 action = if (last) SmsStatusReceiver.SENT else SmsStatusReceiver.SENT_PART
                 data = row
@@ -74,8 +76,9 @@ object Sender {
             }, MUTABLE)
         }
         try {
-            if (parts.size == 1) sms.sendTextMessage(address, null, body, sent[0], delivered[0])
-            else sms.sendMultipartTextMessage(address, null, parts, sent, delivered)
+            val reports = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("delivery_reports", "on") != "off"
+            if (parts.size == 1) sms.sendTextMessage(address, null, body, sent[0], if (reports) delivered[0] else null)
+            else sms.sendMultipartTextMessage(address, null, parts, sent, if (reports) delivered else null)
         } catch (e: Exception) {
             Log.e(TAG, "send failed", e)
             store.setSmsType(row, Telephony.Sms.MESSAGE_TYPE_FAILED)
@@ -98,7 +101,8 @@ object Sender {
             ?: throw IllegalStateException("Could not save the message")
         // Delivery reports are asked for always; read reports unless switched off in Settings (few phones answer).
         val wantRead = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("read_reports", "on") != "off"
-        val pdu = Pdu.sendReq(to, parts, deliveryReport = true, readReport = wantRead)
+        val wantDelivery = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("delivery_reports", "on") != "off"
+        val pdu = Pdu.sendReq(to, parts, deliveryReport = wantDelivery, readReport = wantRead)
         val file = File(MmsFileProvider.dir(context), "send-${System.nanoTime()}.pdu")
         file.writeBytes(pdu)
         val uri = MmsFileProvider.uriFor(context, file)
@@ -190,6 +194,8 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         val sub = intent.getIntExtra("android.telephony.extra.SUBSCRIPTION_INDEX", intent.getIntExtra("subscription", -1))
         val store = Store(context)
         val row = store.insertSmsInbox(address, body, System.currentTimeMillis(), messages[0].timestampMillis, sub) ?: return
+        // Someone's encryption key: kept, and the conversation moves on (E2e.received).
+        E2eCrypto.keyIn(body)?.let { key -> try { E2e.received(context, address, key) } catch (e: Exception) { Log.e(TAG, "e2e key", e) } }
         val thread = store.threadOfSms(row)
         store.setArchived(thread, false)
         Notifier.incoming(context, thread)

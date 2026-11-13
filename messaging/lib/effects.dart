@@ -664,3 +664,35 @@ class _BubbleEntranceState extends State<BubbleEntrance> with SingleTickerProvid
     );
   }
 }
+
+/// An effect's name as Settings and the menus say it.
+String effectLabel(ScreenEffect e) => switch (e) {
+      ScreenEffect.confetti => 'Confetti',
+      ScreenEffect.balloons => 'Balloons',
+      ScreenEffect.fireworks => 'Fireworks',
+      ScreenEffect.celebration => 'Celebration',
+      ScreenEffect.hearts => 'Hearts',
+      ScreenEffect.kisses => 'Kisses',
+      ScreenEffect.snow => 'Snow',
+      ScreenEffect.lasers => 'Lasers',
+      ScreenEffect.ghosts => 'Ghosts',
+      ScreenEffect.wow => 'Wow',
+      ScreenEffect.thanks => 'Thank you',
+      ScreenEffect.goodNight => 'Good night',
+      ScreenEffect.goodMorning => 'Good morning',
+      ScreenEffect.getWell => 'Get well soon',
+      ScreenEffect.bye => 'Bye bye',
+      ScreenEffect.hungry => 'Hungry',
+      ScreenEffect.sorry => 'Sorry',
+      ScreenEffect.party => 'Party time',
+      ScreenEffect.echo => 'Echo',
+      ScreenEffect.spotlight => 'Spotlight',
+    };
+
+/// What sets [e] off, in a line: its first words and its emoji.
+String effectTriggers(ScreenEffect e) {
+  final words = (_phrases[e] ?? const <String>[]).take(2).map((p) => '"$p"');
+  final emoji = (_emoji[e] ?? const <String>[]).take(3).join(' ');
+  if (words.isEmpty && emoji.isEmpty) return 'From an iPhone\'s "sent with ${effectLabel(e)}"';
+  return [words.join(', '), emoji].where((x) => x.isNotEmpty).join('  ');
+}

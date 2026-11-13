@@ -2,64 +2,63 @@ import 'package:flutter/widgets.dart';
 
 import 'sms.dart';
 
-/// What the app remembers of the person's choices (kept in Android's SharedPreferences through the channel).
+/// What the app remembers of the person's choices: Android's SharedPreferences ("ui"), read once and written through
+/// the channel. The native side reads the same file where a choice is its to act on (delivery and read reports as a
+/// message is sent, previews and the code button as a notification is made).
 class AppState extends ChangeNotifier {
-  String theme = 'system';
-
-  /// The emoji set (lib/emoji_sets.dart): 'system' is the phone's own.
-  String emoji = 'system';
-
-  /// Your own bubbles: 'ghost' is Ghost Keyboard's primary (its accent: #51FCFB on the dark page, #008B8A on the
-  /// light), 'ink' the page's ink on paper.
-  String bubble = 'ghost';
-
-  /// Whether messages set off their effects (lib/effects.dart).
-  bool effects = true;
-
-  /// Whether picture and group messages ask the other phone to say when they are read (android/.../Messaging.kt
-  /// reads the same preference as it sends).
-  bool readReports = true;
+  final Map<String, String> _prefs = {};
 
   Future<void> load() async {
     try {
-      final p = await Sms.instance.prefs();
-      theme = p['theme'] ?? 'system';
-      emoji = p['emoji'] ?? 'system';
-      bubble = p['bubble'] ?? 'ghost';
-      effects = p['effects'] != 'off';
-      readReports = p['read_reports'] != 'off';
+      _prefs.addAll(await Sms.instance.prefs());
     } catch (_) {}
   }
 
-  void setTheme(String value) {
-    theme = value;
-    Sms.instance.setPref('theme', value);
+  String choice(String key, String fallback) => _prefs[key] ?? fallback;
+
+  /// A switch: on unless it was switched off ([fallback] false: off unless switched on).
+  bool flag(String key, {bool fallback = true}) => _prefs[key] == null ? fallback : _prefs[key] == 'on';
+
+  void set(String key, String value) {
+    _prefs[key] = value;
+    Sms.instance.setPref(key, value);
     notifyListeners();
   }
 
-  void setEmoji(String value) {
-    emoji = value;
-    Sms.instance.setPref('emoji', value);
-    notifyListeners();
-  }
+  void setFlag(String key, bool on) => set(key, on ? 'on' : 'off');
 
-  void setBubble(String value) {
-    bubble = value;
-    Sms.instance.setPref('bubble', value);
-    notifyListeners();
-  }
+  /// system, light, dark.
+  String get theme => choice('theme', 'system');
+  void setTheme(String v) => set('theme', v);
 
-  void setEffects(bool value) {
-    effects = value;
-    Sms.instance.setPref('effects', value ? 'on' : 'off');
-    notifyListeners();
-  }
+  /// The emoji set (lib/emoji_sets.dart): 'system' is the phone's own.
+  String get emoji => choice('emoji', 'system');
+  void setEmoji(String v) => set('emoji', v);
 
-  void setReadReports(bool value) {
-    readReports = value;
-    Sms.instance.setPref('read_reports', value ? 'on' : 'off');
-    notifyListeners();
-  }
+  /// Your own bubbles: 'ghost' is Ghost Keyboard's primary, 'ink' the page's ink on paper.
+  String get bubble => choice('bubble', 'ghost');
+  void setBubble(String v) => set('bubble', v);
+
+  /// The size of a message's words: small, default, large, larger.
+  String get textSize => choice('text_size', 'default');
+  double get textScale => switch (textSize) { 'small' => 0.9, 'large' => 1.15, 'larger' => 1.3, _ => 1.0 };
+
+  /// Whether messages set off their effects (lib/effects.dart).
+  bool get effects => flag('effects');
+  void setEffects(bool v) => setFlag('effects', v);
+
+  /// One to three emoji alone are drawn large.
+  bool get bigEmoji => flag('big_emoji');
+
+  /// Reaction texts are hung on their messages (lib/reactions.dart); off shows every text as it came.
+  bool get foldReactions => flag('fold_reactions');
+
+  /// The keyboard's Enter sends, where it otherwise starts a new line.
+  bool get enterSends => flag('enter_sends', fallback: false);
+
+  /// Picture and group messages ask the other phone to say when they are read.
+  bool get readReports => flag('read_reports');
+  void setReadReports(bool v) => setFlag('read_reports', v);
 
   static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_AppScope>()!.state;
 }

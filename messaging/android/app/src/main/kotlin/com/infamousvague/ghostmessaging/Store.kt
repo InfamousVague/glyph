@@ -146,7 +146,8 @@ class Store(private val context: Context) {
                         "date" to (if (iDate >= 0) c.getLong(iDate) else 0L),
                         "count" to count,
                         "people" to recipients.map { contact(it) },
-                        "snippet" to (if (iSnip >= 0) c.getString(iSnip) ?: "" else ""),
+                        "snippet" to E2e.preview(context, recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else ""),
+                        "encrypted" to (recipients.size == 1 && E2e.isOn(context, recipients[0])),
                         "unread" to (iRead >= 0 && c.getInt(iRead) == 0),
                         "error" to (iErr >= 0 && c.getInt(iErr) != 0),
                         "attachment" to (iAtt >= 0 && c.getInt(iAtt) != 0),
@@ -203,11 +204,15 @@ class Store(private val context: Context) {
         )?.use { c ->
             while (c.moveToNext()) {
                 val type = c.getInt(4)
+                // A sealed text is opened here, as it is shown; a text carrying a key is a notice, not words.
+                val (words, sealed) = E2e.read(context, c.getString(1) ?: "", c.getString(2) ?: "")
                 out += mapOf(
                     "id" to c.getLong(0),
                     "kind" to "sms",
                     "address" to (c.getString(1) ?: ""),
-                    "body" to (c.getString(2) ?: ""),
+                    "body" to words,
+                    "encrypted" to (sealed == "encrypted"),
+                    "notice" to (if (sealed == "key" || sealed == "undecryptable") sealed else null),
                     "date" to c.getLong(3),
                     "outgoing" to (type != Telephony.Sms.MESSAGE_TYPE_INBOX),
                     "state" to smsState(type, c.getInt(5)),
@@ -471,9 +476,15 @@ class Store(private val context: Context) {
             }
         } else {
             var text: String? = null
-            resolver.query(Uri.parse("content://sms/$id"), arrayOf("body"), null, null, null)?.use { if (it.moveToFirst()) text = it.getString(0) }
-            before = text
-            resolver.update(Uri.parse("content://sms/$id"), ContentValues().apply { put("body", body) }, null, null)
+            var address = ""
+            resolver.query(Uri.parse("content://sms/$id"), arrayOf("body", "address"), null, null, null)?.use {
+                if (it.moveToFirst()) { text = it.getString(0); address = it.getString(1) ?: "" }
+            }
+            // What it first said is kept as words; the row keeps a sealed text sealed.
+            val sealed = text != null && E2eCrypto.isSealed(text!!)
+            before = if (sealed) E2e.read(context, address, text!!).first else text
+            val stored = if (sealed) (E2e.wire(context, address, body) ?: body) else body
+            resolver.update(Uri.parse("content://sms/$id"), ContentValues().apply { put("body", stored) }, null, null)
         }
         if (!editsPrefs.contains(key)) editsPrefs.edit().putString(key, before ?: "").apply()
     }
@@ -503,6 +514,17 @@ class Store(private val context: Context) {
 
     fun setDraft(thread: Long, text: String) {
         if (text.isBlank()) draftPrefs.edit().remove(thread.toString()).apply() else draftPrefs.edit().putString(thread.toString(), text).apply()
+    }
+
+    /** Every number on Android's blocked list, with the contact it is, for Settings. */
+    fun blockedNumbers(): List<Map<String, Any?>> {
+        val out = ArrayList<Map<String, Any?>>()
+        try {
+            resolver.query(android.provider.BlockedNumberContract.BlockedNumbers.CONTENT_URI, arrayOf(android.provider.BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER), null, null, null)?.use {
+                while (it.moveToNext()) { val n = it.getString(0) ?: continue; out += contact(n) }
+            }
+        } catch (_: Exception) {}
+        return out
     }
 
     // --- blocked numbers: Android's own list, which the default SMS app may read and write --------------------------

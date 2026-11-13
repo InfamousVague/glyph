@@ -55,6 +55,8 @@ object Notifier {
         val people = store.threadPeople(thread)
         val unread = store.messages(thread, 8).filter { !(it["outgoing"] as Boolean) && !(it["read"] as Boolean) }.reversed()
         if (unread.isEmpty()) { cancel(context, thread); return }
+        val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
+        val previews = ui.getString("notif_preview", "on") != "off"
         val group = people.size > 1
         val title = people.joinToString(", ") { (it["name"] as String?) ?: (it["address"] as String) }
         val me = Person.Builder().setName("You").build()
@@ -65,6 +67,11 @@ object Notifier {
             val c = store.contact(addr)
             val sender = Person.Builder().setName((c["name"] as String?) ?: addr).setKey(addr).build()
             var body = m["body"] as String
+            when (m["notice"]) {
+                "key" -> body = "Sent an encryption key. Open to turn encryption on."
+                "undecryptable" -> body = "Encrypted message"
+            }
+            if (!previews && m["notice"] == null) body = "New message"
             @Suppress("UNCHECKED_CAST") val parts = m["parts"] as List<Map<String, Any?>>? ?: emptyList()
             if (body.isBlank()) body = if (parts.any { (it["type"] as String).startsWith("image/") }) "📷 Picture" else "Attachment"
             style.addMessage(Notification.MessagingStyle.Message(body, m["date"] as Long, sender))
@@ -87,7 +94,7 @@ object Notifier {
         ).setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
 
         // A sign-in code in the newest message gets a button that copies it.
-        val code = otp(unread.last()["body"] as String)
+        val code = if (previews && ui.getString("notif_code", "on") != "off") otp(unread.last()["body"] as String) else null
 
         val builder = Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_ghost)

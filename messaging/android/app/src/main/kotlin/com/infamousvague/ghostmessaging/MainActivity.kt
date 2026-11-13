@@ -98,6 +98,27 @@ class MainActivity : FlutterActivity() {
                     } catch (_: Exception) {}
                     result.success(null)
                 }
+                "e2e" -> bg { E2e.state(applicationContext, call.argument<String>("address")!!) }
+                "e2eList" -> bg { E2e.list(applicationContext).map { it + ("person" to store.contact(it["address"] as String)) } }
+                "e2eMine" -> bg { if (E2e.hasIdentity(applicationContext)) E2e.myFingerprint(applicationContext) else null }
+                "e2eOffer" -> bg {
+                    // This phone's key goes to them as a plain text; where theirs is already here, encryption is on.
+                    val address = call.argument<String>("address")!!
+                    Sender.send(applicationContext, listOf(address), E2e.keyMessage(applicationContext), plain = true)
+                    E2e.offered(applicationContext, address)
+                    Bus.changed(-1)
+                    E2e.state(applicationContext, address)
+                }
+                "e2eOff" -> bg { E2e.off(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
+                "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
+                "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
+                "blockedNumbers" -> bg { store.blockedNumbers() }
+                "notificationSettings" -> {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
+                    } catch (_: Exception) {}
+                    result.success(null)
+                }
                 "archive" -> bg { store.setArchived(call.argument<Number>("thread")!!.toLong(), call.argument<Boolean>("archived") ?: true); null }
                 "searchContacts" -> bg { store.searchContacts(call.argument<String>("query") ?: "") }
                 "contact" -> bg { store.contact(call.argument<String>("address")!!) }
