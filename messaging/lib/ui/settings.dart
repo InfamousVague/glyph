@@ -140,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'About',
                 footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
                 children: [
-                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: const Text('0.2.0')),
+                  SettingRow(icon: chip(Lucide.ghost), label: 'Ghost Messaging', value: const Text('0.2.1')),
                   SettingRow(icon: chip(Lucide.info), label: 'Texts and picture messages', hint: const Text('SMS and MMS through your carrier. RCS and iMessage aren\'t available to apps other than Google\'s and Apple\'s own.')),
                 ],
               ),

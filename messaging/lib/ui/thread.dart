@@ -395,7 +395,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               ]),
             ),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            IconTap(icon: Lucide.imagePlus, label: 'Add a picture', onPressed: editing || _attachments.length >= 5 ? null : _attach),
+            IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
               child: Container(
