@@ -74,6 +74,9 @@ class Attachment {
   final String type;
   final String? name;
   bool get isImage => type.startsWith('image/');
+
+  /// One of Ghost Messaging's stickers (android Sender.sendSticker names them so): drawn small, on the page.
+  bool get isSticker => isImage && (name ?? '').split('/').last.startsWith('ghost-sticker');
 }
 
 /// sending, sent, delivered, failed, received, pending_download
@@ -318,6 +321,11 @@ class Sms {
 
   Future<int> send(List<String> addresses, String body, {List<String> attachments = const []}) async =>
       ((await _calls.invokeMethod('send', {'addresses': addresses, 'body': body, 'attachments': attachments})) as num).toInt();
+
+  /// Sends one of the app's stickers (lib/stickers.dart) as a picture message: [picture] is its bytes, [name] its
+  /// pack and number.
+  Future<int> sendSticker(List<String> addresses, Uint8List picture, String name) async =>
+      ((await _calls.invokeMethod('sendSticker', {'addresses': addresses, 'picture': picture, 'name': name})) as num).toInt();
 
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
   Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});

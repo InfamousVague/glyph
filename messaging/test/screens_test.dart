@@ -8,12 +8,14 @@ import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
+import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
 import 'package:ghost_messaging/ui/chat_settings.dart';
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/setup.dart';
+import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
 import 'package:glacier/glacier.dart';
 
@@ -64,6 +66,9 @@ Map<String, Object?> _e2e(String address) => switch (address) {
 List<Map<String, Object?>> _messages(int thread) {
   if (thread == 2) {
     return [
+      // Two of the app's stickers (android Stickers.kt names them): one sent, one from someone else with the app.
+      {'id': 15, 'kind': 'mms', 'address': '', 'body': '', 'date': _ago(minutes: 48), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 902, 'type': 'image/png', 'name': 'ghost-sticker-party-03.png'}]},
+      {'id': 14, 'kind': 'mms', 'address': '+15551230002', 'body': '', 'date': _ago(minutes: 49), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 901, 'type': 'image/png', 'name': 'ghost-sticker-sweet-01.png'}]},
       {'id': 13, 'kind': 'mms', 'address': '+15551230004', 'body': '👍 to "Hike this weekend?"', 'date': _ago(minutes: 50), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 12, 'kind': 'mms', 'address': '+15551230003', 'body': 'Liked “Hike this weekend?”', 'date': _ago(minutes: 51), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
       {'id': 11, 'kind': 'mms', 'address': '+15551230003', 'body': 'Look at this view 🏔️', 'date': _ago(minutes: 52), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
@@ -147,6 +152,13 @@ void _answerChannel() {
         return (args['addresses'] as List).every((a) => a == '+15551230011');
       case 'prefs':
         return <String, String>{};
+      case 'part':
+        // The two stickers in the group conversation, as the phone would hand a picture message's part over.
+        return switch ((args['id'] as num).toInt()) {
+          901 => File('assets/stickers/sweet/01.webp').readAsBytesSync(),
+          902 => File('assets/stickers/party/03.webp').readAsBytesSync(),
+          _ => null,
+        };
       default:
         return null;
     }
@@ -220,6 +232,26 @@ void main() {
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread', dark: dark);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
+      // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.
+      final packs = (await tester.runAsync(stickerPacks))!;
+      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet']);
+      for (final (pack, encrypted) in [('ghost', false), ('sweet', true)]) {
+        await _shoot(
+          tester,
+          sheet,
+          Stack(children: [
+            const Positioned.fill(child: ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')])),
+            const Positioned.fill(child: ColoredBox(color: Color(0x66000000))),
+            Positioned.fill(child: StickerSheet(packs: packs, encrypted: encrypted)),
+          ]),
+          '4-stickers-$pack',
+          dark: dark,
+          prefs: {'sticker_pack': pack},
+        );
+        // The pictures are decoded off the fake clock.
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 250)));
+        await _shootAgain(tester, '4-stickers-$pack', dark: dark);
+      }
       // Settings: its home, a search over it, and a few of its sections' pages.
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
@@ -245,6 +277,11 @@ void main() {
       for (final effect in ScreenEffect.values) {
         final at = switch (effect) { ScreenEffect.fireworks || ScreenEffect.celebration => 0.3, ScreenEffect.lasers => 0.4, ScreenEffect.wow => 0.35, _ => 0.5 };
         if (dark != night.contains(effect)) continue;
+        // The effect's own pictures (assets/effects/, cut by tool/effect_sprites.py), decoded off the fake clock.
+        final sprites = await tester.runAsync(() => EffectSprites.of(effect));
+        expect(sprites, isNotNull, reason: '${effect.name} has no pictures in assets/effects/');
+        expect(sprites!.heroes, isNotEmpty, reason: '${effect.name} has no characters');
+        expect(sprites.props, isNotEmpty, reason: '${effect.name} has no props');
         await _shoot(
           tester,
           sheet,
@@ -254,7 +291,7 @@ void main() {
               child: IgnorePointer(
                 child: Builder(
                   builder: (context) => CustomPaint(
-                    painter: EffectPainter(effect, AlwaysStoppedAnimation(at), 7, style: context.tokens.textAt(26, color: context.tokens.color('app-ink')), text: 'See you at 7!'),
+                    painter: EffectPainter(effect, AlwaysStoppedAnimation(at), 7, style: context.tokens.textAt(26, color: context.tokens.color('app-ink')), text: 'See you at 7!', sprites: sprites),
                   ),
                 ),
               ),

@@ -42,8 +42,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   key emoji: the iPhone's eight (echo, spotlight, balloons, confetti, love, lasers, fireworks, celebration), the ones
   Google Messages plays on a phrase (snow, kisses, wow, thank you, good night, good morning, get well soon, bye bye,
   hungry, sorry, party time), and ghosts for "Boo". An iPhone's "(sent with Lasers)" is read, played and not shown,
-  and so are its bubble effects (slam, loud, gentle, invisible ink). One to three emoji alone are drawn large. An
-  animated WebP in `assets/effects/` named for an effect plays in place of the one drawn. Settings › Effects turns
+  and so are its bubble effects (slam, loud, gentle, invisible ink). One to three emoji alone are drawn large. Since
+  0.6.0 each effect moves pictures drawn for it (below). Settings › Effects turns
   them off, and lists every one with what sets it off; a tap plays it there.
 - **Emoji sets** (0.3.0; `lib/emoji_sets.dart`, `assets/emoji/LICENSES.md`): the phone's own, Noto, Twemoji, OpenMoji
   or Noto's outline face, chosen in Settings and drawn everywhere in the app. `test/emoji_sets_test.dart` holds each
@@ -171,6 +171,27 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   together. On an emulator with 161 conversations the list's first read took 697 ms and each one after 7 to 9 ms
   (before, every read was a first read). `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts writes
   each call's time and the frames' to Android's log.
+- **The effects' own pictures** (0.6.0; Matt: "the ghost messages assets are on the desktop, please wire them all and
+  slice them up"). Each of the twenty effects has a sheet of about twelve sprites drawn for it
+  ([docs/effect-sprites-prompt.md](docs/effect-sprites-prompt.md)): four ghost characters and eight props.
+  `python3 tool/effect_sprites.py <folder>` keeps the sheets in `art/effects/` (lossless, the background remover's
+  halo cleared) and cuts each into its sprites by shape, not by a grid, into `assets/effects/<effect>-h1.webp…` (the
+  characters) and `-p1.webp…` (the props), with a picture of every sheet's cuts in `build/effect-sprites/` to look
+  over. The app moves them (`EffectSprites` and `_spritePlans` in `lib/effects.dart`): props many and small,
+  characters few and large, rising, falling or bursting as the effect does. What only the app can draw stays under
+  them: the fireworks' and lasers' light, the spotlight, Echo's copies of the message's words. An effect with no
+  pictures is drawn as before. 240 sprites, 2.6 MB.
+- **Stickers** (0.6.0; Matt: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio
+  one"). Four packs of sixteen, made by `python3 tool/sticker_packs.py` from the ghost's poses on the effects' sheets,
+  each with a sticker's white edge: **Ghost** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and
+  **Sweet**, the pastel one: the ghost in soft pink, lilac, mint, butter and sky with little hearts, flowers and
+  sparkles. Sweet is our own ghost in that cute pastel manner; none of Sanrio's characters, names or drawings are in
+  it, since those are Sanrio's. The sticker button is in the message field while it is empty; the sheet
+  (`lib/ui/sticker_picker.dart`) has a tab for each pack and opens on the one last used, and a tap sends. A sticker
+  goes as a picture message (`Sender.sendSticker`: a PNG of 55 to 130 KB, so its clear background survives and any
+  phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
+  file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
+  no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
 - **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
   expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
   own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
@@ -245,4 +266,5 @@ reports and the sign-in code finder are checked by `PduTest`, reactions, effects
 the manifest was checked for every component Android looks for before it offers an app as the default SMS app.
 Sending, receiving, MMS download and reports through a real carrier, notifications, blocking and the updater's
 install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
-Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS). `docs/HANDOFF.md` section 3 is the list to go through on a phone.
+Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS), nor a
+0.6.0 sticker through a carrier (it is an MMS too: on an emulator it was stored and drawn, and could not go). `docs/HANDOFF.md` section 3 is the list to go through on a phone.

@@ -164,6 +164,9 @@ class MainActivity : FlutterActivity() {
                     Bus.changed(-1)
                     threads.size
                 }
+                "sendSticker" -> bg {
+                    Sender.sendSticker(applicationContext, call.argument<List<String>>("addresses")!!, call.argument<ByteArray>("picture")!!, call.argument<String>("name") ?: "sticker")
+                }
                 "keyboardHere" -> bg { CodesProvider.keyboardHere(applicationContext) }
                 "ghostPeers" -> bg { Backgrounds.allKnown(applicationContext, call.argument<List<String>>("addresses") ?: emptyList()) }
                 "shareBackground" -> bg {

@@ -46,6 +46,36 @@ object Sender {
      * Sends [body] to [addresses]: one person is an SMS (in as many parts as it takes), several are one group MMS,
      * and pictures ([attachments], content URIs) make it an MMS too. Returns the conversation.
      */
+    /**
+     * Sends one of the app's stickers (Matt, 2026-11-13: "generate 4 sticker packs using our ghost mascot") to
+     * [addresses] as a picture message. [picture] is the sticker as the app keeps it (a WebP with a clear
+     * background); it goes as a PNG, which every phone's texting app can show and which keeps the clear background a
+     * photograph's JPEG would paint black. Its name, `ghost-sticker-…`, is how this app knows to draw it as a sticker
+     * and not a photograph. Returns the conversation.
+     */
+    fun sendSticker(context: Context, addresses: List<String>, picture: ByteArray, name: String): Long {
+        val store = Store(context)
+        val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        require(clean.isNotEmpty()) { "No one to send to" }
+        val thread = store.threadFor(clean)
+        val sub = defaultSub()
+        val config = try { smsManager(context, sub).carrierConfigValues } catch (_: Exception) { Bundle() }
+        val budget = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, 300 * 1024).coerceAtLeast(100 * 1024) - 8 * 1024
+        var bitmap = BitmapFactory.decodeByteArray(picture, 0, picture.size) ?: throw IllegalStateException("That sticker could not be read")
+        var png: ByteArray
+        while (true) {
+            val out = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            png = out.toByteArray()
+            if (png.size <= budget || bitmap.width < 160) break
+            bitmap = Bitmap.createScaledBitmap(bitmap, (bitmap.width * 0.8).toInt(), (bitmap.height * 0.8).toInt(), true)
+        }
+        val file = Stickers.file(name)
+        sendMms(context, store, thread, clean, "", emptyList(), listOf(Pdu.Part("image/png", png, name = file, contentLocation = file, contentId = "sticker")))
+        Bus.changed(thread)
+        return thread
+    }
+
     fun send(context: Context, addresses: List<String>, body: String, attachments: List<String> = emptyList(), plain: Boolean = false): Long {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -102,12 +132,13 @@ object Sender {
         }
     }
 
-    private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>) {
+    private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>, ready: List<Pdu.Part> = emptyList()) {
         val sub = defaultSub()
         val sms = smsManager(context, sub)
         val config = try { sms.carrierConfigValues } catch (_: Exception) { Bundle() }
         val maxBytes = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, 300 * 1024).coerceAtLeast(100 * 1024)
-        val parts = ArrayList<Pdu.Part>()
+        // [ready]: parts that go as they are (a sticker, already a PNG that fits).
+        val parts = ArrayList<Pdu.Part>(ready)
         val budget = (maxBytes - 8 * 1024 - body.toByteArray().size) / attachments.size.coerceAtLeast(1)
         attachments.forEachIndexed { i, a ->
             val bytes = compressImage(context, Uri.parse(a), budget) ?: return@forEachIndexed

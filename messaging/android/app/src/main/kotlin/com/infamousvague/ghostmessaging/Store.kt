@@ -246,6 +246,7 @@ class Store(private val context: Context) {
         if (body.isNotBlank()) return body
         @Suppress("UNCHECKED_CAST") val parts = m["parts"] as List<Map<String, Any?>>? ?: emptyList()
         return when {
+            parts.any { (it["type"] as String).startsWith("image/") && Stickers.isSticker(it["name"] as String?) } -> "Sticker"
             parts.any { (it["type"] as String).startsWith("image/") } -> "Picture"
             parts.any { (it["type"] as String).startsWith("video/") } -> "Video"
             parts.any { (it["type"] as String).startsWith("audio/") } -> "Audio"

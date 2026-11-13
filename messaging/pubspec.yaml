@@ -26,6 +26,11 @@ flutter:
     - assets/css/app.css
     # Overlays that play in place of a drawn effect, where one has been added (docs/effects.md).
     - assets/effects/
+    # The sticker packs, made from the effects' ghost by tool/sticker_packs.py (lib/stickers.dart).
+    - assets/stickers/ghost/
+    - assets/stickers/love/
+    - assets/stickers/party/
+    - assets/stickers/sweet/
     # The app's own mark, cut from its icon (tool/app_icon.py).
     - assets/art/
   fonts:

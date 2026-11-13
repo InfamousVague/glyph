@@ -5,9 +5,10 @@ Every effect Ghost Messaging can play, what sets each off, and a prompt for gene
 each one has a prompt make it ghost themed", then "make sure we support all the same ones as imessage, samsung
 messenger, google messenger").
 
-A set of prompts for an image model (still sprites the app would move itself, where the prompts below are for
-animated overlays) is in [effect-sprites-prompt.md](effect-sprites-prompt.md). The app does not play sprites yet:
-that follows once the pictures exist.
+A set of prompts for an image model (still sprites the app moves itself, where the prompts below are for animated
+overlays) is in [effect-sprites-prompt.md](effect-sprites-prompt.md). Matt made a sheet for each of the twenty with
+it, and since 0.6.0 the app plays them (Matt, 2026-11-13: "the ghost messages assets are on the desktop, please wire
+them all and slice them up"): see "The effects' sprites" below.
 
 ## Where the set comes from
 
@@ -21,6 +22,32 @@ that follows once the pictures exist.
 An effect plays once when a message that sets it off arrives or is sent while the conversation is open, and again
 from the message's long-press menu ("Play effect"). Settings › Look › Message effects turns them all off, and so does
 Android's "Remove animations". The other person sees an effect only if their own app plays one for the same words.
+
+## The effects' sprites
+
+A sheet is a square picture named for its effect (`balloons.png`) with about twelve sprites on a clear background:
+ghost characters in the top row, props under them.
+
+    python3 tool/effect_sprites.py ~/Desktop/ghost_messages_assets
+
+keeps each sheet in `art/effects/` (a WebP that loses nothing drawn, with the background remover's faint halo
+cleared, a quarter of the PNG's weight) and cuts it into `assets/effects/<effect>-h1.webp…` (characters, 300 px) and
+`<effect>-p1.webp…` (props, 200 px). The cutting goes by shape: what is solid is gathered into pieces that touch,
+small pieces near a large one join it (a ghost and the dashes drawn round it), parts of a like size in one place of
+the sheet's four-by-three are one sprite (three sound waves), and a speck on its own is dropped. A neighbour's corner
+inside a sprite's box is masked out. `build/effect-sprites/<effect>.png` shows every cut, to look over after a run.
+With no folder named, the sheets already in `art/effects/` are cut again.
+
+The app finds an effect's pictures by name (`EffectSprites.of`, `lib/effects.dart`), decodes them the first time the
+effect plays and keeps the last three effects' decoded. `_spritePlans` says how each effect's move: how many props
+and characters, and whether they rise, fall or burst. Props are many and small (confetti and snow smaller still, and
+tumbling); characters are few, large and slower. Under them stays what only the app can draw: the light of fireworks
+and lasers, the spotlight, and Echo's copies of the message's own words. An effect whose pictures are missing is
+drawn with shapes and emoji as before. `test/screens_test.dart` holds every effect to having characters and props,
+and draws a frame of each with them (`test/shots/6-effect-*.png`).
+
+To change an effect's look, draw its sheet again with the prompt, run the tool, and look at the cuts. The stickers
+(`tool/sticker_packs.py`) are made from the same sheets' characters, so run that after.
 
 ## How an overlay replaces the drawn effect
 

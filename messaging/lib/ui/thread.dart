@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert' show utf8;
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/services.dart';
@@ -15,9 +16,11 @@ import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
+import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'encryption.dart';
+import 'sticker_picker.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -225,6 +228,25 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         _text.text = body;
         toast(context, 'Couldn\'t send: $e', tone: GlacierToastTone.danger);
       }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      _load();
+    }
+  }
+
+  /// The stickers' sheet; the one tapped is sent straight away, as a picture message.
+  Future<void> _sticker() async {
+    final to = _people.map((p) => p.address).toList();
+    if (to.isEmpty || _sending) return;
+    final asset = await pickSticker(context, encrypted: _e2e.on);
+    if (asset == null || !mounted) return;
+    setState(() => _sending = true);
+    HapticFeedback.lightImpact();
+    try {
+      final data = await rootBundle.load(asset);
+      await Sms.instance.sendSticker(to, data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), stickerName(asset));
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
     } finally {
       if (mounted) setState(() => _sending = false);
       _load();
@@ -662,6 +684,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       ),
                     )),
                   ),
+                  // Stickers, while nothing is being written: once there are words the room is theirs.
+                  if (!editing && _text.text.isEmpty && _attachments.isEmpty)
+                    IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
                   editing
                       ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
@@ -899,7 +924,10 @@ class _Bubble extends StatelessWidget {
 
     final content = <Widget>[
       for (final a in m.attachments)
-        if (a.isImage)
+        if (a.isSticker)
+          // One of the app's stickers: small, on the page, with no bubble and no corners cut.
+          _Sticker(id: a.id, side: math.min(t.lenOf('9.5rem'), maxWidth))
+        else if (a.isImage)
           Padding(
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
             child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth),
@@ -1095,6 +1123,28 @@ class _Picture extends StatelessWidget {
               child: Image.memory(bytes, fit: BoxFit.cover, cacheWidth: (maxWidth * MediaQuery.devicePixelRatioOf(context)).round(), gaplessPlayback: true),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// A sticker in the conversation: its picture as it is, clear round its edge.
+class _Sticker extends StatelessWidget {
+  const _Sticker({required this.id, required this.side});
+  final int id;
+  final double side;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: Sms.instance.part(id),
+      builder: (context, snap) {
+        final bytes = snap.data;
+        return SizedBox(
+          width: side,
+          height: side,
+          child: bytes == null ? null : Image.memory(bytes, fit: BoxFit.contain, cacheWidth: (side * MediaQuery.devicePixelRatioOf(context)).round(), gaplessPlayback: true, filterQuality: FilterQuality.medium),
         );
       },
     );

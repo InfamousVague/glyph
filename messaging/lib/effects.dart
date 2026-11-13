@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -193,6 +195,92 @@ const _durations = <ScreenEffect, int>{
 /// How long [effect] runs.
 Duration effectDuration(ScreenEffect effect) => Duration(milliseconds: _durations[effect]!);
 
+/// An effect's own pictures (Matt, 2026-11-13: "the ghost messages assets are on the desktop, please wire them all
+/// and slice them up"): the ghost characters and the small props cut from its sheet by tool/effect_sprites.py into
+/// `assets/effects/<effect>-h1.webp…` and `<effect>-p1.webp…`. Where an effect has them, the app moves them in place
+/// of the emoji and plain shapes it drew; the light and the message's own words (fireworks, lasers, the spotlight,
+/// echo) are still drawn, under them.
+class EffectSprites {
+  const EffectSprites(this.heroes, this.props);
+
+  /// The characters: fewer, larger, slower.
+  final List<ui.Image> heroes;
+
+  /// The props: many, small.
+  final List<ui.Image> props;
+
+  static final _held = <ScreenEffect, Future<EffectSprites?>>{};
+
+  /// How many effects' pictures are kept decoded: the one playing and the ones just played.
+  static const _kept = 3;
+
+  /// [effect]'s pictures, decoded the first time they are asked for; null where it has none.
+  static Future<EffectSprites?> of(ScreenEffect effect) {
+    final had = _held.remove(effect);
+    final sprites = had ?? _load(effect);
+    _held[effect] = sprites;
+    while (_held.length > _kept) {
+      _held.remove(_held.keys.first);
+    }
+    return sprites;
+  }
+
+  static Future<EffectSprites?> _load(ScreenEffect effect) async {
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final mine = RegExp('^assets/effects/${effect.name}-([hp])(\\d+)\\.webp\$');
+      final found = [for (final a in manifest.listAssets()) (a, mine.firstMatch(a))].where((f) => f.$2 != null).toList()
+        ..sort((a, b) => int.parse(a.$2!.group(2)!).compareTo(int.parse(b.$2!.group(2)!)));
+      Future<ui.Image> picture(String asset) async {
+        final data = await rootBundle.load(asset);
+        final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        return (await codec.getNextFrame()).image;
+      }
+
+      final heroes = [for (final f in found) if (f.$2!.group(1) == 'h') await picture(f.$1)];
+      final props = [for (final f in found) if (f.$2!.group(1) == 'p') await picture(f.$1)];
+      return heroes.isEmpty && props.isEmpty ? null : EffectSprites(heroes, props);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// How an effect's pictures move: the props and how many, the characters and how many.
+class _SpritePlan {
+  const _SpritePlan(this.props, this.propCount, this.heroes, this.heroCount, {this.small = false});
+  final _Flight props;
+  final int propCount;
+  final _Flight heroes;
+  final int heroCount;
+
+  /// The props are specks (confetti, snow): smaller, and they tumble.
+  final bool small;
+}
+
+const _spritePlans = <ScreenEffect, _SpritePlan>{
+  ScreenEffect.balloons: _SpritePlan(_Flight.rise, 14, _Flight.rise, 4),
+  ScreenEffect.confetti: _SpritePlan(_Flight.fall, 64, _Flight.rise, 3, small: true),
+  ScreenEffect.celebration: _SpritePlan(_Flight.fall, 16, _Flight.rise, 3),
+  ScreenEffect.fireworks: _SpritePlan(_Flight.burst, 10, _Flight.rise, 3),
+  ScreenEffect.kisses: _SpritePlan(_Flight.rise, 22, _Flight.rise, 4),
+  ScreenEffect.hearts: _SpritePlan(_Flight.rise, 24, _Flight.rise, 4),
+  ScreenEffect.snow: _SpritePlan(_Flight.fall, 56, _Flight.fall, 3, small: true),
+  ScreenEffect.lasers: _SpritePlan(_Flight.burst, 14, _Flight.rise, 3),
+  ScreenEffect.ghosts: _SpritePlan(_Flight.rise, 12, _Flight.rise, 6),
+  ScreenEffect.wow: _SpritePlan(_Flight.burst, 28, _Flight.burst, 3),
+  ScreenEffect.thanks: _SpritePlan(_Flight.fall, 24, _Flight.fall, 3),
+  ScreenEffect.goodNight: _SpritePlan(_Flight.fall, 20, _Flight.fall, 3),
+  ScreenEffect.goodMorning: _SpritePlan(_Flight.rise, 18, _Flight.rise, 4),
+  ScreenEffect.getWell: _SpritePlan(_Flight.rise, 18, _Flight.rise, 4),
+  ScreenEffect.bye: _SpritePlan(_Flight.rise, 14, _Flight.rise, 5),
+  ScreenEffect.hungry: _SpritePlan(_Flight.fall, 26, _Flight.rise, 3),
+  ScreenEffect.sorry: _SpritePlan(_Flight.fall, 22, _Flight.fall, 2),
+  ScreenEffect.party: _SpritePlan(_Flight.fall, 24, _Flight.rise, 4),
+  ScreenEffect.echo: _SpritePlan(_Flight.rise, 10, _Flight.rise, 3),
+  ScreenEffect.spotlight: _SpritePlan(_Flight.fall, 10, _Flight.rise, 2),
+};
+
 /// The layer over a conversation that an effect plays on. It takes no touches and draws nothing while idle.
 class EffectLayer extends StatefulWidget {
   const EffectLayer({super.key, required this.style});
@@ -209,6 +297,11 @@ class EffectLayerState extends State<EffectLayer> with SingleTickerProviderState
   ScreenEffect? _effect;
   int _seed = 0;
   String _text = '';
+
+  /// The playing effect's pictures, where it has them, and which play this is: one asked for while another's
+  /// pictures were still being fetched does not start late over the newer one.
+  EffectSprites? _sprites;
+  int _plays = 0;
 
   /// The overlays added as files (`assets/effects/NAME.webp`, an animated WebP with transparency): one of these
   /// plays in place of the effect drawn here. See docs/effects.md.
@@ -230,9 +323,17 @@ class EffectLayerState extends State<EffectLayer> with SingleTickerProviderState
   void play(ScreenEffect effect, {String text = ''}) {
     if (!mounted) return;
     if (MediaQuery.disableAnimationsOf(context)) return;
+    final play = ++_plays;
+    EffectSprites.of(effect).then((sprites) {
+      if (mounted && play == _plays) _start(effect, text, sprites);
+    });
+  }
+
+  void _start(ScreenEffect effect, String text, EffectSprites? sprites) {
     setState(() {
       _effect = effect;
       _text = text;
+      _sprites = sprites;
       _seed = DateTime.now().microsecondsSinceEpoch & 0xFFFF;
     });
     _run
@@ -264,7 +365,7 @@ class EffectLayerState extends State<EffectLayer> with SingleTickerProviderState
     }
     return IgnorePointer(
       child: RepaintBoundary(
-        child: CustomPaint(size: Size.infinite, painter: EffectPainter(effect, _run, _seed, style: widget.style, text: _text)),
+        child: CustomPaint(size: Size.infinite, painter: EffectPainter(effect, _run, _seed, style: widget.style, text: _text, sprites: _sprites)),
       ),
     );
   }
@@ -276,12 +377,15 @@ const _gold = [Color(0xFFFFD166), Color(0xFFFFB400), Color(0xFFFF8C42), Color(0x
 /// One effect at a moment of its run. Every particle's path is a function of the time and a seed, so a frame is
 /// the same however often it is drawn, and nothing is kept between frames but the laid-out glyphs.
 class EffectPainter extends CustomPainter {
-  EffectPainter(this.effect, this.t, this.seed, {this.style = const TextStyle(), this.text = ''}) : super(repaint: t);
+  EffectPainter(this.effect, this.t, this.seed, {this.style = const TextStyle(), this.text = '', this.sprites}) : super(repaint: t);
   final ScreenEffect effect;
   final Animation<double> t;
   final int seed;
   final TextStyle style;
   final String text;
+
+  /// The effect's own pictures, moved in place of the emoji and shapes drawn without them.
+  final EffectSprites? sprites;
 
   final _glyphs = <String, TextPainter>{};
 
@@ -298,6 +402,29 @@ class EffectPainter extends CustomPainter {
     // Everything leaves in the last tenth, whatever it was doing.
     final fade = time > 0.88 ? ((1 - time) / 0.12).clamp(0.0, 1.0) : 1.0;
     final r = math.Random(seed);
+    final pictures = sprites;
+    final plan = _spritePlans[effect];
+    if (pictures != null && plan != null) {
+      // What only the app can draw stays, under the pictures: the light, and the message's own words.
+      switch (effect) {
+        case ScreenEffect.fireworks:
+          _fireworks(canvas, size, time, fade, r, _bright, 7);
+        case ScreenEffect.celebration:
+          _fireworks(canvas, size, time, fade, r, _gold, 12);
+        case ScreenEffect.lasers:
+          _lasers(canvas, size, time, fade, r);
+        case ScreenEffect.echo:
+          _echo(canvas, size, time, fade, r);
+        case ScreenEffect.spotlight:
+          _spotlight(canvas, size, time);
+        default:
+          break;
+      }
+      final small = plan.small;
+      _spriteFlight(canvas, size, time, fade, math.Random(seed ^ 0x5bd1), pictures.props, plan.props, plan.propCount, small ? 16 : 34, small ? 34 : 62, spin: small ? 1.6 : 0.3);
+      _spriteFlight(canvas, size, time, fade, math.Random(seed ^ 0x2f6b), pictures.heroes, plan.heroes, plan.heroCount, 96, 148, speed: 0.72, spin: 0.14);
+      return;
+    }
     final flight = _flights[effect];
     if (flight != null) {
       _emojiFlight(canvas, size, time, fade, r, flight.$1, flight.$2, flight.$3);
@@ -326,6 +453,51 @@ class EffectPainter extends CustomPainter {
         _spotlight(canvas, size, time);
       default:
         break;
+    }
+  }
+
+  /// The effect's pictures rising like bubbles, falling like petals, or thrown out from the middle: [count] of
+  /// them, each one of [images] in turn, from [smallest] to [largest] across.
+  void _spriteFlight(Canvas canvas, Size size, double time, double fade, math.Random r, List<ui.Image> images, _Flight flight, int count, double smallest, double largest, {double speed = 1, double spin = 0.3}) {
+    if (images.isEmpty) return;
+    final paint = Paint()..filterQuality = FilterQuality.medium;
+    for (var i = 0; i < count; i++) {
+      final x0 = 0.07 + r.nextDouble() * 0.86;
+      final delay = r.nextDouble() * 0.4;
+      final rate = (0.8 + r.nextDouble() * 0.6) * speed;
+      final s = smallest + r.nextDouble() * (largest - smallest);
+      final phase = r.nextDouble() * math.pi * 2;
+      final angle = r.nextDouble() * math.pi * 2;
+      final reach = (0.25 + r.nextDouble() * 0.55) * size.height * 0.6;
+      final image = images[i % images.length];
+      final p = (time - (flight == _Flight.burst ? delay * 0.25 : delay)) * rate;
+      if (p <= 0) continue;
+      double x, y, alpha = fade, scale = 1;
+      switch (flight) {
+        case _Flight.rise:
+          y = size.height + s - p * (size.height + s * 3) * 1.15;
+          x = x0 * size.width + math.sin(phase + p * 7) * 18;
+          alpha *= (1 - p * 0.25).clamp(0.0, 1.0);
+        case _Flight.fall:
+          y = -s + p * (size.height + s * 3) * 1.1;
+          x = x0 * size.width + math.sin(phase + p * 6) * 22;
+        case _Flight.burst:
+          final out = Curves.easeOutCubic.transform((p * 1.6).clamp(0.0, 1.0));
+          x = size.width / 2 + math.cos(angle) * reach * out;
+          y = size.height * 0.5 + math.sin(angle) * reach * out;
+          scale = 0.4 + out * 0.9;
+          alpha *= (1.2 - p * 1.1).clamp(0.0, 1.0);
+      }
+      if (y < -s * 2 || y > size.height + s * 2 || alpha <= 0) continue;
+      final w = image.width.toDouble();
+      final h = image.height.toDouble();
+      final k = s * scale / math.max(w, h);
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(math.sin(phase + p * 5) * spin);
+      paint.color = Color.fromRGBO(255, 255, 255, alpha);
+      canvas.drawImageRect(image, Rect.fromLTWH(0, 0, w, h), Rect.fromCenter(center: Offset.zero, width: w * k, height: h * k), paint);
+      canvas.restore();
     }
   }
 

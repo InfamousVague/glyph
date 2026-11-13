@@ -12,7 +12,10 @@ settings read where they act, and Updates' plain words. 0.4.0 also has chat back
 0.6.0, later still (README has each): what catches people coming from Google Messages (RCS, and Android's
 restricted settings), a loading indicator and read errors, choosing several conversations to delete, the invisible
 hello between two copies and the encryption banner, bubble colours, a settings cog in each conversation, the keyboard
-coming back, the new icon, and speed. Two throwaway emulators (the spare AVD started twice, read-only) carried the
+coming back, the new icon, and speed; then the effects' own pictures (twenty sheets Matt made, cut into 240 sprites
+by `tool/effect_sprites.py` and moved by the app) and four sticker packs made from the same ghost
+(`tool/sticker_packs.py`; sent as picture messages), both tried on an emulator in a release build, where a sticker
+was stored and drawn but, with no carrier, could not go. Two throwaway emulators (the spare AVD started twice, read-only) carried the
 first real exchange between two copies of the app: the hello, both keys, a sealed text each way, a synced background.
 They will not text each other, and their modems take no PDUs, so a small script carried each text across with
 `adb emu sms send`.
@@ -134,8 +137,9 @@ Nothing below has run on a device. With the Fold connected, in this order: becom
 old conversations; send and receive an SMS; delivery ticks; a picture each way and a group MMS (the wire format is
 `Pdu.kt`, held only by `PduTest`); a notification with Reply, Mark as read and Copy code; a reaction each way with a
 phone on Google Messages and with an iPhone; an edit with its correction; each emoji set, joined emoji among them;
-an effect arriving; block and unblock; the updater against the first real release; and encryption between two
-phones with the app.
+an effect arriving; block and unblock; the updater against the first real release; encryption between two
+phones with the app; and a sticker each way (it is a picture message: does its clear background arrive, on a phone
+with the app and on one without).
 
 ## Ways of working that Matt has asked for
 
