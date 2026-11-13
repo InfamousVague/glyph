@@ -1,0 +1,33 @@
+name: ghost_messaging
+description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The Glacier UI kit in Flutter, vendored from Ghost.md by way of Ghost Keyboard (packages/glacier/VENDORED.md).
+  glacier:
+    path: packages/glacier
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: false
+  assets:
+    # Ghost.md's stylesheets, read by the token engine over Glacier's own (lib/main.dart).
+    - assets/css/ink.css
+    - assets/css/app.css
+  fonts:
+    - family: Inter Variable
+      fonts:
+        - asset: assets/fonts/InterVariable-latin.ttf
+    - family: JetBrains Mono Variable
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoVariable-latin.ttf

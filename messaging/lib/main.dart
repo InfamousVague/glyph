@@ -1,0 +1,169 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import 'app_state.dart';
+import 'kit/settings_css.dart';
+import 'sms.dart';
+import 'ui/compose.dart';
+import 'ui/conversations.dart';
+import 'ui/setup.dart';
+import 'ui/thread.dart';
+
+/// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
+/// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  final sheet = await loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css']);
+  installSettingsStyles(sheet);
+  final state = AppState();
+  await state.load();
+  Sms.instance.listen();
+  runApp(GhostMessagingApp(sheet: sheet, state: state));
+}
+
+final _navigator = GlobalKey<NavigatorState>();
+
+class GhostMessagingApp extends StatelessWidget {
+  const GhostMessagingApp({super.key, required this.sheet, required this.state});
+  final TokenSheet sheet;
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScope(
+      state: state,
+      child: ListenableBuilder(
+        listenable: state,
+        builder: (context, _) => WidgetsApp(
+          title: 'Ghost Messaging',
+          navigatorKey: _navigator,
+          color: const Color(0xFF4F5BD5),
+          debugShowCheckedModeBanner: false,
+          pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) =>
+              PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
+          builder: (context, child) => GlacierTheme(
+            sheet: sheet,
+            attrs: {'platform': 'mobile', if (state.theme != 'system') 'theme': state.theme},
+            typography: const GlacierTypography(features: [FontFeature('cv11'), FontFeature('ss01')]),
+            child: HapticsProvider(
+              enabled: true,
+              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
+            ),
+          ),
+          home: const _Home(),
+        ),
+      ),
+    );
+  }
+}
+
+/// Setup until Ghost is the default SMS app, then the conversations. A notification or another app's "text this
+/// number" opens what it asks for over them.
+class _Home extends StatefulWidget {
+  const _Home();
+
+  @override
+  State<_Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<_Home> with WidgetsBindingObserver {
+  bool? _isDefault;
+  StreamSubscription<OpenRequest>? _opens;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check(first: true);
+    _opens = Sms.instance.opens.stream.listen(_open);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _opens?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check({bool first = false}) async {
+    final s = await Sms.instance.status();
+    if (!mounted) return;
+    setState(() => _isDefault = s.isDefault);
+    if (first && s.isDefault) {
+      if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
+      final req = await Sms.instance.openRequest();
+      if (req != null) _open(req);
+    }
+  }
+
+  Future<void> _open(OpenRequest req) async {
+    final nav = _navigator.currentState;
+    if (nav == null || _isDefault != true) return;
+    nav.popUntil((r) => r.isFirst);
+    if (req.thread != null) {
+      final people = await Sms.instance.people(req.thread!);
+      nav.push(_route((_) => ThreadScreen(thread: req.thread!, people: people)));
+    } else if (req.addresses.isNotEmpty) {
+      final thread = await Sms.instance.threadFor(req.addresses);
+      final people = <Person>[for (final a in req.addresses) await Sms.instance.contact(a)];
+      nav.push(_route((_) => ThreadScreen(thread: thread, people: people, draft: req.body)));
+    } else {
+      nav.push(_route((_) => ComposeScreen(body: req.body)));
+    }
+  }
+
+  PageRouteBuilder<void> _route(WidgetBuilder b) => PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, _, _) => b(context),
+        transitionsBuilder: (context, a, _, child) => SlideTransition(
+          position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isDefault == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
+    if (!_isDefault!) return SetupScreen(onDone: () => _check(first: true));
+    return const ConversationsScreen();
+  }
+}
+
+/// Ghost.md's ink.css on the kit's parts no token reaches (as Ghost Keyboard's main.dart does).
+class InkOverrides extends StatelessWidget {
+  const InkOverrides({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GlacierOverrides(switchThumbColor: _paper, segmentedSelectedLabelColor: _paper, segmentedThumbShadow: _none, child: child);
+
+  static Color _paper(Tokens t) => t.color('app-paper');
+  static List<BoxShadow> _none(Tokens t) => const [];
+}
+
+/// The status and navigation bars' icons, dark on the light theme and light on the dark.
+class _SystemBars extends StatelessWidget {
+  const _SystemBars({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = context.tokens.isDark;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+        statusBarColor: const Color(0x00000000),
+        systemNavigationBarColor: const Color(0x00000000),
+      ),
+      child: child,
+    );
+  }
+}
