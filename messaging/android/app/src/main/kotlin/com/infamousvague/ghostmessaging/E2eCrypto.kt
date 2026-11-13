@@ -46,7 +46,7 @@ object E2eCrypto {
     private val AAD = "ghost-e2e-v1".toByteArray()
     private val random = SecureRandom()
 
-    private val curve: ECParameterSpec by lazy {
+    internal val curve: ECParameterSpec by lazy {
         AlgorithmParameters.getInstance("EC").apply { init(ECGenParameterSpec("secp256r1")) }.getParameterSpec(ECParameterSpec::class.java)
     }
     private val p: BigInteger by lazy { (curve.curve.field as java.security.spec.ECFieldFp).p }
@@ -84,9 +84,9 @@ object E2eCrypto {
         } catch (_: Exception) { null }
     }
 
-    private fun hmac(key: ByteArray, data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
+    internal fun hmac(key: ByteArray, data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
 
-    private fun ordered(a: ByteArray, b: ByteArray): ByteArray {
+    internal fun ordered(a: ByteArray, b: ByteArray): ByteArray {
         for (i in a.indices) {
             val d = (a[i].toInt() and 0xFF) - (b[i].toInt() and 0xFF)
             if (d != 0) return if (d < 0) a + b else b + a

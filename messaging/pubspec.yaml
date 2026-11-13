@@ -12,6 +12,8 @@ dependencies:
   # The Glacier UI kit in Flutter, vendored from Ghost.md by way of Ghost Keyboard (packages/glacier/VENDORED.md).
   glacier:
     path: packages/glacier
+  pointycastle: ^4.0.0
+  qr: ^4.0.1
 
 dev_dependencies:
   flutter_test:

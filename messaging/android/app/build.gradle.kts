@@ -72,5 +72,9 @@ flutter {
 }
 
 dependencies {
+    // Reads the QR code a computer shows to pair with (ScanActivity.kt): on the phone, with nothing from Google Play.
+    implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")
+    // Android's own org.json is a stub on the JVM: the desktop link's tests (DeskSessionTest) need a real one.
+    testImplementation("org.json:json:20240303")
 }
