@@ -26,6 +26,7 @@ Future<void> main() async {
   // The colours Android takes from the wallpaper, for a chat background and bubbles that follow the phone.
   await PhonePalette.load();
   Sms.instance.listen();
+  Sms.instance.prefsChanged.stream.listen((_) => state.reload());
   runApp(GhostMessagingApp(sheet: sheet, state: state));
 }
 

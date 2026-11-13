@@ -145,6 +145,15 @@ final List<SettingsSection> settingsSections = [
     page: _android,
   ),
   SettingsSection(
+    id: 'keyboard',
+    label: 'Ghost Keyboard',
+    icon: _icon(LucideMore.keyboard),
+    hue: 'yellow',
+    group: 'phone',
+    summary: (m) => !m.app.flag('kbd_codes') ? 'Sign-in codes not offered' : (m.keyboardHere ? 'Offers it sign-in codes' : 'Not on this phone'),
+    page: _keyboard,
+  ),
+  SettingsSection(
     id: 'updates',
     label: 'Updates',
     icon: _icon(Lucide.download),
@@ -165,7 +174,7 @@ final List<SettingsSection> settingsSections = [
 ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.4.0';
+const appVersion = '0.5.0';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -622,6 +631,35 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+  ];
+}
+
+// --- Ghost Keyboard ---------------------------------------------------------------------------------------------------
+
+List<Widget> _keyboard(BuildContext context, SettingsModel m) {
+  final app = m.app;
+  return [
+    PaneSection(
+      title: 'Sign-in codes',
+      footer: Text(m.keyboardHere
+          ? 'Ghost Keyboard is on this phone. Its own switch is in its Settings › Row tools.'
+          : 'Ghost Keyboard isn\'t on this phone (ghostkbd.com). Nothing is offered to any other app.'),
+      children: [
+        SettingRow(
+          icon: _icon(Lucide.keyRound),
+          label: 'Offer sign-in codes to Ghost Keyboard',
+          hint: const Text('When a text arrives with a code, like "Your code is 482913", Ghost Keyboard shows the code above its keys to tap in. Only the code is handed over, for ten minutes, and only to Ghost Keyboard, which is checked by its signature.'),
+          control: GlacierSwitch(checked: app.flag('kbd_codes'), onCheckedChange: (v) => app.setFlag('kbd_codes', v), ariaLabel: 'Offer sign-in codes to Ghost Keyboard'),
+        ),
+      ],
+    ),
+    PaneSection(title: 'Why', children: [
+      SettingRow(
+        icon: _icon(Lucide.info),
+        label: 'Android keeps codes from keyboards',
+        hint: const Text('A keyboard needs Android\'s permission to receive texts, which newer versions refuse apps from outside a store, and Android 17 holds code texts back from every app but the default SMS app. This app is the default SMS app, so it has the code at once.'),
+      ),
+    ]),
   ];
 }
 

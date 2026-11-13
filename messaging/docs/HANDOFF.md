@@ -9,6 +9,10 @@ settings read where they act, and Updates' plain words. 0.4.0 also has chat back
 `~/Development/Apps/glyph-messaging`, so the shared checkout stays on main; the scripts are run from there with
 `--glyph ~/Development/Apps/glyph`.
 
+0.5.0, later that day, added two more asks of Matt's (README): a conversation's background synced between phones
+that both have the app, as a text in the conversation, and sign-in codes handed to Ghost Keyboard (which needs its
+0.18.0: the `codes` branch of GhostKbd, in `~/Development/Apps/ghost-kbd-codes`, not pushed until Matt says).
+
 Written by the cloud session that built 0.1.0 to 0.3.1, for the session that carries on from Matt's Mac (Matt:
 "give me a full prompt to have another session pick up the work on my mac"). The cloud session had no account on the
 box, no release key, no phone and no emulator, so nothing here has been published or run on a device.

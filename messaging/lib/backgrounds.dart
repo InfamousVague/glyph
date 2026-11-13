@@ -16,12 +16,18 @@ import 'sms.dart';
 /// Android takes from the wallpaper (Material You), which is what [ChatBackground.wallpaper] wears: it follows the
 /// phone, as Google's and Samsung's apps do.
 ///
-/// A choice is kept as one word: `none`, `wallpaper`, `preset:dusk`, `color:#RRGGBB`, `image:/path/on/this/phone`.
+/// A choice is kept as one word: `none`, `wallpaper`, `preset:dusk`, `color:#RRGGBB`, `image:/path/on/this/phone`,
+/// and `wash:#..,#..,#..,#..` (a wash's top and bottom in light, then in dark), which is what someone else's
+/// "Match my wallpaper" is here.
+///
+/// A conversation's own background can be synced with the people in it who have Ghost Messaging (Matt, 2026-11-13: "I
+/// want the background to sync for everyone in a chat if they're all using ghost messaging"): it goes as a text in
+/// the conversation (android/.../BackgroundWire.kt), their copy wears it, and both draw the text as a line.
 @immutable
 class ChatBackground {
   const ChatBackground(this.kind, [this.value = '']);
 
-  /// none, wallpaper, preset, color, image.
+  /// none, wallpaper, preset, color, image, wash.
   final String kind;
   final String value;
 
@@ -47,6 +53,7 @@ class ChatBackground {
     return switch (kind) {
       'preset' when chatPresets.any((p) => p.id == value) => ChatBackground(kind, value),
       'color' when _hex(value) != null => ChatBackground(kind, value),
+      'wash' when value.split(',').length == 4 && value.split(',').every((h) => _hex(h) != null) => ChatBackground(kind, value),
       'image' when value.isNotEmpty => ChatBackground(kind, value),
       _ => none,
     };
@@ -66,12 +73,24 @@ class ChatBackground {
   /// What [thread] wears.
   static ChatBackground of(AppState app, int thread) => own(app, thread) ?? everyChat(app);
 
+  /// The form of this that another phone can wear: itself, but for "Match my wallpaper", whose colours are this
+  /// phone's own and go as the four of them. Null where there is nothing to send (no palette on this phone).
+  ChatBackground? get shareable {
+    if (kind != 'wallpaper') return this;
+    final light = PhonePalette.current?.wash(false);
+    final dark = PhonePalette.current?.wash(true);
+    if (light == null || dark == null) return null;
+    String hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+    return ChatBackground('wash', [light.$1, light.$2, dark.$1, dark.$2].map(hex).join(','));
+  }
+
   /// Its name, as Settings says it.
   String get label => switch (kind) {
         'wallpaper' => 'My wallpaper\'s colours',
         'preset' => chatPresets.firstWhere((p) => p.id == value, orElse: () => chatPresets.first).name,
         'color' => 'A colour',
         'image' => 'A picture',
+        'wash' => 'Shared colours',
         _ => 'None',
       };
 
@@ -84,6 +103,10 @@ class ChatBackground {
       case 'color':
         final c = _hex(value);
         return c == null ? null : (c, c);
+      case 'wash':
+        final c = value.split(',').map(_hex).toList();
+        if (c.length != 4 || c.contains(null)) return null;
+        return dark ? (c[2]!, c[3]!) : (c[0]!, c[1]!);
       case 'wallpaper':
         return PhonePalette.current?.wash(dark) ?? (dark ? (const Color(0xFF10151C), const Color(0xFF182230)) : (const Color(0xFFEEF2F7), const Color(0xFFDFE7F1)));
     }

@@ -47,10 +47,11 @@ class MainActivity : FlutterActivity() {
             override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
                 events = sink
                 Bus.listener = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
+                Bus.prefsListener = { events?.success(mapOf("type" to "prefs")) }
                 updateListener = { state -> events?.success(mapOf("type" to "update") + state.toMap(applicationContext)) }
                 Updater.addListener(updateListener!!)
             }
-            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
+            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
         MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
@@ -135,6 +136,21 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "systemPalette" -> result.success(systemPalette())
+                "keyboardHere" -> bg { CodesProvider.keyboardHere(applicationContext) }
+                "ghostPeers" -> bg { Backgrounds.allKnown(applicationContext, call.argument<List<String>>("addresses") ?: emptyList()) }
+                "shareBackground" -> bg {
+                    // A conversation's background goes to its people as a text (BackgroundWire): the picture with it
+                    // where it is one (an MMS), and the tag alone where the text goes sealed.
+                    val addresses = call.argument<List<String>>("addresses")!!
+                    val thread = call.argument<Number>("thread")!!.toLong()
+                    val raw = call.argument<String>("raw")!!
+                    val path = raw.removePrefix("image:").takeIf { raw.startsWith("image:") }
+                    val bare = path == null && addresses.size == 1 && E2e.isOn(applicationContext, addresses[0])
+                    val text = BackgroundWire.text(if (path != null) "image" else raw, bare = bare)
+                    Sender.send(applicationContext, addresses, text, if (path != null) listOf(Uri.fromFile(java.io.File(path)).toString()) else emptyList())
+                    Backgrounds.sent(applicationContext, thread, raw)
+                    null
+                }
                 "importBackground" -> bg { importBackground(call.argument<String>("uri")!!, call.argument<String>("name") ?: "all") }
                 "deleteBackground" -> bg { backgroundFiles(call.argument<String>("name") ?: "all").forEach { it.delete() }; null }
                 "prefs" ->result.success(getSharedPreferences("ui", MODE_PRIVATE).all.mapValues { it.value.toString() })

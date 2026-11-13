@@ -70,6 +70,7 @@ object Notifier {
             when (m["notice"]) {
                 "key" -> body = "Sent an encryption key. Open to turn encryption on."
                 "undecryptable" -> body = "Encrypted message"
+                "background" -> body = "Changed the chat background"
             }
             if (!previews && m["notice"] == null) body = "New message"
             @Suppress("UNCHECKED_CAST") val parts = m["parts"] as List<Map<String, Any?>>? ?: emptyList()

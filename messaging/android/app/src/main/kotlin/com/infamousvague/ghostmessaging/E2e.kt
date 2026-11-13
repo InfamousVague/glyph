@@ -104,6 +104,9 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    /** Whether a key of [address]'s is here: they have the app, whatever was done about the key. */
+    fun hasTheirKey(context: Context, address: String): Boolean = peer(context, address)?.optString("pub", "")?.isNotEmpty() == true
+
     /** Where the conversation with [address] stands, for the screen. */
     fun state(context: Context, address: String): Map<String, Any?> {
         val o = peer(context, address)

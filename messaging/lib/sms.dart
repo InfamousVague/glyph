@@ -221,6 +221,9 @@ class Sms {
 
   /// Where the app's own update stands, each time it moves (android/.../Updater.kt).
   final updates = StreamController<UpdateState>.broadcast();
+
+  /// The person's choices were changed from Android's side (a chat background someone shared): read them again.
+  final prefsChanged = StreamController<void>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -229,6 +232,7 @@ class Sms {
       if (m['type'] == 'changed') changes.add((m['thread'] as num?)?.toInt() ?? -1);
       if (m['type'] == 'open') opens.add(OpenRequest.from(m));
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
+      if (m['type'] == 'prefs') prefsChanged.add(null);
     });
   }
 
@@ -311,6 +315,17 @@ class Sms {
   /// conversation's number); the copy's path, or null when the picture could not be read.
   Future<String?> importBackground(String uri, String name) => _calls.invokeMethod<String>('importBackground', {'uri': uri, 'name': name});
   Future<void> deleteBackground(String name) => _calls.invokeMethod('deleteBackground', {'name': name});
+
+  /// Whether Ghost Keyboard is on this phone, signed as it should be (android/.../Codes.kt): sign-in codes are
+  /// offered to it and to nothing else.
+  Future<bool> keyboardHere() async => await _calls.invokeMethod<bool>('keyboardHere') ?? false;
+
+  /// Whether everyone in [addresses] is known to have Ghost Messaging (android/.../Backgrounds.kt): a text only the
+  /// app writes has come from each of them.
+  Future<bool> ghostPeers(List<String> addresses) async => await _calls.invokeMethod<bool>('ghostPeers', {'addresses': addresses}) ?? false;
+
+  /// Sends [thread]'s background ([raw], as the choice is kept) to its people as a text their copy of the app wears.
+  Future<void> shareBackground(List<String> addresses, int thread, String raw) => _calls.invokeMethod('shareBackground', {'addresses': addresses, 'thread': thread, 'raw': raw});
 
   Future<Map<String, String>> prefs() async => {for (final e in ((await _calls.invokeMethod<Map>('prefs')) ?? const {}).entries) e.key as String: e.value as String};
   Future<void> setPref(String key, String value) => _calls.invokeMethod('setPref', {'key': key, 'value': value});

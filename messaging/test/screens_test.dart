@@ -74,6 +74,7 @@ List<Map<String, Object?>> _messages(int thread) {
     // An encrypted conversation: the two keys as lines, sealed texts opened with their locks, and one from before a
     // reinstall that this phone can no longer open.
     return [
+      {'id': 27, 'kind': 'sms', 'address': '+15551230011', 'body': '', 'date': _ago(minutes: 29), 'outgoing': false, 'state': 'received', 'read': true, 'encrypted': true, 'notice': 'background'},
       {'id': 26, 'kind': 'sms', 'address': '+15551230011', 'body': 'Only our two phones can read this now', 'date': _ago(minutes: 30), 'outgoing': false, 'state': 'received', 'read': true, 'encrypted': true},
       {'id': 25, 'kind': 'sms', 'address': '', 'body': 'Door code is 4417, don\'t tell anyone 🤫', 'date': _ago(minutes: 31), 'outgoing': true, 'state': 'delivered', 'read': true, 'encrypted': true},
       {'id': 24, 'kind': 'sms', 'address': '+15551230011', 'body': '', 'date': _ago(minutes: 33), 'outgoing': false, 'state': 'received', 'read': true, 'notice': 'undecryptable'},
@@ -122,7 +123,7 @@ void _answerChannel() {
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
       case 'update':
-        return {'phase': 'available', 'current': '0.4.0', 'available': '0.4.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+        return {'phase': 'available', 'current': '0.5.0', 'available': '0.5.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
       case 'e2e':
@@ -133,6 +134,11 @@ void _answerChannel() {
         return '9C41 D07A';
       case 'blockedNumbers':
         return [_p('+15551230090', 'Spam Likely'), _p('+18005550199')];
+      case 'keyboardHere':
+        return true;
+      case 'ghostPeers':
+        // Riley is known to have the app (keys were exchanged); nobody else is.
+        return (args['addresses'] as List).every((a) => a == '+15551230011');
       case 'prefs':
         return <String, String>{};
       default:
@@ -199,7 +205,7 @@ void main() {
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
       await _shootAgain(tester, '5-settings-search', dark: dark);
-      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'updates']) {
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'updates']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
       // Encryption in a conversation: on and verified, and a key waiting for a yes.
@@ -207,6 +213,8 @@ void main() {
       await _shoot(tester, sheet, const ThreadScreen(thread: 9, people: [Person(address: '+15551230012', name: 'Noor Haddad')]), '8-encryption-asked', dark: dark);
       // Chat backgrounds: the picker, and a conversation wearing a wash.
       await _shoot(tester, sheet, const BackgroundPicker(), '9-background-picker', dark: dark);
+      // A conversation's own, synced with someone who has the app: the shared one worn, and the switch on.
+      await _shoot(tester, sheet, const BackgroundPicker(thread: 8, who: 'Riley Fox', people: [Person(address: '+15551230011', name: 'Riley Fox')]), '9-background-sync', dark: dark, prefs: const {'chat_bg_8': 'preset:rose', 'chat_bg_synced_8': 'preset:rose'});
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-background-dusk', dark: dark, prefs: const {'chat_bg': 'preset:dusk'});
       await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup', dark: dark);
       // Each effect at a moment of its run, over the conversation.

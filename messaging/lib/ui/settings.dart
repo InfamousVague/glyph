@@ -39,6 +39,9 @@ class SettingsModel extends ChangeNotifier {
   List<Person> blocked = const [];
   int archived = 0;
 
+  /// Ghost Keyboard is on this phone (and is the real one, by its certificate).
+  bool keyboardHere = false;
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   bool _gone = false;
@@ -71,6 +74,7 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => e2e = await Sms.instance.e2eList()),
       ask(() async => myKey = await Sms.instance.e2eMine()),
       ask(() async => blocked = await Sms.instance.blockedNumbers()),
+      ask(() async => keyboardHere = await Sms.instance.keyboardHere()),
       ask(() async => archived = (await Sms.instance.conversations()).where((c) => c.archived).length),
     ]);
     _say();

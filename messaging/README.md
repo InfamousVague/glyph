@@ -86,8 +86,31 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   There is no standard by which texting apps share a background: Google Messages keeps its own on the phone that set
   it, for RCS chats only, where no other app can read it. What every app can share is the palette Android takes from
   the wallpaper (Material You, Android 12 on), and that is what Match my wallpaper wears, so it follows the phone as
-  Google's and Samsung's apps do (`lib/backgrounds.dart`, `MainActivity.systemPalette`). Nothing is sent to the other
-  person: SMS has no way to carry it.
+  Google's and Samsung's apps do (`lib/backgrounds.dart`, `MainActivity.systemPalette`).
+- **Synced backgrounds** (0.5.0; Matt, 2026-11-13: "I want the background to sync for everyone in a chat if they're
+  all using ghost messaging"). A conversation's own background (its header › Chat background) has a switch, "Sync
+  with Maya" ("with everyone here" in a group). On, what the conversation wears is sent to its people as the page is
+  left, once, and their Ghost Messaging wears it too; what they choose comes back the same way, so the newest choice
+  is everyone's. There is no server, so it goes as a text in the conversation (`BackgroundWire.kt`:
+  `ghost:bg1:preset:dusk`, `color:#RRGGBB`, `none`, a wash's four colours for Match my wallpaper, since the other
+  phone's wallpaper is its own, or `image` with the picture in the same message as an MMS, at the size the carrier
+  allows). Both phones draw that text as a line, "Maya changed the chat background", not a bubble. It is sealed with
+  the rest where encryption is on. The switch is on by itself only where everyone is known to have the app, which is
+  once a text only the app writes has come from them (a key, a sealed text, a background: `Backgrounds.kt`); to
+  anyone else it would arrive as a line of letters, and the page says so before it is switched on by hand. Settings ›
+  Chat background › Wear backgrounds shared with you turns the receiving off. Every chat's background (the one in
+  Settings) is this phone's alone.
+- **Sign-in codes for Ghost Keyboard** (0.5.0; Matt, 2026-11-13: "The messaging app should also work with ghost kbd to
+  proxy verification codes"). Ghost Keyboard shows a one-time code above its keys to tap in, but reading texts itself
+  needs a permission Android 15 refuses apps from outside a store, and Android 17 holds code texts back from every
+  app but the default SMS app. This app is the default SMS app, so it answers the keyboard instead (`Codes.kt`):
+  a content provider, `content://com.infamousvague.ghostmessaging.codes/latest`, which looks through the texts of
+  the last ten minutes with the finder the notification's Copy button uses and answers with the codes and when they
+  arrived: three at most, never the words or who sent them, and nothing is kept for it. It answers Ghost Keyboard
+  alone, known by its package and the SHA-256 of its release certificate; the keyboard pins this app's in turn (its
+  `GhostMessagingCodes.kt`, docs/ghost-messaging-codes.md there). When a text with a code arrives, a keyboard that is
+  watching is told to ask. Settings › Ghost Keyboard has the switch (on to start) and says whether the keyboard is on
+  the phone. Needs Ghost Keyboard 0.18.0 or later.
 - **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
   expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
   own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
@@ -95,7 +118,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   (Enter sends, attach reactions to messages), Receipts (delivery reports, read receipts, the ticks explained),
   Notifications (Android's permission, message previews, the copy-code button, sound and vibration); Encryption (what
   it is, the people, this phone's key, a new key), Blocked numbers (tap to unblock), Archived; Your number, Android
-  (default SMS app, contacts, phone number); Updates, About. Settings › Updates says "ghost-sms.com isn't serving
+  (default SMS app, contacts, phone number), Ghost Keyboard (0.5.0); Updates, About. Settings › Updates says "ghost-sms.com isn't serving
   updates yet" where the site has no certificate, no such name, nothing answering or no release, and "This phone is
   offline" where that is why, in place of Java's own error.
 
@@ -121,7 +144,7 @@ flutter pub get
 flutter build apk --release --target-platform android-arm64   # build/app/outputs/flutter-apk/app-release.apk
 flutter test                                                  # reactions, edits, effects, emoji sets, settings and backgrounds; builds every screen
 flutter test --update-goldens test/screens_test.dart          # every screen, light and dark, written to test/shots/
-cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, and the encryption
+cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, the encryption, a background as a text, the codes offered
 ```
 
 The emoji sets' picture (`test/shots/7-emoji-sets.png`) is compared on Linux only: a Mac's test engine draws fonts
@@ -161,4 +184,4 @@ reports and the sign-in code finder are checked by `PduTest`, reactions, effects
 the manifest was checked for every component Android looks for before it offers an app as the default SMS app.
 Sending, receiving, MMS download and reports through a real carrier, notifications, blocking and the updater's
 install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
-Match my wallpaper. `docs/HANDOFF.md` section 3 is the list to go through on a phone.
+Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS). `docs/HANDOFF.md` section 3 is the list to go through on a phone.

@@ -114,12 +114,21 @@
             android:exported="false"
             android:grantUriPermissions="true" />
 
+        <!-- Sign-in codes, for Ghost Keyboard alone to ask for (Codes.kt): anyone may knock, and only the keyboard,
+             known by its certificate, is answered. -->
+        <provider
+            android:name=".CodesProvider"
+            android:authorities="${applicationId}.codes"
+            android:exported="true" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
 
     <queries>
+        <!-- Ghost Keyboard, so Settings can say whether it is on this phone. -->
+        <package android:name="com.infamousvague.devkeyboard" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

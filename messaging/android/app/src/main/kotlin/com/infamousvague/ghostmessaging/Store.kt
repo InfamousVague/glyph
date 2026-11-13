@@ -146,7 +146,7 @@ class Store(private val context: Context) {
                         "date" to (if (iDate >= 0) c.getLong(iDate) else 0L),
                         "count" to count,
                         "people" to recipients.map { contact(it) },
-                        "snippet" to E2e.preview(context, recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else ""),
+                        "snippet" to E2e.preview(context, recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it },
                         "encrypted" to (recipients.size == 1 && E2e.isOn(context, recipients[0])),
                         "unread" to (iRead >= 0 && c.getInt(iRead) == 0),
                         "error" to (iErr >= 0 && c.getInt(iErr) != 0),
@@ -205,14 +205,17 @@ class Store(private val context: Context) {
             while (c.moveToNext()) {
                 val type = c.getInt(4)
                 // A sealed text is opened here, as it is shown; a text carrying a key is a notice, not words.
-                val (words, sealed) = E2e.read(context, c.getString(1) ?: "", c.getString(2) ?: "")
+                val (opened, sealed) = E2e.read(context, c.getString(1) ?: "", c.getString(2) ?: "")
+                // A text that carried a chat background (BackgroundWire) is a notice too.
+                val background = BackgroundWire.valueIn(opened)
+                val words = if (background != null) "" else opened
                 out += mapOf(
                     "id" to c.getLong(0),
                     "kind" to "sms",
                     "address" to (c.getString(1) ?: ""),
                     "body" to words,
                     "encrypted" to (sealed == "encrypted"),
-                    "notice" to (if (sealed == "key" || sealed == "undecryptable") sealed else null),
+                    "notice" to (if (sealed == "key" || sealed == "undecryptable") sealed else if (background != null) "background" else null),
                     "date" to c.getLong(3),
                     "outgoing" to (type != Telephony.Sms.MESSAGE_TYPE_INBOX),
                     "state" to smsState(type, c.getInt(5)),
@@ -231,12 +234,16 @@ class Store(private val context: Context) {
                 val mType = c.getInt(4)
                 val outgoing = box != Telephony.Mms.MESSAGE_BOX_INBOX
                 val parts = mmsParts(id)
-                val text = parts.filter { it["type"] == "text/plain" }.joinToString("\n") { it["text"] as String? ?: "" }
+                val written = parts.filter { it["type"] == "text/plain" }.joinToString("\n") { it["text"] as String? ?: "" }
+                // A picture or group message that carried a chat background: a notice, its picture not a message's.
+                val background = BackgroundWire.valueIn(written)
+                val text = if (background != null) "" else written
                 out += mapOf(
                     "id" to id,
                     "kind" to "mms",
                     "address" to (if (outgoing) "" else mmsSender(id)),
                     "body" to text,
+                    "notice" to (if (background != null) "background" else null),
                     "subject" to c.getString(5),
                     "date" to c.getLong(1) * 1000,
                     "outgoing" to outgoing,
@@ -248,7 +255,7 @@ class Store(private val context: Context) {
                         else -> "received"
                     },
                     "read" to (c.getInt(3) != 0),
-                    "parts" to parts.filter { it["type"] != "text/plain" && it["type"] != "application/smil" },
+                    "parts" to (if (background != null) emptyList() else parts.filter { it["type"] != "text/plain" && it["type"] != "application/smil" }),
                 )
             }
         }
@@ -259,6 +266,15 @@ class Store(private val context: Context) {
             if (original == null) m else m + mapOf("edited" to true, "original" to original)
         }
         return if (marked.size > limit) marked.subList(0, limit) else marked
+    }
+
+    /** The texts that arrived since [since], opened where they were sealed: their words and when, newest first. */
+    fun recentInbox(since: Long, limit: Int = 20): List<Pair<String, Long>> {
+        val out = ArrayList<Pair<String, Long>>()
+        resolver.query(Telephony.Sms.Inbox.CONTENT_URI, arrayOf("address", "body", "date"), "date >= ?", arrayOf(since.toString()), "date DESC LIMIT $limit")?.use { c ->
+            while (c.moveToNext()) out += E2e.read(context, c.getString(0) ?: "", c.getString(1) ?: "").first to c.getLong(2)
+        }
+        return out
     }
 
     private fun smsState(type: Int, status: Int): String = when (type) {

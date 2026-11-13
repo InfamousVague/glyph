@@ -23,8 +23,12 @@ private const val TAG = "GhostMessaging"
 /** Tells the app on screen, when there is one, that a conversation changed. */
 object Bus {
     @Volatile var listener: ((Long) -> Unit)? = null
+
+    /** The choices the screen reads (the "ui" preferences) were changed from this side: a background that arrived. */
+    @Volatile var prefsListener: (() -> Unit)? = null
     private val main = Handler(Looper.getMainLooper())
     fun changed(thread: Long) { main.post { listener?.invoke(thread) } }
+    fun prefsChanged() { main.post { prefsListener?.invoke() } }
 }
 
 /** Mutable where the system adds its result extras to the intent it sends back (Android 12 asks that it be said). */
@@ -197,9 +201,19 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         // Someone's encryption key: kept, and the conversation moves on (E2e.received).
         E2eCrypto.keyIn(body)?.let { key -> try { E2e.received(context, address, key) } catch (e: Exception) { Log.e(TAG, "e2e key", e) } }
         val thread = store.threadOfSms(row)
+        // A text only Ghost Messaging writes: they have the app. And a chat background, sealed or not, is worn.
+        try {
+            if (Backgrounds.isGhostText(body)) Backgrounds.sawGhost(context, address)
+            BackgroundWire.valueIn(E2e.read(context, address, body).first)?.let {
+                Backgrounds.sawGhost(context, address)
+                Backgrounds.received(context, thread, it)
+            }
+        } catch (e: Exception) { Log.e(TAG, "shared background", e) }
         store.setArchived(thread, false)
         Notifier.incoming(context, thread)
         Bus.changed(thread)
+        // A sign-in code: Ghost Keyboard, if it is watching, asks for it now (Codes.kt).
+        try { Codes.arrived(context, E2e.read(context, address, body).first) } catch (e: Exception) { Log.e(TAG, "code", e) }
     }
 }
 
@@ -314,6 +328,14 @@ class MmsResultReceiver : BroadcastReceiver() {
             m.date ?: (System.currentTimeMillis() / 1000), m.subject, m.messageId, m.transactionId ?: notificationTid, sub,
         )
         if (row != null) {
+            // A chat background shared by someone here with the app: the message's picture, or what its words name.
+            try {
+                val words = m.parts.filter { it.contentType.startsWith("text/plain") }.joinToString("\n") { String(it.data, Charsets.UTF_8) }
+                BackgroundWire.valueIn(words)?.let { value ->
+                    Backgrounds.sawGhost(context, from)
+                    Backgrounds.received(context, thread, value, m.parts.firstOrNull { it.contentType.startsWith("image/") }?.data)
+                }
+            } catch (e: Exception) { Log.e(TAG, "shared background", e) }
             store.setArchived(thread, false)
             Notifier.incoming(context, thread)
             Bus.changed(thread)

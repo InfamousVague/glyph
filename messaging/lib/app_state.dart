@@ -14,6 +14,17 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Read again from Android, which changed some itself: a chat background that someone shared.
+  Future<void> reload() async {
+    try {
+      final next = await Sms.instance.prefs();
+      _prefs
+        ..clear()
+        ..addAll(next);
+      notifyListeners();
+    } catch (_) {}
+  }
+
   String choice(String key, String fallback) => _prefs[key] ?? fallback;
 
   /// A switch: on unless it was switched off ([fallback] false: off unless switched on).

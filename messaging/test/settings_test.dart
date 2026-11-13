@@ -79,23 +79,24 @@ void main() {
       expect(find('text size'), contains('Appearance › Text size'));
       expect(find('confetti'), contains('Effects › Confetti'));
       expect(find('background').first, 'Chat background');
+      expect(find('keyboard codes'), contains('Ghost Keyboard › Offer sign-in codes to Ghost Keyboard'));
       expect(find('zzzz'), isEmpty);
     });
 
     test('every section has an id of its own, and the ones the handoff asked for are there', () {
       final ids = [for (final s in settingsSections) s.id];
       expect(ids.toSet().length, ids.length);
-      expect(ids, containsAll(['appearance', 'emoji', 'effects', 'messages', 'receipts', 'notifications', 'encryption', 'blocked', 'archived', 'number', 'android', 'updates', 'about']));
+      expect(ids, containsAll(['appearance', 'emoji', 'effects', 'messages', 'receipts', 'notifications', 'encryption', 'blocked', 'archived', 'number', 'android', 'keyboard', 'updates', 'about']));
     });
   });
 
   group('chat backgrounds', () {
     test('a choice is read back as it was kept', () {
-      for (final raw in ['none', 'wallpaper', 'preset:dusk', 'color:#DCE8FB', 'image:/data/user/0/app/files/backgrounds/all-1.jpg']) {
+      for (final raw in ['none', 'wallpaper', 'preset:dusk', 'color:#DCE8FB', 'image:/data/user/0/app/files/backgrounds/all-1.jpg', 'wash:#EEF2F7,#DCE5F0,#0F141B,#172230']) {
         expect(ChatBackground.parse(raw).raw, raw);
       }
       // What is not one of them is none, never an error: a preset since removed, a colour mistyped.
-      for (final raw in [null, '', 'preset:gone', 'color:blue', 'image:', 'nonsense']) {
+      for (final raw in [null, '', 'preset:gone', 'color:blue', 'image:', 'nonsense', 'wash:#EEF2F7,#DCE5F0', 'wash:a,b,c,d']) {
         expect(ChatBackground.parse(raw).isNone, isTrue, reason: '$raw');
       }
     });
@@ -115,6 +116,21 @@ void main() {
       // None, chosen for one conversation, is its own: it does not fall back to every chat's.
       app.set(ChatBackground.threadKey(4), 'none');
       expect(ChatBackground.of(app, 4).isNone, isTrue);
+    });
+
+    test('what goes to the other phone is what it can wear', () {
+      // Someone else's "Match my wallpaper" arrives as its four colours: light's two, then dark's.
+      final wash = ChatBackground.parse('wash:#EEF2F7,#DCE5F0,#0F141B,#172230');
+      expect(wash.colors(false), (const Color(0xFFEEF2F7), const Color(0xFFDCE5F0)));
+      expect(wash.colors(true), (const Color(0xFF0F141B), const Color(0xFF172230)));
+      expect(wash.label, 'Shared colours');
+      // Everything but the wallpaper's colours goes as it is; those go as a wash, and not at all from a phone that
+      // has none (before Android 12, and here).
+      for (final raw in ['none', 'preset:dusk', 'color:#DCE8FB', 'image:/x.jpg']) {
+        expect(ChatBackground.parse(raw).shareable?.raw, raw);
+      }
+      PhonePalette.current = null;
+      expect(ChatBackground.wallpaper.shareable, isNull);
     });
 
     test('only a picture or a colour of the person\'s puts small words on a pill', () {

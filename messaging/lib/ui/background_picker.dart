@@ -13,14 +13,21 @@ import 'common.dart';
 /// Choosing what is behind the messages (lib/backgrounds.dart): for every chat (Settings › Chat background), or for
 /// one conversation (its header › Chat background), which may also wear every chat's. A small conversation at the
 /// top shows the choice as it will look.
+///
+/// A conversation's background can sync with its [people]: as the page is left, what the conversation now wears is
+/// sent to them as a text their copy of Ghost Messaging wears too. It is on by itself where everyone is known to have
+/// the app, and can be switched on for someone who is not known to yet.
 class BackgroundPicker extends StatefulWidget {
-  const BackgroundPicker({super.key, this.thread, this.who});
+  const BackgroundPicker({super.key, this.thread, this.who, this.people = const []});
 
   /// The conversation whose background this is; null for every chat's.
   final int? thread;
 
   /// Who the conversation is with, for the page's title.
   final String? who;
+
+  /// The conversation's people, to sync its background with.
+  final List<Person> people;
 
   @override
   State<BackgroundPicker> createState() => _BackgroundPickerState();
@@ -29,6 +36,62 @@ class BackgroundPicker extends StatefulWidget {
 class _BackgroundPickerState extends State<BackgroundPicker> {
   bool _mixing = false;
   bool _busy = false;
+
+  /// Whether everyone here is known to have Ghost Messaging; null until Android has said.
+  bool? _known;
+
+  /// Something was chosen, or syncing switched on, while the page was open: there may be something to send.
+  bool _dirty = false;
+
+  /// Kept for the moment the page is left, when there is no context to ask.
+  AppState? _app;
+  GlacierToastController? _toasts;
+
+  bool get _canSync => widget.thread != null && widget.people.isNotEmpty;
+  String get _syncKey => 'chat_bg_sync_${widget.thread}';
+  String get _syncedKey => 'chat_bg_synced_${widget.thread}';
+
+  /// Syncing: as the person set it for this conversation, else on where everyone is known to have the app.
+  bool _syncOn(AppState app) => _canSync && app.flag(_syncKey, fallback: _known ?? false);
+
+  String get _them => widget.people.length > 1 ? 'everyone here' : widget.people.first.label;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_canSync) {
+      Sms.instance.ghostPeers([for (final p in widget.people) p.address]).then((known) {
+        if (mounted) setState(() => _known = known);
+      }).catchError((_) {});
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _app = AppState.of(context);
+    _toasts = GlacierToast.of(context);
+  }
+
+  /// As the page is left: what the conversation wears now goes to its people, once, if it is not what they have.
+  @override
+  void dispose() {
+    final app = _app;
+    final thread = widget.thread;
+    if (app != null && thread != null && _dirty && _syncOn(app)) {
+      final send = ChatBackground.of(app, thread).shareable;
+      if (send != null && send.raw != app.choice(_syncedKey, '')) {
+        final toasts = _toasts;
+        final them = _them;
+        Sms.instance.shareBackground([for (final p in widget.people) p.address], thread, send.raw).then((_) {
+          toasts?.toast(message: Text('Background sent to $them'));
+        }).catchError((Object e) {
+          toasts?.toast(message: Text('Couldn\'t send the background: $e'), tone: GlacierToastTone.danger);
+        });
+      }
+    }
+    super.dispose();
+  }
 
   String get _key => widget.thread == null ? 'chat_bg' : ChatBackground.threadKey(widget.thread!);
 
@@ -40,6 +103,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
     final app = AppState.of(context);
     final before = ChatBackground.parse(app.choice(_key, ''));
     app.set(_key, next?.raw ?? '');
+    _dirty = true;
     // A picture no longer worn is not kept.
     if (before.kind == 'image' && next?.kind != 'image') Sms.instance.deleteBackground(_file);
   }
@@ -87,10 +151,33 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
               children: [
                 BackgroundPreview(background: worn),
                 SizedBox(height: t.space(5)),
+                if (_canSync) ...[
+                  PaneSection(
+                    footer: Text(_known == true
+                        ? 'When you leave this page, what this conversation wears is sent to $_them as a text, and their Ghost Messaging wears it too. What they choose comes back the same way.'
+                        : '${widget.people.length > 1 ? 'Not everyone here is' : '${widget.people.first.label} isn\'t'} known to have Ghost Messaging yet. It is known once a key or a background has come from them. To anyone without the app, the background arrives as a text of letters.'),
+                    children: [
+                      SettingRow(
+                        icon: const AppIcon(Lucide.refreshCw, size: 18),
+                        label: 'Sync with $_them',
+                        hint: worn.kind == 'image' ? const Text('A picture goes as a picture message, at the size your carrier allows.') : null,
+                        control: GlacierSwitch(
+                          checked: _syncOn(app),
+                          ariaLabel: 'Sync with $_them',
+                          onCheckedChange: (on) {
+                            app.setFlag(_syncKey, on);
+                            if (on) _dirty = true;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: t.space(5)),
+                ],
                 PaneSection(
                   footer: thread == null
                       ? const Text('Behind the messages of every conversation. A conversation can have one of its own, from its header.')
-                      : const Text('Only for this conversation, and only on this phone: texting has no way to send a background to the other person.'),
+                      : const Text('For this conversation alone. Every other conversation keeps what it wears.'),
                   children: [
                     if (thread != null)
                       SettingRow(
@@ -167,6 +254,20 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                     ),
                   ],
                 ),
+                if (thread == null) ...[
+                  SizedBox(height: t.space(5)),
+                  PaneSection(
+                    title: 'Shared backgrounds',
+                    footer: const Text('Someone with Ghost Messaging can sync a conversation\'s background with you, and you with them, from the conversation\'s header. It travels as a text in the conversation. Off, theirs is not worn here.'),
+                    children: [
+                      SettingRow(
+                        icon: const AppIcon(Lucide.refreshCw, size: 18),
+                        label: 'Wear backgrounds shared with you',
+                        control: GlacierSwitch(checked: app.flag('bg_accept'), onCheckedChange: (on) => app.setFlag('bg_accept', on), ariaLabel: 'Wear backgrounds shared with you'),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

@@ -358,7 +358,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
         ),
       // What is behind this conversation's messages: its own, or every chat's (lib/backgrounds.dart).
-      Choice('Chat background', Lucide.image, () => push<void>(context, (_) => BackgroundPicker(thread: widget.thread, who: _people.isEmpty ? null : (_group ? null : _people.first.label)))),
+      Choice('Chat background', Lucide.image, () => push<void>(context, (_) => BackgroundPicker(thread: widget.thread, who: _people.isEmpty ? null : (_group ? null : _people.first.label), people: _people))),
     ]);
   }
 
@@ -412,17 +412,23 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final items = <Widget>[];
     String? lastOutgoingKey;
     for (final m in msgs) {
-      if (m.outgoing && m.notice != 'key') { lastOutgoingKey = m.key; break; }
+      if (m.outgoing && !_isLine(m)) { lastOutgoingKey = m.key; break; }
     }
     for (var i = 0; i < msgs.length; i++) {
       final m = msgs[i];
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
-      bool joins(Message? a, Message b) => a != null && a.notice != 'key' && a.outgoing == b.outgoing && a.address == b.address && a.date.difference(b.date).inMinutes.abs() < 3;
-      if (m.notice == 'key') {
-        // A text that carried an encryption key: a line saying so, where its letters would have been a bubble.
-        final who = _people.isEmpty ? 'They' : _people.first.label;
-        items.add(_Notice(icon: Lucide.keyRound, text: m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key', busy: busy, onLongPress: () => _messageMenu(m)));
+      bool joins(Message? a, Message b) => a != null && !_isLine(a) && a.outgoing == b.outgoing && a.address == b.address && a.date.difference(b.date).inMinutes.abs() < 3;
+      if (_isLine(m)) {
+        // A text that carried an encryption key, or a chat background: a line saying so, where its letters would
+        // have been a bubble.
+        final who = m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : (m.address.isEmpty ? 'They' : m.address)));
+        items.add(_Notice(
+          icon: m.notice == 'key' ? Lucide.keyRound : Lucide.image,
+          text: m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background',
+          busy: busy,
+          onLongPress: () => _messageMenu(m),
+        ));
         if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
         continue;
       }
@@ -467,6 +473,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       children: items,
     );
   }
+
+  /// Drawn as a line in the conversation, not a bubble: a text that carried a key or a chat background.
+  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background';
 
   static const _evenLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
 
