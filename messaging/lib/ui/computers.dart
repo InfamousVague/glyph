@@ -168,6 +168,12 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
             label: 'The "Paired with…" notification',
             hint: const Text('Android stops an app minutes after the screen goes off unless it shows that it is running. The notification is quiet, and goes when no computer is paired.'),
           ),
+          if (m.phoneAddresses.isNotEmpty)
+            SettingRow(
+              icon: icon(Lucide.network),
+              label: 'This phone\'s address',
+              hint: Text('${m.phoneAddresses.join(', ')}. Only needed where a network keeps the computer from finding the phone: it is typed in the computer\'s Settings.'),
+            ),
           SettingRow(
             icon: icon(Lucide.hourglass),
             label: 'Battery use',

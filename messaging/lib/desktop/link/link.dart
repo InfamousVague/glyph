@@ -130,7 +130,11 @@ class PhoneLink extends ChangeNotifier {
   PairingAttempt? attempt;
 
   /// How the phone is connected now: local, relay, or null when it is not.
-  String? get via => _session?.live == true ? _session!.transport.via : null;
+  String? get via => shownVia ?? (_session?.live == true ? _session!.transport.via : null);
+
+  /// For pictures of the screens (test/desk_screens_test.dart), which have no phone to be connected to.
+  @visibleForTesting
+  String? shownVia;
   bool get online => via != null && attempt == null;
 
   /// The phone answered that it does not have this pairing: it was unpaired there while the Mac was away.

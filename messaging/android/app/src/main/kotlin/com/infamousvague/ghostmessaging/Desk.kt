@@ -146,6 +146,23 @@ object Desk : DeskHost {
         get() = prefs().getInt("port", 0)
         set(value) { prefs().edit().putInt("port", value).apply() }
 
+    /**
+     * Where this phone is listening on the local network, as `address:port`: for a computer on a network that keeps
+     * the two from finding each other, typed there by hand. Empty before the phone has listened once.
+     */
+    fun addresses(): List<String> {
+        val port = port
+        if (port <= 0) return emptyList()
+        return try {
+            java.net.NetworkInterface.getNetworkInterfaces().toList()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.inetAddresses.toList() }
+                .filterIsInstance<java.net.Inet4Address>()
+                .filter { it.isSiteLocalAddress }
+                .map { "${it.hostAddress}:$port" }
+        } catch (_: Exception) { emptyList() }
+    }
+
     /** What the phone calls itself on the local network: `Ghost-` and six letters that say nothing of whose it is. */
     fun serviceName(): String {
         val p = prefs()

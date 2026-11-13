@@ -28,15 +28,23 @@ class DeskStore implements LinkStore {
   File get _pairing => File('${dir.path}/pairing.json');
   File get _prefs => File('${dir.path}/prefs.json');
 
-  Future<void> _write(File file, Object value) async {
-    await dir.create(recursive: true);
-    final tmp = File('${file.path}.tmp');
-    await tmp.writeAsString(jsonEncode(value), flush: true);
-    // The person's account alone: the pairing's key may be in it.
-    try {
-      await Process.run('/bin/chmod', ['600', tmp.path]);
-    } catch (_) {}
-    await tmp.rename(file.path);
+  Future<void> _last = Future.value();
+  int _writes = 0;
+
+  /// Written whole to a file beside it and moved into place, one write after another: two choices changed at once
+  /// are two writes, and the later is what is kept.
+  Future<void> _write(File file, Object value) {
+    final text = jsonEncode(value);
+    return _last = _last.catchError((_) {}).then((_) async {
+      await dir.create(recursive: true);
+      final tmp = File('${file.path}.${_writes++}.tmp');
+      await tmp.writeAsString(text, flush: true);
+      // The person's account alone: the pairing's key may be in it.
+      try {
+        await Process.run('/bin/chmod', ['600', tmp.path]);
+      } catch (_) {}
+      await tmp.rename(file.path);
+    });
   }
 
   @override

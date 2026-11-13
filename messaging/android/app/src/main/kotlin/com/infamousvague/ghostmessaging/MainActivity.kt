@@ -197,6 +197,7 @@ class MainActivity : FlutterActivity() {
                 }
                 // Paired computers (Desk.kt, docs/desktop.md): the list, a pairing being made, and how each connects.
                 "deskList" -> bg { Desk.list() }
+                "deskAddresses" -> bg { Desk.addresses() }
                 "deskState" -> result.success(Desk.state())
                 "deskScan" -> {
                     scanResult = result

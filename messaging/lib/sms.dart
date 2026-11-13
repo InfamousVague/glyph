@@ -526,6 +526,9 @@ class Sms {
   Future<void> unpairComputer(String id) => _calls.invokeMethod('deskUnpair', {'id': id});
   Future<void> setComputerMode(String id, String mode) => _calls.invokeMethod('deskSetMode', {'id': id, 'mode': mode});
 
+  /// Where this phone listens on the local network (`192.168.1.20:47811`), for a computer that cannot find it.
+  Future<List<String>> phoneAddresses() async => [for (final a in (await _calls.invokeMethod<List>('deskAddresses')) ?? const []) '$a'];
+
   /// Whether Android lets the app use the network in deep sleep (its battery setting is "Unrestricted").
   Future<bool> unrestrictedBattery() async => await _calls.invokeMethod<bool>('deskUnrestricted') ?? false;
 

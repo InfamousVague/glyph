@@ -50,6 +50,9 @@ class SettingsModel extends ChangeNotifier {
   List<Computer> computers = const [];
   bool unrestricted = false;
 
+  /// Where this phone listens on the local network, for a computer that cannot find it by itself.
+  List<String> phoneAddresses = const [];
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   StreamSubscription<void>? _computers;
@@ -93,6 +96,7 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => arriving = await Sms.instance.arriving()),
       ask(() async => computers = await Sms.instance.computers()),
       ask(() async => unrestricted = await Sms.instance.unrestrictedBattery()),
+      ask(() async => phoneAddresses = await Sms.instance.phoneAddresses()),
       ask(() async => archived = (await Sms.instance.conversations()).where((c) => c.archived).length),
     ]);
     _say();

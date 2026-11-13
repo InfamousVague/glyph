@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -6,6 +7,7 @@ import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
 import 'backgrounds.dart';
+import 'desktop/main.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'sms.dart';
@@ -18,6 +20,8 @@ import 'ui/thread.dart';
 /// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
 /// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
 Future<void> main() async {
+  // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();

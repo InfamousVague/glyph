@@ -167,6 +167,8 @@ void _answerChannel() {
         return _pairing;
       case 'deskUnrestricted':
         return false;
+      case 'deskAddresses':
+        return ['192.168.1.20:47811'];
       case 'part':
         // The two stickers in the group conversation, as the phone would hand a picture message's part over.
         return switch ((args['id'] as num).toInt()) {
