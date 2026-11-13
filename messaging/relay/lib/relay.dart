@@ -16,7 +16,7 @@ import 'sha256.dart';
 /// - **What it can see:** that two addresses share a channel, when, and how much they send. The frames are sealed
 ///   with a key it never has (android/.../DeskCrypto.kt, lib/desktop/link/crypto.dart), and it logs no addresses.
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
-///   (`temp`) lives ten minutes and is never written to disk.
+///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
   Relay({this.dataDir, DateTime Function()? now, this.verbose = false}) : _now = now ?? DateTime.now;
 
@@ -104,6 +104,8 @@ class Relay {
       c.set(role, null);
       _tell(c.other(role), {'peer': false});
       _say('${name.substring(0, 6)} $role left');
+      // A channel made for pairing is done with once both ends have gone: it does not wait out its ten minutes.
+      if (c.expires != null && c.phone == null && c.desk == null && identical(_channels[name], c)) _channels.remove(name);
     }
 
     ws.listen((data) {

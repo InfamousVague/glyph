@@ -287,7 +287,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           final at = i - extras;
           if (at < shown.length) {
             final c = shown[at];
-            return _Row(
+            return ConversationRow(
               conversation: c,
               selecting: _selecting,
               selected: _selected.contains(c.id),
@@ -457,8 +457,10 @@ class _RcsNotice extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false});
+/// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
+/// rows with it too.
+class ConversationRow extends StatelessWidget {
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false});
   final Conversation conversation;
   final VoidCallback onPress;
   final VoidCallback onLongPress;

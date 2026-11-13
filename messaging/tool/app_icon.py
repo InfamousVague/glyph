@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ART = os.path.join(ROOT, 'art', 'app-icon.png')
 RES = os.path.join(ROOT, 'android', 'app', 'src', 'main', 'res')
 SITE = os.path.join(ROOT, 'site')
+MAC = os.path.join(ROOT, 'macos', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset')
 # The ghost's farthest point (the tip of its tail) is 39% of the picture from its centre: 42dp of the 108. At 0.74 it is
 # 31dp, inside the safe circle's 33.
 SCALE = 0.74
@@ -47,6 +48,22 @@ def shrunk(picture, size, mode):
     out = Image.new('RGBA', (size, size), (255, 255, 255, 0))
     out.putalpha(alpha)
     return out
+
+
+def mac_icon(picture, size):
+    """The picture as a macOS icon: a rounded square filling 824/1024 of the canvas, on nothing."""
+    work = 1024
+    inner = 824
+    radius = 185
+    art = picture.convert('RGB').resize((inner, inner), LANCZOS)
+    # The corners, drawn four times the size and shrunk so their edge is smooth.
+    big = Image.new('L', (inner * 4, inner * 4), 0)
+    from PIL import ImageDraw
+    ImageDraw.Draw(big).rounded_rectangle((0, 0, inner * 4 - 1, inner * 4 - 1), radius=radius * 4, fill=255)
+    mask = big.resize((inner, inner), LANCZOS)
+    out = Image.new('RGBA', (work, work), (0, 0, 0, 0))
+    out.paste(art, ((work - inner) // 2, (work - inner) // 2), mask)
+    return out if size == work else out.resize((size, size), LANCZOS)
 
 
 def silhouette(picture, size):
@@ -87,6 +104,10 @@ def main():
     # In the app: the mark on the setup screen.
     os.makedirs(os.path.join(ROOT, 'assets', 'art'), exist_ok=True)
     silhouette(picture, 256).save(os.path.join(ROOT, 'assets', 'art', 'ghost-mark.png'), optimize=True)
+    # The Mac app's icon (macos/, the desktop companion): macOS masks nothing itself, so the square is drawn as its
+    # icons are, 824 of 1024 with rounded corners, the rest clear.
+    for size in (16, 32, 64, 128, 256, 512, 1024):
+        mac_icon(picture, size).save(os.path.join(MAC, f'app_icon_{size}.png'), optimize=True)
     print('icons written from', ART)
 
 

@@ -18,6 +18,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # The relay itself, so the Mac's link is tested through the real one (test/desk_link_test.dart).
+  ghost_relay:
+    path: relay
   flutter_lints: ^6.0.0
 
 flutter:

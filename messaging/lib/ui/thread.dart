@@ -352,7 +352,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   void _messageMenu(Message m) {
-    final canReact = m.state != 'sending' && m.state != 'failed' && m.state != 'pending_download' && m.notice == null;
+    final canReact = m.state != 'sending' && m.state != 'waiting' && m.state != 'failed' && m.state != 'pending_download' && m.notice == null;
     final mine = {for (final r in _folded.reactions[m.key] ?? const <Reaction>[]) if (r.by.isEmpty) r.emoji};
     showChoices(
       context,
@@ -364,14 +364,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           Clipboard.setData(ClipboardData(text: m.body));
           toast(context, 'Copied');
         }),
-      if (_canEdit(m)) Choice(m.state == 'failed' ? 'Edit and send again' : 'Edit', Lucide.pencil, () => _startEdit(m)),
+      if (_canEdit(m) && !Sms.remote) Choice(m.state == 'failed' ? 'Edit and send again' : 'Edit', Lucide.pencil, () => _startEdit(m)),
       if (m.edited && m.original != null) Choice('Show original', Lucide.clock, () => _showOriginal(m)),
-      if (m.state == 'failed') Choice('Send again', Lucide.rotateCcw, () => _retry(m)),
+      if (m.state == 'failed' && !Sms.remote) Choice('Send again', Lucide.rotateCcw, () => _retry(m)),
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
-      Choice('Delete message', Lucide.trash2, () async {
-        await Sms.instance.deleteMessage(m);
-        _load();
-      }, danger: true),
+      if (!Sms.remote)
+        Choice('Delete message', Lucide.trash2, () async {
+          await Sms.instance.deleteMessage(m);
+          _load();
+        }, danger: true),
     ]);
   }
 
@@ -403,10 +404,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             ? (_e2e.verified ? 'Encrypted · verified' : 'Encrypted')
             : (_people.isNotEmpty && _people.first.name != null ? _people.first.address : null);
 
+    // On a computer (Sms.remote) the conversation fills a pane beside the list: there is no way back to draw, and
+    // what only the phone can do (call, the conversation's own settings, pictures, stickers, editing, deleting,
+    // turning encryption on) is not offered.
+    final remote = Sms.remote;
     return GhostPage(
       title: title,
+      back: !remote,
       titleWidget: GlacierPressable(
-        onPressed: _openSettings,
+        onPressed: remote ? null : _openSettings,
         builder: (context, state) => Row(children: [
           Avatar(people: _people, size: t.lenOf('2.1rem')),
           SizedBox(width: t.space(2)),
@@ -423,10 +429,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         ]),
       ),
       actions: [
-        if (!_group && _people.isNotEmpty)
+        if (!remote && !_group && _people.isNotEmpty)
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
-        IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
+        if (!remote) IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
       ],
       body: Stack(children: [
         if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),
@@ -467,7 +473,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final firstOfRun = !joins(older, m) || !_sameDay(older!.date, m.date);
       final lastOfRun = !joins(newer, m) || !_sameDay(newer!.date, m.date);
       final failed = m.state == 'failed';
-      final showStatus = m.outgoing && (m.key == lastOutgoingKey || failed || m.state == 'sending');
+      final showStatus = m.outgoing && (m.key == lastOutgoingKey || failed || m.state == 'sending' || m.state == 'waiting');
       items.add(_Bubble(
         message: m,
         sender: _group && !m.outgoing && firstOfRun ? (_senders[m.address]?.label ?? m.address) : null,
@@ -478,7 +484,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         bottom: lastOfRun,
         status: showStatus ? _statusText(m) : (lastOfRun ? clock(m.date) : null),
         onLongPress: () => _messageMenu(m),
-        onTapFailed: failed ? () => _retry(m) : null,
+        onTapFailed: failed && !Sms.remote ? () => _retry(m) : null,
         reactions: _folded.reactions[m.key] ?? const [],
         onReactionsTap: () => _showReactions(_folded.reactions[m.key] ?? const []),
         edited: m.edited ? (_corrected.contains(m.key) ? 'Edited · correction sent' : 'Edited') : null,
@@ -516,7 +522,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   String _statusText(Message m) => switch (m.state) {
         'sending' => 'Sending…',
-        'failed' => 'Not sent. Tap to try again.',
+        // Typed on a computer while the phone could not be reached: it goes when the phone is back (lib/desktop).
+        'waiting' => 'Waiting for your phone',
+        'failed' => Sms.remote ? 'Not sent' : 'Not sent. Tap to try again.',
         'read' => 'Read · ${clock(m.date)}',
         'delivered' => 'Delivered · ${clock(m.date)}',
         _ => 'Sent · ${clock(m.date)}',
@@ -546,7 +554,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // Both phones have Ghost Messaging and nothing has been exchanged: encryption is offered, until it is
           // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
           // to enable encryption for better security").
-          if (!_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
+          if (!Sms.remote && !_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
             _E2eBar(
               text: '${_people.first.label} has Ghost Messaging too. Encrypt this conversation for better security?',
               action: 'Turn on',
@@ -554,7 +562,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
               onDismiss: () => AppState.of(context).setFlag('e2e_banner_${widget.thread}', false),
             ),
-          if (!_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
+          if (!Sms.remote && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
             _E2eBar(
               text: switch (_e2e.state) {
                 'pending' => _e2e.changed ? '${_people.first.label} sent a NEW encryption key' : '${_people.first.label} wants to encrypt this conversation',
@@ -625,7 +633,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               ]),
             ),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
+            if (!Sms.remote) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
               // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
@@ -685,7 +693,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                     )),
                   ),
                   // Stickers, while nothing is being written: once there are words the room is theirs.
-                  if (!editing && _text.text.isEmpty && _attachments.isEmpty)
+                  if (!Sms.remote && !editing && _text.text.isEmpty && _attachments.isEmpty)
                     IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
                   editing
@@ -1041,7 +1049,7 @@ class _Bubble extends StatelessWidget {
                   Semantics(
                     label: m.state,
                     child: AppIcon(
-                      switch (m.state) { 'sending' => Lucide.clock, 'delivered' || 'read' => Lucide.checkCheck, _ => Lucide.check },
+                      switch (m.state) { 'sending' || 'waiting' => Lucide.clock, 'delivered' || 'read' => Lucide.checkCheck, _ => Lucide.check },
                       size: 14,
                       strokeWidth: 2.4,
                       wash: false,

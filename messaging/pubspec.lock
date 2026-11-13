@@ -75,6 +75,13 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  ghost_relay:
+    dependency: "direct dev"
+    description:
+      path: relay
+      relative: true
+    source: path
+    version: "0.1.0"
   glacier:
     dependency: "direct main"
     description:

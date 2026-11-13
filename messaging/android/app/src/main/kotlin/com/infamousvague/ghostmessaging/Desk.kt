@@ -161,7 +161,8 @@ object Desk : DeskHost {
     fun list(): List<Map<String, Any?>> = all().map { p ->
         mapOf(
             "id" to p.id, "name" to p.name, "mode" to p.mode, "relay" to p.relay, "since" to p.since, "seen" to p.seen,
-            "via" to sessions.firstOrNull { it.id == p.id && it.live && !it.pairing }?.via,
+            // Connected both ways for a moment (the computer moving from the relay to the local network): local is said.
+            "via" to sessions.filter { it.id == p.id && it.live && !it.pairing }.let { live -> if (live.any { it.via == "local" }) "local" else live.firstOrNull()?.via },
         )
     }
 
@@ -343,12 +344,18 @@ object Desk : DeskHost {
                 changedHere()
             }
             "unpaired" -> if (!session.pairing) {
-                synchronized(this) { pairings.remove(session.id) }
+                // The computer tells the relay to forget the channel itself, where it can; the phone does too, since
+                // the computer may have been on the local network alone at that moment.
+                synchronized(this) { pairings.remove(session.id) }?.let { gone ->
+                    if (gone.relay.isNotBlank()) synchronized(removed) { removed += Removed(gone.relay, DeskCrypto.relayChannel(gone.key), DeskCrypto.relayToken(gone.key)) }
+                }
                 save()
                 session.close()
                 tellService()
                 changedHere()
             }
+            // The computer is leaving this connection for another (the local network, where it was on the relay).
+            "bye" -> session.close()
             "mode" -> {
                 val mode = args.optString("mode")
                 if (mode !in DeskCrypto.MODES) return
