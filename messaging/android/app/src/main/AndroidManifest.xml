@@ -20,8 +20,16 @@
     <!-- So a failed look for an update can say the phone is offline, where it otherwise blames the site. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Paired computers (DeskService.kt, docs/desktop.md): the camera reads the computer's QR code, asked for when
+         scanning; the foreground service keeps the phone reachable by a paired computer, and starts again after a
+         restart. None is used until a computer is paired. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature android:name="android.hardware.telephony" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:label="Ghost Messaging"
@@ -106,6 +114,26 @@
                 <data android:scheme="mmsto" />
             </intent-filter>
         </service>
+
+        <!-- Scanning the QR code a computer shows to pair with (ScanActivity.kt). -->
+        <activity
+            android:name=".ScanActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Black.NoTitleBar" />
+
+        <!-- Keeps the phone reachable by the computers it is paired with, while there is one. "Remote messaging" is
+             Android's kind of foreground service for carrying texts to another of the person's own devices. -->
+        <service
+            android:name=".DeskService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+
+        <receiver android:name=".DeskBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Where an MMS is written for the phone process to send, and where it writes one it downloaded. -->
         <provider

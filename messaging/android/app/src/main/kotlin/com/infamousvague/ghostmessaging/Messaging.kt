@@ -27,7 +27,14 @@ object Bus {
     /** The choices the screen reads (the "ui" preferences) were changed from this side: a background that arrived. */
     @Volatile var prefsListener: (() -> Unit)? = null
     private val main = Handler(Looper.getMainLooper())
-    fun changed(thread: Long) { main.post { listener?.invoke(thread) } }
+    fun changed(thread: Long) {
+        main.post { listener?.invoke(thread) }
+        // And the computers paired with this phone that are connected now (Desk.kt).
+        Desk.changed(thread)
+    }
+
+    /** For the phone's own screen alone: something a paired computer did that it need not be told back. */
+    fun changedOnPhone(thread: Long) { main.post { listener?.invoke(thread) } }
     fun prefsChanged() { main.post { prefsListener?.invoke() } }
 }
 
@@ -259,6 +266,9 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         } catch (e: Exception) { Log.e(TAG, "shared background", e) }
         store.setArchived(thread, false)
         Notifier.incoming(context, thread)
+        // A paired computer hears of it through the service, which Android may have stopped since: a text arriving is
+        // one of the few moments it lets a stopped app start one again.
+        DeskService.sync(context)
         Bus.changed(thread)
         // A sign-in code: Ghost Keyboard, if it is watching, asks for it now (Codes.kt).
         try { Codes.arrived(context, E2e.read(context, address, body).first) } catch (e: Exception) { Log.e(TAG, "code", e) }

@@ -25,6 +25,7 @@ class MainActivity : FlutterActivity() {
         private const val ROLE_REQUEST = 41
         private const val PERMS_REQUEST = 42
         private const val PICK_REQUEST = 43
+        private const val SCAN_REQUEST = 44
     }
 
     private val io = Executors.newSingleThreadExecutor()
@@ -34,7 +35,7 @@ class MainActivity : FlutterActivity() {
 
     /** Told when the phone's contacts change: who a number is is asked again from then (Store.contactsChanged). */
     private val contactsWatcher = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Bus.changed(-1) } }
+        override fun onChange(selfChange: Boolean) { if (::store.isInitialized) { store.contactsChanged(); Desk.contactsChanged(); Bus.changed(-1) } }
     }
     private val main = Handler(Looper.getMainLooper())
     private var events: EventChannel.EventSink? = null
@@ -43,6 +44,7 @@ class MainActivity : FlutterActivity() {
     private var roleResult: MethodChannel.Result? = null
     private var permsResult: MethodChannel.Result? = null
     private var pickResult: MethodChannel.Result? = null
+    private var scanResult: MethodChannel.Result? = null
     private lateinit var store: Store
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -50,6 +52,9 @@ class MainActivity : FlutterActivity() {
         store = Store(applicationContext)
         try { contentResolver.registerContentObserver(android.provider.ContactsContract.Contacts.CONTENT_URI, true, contactsWatcher) } catch (_: Exception) {}
         pendingOpen = openRequest(intent)
+        // The computers this phone is paired with (Desk.kt): the service that keeps it reachable by them runs while
+        // there is one, and is started here if Android stopped it since.
+        DeskService.sync(applicationContext)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         EventChannel(messenger, "ghost_messaging/events").setStreamHandler(object : EventChannel.StreamHandler {
@@ -57,10 +62,11 @@ class MainActivity : FlutterActivity() {
                 events = sink
                 Bus.listener = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
                 Bus.prefsListener = { events?.success(mapOf("type" to "prefs")) }
+                Desk.listener = { events?.success(mapOf("type" to "desk")) }
                 updateListener = { state -> events?.success(mapOf("type" to "update") + state.toMap(applicationContext)) }
                 Updater.addListener(updateListener!!)
             }
-            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
+            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
         MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
@@ -189,6 +195,27 @@ class MainActivity : FlutterActivity() {
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString(call.argument<String>("key")!!, call.argument<String>("value")).apply()
                     result.success(null)
                 }
+                // Paired computers (Desk.kt, docs/desktop.md): the list, a pairing being made, and how each connects.
+                "deskList" -> bg { Desk.list() }
+                "deskState" -> result.success(Desk.state())
+                "deskScan" -> {
+                    scanResult = result
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(Intent(this, ScanActivity::class.java), SCAN_REQUEST)
+                }
+                "deskBegin" -> bg {
+                    val state = Desk.begin(call.argument<String>("code") ?: "", call.argument<String>("mode"))
+                    DeskService.sync(applicationContext)
+                    state
+                }
+                "deskPendingMode" -> bg { Desk.setPendingMode(call.argument<String>("mode") ?: "both"); Desk.state() }
+                "deskConfirm" -> { Desk.confirm(); result.success(null) }
+                "deskCancel" -> { Desk.cancel(); result.success(null) }
+                "deskDone" -> { Desk.done(); result.success(null) }
+                "deskUnpair" -> bg { Desk.unpair(call.argument<String>("id")!!); null }
+                "deskSetMode" -> bg { Desk.setMode(call.argument<String>("id")!!, call.argument<String>("mode") ?: "both"); DeskService.sync(applicationContext); null }
+                // Whether Android lets the app use the network in deep sleep (its battery setting "Unrestricted").
+                "deskUnrestricted" -> result.success(try { getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName) } catch (_: Exception) { false })
                 "ownNumber" -> bg { store.ownNumbers().firstOrNull() }
                 "setOwnNumber" -> {
                     getSharedPreferences("ghost", MODE_PRIVATE).edit().putString("own_number", call.argument<String>("number")).apply()
@@ -219,6 +246,8 @@ class MainActivity : FlutterActivity() {
         intent ?: return null
         val thread = intent.getLongExtra(Notifier.EXTRA_THREAD, -1)
         if (thread >= 0) return mapOf("thread" to thread)
+        // The "Paired with …" notification: Settings › Computers.
+        if (intent.getBooleanExtra("desk", false)) return mapOf("desk" to true)
         val data = intent.data
         if (data != null && data.scheme in setOf("sms", "smsto", "mms", "mmsto")) {
             val to = data.schemeSpecificPart.substringBefore('?').split(',', ';').map { Uri.decode(it).trim() }.filter { it.isNotEmpty() }
@@ -346,6 +375,10 @@ class MainActivity : FlutterActivity() {
         when (requestCode) {
             ROLE_REQUEST -> {
                 roleResult?.success(getSystemService(RoleManager::class.java).isRoleHeld(RoleManager.ROLE_SMS)); roleResult = null
+            }
+            SCAN_REQUEST -> {
+                scanResult?.success(mapOf("text" to data?.getStringExtra(ScanActivity.RESULT_TEXT), "denied" to (data?.getBooleanExtra("denied", false) ?: false)))
+                scanResult = null
             }
             PICK_REQUEST -> {
                 val uris = ArrayList<String>()

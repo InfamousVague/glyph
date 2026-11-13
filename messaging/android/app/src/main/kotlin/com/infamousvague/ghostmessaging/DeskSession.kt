@@ -35,6 +35,9 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
     @Volatile var peerName: String = ""
         private set
 
+    /** Told once when the connection ends, so whatever carried it (a socket) can be let go. */
+    @Volatile var onClosed: (() -> Unit)? = null
+
     private var channel: DeskCrypto.Channel? = null
     private val sendLock = Any()
 
@@ -141,6 +144,7 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
         closed = true
         live = false
         host.closed(this)
+        try { onClosed?.invoke() } catch (_: Exception) {}
     }
 
     companion object {
