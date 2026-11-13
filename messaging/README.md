@@ -7,7 +7,7 @@ Started 2026-11-13 at Matt's ask: "Sketch out a project and load it on my phone,
 other projects like ghost MARKDOWN and ghost KBD include basic functionality so i can replace my current sms today".
 It lives in Ghost.md's repository for now, in its own folder, and can be moved to a repository of its own whole.
 
-## What it does (0.1.0)
+## What it does
 
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
@@ -24,10 +24,21 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   typed in Settings.
 - **Notifications**: one per conversation with its unread messages (MessagingStyle), with Reply and Mark as read.
 - **Other apps**: `sms:` / `smsto:` / `mms:` links, shared text, and "respond via message" from the call screen.
+- **Reactions** (0.2.0): texts like `❤️ to "See you at 7"` (Google Messages) or `Loved “See you at 7”` (iPhone)
+  are folded onto the message they name, as a chip on its corner, instead of a bubble of their own: hearts, likes,
+  laughs, `Reacted 🎉 to …`, reactions to a picture (`Loved an image`), and `Removed … from …` taking one off. A press
+  on the chip lists who reacted with what. A quote cut short with "…" still finds its message; a reaction that names
+  no message in the conversation stays an ordinary bubble. It works on old messages too, because it is read as the
+  conversation is drawn (`lib/reactions.dart`, tested by `test/reactions_test.dart`).
+- **Editing** (0.2.0): long press one of your messages, Edit. SMS can't change a text on the other person's phone, so
+  saving asks whether to send the change as a follow-up text ("Correction: …") or change it on this phone only. The
+  bubble says "Edited" (or "Edited · correction sent", with the correction's own bubble folded away), and a press on
+  that shows what it first said. Editing a message that failed sends it again with the new words. The first text is
+  kept in the app's own record (`Store.editMessage`, `lib/edits.dart`).
 - **Settings**: theme (system, light, dark), this phone's number, and the state of the SMS role, contacts and
   notifications.
 
-Not in 0.1.0: RCS and iMessage (no API exists for apps other than Google's and Apple's own), sending video or
+Not yet: RCS and iMessage (no API exists for apps other than Google's and Apple's own), sending video or
 audio, scheduled messages, blocking, dual-SIM choice (the phone's default SMS SIM is used), and a backup.
 
 ## How it is built
@@ -46,7 +57,7 @@ audio, scheduled messages, blocking, dual-SIM choice (the phone's default SMS SI
 ```sh
 flutter pub get
 flutter build apk --release --target-platform android-arm64   # build/app/outputs/flutter-apk/app-release.apk
-flutter test --update-goldens test/screens_test.dart          # every screen, light and dark, to test/shots/
+flutter test --update-goldens                                 # reactions and edits; every screen, light and dark, to test/shots/
 cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder
 ```
 

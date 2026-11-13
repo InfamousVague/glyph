@@ -66,6 +66,8 @@ class Message {
     required this.outgoing,
     required this.state,
     this.attachments = const [],
+    this.edited = false,
+    this.original,
   });
   final int id;
   final String kind;
@@ -75,6 +77,10 @@ class Message {
   final bool outgoing;
   final String state;
   final List<Attachment> attachments;
+
+  /// Changed on this phone after it was sent ([Sms.editMessage]); [original] is what it first said.
+  final bool edited;
+  final String? original;
 
   String get key => '$kind:$id';
 
@@ -90,6 +96,8 @@ class Message {
           for (final p in (m['parts'] as List? ?? const []))
             Attachment(id: ((p as Map)['id'] as num).toInt(), type: (p['type'] as String?) ?? '', name: p['name'] as String?),
         ],
+        edited: m['edited'] == true,
+        original: m['original'] as String?,
       );
 }
 
@@ -162,6 +170,7 @@ class Sms {
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
   Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});
   Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id});
+  Future<void> editMessage(Message m, String body) => _calls.invokeMethod('editMessage', {'kind': m.kind, 'id': m.id, 'body': body});
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
   Future<void> setOpenThread(int? thread) => _calls.invokeMethod('setOpenThread', {'thread': thread ?? -1});
 

@@ -8,6 +8,7 @@ import '../art/lucide.g.dart';
 import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../reactions.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'compose.dart';
@@ -255,7 +256,7 @@ class _Row extends StatelessWidget {
                         if (c.error) ...[AppIcon(Lucide.circleAlert, size: 14, color: t.colorOf('#dd3a30')), SizedBox(width: t.space(1))],
                         Expanded(
                           child: Text(
-                            c.error ? 'Not sent' : c.snippet.replaceAll('\n', ' '),
+                            c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' '),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),

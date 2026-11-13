@@ -6,7 +6,9 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../edits.dart';
 import '../kit/settings_type.dart';
+import '../reactions.dart';
 import '../sms.dart';
 import 'common.dart';
 
@@ -30,6 +32,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   final _focus = FocusNode();
   final List<String> _attachments = [];
   bool _sending = false;
+
+  /// What [_messages] draws as: reaction texts folded onto their messages, your corrections onto your edits.
+  Folded _folded = const Folded(messages: [], reactions: {});
+  Set<String> _corrected = const {};
+
+  /// The message being edited in the composer, and what the composer held before.
+  Message? _editing;
+  String _draftBeforeEdit = '';
 
   bool get _group => _people.length > 1;
 
@@ -67,7 +77,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Future<void> _load({bool markRead = false}) async {
     final list = await Sms.instance.messages(widget.thread);
     if (!mounted) return;
-    setState(() => _messages = list);
+    final edits = foldCorrections(list);
+    setState(() {
+      _messages = list;
+      _folded = foldReactions(edits.messages);
+      _corrected = edits.corrected;
+    });
     if (markRead && list.any((m) => !m.outgoing)) Sms.instance.markRead(widget.thread);
     if (_group) {
       for (final m in list) {
@@ -114,6 +129,79 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (uris.isNotEmpty && mounted) setState(() => _attachments.addAll(uris.take(5 - _attachments.length)));
   }
 
+  bool _canEdit(Message m) => m.outgoing && m.body.isNotEmpty && m.state != 'sending' && m.state != 'pending_download';
+
+  void _startEdit(Message m) {
+    setState(() {
+      if (_editing == null) _draftBeforeEdit = _text.text;
+      _editing = m;
+      _text.text = m.body;
+      _text.selection = TextSelection.collapsed(offset: m.body.length);
+    });
+    _focus.requestFocus();
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editing = null;
+      _text.text = _draftBeforeEdit;
+      _draftBeforeEdit = '';
+    });
+  }
+
+  /// A failed message is simply sent again with its new words. A sent one is changed on this phone, and the new
+  /// words go to the other people as a follow-up text if you choose: SMS can't change what they already have.
+  Future<void> _saveEdit() async {
+    final m = _editing;
+    if (m == null) return;
+    final body = _text.text.trim();
+    if (body.isEmpty || body == m.body.trim()) {
+      _cancelEdit();
+      return;
+    }
+    if (m.state == 'failed') {
+      _cancelEdit();
+      await _retry(m, body: body);
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    await showChoices(context, title: 'Texts can\'t be changed on the other person\'s phone. Send them the change?', choices: [
+      Choice('Send correction', Lucide.send, () => _applyEdit(m, body, send: true)),
+      Choice('Change on this phone only', Lucide.pencil, () => _applyEdit(m, body, send: false)),
+    ]);
+  }
+
+  Future<void> _applyEdit(Message m, String body, {required bool send}) async {
+    _cancelEdit();
+    try {
+      await Sms.instance.editMessage(m, body);
+      if (send) await Sms.instance.send(_people.map((p) => p.address).toList(), correctionText(body));
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t edit: $e', tone: GlacierToastTone.danger);
+    }
+    _load();
+  }
+
+  void _showOriginal(Message m) {
+    showChoices(context, title: 'First sent as:\n${m.original ?? ''}', choices: [
+      Choice('Copy original', Lucide.copy, () {
+        Clipboard.setData(ClipboardData(text: m.original ?? ''));
+        toast(context, 'Copied');
+      }),
+    ]);
+  }
+
+  void _showReactions(List<Reaction> list) {
+    String who(String by) {
+      if (by.isEmpty) return 'You';
+      final p = _senders[by] ?? _people.where((p) => _same(p.address, by)).firstOrNull;
+      return p?.label ?? by;
+    }
+    showChoices(context, title: 'Reactions', choices: [
+      for (final r in list.reversed) Choice('${r.emoji}   ${who(r.by)}', Lucide.userRound, () {}),
+    ]);
+  }
+
   void _messageMenu(Message m) {
     showChoices(context, title: m.body.isEmpty ? null : (m.body.length > 80 ? '${m.body.substring(0, 80)}…' : m.body), choices: [
       if (m.body.isNotEmpty)
@@ -121,6 +209,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           Clipboard.setData(ClipboardData(text: m.body));
           toast(context, 'Copied');
         }),
+      if (_canEdit(m)) Choice(m.state == 'failed' ? 'Edit and send again' : 'Edit', Lucide.pencil, () => _startEdit(m)),
+      if (m.edited && m.original != null) Choice('Show original', Lucide.clock, () => _showOriginal(m)),
       if (m.state == 'failed') Choice('Send again', Lucide.rotateCcw, () => _retry(m)),
       Choice('Delete message', Lucide.trash2, () async {
         await Sms.instance.deleteMessage(m);
@@ -129,10 +219,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]);
   }
 
-  Future<void> _retry(Message m) async {
+  Future<void> _retry(Message m, {String? body}) async {
     await Sms.instance.deleteMessage(m);
     try {
-      await Sms.instance.send(_people.map((p) => p.address).toList(), m.body);
+      await Sms.instance.send(_people.map((p) => p.address).toList(), body ?? m.body);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send: $e', tone: GlacierToastTone.danger);
     }
@@ -177,7 +267,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   Widget _list(Tokens t) {
-    final msgs = _messages!;
+    final msgs = _folded.messages;
     // Newest first, drawn bottom up.
     final items = <Widget>[];
     String? lastOutgoingKey;
@@ -204,6 +294,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         status: showStatus ? _statusText(m) : (lastOfRun && !m.outgoing ? clock(m.date) : null),
         onLongPress: () => _messageMenu(m),
         onTapFailed: failed ? () => _retry(m) : null,
+        reactions: _folded.reactions[m.key] ?? const [],
+        onReactionsTap: () => _showReactions(_folded.reactions[m.key] ?? const []),
+        edited: m.edited ? (_corrected.contains(m.key) ? 'Edited · correction sent' : 'Edited') : null,
+        onEditedTap: m.edited ? () => _showOriginal(m) : null,
+        highlighted: _editing?.key == m.key,
       ));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date));
     }
@@ -231,7 +326,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       };
 
   Widget _composer(Tokens t) {
-    final canSend = (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
+    final editing = _editing != null;
+    final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final len = _text.text.length;
     final isMms = _group || _attachments.isNotEmpty;
     // An SMS is 160 GSM characters (70 with an emoji or other Unicode), and 153 / 67 a part once it is split.
@@ -283,8 +379,23 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 ]),
               ),
             ),
+          if (editing)
+            Padding(
+              padding: EdgeInsets.only(left: t.space(3), bottom: t.space(1)),
+              child: Row(children: [
+                AppIcon(Lucide.pencil, size: 14, color: t.color('app-ink-2')),
+                SizedBox(width: t.space(2)),
+                Expanded(
+                  child: Text(
+                    _editing!.state == 'failed' ? 'Edit, then send again' : 'Editing message',
+                    style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2')),
+                  ),
+                ),
+                IconTap(icon: Lucide.x, label: 'Stop editing', size: 16, onPressed: _cancelEdit),
+              ]),
+            ),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            IconTap(icon: Lucide.imagePlus, label: 'Add a picture', onPressed: _attachments.length >= 5 ? null : _attach),
+            IconTap(icon: Lucide.imagePlus, label: 'Add a picture', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
               child: Container(
@@ -313,9 +424,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               ),
             ),
             SizedBox(width: t.space(1)),
-            IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 18, onPressed: canSend ? _send : null),
+            editing
+                ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 18, onPressed: canSend ? _saveEdit : null)
+                : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 18, onPressed: canSend ? _send : null),
           ]),
-          if (!isMms && parts > 1)
+          if (!isMms && !editing && parts > 1)
             Padding(
               padding: EdgeInsets.only(top: t.space(1), right: t.space(3)),
               child: Text('$len · $parts texts', textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
@@ -385,6 +498,11 @@ class _Bubble extends StatelessWidget {
     this.showFace = false,
     this.status,
     this.onTapFailed,
+    this.reactions = const [],
+    this.onReactionsTap,
+    this.edited,
+    this.onEditedTap,
+    this.highlighted = false,
   });
 
   final Message message;
@@ -397,6 +515,15 @@ class _Bubble extends StatelessWidget {
   final String? status;
   final VoidCallback onLongPress;
   final VoidCallback? onTapFailed;
+  final List<Reaction> reactions;
+  final VoidCallback? onReactionsTap;
+
+  /// "Edited" or "Edited · correction sent", under the bubble.
+  final String? edited;
+  final VoidCallback? onEditedTap;
+
+  /// Being edited in the composer.
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -441,6 +568,28 @@ class _Bubble extends StatelessWidget {
 
     Widget bubble = Column(crossAxisAlignment: out ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: content);
     bubble = GestureDetector(onLongPress: onLongPress, onTap: onTapFailed, child: bubble);
+    if (highlighted) {
+      bubble = DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(borderRadius: radius, border: Border.all(color: t.colorOf('#4f5bd5'), width: 2)),
+        child: bubble,
+      );
+    }
+    if (reactions.isNotEmpty) {
+      // The chip sits on the bubble's lower edge, on the side away from the screen's edge, as both phones draw it.
+      bubble = Column(
+        crossAxisAlignment: out ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          bubble,
+          Transform.translate(
+            offset: Offset(out ? -t.space(1) : t.space(1), -t.space(2)),
+            child: _ReactionChip(reactions: reactions, onPressed: onReactionsTap),
+          ),
+        ],
+      );
+    }
+    final faceGap = group && !out ? faceSize + t.space(2) : 0.0;
 
     return Padding(
       padding: EdgeInsets.only(top: top ? t.space(2) : 2),
@@ -463,9 +612,17 @@ class _Bubble extends StatelessWidget {
               Flexible(child: bubble),
             ],
           ),
+          if (edited != null)
+            GestureDetector(
+              onTap: onEditedTap,
+              child: Padding(
+                padding: EdgeInsets.only(top: reactions.isEmpty ? 3 : 0, left: faceGap + t.space(2), right: t.space(2)),
+                child: Text(edited!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
+              ),
+            ),
           if (status != null)
             Padding(
-              padding: EdgeInsets.only(top: 3, left: (group && !out ? faceSize + t.space(2) : 0) + t.space(2), right: t.space(2)),
+              padding: EdgeInsets.only(top: reactions.isEmpty || edited != null ? 3 : 0, left: faceGap + t.space(2), right: t.space(2)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (failed) ...[AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30')), const SizedBox(width: 4)],
                 Text(status!, style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3'))),
@@ -566,6 +723,44 @@ class _Viewer extends StatelessWidget {
           child: IconTap(icon: Lucide.x, label: 'Close', color: const Color(0xFFFFFFFF), onPressed: () => Navigator.of(context).pop()),
         ),
       ]),
+    );
+  }
+}
+
+/// The reactions on a message as one chip: each kind once, in the order they came, with the count when there are
+/// several. A press lists who reacted with what.
+class _ReactionChip extends StatelessWidget {
+  const _ReactionChip({required this.reactions, this.onPressed});
+  final List<Reaction> reactions;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final kinds = <String>[];
+    for (final r in reactions) {
+      if (!kinds.contains(r.emoji)) kinds.add(r.emoji);
+    }
+    final mine = reactions.any((r) => r.by.isEmpty);
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: '${reactions.length} reaction${reactions.length == 1 ? '' : 's'}: ${kinds.join(' ')}',
+      builder: (context, state) => Container(
+        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 3),
+        decoration: BoxDecoration(
+          color: t.color(state.pressed ? 'app-paper-3' : (t.isDark ? 'app-paper-2' : 'app-paper')),
+          borderRadius: BorderRadius.circular(t.lenOf('1rem')),
+          border: Border.all(color: mine ? t.colorOf('#4f5bd5') : t.color('glacier-bg'), width: 2),
+          boxShadow: t.shadowOf('0 1px 4px rgba(0,0,0,0.12)'),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(kinds.take(4).join(), style: pageText(t, t.fontSize('sm'), height: 1.2)),
+          if (reactions.length > 1) ...[
+            SizedBox(width: t.space(1)),
+            Text('${reactions.length}', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
+          ],
+        ]),
+      ),
     );
   }
 }

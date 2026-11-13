@@ -240,7 +240,12 @@ class Store(private val context: Context) {
             }
         }
         out.sortByDescending { it["date"] as Long }
-        return if (out.size > limit) out.subList(0, limit) else out
+        val originals = originals()
+        val marked = if (originals.isEmpty()) out else out.map { m ->
+            val original = originals["${m["kind"]}:${m["id"]}"]
+            if (original == null) m else m + mapOf("edited" to true, "original" to original)
+        }
+        return if (marked.size > limit) marked.subList(0, limit) else marked
     }
 
     private fun smsState(type: Int, status: Int): String = when (type) {
@@ -403,6 +408,7 @@ class Store(private val context: Context) {
     fun deleteMessage(kind: String, id: Long) {
         val uri = if (kind == "mms") Uri.parse("content://mms/$id") else Uri.parse("content://sms/$id")
         resolver.delete(uri, null, null)
+        editsPrefs.edit().remove("$kind:$id").apply()
     }
 
     fun unreadCount(): Int {
@@ -410,6 +416,41 @@ class Store(private val context: Context) {
         resolver.query(Telephony.Sms.Inbox.CONTENT_URI, arrayOf("_id"), "read = 0", null, null)?.use { n += it.count }
         resolver.query(Telephony.Mms.Inbox.CONTENT_URI, arrayOf("_id"), "read = 0", null, null)?.use { n += it.count }
         return n
+    }
+
+    // --- edits (this app's own record: SMS has no edit, so the original is kept here) ------------------------------
+
+    private val editsPrefs get() = context.getSharedPreferences("edits", Context.MODE_PRIVATE)
+
+    /** "sms:12" -> the text it had before its first edit. */
+    fun originals(): Map<String, String> = editsPrefs.all.mapValues { it.value.toString() }
+
+    /** Changes the text of one of your messages on this phone, keeping what it first said. */
+    fun editMessage(kind: String, id: Long, body: String) {
+        val key = "$kind:$id"
+        val before: String?
+        if (kind == "mms") {
+            var partId = -1L
+            var text: String? = null
+            resolver.query(Uri.parse("content://mms/part"), arrayOf("_id", "text"), "mid = ? AND ct = 'text/plain'", arrayOf(id.toString()), "seq ASC")?.use {
+                if (it.moveToFirst()) { partId = it.getLong(0); text = it.getString(1) }
+            }
+            before = text
+            if (partId >= 0) {
+                resolver.update(Uri.parse("content://mms/part/$partId"), ContentValues().apply { put("text", body) }, null, null)
+            } else {
+                resolver.insert(Uri.parse("content://mms/$id/part"), ContentValues().apply {
+                    put("mid", id); put("seq", 0); put("ct", "text/plain"); put("chset", 106)
+                    put("cid", "<text0>"); put("cl", "text0.txt"); put("text", body)
+                })
+            }
+        } else {
+            var text: String? = null
+            resolver.query(Uri.parse("content://sms/$id"), arrayOf("body"), null, null, null)?.use { if (it.moveToFirst()) text = it.getString(0) }
+            before = text
+            resolver.update(Uri.parse("content://sms/$id"), ContentValues().apply { put("body", body) }, null, null)
+        }
+        if (!editsPrefs.contains(key)) editsPrefs.edit().putString(key, before ?: "").apply()
     }
 
     // --- archive (this app's own, not the provider's) ----------------------------------------------------------------

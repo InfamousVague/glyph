@@ -73,6 +73,10 @@ class MainActivity : FlutterActivity() {
                 }
                 "deleteThread" -> bg { val t = call.argument<Number>("thread")!!.toLong(); store.deleteThread(t); Notifier.cancel(applicationContext, t); null }
                 "deleteMessage" -> bg { store.deleteMessage(call.argument<String>("kind")!!, call.argument<Number>("id")!!.toLong()); null }
+                "editMessage" -> bg {
+                    store.editMessage(call.argument<String>("kind")!!, call.argument<Number>("id")!!.toLong(), call.argument<String>("body") ?: "")
+                    Bus.changed(-1); null
+                }
                 "archive" -> bg { store.setArchived(call.argument<Number>("thread")!!.toLong(), call.argument<Boolean>("archived") ?: true); null }
                 "searchContacts" -> bg { store.searchContacts(call.argument<String>("query") ?: "") }
                 "contact" -> bg { store.contact(call.argument<String>("address")!!) }
