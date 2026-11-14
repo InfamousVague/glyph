@@ -113,6 +113,7 @@ class Message {
     this.original,
     this.encrypted = false,
     this.notice,
+    this.why,
   });
   final int id;
   final String kind;
@@ -134,6 +135,9 @@ class Message {
   /// open it is not here).
   final String? notice;
 
+  /// Why it was not sent, where it was not and the phone knows (a picture message: android/.../MmsWhy.kt).
+  final String? why;
+
   String get key => '$kind:$id';
 
   factory Message.from(Map m) => Message(
@@ -152,7 +156,70 @@ class Message {
         original: m['original'] as String?,
         encrypted: m['encrypted'] == true,
         notice: m['notice'] as String?,
+        why: m['why'] as String?,
       );
+}
+
+/// What stands between this phone and picture messages (android/.../MmsDiag.kt), and how the last ones went.
+class MmsStatus {
+  const MmsStatus({this.dataOn, this.carrier, this.sim = true, this.allowed, this.maxBytes, this.lastSend, this.lastDownload, this.waiting = 0});
+
+  /// Mobile data is on: picture messages go over it, even on Wi-Fi. Null where Android would not say.
+  final bool? dataOn;
+  final String? carrier;
+  final bool sim;
+
+  /// The carrier's settings on this phone allow picture messages. Null where Android would not say.
+  final bool? allowed;
+  final int? maxBytes;
+  final MmsAttempt? lastSend;
+  final MmsAttempt? lastDownload;
+
+  /// Picture messages announced and not yet fetched.
+  final int waiting;
+
+  factory MmsStatus.from(Map m) => MmsStatus(
+        dataOn: m['dataOn'] as bool?,
+        carrier: m['carrier'] as String?,
+        sim: m['sim'] != false,
+        allowed: m['allowed'] as bool?,
+        maxBytes: (m['maxBytes'] as num?)?.toInt(),
+        lastSend: m['lastSend'] == null ? null : MmsAttempt.from(m['lastSend'] as Map),
+        lastDownload: m['lastDownload'] == null ? null : MmsAttempt.from(m['lastDownload'] as Map),
+        waiting: (m['waiting'] as num?)?.toInt() ?? 0,
+      );
+
+  /// What would stop one going, in a line; null where nothing is seen to.
+  String? get obstacle => !sim
+      ? 'There is no SIM for texts'
+      : allowed == false
+          ? 'The carrier has picture messaging switched off for this SIM'
+          : dataOn == false
+              ? 'Mobile data is off. Picture messages need it, even on Wi-Fi'
+              : null;
+
+  /// All of it as text, to copy and send to whoever is helping.
+  String report(String version) => [
+        'Ghost Messaging $version, picture messages',
+        'Carrier: ${carrier ?? 'not said'}',
+        'SIM for texts: ${sim ? 'yes' : 'none'}',
+        'Mobile data: ${dataOn == null ? 'not said' : (dataOn! ? 'on' : 'off')}',
+        'Allowed by the carrier\'s settings: ${allowed == null ? 'not said' : (allowed! ? 'yes' : 'no')}',
+        'Largest message: ${maxBytes == null ? 'not said' : '${maxBytes! ~/ 1024} KB'}',
+        'Last sent: ${lastSend == null ? 'none yet' : lastSend!.line}',
+        'Last fetched: ${lastDownload == null ? 'none yet' : lastDownload!.line}',
+        'Waiting to be fetched: $waiting',
+      ].join('\n');
+}
+
+/// How one picture message went: sent or fetched, or why not.
+class MmsAttempt {
+  const MmsAttempt({required this.at, required this.ok, required this.detail});
+  final DateTime at;
+  final bool ok;
+  final String detail;
+  factory MmsAttempt.from(Map m) => MmsAttempt(at: DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt()), ok: m['ok'] == true, detail: (m['detail'] as String?) ?? '');
+  String get line => '${ok ? 'worked' : 'failed'}: $detail (${at.toIso8601String().substring(0, 16).replaceFirst('T', ' ')})';
 }
 
 class SmsStatus {
@@ -362,6 +429,12 @@ class Sms {
   /// pack and number.
   Future<int> sendSticker(List<String> addresses, Uint8List picture, String name) async =>
       ((await _calls.invokeMethod('sendSticker', {'addresses': addresses, 'picture': picture, 'name': name})) as num).toInt();
+
+  /// Whether picture messages can go from this phone, and how the last ones went.
+  Future<MmsStatus> mmsStatus() async => MmsStatus.from((await _calls.invokeMethod<Map>('mmsStatus')) ?? const {});
+
+  /// Asks again for the picture messages announced and never fetched; answers how many.
+  Future<int> mmsRetry() async => ((await _calls.invokeMethod('mmsRetry')) as num?)?.toInt() ?? 0;
 
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
   Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});

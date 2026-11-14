@@ -159,11 +159,15 @@ object Sender {
             data = row
             putExtra("file", file.absolutePath)
         }, MUTABLE)
+        MmsDiag.cleared(context, row)
         try {
             sms.sendMultimediaMessage(context, uri, null, null, sent)
         } catch (e: Exception) {
             Log.e(TAG, "mms send failed", e)
             store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED)
+            val why = "Android wouldn't take it (${e.message ?: e.javaClass.simpleName})"
+            MmsDiag.failed(context, row, why)
+            MmsDiag.note(context, "send", false, "$why, ${pdu.size / 1024} KB")
             file.delete()
         }
     }
@@ -301,12 +305,22 @@ class MmsPushReceiver : BroadcastReceiver() {
                 putExtra("tid", transactionId)
                 putExtra("sub", sub)
             }, MUTABLE)
+            // It waits from now until it has come: a fetch that fails is asked for again (retryWaiting).
+            MmsDiag.fetching(context, location, transactionId, sub)
             try {
                 smsManager(context, sub).downloadMultimediaMessage(context, location, uri, null, done)
             } catch (e: Exception) {
                 Log.e(TAG, "download", e)
+                MmsDiag.note(context, "download", false, "Android wouldn't fetch it (${e.message ?: e.javaClass.simpleName})")
                 Notifier.downloadFailed(context)
             }
+        }
+
+        /** Asks again for the picture messages announced and never fetched. Answers how many were asked for. */
+        fun retryWaiting(context: Context): Int {
+            val all = MmsDiag.worthRetrying(context)
+            for (w in all) download(context, w.location, w.transactionId, if (w.sub >= 0) w.sub else defaultSub())
+            return all.size
         }
     }
 }
@@ -325,17 +339,23 @@ class MmsResultReceiver : BroadcastReceiver() {
         when (intent.action) {
             SENT -> {
                 val row = intent.data ?: return
-                if (resultCode == Activity.RESULT_OK) {
+                val size = file?.takeIf { it.exists() }?.length()?.let { ", ${it / 1024} KB" } ?: ""
+                // The carrier's answer: it names the message (its delivery and read reports come back under that
+                // name), and it says whether the message was accepted. Android calls a message sent once the
+                // carrier's server has answered at all; an answer that refuses it is a message that did not go.
+                val conf = try { intent.getByteArrayExtra(SmsManager.EXTRA_MMS_DATA)?.takeIf { it.isNotEmpty() }?.let { Pdu.parse(it) } } catch (e: Exception) { Log.w(TAG, "send-conf", e); null }
+                val refused = if (resultCode == Activity.RESULT_OK) MmsWhy.refused(conf?.responseStatus, conf?.responseText) else null
+                if (resultCode == Activity.RESULT_OK && refused == null) {
                     store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_SENT)
-                    // The MMSC's answer names the message: its delivery and read reports come back under that name.
-                    try {
-                        val conf = intent.getByteArrayExtra(SmsManager.EXTRA_MMS_DATA)
-                        val id = conf?.let { Pdu.parse(it).messageId }
-                        if (!id.isNullOrBlank()) store.setMmsMessageId(row, id)
-                    } catch (e: Exception) { Log.w(TAG, "send-conf", e) }
+                    if (!conf?.messageId.isNullOrBlank()) store.setMmsMessageId(row, conf!!.messageId!!)
+                    MmsDiag.cleared(context, row)
+                    MmsDiag.note(context, "send", true, "sent$size")
                 } else {
-                    Log.w(TAG, "mms send result $resultCode")
+                    val why = refused ?: MmsWhy.send(resultCode, intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0))
+                    Log.w(TAG, "mms send result $resultCode: $why")
                     store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED)
+                    MmsDiag.failed(context, row, why)
+                    MmsDiag.note(context, "send", false, "$why$size")
                     Notifier.failed(context, store.threadOfMms(row))
                 }
                 file?.delete()
@@ -345,11 +365,19 @@ class MmsResultReceiver : BroadcastReceiver() {
                 val sub = intent.getIntExtra("sub", defaultSub())
                 val bytes = file?.takeIf { it.exists() }?.readBytes()
                 file?.delete()
+                val location = intent.getStringExtra("location")
                 if (resultCode != Activity.RESULT_OK || bytes == null || bytes.isEmpty()) {
-                    Log.w(TAG, "mms download result $resultCode")
+                    val http = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
+                    val why = if (resultCode == Activity.RESULT_OK) "the carrier sent nothing" else MmsWhy.download(resultCode, http)
+                    Log.w(TAG, "mms download result $resultCode: $why")
+                    MmsDiag.note(context, "download", false, why)
+                    // One the carrier no longer has will never come; any other waits and is asked for again.
+                    if (http == 404 || http == 410) MmsDiag.fetched(context, location)
                     Notifier.downloadFailed(context)
                     return
                 }
+                MmsDiag.fetched(context, location)
+                MmsDiag.note(context, "download", true, "fetched, ${bytes.size / 1024} KB")
                 val pending = goAsync()
                 Thread {
                     try { keep(context, store, bytes, intent.getStringExtra("tid"), sub) } catch (e: Exception) { Log.e(TAG, "keep", e) }

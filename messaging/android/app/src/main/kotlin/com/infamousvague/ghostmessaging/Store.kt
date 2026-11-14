@@ -437,6 +437,8 @@ class Store(private val context: Context) {
                     },
                     "read" to ((row[3] as Int) != 0),
                     "parts" to (if (background != null) emptyList() else parts.filter { it["type"] != "text/plain" && it["type"] != "application/smil" }),
+                    // Why it did not go, where it did not (MmsWhy): said under it.
+                    "why" to (if (box == Telephony.Mms.MESSAGE_BOX_FAILED) MmsDiag.why(context, id) else null),
                 )
             }
         }

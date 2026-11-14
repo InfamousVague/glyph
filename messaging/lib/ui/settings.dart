@@ -45,6 +45,9 @@ class SettingsModel extends ChangeNotifier {
   /// What can be seen of the texting app this one replaced, and of Android's store of texts.
   Arriving arriving = const Arriving();
 
+  /// Whether picture messages can go from this phone, and how the last ones went (Settings › Android).
+  MmsStatus mms = const MmsStatus();
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   bool _gone = false;
@@ -79,6 +82,7 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => blocked = await Sms.instance.blockedNumbers()),
       ask(() async => keyboardHere = await Sms.instance.keyboardHere()),
       ask(() async => arriving = await Sms.instance.arriving()),
+      ask(() async => mms = await Sms.instance.mmsStatus()),
       ask(() async => archived = await Sms.instance.archivedCount()),
     ]);
     _say();
