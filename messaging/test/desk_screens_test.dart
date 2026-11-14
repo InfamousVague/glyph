@@ -9,6 +9,7 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
+import 'package:ghost_messaging/desktop/ui/nav_bar.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
@@ -89,6 +90,9 @@ class _Mac implements UpdateHost {
     return 'restarting';
   }
 }
+
+/// An item of the navigation bar at the sidebar's foot, by its label.
+Finder _nav(String label) => find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == label);
 
 Finder _button(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
 
@@ -178,9 +182,31 @@ void main() {
       expect(_button('Add an attachment'), findsNothing);
       expect(_button('Conversation settings'), findsNothing);
       expect(_button('Back'), findsNothing);
+      // The navigation bar at the sidebar's foot: a new chat, the messages, the archive with how many are in it,
+      // Settings. Messages is the one shown.
+      for (final label in ['New chat', 'Messages', 'Archive', 'Settings']) {
+        expect(_nav(label), findsOneWidget, reason: label);
+        expect(find.text(label), findsWidgets);
+      }
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      // Archive shows the archived ones, and Messages the others again.
+      await tester.tap(_nav('Archive'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'archive');
+      expect(find.text('Archived'), findsOneWidget);
+      await tester.tap(_nav('Messages'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      // A new chat opens beside the list and is the one shown; Messages puts it away.
+      await tester.tap(_nav('New chat'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'new');
+      await tester.tap(_nav('Messages'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
 
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
-        await tester.tap(_button('Settings'));
+        await tester.tap(_nav('Settings'));
       });
       expect(find.text('Unpair this phone'), findsOneWidget);
       expect(find.textContaining('Connected through the relay'), findsWidgets);
@@ -207,7 +233,7 @@ void main() {
       // And in Settings: where the updates stand, and a look for one when asked.
       final idle = MacUpdates.standing(installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'), phase: MacUpdatePhase.idle, host: mac);
       await shoot('8-settings-updates', paired('local'), dark: dark, updates: idle, then: () async {
-        await tester.tap(_button('Settings'));
+        await tester.tap(_nav('Settings'));
         for (var i = 0; i < 8; i++) {
           await tester.pump(const Duration(milliseconds: 60));
         }

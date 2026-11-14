@@ -15,6 +15,7 @@ import 'package:ghost_messaging/kit/settings_kit.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/common.dart';
 import 'package:ghost_messaging/ui/computers.dart';
+import 'package:glacier/glacier.dart' show GlacierPressable;
 import 'package:integration_test/integration_test.dart';
 
 /// The real Mac app, started and driven here, against the real phone app on an emulator (docs/desktop.md, "Trying
@@ -203,7 +204,7 @@ void main() {
 
     if (_unpair) {
       // Unpaired from here: the wizard is back, and the phone is told.
-      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Settings'));
+      await tester.tap(find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == 'Settings'));
       await until(() => find.text('Unpair this phone').evaluate().isNotEmpty, 'Settings');
       await shot('8-settings');
       await tester.ensureVisible(find.text('Unpair this phone'));

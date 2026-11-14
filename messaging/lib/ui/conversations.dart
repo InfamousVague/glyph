@@ -425,8 +425,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // As wide as the cards under it, edge to edge with them.
               Padding(
-                padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
+                padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
                 child: GlacierSearchField(
                   placeholder: widget.archived ? 'Search archived' : 'Search messages',
                   size: GlacierFieldSize.md,

@@ -16,6 +16,7 @@ import '../../ui/conversations.dart';
 import '../../ui/thread.dart';
 import '../desk.dart';
 import 'desk_settings.dart';
+import 'nav_bar.dart';
 import 'wizard.dart';
 
 /// The Mac's window once paired: the conversations down the side, the one chosen beside them. The conversation, the
@@ -36,6 +37,10 @@ class _DeskShellState extends State<DeskShell> {
   bool _archived = false;
   int _archivedCount = 0;
   int? _current;
+
+  /// What the pane beside the list shows when it is not a conversation: 'new' (a new message) or 'settings'. It is
+  /// the navigation bar's item then; with a conversation or nothing there, the list's own (Messages or Archive) is.
+  String? _showing;
   StreamSubscription<int>? _changes;
   Timer? _debounce;
   int _reads = 0;
@@ -153,9 +158,31 @@ class _DeskShellState extends State<DeskShell> {
       );
 
   /// Shows [page] in the pane beside the list, in place of whatever was there.
-  void _show(Widget page, {int? thread}) {
-    setState(() => _current = thread);
+  void _show(Widget page, {int? thread, String? showing}) {
+    setState(() {
+      _current = thread;
+      _showing = showing;
+    });
     _pane.currentState?.pushAndRemoveUntil(_page(page), (r) => r.isFirst);
+  }
+
+  /// The navigation bar at the sidebar's foot (nav_bar.dart): a new message and Settings open beside the list;
+  /// Messages and Archive are the list itself, and put away a new message or Settings that was open.
+  void _go(String id) {
+    switch (id) {
+      case 'new':
+        _show(const ComposeScreen(key: ValueKey('compose')), showing: 'new');
+      case 'settings':
+        _show(const DeskSettingsScreen(key: ValueKey('settings')), showing: 'settings');
+      default:
+        final wasBeside = _showing != null;
+        setState(() {
+          _archived = id == 'archive';
+          _showing = null;
+          if (wasBeside) _current = null;
+        });
+        if (wasBeside) _pane.currentState?.popUntil((r) => r.isFirst);
+    }
   }
 
   void _open(Conversation c) => _show(ThreadScreen(key: ValueKey('thread-${c.id}'), thread: c.id, people: c.people), thread: c.id);
@@ -217,24 +244,11 @@ class _DeskShellState extends State<DeskShell> {
         ),
       );
     } else {
-      final tail = !_archived && archivedCount > 0 && _query.isEmpty;
       list = ListView.builder(
-        padding: EdgeInsets.only(bottom: t.space(4)),
-        itemCount: shown.length + (tail ? 1 : 0),
+        // Its last card clears the navigation bar floating over its end.
+        padding: EdgeInsets.only(bottom: DeskNavBar.clearance(t)),
+        itemCount: shown.length,
         itemBuilder: (context, i) {
-          if (i == shown.length) {
-            return GlacierPressable(
-              onPressed: () => setState(() => _archived = true),
-              builder: (context, state) => Padding(
-                padding: EdgeInsets.symmetric(horizontal: gutter, vertical: t.space(4)),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  AppIcon(Lucide.archive, size: 16, color: t.color('app-ink-3')),
-                  SizedBox(width: t.space(2)),
-                  Text('Archived ($archivedCount)', style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-3'))),
-                ]),
-              ),
-            );
-          }
           final c = shown[i];
           // A press with the other button, as a Mac's lists have it, where a phone has a long press.
           return GestureDetector(
@@ -252,25 +266,43 @@ class _DeskShellState extends State<DeskShell> {
           height: t.lenOf('3.5rem'),
           child: Row(children: [
             SizedBox(width: gutter),
-            if (_archived) IconTap(icon: Lucide.arrowLeft, label: 'Back to Messages', size: 20, onPressed: () => setState(() => _archived = false)),
             Expanded(child: Text(_archived ? 'Archived' : 'Messages', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink')))),
-            IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: () => _show(const ComposeScreen(key: ValueKey('compose')))),
-            IconTap(icon: Lucide.settings, label: 'Settings', onPressed: () => _show(const DeskSettingsScreen(key: ValueKey('settings')))),
-            SizedBox(width: t.space(2)),
+            SizedBox(width: gutter),
           ]),
         ),
+        // As wide as the cards under it, edge to edge with them (Matt, 2026-11-14: "the search bar at the top is not
+        // full width it has too much padding on the left and right").
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
+          padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
           child: GlacierSearchField(placeholder: _archived ? 'Search archived' : 'Search messages', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
         ),
-        Expanded(child: list),
-        // How the phone is connected, and what is waiting for it.
-        DecoratedBox(
-          decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule')))),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: gutter, vertical: t.space(3)),
-            child: ListenableBuilder(listenable: scope.link, builder: (context, _) => LinkStatus(link: scope.link, waiting: scope.calls.waiting)),
-          ),
+        // How the phone is connected, and what is waiting for it: over the list, since its foot is the bar's.
+        Padding(
+          padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
+          child: ListenableBuilder(listenable: scope.link, builder: (context, _) => LinkStatus(link: scope.link, waiting: scope.calls.waiting)),
+        ),
+        Expanded(
+          child: Stack(children: [
+            Positioned.fill(child: list),
+            // The navigation bar floats over the list's end (Matt, 2026-11-14: "at the bottom of the desktop
+            // sidebar, add a navigation bar floating from glacier UI include the new chat button, messages,
+            // settings button and archive").
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: DeskNavBar(
+                active: _showing ?? (_archived ? 'archive' : 'messages'),
+                onSelect: _go,
+                items: [
+                  const DeskNavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
+                  const DeskNavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+                  DeskNavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount),
+                  const DeskNavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
+                ],
+              ),
+            ),
+          ]),
         ),
       ]),
     );
