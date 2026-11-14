@@ -20,7 +20,9 @@ import '../kit/settings_type.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'nav_bar.dart';
 import 'settings_panes.dart';
+import 'shell.dart';
 
 /// What Settings shows that is not a choice of the person's: what Android has allowed, this phone's number, where
 /// the app's update stands, who encryption is on with, the blocked numbers. Asked for as Settings opens and again
@@ -62,9 +64,36 @@ class SettingsModel extends ChangeNotifier {
   List<String> devLines = const [];
   String devReport = '';
 
+  /// The model the pages of Settings that are open share, and how many of them hold it: the list of sections in
+  /// the list's place and the page of one beside it (lib/ui/shell.dart) read the same answers, so what one changes
+  /// the other shows.
+  static SettingsModel? _shared;
+  int _users = 0;
+
+  /// The shared model for [app], started; [give] it back when done with it.
+  static SettingsModel take(AppState app) {
+    final had = _shared;
+    if (had != null && identical(had.app, app)) {
+      had._users++;
+      return had;
+    }
+    final made = SettingsModel(app)
+      .._users = 1
+      ..start();
+    return _shared = made;
+  }
+
+  /// Done with it: the last to say so ends it.
+  void give() {
+    if (--_users > 0) return;
+    if (identical(_shared, this)) _shared = null;
+    dispose();
+  }
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   StreamSubscription<void>? _computers;
+  List<Listenable> _watching = const [];
   bool _gone = false;
 
   void start() {
@@ -76,6 +105,11 @@ class SettingsModel extends ChangeNotifier {
     // The app's routes come and go on their own (lib/net/net.dart): Settings › Network is drawn again as they do.
     Net.instance.addListener(_say);
     Me.instance.addListener(_say);
+    // And whatever the sections that come from outside are read from (a computer's link to its phone).
+    _watching = SettingsSources.watched;
+    for (final w in _watching) {
+      w.addListener(_say);
+    }
     _computers = Sms.instance.computersChanged.stream.listen((_) async {
       try {
         computers = await Sms.instance.computers();
@@ -125,6 +159,9 @@ class SettingsModel extends ChangeNotifier {
     _gone = true;
     Net.instance.removeListener(_say);
     Me.instance.removeListener(_say);
+    for (final w in _watching) {
+      w.removeListener(_say);
+    }
     app.removeListener(notifyListeners);
     _updates?.cancel();
     _changes?.cancel();
@@ -133,10 +170,59 @@ class SettingsModel extends ChangeNotifier {
   }
 }
 
+/// Which kind of device a section is for. The phone and a computer share Settings and its pages (Matt, 2026-11-14:
+/// "desktop and mobile should also share the same settings pages"); the few that are about one of them alone say
+/// so, and are left out on the other.
+enum SettingsWhere { everywhere, phone, computer }
+
+/// Sections that come from outside the list in settings_panes.dart: a plugin's own page (lib/plugins/settings.dart),
+/// a computer's own sections (lib/desktop/ui/desk_settings.dart), and whatever else has something to set (Matt,
+/// 2026-11-14: "the plugins and all being able to make their own setting sections"). A source is asked each time
+/// Settings is drawn, so what it gives can come and go (a plugin switched off takes its page with it).
+abstract final class SettingsSources {
+  static final List<List<SettingsSection> Function()> _first = [];
+  static final List<List<SettingsSection> Function()> _after = [];
+  static final Map<List<SettingsSection> Function(), List<Listenable>> _watch = {};
+
+  /// Adds a source. Its sections follow the app's own, in the groups they name; [first] puts them before. Settings
+  /// is drawn again whenever one of [watch] changes: what the source's rows and pages say is read from them.
+  static void add(List<SettingsSection> Function() source, {bool first = false, List<Listenable> watch = const []}) {
+    remove(source);
+    (first ? _first : _after).add(source);
+    if (watch.isNotEmpty) _watch[source] = watch;
+  }
+
+  static void remove(List<SettingsSection> Function() source) {
+    _first.remove(source);
+    _after.remove(source);
+    _watch.remove(source);
+  }
+
+  /// What the sources' sections are read from.
+  static List<Listenable> get watched => [for (final w in _watch.values) ...w];
+
+  /// [own], with every source's sections before and after it, and those not for this kind of device ([here]: a
+  /// computer where the phone is reached through a link, a phone otherwise) left out.
+  static List<SettingsSection> around(List<SettingsSection> own, {SettingsWhere? here}) {
+    here ??= Sms.remote ? SettingsWhere.computer : SettingsWhere.phone;
+    return [
+      for (final s in [for (final source in _first) ...source(), ...own, for (final source in _after) ...source()])
+        if (s.where == SettingsWhere.everywhere || s.where == here) s,
+    ];
+  }
+}
+
 /// One section: a row on the list and the page it opens.
 @immutable
 class SettingsSection {
-  const SettingsSection({required this.id, required this.label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen});
+  const SettingsSection({required this.id, required this.label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen, this.where = SettingsWhere.everywhere, this.when});
+
+  /// The kind of device it is for.
+  final SettingsWhere where;
+
+  /// Whether it is there at all, as the person's choices stand: a plugin's own section, while the plugin is on.
+  /// Always, where not given.
+  final bool Function(SettingsModel model)? when;
 
   final String id;
   final String label;
@@ -171,6 +257,13 @@ class EffectsHost extends InheritedWidget {
 
 /// Settings' home: a search field over the list of sections. While words are typed the list gives way to what they
 /// find: sections and settings, each with where it is, opening there.
+///
+/// In the app's frame (lib/ui/shell.dart) it stands in the list's place, and a section's page opens in the pane:
+/// over it on a phone, beside it in a window with room, where the first section is open from the start and the
+/// row of the one open is marked. That is Ghost.md's Settings in a window (Matt, 2026-11-14: "a full features
+/// settings page like the ghost markdown app ... instead of the one small settings panel we have now"; "when the
+/// settings is open on desktop replace the normal sidebar so it's only a two pane layout not a three pane").
+/// With no frame round it (a test of the one screen) a section's page opens over it.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -191,13 +284,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _model ??= SettingsModel(AppState.of(context))..start();
+    _model ??= SettingsModel.take(AppState.of(context));
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _model?.dispose();
+    _model?.give();
     super.dispose();
   }
 
@@ -207,53 +300,78 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) _model?.refresh();
   }
 
-  void _open(SettingsHit hit) {
+  /// Opens a section: in the frame's pane where there is a frame, over this page where there is none.
+  void _open(SettingsSection s, {String? seek}) {
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) return shell.settings(s.id, seek);
     final model = _model!;
-    final s = hit.section;
-    push<void>(context, (context) => s.screen != null ? s.screen!(context, model) : SectionPage(section: s, model: model, seek: hit.setting));
+    push<void>(context, (context) => s.screen != null ? s.screen!(context, model) : SectionPage(section: s, model: model, seek: seek));
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final model = _model!;
-    return GhostPage(
-      title: 'Settings',
-      body: ListenableBuilder(
-        listenable: model,
-        builder: (context, _) {
-          final query = _query.trim();
-          final hits = query.isEmpty ? const <SettingsHit>[] : searchSettings(context, model, settingsSections, query);
-          return ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            children: [
-              GlacierSearchField(placeholder: 'Search settings', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
-              SizedBox(height: t.space(5)),
-              if (query.isEmpty)
-                SettingsList(model: model, sections: settingsSections)
-              else if (hits.isEmpty)
-                Padding(
-                  padding: EdgeInsets.all(t.space(4)),
-                  child: Text('Nothing called “$query”.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
-                )
-              else
-                _Group(rows: [
-                  for (var i = 0; i < hits.length; i++)
-                    _SectionRow(
-                      label: hits[i].setting ?? hits[i].section.label,
-                      icon: hits[i].section.icon,
-                      hue: hits[i].section.hue,
-                      // A setting says where it is; a section, what it is set to.
-                      summary: hits[i].setting != null ? hits[i].section.label : hits[i].section.summary?.call(model),
-                      index: i,
-                      onPress: () => _open(hits[i]),
-                    ),
-                ]),
-            ],
-          );
-        },
-      ),
+    final shell = AppShell.maybeOf(context);
+    // Beside its page: the frame's list and pane are side by side.
+    final beside = shell != null && AppShell.wideOf(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([model, ?shell?.settingsSection]),
+      builder: (context, _) {
+        final sections = [for (final s in settingsSections) if (s.when?.call(model) ?? true) s];
+        final query = _query.trim();
+        final hits = query.isEmpty ? const <SettingsHit>[] : searchSettings(context, model, sections, query);
+        final chosen = beside ? shell.settingsSection.value : null;
+        // Beside the pane there is always a section in it: the first, until another is pressed.
+        if (beside && chosen == null && sections.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && shell.settingsOpen && shell.wide && shell.settingsSection.value == null) shell.settings(sections.first.id);
+          });
+        }
+        return GhostPage(
+          title: 'Settings',
+          // Beside its page the way out is the bar at the list's foot, as it is from the conversations.
+          back: !beside,
+          body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(3)),
+              child: GlacierSearchField(placeholder: 'Search settings', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
+            ),
+            // The header ends under the search field, as the conversations' does: what hangs under a header (the
+            // update banner) hangs under this one, in this column.
+            const HeaderEnd(),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside ? NavPill.clearance(t) : t.space(8))),
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                children: [
+                  if (query.isEmpty)
+                    SettingsList(model: model, sections: sections, chosen: chosen, beside: beside, onOpen: _open)
+                  else if (hits.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.all(t.space(4)),
+                      child: Text('Nothing called “$query”.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
+                    )
+                  else
+                    _Group(rows: [
+                      for (var i = 0; i < hits.length; i++)
+                        _SectionRow(
+                          label: hits[i].setting ?? hits[i].section.label,
+                          icon: hits[i].section.icon,
+                          hue: hits[i].section.hue,
+                          // A setting says where it is; a section, what it is set to.
+                          summary: hits[i].setting != null ? hits[i].section.label : hits[i].section.summary?.call(model),
+                          index: i,
+                          chevron: !beside,
+                          onPress: () => _open(hits[i].section, seek: hits[i].setting),
+                        ),
+                    ]),
+                ],
+              ),
+            ),
+          ]),
+        );
+      },
     );
   }
 }
@@ -326,10 +444,12 @@ class _SectionPageState extends State<SectionPage> {
   }
 }
 
-/// One section's page by its [id], with a model of its own: the way in from outside Settings.
+/// One section's page by its [id]: what the frame puts in its pane for a row of Settings' list, and the way in
+/// from outside Settings. [seek] is a setting on it to scroll to and light (a search found it).
 class SettingsSectionScreen extends StatefulWidget {
-  const SettingsSectionScreen(this.id, {super.key});
+  const SettingsSectionScreen(this.id, {super.key, this.seek});
   final String id;
+  final String? seek;
 
   @override
   State<SettingsSectionScreen> createState() => _SettingsSectionScreenState();
@@ -341,28 +461,53 @@ class _SettingsSectionScreenState extends State<SettingsSectionScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _model ??= SettingsModel(AppState.of(context))..start();
+    _model ??= SettingsModel.take(AppState.of(context));
   }
 
   @override
   void dispose() {
-    _model?.dispose();
+    _model?.give();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final section = settingsSections.firstWhere((s) => s.id == widget.id);
-    return section.screen != null ? section.screen!(context, _model!) : SectionPage(section: section, model: _model!);
+    final model = _model!;
+    return ListenableBuilder(
+      listenable: model,
+      builder: (context, _) {
+        final section = [for (final s in settingsSections) if (s.id == widget.id && (s.when?.call(model) ?? true)) s].firstOrNull;
+        // A section that is not here (another kind of device's, a plugin's that was switched off): Settings itself.
+        // In the frame that is the list this page was opened from, so the page only has to go.
+        if (section == null) {
+          final shell = AppShell.maybeOf(context);
+          if (shell == null) return const SettingsScreen();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && shell.settingsSection.value == widget.id) shell.settingsGone();
+          });
+          return ColoredBox(color: context.tokens.color('glacier-bg'), child: const SizedBox.expand());
+        }
+        return section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model, seek: widget.seek);
+      },
+    );
   }
 }
 
 /// The list of sections: Settings' home.
 class SettingsList extends StatelessWidget {
-  const SettingsList({super.key, required this.model, required this.sections});
+  const SettingsList({super.key, required this.model, required this.sections, this.onOpen, this.chosen, this.beside = false});
 
   final SettingsModel model;
   final List<SettingsSection> sections;
+
+  /// Asked to open a section; where not given, its page opens over the list.
+  final ValueChanged<SettingsSection>? onOpen;
+
+  /// The section whose page is shown beside the list, which its row is marked for.
+  final String? chosen;
+
+  /// A section's page is beside the list, not over it: a row leads nowhere else, so it has no chevron.
+  final bool beside;
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +529,9 @@ class SettingsList extends StatelessWidget {
                 hue: section.hue,
                 summary: section.summary?.call(model),
                 index: index++,
-                onPress: () => push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model)),
+                selected: beside && section.id == chosen,
+                chevron: !beside,
+                onPress: () => onOpen != null ? onOpen!(section) : push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model)),
               ),
           ]),
           SizedBox(height: t.space(5)),
@@ -426,7 +573,7 @@ class _Group extends StatelessWidget {
 
 /// `.settingsScreen__row`: the section's chip in its colour, its name and a line under it, and a chevron.
 class _SectionRow extends StatelessWidget {
-  const _SectionRow({required this.label, required this.icon, required this.hue, required this.summary, required this.index, required this.onPress});
+  const _SectionRow({required this.label, required this.icon, required this.hue, required this.summary, required this.index, required this.onPress, this.selected = false, this.chevron = true});
 
   final String label;
   final Widget icon;
@@ -434,6 +581,12 @@ class _SectionRow extends StatelessWidget {
   final String? summary;
   final int index;
   final VoidCallback onPress;
+
+  /// Its page is the one shown beside the list.
+  final bool selected;
+
+  /// Whether it leads somewhere else (a page over the list); beside its page it does not.
+  final bool chevron;
 
   @override
   Widget build(BuildContext context) {
@@ -447,7 +600,7 @@ class _SectionRow extends StatelessWidget {
         onPressed: onPress,
         semanticLabel: label,
         builder: (context, state) => ColoredBox(
-          color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
+          color: selected || state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: t.lenOf('3.5rem')),
             child: Padding(
@@ -483,8 +636,7 @@ class _SectionRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  SizedBox(width: gap),
-                  ExcludeSemantics(child: SettingsIcon(SettingsGlyph.chevronRight, size: 18, color: t.color('app-ink-4'))),
+                  if (chevron) ...[SizedBox(width: gap), ExcludeSemantics(child: SettingsIcon(SettingsGlyph.chevronRight, size: 18, color: t.color('app-ink-4')))],
                 ],
               ),
             ),

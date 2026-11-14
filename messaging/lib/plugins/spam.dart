@@ -213,6 +213,14 @@ class SpamPlugin extends GhostPlugin {
         (facts, tags, at, prefs) => [if (at == section && prefs.flag('mute')) const MuteNotification()],
       ];
 
+  /// A section of its own in Settings, while the filter is on.
+  @override
+  PluginSettingsPage? get settingsPage => PluginSettingsPage(
+        hue: 'red',
+        intro: 'What looks like spam, from numbers that are not in your contacts, in a tab of its own.',
+        summary: (prefs) => prefs.flag('mute') ? 'Spam is muted' : 'Spam still notifies',
+      );
+
   @override
   List<PluginSetting> get settings => [
         const PluginSetting.toggle(

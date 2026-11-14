@@ -29,7 +29,14 @@ Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 String _onOff(bool on) => on ? 'On' : 'Off';
 
 /// Every section, in the order of the list. Rows with the same group share a card.
-final List<SettingsSection> settingsSections = [
+/// Read each time Settings is drawn: the app's own sections, with those that come from outside round them
+/// (SettingsSources: a plugin's page, a computer's own), and those for another kind of device left out.
+List<SettingsSection> get settingsSections => SettingsSources.around(_ownSections());
+
+/// The same for one kind of device, whichever this is: what a phone's Settings has, or a computer's.
+List<SettingsSection> settingsSectionsOn(SettingsWhere here) => SettingsSources.around(_ownSections(), here: here);
+
+List<SettingsSection> _ownSections() => [
   SettingsSection(
     id: 'me',
     label: 'Me',
@@ -100,6 +107,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'receipts',
+    // What the phone asks of the carrier: the phone's own.
+    where: SettingsWhere.phone,
     label: 'Receipts',
     icon: _icon(Lucide.checkCheck),
     hue: 'cyan',
@@ -109,6 +118,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'notifications',
+    // Android's notifications: the phone's own.
+    where: SettingsWhere.phone,
     label: 'Notifications',
     icon: _icon(Lucide.bell),
     hue: 'coral',
@@ -153,6 +164,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'number',
+    // The phone's own.
+    where: SettingsWhere.phone,
     label: 'Your number',
     icon: _icon(Lucide.phone),
     hue: 'orange',
@@ -162,6 +175,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'android',
+    // The phone's own.
+    where: SettingsWhere.phone,
     label: 'Android',
     icon: _icon(LucideMore.smartphone),
     hue: 'lime',
@@ -171,6 +186,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'keyboard',
+    // The phone's own.
+    where: SettingsWhere.phone,
     label: 'Ghost Keyboard',
     icon: _icon(LucideMore.keyboard),
     hue: 'yellow',
@@ -180,6 +197,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'computers',
+    // The computers paired with the phone: a computer has "Your phone" (lib/desktop/ui/desk_settings.dart).
+    where: SettingsWhere.phone,
     label: 'Computers',
     icon: _icon(Lucide.laptop),
     hue: 'blue',
@@ -194,6 +213,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'network',
+    // The routes run on the phone; a computer speaks through it.
+    where: SettingsWhere.phone,
     label: 'Network',
     icon: _icon(Lucide.network),
     hue: 'blue',
@@ -203,6 +224,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'updates',
+    // The phone app's updates; a computer's are under "This Mac".
+    where: SettingsWhere.phone,
     label: 'Updates',
     icon: _icon(Lucide.download),
     hue: 'mint',
@@ -212,6 +235,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'developer',
+    // The phone's log.
+    where: SettingsWhere.phone,
     label: 'Developer',
     icon: _icon(Lucide.terminal),
     hue: 'graphite',
@@ -221,6 +246,8 @@ final List<SettingsSection> settingsSections = [
   ),
   SettingsSection(
     id: 'about',
+    // The phone app's; a computer's is under "This Mac".
+    where: SettingsWhere.phone,
     label: 'About',
     icon: _icon(Lucide.info),
     hue: 'graphite',
@@ -228,10 +255,10 @@ final List<SettingsSection> settingsSections = [
     summary: (m) => 'Ghost Messaging ${m.update.current.isEmpty ? appVersion : m.update.current}',
     page: _about,
   ),
-];
+    ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.10';
+const appVersion = '0.7.11';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -268,7 +295,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
-    PaneSection(title: 'Text', footer: const Text('The size of the words in a message. Everything else follows Android\'s own font size.'), children: [
+    PaneSection(title: 'Text', footer: Text(Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'), children: [
       SettingRow(
         icon: _icon(LucideMore.type),
         label: 'Text size',
@@ -490,6 +517,8 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // The hello that finds people and the key are the phone's: a computer leaves them to it, and says so.
+    if (!Sms.remote)
     PaneSection(
       title: 'Finding each other',
       footer: const Text('The hello is three invisible characters at the end of a text, now and then, and only where they add nothing to what the text costs. Every other app draws them as nothing. Nothing else is sent: encryption starts only when one of you taps Turn on, which sends a key, and the other accepts. The safety number is how you check nobody is in the middle.'),
@@ -515,6 +544,15 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
           ),
       ],
     ),
+    if (Sms.remote)
+      PaneSection(children: [
+        SettingRow(
+          icon: _icon(Lucide.keyRound),
+          label: 'Your phone holds the key',
+          hint: const Text('The key, a new one, and finding people who have Ghost Messaging are set on the phone, under Settings › Encryption.'),
+        ),
+      ]),
+    if (!Sms.remote)
     PaneSection(
       title: 'This phone',
       footer: const Text('A new key ends encryption with everyone. Each conversation is exchanged again to go on, and texts sealed under the old key can no longer be opened.'),
@@ -552,7 +590,9 @@ List<Widget> _blocked(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Blocked',
-      description: const Text('Android\'s own list: it stops a number\'s texts and calls before any app sees them. Block one from a conversation\'s long press.'),
+      description: Text(Sms.remote
+          ? 'Your phone\'s own list: it stops a number\'s texts and calls before any app sees them. Block one from a conversation\'s menu.'
+          : 'Android\'s own list: it stops a number\'s texts and calls before any app sees them. Block one from a conversation\'s long press.'),
       footer: m.blocked.isEmpty ? const Text('No numbers are blocked.') : const Text('Tap a number to unblock it.'),
       children: [
         for (final p in m.blocked)
@@ -982,13 +1022,16 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
-    PaneSection(title: 'Licences', children: [
+    aboutLicences(),
+  ];
+}
+
+/// Whose work the app draws with: on About, the phone's and a computer's (lib/desktop/ui/desk_settings.dart).
+PaneSection aboutLicences() => PaneSection(title: 'Licences', children: [
       SettingRow(
         icon: _icon(LucideMore.smile),
         label: 'Emoji sets',
         hint: const Text('Noto Color Emoji and Noto Emoji © Google (SIL OFL 1.1). Twemoji © Twitter and contributors (CC-BY 4.0). All emojis designed by OpenMoji, the open-source emoji and icon project (CC BY-SA 4.0).'),
       ),
       SettingRow(icon: _icon(Lucide.info), label: 'Icons', hint: const Text('Lucide (ISC licence).')),
-    ]),
-  ];
-}
+    ]);

@@ -424,7 +424,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
   (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
   to the effects not a row of effect icons").
-- **The list's tabs** (not released; Matt, 2026-11-14: "add a right click menu for the codes and messages tabs as
+- **The list's tabs** (0.7.10; Matt, 2026-11-14: "add a right click menu for the codes and messages tabs as
   well as a button to mark all read and change the messages and codes to a segmented toggle"). Messages and each
   section a plugin makes (Codes, Spam) are one segmented toggle under the search field (`SectionTabs` in
   `lib/plugins/ui.dart`), where they were chips in a row. Beside it, Mark all read marks every unread conversation
@@ -432,6 +432,34 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   little room, and standing alone where there is no section to make a tab of). A press with the other button on a
   tab, or a long press, brings up that tab's menu: Mark all as read, and Select all, which chooses every
   conversation of the tab for the bar at the top to archive or delete.
+- **One Settings, on the phone and the Mac** (0.7.10; `lib/ui/settings.dart`, `lib/ui/shell.dart`,
+  `lib/desktop/ui/desk_settings.dart`; Matt, 2026-11-14: "update the desktop app to have a full features settings
+  page like the ghost markdown app with the plugins and all being able to make their own setting sections instead
+  of the one small settings panel we have now", "desktop and mobile should also share the same settings pages",
+  "when the settings is open on desktop replace the normal sidebar so it's only a two pane layout not a three
+  pane"). The Mac's one small panel is gone: a computer has the phone's Settings and its pages.
+  - **Where it opens.** Settings' list of sections (`SettingsScreen`) takes the list's place in the frame, and the
+    page of the section chosen (`SettingsSectionScreen`) is the pane's. In a wide window (the Mac, a folding phone
+    opened out) that is two panes: sections where the conversations were, with the bar still at their foot, and the
+    chosen section's page beside them, the first one open from the start and its row marked. On a phone the list
+    is a page over the conversations with its own way back and no bar, and a section's page slides over it, as
+    before. The Messages ring, or anything that opens a conversation, a new chat or the contacts, puts Settings
+    away. The pages of Settings that are open share one `SettingsModel` (`SettingsModel.take` / `give`).
+  - **Which sections.** A section says which kind of device it is for (`SettingsSection.where`: everywhere, the
+    phone, a computer) and may say when it is there at all (`when`). Receipts, Notifications, Your number, Android,
+    Ghost Keyboard, Computers, Network, Updates, Developer and About are the phone's; a computer leaves the key and
+    finding people (Encryption) to the phone and says so.
+  - **Sections from outside** (`SettingsSources.add(source, first:, watch:)`): whatever has something to set hands
+    Settings its sections, before or after the app's own, and Settings is drawn again when what they are read from
+    changes. The Mac's frame hands over its four while a phone is paired (`DeskSettings`): **Your phone** (the
+    pairing, how the two connect, the phone's address by hand, unpairing), **Kept on this Mac** (how many
+    conversations and how much space, and clearing them), **Updates** (this version, look for one, restart to
+    update) and **About**.
+  - **A plugin's own section** (`GhostPlugin.settingsPage`, a `PluginSettingsPage`: its colour, a line of
+    introduction, a summary for its row). A plugin that asks for one has a row under Plugins while it is on, opening
+    a page of its own settings (`PluginSetting`s, then what it puts in `Slots.settings`); Settings › Plugins keeps
+    its switch and leaves its settings there. One that does not ask keeps its card on Settings › Plugins. Codes and
+    Spam filter each have one.
 - **Plugins** (0.7.4; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
   placing UI elements and doing things like filtering out spam messages separating OTPs into their own section and
   more"). A plugin is a name, a line saying what it does and a switch in Settings › Plugins, kept with the person's
@@ -473,7 +501,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
-- **How large a video came** (not released; `lib/ui/video.dart`; Matt, 2026-11-14: "the videos sent from iphone are
+- **How large a video came** (0.7.10; `lib/ui/video.dart`; Matt, 2026-11-14: "the videos sent from iphone are
   extremely low quality", and, asked whether the app should say so, "Yes, add it"). Under a video in a conversation
   is its own size and its file's ("320 × 240 · 913 KB"), and, where it came from someone else under 480 pixels the
   short way, "Shrunk by the sender's phone to send as a picture message." The app does nothing to a video: it is
@@ -588,7 +616,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone shows a quiet permanent notification, which is what lets Android keep it reachable. What is typed on the Mac
   while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps what it has read (the
   list and each conversation's messages) sealed on its disk with a key made from the pairing's, answers the
-  screens from that at once, and fetches only what is new from the phone behind them (not released; docs/desktop.md,
+  screens from that at once, and fetches only what is new from the phone behind them (0.7.10; docs/desktop.md,
   "What the Mac keeps"; Matt, 2026-11-14: "cache messages on the desktop app so that we don't need to fetch them
   all from the phone every time, just fetching updates in the background"). A
   computer can read, send text, mark read, pin, mute and archive; it cannot delete, block, change encryption or

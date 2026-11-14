@@ -119,6 +119,14 @@ class CodesPlugin extends GhostPlugin {
         }),
       ];
 
+  /// A section of its own in Settings, while Codes is on.
+  @override
+  PluginSettingsPage? get settingsPage => PluginSettingsPage(
+        hue: 'amber',
+        intro: 'Sign-in codes in a tab of their own, a tap to copy one.',
+        summary: (prefs) => [if (prefs.flag('read')) 'Read when copied', if (prefs.flag('company')) 'Named by company'].join(' · '),
+      );
+
   @override
   List<PluginSetting> get settings => const [
         PluginSetting.toggle(key: 'read', label: 'Mark as read when copied', hint: 'Copying a code from the list also marks its conversation as read.', icon: Lucide.checkCheck),

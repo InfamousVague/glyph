@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../kit/settings_type.dart';
+import '../../ui/settings.dart';
 import '../../ui/shell.dart';
 import '../../ui/update_banner.dart';
 import '../desk.dart';
@@ -18,9 +19,41 @@ import 'wizard.dart';
 /// what they ask is answered through the link to the phone (lib/desktop/remote.dart). This used to be a list of the
 /// Mac's own, which read the conversations a second way and had fallen behind the phone's (no swiping, no choosing
 /// several, no deleting). The Mac's own are three: how the phone is connected, kept with the list; what the pane
-/// says with nothing open; and its Settings.
-class DeskShell extends StatelessWidget {
+/// says with nothing open; and its sections of Settings (desk_settings.dart), which is otherwise the phone's too
+/// (Matt, 2026-11-14: "desktop and mobile should also share the same settings pages").
+class DeskShell extends StatefulWidget {
   const DeskShell({super.key});
+
+  @override
+  State<DeskShell> createState() => _DeskShellState();
+}
+
+class _DeskShellState extends State<DeskShell> {
+  DeskSettings? _settings;
+
+  // The two sources handed to Settings, and taken out of it again when this goes.
+  List<SettingsSection> _first() => _settings!.first();
+  List<SettingsSection> _after() => _settings!.after();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_settings != null) return;
+    // The Mac's own sections stand in Settings while a phone is paired: the phone before the app's own, what is
+    // the Mac app's after them.
+    final scope = DeskScope.of(context);
+    final settings = _settings = DeskSettings(link: scope.link, calls: scope.calls, updates: scope.updates, envPeers: scope.envPeers);
+    SettingsSources.add(_first, first: true, watch: settings.watch);
+    SettingsSources.add(_after);
+  }
+
+  @override
+  void dispose() {
+    SettingsSources.remove(_first);
+    SettingsSources.remove(_after);
+    _settings?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +62,6 @@ class DeskShell extends StatelessWidget {
       // How the phone is connected, and what is waiting for it.
       status: ListenableBuilder(listenable: scope.link, builder: (context, _) => LinkStatus(link: scope.link, waiting: scope.calls.waiting)),
       nothing: (context) => const _Nothing(),
-      settings: (context, section) => const DeskSettingsScreen(key: ValueKey('settings')),
       // Each page that opens in the pane asks for a look for a newer version, as on the phone.
       paneObservers: [UpdateWatch()],
     );
