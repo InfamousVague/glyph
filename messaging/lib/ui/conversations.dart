@@ -39,10 +39,14 @@ import 'thread.dart';
 /// the conversation open there is marked. Shown with no frame round it (a test of this screen alone) it has New
 /// message and Settings in its header and Archived as a row at its foot, and opens pages over itself.
 class ConversationsScreen extends StatefulWidget {
-  const ConversationsScreen({super.key, this.archived = false});
+  const ConversationsScreen({super.key, this.archived = false, this.selectAll = false});
 
   /// The Archived page: the same list, of the conversations put away.
   final bool archived;
+
+  /// The Archived page opens with every conversation in it chosen, for the bar at the top to take them back out or
+  /// delete them: asked for from the Archive ring's menu (lib/ui/shell.dart).
+  final bool selectAll;
 
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
@@ -78,6 +82,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// The conversations chosen, while several are being chosen. Empty: not choosing.
   final Set<int> _selected = {};
+
+  /// The Archived page that opens with everything chosen has chosen it.
+  bool _choseAll = false;
 
   /// What can be seen of the texting app this one replaced (android/.../Arriving.kt), for the note about RCS.
   Arriving _arriving = const Arriving();
@@ -168,6 +175,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           _all = page.items;
           _error = null;
           _selected.removeWhere((id) => !page.items.any((c) => c.id == id));
+          // Opened to choose them all: once, as they first arrive.
+          if (widget.selectAll && !_choseAll) {
+            _choseAll = true;
+            _selected.addAll(page.items.map((c) => c.id));
+          }
         });
         // The number on the pill's Archive follows what is taken back out here.
         _shell?.archived.value = page.items.length;
@@ -274,20 +286,17 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu);
     final unread = _of(_section).where((c) => c.unread).length;
     if (tabs == null && unread == 0) return null;
-    return SizedBox(
-      height: t.lenOf('2.5rem'),
-      child: Padding(
-        // From the search field's edge, which is the cards' edge too.
-        padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
-        child: LayoutBuilder(builder: (context, box) {
-          // The words go with the button's picture where the tabs still have a fair width each beside them.
-          final words = tabs == null || (box.maxWidth - t.lenOf('8.5rem')) / _plugins.tabCount >= t.lenOf('5.5rem');
-          return Row(children: [
-            Expanded(child: tabs ?? const SizedBox.shrink()),
-            SizedBox(width: t.space(2)),
-            MarkAllRead(unread: unread, words: words, onPress: () => _markAllRead(_section)),
-          ]);
-        }),
+    return Padding(
+      // From the search field's edge, which is the cards' edge too.
+      padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
+      // As tall as the toggle, which is as tall as the round button beside it.
+      child: SizedBox(
+        height: MarkAllRead.size(t),
+        child: Row(children: [
+          Expanded(child: tabs ?? const SizedBox.shrink()),
+          SizedBox(width: t.space(2)),
+          MarkAllRead(unread: unread, onPress: () => _markAllRead(_section)),
+        ]),
       ),
     );
   }

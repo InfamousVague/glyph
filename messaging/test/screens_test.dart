@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -1268,6 +1269,59 @@ void main() {
       expect(find.byType(SettingsScreen), findsNothing);
       expect(find.byType(SectionPage), findsNothing);
       expect(shown(), 'messages');
+      // The Settings and Archive rings have menus of their own, as the list's tabs have (Matt, 2026-11-14: "add a
+      // right click context menu to archive as well and settings to quick jump to settings sections"): a press with
+      // the other button, or a long press. Settings' is its sections by name, and a press on one opens Settings
+      // there.
+      final frame = tester.state<AppShellState>(find.byType(AppShell));
+      await tester.tap(ring('settings'), buttons: kSecondaryButton);
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-wide-settings-menu', dark: dark);
+      expect(find.byType(SettingsScreen), findsNothing, reason: 'the menu is over the conversations: Settings is not open yet');
+      for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked numbers', 'Android', 'About']) {
+        expect(find.text(label), findsWidgets, reason: '$label is a section to jump to');
+      }
+      await tester.tap(find.text('Blocked numbers'));
+      await _settle(tester);
+      expect(shown(), 'settings');
+      expect(frame.settingsSection.value, 'blocked');
+      expect(seen(row('Blocked numbers')), findsOneWidget);
+      expect(find.byType(SectionPage), findsOneWidget);
+      // Asked for again with Settings open, another section takes the pane.
+      await tester.longPress(ring('settings'));
+      await _settle(tester);
+      await tester.tap(find.text('Effects').last);
+      await _settle(tester);
+      expect(frame.settingsSection.value, 'effects');
+      await tester.tap(ring('messages'));
+      await _settle(tester);
+      // Archive's is the tabs' own two choices, for the conversations put away. Nothing there is unread, and
+      // Mark all as read says so, leaving the archive closed.
+      await tester.tap(ring('archive'), buttons: kSecondaryButton);
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-wide-archive-menu', dark: dark);
+      expect(find.textContaining('Archive · 1 conversation'), findsOneWidget);
+      await tester.tap(find.text('Mark all as read'));
+      await _settle(tester);
+      expect(find.text('Nothing is unread in the archive'), findsOneWidget);
+      expect(shown(), 'messages');
+      // Select all opens the archive with every conversation in it chosen, for the bar at the top.
+      await tester.tap(ring('archive'), buttons: kSecondaryButton);
+      await _settle(tester);
+      await tester.tap(find.text('Select all'));
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-wide-archive-selected', dark: dark);
+      expect(shown(), 'archive');
+      expect(seen(find.text('1 selected')), findsOneWidget);
+      expect(seen(find.text('Old Thread')), findsOneWidget);
+      // A ring without a menu has none: the other button on Contacts brings nothing up.
+      await tester.tap(ring('contacts'), buttons: kSecondaryButton);
+      await _settle(tester);
+      expect(find.text('Select all'), findsNothing);
+      await tester.tap(ring('messages'));
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 6));
+      await _settle(tester);
       // Choosing a conversation opens it beside the list.
       await tester.tap(find.text('Dad'));
       await _settle(tester);
