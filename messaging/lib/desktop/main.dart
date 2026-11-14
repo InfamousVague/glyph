@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../accent.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
@@ -54,8 +55,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   MacPlatform.listenToVoice((m) => Sms.instance.voice.add(VoicePlayback.from(m)));
   Sms.calls = calls;
   final state = AppState();
-  final loaded = await Future.wait<Object?>([loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css']), state.load()]);
-  final sheet = loaded[0]! as TokenSheet;
+  final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
+  final accents = loaded[0]! as AccentSheets;
+  final sheet = accents.base;
   installSettingsStyles(sheet);
   await link.start();
   // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
@@ -66,12 +68,16 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     calls.attachUpdates(macUpdates);
     unawaited(macUpdates.start());
   }
-  runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates));
+  runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates, accents: accents));
 }
 
 class DesktopApp extends StatelessWidget {
-  const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates});
+  const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, this.accents});
   final TokenSheet sheet;
+
+  /// The stylesheets with the bubble colour chosen everywhere as the accent (lib/accent.dart); [sheet] alone where
+  /// not given.
+  final AccentSheets? accents;
   final AppState state;
   final PhoneLink link;
   final LinkCalls calls;
@@ -99,7 +105,7 @@ class DesktopApp extends StatelessWidget {
             // Each page that opens asks for a look for a newer version, as on the phone.
             navigatorObservers: [UpdateWatch()],
             builder: (context, child) => GlacierTheme(
-              sheet: sheet,
+              sheet: accents?.of(state) ?? sheet,
               attrs: {'platform': 'desktop', if (state.theme != 'system') 'theme': state.theme},
               typography: ghostTypography(state.emoji),
               // A newer version says so with the banner the phone has (lib/ui/update_banner.dart; Matt, 2026-11-14:

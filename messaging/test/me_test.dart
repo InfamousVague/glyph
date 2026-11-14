@@ -131,6 +131,9 @@ void main() {
     await maya.me.tryCode('(555) 010-0199', texted['+15550100199']!);
     expect(maya.me.number, '+15550100199');
     expect(maya.me.accounts, isEmpty, reason: 'a number is not an account friends are told about');
+    // The number verified turns "Tell friends I'm here" on by itself (Matt, 2026-11-14: "once an account is linked
+    // or the phone number verified, automatically tick tell friends I'm here").
+    expect(maya.me.listed, isTrue);
 
     maya.me.setListed(true);
     await _tick(120);
@@ -217,8 +220,11 @@ void main() {
     await expectLater(maya.me.check('github', 'maya'), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('not in that profile'))));
     expect(maya.me.links, isEmpty);
     bios['maya'] = 'On Ghost Messaging. $code';
+    // Maya has switched "Tell friends I'm here" off herself: linking does not undo that.
+    maya.me.setListed(false);
     await maya.me.check('github', 'maya');
     expect(maya.me.links, {'github': 'maya'});
+    expect(maya.me.listed, isFalse);
 
     // Linked, but not listed: Bob hears nothing.
     await _tick(80);

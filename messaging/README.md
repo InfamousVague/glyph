@@ -448,6 +448,18 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **The bubble colour is the app's accent** (not released; `lib/accent.dart`; Matt, 2026-11-14: "make the bubble
+  color the accent color for the app so the send button, segmented toggles, etc all get the same color as the
+  bubbles if set globally and only settings inside a chat soley change the bubble color"). Two app tokens,
+  `--app-accent` and `--app-on-accent` (the page's ink and paper by default, in assets/css/app.css), are worn by
+  Send (a filled `IconTap`), a toggle's chosen tab (`--glacier-segment-thumb`), a switch that is on and the kit's
+  solid accent (`--glacier-accent-solid`), and the page shown in the navigation pill. `AccentSheets` keeps the
+  stylesheets as read and parses them again with a rule setting the two tokens to the bubble colour chosen
+  everywhere, per theme; a colour that would not be seen on a theme's page (white, silver on the light page) leaves
+  that page's accent the ink. A conversation's own colour (`bubble_<thread>`) is its bubbles' alone.
+- **"Tell friends I'm here" turns itself on** (not released; `lib/me/me.dart`; Matt, 2026-11-14: "once an account is
+  linked or the phone number verified, automatically tick tell friends I'm here"): when an account is newly linked
+  or the number verified, unless the person switched it off themselves (`me_listed_chosen`).
 - **One Settings, on the phone and the Mac** (0.7.10; `lib/ui/settings.dart`, `lib/ui/shell.dart`,
   `lib/desktop/ui/desk_settings.dart`; Matt, 2026-11-14: "update the desktop app to have a full features settings
   page like the ghost markdown app with the plugins and all being able to make their own setting sections instead
