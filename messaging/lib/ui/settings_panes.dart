@@ -13,6 +13,7 @@ import '../backgrounds.dart';
 import '../effects.dart';
 import '../emoji_sets.dart';
 import '../kit/settings_kit.dart';
+import '../plugins/settings.dart';
 import '../sms.dart';
 import 'background_picker.dart';
 import 'common.dart';
@@ -95,6 +96,8 @@ final List<SettingsSection> settingsSections = [
     summary: (m) => m.status == null ? '' : (m.status!.notifications ? (m.app.flag('notif_preview') ? 'Allowed · previews shown' : 'Allowed · previews hidden') : 'Off in Android'),
     page: _notifications,
   ),
+  // Plugins (lib/plugins/settings.dart): each with its switch and its own settings, once the app has one.
+  ...pluginsSettings(),
   SettingsSection(
     id: 'encryption',
     label: 'Encryption',

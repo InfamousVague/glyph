@@ -11,6 +11,7 @@ import '../art/lucide.g.dart';
 import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../plugins/list.dart';
 import '../reactions.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -86,6 +87,23 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// list is shown alone.
   AppShellState? _shell;
 
+  // --- plugins (lib/plugins) -----------------------------------------------------------------------------------------
+  // What the plugins that are switched on add to this list: sections with chips under the search field, how a
+  // section's rows look, and what fills the list's slots. All of it is asked of [_plugins]; none of it is decided here.
+  late final ListPlugins _plugins = ListPlugins(
+    changed: () {
+      if (mounted) setState(() {});
+    },
+    open: (thread) {
+      final c = _all?.where((c) => c.id == thread).firstOrNull;
+      if (c != null) _open(c);
+    },
+    refresh: _load,
+  );
+
+  /// The section whose chip is chosen; null is the main list.
+  String? _section;
+
   void _back() {
     _look();
     _load();
@@ -109,6 +127,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   void dispose() {
     _shell?.closed.removeListener(_back);
+    _plugins.dispose();
     _changes?.cancel();
     _debounce?.cancel();
     _slowTimer?.cancel();
@@ -165,6 +184,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         if (!mounted || read != _reads) return;
         seen.addAll(page.items.map((c) => c.id));
         final last = page.next == null;
+        _plugins.take(page.items);
         setState(() {
           _all = mergeConversations(_all, page.items, only: last ? seen : null);
           _error = null;
@@ -207,6 +227,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     try {
       final page = await Sms.instance.conversationsPage(limit: _first, pinned: true);
       if (!mounted || read != _reads) return;
+      _plugins.take(page.items);
       setState(() {
         _all = mergeConversations(_all, page.items);
         _error = null;
@@ -218,8 +239,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   List<Conversation> get _shown {
     // Pinned conversations first, each group newest first (the order they arrive in).
-    final all = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived).toList();
-    final list = [...all.where((c) => c.pinned), ...all.where((c) => !c.pinned)];
+    final held = (_all ?? const <Conversation>[]).where((c) => c.archived == widget.archived).toList();
+    // Plugins: a section's own conversations, the newest first whether pinned or not; else the main list without
+    // the ones a section has taken out of it.
+    final all = widget.archived ? held : _plugins.pick(held, _section, searching: _query.trim().isNotEmpty);
+    final list = _section != null ? all : [...all.where((c) => c.pinned), ...all.where((c) => !c.pinned)];
     if (_query.trim().isEmpty) return list;
     final q = fold(_query.trim());
     final digits = q.replaceAll(RegExp(r'[^0-9]'), '');
@@ -254,8 +278,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   void _menu(Conversation c) {
     showChoices(context, title: c.title, choices: [
+      // Plugins: where a tap on the row is a section's own (a code's tap copies it), opening it is offered here.
+      if (_section != null && _plugins.look(context, c)?.$1.tap != null) Choice('Open conversation', Lucide.messageSquare, () => _open(c)),
       Choice('Select', Lucide.circleCheck, () => _toggle(c)),
       if (c.unread) Choice('Mark as read', Lucide.checkCheck, () async { await Sms.instance.markRead(c.id); _load(); }),
+      // Plugins: their own lines for this conversation ("Not spam").
+      if (!widget.archived) ..._plugins.menu(context, c),
       Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () => _pin(c)),
       Choice(c.muted ? 'Unmute' : 'Mute notifications', c.muted ? Lucide.bell : GhostIcons.bellOff, () async {
         await Sms.instance.threadFlag('muted', c.id, !c.muted);
@@ -401,15 +429,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final app = AppState.of(context);
+    // Plugins: given the person's choices, then asked which section each conversation is in. A section that has
+    // emptied gives way to the main list.
+    if (!widget.archived) _plugins.bind(app);
+    if (!_plugins.sort(widget.archived ? null : _all).has(_section)) _section = null;
     final shown = _shown;
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
     final more = _more && !widget.archived;
     final gutter = t.space(4);
-    final app = AppState.of(context);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
-    final notice = !widget.archived && _query.isEmpty && !_selecting && _arriving.rcsLikely && app.flag('rcs_notice');
+    final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && app.flag('rcs_notice');
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
@@ -451,7 +483,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     } else {
       final extras = (notice ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
-      final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting;
+      final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       body = RefreshableList(
         onRefresh: _load,
         itemCount: extras + shown.length + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
@@ -465,6 +497,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             // tap here, a notification, another app's "text this number").
             final held = shown[at];
             final c = held.id == open && held.unread ? held.copyWith(unread: false) : held;
+            // Plugins: in a section, the row is drawn as the section's plugin describes it (a code large, with Copy).
+            final look = _section == null ? null : _plugins.look(this.context, c);
+            final selected = _selecting ? _selected.contains(c.id) : c.id == beside;
             // Dragged left it archives, further it deletes (asked first), right it pins: lib/ui/swipe_actions.dart.
             return SwipeActions(
               key: ValueKey('swipe-${c.id}'),
@@ -476,13 +511,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               onArchive: () => _archive(c),
               onDelete: () => _confirmDelete(c),
               onPin: () => _pin(c),
-              child: ConversationRow(
-                conversation: c,
-                selecting: _selecting,
-                selected: _selecting ? _selected.contains(c.id) : c.id == beside,
-                onPress: () => _selecting ? _toggle(c) : _open(c),
-                onLongPress: () => _selecting ? _toggle(c) : _menu(c),
-              ),
+              child: look != null
+                  ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
+                  : ConversationRow(
+                      conversation: c,
+                      selecting: _selecting,
+                      selected: selected,
+                      onPress: () => _selecting ? _toggle(c) : _open(c),
+                      onLongPress: () => _selecting ? _toggle(c) : _menu(c),
+                    ),
             );
           }
           if (tail && at == shown.length) {
@@ -530,10 +567,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           IconTap(icon: Lucide.checkCheck, label: 'Select all', onPressed: () => setState(() => _selected.addAll(shown.map((c) => c.id)))),
           IconTap(icon: widget.archived ? Lucide.archiveRestore : Lucide.archive, label: widget.archived ? 'Unarchive' : 'Archive', onPressed: _archiveSelected),
           if (Sms.can('deleteThreads')) IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
-        ] else if (!widget.archived && !framed) ...[
+        ] else if (!widget.archived) ...[
+          // Plugins: their buttons for the list's header, in the frame and out of it.
+          ..._plugins.header(context, ListPlace(section: _section, shown: shown.length)),
           // Shown alone, with no frame and so no pill: the two it would hold.
-          IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
-          IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
+          if (!framed) IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
+          if (!framed) IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
         ],
       ],
       body: Stack(
@@ -552,6 +591,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               ),
               // What the frame keeps under the search: on a computer, how the phone is connected.
               if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
+              // Plugins: a chip for each section that has conversations in it, beside "Messages".
+              if (!widget.archived && !_selecting) ?_plugins.chips(_section, (section) => setState(() => _section = section)),
               // The search is this page's header too: the update banner hangs under it, not over it.
               const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.
@@ -559,6 +600,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 height: 3,
                 child: _slow && _all != null ? const GlacierProgressBar(indeterminate: true, ariaLabel: 'Loading your conversations') : null,
               ),
+              // Plugins: what they put between the search field and the list.
+              if (!widget.archived) ..._plugins.above(context, ListPlace(section: _section, shown: shown.length)),
               Expanded(child: body),
             ],
           ),
