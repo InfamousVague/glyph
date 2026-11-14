@@ -1376,7 +1376,7 @@ class _Bubble extends StatelessWidget {
           // A video: a picture of where it starts, and a button that plays it (it was drawn as its file's name).
           Padding(
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
-            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink),
+            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink, received: !out),
           )
         else if (a.isAudio)
           // A voice message: a player (on a computer, its name: the sound stays on the phone).

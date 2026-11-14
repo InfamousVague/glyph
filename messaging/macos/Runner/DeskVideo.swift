@@ -64,19 +64,26 @@ final class DeskVideo: NSObject, NSWindowDelegate {
 
   /// `picture` (a JPEG of where the video starts, or nil where none can be made), `millis`, and the picture's size.
   static func preview(data: Data, id: Int, ext: String) -> [String: Any?] {
-    let nothing: [String: Any?] = ["picture": nil, "millis": 0, "width": 0, "height": 0]
+    let nothing: [String: Any?] = ["picture": nil, "millis": 0, "width": 0, "height": 0, "videoWidth": 0, "videoHeight": 0]
     guard let file = try? write(data, id: id, ext: ext) else { return nothing }
     defer { try? FileManager.default.removeItem(at: file) }
     let asset = AVURLAsset(url: file)
     let seconds = CMTimeGetSeconds(asset.duration)
     let millis = seconds.isFinite && seconds > 0 ? Int(seconds * 1000) : 0
+    // The video's own size as it plays (one filmed upright is kept on its side): the conversation says how small a
+    // video came (lib/ui/video.dart). The file's size is known to the caller, which holds its bytes.
+    var own = CGSize.zero
+    if let track = asset.tracks(withMediaType: .video).first {
+      let turned = track.naturalSize.applying(track.preferredTransform)
+      own = CGSize(width: abs(turned.width), height: abs(turned.height))
+    }
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: 720, height: 720)
     guard let image = try? generator.copyCGImage(at: .zero, actualTime: nil),
           let jpeg = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.82])
-    else { return ["picture": nil, "millis": millis, "width": 0, "height": 0] }
-    return ["picture": FlutterStandardTypedData(bytes: jpeg), "millis": millis, "width": image.width, "height": image.height]
+    else { return ["picture": nil, "millis": millis, "width": 0, "height": 0, "videoWidth": Int(own.width), "videoHeight": Int(own.height)] }
+    return ["picture": FlutterStandardTypedData(bytes: jpeg), "millis": millis, "width": image.width, "height": image.height, "videoWidth": Int(own.width), "videoHeight": Int(own.height)]
   }
 
   /// Opens a window that plays the video. Nil when it is playing, or why it is not.

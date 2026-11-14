@@ -14,9 +14,15 @@ import 'voice.dart' show voiceClock, voiceProblem;
 /// for the filename"): a picture of where it starts, how long it runs, and a button that plays it, the whole screen
 /// on the phone (android/.../Video.kt) and in a window of its own on a computer (macos/Runner/DeskVideo.swift).
 /// Where no picture can be made of it (a kind the device cannot read) it is still named and can still be tried.
+/// Why a video that came small is small.
+const String shrunkNote = 'Shrunk by the sender\'s phone to send as a picture message.';
+
 class VideoBubble extends StatefulWidget {
-  const VideoBubble({super.key, required this.video, required this.radius, required this.maxWidth, required this.ground, required this.ink});
+  const VideoBubble({super.key, required this.video, required this.radius, required this.maxWidth, required this.ground, required this.ink, this.received = false});
   final Attachment video;
+
+  /// It came from someone else: where it came small, the line under it says why.
+  final bool received;
   final BorderRadius radius;
   final double maxWidth;
 
@@ -68,7 +74,12 @@ class _VideoBubbleState extends State<VideoBubble> {
         final width = shape >= 1 ? most : most * 0.62;
         final height = (width / shape).clamp(t.lenOf('6rem'), most * 1.3);
         final disc = t.lenOf('3rem');
-        return GlacierPressable(
+        // Under it, how large it came (Matt, 2026-11-14: "the videos sent from iphone are extremely low quality":
+        // a phone that sends a video as a picture message shrinks it to fit the carrier's limit, and nothing here
+        // can give back what was taken out). The size always; why, where it came small from someone else.
+        final facts = preview?.facts;
+        final quiet = pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.3);
+        final player = GlacierPressable(
           onPressed: _play,
           semanticLabel: 'Play video',
           builder: (context, state) => ClipRRect(
@@ -120,6 +131,16 @@ class _VideoBubbleState extends State<VideoBubble> {
               ]),
             ),
           ),
+        );
+        if (facts == null) return player;
+        return SizedBox(
+          width: width,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            player,
+            SizedBox(height: t.space(1)),
+            Text(facts, style: quiet),
+            if (widget.received && preview!.small) Text(shrunkNote, style: quiet),
+          ]),
         );
       },
     );

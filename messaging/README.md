@@ -501,6 +501,15 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
+- **How large a video came** (not released; `lib/ui/video.dart`; Matt, 2026-11-14: "the videos sent from iphone are
+  extremely low quality", and, asked whether the app should say so, "Yes, add it"). Under a video in a conversation
+  is its own size and its file's ("320 × 240 · 913 KB"), and, where it came from someone else under 480 pixels the
+  short way, "Shrunk by the sender's phone to send as a picture message." The app does nothing to a video: it is
+  fetched by Android's own picture-message service with the carrier's settings, kept as it came and played from
+  there (no code here re-encodes one). A phone that sends a video as a picture message shrinks it to what its
+  carrier takes, about a megabyte, and what was taken out cannot be put back by the phone it reaches. The phone
+  reads the size from the video itself (`Video.preview`: `videoWidth`, `videoHeight`, `bytes`), the Mac from the
+  copy it fetched (`DeskVideo.preview`).
 - **Who a code is from** (0.7.9; `lib/plugins/companies.dart`; Matt, 2026-11-14: "have the codes section try
   to parse the company that's sending the code and show their company logo as the code profile picture like
   coinbase discover etc"). A code comes from a short number that says nothing; the company is in its words. A row

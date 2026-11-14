@@ -620,7 +620,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
       case 'videoPreview':
         final id = (a['part'] as num).toInt();
         final bytes = await _video(id);
-        return bytes == null ? null : await MacPlatform.videoPreview(id, bytes, '${a['ending'] ?? 'mp4'}');
+        if (bytes == null) return null;
+        final preview = await MacPlatform.videoPreview(id, bytes, '${a['ending'] ?? 'mp4'}');
+        // How large its file is: the Mac holds it, having fetched it.
+        return preview is Map ? {...preview, 'bytes': bytes.length} : preview;
       case 'videoPlay':
         final id = (a['part'] as num).toInt();
         final bytes = await _video(id);
