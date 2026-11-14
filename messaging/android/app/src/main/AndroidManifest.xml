@@ -133,6 +133,8 @@
         <receiver android:name=".SmsStatusReceiver" android:exported="false" />
         <receiver android:name=".MmsResultReceiver" android:exported="false" />
         <receiver android:name=".NotificationActionReceiver" android:exported="false" />
+        <!-- A reminder about a conversation coming due (Reminders.kt). -->
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
         <receiver android:name=".InstallReceiver" android:exported="false" />
 
         <!-- Required of a default SMS app: "respond via message" from the incoming-call screen. -->

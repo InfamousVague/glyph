@@ -40,6 +40,7 @@ void main() {
     expect(a.first.label, 'Fri 7 PM');
     expect([for (final x in actionsIn('Your code is 482913', now)) x.label], ['Copy 482913']);
     expect(actionsIn('haha that is so funny', now), isEmpty);
+    expect(actionsIn('Movie night is still on for tonight right?', now), isEmpty, reason: 'today with no time is no calendar entry');
     expect(shippedPlugins.whereType<ActionsPlugin>(), hasLength(1));
   });
 }

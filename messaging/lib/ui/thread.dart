@@ -760,7 +760,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 final newest = _folded.messages.where((m) => !_isLine(m)).firstOrNull;
                 final above = _messages == null || _editing != null
                     ? const <Widget>[]
-                    : _plugins.aboveComposer(context, text: _text.text, lastIn: newest != null && !newest.outgoing ? newest.body : null, count: _folded.messages.length);
+                    : _plugins.aboveComposer(
+                        context,
+                        text: _text.text,
+                        lastIn: newest != null && !newest.outgoing ? newest.body : null,
+                        lastOut: newest != null && newest.outgoing ? newest.body : null,
+                        title: title,
+                        count: _folded.messages.length,
+                      );
                 if (above.isEmpty) return _composer(t);
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [...above, _composer(t)]);
               },

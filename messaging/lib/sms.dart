@@ -834,6 +834,17 @@ class Sms {
     }
   }
 
+  /// Brings [thread] back as a notification at [at] (android/.../Reminders.kt); false where it could not be set, or on
+  /// a computer.
+  Future<bool> remind({required int thread, required String title, required String body, required DateTime at}) async {
+    if (remote) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('remind', {'thread': thread, 'title': title, 'body': body, 'at': at.millisecondsSinceEpoch})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Opens the map at [place] (an address as written); false where nothing could, or on a computer.
   Future<bool> openMap(String place) async {
     if (remote) return false;

@@ -156,7 +156,9 @@ List<MessageAction> actionsIn(String text, DateTime now, {bool fromContact = tru
   final track = trackingIn(text);
   if (track != null) out.add(MessageAction('track', 'Track ${track.carrier}', track.url));
   final when = whenIn(text, now);
-  if (when != null && code == null) out.add(MessageAction('event', whenLabel(when.at, when.allDay, now), text, at: when.at, allDay: when.allDay));
+  // Today with no time ("tonight", "today") is no day worth a calendar entry.
+  final vague = when != null && when.allDay && DateTime(when.at.year, when.at.month, when.at.day) == DateTime(now.year, now.month, now.day);
+  if (when != null && code == null && !vague) out.add(MessageAction('event', whenLabel(when.at, when.allDay, now), text, at: when.at, allDay: when.allDay));
   final place = addressIn(text);
   if (place != null) out.add(MessageAction('map', 'Open in Maps', place));
   final number = numberIn(text);

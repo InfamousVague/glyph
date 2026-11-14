@@ -368,11 +368,17 @@ class ConversationPlace {
 /// it is the newest of all (no reply yet); whether anyone in it is a contact, and whether it is a group.
 @immutable
 class ComposerPlace {
-  const ComposerPlace({required this.thread, required this.senders, this.text = '', this.lastIn, this.contact = true, this.group = false, this.count = 0});
+  const ComposerPlace({required this.thread, required this.senders, this.text = '', this.lastIn, this.lastOut, this.title = '', this.contact = true, this.group = false, this.count = 0});
   final int thread;
   final List<String> senders;
   final String text;
   final String? lastIn;
+
+  /// The newest message where it is the person's own (they wrote last).
+  final String? lastOut;
+
+  /// What the conversation is called (its people's names).
+  final String title;
   final bool contact;
   final bool group;
 

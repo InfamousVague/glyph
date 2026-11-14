@@ -285,6 +285,7 @@ class MainActivity : FlutterActivity() {
                     } catch (_: Exception) { false }
                     result.success(ok)
                 }
+                "remind" -> result.success(Reminders.schedule(this, (call.argument<Number>("thread") ?: -1).toLong(), call.argument<String>("title") ?: "Reminder", call.argument<String>("body") ?: "", (call.argument<Number>("at") ?: 0).toLong()))
                 "openMap" -> {
                     val ok = try {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(call.argument<String>("place") ?: ""))))

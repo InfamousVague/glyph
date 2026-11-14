@@ -51,4 +51,9 @@ abstract final class LucideMore {
   static const circleDollarSign = LucideIcon('circle-dollar-sign', ['M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z', 'M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8', 'M12 18V6'], [0]);
   static const calendarCheck = LucideIcon('calendar-check', ['M8 2v3', 'M16 2v3', 'M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z', 'M3 9h18', 'm9 15 2 2 4-4'], [2]);
   static const funnel = LucideIcon('funnel', ['M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z'], [0]);
+  // The day's plugins (lib/plugins/replies.dart, day.dart, strangers.dart, quiet.dart).
+  static const reply = LucideIcon('reply', ['M20 18v-2a4 4 0 0 0-4-4H4', 'm9 17-5-5 5-5'], []);
+  static const sunMedium = LucideIcon('sun-medium', ['M8 12A4 4 0 1 0 16 12A4 4 0 1 0 8 12Z', 'M12 3v1', 'M12 20v1', 'M3 12h1', 'M20 12h1', 'm18.364 5.636-.707.707', 'm6.343 17.657-.707.707', 'm5.636 5.636.707.707', 'm17.657 17.657.707.707'], [0]);
+  static const calendarClock = LucideIcon('calendar-clock', ['M16 14v2.2l1.6 1', 'M16 2v3', 'M21 7.338V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h2.338', 'M3 9h5.859', 'M8 2v3', 'M10 16A6 6 0 1 0 22 16A6 6 0 1 0 10 16Z'], [5]);
+  static const userRoundSearch = LucideIcon('user-round-search', ['M5 8A5 5 0 1 0 15 8A5 5 0 1 0 5 8Z', 'M2 21a8 8 0 0 1 10.434-7.62', 'M15 18A3 3 0 1 0 21 18A3 3 0 1 0 15 18Z', 'm22 22-1.9-1.9'], [0, 2]);
 }

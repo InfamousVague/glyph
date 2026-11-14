@@ -93,7 +93,7 @@ class ConversationPlugins {
   }
 
   /// What the plugins put over the composer. [lastIn] is the newest message where it is from them (no reply yet).
-  List<Widget> aboveComposer(BuildContext context, {String text = '', String? lastIn, int count = 0}) {
+  List<Widget> aboveComposer(BuildContext context, {String text = '', String? lastIn, String? lastOut, String title = '', int count = 0}) {
     final store = AppStore(AppState.of(context));
     final all = people();
     final place = ComposerPlace(
@@ -101,6 +101,8 @@ class ConversationPlugins {
       senders: [for (final p in all) p.address],
       text: text,
       lastIn: lastIn,
+      lastOut: lastOut,
+      title: title,
       contact: all.any((p) => p.name != null && p.name!.isNotEmpty),
       group: all.length > 1,
       count: count,

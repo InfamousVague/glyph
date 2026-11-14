@@ -91,8 +91,11 @@ void main() {
     final code = _message('Your verification code is 482913.');
     await pumpScreen(tester, sheet, _Page(plugins, code), AppState());
     final context = tester.element(find.byType(_Page));
-    expect(plugins.message(context, _message('My code is 482913', outgoing: true)), isEmpty);
-    expect(plugins.message(context, code).map((c) => c.label), ['Copy 482913']);
+    // Replies' reminders are in every message's menu (lib/plugins/replies.dart); Copy is a code's alone, and not in
+    // one of your own.
+    expect(plugins.message(context, _message('My code is 482913', outgoing: true)).map((c) => c.label), isNot(contains('Copy 482913')));
+    expect(plugins.message(context, code).map((c) => c.label).first, 'Copy 482913');
+    expect(plugins.message(context, code).map((c) => c.label), contains('Remind me in an hour'));
     expect(plugins.header(context, newest: code), isEmpty, reason: 'no plugin the app ships with puts anything in the header');
     await tester.tap(_icon('Menu'));
     await settle(tester);

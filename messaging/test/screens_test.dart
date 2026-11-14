@@ -530,7 +530,8 @@ void main() {
       // A message held: its reactions under it, then what else can be done, the screen effects one item of that.
       await tester.longPress(find.text('Movie night is still on for tonight right?'));
       await _shootAgain(tester, '2-thread-held', dark: dark);
-      expect(find.text('👍'), findsOneWidget);
+      // In the reactions' row (and among the replies to choose from over the composer, lib/plugins/replies.dart).
+      expect(find.text('👍'), findsWidgets);
       expect(find.text('🎈'), findsNothing, reason: 'the effects are behind Effects, not a row of their pictures');
       expect(find.text('Copy text'), findsOneWidget);
       // Effects opens them in the menu's own place, each by its name, with the way back at the top.
@@ -547,6 +548,9 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await _settle(tester);
       expect(find.text('Copy text'), findsNothing);
+      // Further up now that the plugins put things under messages and over the composer.
+      await tester.dragUntilVisible(find.text('Hey! Long time 👋'), find.ancestor(of: find.text('Dinner at mine first?'), matching: find.byType(Scrollable)).first, const Offset(0, 200));
+      await _settle(tester);
       await tester.longPress(find.text('Hey! Long time 👋'));
       await _shootAgain(tester, '2-thread-held-theirs', dark: dark);
       await tester.tapAt(const Offset(10, 10));

@@ -564,7 +564,8 @@ class _ChoiceSheet extends StatelessWidget {
                           child: Row(children: [
                             AppIcon(c.icon, size: 20, color: ink),
                             SizedBox(width: t.space(3)),
-                            Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink)),
+                            // A long line wraps rather than running off the sheet.
+                            Flexible(child: Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))),
                           ]),
                         ),
                       );
