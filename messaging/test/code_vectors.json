@@ -80,6 +80,34 @@
     {
       "text": "Your PIN purchase was 1234.56",
       "code": null
+    },
+    {
+      "text": "Verify your number with 550211",
+      "code": "550211"
+    },
+    {
+      "text": "OTP: 9921",
+      "code": "9921"
+    },
+    {
+      "text": "Your PIN-code is 4821",
+      "code": "4821"
+    },
+    {
+      "text": "Your order 482913 is shipping today",
+      "code": null
+    },
+    {
+      "text": "Thanks for shopping with us. Receipt 77120",
+      "code": null
+    },
+    {
+      "text": "Opinion poll 2024 results are in",
+      "code": null
+    },
+    {
+      "text": "Barcode 12345678 was scanned at the depot",
+      "code": null
     }
   ]
 }

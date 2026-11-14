@@ -13,7 +13,8 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import 'plugin.dart';
 
-final RegExp _codeWord = RegExp(r'(code|passcode|password|pin|otp|verif|one[- ]time|2fa|login|log in|sign in|security)', caseSensitive: false);
+// A word of its own: "pin" is in "shipping", "shopping" and "opinion", and "code" in "barcode".
+final RegExp _codeWord = RegExp(r'(?<![A-Za-z0-9_])(?:(?:code|passcode|password|pin|otp|one[- ]time|2fa|login|log in|sign in|security)(?![A-Za-z0-9_])|verif)', caseSensitive: false);
 final RegExp _codeDigits = RegExp(r'(?<![\w.,/-])(\d{3}[- ]\d{3}|\d{4,8})(?![\w/-]|[.,]\d)');
 final RegExp _notDigit = RegExp(r'\D');
 

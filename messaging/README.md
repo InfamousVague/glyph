@@ -436,7 +436,9 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   sticks. A contact's "the door code is 4417" stays in the main list, where its long press has "Copy 4417" and
   "Move to Codes". What reads as a code is what the notification's Copy button says is one: `signInCode` is
   `Notifier.otp` written again in Dart, and the two are held to the same examples (`test/code_vectors.json`, read
-  by `test/plugin_codes_test.dart` and by `CodesTest.kt`), so they cannot drift apart. The list knows a
+  by `test/plugin_codes_test.dart` and by `CodesTest.kt`), so they cannot drift apart. In both, the word that
+  speaks of a code is now a word of its own: "pin" is in "shipping", "shopping" and "opinion", so "Your order
+  482913 is shipping today" was taken for a code, which a Copy button could bear and a section cannot. The list knows a
   conversation by its last words: it is in Codes while its newest text is a code and back in the main list once a
   later text is not, and since the list does not know whose the last words are, a code the person texts to a
   number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
