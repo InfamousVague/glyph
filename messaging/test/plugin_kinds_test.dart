@@ -72,4 +72,24 @@ void main() {
     expect(kindOf('USPS: your package could not be delivered, pay the redelivery fee now at bit.ly/3xYz'), isNull);
     expect(kindOf('URGENT: your bill payment failed, your account is suspended. Verify at http://pay.example'), isNull);
   });
+
+  // What sampling real texts showed (2026-11-14; reworded, nothing of anyone's own).
+  test('what a sample of real texts showed: kinds it missed, and things it took for a kind wrongly', () {
+    expect(kindOf('Your order was dropped off. See the photo your Dasher took.'), 'deliveries');
+    expect(kindOf('Store: items in order W123 were delivered. Enjoy!'), 'deliveries');
+    expect(kindOf('Hi, this is Mike with a local arborist. Discounts on tree trimmings & removals nearby. Interested?'), 'sales');
+    expect(kindOf('Do you want a health insurance quote? New plans with no deductible.'), 'sales');
+    expect(kindOf('Our roofing team is offering no-cost roof inspections this month.'), 'sales');
+    expect(kindOf('Can you share your thoughts on a quick local issues survey? Stop=End'), 'political');
+    expect(kindOf('We\'re gauging views on the news and think yours would be valuable.'), 'political');
+    expect(kindOf('We had issues collecting payment for your internet service.'), 'reminders');
+    expect(kindOf('Your service is scheduled for interruption within 3 days. Pay \$84.24 now'), 'reminders');
+    expect(kindOf('Your appt with the electrician is scheduled for Friday at 10.'), 'appointments');
+    // A carrier's name alone is not a delivery: its sign-in codes and alerts are not.
+    expect(kindOf('FedEx: here is your one-time passcode 318874.'), isNull);
+    expect(kindOf('Amazon: sign-in from NC. Tap link to respond.'), isNull);
+    // "Reply STOP to opt out" is one sign, not two: an alert that says it is not sales.
+    expect(kindOf('Thanks! You will now get patient alerts. Reply STOP to opt out.'), isNull);
+    expect(kindOf('Someone sent you a new photo. Tap to view. Reply STOP to opt-out'), isNull);
+  });
 }

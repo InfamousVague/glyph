@@ -14,6 +14,7 @@ import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/friends/groups.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
+import 'package:ghost_messaging/kit/settings_kit.dart' show settingsHue;
 import 'package:ghost_messaging/kit/settings_type.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
@@ -1160,6 +1161,18 @@ void main() {
       expect(send, findsOneWidget);
       final disc = find.descendant(of: send, matching: find.byType(Container)).evaluate().map((e) => (e.widget as Container).decoration).whereType<BoxDecoration>().map((d) => d.color?.toARGB32()).toList();
       expect(disc, contains(0xFF0A84FF), reason: 'Send wears the bubble colour');
+      // And every other colour is as it was (Matt, of 0.7.15: "make sure this next update brings back all the
+      // colors to the app, they're missing from virtually every place where we had colors before on all the message
+      // avatars and settings sections"): a face keeps its own colour, and so does each section of Settings.
+      // The colours worn under a `hue` (each face, each section's chip), as drawn now.
+      Set<int> hues() => {
+            for (final e in find.byType(GlacierScope).evaluate())
+              if ((e.widget as GlacierScope).attrs['hue'] != null)
+                settingsHue(tester.element(find.descendant(of: find.byWidget(e.widget), matching: find.byType(Builder)).first).tokens).toARGB32(),
+          };
+      expect(hues().length, greaterThan(2), reason: 'faces are in several colours, not one grey');
+      await _shoot(tester, sheet, const SettingsScreen(), '16-accent-blue-settings', dark: dark, prefs: const {'bubble': 'blue'});
+      expect(hues().length, greaterThan(4), reason: 'Settings\' sections are in their colours, not the ink');
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 6));
     }

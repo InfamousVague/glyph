@@ -146,13 +146,13 @@ void main() {
     test('another list of rules stands in for the app\'s own', () {
       const mine = SpamPlugin(rules: [
         SpamRule(id: 'fruit', name: 'Fruit', says: 'fruit', about: 'It names a fruit.', words: r'pineapple'),
-        SpamRule(id: 'short', name: 'A short number', says: 'a short number', about: 'It came from a five-digit number.', sender: r'^\d{5}$'),
+        SpamRule(id: 'short', name: 'A London number', says: 'a London number', about: 'It came from a London number.', sender: r'^\+4420'),
       ]);
       final other = PluginRegistry(const [mine]);
       final store = on();
-      expect(other.classify(_facts('Fresh pineapple today', from: ['70220']), store).detail('spam'), 'fruit, a short number');
+      expect(other.classify(_facts('Fresh pineapple today', from: ['+442079460000']), store).detail('spam'), 'fruit, a London number');
       expect(other.classify(_facts(_prize), store).isEmpty, isTrue);
-      expect(other.settingsOf(mine).map((s) => s.label), containsAll(['Fruit', 'A short number']));
+      expect(other.settingsOf(mine).map((s) => s.label), containsAll(['Fruit', 'A London number']));
     });
 
     test('a text that is both a sign-in code and spam is in Codes: Codes is asked first', () {
@@ -287,5 +287,18 @@ void main() {
       expect(find.text(_prize), findsOneWidget);
       expect(listed.asked, isEmpty, reason: 'it is in the main list: nothing mutes it');
     });
+  });
+
+  // What sampling real texts showed (2026-11-14; reworded).
+  test('job offers, numbers abroad, hidden characters and lonely-hearts bait are spam; Urgent Care is not urgency', () {
+    bool spam(String text, String from) => judgeSpam(MessageFacts(thread: 1, senders: [from], text: text, contact: false)).spam;
+    expect(spam('Hi, I am a recruiter. Your resume has been recommended for a part-time remote job.', 'someone@mail.example'), isTrue);
+    expect(spam('Earn 200 USD a day from home, part-time job, flexible.', '+639100000000'), isTrue);
+    expect(spam('\u200b\u200dTired of lonely nights? Premium connections await.', 'someone@mail.example'), isTrue);
+    // A clinic's link to check in is not "urgent".
+    expect(spam('Please check in for your appt at City Urgent Care: https://check-in.example/x', '+18665550100'), isFalse);
+    // A company's short code may speak of paying, with a link: it takes one sign more.
+    expect(spam('Verizon: your past-due bill is unpaid. Pay now at https://m.vzw.example/pay', '8500'), isFalse);
+    expect(spam('Your past-due bill is unpaid. Pay now at https://pay.example', '+15555550100'), isTrue);
   });
 }

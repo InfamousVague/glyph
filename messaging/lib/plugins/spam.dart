@@ -80,7 +80,7 @@ const List<SpamRule> spamRules = [
     name: 'Pressure to act',
     says: 'pressure to act',
     about: 'It says something is urgent, suspended, locked, unpaid or about to expire, or asks you to verify or confirm an account.',
-    words: r'(?<![a-z0-9])(?:urgent|urgently|immediately|act now|final notice|last chance|expires? (?:today|tonight|soon)|within \d+ ?(?:hours|hrs|hour|h)|suspended|suspension|locked|restricted|deactivated|unusual activity|suspicious activity|(?:verify|confirm|update) your (?:account|identity|information|details|payment|billing)|unpaid|overdue|outstanding balance|late fees?|pay now)(?![a-z0-9])',
+    words: r'(?<![a-z0-9])(?:urgent(?! care)|urgently|immediately|act now|final notice|last chance|expires? (?:today|tonight|soon)|within \d+ ?(?:hours|hrs|hour|h)|suspended|suspension|locked|restricted|deactivated|unusual activity|suspicious activity|(?:verify|confirm|update) your (?:account|identity|information|details|payment|billing)|unpaid|overdue|outstanding balance|late fees?|pay now)(?![a-z0-9])',
   ),
   SpamRule(
     id: 'money',
@@ -95,6 +95,35 @@ const List<SpamRule> spamRules = [
     says: 'a delivery problem',
     about: 'It says a package could not be delivered, is held, or needs an address or a fee.',
     words: r"(?<![a-z0-9])(?:(?:package|parcel|shipment|delivery)(?![a-z0-9]).{0,60}(?<![a-z0-9])(?:undeliverable|failed|on hold|held|rescheduled?|incomplete|incorrect|customs fees?|redelivery)|(?:could ?n[o'’]t|can ?not|can['’]t|unable to|failed to) (?:be )?deliver(?:ed)?)(?![a-z0-9])",
+  ),
+  // Seen on Matt's phone (2026-11-14): job offers, overseas numbers, invisible characters, lonely-hearts bait.
+  SpamRule(
+    id: 'job',
+    name: 'A job offer out of nowhere',
+    says: 'a job offer',
+    about: 'A remote or part-time job, a recruiter who found your résumé, easy money an hour a day.',
+    words: r'(?<![a-z0-9])(?:part-?time (?:remote |online )?(?:job|jobs|work|position|positions|opportunity|assistants?)|remote (?:online )?(?:job|work|position|opportunity)|recruit(?:er|ing|ment)|online partners|(?:resume|résumé) (?:has|have) been recommended|earn \$?\d{2,}[\d,]*(?:\s*[-–]\s*\$?\d+)?\s*(?:usd|dollars|a day|per day|daily))(?![a-z0-9])',
+  ),
+  SpamRule(
+    id: 'abroad',
+    name: 'From a number abroad',
+    says: 'from a number abroad',
+    about: 'The number is outside North America.',
+    sender: r'^\+(?!1)\d',
+  ),
+  SpamRule(
+    id: 'hidden',
+    name: 'Hidden characters',
+    says: 'hidden characters',
+    about: 'The text has invisible characters in it, or letters from other alphabets standing in for ours, to slip past filters.',
+    words: r'[\u200b\u200c\u200d\u2060\ufeff]|[\u0391-\u03c9\u0400-\u04ff\u13a0-\u13ff\ua640-\ua69f](?=[a-z])|(?<=[a-z])[\u0391-\u03c9\u0400-\u04ff\u13a0-\u13ff]',
+  ),
+  SpamRule(
+    id: 'lonely',
+    name: 'Lonely-hearts bait',
+    says: 'lonely-hearts bait',
+    about: 'Lonely nights, local singles, premium connections, discreet company.',
+    words: r'(?<![a-z0-9])(?:lonely|hotties|singles near|local (?:girls|women|singles)|meet ?up tonight|instant meetup|premium connections|exclusive circle|discreet|companionship|distinguished gentlemen|social engagement services)(?![a-z0-9])',
   ),
 ];
 
@@ -118,7 +147,10 @@ class SpamVerdict {
 SpamVerdict judgeSpam(MessageFacts facts, {List<SpamRule> rules = spamRules}) {
   final signs = [for (final rule in rules) if (rule.matches(facts)) rule];
   // A sign-in code often comes with a link and "if this wasn't you, act immediately": it takes one sign more.
-  return SpamVerdict(signs, signInCode(facts.text) == null ? 2 : 3);
+  // A short code (five or six digits) is a company that registered it with the carriers: their bills and reminders
+  // speak of paying and of links, and take one sign more (Matt's Verizon and urgent care texts, 2026-11-14).
+  final short = facts.senders.any((a) => RegExp(r'^\d{4,6}$').hasMatch(a.replaceAll(RegExp(r'[\s-]'), '')));
+  return SpamVerdict(signs, (signInCode(facts.text) == null ? 2 : 3) + (short ? 1 : 0));
 }
 
 class SpamPlugin extends GhostPlugin {
