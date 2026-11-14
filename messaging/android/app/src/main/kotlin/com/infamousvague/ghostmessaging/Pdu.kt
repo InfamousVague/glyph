@@ -39,6 +39,8 @@ object Pdu {
     private const val H_MMS_VERSION = 0x8D
     private const val H_READ_REPORT = 0x90
     private const val H_STATUS = 0x95
+    private const val H_RESPONSE_STATUS = 0x92
+    private const val H_RESPONSE_TEXT = 0x93
     private const val H_READ_STATUS = 0x9B
     private const val H_SUBJECT = 0x96
     private const val H_TO = 0x97
@@ -99,6 +101,10 @@ object Pdu {
         val parts: List<Part> = emptyList(),
         /** X-Mms-Read-Status of a read report: 0x80 read, 0x81 deleted without being read. */
         val readStatus: Int? = null,
+        /** X-Mms-Response-Status of a carrier's answer to a message sent: 0x80 accepted, anything else refused. */
+        val responseStatus: Int? = null,
+        /** The carrier's own words with it (X-Mms-Response-Text), where it gave any. */
+        val responseText: String? = null,
     )
 
     // --- reading -----------------------------------------------------------------------------------------------------
@@ -222,6 +228,8 @@ object Pdu {
         var date: Long? = null
         var status: Int? = null
         var readStatus: Int? = null
+        var responseStatus: Int? = null
+        var responseText: String? = null
         var contentType: String? = null
         var parts: List<Part> = emptyList()
 
@@ -243,6 +251,8 @@ object Pdu {
                 H_DATE -> date = r.integer()
                 H_STATUS -> status = r.u8()
                 H_READ_STATUS -> readStatus = r.u8()
+                H_RESPONSE_STATUS -> responseStatus = r.u8()
+                H_RESPONSE_TEXT -> responseText = r.encodedString()
                 H_FROM -> {
                     val len = r.valueLength()
                     val end = r.i + len
@@ -259,7 +269,7 @@ object Pdu {
                 else -> r.skipValue()
             }
         }
-        return Message(type, tid, location, mid, from, to, cc, subject, date, contentType, status, parts, readStatus)
+        return Message(type, tid, location, mid, from, to, cc, subject, date, contentType, status, parts, readStatus, responseStatus, responseText)
     }
 
     private fun parseMultipart(r: Reader): List<Part> {

@@ -4,7 +4,7 @@ Matt, 2026-11-13: "Is it possible for us to make a companion desktop app that ca
 phone to my desktop and then send back to the phone to send again?", then "I'd like to support both a relay server
 and local networking, it should attempt to use local networking by default and show the option for both in the setup
 wizard". This was written as a design first; he read it and said "Yes, build it". It now says what was built, the
-same day, and what has and has not been tried. It sits on the phone app's 0.6.1.
+same day, and what has and has not been tried. It sits on the phone app's 0.6.2.
 
 The phone stays the only thing that texts. The Mac shows what the phone has and asks the phone to send.
 

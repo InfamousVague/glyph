@@ -2,6 +2,7 @@
 /// cards and rows, handed over plain, so the search can read every setting's name off it.
 library;
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -189,7 +190,7 @@ final List<SettingsSection> settingsSections = [
 ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.6.1';
+const appVersion = '0.6.2';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -645,6 +646,46 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           ),
         ],
       ),
+    // Picture messages: what would stop them, how the last ones went, and all of it to copy (Matt, 2026-11-13: "It
+    // seems like picture sending is also not working at all almost like MMS isn't working").
+    PaneSection(
+      title: 'Picture messages',
+      description: const Text('Pictures, stickers and group messages travel as picture messages (MMS), over mobile data even when the phone is on Wi-Fi.'),
+      footer: const Text('A picture message that fails says why under it in the conversation. If they keep failing, copy the report and send it to whoever is helping.'),
+      children: [
+        SettingRow(
+          icon: _icon(m.mms.obstacle == null ? Lucide.image : Lucide.triangleAlert),
+          label: m.mms.obstacle == null ? 'Nothing seen to stop them' : 'They can\'t go just now',
+          hint: Text(m.mms.obstacle == null
+              ? 'Mobile data is ${m.mms.dataOn == null ? 'not reported' : 'on'}${m.mms.carrier == null ? '' : ' with ${m.mms.carrier}'}'
+                  '${m.mms.maxBytes == null ? '' : ', which carries up to ${m.mms.maxBytes! ~/ 1024} KB a message'}.'
+              : '${m.mms.obstacle}.'),
+        ),
+        if (m.mms.lastSend != null)
+          SettingRow(icon: _icon(m.mms.lastSend!.ok ? Lucide.check : Lucide.circleAlert), label: 'Last one sent', hint: Text('${m.mms.lastSend!.ok ? 'Went' : 'Did not go'}: ${m.mms.lastSend!.detail} · ${listWhen(m.mms.lastSend!.at)}')),
+        if (m.mms.lastDownload != null)
+          SettingRow(icon: _icon(m.mms.lastDownload!.ok ? Lucide.check : Lucide.circleAlert), label: 'Last one received', hint: Text('${m.mms.lastDownload!.ok ? 'Came' : 'Did not come'}: ${m.mms.lastDownload!.detail} · ${listWhen(m.mms.lastDownload!.at)}')),
+        if (m.mms.waiting > 0)
+          SettingRow(
+            icon: _icon(Lucide.rotateCcw),
+            label: '${m.mms.waiting} waiting to be fetched',
+            hint: const Text('Announced by the carrier and not yet fetched. They are asked for again each time the app opens; tap to ask now.'),
+            onPress: () async {
+              final n = await Sms.instance.mmsRetry();
+              if (context.mounted) toast(context, n == 0 ? 'Already being fetched' : 'Asking for $n again');
+            },
+          ),
+        SettingRow(
+          icon: _icon(Lucide.copy),
+          label: 'Copy a report',
+          hint: const Text('The lines above as text. No messages, names or numbers are in it.'),
+          onPress: () async {
+            await Clipboard.setData(ClipboardData(text: m.mms.report(appVersion)));
+            if (context.mounted) toast(context, 'Report copied');
+          },
+        ),
+      ],
+    ),
     PaneSection(
       title: 'Android\'s store of texts',
       footer: Text(a.recentTexts != null && a.rcsLikely && a.recentTexts! < 10

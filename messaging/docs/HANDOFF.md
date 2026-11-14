@@ -11,16 +11,17 @@ settings read where they act, and Updates' plain words. 0.4.0 also has chat back
 
 **The desktop companion, the same day** (Matt: "a companion desktop app that can proxy messages encrypted from my
 phone to my desktop and then send back to the phone to send again", then "support both a relay server and local
-networking"). Built on branch `claude/vigilant-meninsky-bfd14d`, which is this branch (0.6.0, `20abf768`) and the
+networking"). Built on branch `claude/vigilant-meninsky-bfd14d`, which is this branch (0.6.2, `99175741`) and the
 companion on top; it is not merged back, and nothing of it is released or deployed. `docs/desktop.md` is the whole
 of it: how it works, how to run each part, what was tried on the emulator and what waits for the Fold.
 - The Mac app is this Flutter project's macOS platform (`macos/`, `lib/desktop/`), not a project of its own, so it
   draws conversations with the phone's own screens. `flutter build macos`; `flutter build apk` is unchanged.
-- The phone's half is `Desk*.kt` and Settings › Computers. 0.6.1 is merged in, and `pubspec.yaml` is 0.6.1+10 as
-  it came: the version of the release with the companion in it is the releaser's. The phone app needs that release
-  for the Mac app to have anything to pair with (Matt's camera on the Mac's QR code said no app could use it).
+- The phone's half is `Desk*.kt` and Settings › Computers. 0.6.2 is merged in (0.6.1 before it, which the pairing
+  was run on), and `pubspec.yaml` is 0.6.2+11 as it came: the version of the release with the companion in it is
+  the releaser's. The phone app needs that release for the Mac app to have anything to pair with (Matt's camera on
+  the Mac's QR code said no app could use it).
 - The QR code is a link (`ghostmsg://pair/…`) the phone's camera opens in the app; conversations cross to the Mac
-  a lot at a time. Both were run to the end on an emulator on the merged tree.
+  a lot at a time. Both were run to the end on an emulator, on 0.6.1's tree.
 - The Mac app's icon is drawn whole by macOS 27 (it sat small on a grey plate: a black-and-white picture is stored
   as greyscale by the asset catalog, and macOS plates those; `tool/app_icon.py` and docs/desktop.md say the rest).
   A Mac that already drew the old one keeps it for that path until the app is touched or moved.
@@ -45,6 +46,12 @@ was stored and drawn but, with no carrier, could not go. Two throwaway emulators
 first real exchange between two copies of the app: the hello, both keys, a sealed text each way, a synced background.
 They will not text each other, and their modems take no PDUs, so a small script carried each text across with
 `adb emu sms send`.
+
+0.6.2, later that night: Matt reported picture messages not working. They had never run, so `tool/mms/` stands in
+for a carrier on an emulator: sending (sticker, photo) and receiving both work there, and Android's own parser reads
+what the app sends. The app now says why one fails, catches a carrier's refusal that Android calls sent, and asks
+again for ones it could not fetch. What fails on his phone is still unknown: the reason under a failed message, or
+Settings › Android › Picture messages › Copy a report, will say.
 
 0.6.1, that night: phones with a great many messages (README has the measurements). The list is read the newest
 first and the rest behind, the lookups that were one question to Android per conversation are one for all, and a

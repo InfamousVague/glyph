@@ -82,6 +82,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     Sms.instance.setOpenThread(widget.thread);
     _load(markRead: true);
+    _loadMms();
     if (_people.isEmpty) {
       Sms.instance.people(widget.thread).then((p) {
         if (!mounted) return;
@@ -124,6 +125,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (state == AppLifecycleState.resumed) {
       Sms.instance.setOpenThread(widget.thread);
       _load(markRead: true);
+      _loadMms();
       // Back in the app with the cursor still in the field: the keys come back with it.
       if (_focus.hasFocus) WidgetsBinding.instance.addPostFrameCallback((_) => _field.currentState?.requestKeyboard());
     }
@@ -175,6 +177,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (mounted) toast(context, 'Couldn\'t send the key: $e', tone: GlacierToastTone.danger);
     }
     _e2eChanged();
+  }
+
+  /// Whether picture messages can go from this phone (mobile data on, the carrier allowing them), asked as the
+  /// conversation opens and again whenever the app comes back to the front.
+  MmsStatus? _mms;
+
+  Future<void> _loadMms() async {
+    try {
+      final s = await Sms.instance.mmsStatus();
+      if (mounted) setState(() => _mms = s);
+    } catch (_) {}
   }
 
   /// How many of the newest messages are held. A conversation opens on its newest [_opening], which is several
@@ -561,11 +574,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
+  /// A picture message says why, where the phone was told (Matt: "almost like MMS isn't working"); trying again is
+  /// a tap on the phone, and not offered on a computer (lib/desktop).
+  String _notSent(Message m) {
+    final said = m.why == null || m.why!.isEmpty ? 'Not sent' : 'Not sent: ${m.why}';
+    return Sms.remote ? said : '$said. Tap to try again.';
+  }
+
   String _statusText(Message m) => switch (m.state) {
         'sending' => 'Sending…',
         // Typed on a computer while the phone could not be reached: it goes when the phone is back (lib/desktop).
         'waiting' => 'Waiting for your phone',
-        'failed' => Sms.remote ? 'Not sent' : 'Not sent. Tap to try again.',
+        'failed' => _notSent(m),
         'read' => 'Read · ${clock(m.date)}',
         'delivered' => 'Delivered · ${clock(m.date)}',
         _ => 'Sent · ${clock(m.date)}',
@@ -613,6 +633,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               action: _e2e.state != 'pending' ? null : (_e2e.changed ? 'Review' : 'Turn on'),
               onAction: _e2e.changed ? () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged) : _e2eAccept,
               onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
+            ),
+          // What would stop a picture message going from this phone, said before it is tried.
+          if (isMms && !editing && _mms?.obstacle != null)
+            Padding(
+              padding: EdgeInsets.only(left: t.space(3), right: t.space(3), bottom: t.space(2)),
+              child: Text('${_mms!.obstacle}.', style: pageText(t, t.fontSize('xs'), color: t.colorOf('#dd3a30'))),
             ),
           if (_e2e.on && _attachments.isNotEmpty)
             Padding(
@@ -1079,11 +1105,12 @@ class _Bubble extends StatelessWidget {
           if (status != null)
             Padding(
               padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2)),
-              child: OnBackground(busy: busy, child: Row(mainAxisSize: MainAxisSize.min, children: [
-                if (failed) ...[AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30')), const SizedBox(width: 4)],
+              child: OnBackground(busy: busy, child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: failed ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
+                if (failed) ...[Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30'))), const SizedBox(width: 4)],
                 // It travelled sealed, and was opened here.
                 if (m.encrypted) ...[Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))), const SizedBox(width: 4)],
-                Text(status!, style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3'))),
+                // Why a message did not go can run to two lines: it wraps under the bubble, where a time never needs to.
+                Flexible(child: Text(status!, textAlign: out ? TextAlign.end : TextAlign.start, style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3')))),
                 // Your messages' ticks: a clock while it goes, one for sent, two for delivered, two in colour for read.
                 if (out && !failed) ...[
                   const SizedBox(width: 4),

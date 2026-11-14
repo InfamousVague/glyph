@@ -171,6 +171,19 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   together. On an emulator with 161 conversations the list's first read took 697 ms and each one after 7 to 9 ms
   (before, every read was a first read). `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts writes
   each call's time and the frames' to Android's log.
+- **Picture messages that say why** (0.6.2; Matt, 2026-11-13: "It seems like picture sending is also not working at
+  all almost like MMS isn't working"). Picture messages had never run anywhere, so they were run: on an emulator
+  with a stand-in for a carrier ([tool/mms/](tool/mms/README.md)) a sticker and a 4000×3000 photo went out, both
+  read back whole by Android's own parser (`PduParser`), and a picture message announced to the phone was fetched,
+  stored and shown. So what stops one on a real phone is the phone's or the carrier's, and the app now says which.
+  A picture message that fails says why under it ("Not sent: mobile data is off. Picture messages need it, even on
+  Wi-Fi."; `MmsWhy.kt`, from Android's result code and the carrier's HTTP answer). A carrier that takes a message and
+  refuses it in its answer (X-Mms-Response-Status), which Android reports as sent and the app used to show as Sent,
+  is shown as not sent with the carrier's own words. The message field says what would stop one before it is tried
+  (mobile data off, the carrier's settings disallowing it, no SIM). A picture message announced and not fetched used
+  to be lost; now it waits and is asked for again each time the app comes forward, for five days (`MmsDiag.kt`).
+  Settings › Android › Picture messages shows all of it, how the last one sent and the last one received went, and
+  copies a report with no messages, names or numbers in it.
 - **A phone with a great many messages** (0.6.1; Matt, 2026-11-13: "Users with a ton of messages stored on their
   phone are taking forever to load, see if we can load by most recent first so that things are faster"). Measured on
   an emulator filled by `python3 tool/seed_store.py emulator-5586` with 3,000 conversations, 126,000 texts and 19,600
@@ -311,7 +324,8 @@ the manifest was checked for every component Android looks for before it offers 
 Sending, receiving, MMS download and reports through a real carrier, notifications, blocking and the updater's
 install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
 Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS), nor a
-0.6.0 sticker through a carrier (it is an MMS too: on an emulator it was stored and drawn, and could not go). `docs/HANDOFF.md` section 3 is the list to go through on a phone.
+0.6.0 sticker through a carrier (it is an MMS too). Since 0.6.2 picture messages have run both ways on an emulator
+against a stand-in carrier (tool/mms/), which is not a carrier: a real one may still refuse what a stand-in takes. `docs/HANDOFF.md` section 3 is the list to go through on a phone.
 
 The Mac app and the phone's half of it were tried against each other on an emulator, by each way of connecting
 ([docs/desktop.md](docs/desktop.md), "Trying it"). Not on the Fold: the two finding each other on a real network
