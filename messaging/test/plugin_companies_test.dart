@@ -136,9 +136,14 @@ void main() {
     // The two Matt named have one.
     expect(companyMarks['coinbase.com'], isNotNull);
     expect(companyMarks['discover.com'], isNotNull);
-    // One the pack took out at its owner's wish is not here: it is drawn as a letter.
-    expect(companyMarks['microsoft.com'], isNull);
-    expect(companyMarks['amazon.com'], isNull);
+    // The ones the pack has since taken out are here as it last had them (Matt, asked whether to keep letters for
+    // them: "Use older logos").
+    for (final domain in ['microsoft.com', 'amazon.com', 'linkedin.com', 'yahoo.com', 'nintendo.com', 'hulu.com', 'grubhub.com', 'walmart.com', 'slack.com', 'adobe.com', 'salesforce.com', 'openai.com', 'twilio.com', 'docusign.com']) {
+      expect(companyMarks[domain], isNotNull, reason: domain);
+    }
+    // One the pack never had is drawn as a letter.
+    expect(companyMarks['capitalone.com'], isNull);
+    expect(companyMarks.length, 86);
   });
 
   test('a company\'s face: its letter, in ink on a light colour and white on a dark one', () {

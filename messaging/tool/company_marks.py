@@ -11,11 +11,12 @@ mark, each a single path on a 24 by 24 square.
 It reads the companies from lib/plugins/companies.dart, finds each one's mark by its name (or by SLUGS below where
 the pack calls it something else), and writes lib/plugins/company_marks.g.dart, keyed by the company's web address.
 
-Two kinds are left out, and get a letter in their colour instead:
-- a company the pack does not have (most banks and shops);
-- a mark the pack has taken out and keeps only so older uses do not break ("hidden": Amazon, Microsoft, LinkedIn
-  and others). Simple Icons takes a mark out when its owner asks or its owner's rules do not allow such use, and
-  that is kept to here.
+A company the pack does not have (most banks and shops) gets a letter in its colour instead.
+
+Some marks the pack has taken out and keeps only so older uses do not break ("hidden": Amazon, Microsoft, LinkedIn
+and others); Simple Icons takes one out when its owner asks or its owner's rules do not allow such use. They were
+first left out here too. Matt, told of them and asked whether to keep letters for those companies: "Use older
+logos". So they are taken (OLDER below), as the pack last had them, and the file this writes says which they are.
 
 The pack is read as data: nothing in it is run. The marks are trademarks of their owners, drawn only to say who a
 text is from.
@@ -28,6 +29,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMPANIES = os.path.join(ROOT, 'lib', 'plugins', 'companies.dart')
 OUT = os.path.join(ROOT, 'lib', 'plugins', 'company_marks.g.dart')
+
+# Whether the marks the pack has taken out and still carries are used (Matt, 2026-11-14: "Use older logos").
+OLDER = True
 
 # Where the pack's name for a company is not its name run together in small letters.
 SLUGS = {
@@ -58,7 +62,8 @@ def main():
             continue
         if icon.get('hidden'):
             hidden.append(name)
-            continue
+            if not OLDER:
+                continue
         # One path, filled, and nothing else: what the app's own path reader draws.
         m = re.fullmatch(r'<path fill="currentColor" d="([^"]+)"/>', icon['body'])
         if not m or not re.fullmatch(r'[MmLlHhVvCcSsQqTtAaZz0-9eE .,+-]+', m.group(1)):
@@ -70,7 +75,9 @@ def main():
         '//',
         '// The marks of the companies lib/plugins/companies.dart knows, from %s %s (%s; %s).' % (info['name'], info.get('version', ''), info['license']['title'], 'simpleicons.org'),
         '// Each is one path on a 24 by 24 square, by the company\'s web address. %d of %d companies have one; the rest' % (len(found), len(companies)),
-        '// get a letter in their colour (the pack has no mark for them, or has taken it out at its owner\'s wish).',
+        '// get a letter in their colour (the pack has no mark for them).',
+        '// %d of these the pack has since taken out and still carries for older uses; they are here as it last had' % (len([h for h in hidden if OLDER])),
+        '// them, at Matt\'s choice ("Use older logos"): %s.' % ', '.join(hidden),
         '// The marks are trademarks of their owners, drawn only to say who a text is from.',
         'library;',
         '',
@@ -82,7 +89,7 @@ def main():
     lines.append('};')
     open(OUT, 'w').write('\n'.join(lines) + '\n')
     print('%s %s: %d marks written to %s' % (info['name'], info.get('version', ''), len(found), os.path.relpath(OUT, ROOT)))
-    print('taken out of the pack, left as letters (%d): %s' % (len(hidden), ', '.join(hidden)))
+    print('taken out of the pack since, %s (%d): %s' % ('used as it last had them' if OLDER else 'left as letters', len(hidden), ', '.join(hidden)))
     print('not in the pack, left as letters (%d): %s' % (len(missing), ', '.join(missing)))
 
 

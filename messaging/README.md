@@ -475,10 +475,12 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   text alone, and nothing is looked up for a name out of a text. **The marks** are built into the app from an open
   pack of brand icons (Matt, asked where logos should come from: "download in the app look for brand icon packs
   that might exist"): Simple Icons, CC0 1.0, each one path, made into `lib/plugins/company_marks.g.dart` by
-  `tool/company_marks.py` (its head says how to fetch the pack and run it). 72 companies have one. The rest get
-  their letter on their colour: 36 the pack does not have (most banks and shops), and 14 it has taken out at their
-  owners' wish and keeps only for old uses (Amazon, Microsoft, LinkedIn, Walmart, Slack and others), which are
-  left out here too. The marks are trademarks of their owners, drawn only to say who a text is from. A switch in
+  `tool/company_marks.py` (its head says how to fetch the pack and run it). 86 companies have one. The 36 the pack
+  does not have (most banks and shops) get their letter on their colour. 14 of the 86 the pack has since taken out
+  at their owners' wish and still carries for old uses (Amazon, Microsoft, LinkedIn, Walmart, Slack, Yahoo,
+  Nintendo, Hulu, Grubhub, Adobe, Salesforce, OpenAI, Twilio, DocuSign): they were first left as letters, and are
+  drawn as the pack last had them since Matt, asked, said "Use older logos" (`OLDER` in the tool). The marks are
+  trademarks of their owners, drawn only to say who a text is from. A switch in
   the plugin's settings, "Show who a code is from". Tests: `test/plugin_companies_test.dart`. Pictures:
   `test/shots/12-plugins-codes-*`, and every face in `12-plugins-company-faces-*`. Found on the way and not
   changed: "G-482913 is your Google verification code" is not taken for a code at all (the "-" before its digits),
