@@ -602,7 +602,10 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   **Off until** a Twilio account and Verify service exist, their three values are on the box, and the relay is put
   up again (docs/me.md says how; all Matt's to do or say). Held by `relay/test/handles_test.dart` (nine, the
   service stood in for), `test/me_test.dart` (through the real relay) and `test/number_screen_test.dart` (which
-  text the page reads a code from). **Never run against the real service.**
+  text the page reads a code from). On the Mac the number is the phone's and is verified through the phone (Matt:
+  "on desktop the phone number reads as unknown and is not proxying the verification process"; `DartAsk.kt`,
+  `Me.followPhone`/`forComputer`; the phone's app must be open). **Verified against the real service on
+  2026-11-14** (relay deployed with the values at 20:06 UTC; a code to Matt's number checked at 20:14).
 - **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation

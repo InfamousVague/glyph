@@ -8,6 +8,7 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/link/session.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
+import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_relay/relay.dart';
 
@@ -239,6 +240,44 @@ void main() {
     expect(((await link.request('voiceLimit')) as Map)['seconds'], 91);
   });
 
+  test('the number is the phone\'s, and is verified through the phone', () async {
+    final link = mac(MemoryStore());
+    await pair(link, 'local');
+    final dir = Directory.systemTemp.createTempSync('ghost-desk-test');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final bridge = LinkCalls(link, DeskStore(dir, keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    await until(() => bridge.caps.contains('me'), what: 'the phone was never asked what it does');
+    // Matt, 2026-11-14: "on desktop the phone number reads as unknown and is not proxying the verification process".
+    expect(await Sms.instance.ownNumber(), '+14436537451');
+
+    var linked = <String, String>{};
+    phone.me = (what) => switch (what['dir']) {
+          'state' => {'ready': true, 'ways': {'phone': 'text'}, 'links': linked},
+          'text' => {'dir': 'text', 'p': 'phone', 'handle': what['handle']},
+          'code' when what['code'] == '240021' => {'dir': 'linked', 'p': 'phone', 'handle': (linked = {'phone': '${what['handle']}'})['phone']},
+          _ => throw 'That is not the code. Look at the text again, or ask for a new one.',
+        };
+    final me = Me.forTest();
+    await me.followPhone(Sms.instance.me);
+    expect(me.ready, isTrue);
+    expect(me.texts, isTrue);
+    expect(me.number, isNull);
+    expect(await me.textCode('(443) 653-7451'), '+14436537451');
+    await expectLater(me.tryCode('+14436537451', '000000'), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('not the code'))));
+    await me.tryCode('+14436537451', '240021');
+    expect(me.number, '+14436537451');
+    expect(phone.meAsked.map((w) => w['dir']), ['state', 'text', 'code', 'code']);
+
+    // A phone whose app is not open says so, in words.
+    phone.me = null;
+    final later = Me.forTest();
+    await later.followPhone(Sms.instance.me);
+    expect(later.ready, isFalse);
+    expect(later.phoneSaid, contains('Open Ghost Messaging on your phone'));
+  });
+
   test('a phone whose app is older does none of the newer things, and the screens offer none', () async {
     phone.old = true;
     final store = MemoryStore();
@@ -255,6 +294,11 @@ void main() {
     // Asked anyway, the phone's own words come back, and nothing is left half handed over.
     await expectLater(Sms.instance.sendSticker(['+15550100'], Uint8List.fromList([1, 2, 3]), 'ghost-sticker-ghost-01.png'), throwsA(isA<PhoneError>()));
     expect(await Sms.instance.e2eList(), isEmpty);
+    // Its number is not known here, and the Me page says the phone needs the newer app to verify it.
+    expect(await Sms.instance.ownNumber(), isNull);
+    final me = Me.forTest();
+    await me.followPhone(Sms.instance.me);
+    expect(me.phoneSaid, contains('Update Ghost Messaging on your phone'));
     // What it always did, it still does.
     expect(await Sms.instance.send(['+15550100'], 'still texts'), 7);
   });

@@ -217,6 +217,10 @@ class FakePhone {
     await leaveRelay();
   }
 
+  /// What the computer asked of Settings › Me, and who answers it: null is a phone whose app is not open.
+  final meAsked = <Map<String, Object?>>[];
+  Object? Function(Map<String, Object?> what)? me;
+
   dynamic _call(String method, Map<String, dynamic> a) {
     switch (method) {
       case 'ping':
@@ -270,7 +274,7 @@ class FakePhone {
         return null;
       // What a phone with the newer app does for a computer (android DeskCalls.CAPS); an older one ([old]) does none.
       case 'caps' when !old:
-        return ['deleteMessage', 'deleteThread', 'deleteThreads', 'editMessage', 'resendMms', 'setBlocked', 'blockedNumbers', 'e2eOffer', 'e2eOff', 'e2eVerify', 'e2ePlainSeen', 'e2eList', 'mmsStatus', 'voiceLimit', 'put', 'drop', 'sendPictures', 'sendVoice', 'sendSticker'];
+        return ['deleteMessage', 'deleteThread', 'deleteThreads', 'editMessage', 'resendMms', 'setBlocked', 'blockedNumbers', 'e2eOffer', 'e2eOff', 'e2eVerify', 'e2ePlainSeen', 'e2eList', 'mmsStatus', 'voiceLimit', 'put', 'drop', 'sendPictures', 'sendVoice', 'sendSticker', 'ownNumber', 'me'];
       case 'put' when !old:
         final id = a['upload'] as String, offset = (a['offset'] as num).toInt(), total = (a['total'] as num).toInt();
         final data = base64.decode(a['data'] as String);
@@ -313,6 +317,14 @@ class FakePhone {
         return [{'address': '+15550100', 'state': 'on'}];
       case 'mmsStatus' when !old:
         return {'dataOn': true};
+      case 'ownNumber' when !old:
+        return '+14436537451';
+      // Settings › Me's number, done by the phone's Dart side (android DartAsk, Me.forComputer): [me] stands in.
+      case 'me' when !old:
+        final what = (a['what'] as Map).cast<String, Object?>();
+        meAsked.add(what);
+        if (me == null) throw 'Open Ghost Messaging on your phone, then try again.';
+        return me!(what);
       default:
         throw 'The phone doesn\'t do "$method" for a computer';
     }

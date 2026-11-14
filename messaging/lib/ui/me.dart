@@ -48,7 +48,8 @@ class _WakeState extends State<_Wake> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => Me.instance.wake());
+    // On a computer, Settings › Me is the phone's: asked of it as the page opens (Me.followPhone).
+    WidgetsBinding.instance.addPostFrameCallback((_) => Sms.remote ? Me.instance.followPhone(Sms.instance.me) : Me.instance.wake());
   }
 
   @override
@@ -87,7 +88,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
       ],
     ),
     if (Sms.remote)
-      const SettingsCallout(child: Text('Accounts are linked on your phone. Open Settings › Me in Ghost Messaging there.'))
+      SettingsCallout(child: Text(me.ready ? 'Accounts are linked on your phone. Your number can be verified from here: the code is texted to your phone.' : me.phoneSaid ?? 'Asking your phone…'))
     else if (!me.ready)
       SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Network).')),
     PaneSection(
@@ -166,8 +167,7 @@ class _NumberRow extends StatelessWidget implements PaneRow {
     }
     final tidy = tidyNumber(own ?? '');
     final shown = Text(own == null || own!.isEmpty ? 'Not known' : (numberFits(tidy) ? showNumber(tidy) : own!));
-    // Verifying is the phone's to do: a computer shows the number and says nothing of it.
-    if (Sms.remote) return SettingRow(icon: icon, label: 'Number', value: shown);
+    // On a computer it is verified through the phone (Me.followPhone), as on the phone itself.
     // Short words here, beside the number; the page it opens has room for why and how.
     return SettingRow(icon: icon, label: 'Number', hint: const Text('Not verified'), value: shown, onPress: me.ready ? () => push<void>(context, (_) => NumberScreen(own: own)) : null);
   }
@@ -227,7 +227,9 @@ class _NumberScreenState extends State<NumberScreen> {
     final since = _askedAt;
     if (since == null || thread < 0) return;
     try {
-      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && !m.date.isBefore(since));
+      // On a computer a text's time is the phone's clock and [since] this computer's: two minutes either way allowed.
+      final from = Sms.remote ? since.subtract(const Duration(minutes: 2)) : since;
+      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && !m.date.isBefore(from));
       for (final m in newest) {
         final code = ownCodeIn(m.body);
         if (code == null || !mounted) continue;

@@ -933,6 +933,29 @@ class Sms {
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 
   Future<String?> ownNumber() => _calls.invokeMethod<String>('ownNumber');
+
+  /// On a paired computer: one of Settings › Me's asks, done by the phone (android DeskCalls "me", answered by the
+  /// phone's [Me.forComputer]). Matt, 2026-11-14: "on desktop the phone number reads as unknown and is not proxying
+  /// the verification process".
+  Future<Map<String, dynamic>> me(Map<String, Object?> what) async =>
+      Map<String, dynamic>.from((await _calls.invokeMethod<Map>('me', {'what': what})) ?? const {});
+
+  /// On the phone: answers what Android asks the app's Dart side by [method] (android DartAsk.kt: what a paired
+  /// computer asks that only Dart knows). An error's words, from a [MeError] or another, reach the computer.
+  static void answer(String method, Future<Object?> Function(Map<String, Object?> args) work) {
+    _answers[method] = work;
+    _ChannelCalls._channel.setMethodCallHandler((call) async {
+      final w = _answers[call.method];
+      if (w == null) throw MissingPluginException();
+      try {
+        return await w(Map<String, Object?>.from((call.arguments as Map?) ?? const {}));
+      } catch (e) {
+        throw PlatformException(code: 'failed', message: '$e');
+      }
+    });
+  }
+
+  static final Map<String, Future<Object?> Function(Map<String, Object?>)> _answers = {};
   Future<void> setOwnNumber(String number) => _calls.invokeMethod('setOwnNumber', {'number': number});
 
   /// The colours Android takes from the wallpaper (Material You), by name ("accent1_100"…); null before Android 12.

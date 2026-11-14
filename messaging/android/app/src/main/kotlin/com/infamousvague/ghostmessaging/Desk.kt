@@ -466,6 +466,8 @@ object Desk : DeskHost {
         override fun draft(thread: Long) = store.draft(thread)
         override fun setDraft(thread: Long, text: String) = store.setDraft(thread, text)
         override fun e2e(address: String) = E2e.state(context, address)
+        override fun ownNumber() = store.ownNumbers().firstOrNull()
+        override fun me(what: Map<String, Any?>) = DartAsk.ask("me", what)
 
         // --- what the phone's screens do, done for a computer too -----------------------------------------------------
 
