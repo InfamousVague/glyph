@@ -20,13 +20,18 @@ object MmsDiag {
     private fun prefs(context: Context) = context.getSharedPreferences("mms", Context.MODE_PRIVATE)
 
     /** Why the picture message in [row] was not sent, for under it in the conversation. */
-    fun failed(context: Context, row: Uri, why: String) {
-        prefs(context).edit().putString("why:${row.lastPathSegment}", why).apply()
+    fun failed(context: Context, row: Uri, why: String, smaller: Boolean = false) {
+        prefs(context).edit().putString("why:${row.lastPathSegment}", why).apply {
+            if (smaller) putBoolean("small:${row.lastPathSegment}", true) else remove("small:${row.lastPathSegment}")
+        }.apply()
     }
 
     fun cleared(context: Context, row: Uri) {
-        prefs(context).edit().remove("why:${row.lastPathSegment}").apply()
+        prefs(context).edit().remove("why:${row.lastPathSegment}").remove("small:${row.lastPathSegment}").apply()
     }
+
+    /** The carrier refused the picture message [id] as it was: sent again, its pictures go smaller. */
+    fun wantsSmaller(context: Context, id: Long): Boolean = prefs(context).getBoolean("small:$id", false)
 
     fun why(context: Context, id: Long): String? = prefs(context).getString("why:$id", null)
 

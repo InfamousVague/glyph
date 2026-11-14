@@ -201,10 +201,27 @@ class _VoiceBubbleState extends State<VoiceBubble> {
   void initState() {
     super.initState();
     if (!widget.playable) return;
-    Sms.instance.voiceLength(widget.part).then((d) {
-      if (mounted && d > Duration.zero && _length == Duration.zero) setState(() => _length = d);
-    });
+    _askLength();
     _sub = Sms.instance.voice.stream.listen(_heard);
+  }
+
+  /// A conversation's list hands this place to another message when one arrives above it: what was known was the
+  /// other one's, so it is asked again. (Without this every voice message wore the length of the first one drawn.)
+  @override
+  void didUpdateWidget(VoiceBubble old) {
+    super.didUpdateWidget(old);
+    if (old.part == widget.part) return;
+    _length = Duration.zero;
+    _at = Duration.zero;
+    _playing = false;
+    if (widget.playable) _askLength();
+  }
+
+  void _askLength() {
+    final part = widget.part;
+    Sms.instance.voiceLength(part).then((d) {
+      if (mounted && widget.part == part && d > Duration.zero && _length == Duration.zero) setState(() => _length = d);
+    });
   }
 
   @override

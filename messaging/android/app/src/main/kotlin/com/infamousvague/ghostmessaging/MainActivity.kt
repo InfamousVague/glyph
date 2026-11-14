@@ -85,7 +85,11 @@ class MainActivity : FlutterActivity() {
             fun on(executor: java.util.concurrent.Executor, work: () -> Any?) = executor.execute {
                 val began = android.os.SystemClock.elapsedRealtime()
                 try { val v = work(); main.post { result.success(v) } }
-                catch (e: Exception) { main.post { result.error("failed", e.message ?: e.toString(), null) } }
+                catch (e: Exception) {
+                    // What a call could not do goes in the app's own log (Settings › Developer) as well as back to the screen.
+                    DevLog.add(applicationContext, "call", "${call.method}: ${e.javaClass.simpleName}: ${e.message ?: ""}")
+                    main.post { result.error("failed", e.message ?: e.toString(), null) }
+                }
                 if (timed) android.util.Log.v("GhostPerf", "${call.method} ${android.os.SystemClock.elapsedRealtime() - began} ms")
             }
             fun bg(work: () -> Any?) = on(io, work)
@@ -103,6 +107,22 @@ class MainActivity : FlutterActivity() {
                         only = if (call.argument<Boolean>("archived") == true) store.archivedThreads() else null,
                     )
                 }
+                // Sending a picture message again: its own pictures, read back from Android's store.
+                "resendMms" -> bg { Sender.resendMms(applicationContext, call.argument<Number>("id")!!.toLong(), call.argument<String>("body")) }
+                // Settings › Developer: the app's own log, to read, copy, share and clear (DevLog.kt).
+                "devLog" -> { DevLog.add(applicationContext, call.argument<String>("tag") ?: "app", call.argument<String>("line") ?: ""); result.success(null) }
+                "devLogRead" -> bg { mapOf("lines" to DevLog.lines(applicationContext), "report" to DevLog.report(applicationContext, call.argument<String>("version") ?: "")) }
+                "devLogClear" -> bg { DevLog.clear(applicationContext); null }
+                "shareText" -> {
+                    try {
+                        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, call.argument<String>("subject") ?: "")
+                            putExtra(Intent.EXTRA_TEXT, call.argument<String>("text") ?: "")
+                        }, call.argument<String>("subject") ?: "Share"))
+                    } catch (_: Exception) {}
+                    result.success(null)
+                }
                 "mmsStatus" -> bg { MmsDiag.status(applicationContext) }
                 "mmsRetry" -> bg { MmsPushReceiver.retryWaiting(applicationContext) }
                 "conversation" -> bg { store.conversation(call.argument<Number>("thread")!!.toLong()) }
@@ -113,9 +133,6 @@ class MainActivity : FlutterActivity() {
                 "threadFor" -> bg { store.threadFor(call.argument<List<String>>("addresses")!!) }
                 "send" -> bg {
                     Sender.send(applicationContext, call.argument<List<String>>("addresses")!!, call.argument<String>("body") ?: "", call.argument<List<String>>("attachments") ?: emptyList())
-                }
-                "sendAgain" -> bg {
-                    Sender.sendAgain(applicationContext, call.argument<Number>("id")!!.toLong(), call.argument<List<String>>("addresses")!!, call.argument<String>("body"))
                 }
                 // Voice messages (Voice.kt): the microphone is asked for the first time one is recorded.
                 "voiceStart" -> {

@@ -489,24 +489,18 @@ class Store(private val context: Context) {
         return out
     }
 
-    /**
-     * A stored picture message's parts as they would be sent: its pictures, stickers, sound and words, read back from
-     * where they are kept. Its layout is left out (it is written anew), and [body], where given, stands for its words.
-     */
-    fun partsToSendAgain(id: Long, body: String? = null): List<Pdu.Part> {
+    /** The parts of the picture message [id] with what is in them, as they would be sent: for sending it again. */
+    fun mmsParts(id: Long): List<Pdu.Part> {
         val out = ArrayList<Pdu.Part>()
-        (mmsPartsOf(listOf(id))[id] ?: emptyList()).forEachIndexed { i, p ->
-            val type = p["type"] as String
-            val name = (p["name"] as String?)?.takeIf { it.isNotBlank() } ?: "part$i"
-            when {
-                type == "application/smil" -> {}
-                type == "text/plain" -> if (body == null) (p["text"] as String?)?.takeIf { it.isNotEmpty() }?.let {
-                    out += Pdu.Part("text/plain", it.toByteArray(), contentLocation = "text$i.txt", contentId = "text$i")
-                }
-                else -> readPart(p["id"] as Long)?.let { out += Pdu.Part(type, it, name = name, contentLocation = name, contentId = "part$i") }
+        resolver.query(Uri.parse("content://mms/part"), arrayOf("_id", "ct", "text", "name", "cl", "cid", "_data"), "mid = ?", arrayOf(id.toString()), "seq ASC")?.use { c ->
+            while (c.moveToNext()) {
+                val type = (c.getString(1) ?: "").lowercase()
+                if (type.isEmpty()) continue
+                val data = if (type == "text/plain" && c.getString(2) != null) c.getString(2).toByteArray(Charsets.UTF_8) else (readPart(c.getLong(0)) ?: continue)
+                val place = c.getString(4) ?: c.getString(3)
+                out += Pdu.Part(type, data, name = c.getString(3) ?: place, contentLocation = place, contentId = c.getString(5)?.trim('<', '>'))
             }
         }
-        if (!body.isNullOrEmpty()) out += Pdu.Part("text/plain", body.toByteArray(), contentLocation = "text0.txt", contentId = "text0")
         return out
     }
 

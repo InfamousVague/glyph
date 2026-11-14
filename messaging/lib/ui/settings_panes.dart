@@ -179,6 +179,15 @@ final List<SettingsSection> settingsSections = [
     page: _updates,
   ),
   SettingsSection(
+    id: 'developer',
+    label: 'Developer',
+    icon: _icon(Lucide.terminal),
+    hue: 'graphite',
+    group: 'app',
+    summary: (m) => m.devLines.isEmpty ? 'Nothing in the log' : '${m.devLines.length} ${m.devLines.length == 1 ? 'line' : 'lines'} in the log',
+    page: _developer,
+  ),
+  SettingsSection(
     id: 'about',
     label: 'About',
     icon: _icon(Lucide.info),
@@ -861,6 +870,66 @@ List<Widget> _updates(BuildContext context, SettingsModel m) {
 }
 
 // --- About ------------------------------------------------------------------------------------------------------------
+
+/// Settings › Developer (Matt, 2026-11-13: "Maybe it would be good to include a developer setting with copying
+/// errors and reporting"): the app's own log of what went wrong and how its picture messages went, to copy or to
+/// send to whoever is helping. A phone that is not plugged into a computer has no other way to say.
+List<Widget> _developer(BuildContext context, SettingsModel m) {
+  final t = context.tokens;
+  // The newest first: what just happened is what is being looked for.
+  final lines = m.devLines.reversed.toList();
+  return [
+    PaneSection(
+      title: 'Report',
+      description: const Text('What this phone is, how picture messages stand, and the log below, as text.'),
+      footer: const Text('It holds no message\'s words, and anything that looks like a phone number is struck out. It leaves the phone only if you copy or share it.'),
+      children: [
+        SettingRow(
+          icon: _icon(Lucide.copy),
+          label: 'Copy the report',
+          onPress: () async {
+            await Clipboard.setData(ClipboardData(text: m.devReport));
+            if (context.mounted) toast(context, 'Report copied');
+          },
+        ),
+        SettingRow(
+          icon: _icon(Lucide.send),
+          label: 'Share the report',
+          hint: const Text('To an email, a note or another app.'),
+          onPress: () => Sms.instance.shareText('Ghost Messaging report', m.devReport),
+        ),
+        SettingRow(
+          icon: _icon(Lucide.trash2),
+          label: 'Clear the log',
+          onPress: lines.isEmpty
+              ? null
+              : () async {
+                  await Sms.instance.devLogClear();
+                  await m.refresh();
+                  if (context.mounted) toast(context, 'Log cleared');
+                },
+        ),
+      ],
+    ),
+    PaneSection(
+      title: lines.isEmpty ? 'Log' : 'Log · ${lines.length} ${lines.length == 1 ? 'line' : 'lines'}, newest first',
+      footer: const Text('Errors, and each picture message: what it was made into, how large, and what the carrier answered. The last 300 lines are kept.'),
+      children: [
+        SettingRowBox(
+          child: lines.isEmpty
+              ? Text('Nothing has gone wrong that the app knows of.', style: TextStyle(fontSize: t.fontSize('sm'), color: t.color('app-ink-3')))
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final line in lines.take(120))
+                    Padding(
+                      padding: EdgeInsets.only(bottom: t.space(2)),
+                      child: Text(line, style: TextStyle(fontFamily: 'JetBrains Mono Variable', fontSize: t.fontSize('xs'), height: 1.4, color: t.color('app-ink-2'))),
+                    ),
+                ]),
+        ),
+      ],
+    ),
+  ];
+}
 
 List<Widget> _about(BuildContext context, SettingsModel m) {
   return [

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -21,6 +22,25 @@ import 'ui/update_banner.dart';
 
 /// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
 /// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
+/// What goes wrong on the screens' side goes in the app's own log (Settings › Developer; Matt, 2026-11-13: "a
+/// developer setting with copying errors and reporting"): what it was and where, never what a message said.
+void _logErrors() {
+  String where(StackTrace? stack) {
+    final lines = (stack?.toString() ?? '').split('\n').where((l) => l.contains('package:ghost_messaging')).take(2).map((l) => l.replaceAll(RegExp(r'^#\d+\s+'), '').trim());
+    return lines.isEmpty ? '' : ' at ${lines.join(' < ')}';
+  }
+
+  final shown = FlutterError.onError;
+  FlutterError.onError = (details) {
+    Sms.instance.devLog('dart', '${details.exceptionAsString().split('\n').first}${where(details.stack)}');
+    shown?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    Sms.instance.devLog('dart', '${error.runtimeType}: ${'$error'.split('\n').first}${where(stack)}');
+    return false;
+  };
+}
+
 Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
@@ -37,6 +57,7 @@ Future<void> main() async {
   final sheet = loaded[0]! as TokenSheet;
   installSettingsStyles(sheet);
   Sms.instance.listen();
+  _logErrors();
   _watchFrames();
   Sms.instance.prefsChanged.stream.listen((_) => state.reload());
   runApp(GhostMessagingApp(sheet: sheet, state: state));

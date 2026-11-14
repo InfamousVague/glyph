@@ -184,6 +184,22 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   to be lost; now it waits and is asked for again each time the app comes forward, for five days (`MmsDiag.kt`).
   Settings › Android › Picture messages shows all of it, how the last one sent and the last one received went, and
   copies a report with no messages, names or numbers in it.
+- **Photographs** (0.6.2; Matt: "Stickers seem to work fine its specifically media messages like pictures"). What a
+  photograph goes through and a sticker does not was read again and tried, and four things were wrong. Trying a
+  failed picture message again sent its words alone as a text and deleted it, so the picture was gone: it now goes
+  again with its own pictures, read back from Android's store (`Sender.resendMms`). On a message that was a picture
+  and no words, "Tap to try again" did nothing, because the picture's own tap (open it) won and the red line took
+  none: both send it again now. A picture that could not be read was left out without a word and the message went
+  with nothing in it: now nothing goes, and the screen says why, with the pictures put back in the field. And the
+  JPEG made from a phone's HDR photograph carried a second picture inside it (a gain map), which a carrier's server
+  is not known to take: a plain eight-bit JPEG is made (`shrink`). A message is never made larger than 1 MB whatever
+  the carrier's settings say, and one the carrier refused goes again with its pictures under 300 KB in all.
+- **Settings › Developer** (0.6.2; Matt: "Maybe it would be good to include a developer setting with copying errors
+  and reporting"): the app's own log (`DevLog.kt`, the last 300 lines, kept in the app's files): every call that
+  failed, every error on the screens' side, and each picture message as it went (what the picture was, what it was
+  made into, the carrier's limit, Android's result, the carrier's HTTP answer and status). Copy the report, Share
+  the report (Android's share sheet: an email, a note), Clear the log. No message's words go in it and what looks
+  like a phone number is struck out.
 - **A phone with a great many messages** (0.6.1; Matt, 2026-11-13: "Users with a ton of messages stored on their
   phone are taking forever to load, see if we can load by most recent first so that things are faster"). Measured on
   an emulator filled by `python3 tool/seed_store.py emulator-5586` with 3,000 conversations, 126,000 texts and 19,600
@@ -239,11 +255,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   recorder stops itself there. One that comes or goes is drawn as a player: play and pause, how far through, how
   long. Android gives the default SMS app the microphone along with the role, so it is asked for only where that was
   taken back; it is open only while a recording is under way with the app in front, and leaving the app throws the
-  recording away. On a Mac a voice message is named and not played.
-- **Trying a picture message again** (not released). "Not sent. Tap to try again." on a message with a picture, a
-  sticker or a voice message in it sent only its words again and dropped the rest. It now goes again as it was, read
-  back from where the phone keeps it (`Sender.sendAgain`), and the one that failed is removed only once the new one
-  is on its way.
+  recording away. One that did not go is sent again whole by 0.6.2's `Sender.resendMms`, as a picture is. On a Mac a
+  voice message is named and not played.
 - **Stickers** (0.6.0; Matt: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio
   one"). Four packs of sixteen, made by `python3 tool/sticker_packs.py` from the ghost's poses on the effects' sheets,
   each with a sticker's white edge: **Ghost** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and

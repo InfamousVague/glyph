@@ -70,6 +70,7 @@ List<Map<String, Object?>> _messages(int thread) {
   if (thread == 4) {
     // Voice messages (android Voice.kt): one that came, one sent, each a picture message with sound in it.
     return [
+      if (_voiceMore) {'id': 54, 'kind': 'mms', 'address': '+15551230001', 'body': '', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 913, 'type': 'audio/mp4', 'name': 'voice-20261113-194730.m4a'}]},
       {'id': 53, 'kind': 'mms', 'address': '', 'body': '', 'date': _ago(minutes: 3), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 912, 'type': 'audio/mp4', 'name': 'voice-20261113-194502.m4a'}]},
       {'id': 52, 'kind': 'mms', 'address': '+15551230001', 'body': '', 'date': _ago(minutes: 5), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 911, 'type': 'audio/amr', 'name': 'recording.amr'}]},
       {'id': 51, 'kind': 'sms', 'address': '+15551230001', 'body': 'Too much to type, one sec', 'date': _ago(minutes: 6), 'outgoing': false, 'state': 'received', 'read': true},
@@ -137,6 +138,9 @@ List<Map<String, Object?>> _messages(int thread) {
 Map<String, Object?> _pairing = {'phase': 'none'};
 
 int _voiceBeat = 0;
+
+/// A third voice message has arrived in the voice conversation.
+bool _voiceMore = false;
 
 void _answerChannel() {
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -206,13 +210,23 @@ void _answerChannel() {
         return ['192.168.1.20:47811'];
       // Voice messages: how long each runs, and a recording that hears a voice rise and fall.
       case 'voiceLength':
-        return (args['part'] as num).toInt() == 911 ? 7400 : 23000;
+        return switch ((args['part'] as num).toInt()) { 911 => 7400, 913 => 41000, _ => 23000 };
       case 'voiceStart':
         _voiceBeat = 0;
         return {'ok': true, 'seconds': 91};
       case 'voiceLevel':
         _voiceBeat++;
         return 0.04 + 0.5 * ((_voiceBeat * 37) % 17) / 17 * (_voiceBeat % 9 < 6 ? 1 : 0.15);
+      case 'devLogRead':
+        // The app's own log, as Settings › Developer reads it: a photo that went, and one the carrier refused.
+        const lines = [
+          '11-13 19:05:02 mms   send to 1: 4000x3000 2143 KB image/jpeg -> 1200x1600 q85 302 KB (HDR left off), words 0, carrier\'s limit 1024 KB',
+          '11-13 19:05:04 mms   sent, 310 KB, the carrier\'s id for it fake-1@mmsc',
+          '11-13 19:12:40 mms   send to 3: 8160x6120 5210 KB image/heic -> 1600x1200 q85 412 KB, words 14, carrier\'s limit 1024 KB',
+          '11-13 19:12:43 mms   not sent, 420 KB: the carrier\'s server refused it (HTTP 413) (result 4, HTTP 413)',
+          '11-13 19:13:10 call  send: IllegalStateException: that picture couldn\'t be read (Android no longer lets this app read it; choose it again)',
+        ];
+        return {'lines': lines, 'report': 'Ghost Messaging 0.6.2\nsamsung SM-F966U, Android 16 (API 36)\n\n${lines.join('\n')}'};
       case 'mmsStatus':
         // Picture messages as the phone reports them: nothing in the way, one sent, one that could not be fetched.
         return {
@@ -340,6 +354,15 @@ void main() {
       expect(find.text('0:07'), findsOneWidget);
       expect(find.text('0:01'), findsOneWidget);
       Sms.instance.voice.add(const VoicePlayback(part: 912, position: Duration.zero, length: Duration(seconds: 23), playing: false));
+      // Another arrives: each still says its own length (the list hands a player's place to another message, and
+      // every one once wore the length of the first drawn there).
+      _voiceMore = true;
+      Sms.instance.changes.add(4);
+      await _settle(tester);
+      expect(find.text('0:41'), findsOneWidget);
+      expect(find.text('0:23'), findsOneWidget);
+      expect(find.text('0:07'), findsOneWidget);
+      _voiceMore = false;
       // The microphone tapped: the composer is the recording, with its clock, how loud it is, and Send.
       await tester.tap(mic);
       for (var i = 0; i < 44; i++) {
@@ -385,7 +408,7 @@ void main() {
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
       await _shootAgain(tester, '5-settings-search', dark: dark);
-      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers']) {
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
       // Pairing with a computer, step by step: before a code is scanned, while the computer is looked for, the six
