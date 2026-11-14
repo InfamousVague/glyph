@@ -128,7 +128,9 @@ All three want the address a sign-in comes back to. With the relay behind ghost-
 3. **Telegram.** Message @BotFather: `/newbot` (name "Ghost Messaging", a username ending in `bot`), keep the token;
    then `/setdomain`, choose the bot, send `ghost-sms.com`.
 
-Then on the box, as root, a file only root reads, and the relay started again:
+Then their values, where the server reads them. Since the texting service's values (below) the way is the file on
+the Mac, `~/.config/mattssoftware/ghost-relay.env`, put on the box by `deploy-relay.mjs --env`: these six lines go
+in that same file. By hand on the box it was to be, as root, a file only root reads, and the relay started again:
 
     install -m 600 /dev/null /etc/ghost-relay/env     # mkdir -p /etc/ghost-relay first
     cat > /etc/ghost-relay/env <<'EOF'
@@ -161,16 +163,26 @@ gets right.
    is the second lock on the same door as `GHOST_TEXT_TO`.
 4. **A key.** Account › API keys & tokens › Create API key (standard). Copy its **SID** (`SK…`) and **secret**.
    The account's own SID (`AC…`) and auth token work too, but a key can be taken back by itself.
-5. **On the box**, as root, added to the file the sign-ins' values are in (made as above if it is not there yet):
+5. **The three values, written down on the Mac and nowhere else.** Never typed into a chat, a note or the
+   repository: they are what lets someone send texts on the account's money. In
+   `~/.config/mattssoftware/ghost-relay.env`, a file only Matt reads (`chmod 600`), one `NAME=value` a line:
 
        GHOST_TWILIO_SID=SK…
        GHOST_TWILIO_TOKEN=…
        GHOST_TWILIO_VERIFY=VA…
 
    With any of the three missing, verifying is off and the page says so. `GHOST_TEXT_TO` and `GHOST_TEXTS_A_DAY`
-   need setting only to change `+1` and 200.
-6. **The relay put up again with this in it** (below; Matt's word each time), and an app release that has the
-   page (0.7.12 or later; 0.7.11 went out without it).
+   need a line only to change `+1` and 200.
+6. **The relay put up again with them** (Matt's word each time; it drops whoever is connected to the hub, and the
+   apps connect again by themselves). From `messaging/`:
+
+       node tool/deploy-relay.mjs --env ~/.config/mattssoftware/ghost-relay.env --glyph ~/Development/Apps/glyph
+
+   `--env` installs that file on the box as `/etc/ghost-relay/env`, the file the relay's service reads as it
+   starts, and prints the names in it, never a value. The file on the Mac is the one to keep: what the server
+   needs is all in it, the sign-ins' values too once there are any (above), and a change is made there and
+   deployed, not typed on the box.
+7. **An app release that has the page** (0.7.12 or later; 0.7.11 went out without it).
 
 To see it is on: Settings › Me › Number › **Text me a code** is a button, where before it said verifying is not set
 up on the relay server yet.
