@@ -18,6 +18,7 @@ import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
+import 'package:ghost_messaging/ui/update_banner.dart';
 import 'package:glacier/glacier.dart';
 
 /// The screens drawn with made-up conversations, in light and dark, written to test/shots/ (run with
@@ -252,6 +253,10 @@ void main() {
     installSettingsStyles(sheet);
     for (final dark in [false, true]) {
       await _shoot(tester, sheet, const ConversationsScreen(), '1-conversations', dark: dark);
+      // A newer version is waiting: the banner over the page, on every page.
+      await _shoot(tester, sheet, const UpdateBanner(child: ConversationsScreen()), '1-update-banner', dark: dark);
+      expect(find.textContaining('is out'), findsOneWidget);
+      expect(find.text('Update now'), findsOneWidget);
       // Several chosen at once: a long press's Select, then a tap on another.
       await tester.longPress(find.text('Dad'));
       await _settle(tester);
@@ -260,6 +265,20 @@ void main() {
       await tester.tap(find.text('Priya Natarajan'));
       await _shootAgain(tester, '1-conversations-selecting', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread', dark: dark);
+      // A message held: its reactions under it, the screen effects under those, then what else can be done.
+      await tester.longPress(find.text('Movie night is still on for tonight right?'));
+      await _shootAgain(tester, '2-thread-held', dark: dark);
+      expect(find.text('👍'), findsOneWidget);
+      expect(find.text('🎈'), findsOneWidget, reason: 'the screen effects are offered beside the reactions');
+      expect(find.text('Copy text'), findsOneWidget);
+      // An incoming one near the top: the same, on its own side.
+      await tester.tapAt(const Offset(10, 10));
+      await _settle(tester);
+      expect(find.text('Copy text'), findsNothing);
+      await tester.longPress(find.text('Hey! Long time 👋'));
+      await _shootAgain(tester, '2-thread-held-theirs', dark: dark);
+      await tester.tapAt(const Offset(10, 10));
+      await _settle(tester);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.

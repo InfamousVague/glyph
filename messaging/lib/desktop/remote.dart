@@ -198,7 +198,7 @@ class LinkCalls implements SmsCalls {
         return const [];
       case 'deskState':
         return {'phase': 'none'};
-      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'updateBackground' || 'updateCheck' || 'setAutoUpdate':
+      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'updateBackground' || 'updatePage' || 'updateCheck' || 'setAutoUpdate':
         return null;
       default:
         throw const PhoneError('That is done on the phone.');

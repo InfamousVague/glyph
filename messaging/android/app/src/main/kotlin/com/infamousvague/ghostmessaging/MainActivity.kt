@@ -130,6 +130,7 @@ class MainActivity : FlutterActivity() {
                 "updateCheck" -> { Updater.check(applicationContext, install = call.argument<Boolean>("install") ?: false); result.success(null) }
                 "updateInstall" -> { Updater.installNow(applicationContext); result.success(null) }
                 "updateBackground" -> { Updater.backgroundCheck(applicationContext); result.success(null) }
+                "updatePage" -> { Updater.pageCheck(applicationContext); result.success(null) }
                 "setAutoUpdate" -> { Updater.setAuto(applicationContext, call.argument<Boolean>("on") ?: true); result.success(null) }
                 "allowInstalls" -> {
                     try {

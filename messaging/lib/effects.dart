@@ -81,6 +81,46 @@ const _emoji = <ScreenEffect, List<String>>{
   ScreenEffect.party: ['🪩', '🕺', '💃'],
 };
 
+/// The emoji that is a screen effect when it is a REACTION to a message (Matt, 2026-11-13: "I'd like to be able to
+/// react with full screen effects by pressing and holding on a message as well"). It goes as any reaction does,
+/// `Reacted 🎈 to “See you at 7”`, which every phone can read and Google's and Samsung's apps show as a reaction;
+/// this app hangs it on the message as a chip and plays the effect over the conversation, here and on the other
+/// phone. None of them is among the reactions offered on a long press (lib/reactions.dart), so a plain heart or
+/// 🎉 stays a plain reaction.
+const effectReactionEmoji = <ScreenEffect, String>{
+  ScreenEffect.balloons: '🎈',
+  ScreenEffect.confetti: '🎊',
+  ScreenEffect.fireworks: '🎆',
+  ScreenEffect.celebration: '🏮',
+  ScreenEffect.hearts: '💖',
+  ScreenEffect.kisses: '💋',
+  ScreenEffect.lasers: '⚡',
+  ScreenEffect.ghosts: '👻',
+  ScreenEffect.snow: '❄️',
+  ScreenEffect.wow: '🤩',
+  ScreenEffect.party: '🪩',
+  ScreenEffect.thanks: '💐',
+  ScreenEffect.goodMorning: '🌞',
+  ScreenEffect.goodNight: '🌙',
+  ScreenEffect.getWell: '🩹',
+  ScreenEffect.sorry: '🥺',
+  ScreenEffect.hungry: '🍕',
+  ScreenEffect.bye: '👋',
+  ScreenEffect.echo: '📣',
+  ScreenEffect.spotlight: '🔦',
+};
+
+/// The screen effect a reaction's [emoji] is, or null for a plain reaction. The same emoji with or without its
+/// "draw me in colour" mark (U+FE0F) is the same reaction.
+ScreenEffect? effectForReaction(String emoji) {
+  String bare(String s) => s.replaceAll('\uFE0F', '');
+  final wanted = bare(emoji);
+  for (final e in effectReactionEmoji.entries) {
+    if (bare(e.value) == wanted) return e.key;
+  }
+  return null;
+}
+
 /// What an iPhone writes after a message it sent with an effect to a phone that can't play it: "(sent with Lasers)",
 /// "(Sent with Slam effect)".
 final _sentWith = RegExp(r'\s*\(sent with ([a-z ]+?)(?: effect)?\)\s*$', caseSensitive: false);

@@ -15,6 +15,27 @@ Message _m(String body, {bool picture = false}) => Message(
     );
 
 void main() {
+  test('a reaction is a screen effect only when its emoji is one of the effects\' own', () {
+    // Every effect has one, each its own, and none is a reaction offered on a long press.
+    expect(effectReactionEmoji.keys.toSet(), ScreenEffect.values.toSet());
+    expect(effectReactionEmoji.values.toSet().length, ScreenEffect.values.length);
+    for (final emoji in effectReactionEmoji.values) {
+      expect(reactionChoices.contains(emoji), isFalse, reason: '$emoji is a plain reaction too');
+    }
+    expect(effectForReaction('🎈'), ScreenEffect.balloons);
+    expect(effectForReaction('❄️'), ScreenEffect.snow);
+    expect(effectForReaction('❄'), ScreenEffect.snow, reason: 'with or without its colour mark');
+    for (final plain in reactionChoices) {
+      expect(effectForReaction(plain), isNull, reason: '$plain stays a plain reaction');
+    }
+    // It goes as any reaction does, and is read back as one, on the message it names.
+    final text = reactionText('🎈', _m('See you at 7'));
+    expect(text, 'Reacted 🎈 to “See you at 7”');
+    final read = parseReaction(text)!;
+    expect(read.emoji, '🎈');
+    expect(effectForReaction(read.emoji), ScreenEffect.balloons);
+  });
+
   test('effectFor: phrases anywhere, key emoji only alone', () {
     expect(effectFor('Happy birthday Maya!!'), ScreenEffect.balloons);
     expect(effectFor('omg CONGRATS'), ScreenEffect.confetti);

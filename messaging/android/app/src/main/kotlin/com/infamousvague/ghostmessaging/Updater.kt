@@ -47,6 +47,7 @@ object Updater {
     /** The release a check found last, as JSON (version, code, sha256, bytes, url), until it is installed. */
     private const val FOUND = "found"
     private const val BACKGROUND_EVERY_MS = 12 * 60 * 60 * 1000L
+    private const val PAGE_EVERY_MS = 5 * 60 * 1000L
 
     data class Release(val version: String, val code: Long, val sha256: String, val bytes: Long, val url: String)
 
@@ -142,6 +143,21 @@ object Updater {
         if (isDebuggable(app)) return
         val last = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(CHECKED_AT, 0L)
         if (System.currentTimeMillis() - last < BACKGROUND_EVERY_MS) return
+        check(app, install = auto(app), silentOnly = true)
+    }
+
+    /**
+     * The look as a page of the app opens (Matt, 2026-11-13: "the app should auto check for updates on load of any
+     * page so it pops the banner"): asked for by every page, answered no oftener than every five minutes, so walking
+     * through the app is one question to the site and not one a page. What it finds is on the banner over every
+     * page (lib/ui/update_banner.dart); it installs by itself only where automatic updates are on and Android lets
+     * the app update with no prompt, as the look at opening does.
+     */
+    fun pageCheck(context: Context) {
+        val app = context.applicationContext
+        if (isDebuggable(app)) return
+        val last = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(CHECKED_AT, 0L)
+        if (System.currentTimeMillis() - last < PAGE_EVERY_MS) return
         check(app, install = auto(app), silentOnly = true)
     }
 

@@ -17,6 +17,7 @@ import 'ui/conversations.dart';
 import 'ui/settings.dart';
 import 'ui/setup.dart';
 import 'ui/thread.dart';
+import 'ui/update_banner.dart';
 
 /// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
 /// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
@@ -97,6 +98,8 @@ class GhostMessagingApp extends StatelessWidget {
         builder: (context, _) => WidgetsApp(
           title: 'Ghost Messaging',
           navigatorKey: _navigator,
+          // Each page that opens asks for a look for a newer version (lib/ui/update_banner.dart).
+          navigatorObservers: [UpdateWatch()],
           color: const Color(0xFF4F5BD5),
           debugShowCheckedModeBanner: false,
           pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) =>
@@ -107,7 +110,7 @@ class GhostMessagingApp extends StatelessWidget {
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,
-              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
+              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: UpdateBanner(child: child!)))),
             ),
           ),
           home: const _Home(),

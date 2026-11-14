@@ -23,7 +23,9 @@ class MemoryStore implements LinkStore {
   Future<void> clear() async => kept = null;
 }
 
-Future<void> until(bool Function() test, {String? what, int ms = 6000}) async {
+/// Waits for [test] to hold. The limit is long because the Mac may be busy (another build, an emulator): it is a
+/// limit on waiting for something to happen, not a pause, so a quiet machine never spends it.
+Future<void> until(bool Function() test, {String? what, int ms = 30000}) async {
   final end = DateTime.now().add(Duration(milliseconds: ms));
   while (!test() && DateTime.now().isBefore(end)) {
     await Future<void>.delayed(const Duration(milliseconds: 10));

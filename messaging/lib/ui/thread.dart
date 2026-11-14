@@ -20,6 +20,7 @@ import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'encryption.dart';
+import 'message_popover.dart';
 import 'sticker_picker.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
@@ -67,6 +68,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   String? _freshKey;
   final Set<String> _revealed = {};
   Timer? _draftSave;
+
+  /// The reactions already seen on this conversation's messages, so one that is a screen effect plays once, as it
+  /// arrives or is sent, and not again each time the conversation is read.
+  final Set<String> _reactionsSeen = {};
 
   /// Where Ghost Messaging's own encryption stands with the one person here (android/.../E2e.kt); none in a group.
   E2eState _e2e = const E2eState();
@@ -214,6 +219,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       _folded = _foldOn ? foldReactions(edits.messages) : Folded(messages: edits.messages, reactions: const {});
       _corrected = edits.corrected;
     });
+    _playReactions();
     // A message that came or went while the conversation is open sets off its effect, once.
     final newest = _folded.messages.isEmpty ? null : _folded.messages.first;
     if (newest != null && _newestKey != null && newest.key != _newestKey && newest.state != 'failed') _playFor(newest);
@@ -284,6 +290,27 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final uris = await Sms.instance.pickImages();
     if (uris.isNotEmpty && mounted) setState(() => _attachments.addAll(uris.take(5 - _attachments.length)));
   }
+
+  /// A reaction that is a screen effect (a balloon, fireworks: lib/effects.dart) plays over the conversation when it
+  /// has just come or gone. Only a new one, and only a recent one: reading further back finds old ones, which stay
+  /// chips.
+  void _playReactions() {
+    ({ScreenEffect effect, String text})? fresh;
+    final now = DateTime.now();
+    for (final entry in _folded.reactions.entries) {
+      for (final r in entry.value) {
+        if (!_reactionsSeen.add('${entry.key}|${r.by}|${r.emoji}')) continue;
+        final effect = effectForReaction(r.emoji);
+        if (effect == null || now.difference(r.date).abs() > const Duration(seconds: 45)) continue;
+        final on = _folded.messages.where((m) => m.key == entry.key).firstOrNull;
+        fresh = (effect: effect, text: on == null ? '' : sentWith(on.body).text);
+      }
+    }
+    if (fresh != null && mounted && AppState.of(context).effects) _effects.currentState?.play(fresh.effect, text: fresh.text);
+  }
+
+  /// Reacts to [m] with [effect]: its emoji goes as a reaction, and the effect plays here as it goes.
+  Future<void> _reactWith(Message m, ScreenEffect effect) => _react(m, effectReactionEmoji[effect]!);
 
   void _playFor(Message m) {
     if (!AppState.of(context).effects) return;
@@ -378,14 +405,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]);
   }
 
-  void _messageMenu(Message m) {
+  /// A long press on a message. [at] is where its bubble is on the screen: the reactions, the screen effects and
+  /// what else can be done come up beside it (lib/ui/message_popover.dart). A line that is no bubble (a key, a
+  /// background) has the sheet from the foot of the screen.
+  void _messageMenu(Message m, [Rect? at]) {
     final canReact = m.state != 'sending' && m.state != 'waiting' && m.state != 'failed' && m.state != 'pending_download' && m.notice == null;
     final mine = {for (final r in _folded.reactions[m.key] ?? const <Reaction>[]) if (r.by.isEmpty) r.emoji};
-    showChoices(
-      context,
-      title: m.body.isEmpty ? null : (m.body.length > 80 ? '${m.body.substring(0, 80)}…' : m.body),
-      header: canReact ? _ReactionRow(mine: mine, onPick: (emoji) { Navigator.of(context).pop(); _react(m, emoji); }) : null,
-      choices: [
+    final choices = [
       if (m.body.isNotEmpty)
         Choice('Copy text', Lucide.copy, () {
           Clipboard.setData(ClipboardData(text: m.body));
@@ -400,7 +426,29 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           await Sms.instance.deleteMessage(m);
           _load();
         }, danger: true),
-    ]);
+    ];
+    if (at == null) {
+      showChoices(
+        context,
+        title: m.body.isEmpty ? null : (m.body.length > 80 ? '${m.body.substring(0, 80)}…' : m.body),
+        header: canReact ? _ReactionRow(mine: mine, onPick: (emoji) { Navigator.of(context).pop(); _react(m, emoji); }) : null,
+        choices: choices,
+      );
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    showMessagePopover(
+      context,
+      bubble: at,
+      outgoing: m.outgoing,
+      reactions: canReact ? reactionChoices : const [],
+      mine: mine,
+      onReact: (emoji) => _react(m, emoji),
+      // The screen effects, where they are switched on (Settings › Effects).
+      effects: canReact && AppState.of(context).effects ? ScreenEffect.values : const [],
+      onEffect: (effect) => _reactWith(m, effect),
+      choices: choices,
+    );
   }
 
   Future<void> _retry(Message m, {String? body}) async {
@@ -510,7 +558,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         top: firstOfRun,
         bottom: lastOfRun,
         status: showStatus ? _statusText(m) : (lastOfRun ? clock(m.date) : null),
-        onLongPress: () => _messageMenu(m),
+        onLongPress: (at) => _messageMenu(m, at),
         onTapFailed: failed && !Sms.remote ? () => _retry(m) : null,
         reactions: _folded.reactions[m.key] ?? const [],
         onReactionsTap: () => _showReactions(_folded.reactions[m.key] ?? const []),
@@ -916,7 +964,8 @@ class _Bubble extends StatelessWidget {
   final Person? senderPerson;
   final bool showFace;
   final String? status;
-  final VoidCallback onLongPress;
+  /// Told where the bubble is on the screen, so what a long press brings up can sit beside it.
+  final ValueChanged<Rect> onLongPress;
   final VoidCallback? onTapFailed;
   final List<Reaction> reactions;
   final VoidCallback? onReactionsTap;
@@ -1019,7 +1068,18 @@ class _Bubble extends StatelessWidget {
         Text('Tap to reveal', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: ink)),
       ]);
     }
-    bubble = GestureDetector(onLongPress: onLongPress, onTap: ink0 ? onReveal : onTapFailed, child: bubble);
+    // Where the bubble is on the screen goes with the long press, so what it brings up sits beside the bubble.
+    final held = bubble;
+    bubble = Builder(
+      builder: (at) => GestureDetector(
+        onLongPress: () {
+          final box = at.findRenderObject();
+          if (box is RenderBox && box.hasSize) onLongPress(box.localToGlobal(Offset.zero) & box.size);
+        },
+        onTap: ink0 ? onReveal : onTapFailed,
+        child: held,
+      ),
+    );
     if (sent.bubble != null && sent.bubble != BubbleEffect.invisibleInk) {
       bubble = BubbleEntrance(effect: sent.bubble!, play: playEntrance, child: bubble);
     }

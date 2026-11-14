@@ -490,6 +490,9 @@ class Sms {
   Future<void> updateCheck({bool install = false}) => _calls.invokeMethod('updateCheck', {'install': install});
   Future<void> updateInstall() => _calls.invokeMethod('updateInstall');
   Future<void> updateBackground() => _calls.invokeMethod('updateBackground');
+
+  /// A page opened: a look for a newer version, which Android makes no oftener than every five minutes.
+  Future<void> updateOnPage() => _calls.invokeMethod('updatePage');
   Future<void> setAutoUpdate(bool on) => _calls.invokeMethod('setAutoUpdate', {'on': on});
   Future<void> allowInstalls() => _calls.invokeMethod('allowInstalls');
   Future<void> setOpenThread(int? thread) => _calls.invokeMethod('setOpenThread', {'thread': thread ?? -1});
