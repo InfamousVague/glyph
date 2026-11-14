@@ -172,7 +172,7 @@ object Sender {
      * Where the carrier refused it (not where the phone had no connection), its pictures go smaller this time: under
      * 300 KB in all, which every carrier takes. [newBody]: other words, where it was edited before being sent again.
      */
-    fun resendMms(context: Context, id: Long, newBody: String? = null): Long {
+    fun resendMms(context: Context, id: Long, newBody: String? = null, unasked: Boolean = false): Long {
         val store = Store(context)
         val row = Uri.parse("content://mms/$id")
         val thread = store.threadOfMms(row)
@@ -182,6 +182,8 @@ object Sender {
         val words = newBody ?: stored.filter { it.isText }.joinToString("\n") { String(it.data, Charsets.UTF_8) }
         var pictures = stored.filter { !it.isText && it.contentType != "application/smil" }
         val smaller = MmsDiag.wantsSmaller(context, id)
+        // Tried again by the app itself, it counts on from where it was; tried again by the person, it starts afresh.
+        val tries = if (unasked) MmsDiag.tries(context, id) + 1 else 1
         if (smaller) {
             val photos = pictures.count { it.contentType.startsWith("image/") && !Stickers.isSticker(it.name) }.coerceAtLeast(1)
             pictures = pictures.map { part ->
@@ -196,7 +198,7 @@ object Sender {
         }
         store.deleteMessage("mms", id)
         MmsDiag.cleared(context, row)
-        sendMms(context, store, thread, to, words, emptyList(), pictures, again = if (smaller) "again, smaller" else "again")
+        sendMms(context, store, thread, to, words, emptyList(), pictures, again = if (unasked) "try $tries" else if (smaller) "again, smaller" else "again", tries = tries)
         Bus.changed(thread)
         return thread
     }
@@ -207,7 +209,7 @@ object Sender {
     /** The most a picture message is made, whatever a carrier's settings say: larger ones often do not cross to another carrier. */
     private const val LARGEST = 1024 * 1024
 
-    private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>, ready: List<Pdu.Part> = emptyList(), again: String? = null) {
+    private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>, ready: List<Pdu.Part> = emptyList(), again: String? = null, tries: Int = 1) {
         val sub = defaultSub()
         val sms = smsManager(context, sub)
         val config = try { sms.carrierConfigValues } catch (_: Exception) { Bundle() }
@@ -246,6 +248,7 @@ object Sender {
             putExtra("file", file.absolutePath)
         }, MUTABLE)
         MmsDiag.cleared(context, row)
+        MmsDiag.tried(context, row, tries)
         try {
             sms.sendMultimediaMessage(context, uri, null, null, sent)
         } catch (e: Exception) {
@@ -489,6 +492,34 @@ class MmsResultReceiver : BroadcastReceiver() {
         const val SENT = "ghost.MMS_SENT"
         const val DOWNLOADED = "ghost.MMS_DOWNLOADED"
         const val ACK = "ghost.MMS_ACK"
+        const val RETRY = "ghost.MMS_RETRY"
+
+        /** Where a picture message that was fetched and could not be read is kept, to be read again later. */
+        private fun keptDir(context: Context) = File(context.filesDir, "mms-kept").apply { mkdirs() }
+
+        /**
+         * Reads again the picture messages that were fetched and could not be read (Matt, 2026-11-13: "let's focus
+         * on reliability of sending pictures and whatnot"). A carrier lets go of a message once it has been fetched,
+         * so one this app could not read was gone for good; now its bytes are kept, and each time the app comes
+         * forward (and so after every update, which is when the reading may have been mended) they are tried again.
+         */
+        fun readKept(context: Context) {
+            val files = keptDir(context).listFiles { f -> f.name.endsWith(".pdu") } ?: return
+            val store = Store(context)
+            for (f in files) {
+                val about = File(f.path + ".txt").takeIf { it.exists() }?.readLines() ?: emptyList()
+                // A fortnight on, it is not coming back: let it go.
+                if (System.currentTimeMillis() - f.lastModified() > 14L * 24 * 3600 * 1000) { f.delete(); File(f.path + ".txt").delete(); continue }
+                try {
+                    if (MmsResultReceiver().keep(context, store, f.readBytes(), about.getOrNull(1)?.ifEmpty { null }, about.getOrNull(2)?.toIntOrNull() ?: defaultSub())) {
+                        about.getOrNull(0)?.takeIf { it.isNotEmpty() }?.let { try { store.deleteMms(Uri.parse(it)) } catch (_: Exception) {} }
+                        f.delete(); File(f.path + ".txt").delete()
+                        DevLog.add(context, "mms", "a picture message that could not be read before has been read and kept")
+                        Bus.changed(-1)
+                    }
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -513,7 +544,19 @@ class MmsResultReceiver : BroadcastReceiver() {
                     val http = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
                     val why = refused ?: MmsWhy.send(resultCode, http)
                     Log.w(TAG, "mms send result $resultCode: $why")
-                    DevLog.add(context, "mms", "not sent$size: $why (result $resultCode, HTTP $http${conf?.responseStatus?.let { ", carrier status 0x%02X".format(it) } ?: ""})")
+                    val id = row.lastPathSegment?.toLongOrNull()
+                    val tries = id?.let { MmsDiag.tries(context, it) } ?: MmsWhy.TRIES
+                    // For want of a connection, or the carrier's server in trouble: tried again unasked, twice, the
+                    // message standing as Sending meanwhile. The person is told only once those have failed too.
+                    if (refused == null && id != null && tries < MmsWhy.TRIES && MmsWhy.worthAnotherTry(resultCode, http)) {
+                        val wait = MmsWhy.waitBefore(tries + 1)
+                        DevLog.add(context, "mms", "try $tries did not go$size: $why (result $resultCode, HTTP $http). Trying again in ${wait / 1000} s")
+                        val again = PendingIntent.getBroadcast(context, row.hashCode() xor 0x5a5a, Intent(context, MmsResultReceiver::class.java).apply { action = RETRY; data = row }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                        context.getSystemService(android.app.AlarmManager::class.java).setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + wait, again)
+                        file?.delete()
+                        return
+                    }
+                    DevLog.add(context, "mms", "not sent$size: $why (result $resultCode, HTTP $http${conf?.responseStatus?.let { ", carrier status 0x%02X".format(it) } ?: ""})${if (tries > 1) ", after $tries tries" else ""}")
                     store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED)
                     // Refused by the carrier, not for want of a connection: its pictures go smaller the next time.
                     MmsDiag.failed(context, row, why, smaller = refused != null || resultCode == 13 || (resultCode == 4 && http >= 400))
@@ -550,17 +593,44 @@ class MmsResultReceiver : BroadcastReceiver() {
                         if (keep(context, store, bytes, intent.getStringExtra("tid"), sub)) {
                             // The picture is here: its announcement has done its work.
                             notice?.let { val thread = store.threadOfMms(it); store.deleteMms(it); Bus.changed(thread) }
-                        } else MmsPushReceiver.failed(context, notice)
-                    } catch (e: Exception) { Log.e(TAG, "keep", e); MmsPushReceiver.failed(context, notice) }
+                        } else { kept(context, bytes, notice, intent.getStringExtra("tid"), sub, "it is not a picture message"); MmsPushReceiver.failed(context, notice) }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "keep", e)
+                        kept(context, bytes, notice, intent.getStringExtra("tid"), sub, "${e.javaClass.simpleName}: ${e.message ?: ""}")
+                        MmsPushReceiver.failed(context, notice)
+                    }
                     finally { pending.finish() }
                 }.start()
             }
             ACK -> file?.delete()
+            RETRY -> {
+                // The moment has passed: the message goes again, if it is still there and still waiting to go.
+                val row = intent.data ?: return
+                val id = row.lastPathSegment?.toLongOrNull() ?: return
+                if (!store.isMmsOutbox(id)) return
+                val pending = goAsync()
+                Thread {
+                    try { Sender.resendMms(context, id, unasked = true) } catch (e: Exception) {
+                        DevLog.add(context, "mms", "could not be tried again: ${e.message ?: e.javaClass.simpleName}")
+                        try { store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED); MmsDiag.failed(context, row, "it could not be tried again"); Bus.changed(store.threadOfMms(row)) } catch (_: Exception) {}
+                    } finally { pending.finish() }
+                }.start()
+            }
         }
     }
 
+    /** A picture message fetched and not read: its bytes are put by, with what is needed to read them again. */
+    private fun kept(context: Context, bytes: ByteArray, notice: Uri?, transactionId: String?, sub: Int, why: String) {
+        try {
+            val f = File(keptDir(context), "${System.currentTimeMillis()}.pdu")
+            f.writeBytes(bytes)
+            File(f.path + ".txt").writeText(listOf(notice?.toString() ?: "", transactionId ?: "", sub.toString()).joinToString("\n"))
+            DevLog.add(context, "mms", "fetched ${bytes.size / 1024} KB but it could not be read ($why): kept, to be read again. It begins ${bytes.take(12).joinToString(" ") { "%02x".format(it) }}")
+        } catch (_: Exception) {}
+    }
+
     /** Keeps the picture message in [bytes]; false where they are no picture message, or it could not be kept. */
-    private fun keep(context: Context, store: Store, bytes: ByteArray, notificationTid: String?, sub: Int): Boolean {
+    internal fun keep(context: Context, store: Store, bytes: ByteArray, notificationTid: String?, sub: Int): Boolean {
         val m = Pdu.parse(bytes)
         if (m.type != Pdu.RETRIEVE_CONF) return false
         val own = store.ownNumbers()

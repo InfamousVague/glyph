@@ -16,6 +16,13 @@ class H(http.server.BaseHTTPRequestHandler):
         if i >= 0 and i < 8:
             tid = body[i + 1: body.index(b'\x00', i)]
         kind = body[1] if len(body) > 1 else 0
+        # `echo 4 > flaky`: the next four messages sent meet a server in trouble (HTTP 503), then it mends.
+        flaky = os.path.join(DIR, 'flaky')
+        if kind == 0x80 and os.path.exists(flaky):
+            left = int((open(flaky).read().strip() or '0'))
+            if left > 0:
+                open(flaky, 'w').write(str(left - 1))
+                self.send_response(503); self.end_headers(); return
         if kind == 0x80 and os.path.exists(os.path.join(DIR, 'refuse')):   # the carrier takes it and says no
             conf = b'\x8c\x81\x98' + tid + b'\x00\x8d\x92\x92\x84\x93Unknown subscriber\x00'
         elif kind == 0x80:    # m-send-req -> m-send-conf, response-status ok, a message id

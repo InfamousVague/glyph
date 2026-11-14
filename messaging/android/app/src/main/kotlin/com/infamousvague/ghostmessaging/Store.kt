@@ -681,6 +681,34 @@ class Store(private val context: Context) {
 
     fun deleteMms(uri: Uri) { resolver.delete(uri, null, null) }
 
+    /** Whether the picture message [id] is still there and still waiting to go. */
+    fun isMmsOutbox(id: Long): Boolean = try {
+        resolver.query(Uri.parse("content://mms/$id"), arrayOf("msg_box"), null, null, null)?.use { it.moveToFirst() && it.getInt(0) == Telephony.Mms.MESSAGE_BOX_OUTBOX } ?: false
+    } catch (_: Exception) { false }
+
+    /**
+     * Messages that have stood as Sending for longer than [olderThan] milliseconds are marked not sent, so they can
+     * be tried again: Android reports each one's result, but a phone switched off or an app stopped in between
+     * leaves one waiting for an answer that will never come. Answers how many.
+     */
+    fun failStale(olderThan: Long = 15L * 60 * 1000): Int {
+        var n = 0
+        val before = System.currentTimeMillis() - olderThan
+        try {
+            resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("_id", "thread_id"), "msg_box = ${Telephony.Mms.MESSAGE_BOX_OUTBOX} AND date < ${before / 1000}", null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val uri = Uri.parse("content://mms/${c.getLong(0)}")
+                    setMmsBox(uri, Telephony.Mms.MESSAGE_BOX_FAILED)
+                    MmsDiag.failed(context, uri, "it was interrupted before it went")
+                    n++
+                }
+            }
+            n += resolver.update(Telephony.Sms.CONTENT_URI, ContentValues().apply { put("type", Telephony.Sms.MESSAGE_TYPE_FAILED) },
+                "type IN (${Telephony.Sms.MESSAGE_TYPE_OUTBOX}, ${Telephony.Sms.MESSAGE_TYPE_QUEUED}) AND date < $before", null)
+        } catch (_: Exception) {}
+        return n
+    }
+
     fun setMmsBox(uri: Uri, box: Int) {
         resolver.update(uri, ContentValues().apply { put("msg_box", box) }, null, null)
     }

@@ -186,6 +186,18 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
   same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
   sheet's tabs slide, and the pack it opens on is brought into view.
+- **Picture messages that keep trying** (0.7.0; Matt, 2026-11-14: "let's focus on reliability of sending pictures
+  and whatnot"). A picture message that fails for want of a connection, or because the carrier's server is in
+  trouble, is sent again by the app itself after twenty seconds and again after ninety (`MmsWhy.worthAnotherTry`,
+  an alarm to `MmsResultReceiver.RETRY`), standing as Sending meanwhile; the person is told only if the third try
+  fails too. Not where they have to do something first (mobile data off) or the carrier said no to the message. A
+  picture message that was fetched and could not be read used to be gone, since a carrier lets go of a message once
+  it is fetched: its bytes are now kept (`files/mms-kept/`) and read again each time the app comes forward, which
+  is after every update, when the reading may have been mended; the Developer log says why it could not be read and
+  how it begins. And a message left on Sending for a quarter of an hour (the phone switched off, the app stopped
+  before Android answered) is marked not sent, so it can be tried again (`Store.failStale`). Tried against the
+  stand-in carrier: with its server refusing the first four attempts, the first try failed, the app tried again
+  unasked and the sticker went; a message it could not read was put by and logged.
 - **Picture messages that say why** (0.6.2; Matt, 2026-11-13: "It seems like picture sending is also not working at
   all almost like MMS isn't working"). Picture messages had never run anywhere, so they were run: on an emulator
   with a stand-in for a carrier ([tool/mms/](tool/mms/README.md)) a sticker and a 4000×3000 photo went out, both
