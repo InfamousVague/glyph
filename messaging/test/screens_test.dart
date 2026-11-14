@@ -654,24 +654,39 @@ void main() {
       for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
-      // Settings › Me and Friends joining: two accounts linked, X's sign-in not set up on the server, a watch list,
-      // and one of them here and new.
+      // Settings › Me and Friends joining: the number verified by a code texted to it, two accounts linked, X's
+      // sign-in not set up on the server, a watch list, and one of them here and new.
       Me.instance.seed(
         ready: true,
         listed: true,
-        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'},
-        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social'},
+        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof', 'phone': 'text'},
+        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social', 'phone': '+15550100199'},
         watch: const [Watched('discord', 'maya'), Watched('discord', 'jordan.p'), Watched('telegram', 'samrivera'), Watched('x', 'alexkim'), Watched('bluesky', 'priya.bsky.social'), Watched('bluesky', 'noor.bsky.social')],
         joined: [Joined('discord', 'maya', DateTime.now().subtract(const Duration(minutes: 12))), Joined('bluesky', 'priya.bsky.social', DateTime.now().subtract(const Duration(days: 2)), seen: true)],
       );
       await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me', dark: dark);
       expect(find.text('@matt'), findsOneWidget);
       expect(find.textContaining('isn\'t set up on the relay server yet'), findsOneWidget);
+      // The number, as a code texted to it showed it to be: said so under it, and not counted among what friends
+      // are told.
+      expect(find.text('+1 (555) 010-0199'), findsOneWidget);
+      expect(find.text('Verified'), findsOneWidget);
+      expect(find.textContaining('People watching for one of your accounts'), findsOneWidget);
       await _shoot(tester, sheet, const SettingsSectionScreen('friends-joining'), '5-settings-friends-joining', dark: dark);
       // New beside her handle, in the label's own line.
       expect(find.textContaining('@maya', findRichText: true), findsOneWidget);
       expect(find.text('New'), findsOneWidget);
       await _shoot(tester, sheet, ProofScreen(network: networkOf('bluesky')), '5-settings-me-proof', dark: dark);
+      // Verifying a number: the phone's own, filled in, before a code is asked for.
+      await _shoot(tester, sheet, const NumberScreen(own: '5550100142'), '5-settings-me-number', dark: dark);
+      expect(find.text('Text me a code'), findsOneWidget);
+      // Not verified, on a server that has no texting service: the Me page says so in two words, and the page it
+      // opens says why nothing can be sent.
+      Me.instance.seed(links: {'discord': 'matt'}, ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'});
+      await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me-unverified', dark: dark);
+      expect(find.text('Not verified'), findsOneWidget);
+      await _shoot(tester, sheet, const NumberScreen(own: '5550100142'), '5-settings-me-number-off', dark: dark);
+      expect(find.textContaining('Verifying a number by text isn\'t set up'), findsOneWidget);
       await _shoot(tester, sheet, const AddWatchScreen(), '5-settings-me-add', dark: dark);
       Me.instance.seed(ready: false, listed: false, links: {}, watch: [], joined: [], ways: {});
       // Settings › Network: the app's routes, with two people to reach, the relay server ready and SMS not allowed,
@@ -1105,9 +1120,24 @@ void main() {
       tester.view.physicalSize = open;
       await _shoot(tester, sheet, const AppShell(), '11-frame-wide', dark: dark);
       final side = AppShell.sideWidth(750);
-      // Wide: the list down the side with the Mac's pill at its foot (a new chat, the messages, the contacts, the
-      // archive with its number, Settings), and the pane saying to choose.
+      // Wide: the list down the side, the pane saying to choose, and the pill (a new chat, the messages, the
+      // contacts, the archive with its number, Settings) stood up at the foot of a strip down the screen's right,
+      // as Ghost.md's dock is (Matt, 2026-11-14: "on wider phones like my fold 8 make the navbar render vertically
+      // condensed on the right of the screen like we do in ghost markdown").
       expect(find.text('Choose a conversation'), findsOneWidget);
+      expect(find.text('Or start a new chat from the bar on the right.'), findsOneWidget);
+      final strip = NavPill.railWidth(tester.element(find.byType(NavPill)).tokens);
+      final pill = tester.getRect(find.byType(NavPill));
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue);
+      expect(pill.right, 750);
+      expect(pill.left, closeTo(750 - strip, 0.01));
+      expect(pill.bottom, 832 - 16, reason: 'clear of the bar at the foot of the screen');
+      // Head to foot, a step apart: no wider than a ring and its room, and nothing of the pane under it.
+      expect(tester.getCenter(ring('new')).dx, tester.getCenter(ring('settings')).dx);
+      expect(tester.getCenter(ring('new')).dy, lessThan(tester.getCenter(ring('messages')).dy));
+      expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, closeTo(750 - strip - 1, 0.01));
+      // The list keeps no room at its foot for a pill that is not there.
+      expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, side);
       for (final id in ['new', 'messages', 'contacts', 'archive', 'settings']) {
         expect(ring(id), findsOneWidget, reason: 'the pill has $id');
       }
@@ -1162,6 +1192,18 @@ void main() {
       expect(find.byType(ThreadScreen), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
       expect(find.text('Choose a conversation'), findsNothing);
+      // Folded, the pill is along the list's foot again, its rings across it.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(tester.getCenter(ring('new')).dy, tester.getCenter(ring('settings')).dy);
+      expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, 412);
+      // A small phone on its side is wide, and too short for five rings head to foot: the pill stays under the list.
+      tester.view.physicalSize = const Size(800 * 2.0, 320 * 2.0);
+      await _settle(tester);
+      expect(find.text('Choose a conversation'), findsOneWidget);
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
+      tester.view.physicalSize = cover;
+      await _settle(tester);
       // A new chat, from the pill, slides over the list; Android's back closes it.
       await tester.tap(ring('new'));
       await _settle(tester);
@@ -1272,26 +1314,47 @@ void main() {
       // The Settings and Archive rings have menus of their own, as the list's tabs have (Matt, 2026-11-14: "add a
       // right click context menu to archive as well and settings to quick jump to settings sections"): a press with
       // the other button, or a long press. Settings' is its sections by name, and a press on one opens Settings
-      // there.
+      // there. It is a small list hung over the ring it came from (Matt, of the sheet it first was: "too large and
+      // way too wide"): in the list's column, a few rems across, its sections in named groups, scrolling inside
+      // itself where there are more than it has room for.
       final frame = tester.state<AppShellState>(find.byType(AppShell));
+      Finder inMenu(String label) => find.descendant(of: find.byType(GlacierMenuItem), matching: find.text(label));
+      Future<void> choose(String label) async {
+        await tester.ensureVisible(inMenu(label));
+        await _settle(tester);
+        await tester.tap(inMenu(label));
+        await _settle(tester);
+      }
+
       await tester.tap(ring('settings'), buttons: kSecondaryButton);
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-menu', dark: dark);
       expect(find.byType(SettingsScreen), findsNothing, reason: 'the menu is over the conversations: Settings is not open yet');
       for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked numbers', 'Android', 'About']) {
-        expect(find.text(label), findsWidgets, reason: '$label is a section to jump to');
+        expect(inMenu(label), findsOneWidget, reason: '$label is a section to jump to');
       }
-      await tester.tap(find.text('Blocked numbers'));
-      await _settle(tester);
+      // Its groups are named, in the kit's small capitals.
+      for (final group in ['YOU', 'LOOK', 'CONVERSATIONS', 'PRIVACY', 'THIS PHONE', 'APP']) {
+        expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text(group)), findsOneWidget, reason: group);
+      }
+      // Small, and by its ring: no wider than fifteen rems. On a folding phone opened out the pill is stood up at
+      // the window's right, where over a ring is another ring: the list hangs beside its ring, towards the pane,
+      // and reaches up from the ring's foot. (Over the ring, on a computer: test/desk_screens_test.dart.)
+      final first = tester.getRect(find.byType(GlacierMenuItem).first), settingsRing = tester.getRect(ring('settings'));
+      expect(first.width, lessThan(250));
+      expect(first.right, lessThanOrEqualTo(settingsRing.left));
+      expect(first.right, greaterThan(settingsRing.left - 24));
+      expect(tester.getRect(find.byType(GlacierMenuLabel).first).top, lessThan(settingsRing.top));
+      await choose('Blocked numbers');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');
       expect(seen(row('Blocked numbers')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
+      expect(find.byType(GlacierMenuItem), findsNothing, reason: 'choosing closes the menu');
       // Asked for again with Settings open, another section takes the pane.
       await tester.longPress(ring('settings'));
       await _settle(tester);
-      await tester.tap(find.text('Effects').last);
-      await _settle(tester);
+      await choose('Effects');
       expect(frame.settingsSection.value, 'effects');
       await tester.tap(ring('messages'));
       await _settle(tester);
@@ -1300,16 +1363,15 @@ void main() {
       await tester.tap(ring('archive'), buttons: kSecondaryButton);
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-archive-menu', dark: dark);
-      expect(find.textContaining('Archive · 1 conversation'), findsOneWidget);
-      await tester.tap(find.text('Mark all as read'));
-      await _settle(tester);
+      expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.byType(Text)), findsOneWidget);
+      expect(tester.widget<Text>(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.byType(Text))).data!.toLowerCase(), 'archive · 1 conversation');
+      await choose('Mark all as read');
       expect(find.text('Nothing is unread in the archive'), findsOneWidget);
       expect(shown(), 'messages');
       // Select all opens the archive with every conversation in it chosen, for the bar at the top.
       await tester.tap(ring('archive'), buttons: kSecondaryButton);
       await _settle(tester);
-      await tester.tap(find.text('Select all'));
-      await _settle(tester);
+      await choose('Select all');
       await _shootAgain(tester, '11-frame-wide-archive-selected', dark: dark);
       expect(shown(), 'archive');
       expect(seen(find.text('1 selected')), findsOneWidget);
@@ -1317,7 +1379,7 @@ void main() {
       // A ring without a menu has none: the other button on Contacts brings nothing up.
       await tester.tap(ring('contacts'), buttons: kSecondaryButton);
       await _settle(tester);
-      expect(find.text('Select all'), findsNothing);
+      expect(find.byType(GlacierMenuItem), findsNothing);
       await tester.tap(ring('messages'));
       await _settle(tester);
       await tester.pump(const Duration(seconds: 6));
