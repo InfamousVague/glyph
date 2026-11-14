@@ -367,6 +367,16 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
   over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
   yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
+- **Routes: a relay system that can be swapped** (not released; [docs/network.md](docs/network.md); Matt,
+  2026-11-14: "implement a full relay system for the app that's replacable and swappable ... The goal will be to
+  have multiple sources to feed data to eachother from wifi locally, p2p, internet, sms, etc"). `lib/net/`: a route
+  is one interface (`Carrier`), the switchboard chooses between routes, falls back and seals, and two routes exist:
+  the relay server's hub (`relay/lib/hub.dart`: names made from keys, packets held for someone away, who is here,
+  rooms to join and leave) and SMS data texts, which no texting app shows and which reach a closed app. The people
+  the routes reach are the people encryption is on with. Settings › Network shows each route with a switch, the
+  relay server's address, and a test to each person that says which route carried it. Nothing in the app is carried
+  by them yet but that test: calls, receipts and the local-network and peer-to-peer routes come next. The hub is
+  not on our server yet, so on a phone the relay route says it cannot be reached.
 - **One frame, phone and computer** (0.7.4; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
   to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
   app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from

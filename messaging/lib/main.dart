@@ -11,6 +11,7 @@ import 'backgrounds.dart';
 import 'desktop/main.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
+import 'net/net.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
 import 'ui/setup.dart';
@@ -187,6 +188,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     if (first && s.isDefault) {
       // The app's own updates: a look at most twice a day, as it opens.
       Sms.instance.updateBackground();
+      // The app's routes to other phones with it (lib/net/net.dart): set up once, as the app opens.
+      Net.instance.start(AppState.of(context));
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
       final req = await Sms.instance.openRequest();
       if (req != null) _open(req);

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/relay.dart';
 
 /// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--verbose]`
@@ -18,7 +19,9 @@ Future<void> main(List<String> args) async {
   }
   final host = option('host', '127.0.0.1');
   final port = int.parse(option('port', Platform.environment['PORT'] ?? '8787'));
-  final relay = Relay(dataDir: Directory(option('data', 'relay-data')), verbose: args.contains('--verbose'));
+  final verbose = args.contains('--verbose');
+  // The pairings' relay at /relay/<channel>, and the hub people's apps find each other through at /hub.
+  final relay = Relay(dataDir: Directory(option('data', 'relay-data')), verbose: verbose, hub: Hub(verbose: verbose));
   final got = await relay.start(host: host, port: port);
   stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept)');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'hub.dart';
 import 'sha256.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
@@ -18,7 +19,10 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub}) : _now = now ?? DateTime.now;
+
+  /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
+  final Hub? hub;
 
   /// Where `channels.json` is kept; null keeps nothing across restarts.
   final Directory? dataDir;
@@ -44,6 +48,7 @@ class Relay {
     final server = await HttpServer.bind(host, port);
     _server = server;
     server.listen(_handle, onError: (_) {});
+    hub?.start();
     _sweeper = Timer.periodic(const Duration(minutes: 1), (_) => sweep());
     return server.port;
   }
@@ -51,6 +56,7 @@ class Relay {
   Future<void> stop() async {
     _sweeper?.cancel();
     _saver?.cancel();
+    hub?.stop();
     _save();
     for (final c in _channels.values) {
       c.phone?.close(WebSocketStatus.goingAway);
@@ -73,6 +79,8 @@ class Relay {
     final segments = request.uri.pathSegments.where((s) => s.isNotEmpty).toList();
     final name = segments.isEmpty ? '' : segments.last;
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
+    // The hub is its own thing with its own way in (hub.dart): `/hub`, behind whatever the web server puts before it.
+    if (upgrade && name == 'hub' && hub != null) return hub!.accept(request);
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok

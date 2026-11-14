@@ -93,6 +93,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- The SMS route's data texts (NetSms.kt): an SMS addressed to this port comes here and nowhere else,
+             whether or not this is the phone's texting app. -->
+        <receiver
+            android:name=".NetSmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.DATA_SMS_RECEIVED" />
+                <data android:scheme="sms" android:host="*" android:port="16962" />
+            </intent-filter>
+        </receiver>
+
         <!-- Required of a default SMS app: incoming MMS notifications (WAP push). -->
         <receiver
             android:name=".MmsPushReceiver"

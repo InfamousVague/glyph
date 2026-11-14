@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,8 @@ import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
+import 'package:ghost_messaging/net/carrier.dart';
+import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
@@ -213,6 +216,20 @@ void _answerChannel() {
         return {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
+      // The app's routes (lib/net): who this phone is, and the two people encryption is on with or waiting.
+      case 'netIdentity':
+        return {'id': '0f' * 16, 'key': 'AlFcPW655Ja5BNP+yn9U/c0MwemXvzddylFa0KbDtANf'};
+      case 'netPeers':
+        return [
+          {'id': 'a1' * 16, 'address': '+15551230011', 'key': Uint8List.fromList(List.filled(32, 7))},
+          {'id': 'b2' * 16, 'address': '+15551230012', 'key': Uint8List.fromList(List.filled(32, 9))},
+        ];
+      case 'contact':
+        return _conversations.expand((c) => c['people'] as List).cast<Map>().firstWhere((p) => p['address'] == args['address'], orElse: () => _p(args['address'] as String));
+      case 'netSmsAvailable':
+        return false;
+      case 'netSmsDrain':
+        return const <Object>[];
       case 'e2e':
         return _e2e(args['address'] as String);
       case 'e2ePlainSeen':
@@ -561,6 +578,22 @@ void main() {
       for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
+      // Settings › Network: the app's routes, with two people to reach, the relay server ready and SMS not allowed,
+      // and a test sent to one of them.
+      final hub = _Route('hub', 'Relay server', 'Through a server on the internet. Works between any two networks; the server sees who talks to whom, never what is said.');
+      final sms = _Route('sms', 'SMS', 'As data texts over the phone network. Needs no internet and reaches a phone whose app is closed.', up: false, metered: true)
+        ..problem = 'This phone cannot send data texts now: no SIM, or SMS is not allowed for this app';
+      await tester.runAsync(() => Net.instance.start(AppState(), carriers: [hub, sms]));
+      expect(Net.instance.people.map((p) => p.name), ['Riley Fox', 'Noor Haddad']);
+      await tester.runAsync(() => Net.instance.test(Net.instance.people.first));
+      await _shoot(tester, sheet, const SettingsSectionScreen('network'), '5-settings-network', dark: dark);
+      expect(find.text('Relay server'), findsWidgets);
+      expect(find.textContaining('Ready'), findsOneWidget);
+      expect(find.textContaining('cannot send data texts'), findsOneWidget);
+      expect(find.textContaining('A test was sent to Riley Fox'), findsOneWidget);
+      expect(hub.carried, 1, reason: 'the test went by the route that is up');
+      expect(sms.carried, 0);
+      await tester.runAsync(Net.instance.shutdown);
       // Pairing with a computer, step by step: before a code is scanned, while the computer is looked for, the six
       // digits to compare, and paired.
       const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://ghost-sms.com/relay'};
@@ -772,4 +805,37 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     }
   });
+}
+
+/// A route that carries nothing anywhere: for the picture of Settings › Network.
+class _Route implements Carrier {
+  _Route(this.id, this.name, this.about, {bool up = true, bool metered = false})
+      : state = ValueNotifier(up ? CarrierState.up : CarrierState.down),
+        traits = CarrierTraits(maxPacket: 4096, metered: metered, live: false);
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final String about;
+  @override
+  final CarrierTraits traits;
+  @override
+  final ValueNotifier<CarrierState> state;
+  @override
+  String? problem;
+  int carried = 0;
+  @override
+  Stream<Arrived> get arrived => const Stream.empty();
+  @override
+  Future<void> start() async {}
+  @override
+  Future<void> stop() async {}
+  @override
+  bool reaches(Peer peer) => state.value == CarrierState.up;
+  @override
+  Future<Handed> send(Peer peer, Uint8List packet) async {
+    carried++;
+    return Handed.passed;
+  }
 }

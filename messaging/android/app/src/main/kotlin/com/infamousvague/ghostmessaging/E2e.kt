@@ -104,6 +104,25 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    // --- for the app's routes (Net.kt) ---------------------------------------------------------------------------------
+
+    /** This phone's public key, 33 bytes: what the routes know it by. Made if there is none yet. */
+    fun myPublic(context: Context): ByteArray = identity(context).second
+
+    /** This phone's signature over [message] (ECDSA over its SHA-256), as Android writes one. */
+    fun sign(context: Context, message: ByteArray): ByteArray =
+        java.security.Signature.getInstance("SHA256withECDSA").apply { initSign(identity(context).first); update(message) }.sign()
+
+    /** Everyone encryption is on with: their number, their public key, and the conversation's key. */
+    fun accepted(context: Context): List<Triple<String, ByteArray, ByteArray>> =
+        prefs(context).all.keys.filter { it.startsWith("peer:") }.mapNotNull { name ->
+            val o = peer(context, name.removePrefix("peer:")) ?: return@mapNotNull null
+            if (o.optString("state") != "on") return@mapNotNull null
+            val address = o.optString("address", name.removePrefix("peer:"))
+            val pub = runCatching { Base64.getDecoder().decode(o.optString("pub", "")) }.getOrNull()?.takeIf { it.size == 33 } ?: return@mapNotNull null
+            Triple(address, pub, key(context, address) ?: return@mapNotNull null)
+        }
+
     // --- finding each other (GhostMark.kt) ---------------------------------------------------------------------------
 
     private const val DAY = 24L * 60 * 60 * 1000

@@ -72,10 +72,12 @@ class MainActivity : FlutterActivity() {
                 Bus.prefsListener = { events?.success(mapOf("type" to "prefs")) }
                 Desk.listener = { events?.success(mapOf("type" to "desk")) }
                 Voice.listener = { state -> main.post { events?.success(state) } }
+                // A data text for the app's routes (NetSms.kt): to Dart, which opens it.
+                NetSms.listener = { address, bytes -> main.post { events?.success(mapOf("type" to "netSms", "address" to address, "bytes" to bytes)) } }
                 updateListener = { state -> events?.success(mapOf("type" to "update") + state.toMap(applicationContext)) }
                 Updater.addListener(updateListener!!)
             }
-            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
+            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; NetSms.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
         MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
@@ -190,6 +192,14 @@ class MainActivity : FlutterActivity() {
                 }
                 "e2e" -> bg { E2e.state(applicationContext, call.argument<String>("address")!!) }
                 "e2eList" -> bg { E2e.list(applicationContext).map { it + ("person" to store.contact(it["address"] as String)) } }
+// The app's routes (lib/net; Net.kt, NetSms.kt): who this phone is, who it can reach, a signature for a
+                // hub, and data texts.
+                "netIdentity" -> bg { Net.identity(applicationContext) }
+                "netPeers" -> bg { Net.peers(applicationContext) }
+                "netSign" -> bg { Net.sign(applicationContext, call.argument<ByteArray>("message")!!) }
+                "netSmsAvailable" -> bg { NetSms.available(applicationContext) }
+                "netSmsSend" -> bg { NetSms.send(applicationContext, call.argument<String>("address")!!, call.argument<ByteArray>("bytes")!!); null }
+                "netSmsDrain" -> bg { NetSms.drain(applicationContext) }
                 "e2eMine" -> bg { if (E2e.hasIdentity(applicationContext)) E2e.myFingerprint(applicationContext) else null }
                 "e2eOffer" -> bg {
                     // This phone's key goes to them as a plain text; where theirs is already here, encryption is on.

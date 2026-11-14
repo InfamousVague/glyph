@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -567,6 +568,9 @@ class Sms {
   /// the screen ([voiceStopped]).
   final voiceFull = StreamController<void>.broadcast();
   final voiceStopped = StreamController<void>.broadcast();
+
+  /// A data text for the app's routes came (android/.../NetSms.kt): the number it came from, and its bytes.
+  final netSms = StreamController<({String address, Uint8List bytes})>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -580,7 +584,35 @@ class Sms {
       if (m['type'] == 'voice') voice.add(VoicePlayback.from(m));
       if (m['type'] == 'voiceFull') voiceFull.add(null);
       if (m['type'] == 'voiceStopped') voiceStopped.add(null);
+      if (m['type'] == 'netSms') netSms.add((address: m['address'] as String, bytes: m['bytes'] as Uint8List));
     });
+  }
+
+  // --- the app's routes (lib/net; android/.../Net.kt, NetSms.kt) -------------------------------------------------------
+
+  /// Who this phone is to the others: its name and its public key.
+  Future<({String id, Uint8List key})> netIdentity() async {
+    final m = await _calls.invokeMethod('netIdentity') as Map;
+    return (id: m['id'] as String, key: base64Decode(m['key'] as String));
+  }
+
+  /// Everyone the routes can reach (the people encryption is on with): their name, their number, and the key
+  /// packets to and from them are sealed with.
+  Future<List<({String id, String address, Uint8List key})>> netPeers() async {
+    final list = await _calls.invokeMethod('netPeers') as List? ?? const [];
+    return [for (final p in list.cast<Map>()) (id: p['id'] as String, address: p['address'] as String, key: p['key'] as Uint8List)];
+  }
+
+  /// This phone's signature over [message], r then s.
+  Future<Uint8List> netSign(List<int> message) async => (await _calls.invokeMethod('netSign', {'message': Uint8List.fromList(message)})) as Uint8List;
+
+  Future<bool> netSmsAvailable() async => await _calls.invokeMethod<bool>('netSmsAvailable') ?? false;
+  Future<void> netSmsSend(String address, Uint8List bytes) => _calls.invokeMethod('netSmsSend', {'address': address, 'bytes': bytes});
+
+  /// The data texts that came while the app's screens were not there, oldest first; handed over once.
+  Future<List<({String address, Uint8List bytes})>> netSmsDrain() async {
+    final list = await _calls.invokeMethod('netSmsDrain') as List? ?? const [];
+    return [for (final m in list.cast<Map>()) (address: m['address'] as String, bytes: m['bytes'] as Uint8List)];
   }
 
   Future<SmsStatus> status() async => SmsStatus.from(await _calls.invokeMethod('status') as Map);

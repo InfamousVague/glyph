@@ -16,6 +16,7 @@ import '../kit/fold.dart';
 import '../kit/settings_icons.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../net/net.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'settings_panes.dart';
@@ -71,6 +72,8 @@ class SettingsModel extends ChangeNotifier {
       _say();
     });
     _changes = Sms.instance.changes.stream.listen((_) => refresh());
+    // The app's routes come and go on their own (lib/net/net.dart): Settings › Network is drawn again as they do.
+    Net.instance.addListener(_say);
     _computers = Sms.instance.computersChanged.stream.listen((_) async {
       try {
         computers = await Sms.instance.computers();
@@ -118,6 +121,7 @@ class SettingsModel extends ChangeNotifier {
   @override
   void dispose() {
     _gone = true;
+    Net.instance.removeListener(_say);
     app.removeListener(notifyListeners);
     _updates?.cancel();
     _changes?.cancel();

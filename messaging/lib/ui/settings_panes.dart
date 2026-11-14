@@ -19,6 +19,7 @@ import 'common.dart';
 import 'computers.dart';
 import 'conversations.dart';
 import 'encryption.dart';
+import 'network.dart';
 import 'settings.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -168,6 +169,15 @@ final List<SettingsSection> settingsSections = [
       return on > 0 ? '$names · connected' : names;
     },
     page: computersPane,
+  ),
+  SettingsSection(
+    id: 'network',
+    label: 'Network',
+    icon: _icon(Lucide.network),
+    hue: 'blue',
+    group: 'phone',
+    summary: (m) => networkSummary(),
+    page: networkPane,
   ),
   SettingsSection(
     id: 'updates',

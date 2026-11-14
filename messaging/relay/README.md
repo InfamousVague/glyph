@@ -13,6 +13,14 @@ dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server
 
 Use the `dart` that comes with Flutter (`$(dirname $(which flutter))/dart`) where another is first on the path.
 
+## The hub
+
+The same program also serves **the hub** at any address ending `/hub`: where two people's apps find each other
+through this server (Matt, 2026-11-14: "for right now we can use our servers to negotiate calls through the app").
+It is `lib/hub.dart`, with its own signature checking in `lib/p256.dart`, and is described with the rest of the
+app's routes in [../docs/network.md](../docs/network.md). Behind a web server it needs one more line beside the
+relay's: in Caddy, `handle /hub { reverse_proxy 127.0.0.1:8787 }`. It keeps nothing on disk.
+
 ## What an end says to it
 
 1. It opens a WebSocket at any address ending in the channel: `ws://host/relay/<32 hex digits>`.
