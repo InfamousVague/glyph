@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../sms.dart';
+import 'cache.dart';
 import 'link/crypto.dart';
 import 'link/link.dart';
 import 'link/session.dart';
@@ -16,9 +17,19 @@ import 'updates.dart';
 /// over the link where it is the phone's to answer, and by the Mac itself where it is the Mac's own (its theme, its
 /// choices). What only the phone may do (delete, block, change encryption, send a picture) is refused in words.
 ///
-/// The Mac keeps conversations in memory only. While the phone cannot be reached, what was read last is still shown,
-/// and what is typed waits here, drawn as "Waiting for your phone", and goes when the phone is back. Each text has a
-/// name the phone remembers, so one sent twice (its answer lost with the connection) is sent once.
+/// **What was read is kept** (Matt, 2026-11-14: "cache messages on the desktop app so that we don't need to fetch
+/// them all from the phone every time, just fetching updates in the background"): the conversations and each
+/// conversation's messages, in memory and sealed on this computer's disk (cache.dart). The screens are answered from
+/// what is kept, at once, the phone there or not. What is new is fetched behind them: the whole of a conversation
+/// once each time the app runs (so what was deleted or changed far back is put right), and after that only its
+/// newest few ([window]) each time the phone says it changed, joined to what is kept ([merged]). The screens are
+/// told when what is kept has changed, and read it again. The phone is waited for only where nothing is kept, where
+/// more is asked for than is kept (reading back), or after something done from here (a picture sent, a message
+/// deleted), which must show what the phone made of it.
+///
+/// While the phone cannot be reached what is typed waits here, drawn as "Waiting for your phone", and goes when the
+/// phone is back. Each text has a name the phone remembers, so one sent twice (its answer lost with the connection)
+/// is sent once.
 class LinkCalls implements SmsCalls, CapableCalls {
   LinkCalls(this.link, this.store);
 
@@ -89,6 +100,268 @@ class LinkCalls implements SmsCalls, CapableCalls {
 
   List<dynamic>? _conversations;
   final Map<int, List<dynamic>> _messages = {};
+
+  // --- what is kept, and how current it is ----------------------------------------------------------------------------
+
+  /// What is kept on this computer's disk, sealed with a key made from the pairing's (cache.dart).
+  late final DeskCache cache = DeskCache(Directory('${store.dir.path}/cache'), () {
+    final phone = link.phone;
+    return phone == null ? null : DeskCrypto.derive(phone.key, 'cache');
+  });
+
+  /// How many of a conversation's newest messages are asked for when the phone says it changed.
+  static const window = 40;
+
+  /// How many messages a conversation asks for as it opens (lib/ui/thread.dart): what is fetched ahead for the
+  /// conversations at the top of the list.
+  static const opening = 120;
+
+  /// How many conversations at the top of the list have their messages fetched ahead, so they open at once.
+  static const ahead = 8;
+
+  /// How many times each conversation has been said to have changed, and the count it was last read at: it is
+  /// current while the two agree. [_allChanged] counts the times everything may have ("the phone is back").
+  final Map<int, int> _changed = {};
+  final Map<int, int> _readAt = {};
+  int _allChanged = 0;
+
+  /// The conversations read whole since the app opened, how many messages each was asked for, and those whose next
+  /// reading waits for the phone (something was done to them from here).
+  final Set<int> _whole = {};
+  final Map<int, int> _got = {};
+  final Set<int> _hold = {};
+
+  /// The conversations the phone has nothing older of than what is kept: asked for more, it gave fewer.
+  final Set<int> _ended = {};
+  final Map<int, Future<void>> _reading = {};
+
+  /// The list is as the phone last gave it since it last said anything changed; the disk has been asked for it.
+  bool _listCurrent = false;
+  bool _listRead = false;
+
+  /// Every conversation is among those kept (read whole from the phone, now or when the disk's were written), not
+  /// just the first lot of them.
+  bool _listWhole = false;
+  Future<void>? _listReading;
+  Timer? _listSaving;
+  bool _fetchingAhead = false;
+
+  int _count(int thread) => (_changed[thread] ?? 0) + _allChanged * 1000003;
+  bool _current(int thread) => _readAt[thread] == _count(thread);
+  void _stale(int thread) => _changed[thread] = (_changed[thread] ?? 0) + 1;
+
+  static bool _same(Object? a, Object? b) => jsonEncode(a) == jsonEncode(b);
+
+  /// A conversation's newest messages ([recent], as the phone just gave them, newest first) joined to the ones kept
+  /// ([had]): the newest are the phone's, and what is kept older than them stays. One that is kept among the newest
+  /// and is no longer the phone's was deleted, and goes. Null where none of [recent] is among [had] though [recent]
+  /// is a full [window]: more is new than was asked for, and the conversation is to be read whole.
+  static List<dynamic>? merged(List<dynamic> had, List<dynamic> recent, {int window = LinkCalls.window}) {
+    if (recent.isEmpty) return const [];
+    String key(dynamic m) => '${(m as Map)['kind']}:${m['id']}';
+    int date(dynamic m) => (((m as Map)['date'] as num?) ?? 0).toInt();
+    final keys = {for (final m in recent) key(m)};
+    if (recent.length >= window && had.isNotEmpty && !had.any((m) => keys.contains(key(m)))) return null;
+    final oldest = recent.map(date).reduce(math.min);
+    return [...recent, for (final m in had) if (!keys.contains(key(m)) && date(m) <= oldest) m];
+  }
+
+  /// Reads a conversation's messages from the phone and keeps them: whole the first time since the app opened (or
+  /// where [limit] asks for more than is kept), its newest [window] after that. One reading at a time for a
+  /// conversation. The screens are told when what is kept changed, unless [quiet] (the caller tells them). The
+  /// phone away, what is kept stands.
+  Future<void> _read(int thread, {int? limit, bool quiet = false}) {
+    final next = (_reading[thread] ?? Future<void>.value()).catchError((_) {}).then((_) => _readNow(thread, limit: limit, quiet: quiet));
+    _reading[thread] = next;
+    return next.whenComplete(() {
+      if (identical(_reading[thread], next)) _reading.remove(thread);
+    });
+  }
+
+  Future<void> _readNow(int thread, {int? limit, required bool quiet}) async {
+    final count = _count(thread);
+    final had = _messages[thread];
+    final want = math.max(limit ?? 0, _got[thread] ?? opening);
+    // Read already since it last changed, with as many as are wanted.
+    if (had != null && _readAt[thread] == count && want <= (_got[thread] ?? 0)) return;
+    List<dynamic> next;
+    try {
+      List<dynamic>? joined;
+      if (had != null && _whole.contains(thread) && want <= (_got[thread] ?? 0) && had.length > window) {
+        joined = merged(had, (await link.request('messages', {'thread': thread, 'limit': window})) as List);
+      }
+      next = joined ?? (await link.request('messages', {'thread': thread, 'limit': want})) as List;
+      if (joined == null) {
+        _whole.add(thread);
+        // Fewer than were asked for: that is all of it.
+        next.length < want ? _ended.add(thread) : _ended.remove(thread);
+      }
+    } on LinkDown {
+      return;
+    } on PhoneError {
+      return;
+    }
+    if (next.length > want) next = next.sublist(0, want);
+    _got[thread] = want;
+    _readAt[thread] = count;
+    _hold.remove(thread);
+    if (had == null || !_same(had, next)) {
+      _messages[thread] = next;
+      unawaited(cache.saveMessages(thread, next, want, ended: _ended.contains(thread)));
+      if (!quiet) Sms.instance.changes.add(thread);
+    }
+  }
+
+  /// What is kept of a conversation on the disk, brought into memory where it is not there yet.
+  Future<void> _recall(int thread) async {
+    if (_messages.containsKey(thread)) return;
+    final kept = await cache.messages(thread);
+    if (kept != null && !_messages.containsKey(thread)) {
+      _messages[thread] = kept.items;
+      _got[thread] = kept.limit;
+      if (kept.ended) _ended.add(thread);
+    }
+  }
+
+  /// The list as the disk has it, once, where the phone has not been asked yet.
+  Future<void> _recallList() async {
+    if (_listRead) return;
+    _listRead = true;
+    final kept = await cache.conversations();
+    if (kept != null && _conversations == null) {
+      _conversations = kept;
+      _listWhole = true;
+    }
+  }
+
+  void _saveListSoon() {
+    // Only a whole list is kept on the disk: the first lot of one would be taken for all of it next time.
+    if (!_listWhole) return;
+    _listSaving?.cancel();
+    _listSaving = Timer(const Duration(milliseconds: 300), () {
+      final list = _conversations;
+      if (list != null) unawaited(cache.saveConversations(list));
+    });
+  }
+
+  /// Reads every conversation from the phone, a lot at a time, in place of the list kept. One that is gone from the
+  /// phone is gone from here, with its messages. Throws [LinkDown] where the phone is away.
+  Future<void> _readList({bool quiet = false}) => _listReading ??= _readListNow(quiet: quiet).whenComplete(() => _listReading = null);
+
+  Future<void> _readListNow({required bool quiet}) async {
+    final count = _allChanged;
+    final all = <dynamic>[];
+    int? at = 0;
+    while (at != null) {
+      final page = (await link.request('conversationsPage', {'limit': lot, 'offset': at, 'pinned': at == 0})) as Map;
+      all.addAll(page['items'] as List);
+      at = (page['next'] as num?)?.toInt();
+    }
+    final byId = <Object?, dynamic>{for (final c in all) (c as Map)['id']: c};
+    final next = byId.values.toList()..sort((x, y) => (((y as Map)['date'] as num?) ?? 0).compareTo(((x as Map)['date'] as num?) ?? 0));
+    final had = _conversations;
+    for (final c in had ?? const []) {
+      final id = ((c as Map)['id'] as num?)?.toInt();
+      if (id != null && !byId.containsKey(c['id'])) _dropThread(id);
+    }
+    _conversations = next;
+    _listWhole = true;
+    _listCurrent = count == _allChanged;
+    if (had == null || !_same(had, next)) {
+      _saveListSoon();
+      if (!quiet) Sms.instance.changes.add(-1);
+    }
+    unawaited(_fetchAhead());
+  }
+
+  /// One conversation's line in the list, read again from the phone; gone from here where it is gone from there.
+  Future<void> _readOne(int thread) async {
+    try {
+      final c = await link.request('conversation', {'thread': thread});
+      if (c is Map) {
+        _remember([c]);
+      } else if (_conversations != null) {
+        _conversations = [for (final x in _conversations!) if (((x as Map)['id'] as num?)?.toInt() != thread) x];
+        _dropThread(thread);
+      }
+      _saveListSoon();
+    } on LinkDown {
+      return;
+    } on PhoneError {
+      return;
+    }
+  }
+
+  void _dropThread(int thread) {
+    _messages.remove(thread);
+    _got.remove(thread);
+    _whole.remove(thread);
+    _ended.remove(thread);
+    unawaited(cache.forget(thread));
+  }
+
+  /// The conversations at the top of the list have their messages read behind the screens, one after another, so
+  /// each opens at once: the ones kept get what is new, the ones never opened get what a conversation opens with.
+  Future<void> _fetchAhead() async {
+    if (_fetchingAhead) return;
+    _fetchingAhead = true;
+    try {
+      for (final c in (_conversations ?? const []).take(ahead).toList()) {
+        if (!link.online) return;
+        final thread = ((c as Map)['id'] as num?)?.toInt();
+        if (thread == null) continue;
+        await _recall(thread);
+        if (!_current(thread)) await _read(thread);
+      }
+    } finally {
+      _fetchingAhead = false;
+    }
+  }
+
+  /// The phone says a conversation changed (or, with -1, that something did): what is new is read behind the
+  /// screens, and then they are told, and read what is kept.
+  Future<void> _changedOnPhone(int thread) async {
+    if (thread < 0) {
+      _allChanged++;
+      _listCurrent = false;
+      try {
+        await _readList(quiet: true);
+      } on LinkDown {
+        // Away again already: what is kept stands.
+      } catch (_) {}
+    } else {
+      _stale(thread);
+      await _recall(thread);
+      await Future.wait([
+        _readOne(thread),
+        if (_messages.containsKey(thread)) _read(thread, quiet: true),
+      ]);
+    }
+    Sms.instance.changes.add(thread);
+  }
+
+  /// Everything kept on this computer is thrown away, in memory and on the disk: the person asked. The screens read
+  /// from the phone again.
+  Future<void> clearKept() async {
+    _forgetKept();
+    await cache.clear();
+    Sms.instance.changes.add(-1);
+  }
+
+  void _forgetKept() {
+    _conversations = null;
+    _messages.clear();
+    _changed.clear();
+    _readAt.clear();
+    _whole.clear();
+    _got.clear();
+    _hold.clear();
+    _ended.clear();
+    _listCurrent = false;
+    _listWhole = false;
+    _listRead = true;
+    _listSaving?.cancel();
+  }
   final Map<int, String> _drafts = {};
   final List<_Waiting> _waiting = [];
   int _localId = -1;
@@ -104,13 +377,16 @@ class LinkCalls implements SmsCalls, CapableCalls {
     // On a computer Enter sends, as every desktop messenger has it; the choice can still be changed.
     _prefs.putIfAbsent('enter_sends', () => 'on');
     _events = link.events.stream.listen((e) {
-      if (e.name == 'changed') Sms.instance.changes.add((e.args['thread'] as num?)?.toInt() ?? -1);
+      if (e.name == 'changed') unawaited(_changedOnPhone((e.args['thread'] as num?)?.toInt() ?? -1));
     });
     if (link.online) unawaited(_askCaps());
     _connected = link.connected.stream.listen((_) async {
       await _askCaps();
       await _flush();
-      // Whatever changed while the phone was away is read again.
+      // Whatever changed while the phone was away is read again: nothing kept is taken for current. The screens
+      // read what is kept, and what is new comes in behind them.
+      _allChanged++;
+      _listCurrent = false;
       Sms.instance.changes.add(-1);
     });
   }
@@ -118,12 +394,13 @@ class LinkCalls implements SmsCalls, CapableCalls {
   void dispose() {
     _events?.cancel();
     _connected?.cancel();
+    _listSaving?.cancel();
   }
 
   /// The pairing is gone: nothing of the old phone's is kept.
   void forget() {
-    _conversations = null;
-    _messages.clear();
+    _forgetKept();
+    unawaited(cache.clear());
     _drafts.clear();
     _waiting.clear();
     _videos.clear();
@@ -136,58 +413,88 @@ class LinkCalls implements SmsCalls, CapableCalls {
     switch (method) {
       // --- the phone's -------------------------------------------------------------------------------------------------
       case 'conversations':
-        // Every conversation: asked for a lot at a time, since a phone with thousands has more than a frame carries.
-        final all = <dynamic>[];
-        int? at = 0;
-        while (at != null) {
-          final page = (await _call('conversationsPage', {'limit': lot, 'offset': at, 'pinned': at == 0})) as Map;
-          all.addAll(page['items'] as List);
-          at = (page['next'] as num?)?.toInt();
+        // Every conversation. Kept whole: answered at once, and read again behind the screens where it may have
+        // changed. Not kept yet: read from the phone a lot at a time (a phone with thousands has more than a frame
+        // carries) and waited for; away with only some of them read, those.
+        await _recallList();
+        if (!_listWhole) {
+          try {
+            await _readList(quiet: true);
+          } on LinkDown {
+            if (_conversations == null) rethrow;
+          }
+        } else if (!_listCurrent && link.online) {
+          unawaited(_readList().catchError((_) {}));
         }
-        final seen = <Object?>{};
-        return [for (final c in all) if (seen.add((c as Map)['id'])) c];
+        return List<dynamic>.of(_conversations ?? const []);
       case 'conversationsPage':
-        try {
-          final page = (await link.request('conversationsPage', a)) as Map;
-          _remember(page['items'] as List);
-          return page;
-        } on LinkDown {
-          // The phone is away: what was read last, all of it, as one lot.
-          final had = _conversations;
-          if (had == null) rethrow;
-          final archived = a['archived'] == true;
-          return {'items': [for (final c in had) if (!archived || (c as Map)['archived'] == true) c], 'next': null};
+        await _recallList();
+        if (!_listWhole) {
+          // The first time, with nothing whole kept: the phone is asked for the lot the list asks for, so the list
+          // has something to show at once, and all of it is read behind that for the next time.
+          try {
+            final page = (await link.request('conversationsPage', a)) as Map;
+            _remember(page['items'] as List);
+            unawaited(_readList(quiet: true).catchError((_) {}));
+            return page;
+          } on LinkDown {
+            if (_conversations == null) rethrow;
+          }
+        } else if (!_listCurrent && link.online) {
+          // Kept whole: read again behind the screens where it may have changed; they are told if it differs.
+          unawaited(_readList().catchError((_) {}));
         }
+        // What is kept, all of it as one lot: there is nothing to wait for.
+        if (((a['offset'] as num?)?.toInt() ?? 0) > 0) return {'items': const [], 'next': null};
+        final archived = a['archived'] == true;
+        return {'items': [for (final c in _conversations ?? const []) if (!archived || (c as Map)['archived'] == true) c], 'next': null};
       case 'conversation':
         final thread = (a['thread'] as num).toInt();
+        await _recallList();
+        // Its line in the list is kept current by what the phone says changed (_readOne).
+        final kept = _cached(thread);
+        if (kept != null) return kept;
         try {
           final c = await link.request('conversation', a);
-          if (c is Map) _remember([c]);
+          if (c is Map) {
+            _remember([c]);
+            _saveListSoon();
+          }
           return c;
         } on LinkDown {
-          return _cached(thread);
+          return null;
         }
       case 'archivedCount':
+        await _recallList();
+        if (_conversations != null) return _conversations!.where((c) => (c as Map)['archived'] == true).length;
         try {
           return await link.request('archivedCount');
         } on LinkDown {
-          return (_conversations ?? const []).where((c) => (c as Map)['archived'] == true).length;
+          return 0;
         }
       case 'messages':
         final thread = (a['thread'] as num).toInt();
-        List<dynamic> list;
-        try {
-          list = _messages[thread] = (await link.request('messages', {'thread': thread, 'limit': a['limit'] ?? 300})) as List;
-        } on LinkDown {
-          list = _messages[thread] ?? const [];
+        final limit = (a['limit'] as num?)?.toInt() ?? 300;
+        await _recall(thread);
+        final had = _messages[thread];
+        if (had == null || (limit > (_got[thread] ?? 0) && !_ended.contains(thread)) || _hold.contains(thread)) {
+          // Nothing kept, more asked for than is kept (reading back), or something was done to it from here: the
+          // phone is waited for. Away, what is kept stands.
+          await _read(thread, limit: limit, quiet: true);
+        } else if (!_current(thread) && link.online) {
+          // Kept: shown at once. What is new is read behind it, and the screens are told if it differs.
+          unawaited(_read(thread));
         }
         // Newest first: what waits for the phone is the newest of all.
-        return [for (final w in _waiting.reversed) if (w.thread == thread) w.message, ...list];
+        return [for (final w in _waiting.reversed) if (w.thread == thread) w.message, ...?_messages[thread]];
       case 'people':
+        await _recallList();
+        final people = _cached((a['thread'] as num).toInt())?['people'];
+        if (people != null) return people;
         try {
           return await link.request('people', a);
         } on LinkDown {
-          return _cached((a['thread'] as num).toInt())?['people'] ?? const [];
+          return const [];
         }
       case 'send':
         return ((a['attachments'] as List?)?.isNotEmpty ?? false) ? _sendPictures(a) : _send(a);
@@ -496,14 +803,20 @@ class LinkCalls implements SmsCalls, CapableCalls {
   /// Where what was sent went: read again, since it is in the conversation now.
   int _went(Map sent) {
     final thread = (sent['thread'] as num).toInt();
-    _messages.remove(thread);
+    // Its next reading waits for the phone: what was sent is to be seen as the phone has it.
+    _stale(thread);
+    _hold.add(thread);
     Sms.instance.changes.add(thread);
     return thread;
   }
 
   /// Something the phone keeps was changed from here: what was read is read again.
   void _reread() {
-    _messages.clear();
+    // Nothing kept is taken for current, and each conversation's next reading waits for the phone, so what was
+    // deleted or changed from here is not shown again from what is kept.
+    _allChanged++;
+    _listCurrent = false;
+    _hold.addAll(_messages.keys);
     Sms.instance.changes.add(-1);
   }
 

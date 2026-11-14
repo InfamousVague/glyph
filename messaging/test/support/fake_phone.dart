@@ -41,6 +41,9 @@ class FakePhone {
   /// Each lot of conversations the Mac asked for: from which row, and how many.
   final asked = <({int offset, int limit})>[];
 
+  /// Each time a conversation's messages were asked for, and how many of them.
+  final askedMessages = <({int thread, int limit})>[];
+
   /// Every hello this phone answered, by how it arrived.
   final hellos = <String>[];
 
@@ -232,7 +235,11 @@ class FakePhone {
       case 'archivedCount':
         return conversations.where((c) => c['archived'] == true).length;
       case 'messages':
-        return messages[(a['thread'] as num).toInt()] ?? const [];
+        // As the phone hands them over: the newest first, and no more than were asked for.
+        final thread = (a['thread'] as num).toInt();
+        final limit = (a['limit'] as num?)?.toInt() ?? 300;
+        askedMessages.add((thread: thread, limit: limit));
+        return (messages[thread] ?? const <Map<String, dynamic>>[]).take(limit).toList();
       case 'people':
         return conversations.firstWhere((c) => c['id'] == a['thread'])['people'];
       case 'threadFor':

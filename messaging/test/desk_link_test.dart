@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/desktop/link/crypto.dart';
 import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/link/session.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
@@ -315,12 +317,19 @@ void main() {
     expect(first.items.length, 40);
     expect(first.items.first.title, 'Person 0');
     expect(first.next, 40);
-    // All of them, for whoever asks: never more than 250 at once, however many there are.
-    phone.asked.clear();
+    // All of them, for whoever asks: never more than 250 at once, however many there are. (They are read behind
+    // the first lot, to be kept: asking for all of them waits for that reading, and asks the phone nothing more.)
     final all = await Sms.instance.conversations();
     expect(all.length, 1200);
-    expect(phone.asked.length, 5);
+    expect(phone.asked.where((a) => a.limit == 250).length, 5);
     expect(phone.asked.every((a) => a.limit <= 250), isTrue);
+    // Kept whole from here on: the list is answered at once with all of it, and the phone is not asked again
+    // while it has said nothing changed.
+    phone.asked.clear();
+    final kept = await Sms.instance.conversationsPage(limit: 40, pinned: true);
+    expect(kept.items.length, 1200);
+    expect(kept.next, isNull);
+    expect(phone.asked, isEmpty);
     expect(await Sms.instance.archivedCount(), 1);
     expect((await Sms.instance.conversationsPage(archived: true)).items.single.title, 'Person 700');
     expect((await Sms.instance.conversation(1005))!.title, 'Person 5');
@@ -333,6 +342,129 @@ void main() {
     expect(away.next, isNull);
     expect((await Sms.instance.conversation(1005))!.title, 'Person 5');
     expect(await Sms.instance.archivedCount(), 1);
+  });
+
+  // --- what was read is kept (lib/desktop/cache.dart; Matt, 2026-11-14: "cache messages on the desktop app so that
+  // we don't need to fetch them all from the phone every time, just fetching updates in the background") ------------
+
+  /// A conversation of [count] texts on the phone, the newest first.
+  void fill(int thread, int count) {
+    phone.messages[thread] = [
+      for (var i = count; i >= 1; i--)
+        {'id': i, 'kind': 'sms', 'address': '+15550100', 'body': 'Text $i', 'date': 1700000000000 + i * 60000, 'outgoing': false, 'state': 'received', 'parts': const []},
+    ];
+  }
+
+  test('a conversation read once is answered from what is kept, and only its newest are asked for when it changes', () async {
+    final link = mac(MemoryStore());
+    await pair(link, 'local');
+    fill(7, 200);
+    final bridge = LinkCalls(link, DeskStore(Directory.systemTemp.createTempSync('ghost-desk-test'), keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    // The first time there is nothing kept: the phone is asked, and waited for.
+    final first = await Sms.instance.messages(7, limit: 120);
+    expect(first.length, 120);
+    expect(first.first.body, 'Text 200');
+    expect(phone.askedMessages, [(thread: 7, limit: 120)]);
+    // Again, and nothing has changed: answered from what is kept, the phone not asked.
+    expect((await Sms.instance.messages(7, limit: 120)).length, 120);
+    expect(phone.askedMessages.length, 1);
+    // A text comes. The Mac asks for the conversation's newest few, joins them to what it keeps, and then tells
+    // the screens, which read what is kept.
+    final told = <int>[];
+    final sub = Sms.instance.changes.stream.listen(told.add);
+    phone.messages[7]!.insert(0, {'id': 201, 'kind': 'sms', 'address': '+15550100', 'body': 'Text 201', 'date': 1700000000000 + 201 * 60000, 'outgoing': false, 'state': 'received', 'parts': const []});
+    phone.changed(7);
+    await until(() => told.contains(7), what: 'the screens were never told');
+    expect(phone.askedMessages.last, (thread: 7, limit: LinkCalls.window));
+    final asked = phone.askedMessages.length;
+    final after = await Sms.instance.messages(7, limit: 120);
+    expect(phone.askedMessages.length, asked, reason: 'what was just read is not asked for again');
+    expect(after.first.body, 'Text 201');
+    expect(after.length, 120);
+    expect(after.last.body, 'Text 82', reason: 'the older ones are the ones kept, with the oldest let go');
+    // One deleted on the phone, among the newest: gone from what is kept too.
+    phone.messages[7]!.removeWhere((m) => m['id'] == 199);
+    phone.changed(7);
+    await until(() => told.where((t) => t == 7).length >= 2);
+    expect((await Sms.instance.messages(7, limit: 120)).map((m) => m.body), isNot(contains('Text 199')));
+    // Reading back asks the phone for more than is kept, and waits for it.
+    final more = await Sms.instance.messages(7, limit: 420);
+    expect(more.length, 200);
+    expect(phone.askedMessages.last, (thread: 7, limit: 420));
+    // That was all the phone had: asked for still more, it is not asked again.
+    final asks = phone.askedMessages.length;
+    expect((await Sms.instance.messages(7, limit: 720)).length, 200);
+    expect(phone.askedMessages.length, asks);
+    await sub.cancel();
+  });
+
+  test('what is kept is sealed on the disk, is there when the app opens with the phone away, and goes with the pairing', () async {
+    final store = MemoryStore();
+    final link = mac(store);
+    await pair(link, 'local');
+    fill(7, 60);
+    final dir = Directory.systemTemp.createTempSync('ghost-desk-test');
+    final bridge = LinkCalls(link, DeskStore(dir, keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    expect((await Sms.instance.conversations()).length, 2);
+    expect((await Sms.instance.messages(7, limit: 120)).first.body, 'Text 60');
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await bridge.cache.settled();
+    // On the disk, and not to be read there: no word of a text, a name or a number is in the files.
+    final files = Directory('${dir.path}/cache').listSync().whereType<File>().toList();
+    // (The other conversation's messages were read behind the list, as those at its top are, so it opens at once.)
+    expect(files.map((f) => f.uri.pathSegments.last).toSet(), {'list.bin', 't7.bin', 't9.bin'});
+    expect(phone.askedMessages.where((a) => a.thread == 9).single.limit, LinkCalls.opening);
+    for (final f in files) {
+      final bytes = latin1.decode(f.readAsBytesSync());
+      for (final word in ['Text 60', 'Maya', '+15550100', 'See you', '"items"']) {
+        expect(bytes.contains(word), isFalse, reason: '$word is readable in ${f.path}');
+      }
+    }
+    expect(DeskCrypto.openAtRest(DeskCrypto.derive(List.filled(32, 9), 'cache'), files.first.readAsBytesSync()), isNull, reason: 'another key does not open it');
+
+    // The app is closed, the phone goes, and the app is opened again: the list and the conversation are there.
+    bridge.dispose();
+    links.removeLast().dispose();
+    await phone.leaveLocal();
+    final again = mac(store, local: false);
+    await again.start();
+    expect(again.online, isFalse);
+    final second = LinkCalls(again, DeskStore(dir, keychain: false));
+    await second.init();
+    Sms.calls = second;
+    final list = await Sms.instance.conversations();
+    expect(list.map((c) => c.title), ['Maya', 'Dad']);
+    final kept = await Sms.instance.messages(7, limit: 120);
+    expect(kept.length, 60);
+    expect(kept.first.body, 'Text 60');
+    expect((await second.cache.size()).conversations, 2);
+
+    // The pairing ends: nothing of it stays on the disk.
+    second.forget();
+    await second.cache.settled();
+    expect(Directory('${dir.path}/cache').existsSync(), isFalse);
+    second.dispose();
+  });
+
+  test('a conversation\'s newest are joined to what is kept', () {
+    Map<String, dynamic> m(int id) => {'id': id, 'kind': 'sms', 'date': 1000 + id};
+    List<int> ids(List<dynamic>? l) => [for (final x in l!) (x as Map)['id'] as int];
+    final had = [for (var i = 50; i >= 1; i--) m(i)];
+    // Two new ones, and the window reaches back into what is kept.
+    expect(ids(LinkCalls.merged(had, [for (var i = 52; i >= 43; i--) m(i)], window: 10)), [for (var i = 52; i >= 1; i--) i]);
+    // One of the newest was deleted on the phone: it is gone, and the window holds one more of the older.
+    expect(ids(LinkCalls.merged(had, [m(50), m(49), m(47), m(46)], window: 10)), [50, 49, 47, for (var i = 46; i >= 1; i--) i]);
+    // More came than the window holds, so none of them is among what is kept: read whole.
+    expect(LinkCalls.merged(had, [for (var i = 80; i >= 71; i--) m(i)], window: 10), isNull);
+    // A conversation emptied on the phone is empty here; one never kept takes what came.
+    expect(LinkCalls.merged(had, const [], window: 10), isEmpty);
+    expect(ids(LinkCalls.merged(const [], [m(3), m(2)], window: 10)), [3, 2]);
+    // A picture message and a text with the same number are two messages.
+    expect(LinkCalls.merged([{'id': 5, 'kind': 'mms', 'date': 1005}, m(4)], [m(5), {'id': 5, 'kind': 'mms', 'date': 1005}], window: 10)!.length, 3);
   });
 
   test('a text whose answer was lost is asked for again under the same name, and sent once', () async {
