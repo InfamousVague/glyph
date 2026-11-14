@@ -1272,26 +1272,45 @@ void main() {
       // The Settings and Archive rings have menus of their own, as the list's tabs have (Matt, 2026-11-14: "add a
       // right click context menu to archive as well and settings to quick jump to settings sections"): a press with
       // the other button, or a long press. Settings' is its sections by name, and a press on one opens Settings
-      // there.
+      // there. It is a small list hung over the ring it came from (Matt, of the sheet it first was: "too large and
+      // way too wide"): in the list's column, a few rems across, its sections in named groups, scrolling inside
+      // itself where there are more than it has room for.
       final frame = tester.state<AppShellState>(find.byType(AppShell));
+      Finder inMenu(String label) => find.descendant(of: find.byType(GlacierMenuItem), matching: find.text(label));
+      Future<void> choose(String label) async {
+        await tester.ensureVisible(inMenu(label));
+        await _settle(tester);
+        await tester.tap(inMenu(label));
+        await _settle(tester);
+      }
+
       await tester.tap(ring('settings'), buttons: kSecondaryButton);
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-menu', dark: dark);
       expect(find.byType(SettingsScreen), findsNothing, reason: 'the menu is over the conversations: Settings is not open yet');
       for (final label in ['Me', 'Appearance', 'Emoji', 'Messages', 'Notifications', 'Plugins', 'Encryption', 'Blocked numbers', 'Android', 'About']) {
-        expect(find.text(label), findsWidgets, reason: '$label is a section to jump to');
+        expect(inMenu(label), findsOneWidget, reason: '$label is a section to jump to');
       }
-      await tester.tap(find.text('Blocked numbers'));
-      await _settle(tester);
+      // Its groups are named, in the kit's small capitals.
+      for (final group in ['YOU', 'LOOK', 'CONVERSATIONS', 'PRIVACY', 'THIS PHONE', 'APP']) {
+        expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text(group)), findsOneWidget, reason: group);
+      }
+      // Small, and by its ring: no wider than fifteen rems, inside the list's column, just over the pill.
+      final first = tester.getRect(find.byType(GlacierMenuItem).first), settingsRing = tester.getRect(ring('settings'));
+      expect(first.width, lessThan(250));
+      expect(first.right, lessThanOrEqualTo(side));
+      expect(first.right, closeTo(settingsRing.right, 12));
+      expect(tester.getRect(find.byType(GlacierMenuLabel).first).bottom, lessThan(settingsRing.top));
+      await choose('Blocked numbers');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');
       expect(seen(row('Blocked numbers')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
+      expect(find.byType(GlacierMenuItem), findsNothing, reason: 'choosing closes the menu');
       // Asked for again with Settings open, another section takes the pane.
       await tester.longPress(ring('settings'));
       await _settle(tester);
-      await tester.tap(find.text('Effects').last);
-      await _settle(tester);
+      await choose('Effects');
       expect(frame.settingsSection.value, 'effects');
       await tester.tap(ring('messages'));
       await _settle(tester);
@@ -1300,16 +1319,15 @@ void main() {
       await tester.tap(ring('archive'), buttons: kSecondaryButton);
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-archive-menu', dark: dark);
-      expect(find.textContaining('Archive · 1 conversation'), findsOneWidget);
-      await tester.tap(find.text('Mark all as read'));
-      await _settle(tester);
+      expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.byType(Text)), findsOneWidget);
+      expect(tester.widget<Text>(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.byType(Text))).data!.toLowerCase(), 'archive · 1 conversation');
+      await choose('Mark all as read');
       expect(find.text('Nothing is unread in the archive'), findsOneWidget);
       expect(shown(), 'messages');
       // Select all opens the archive with every conversation in it chosen, for the bar at the top.
       await tester.tap(ring('archive'), buttons: kSecondaryButton);
       await _settle(tester);
-      await tester.tap(find.text('Select all'));
-      await _settle(tester);
+      await choose('Select all');
       await _shootAgain(tester, '11-frame-wide-archive-selected', dark: dark);
       expect(shown(), 'archive');
       expect(seen(find.text('1 selected')), findsOneWidget);
@@ -1317,7 +1335,7 @@ void main() {
       // A ring without a menu has none: the other button on Contacts brings nothing up.
       await tester.tap(ring('contacts'), buttons: kSecondaryButton);
       await _settle(tester);
-      expect(find.text('Select all'), findsNothing);
+      expect(find.byType(GlacierMenuItem), findsNothing);
       await tester.tap(ring('messages'));
       await _settle(tester);
       await tester.pump(const Duration(seconds: 6));

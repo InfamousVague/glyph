@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -8,12 +9,17 @@ import '../art/app_icon.dart';
 
 /// One place the navigation pill goes to: one ring.
 class NavItem {
-  const NavItem({required this.id, required this.icon, required this.label, this.count = 0, this.menu = false});
+  const NavItem({required this.id, required this.icon, required this.label, this.count = 0, this.menu});
   final String id;
   final LucideIcon icon;
 
-  /// It has a menu of its own ([NavPill.onMenu]): a press with the other button on it, or a long press.
-  final bool menu;
+  /// The rows of a menu of its own, asked for as it opens: a press with the other button on the ring, or a long
+  /// press where there is no other button, hangs the kit's menu over the ring with these in it (the kit's
+  /// `GlacierMenuItem`, `GlacierMenuLabel` and `GlacierMenuSeparator`). Matt, 2026-11-14: "add a right click
+  /// context menu to archive as well and settings to quick jump to settings sections", and then, of the sheet
+  /// across the window it first was: "too large and way too wide", with a picture of a small list hung by the
+  /// button it came from, its rows in groups.
+  final List<Widget> Function(BuildContext context)? menu;
 
   /// What the ring is read aloud by, and shown by while the pointer rests on it.
   final String label;
@@ -35,16 +41,12 @@ class NavItem {
 /// ring's corner, in red (the dock wears its own in ink; here Matt asked for red); and a ring's words over it while the pointer rests there, where the dock's
 /// come up beside it.
 class NavPill extends StatelessWidget {
-  const NavPill({super.key, required this.items, required this.active, required this.onSelect, this.onMenu});
+  const NavPill({super.key, required this.items, required this.active, required this.onSelect});
   final List<NavItem> items;
 
   /// The id of the item shown now.
   final String active;
   final ValueChanged<String> onSelect;
-
-  /// Asked for the menu of an item that has one ([NavItem.menu]; Matt, 2026-11-14: "add a right click context menu
-  /// to archive as well and settings to quick jump to settings sections"), as the list's tabs are asked for theirs.
-  final ValueChanged<String>? onMenu;
 
   /// How far in from the sidebar's foot the pill stands.
   static double inset(Tokens t) => t.space(4);
@@ -80,13 +82,7 @@ class NavPill extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     for (final item in items)
-                      _Ring(
-                        key: ValueKey('nav-${item.id}'),
-                        item: item,
-                        shown: item.id == active,
-                        onPressed: () => onSelect(item.id),
-                        onMenu: item.menu && onMenu != null ? () => onMenu!(item.id) : null,
-                      ),
+                      _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
                   ],
                 ),
               ),
@@ -98,19 +94,63 @@ class NavPill extends StatelessWidget {
   }
 }
 
-/// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown.
-class _Ring extends StatelessWidget {
-  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.onMenu});
+/// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown. One with a
+/// menu of its own ([NavItem.menu]) hangs it over itself.
+class _Ring extends StatefulWidget {
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed});
   final NavItem item;
   final bool shown;
   final VoidCallback onPressed;
 
-  /// Asked for its menu: a press with the other button, or a long press where there is no other button.
-  final VoidCallback? onMenu;
+  @override
+  State<_Ring> createState() => _RingState();
+}
+
+class _RingState extends State<_Ring> {
+  /// Its menu is open, and the rows it opened with: kept while it closes, so it does not empty as it goes.
+  bool _open = false;
+  List<Widget> _rows = const [];
+
+  /// A press with the other button, or a long press where there is no other button.
+  void _showMenu() {
+    final rows = widget.item.menu?.call(context) ?? const <Widget>[];
+    if (rows.isEmpty) return;
+    setState(() {
+      _rows = rows;
+      _open = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final round = _round(context);
+    if (widget.item.menu == null) return round;
+    // A small list by the ring it came from, its right edge on the ring's, no wider than its longest row needs and
+    // no taller than the window has room for: more rows than that scroll inside it.
+    return GlacierMenu(
+      open: _open,
+      onOpenChange: (open) {
+        if (!open && _open) setState(() => _open = false);
+      },
+      placement: Placement.topEnd,
+      ariaLabel: widget.item.label,
+      style: GlacierMenuStyle(
+        minWidth: t.lenOf('12.5rem'),
+        maxWidth: t.lenOf('15rem'),
+        maxHeight: math.max(t.lenOf('10rem'), math.min(t.lenOf('26rem'), MediaQuery.sizeOf(context).height - t.len('app-ring') - t.lenOf('7rem'))),
+      ),
+      trigger: (context, trigger) => round,
+      children: _rows,
+    );
+  }
+
+  Widget _round(BuildContext context) {
+    final t = context.tokens;
+    final item = widget.item;
+    final shown = widget.shown;
+    final onPressed = widget.onPressed;
+    final onMenu = item.menu == null ? null : _showMenu;
     final ring = t.len('app-ring');
     final size = shown ? 18.0 : t.lenOf('1.15rem');
     final stroke = shown ? 2.2 : 2.0;
@@ -119,7 +159,7 @@ class _Ring extends StatelessWidget {
       message: item.label,
       child: GestureDetector(
        behavior: HitTestBehavior.translucent,
-       onSecondaryTapUp: onMenu == null ? null : (_) => onMenu!(),
+       onSecondaryTapUp: onMenu == null ? null : (_) => onMenu(),
        onLongPress: onMenu,
        child: GlacierPressable(
         onPressed: onPressed,
