@@ -13,7 +13,7 @@ import 'contacts.dart';
 import 'conversations.dart';
 import 'nav_bar.dart';
 import 'settings.dart';
-import 'settings_panes.dart' show settingsSections;
+import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
 
 /// The app's one frame, on the phone and on a computer alike (Matt, 2026-11-14: "Unify the UI experience to match on
@@ -271,28 +271,43 @@ class AppShellState extends State<AppShell> {
     }
   }
 
-  /// A ring's own menu (Matt, 2026-11-14: "add a right click context menu to archive as well and settings to quick
-  /// jump to settings sections"): a press with the other button on it, or a long press where there is no other
-  /// button, as the list's tabs have theirs. Archive's is the tabs' own two choices, for the conversations put
-  /// away; Settings' is its sections by name, each opening Settings there.
-  void ringMenu(String id) {
-    switch (id) {
-      case 'archive':
-        final n = archived.value;
-        showChoices(context, title: n == 0 ? 'Archive · nothing archived' : 'Archive · $n ${n == 1 ? 'conversation' : 'conversations'}', choices: [
-          Choice('Mark all as read', Lucide.checkCheck, _archiveRead),
-          // Every archived conversation chosen at once, for the bar at the top to take back out or delete.
-          if (n > 0) Choice('Select all', Lucide.listChecks, () => go('archive', selectAll: true)),
-        ]);
-      case 'settings':
-        // The sections as they stand for this device and these choices (a plugin's own, while it is on).
-        final model = SettingsModel(AppState.of(context));
-        final sections = [for (final s in settingsSections) if (s.when?.call(model) ?? true) s];
-        model.dispose();
-        showChoices(context, title: 'Settings', choices: [
-          for (final s in sections) Choice(s.label, s.icon is AppIcon ? (s.icon as AppIcon).icon : Lucide.settings, () => settings(s.id)),
-        ]);
+  // The rings' own menus (Matt, 2026-11-14: "add a right click context menu to archive as well and settings to
+  // quick jump to settings sections"): a press with the other button on a ring, or a long press where there is no
+  // other button, hangs a small list over it (lib/ui/nav_bar.dart `NavItem.menu`). They were a sheet across the
+  // window's foot, as the list's tabs' menus are, which for Settings' many sections Matt found "too large and way
+  // too wide".
+
+  /// The Archive ring's menu: the tabs' own two choices, for the conversations put away.
+  List<Widget> _archiveRows(BuildContext context) {
+    final n = archived.value;
+    return [
+      GlacierMenuLabel(child: Text(n == 0 ? 'Archive · nothing archived' : 'Archive · $n ${n == 1 ? 'conversation' : 'conversations'}')),
+      GlacierMenuItem(icon: const AppIcon(Lucide.checkCheck, size: 16), onSelect: _archiveRead, child: const Text('Mark all as read')),
+      // Every archived conversation chosen at once, for the bar at the top to take back out or delete.
+      if (n > 0) GlacierMenuItem(icon: const AppIcon(Lucide.listChecks, size: 16), onSelect: () => go('archive', selectAll: true), child: const Text('Select all')),
+    ];
+  }
+
+  /// The Settings ring's menu: Settings' sections by name, in their groups, each opening Settings there. They are
+  /// the sections as they stand for this device and these choices (a plugin's own, while it is on). A group of
+  /// several is under its name; one section alone needs none.
+  List<Widget> _settingsRows(BuildContext context) {
+    final model = SettingsModel(AppState.of(this.context));
+    final groups = <String, List<SettingsSection>>{};
+    for (final s in settingsSections) {
+      if (s.when?.call(model) ?? true) groups.putIfAbsent(s.group, () => []).add(s);
     }
+    model.dispose();
+    final rows = <Widget>[];
+    for (final group in groups.entries) {
+      if (rows.isNotEmpty) rows.add(const GlacierMenuSeparator());
+      if (group.value.length > 1) rows.add(GlacierMenuLabel(child: Text(settingsGroupLabel(group.key))));
+      for (final s in group.value) {
+        final icon = s.icon;
+        rows.add(GlacierMenuItem(icon: icon is AppIcon ? AppIcon(icon.icon, size: 16) : icon, onSelect: () => settings(s.id), child: Text(s.label)));
+      }
+    }
+    return rows;
   }
 
   /// Marks every archived conversation that is unread as read, from the Archive ring's menu: where they are, with
@@ -413,14 +428,13 @@ class AppShellState extends State<AppShell> {
                              builder: (context, _) => NavPill(
                               active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
                               onSelect: go,
-                              onMenu: ringMenu,
                               items: [
                                 const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
                                 const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
                                 const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
-                                NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: true),
+                                NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
                                 // Someone watched for has joined (Settings › Friends joining).
-                                NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: true),
+                                NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
                               ],
                              ),
                             ),

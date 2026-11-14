@@ -431,18 +431,23 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   of the tab shown (`MarkAllRead`; quiet while nothing there is unread, and standing alone where there is no
   section to make a tab of). A press with the other button on a tab, or a long press, brings up that tab's menu:
   Mark all as read, and Select all, which chooses every conversation of the tab for the bar at the top to archive
-  or delete. Since 0.7.11 (not released; Matt, 2026-11-14: "change mark all as read to just be the icon in a
+  or delete. Since 0.7.11 (Matt, 2026-11-14: "change mark all as read to just be the icon in a
   circle button", "the segmented toggle for messages vs codes can be a size larger") the button is its picture
   alone in a circle as tall as the toggle, with its words in a tip under a resting pointer (`HoverTip` in
   `lib/ui/nav_bar.dart`, the pill's own tip made public), and the toggle is the kit's middle size.
-- **The Archive and Settings rings' menus** (not released; `lib/ui/nav_bar.dart` `NavItem.menu` / `NavPill.onMenu`,
-  `AppShellState.ringMenu` in `lib/ui/shell.dart`; Matt, 2026-11-14: "add a right click context menu to archive as
-  well and settings to quick jump to settings sections"). A press with the other button on either ring, or a long
-  press, brings up its menu, as on the list's tabs. Archive's: Mark all as read (every archived conversation that
-  is unread, with the archive left closed) and Select all (the archive opens with everything in it chosen, for the
-  bar at the top to take back out or delete: `ConversationsScreen(archived: true, selectAll: true)`). Settings':
-  its sections by name, as they stand for this device and these choices, each opening Settings at that section;
-  its row in Settings' list is brought into view where it was out of sight.
+- **The Archive and Settings rings' menus** (0.7.11, small since 0.7.12 which is not released; `lib/ui/nav_bar.dart`
+  `NavItem.menu`, `_archiveRows` / `_settingsRows` in `lib/ui/shell.dart`; Matt, 2026-11-14: "add a right click
+  context menu to archive as well and settings to quick jump to settings sections", then of the sheet across the
+  window's foot it first was: "too large and way too wide", with a picture of a small list hung by its button).
+  A press with the other button on either ring, or a long press, hangs the kit's menu (`GlacierMenu`) over the
+  ring: twelve to fifteen rems across, its right edge on the ring's, no taller than the window has room for, with
+  more rows than that scrolling inside it. Archive's: how many are archived, Mark all as read (every archived
+  conversation that is unread, with the archive left closed) and Select all (the archive opens with everything in
+  it chosen, for the bar at the top to take back out or delete: `ConversationsScreen(archived: true, selectAll:
+  true)`). Settings': its sections by name, as they stand for this device and these choices, in their groups
+  under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
+  that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
+  are still the sheet.
 - **One Settings, on the phone and the Mac** (0.7.10; `lib/ui/settings.dart`, `lib/ui/shell.dart`,
   `lib/desktop/ui/desk_settings.dart`; Matt, 2026-11-14: "update the desktop app to have a full features settings
   page like the ghost markdown app with the plugins and all being able to make their own setting sections instead

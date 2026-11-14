@@ -314,6 +314,11 @@ void main() {
       });
       expect(find.byType(SettingsScreen), findsNothing);
       expect(find.text('Kept on this Mac'), findsOneWidget);
+      // A small list hung over the ring, in the sidebar (Matt: "too large and way too wide", of the sheet across
+      // the window it first was), with the Mac's own sections under "This Mac".
+      expect(tester.getRect(find.byType(GlacierMenuItem).first).right, lessThan(340));
+      expect(tester.getRect(find.byType(GlacierMenuItem).first).width, lessThan(250));
+      expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text('THIS MAC')), findsOneWidget);
       // A long list of sections scrolls inside the menu.
       await tester.ensureVisible(find.text('Kept on this Mac'));
       await tester.pump(const Duration(milliseconds: 60));
