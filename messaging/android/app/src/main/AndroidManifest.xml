@@ -126,6 +126,14 @@
             </intent-filter>
         </service>
 
+        <!-- Plays a video that came or went in a message, the whole screen (Video.kt). It goes on through a turn
+             or a fold of the phone. -->
+        <activity
+            android:name=".VideoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Black.NoTitleBar" />
+
         <!-- Scanning the QR code a computer shows to pair with (ScanActivity.kt). -->
         <activity
             android:name=".ScanActivity"

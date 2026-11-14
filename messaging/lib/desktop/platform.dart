@@ -35,6 +35,24 @@ class MacPlatform {
     }
   }
 
+  /// A picture of where a video starts and how long it runs (macos/Runner/DeskVideo.swift), from its bytes.
+  static Future<Map?> videoPreview(int id, Uint8List bytes, String ending) async {
+    try {
+      return await _system.invokeMapMethod<Object?, Object?>('videoPreview', {'id': id, 'bytes': bytes, 'ext': ending});
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Opens a window that plays the video. Null when it is playing, or why it is not.
+  static Future<String?> videoPlay(int id, Uint8List bytes, String ending, String title) async {
+    try {
+      return await _system.invokeMethod<String>('videoPlay', {'id': id, 'bytes': bytes, 'ext': ending, 'title': title});
+    } on MissingPluginException {
+      return 'this copy of the app has no player';
+    }
+  }
+
   static Future<void> keyDelete(String account) async {
     try {
       await _system.invokeMethod<bool>('keyDelete', {'account': account});

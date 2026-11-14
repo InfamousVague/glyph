@@ -23,6 +23,7 @@ import 'common.dart';
 import 'encryption.dart';
 import 'message_popover.dart';
 import 'sticker_picker.dart';
+import 'video.dart';
 import 'voice.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
@@ -1157,6 +1158,12 @@ class _Bubble extends StatelessWidget {
             // A picture that did not go: a tap sends it again, where it would have opened the picture. Its own tap
             // used to win, so "Tap to try again" did nothing on a message that was a picture and no words.
             child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth, onTap: failed ? onTapFailed : null),
+          )
+        else if (a.isVideo)
+          // A video: a picture of where it starts, and a button that plays it (it was drawn as its file's name).
+          Padding(
+            padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
+            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink),
           )
         else if (a.isAudio)
           // A voice message: a player (on a computer, its name: the sound stays on the phone).

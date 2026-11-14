@@ -22,6 +22,10 @@ class MainFlutterWindow: NSWindow {
     self.backgroundColor = .black
     self.appearance = NSAppearance(named: .darkAqua)
 
+    // Nothing of a video played in an earlier run is left on the disk (DeskVideo.swift), nor after this one.
+    DeskVideo.sweep()
+    NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in DeskVideo.sweep() }
+
     RegisterGeneratedPlugins(registry: flutterViewController)
     desk = DeskChannels(messenger: flutterViewController.engine.binaryMessenger)
     // The app's own updates (UpdatesChannel.swift): its first act is to say this version opened, which an update
@@ -29,5 +33,11 @@ class MainFlutterWindow: NSWindow {
     updates = UpdatesChannel(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
+  }
+
+  /// The app's window closing takes any video's window with it, so the app quits as it did.
+  override func close() {
+    DeskVideo.shared.closeAll()
+    super.close()
   }
 }

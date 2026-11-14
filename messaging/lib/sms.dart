@@ -78,6 +78,24 @@ class Attachment {
   /// Sound: a voice message (android Voice.kt records them), drawn with a player.
   bool get isAudio => type.startsWith('audio/') || type == 'application/ogg';
 
+  /// A video: drawn as a picture of where it starts, with a button that plays it (lib/ui/video.dart).
+  bool get isVideo => type.startsWith('video/');
+
+  /// The ending a file of this kind goes by, for a player that tells the kind by it: the name's own where it has a
+  /// plain one, else the kind's.
+  String get ending {
+    final dot = (name ?? '').lastIndexOf('.');
+    final named = dot < 0 ? '' : name!.substring(dot + 1).toLowerCase();
+    if (RegExp(r'^[a-z0-9]{2,4}$').hasMatch(named)) return named;
+    return switch (type) {
+      'video/3gpp' || 'audio/3gpp' => '3gp',
+      'video/quicktime' => 'mov',
+      'video/webm' => 'webm',
+      'audio/amr' => 'amr',
+      _ => type.startsWith('audio/') ? 'm4a' : 'mp4',
+    };
+  }
+
   /// One of Ghost Messaging's stickers (android Sender.sendSticker names them so): drawn small, on the page.
   bool get isSticker => isImage && (name ?? '').split('/').last.startsWith('ghost-sticker');
 }
@@ -439,6 +457,26 @@ class _ChannelCalls implements SmsCalls {
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]) => _channel.invokeMethod<T>(method, arguments);
 }
 
+/// A video in a message, as the conversation draws it before it is played: a picture of where it starts (null where
+/// none can be made of it) and how long it runs.
+class VideoPreview {
+  const VideoPreview({this.picture, this.length = Duration.zero, this.width = 0, this.height = 0});
+  final Uint8List? picture;
+  final Duration length;
+  final int width;
+  final int height;
+
+  /// Nothing is known of it: not a picture, not its length.
+  bool get empty => picture == null && length == Duration.zero;
+
+  factory VideoPreview.from(Map? m) => VideoPreview(
+        picture: m?['picture'] as Uint8List?,
+        length: Duration(milliseconds: (m?['millis'] as num?)?.toInt() ?? 0),
+        width: (m?['width'] as num?)?.toInt() ?? 0,
+        height: (m?['height'] as num?)?.toInt() ?? 0,
+      );
+}
+
 /// Where the voice message being played has got to (android/.../Voice.kt): its part, and whether it is playing now.
 class VoicePlayback {
   const VoicePlayback({required this.part, required this.position, required this.length, required this.playing});
@@ -685,6 +723,36 @@ class Sms {
           return Duration.zero;
         }
       }();
+
+  // --- videos (android/.../Video.kt; on a Mac macos/Runner/DeskVideo.swift) -------------------------------------
+
+  final _videoPreviews = <int, Future<VideoPreview>>{};
+  static const _videoPreviewsKept = 40;
+
+  /// A picture of where the video [a] starts and how long it runs, kept while it is among the last few asked for.
+  /// One that could not be had (the phone out of a computer's reach) is asked for again the next time.
+  Future<VideoPreview> videoPreview(Attachment a) {
+    final had = _videoPreviews.remove(a.id);
+    final preview = had ??
+        () async {
+          try {
+            return VideoPreview.from(await _calls.invokeMethod<Map>('videoPreview', {'part': a.id, 'type': a.type, 'ending': a.ending}));
+          } catch (_) {
+            return const VideoPreview();
+          }
+        }();
+    _videoPreviews[a.id] = preview;
+    preview.then((p) {
+      if (p.empty && identical(_videoPreviews[a.id], preview)) _videoPreviews.remove(a.id);
+    });
+    while (_videoPreviews.length > _videoPreviewsKept) {
+      _videoPreviews.remove(_videoPreviews.keys.first);
+    }
+    return preview;
+  }
+
+  /// Plays the video [a]: the whole screen on the phone, a window of its own on a computer.
+  Future<void> playVideo(Attachment a) => _calls.invokeMethod('videoPlay', {'part': a.id, 'type': a.type, 'ending': a.ending, 'name': a.name});
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 

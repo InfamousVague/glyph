@@ -67,6 +67,14 @@ Map<String, Object?> _e2e(String address) => switch (address) {
     };
 
 List<Map<String, Object?>> _messages(int thread) {
+  if (thread == 5) {
+    // Videos: one that came, which a picture can be made of, and one sent of a kind the phone cannot read.
+    return [
+      {'id': 63, 'kind': 'mms', 'address': '', 'body': 'You and Trin in that game', 'date': _ago(minutes: 2), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 922, 'type': 'video/webm', 'name': '9864ade8-2512-4c3f-83b2-8d46dbb76b14.webm'}]},
+      {'id': 62, 'kind': 'mms', 'address': '+15551230001', 'body': '', 'date': _ago(minutes: 4), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 921, 'type': 'video/mp4', 'name': 'clip.mp4'}]},
+      {'id': 61, 'kind': 'sms', 'address': '+15551230001', 'body': 'Look at this', 'date': _ago(minutes: 5), 'outgoing': false, 'state': 'received', 'read': true},
+    ];
+  }
   if (thread == 4) {
     // Voice messages (android Voice.kt): one that came, one sent, each a picture message with sound in it.
     return [
@@ -139,6 +147,9 @@ Map<String, Object?> _pairing = {'phase': 'none'};
 
 int _voiceBeat = 0;
 
+/// The videos asked to be played, by their parts.
+final _videosPlayed = <int>[];
+
 /// A third voice message has arrived in the voice conversation.
 bool _voiceMore = false;
 
@@ -208,6 +219,14 @@ void _answerChannel() {
         return false;
       case 'deskAddresses':
         return ['192.168.1.20:47811'];
+      // Videos: a picture of where one starts and how long it runs; none for the kind that cannot be read.
+      case 'videoPreview':
+        return (args['part'] as num).toInt() == 921
+            ? {'picture': File('assets/stickers/party/03.webp').readAsBytesSync(), 'millis': 12400, 'width': 640, 'height': 360}
+            : {'picture': null, 'millis': 0, 'width': 0, 'height': 0};
+      case 'videoPlay':
+        _videosPlayed.add((args['part'] as num).toInt());
+        return null;
       // Voice messages: how long each runs, and a recording that hears a voice rise and fall.
       case 'voiceLength':
         return switch ((args['part'] as num).toInt()) { 911 => 7400, 913 => 41000, _ => 23000 };
@@ -336,6 +355,21 @@ void main() {
       expect(find.text('This picture couldn\'t be downloaded'), findsOneWidget);
       expect(find.text('Try again'), findsOneWidget);
       expect(find.text('Downloading picture…'), findsOneWidget);
+      // Videos: a picture of where each starts with Play over it and its length, where it was the file's name
+      // and no more (Matt: "mp4 files are not loading it just shows up as a string of text for the filename").
+      _videosPlayed.clear();
+      await _shoot(tester, sheet, const ThreadScreen(thread: 5, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread-video', dark: dark);
+      final players = find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == 'Play video');
+      expect(players, findsNWidgets(2));
+      expect(find.text('0:12'), findsOneWidget);
+      expect(find.text('clip.mp4'), findsNothing, reason: 'one with a picture is not named');
+      // One no picture can be made of is still named, and can still be tried.
+      expect(find.text('9864ade8-2512-4c3f-83b2-8d46dbb76b14.webm'), findsOneWidget);
+      await tester.tap(players.first);
+      await _settle(tester);
+      await tester.tap(players.last);
+      await _settle(tester);
+      expect(_videosPlayed.toSet(), {921, 922});
       // Voice messages: each drawn as a player that says how long it runs; the microphone stands where Send would.
       await _shoot(tester, sheet, const ThreadScreen(thread: 4, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread-voice', dark: dark);
       expect(find.text('0:07'), findsOneWidget);

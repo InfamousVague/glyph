@@ -301,6 +301,14 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **Videos** (not released; `Video.kt`, `lib/ui/video.dart`, `macos/Runner/DeskVideo.swift`; Matt, 2026-11-14: "mp4
+  files are not loading it just shows up as a string of text for the filename"). A video in a message is drawn as a
+  picture of where it starts, with Play over it and how long it runs, where it was its file's name and no more. A
+  tap plays it: the whole screen on the phone (Android's own player and controls), a window of its own on the Mac
+  (the Mac's). The phone makes the picture from the message's own part; the Mac brings the video's bytes over the
+  link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
+  folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
+  the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
 - **The Mac app updates itself** (built 2026-11-14; Matt: "install the app on my mac and make sure it has OTA
   updates so we don't need to reinstall again"). It reads `https://ghost-sms.com/mac.json` as it opens and every six
   hours, brings the newer app down, takes it only if it is whole and signed by its own team (Matt's Developer ID),

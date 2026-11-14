@@ -29,6 +29,17 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         result(DeskChannels.keychain(write: args["account"] as? String ?? "", value: args["value"] as? String ?? ""))
       case "keyDelete":
         result(DeskChannels.keychain(delete: args["account"] as? String ?? ""))
+      // A video in a message (DeskVideo.swift): a picture of where it starts, and a window that plays it.
+      case "videoPreview":
+        guard let bytes = (args["bytes"] as? FlutterStandardTypedData)?.data else { return result(nil) }
+        let id = args["id"] as? Int ?? 0, ext = args["ext"] as? String ?? "mp4"
+        DispatchQueue.global(qos: .userInitiated).async {
+          let made = DeskVideo.preview(data: bytes, id: id, ext: ext)
+          DispatchQueue.main.async { result(made) }
+        }
+      case "videoPlay":
+        guard let bytes = (args["bytes"] as? FlutterStandardTypedData)?.data else { return result("no video") }
+        result(DeskVideo.shared.play(data: bytes, id: args["id"] as? Int ?? 0, ext: args["ext"] as? String ?? "mp4", title: args["title"] as? String ?? "Video"))
       case "browse":
         self?.browse()
         result(nil)

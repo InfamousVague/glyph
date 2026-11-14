@@ -6,6 +6,7 @@ import '../sms.dart';
 import 'link/crypto.dart';
 import 'link/link.dart';
 import 'link/session.dart';
+import 'platform.dart';
 import 'store.dart';
 
 /// The phone's screens, on the Mac: every call they make of Android (lib/sms.dart) is answered here, by the phone
@@ -59,6 +60,7 @@ class LinkCalls implements SmsCalls {
     _messages.clear();
     _drafts.clear();
     _waiting.clear();
+    _videos.clear();
   }
 
   @override
@@ -154,6 +156,19 @@ class LinkCalls implements SmsCalls {
         }
       case 'part':
         return _part((a['id'] as num).toInt());
+      // A video (lib/ui/video.dart): its bytes are the phone's, brought over as a picture's are; the Mac makes the
+      // picture of where it starts, and plays it in a window of its own (macos/Runner/DeskVideo.swift).
+      case 'videoPreview':
+        final id = (a['part'] as num).toInt();
+        final bytes = await _video(id);
+        return bytes == null ? null : await MacPlatform.videoPreview(id, bytes, '${a['ending'] ?? 'mp4'}');
+      case 'videoPlay':
+        final id = (a['part'] as num).toInt();
+        final bytes = await _video(id);
+        if (bytes == null) throw const LinkDown('Your phone isn\'t reachable, and the video is on it. Try again when it is back.');
+        final why = await MacPlatform.videoPlay(id, bytes, '${a['ending'] ?? 'mp4'}', 'Video');
+        if (why != null) throw PhoneError('Couldn\'t play it: $why.');
+        return null;
       case 'threadFlag':
       case 'archive':
         await link.request(method, a);
@@ -222,6 +237,20 @@ class LinkCalls implements SmsCalls {
   }
 
   /// A picture, fetched in pieces (the phone hands over at most a frame's worth at a time).
+  /// The last few videos brought over, so the one a picture was just made of is not fetched again to be played.
+  final _videos = <int, Uint8List>{};
+
+  Future<Uint8List?> _video(int id) async {
+    final had = _videos.remove(id);
+    final bytes = had ?? await _part(id);
+    if (bytes == null || bytes.isEmpty) return null;
+    _videos[id] = bytes;
+    while (_videos.length > 4) {
+      _videos.remove(_videos.keys.first);
+    }
+    return bytes;
+  }
+
   Future<Uint8List?> _part(int id) async {
     try {
       final whole = BytesBuilder(copy: false);
