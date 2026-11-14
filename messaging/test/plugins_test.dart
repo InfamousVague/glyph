@@ -304,7 +304,11 @@ void main() {
       expect(plugin.asked, 0);
       tags.bind(store);
       expect(tags.of(1).has('ticket'), isTrue);
-      // The same choices given again change nothing.
+      // The same choices given again change nothing, and nor does a choice that is not a plugin's switch: a
+      // classifier is told none of them.
+      tags.bind(store);
+      store.write('plugin_tickets_read', 'on');
+      store.write(Filing.key, '1:');
       tags.bind(store);
       expect(plugin.asked, 1);
       // Switched off: what it tagged is no longer tagged.
