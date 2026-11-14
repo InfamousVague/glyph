@@ -448,7 +448,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
-- **Summaries of unread conversations** (not released; `lib/summaries.dart`, android `Summaries.kt`; Matt, 2026-11-14:
+- **Summaries of unread conversations** (0.7.16; `lib/summaries.dart`, android `Summaries.kt`; Matt, 2026-11-14:
   "Use a local AI to summarize unread message conversations like apple does"). Several unread texts in a row (since
   you last wrote), or one long one, are summed up in a line in the list, marked with a sparkle, in place of the last
   words; reading the conversation puts them back. Made on the phone by Android's own model (Gemini Nano, kept by
@@ -457,7 +457,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   for it; a phone without it, or a computer, shows the texts as before. A summary is made once for a conversation's
   newest text (kept as `summary_<thread>`). Settings › Messages › Summaries turns it off and says where the model
   stands.
-- **Kinds of text and the list's filter** (not released; `lib/plugins/kinds.dart`, `FilterButton` in
+- **Kinds of text and the list's filter** (0.7.16; `lib/plugins/kinds.dart`, `FilterButton` in
   `lib/plugins/ui.dart`; Matt, 2026-11-14: "I'd like to have tabs for messages with a intelligent spam filter, debt
   collectors, political messages, payment reminders, tracking information, etc ... I'm thinking a filter dropdown
   where showing spam, political messages, and debt collectors are filtered out by default", and "also add in
@@ -472,7 +472,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   your own words are never sorted; a shown kind leaves a text that looks like spam to Spam, so a fake delivery fee
   is not shown as a delivery. "Not political" (and the like) on a conversation puts it back in Messages for good.
   The Spam filter is on from the start now, its section one of the kinds rather than a tab.
-- **The bubble colour is the app's accent** (not released; `lib/accent.dart`; Matt, 2026-11-14: "make the bubble
+- **The bubble colour is the app's accent** (0.7.15; `lib/accent.dart`; Matt, 2026-11-14: "make the bubble
   color the accent color for the app so the send button, segmented toggles, etc all get the same color as the
   bubbles if set globally and only settings inside a chat soley change the bubble color"). Two app tokens,
   `--app-accent` and `--app-on-accent` (the page's ink and paper by default, in assets/css/app.css), are worn by
@@ -481,7 +481,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   stylesheets as read and parses them again with a rule setting the two tokens to the bubble colour chosen
   everywhere, per theme; a colour that would not be seen on a theme's page (white, silver on the light page) leaves
   that page's accent the ink. A conversation's own colour (`bubble_<thread>`) is its bubbles' alone.
-- **"Tell friends I'm here" turns itself on** (not released; `lib/me/me.dart`; Matt, 2026-11-14: "once an account is
+- **"Tell friends I'm here" turns itself on** (0.7.16; `lib/me/me.dart`; Matt, 2026-11-14: "once an account is
   linked or the phone number verified, automatically tick tell friends I'm here"): when an account is newly linked
   or the number verified, unless the person switched it off themselves (`me_listed_chosen`).
 - **One Settings, on the phone and the Mac** (0.7.10; `lib/ui/settings.dart`, `lib/ui/shell.dart`,
