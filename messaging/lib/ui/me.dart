@@ -150,7 +150,7 @@ class _NumberRow extends StatelessWidget implements PaneRow {
       return SettingRow(
         icon: icon,
         label: 'Number',
-        labelAfter: const Padding(padding: EdgeInsets.only(left: 8), child: GlacierPill(size: GlacierPillSize.sm, child: Text('Verified'))),
+        hint: const Text('Verified'),
         value: Text(shown),
         onPress: () => showChoices(context, title: '$shown is verified: a code texted to it reached this phone.', choices: [
           Choice('Copy number', Lucide.copy, () {
@@ -164,10 +164,12 @@ class _NumberRow extends StatelessWidget implements PaneRow {
         ]),
       );
     }
-    final shown = Text(own == null || own!.isEmpty ? 'Not known' : own!);
-    if (Sms.remote || !me.ready) return SettingRow(icon: icon, label: 'Number', value: shown);
-    if (!me.texts) return SettingRow(icon: icon, label: 'Number', value: shown, hint: const Text('Verifying a number by text isn\'t set up on the relay server yet.'));
-    return SettingRow(icon: icon, label: 'Number', value: shown, hint: const Text('Verify it with a code sent by text'), onPress: () => push<void>(context, (_) => NumberScreen(own: own)));
+    final tidy = tidyNumber(own ?? '');
+    final shown = Text(own == null || own!.isEmpty ? 'Not known' : (numberFits(tidy) ? showNumber(tidy) : own!));
+    // Verifying is the phone's to do: a computer shows the number and says nothing of it.
+    if (Sms.remote) return SettingRow(icon: icon, label: 'Number', value: shown);
+    // Short words here, beside the number; the page it opens has room for why and how.
+    return SettingRow(icon: icon, label: 'Number', hint: const Text('Not verified'), value: shown, onPress: me.ready ? () => push<void>(context, (_) => NumberScreen(own: own)) : null);
   }
 }
 
@@ -201,22 +203,31 @@ class _NumberScreenState extends State<NumberScreen> {
     final own = tidyNumber(widget.own ?? '');
     _number = TextEditingController(text: numberFits(own) ? showNumber(own) : '');
     _arrivals = Sms.instance.changes.stream.listen(_arrived);
+    Me.instance.addListener(_meChanged);
+  }
+
+  /// Whether the server can text a code is its to say, and it may say so after this page opens.
+  void _meChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    Me.instance.removeListener(_meChanged);
     _arrivals?.cancel();
     _number.dispose();
     _code.dispose();
     super.dispose();
   }
 
-  /// A conversation changed: where its newest text is the code asked for, the code is put in and checked.
+  /// A conversation changed: where its newest text is the code asked for, the code is put in and checked. Only a
+  /// text that arrived after the asking is read: a text's time is this phone's clock as it arrived (Messaging.kt),
+  /// the clock [_askedAt] is read from.
   Future<void> _arrived(int thread) async {
     final since = _askedAt;
     if (since == null || thread < 0) return;
     try {
-      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && m.date.isAfter(since.subtract(const Duration(seconds: 30))));
+      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && !m.date.isBefore(since));
       for (final m in newest) {
         final code = ownCodeIn(m.body);
         if (code == null || !mounted) continue;
@@ -240,7 +251,8 @@ class _NumberScreenState extends State<NumberScreen> {
       return;
     }
     setState(() { _busy = true; _problem = null; });
-    _askedAt = DateTime.now();
+    // To the millisecond, as a text's time is kept.
+    _askedAt = DateTime.fromMillisecondsSinceEpoch(DateTime.now().millisecondsSinceEpoch);
     _early = null;
     try {
       final to = await Me.instance.textCode(number);
@@ -314,7 +326,15 @@ class _NumberScreenState extends State<NumberScreen> {
                       onSubmitted: (_) => _send(),
                     ),
                   ),
-                  if (sent == null) SettingRow(icon: _icon(Lucide.messageSquare), label: _busy ? 'Sending…' : 'Text me a code', disabled: _busy, onPress: _send),
+                  if (sent == null)
+                    Me.instance.texts
+                        ? SettingRow(icon: _icon(Lucide.messageSquare), label: _busy ? 'Sending…' : 'Text me a code', disabled: _busy, onPress: _send)
+                        : SettingRow(
+                            icon: _icon(Lucide.messageSquare),
+                            label: 'Text me a code',
+                            hint: Text(Me.instance.ready ? 'Verifying a number by text isn\'t set up on the relay server yet.' : 'This needs the relay server, which isn\'t connected right now (Settings › Network).'),
+                            disabled: true,
+                          ),
                 ],
               ),
               if (sent != null) ...[

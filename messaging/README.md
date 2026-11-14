@@ -577,7 +577,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   watch list of handles (typed or pasted; brought in from who you follow on Bluesky, Mastodon and GitHub, the three
   that publish it) and who of them is here, with the number of new ones on the Settings ring. Someone is told only
   of a person who linked that account AND switched on "Tell friends I'm here". The relay server's keeper of handles
-  (`relay/lib/handles.dart`) holds hashes of handles, never a handle, name or number, and is told nothing until an
+  (`relay/lib/handles.dart`) holds hashes of handles, never a handle or a name, and is told nothing until an
   account is linked, a handle added or the page opened. Each network's sign-in is off until its app is registered
   and its values put on the box (docs/me.md says how); the three proved by code need nothing. Held by
   `relay/test/handles_test.dart` and `test/me_test.dart` (two installs through the real relay) with the networks
@@ -585,6 +585,19 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   it, and ghost-sms.com's block passing `/link/*` to it; Matt: "deploy both yes"), so the three proved by a code
   can be tried; Discord's, X's and Telegram's sign-ins are still off, their apps not registered. **Not run against
   a real network yet.**
+- **Your number, verified by a text** (0.7.11, not released; [docs/me.md](docs/me.md); Matt, 2026-11-14: "I'd
+  like to use a third party service that allows us to send the text code to a number to verify so it can't be
+  spoofed"). Settings › Me › Number says Not verified and opens a page that has a code texted to the number; the
+  page reads the code out of the text as it arrives and the row then says Verified. The code is made, sent and
+  checked by a texting service (Twilio Verify, `relay/lib/texts.dart`), so a phone cannot simply claim a number.
+  Only the install a code was sent for may try it; three codes an hour and six a day for an install and for a
+  number, 200 texts a day in all, North American numbers only unless the server is told otherwise. A verified
+  number is told to nobody, and nothing watches for one: today it is a mark on your own page. The relay keeps the
+  number's hash, which unlike a handle's can be worked back, so the server is to be thought of as knowing it.
+  **Off until** a Twilio account and Verify service exist, their three values are on the box, and the relay is put
+  up again (docs/me.md says how; all Matt's to do or say). Held by `relay/test/handles_test.dart` (nine, the
+  service stood in for), `test/me_test.dart` (through the real relay) and `test/number_screen_test.dart` (which
+  text the page reads a code from). **Never run against the real service.**
 - **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation
