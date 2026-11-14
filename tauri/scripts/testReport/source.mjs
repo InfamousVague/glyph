@@ -29,7 +29,9 @@ function* walk(dir) {
   }
   for (const name of names.sort()) {
     const path = join(dir, name);
-    if (SKIP.test(path)) continue;
+    // Tested with forward slashes: on Windows `join` gives backslashes, and mcp/node_modules (a committed symlink the
+    // runner cannot stat) would be walked into (the Windows build of 1.15.1, 2026-11-13).
+    if (SKIP.test(path.split(sep).join('/'))) continue;
     if (statSync(path).isDirectory()) yield* walk(path);
     else yield path;
   }
