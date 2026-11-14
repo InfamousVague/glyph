@@ -199,7 +199,7 @@ final List<SettingsSection> settingsSections = [
 ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.2';
+const appVersion = '0.7.3';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -232,7 +232,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.messageSquare),
           label: 'Your bubbles',
           layout: SettingRowLayout.stacked,
-          control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'ghost' : app.bubble, onPick: app.setBubble),
+          control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'white' : app.bubble, onPick: app.setBubble),
         ),
       ],
     ),

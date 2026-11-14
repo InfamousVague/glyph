@@ -10,8 +10,8 @@ import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
 
-/// Over every page while a newer Ghost Messaging is waiting (Matt, 2026-11-13: "the app should auto check for
-/// updates on load of any page so it pops the banner"): what version, and Update now. The look itself is asked for
+/// Over every page's content, under its header, while a newer Ghost Messaging is waiting (Matt, 2026-11-13: "the
+/// app should auto check for updates on load of any page so it pops the banner"): what version, Update, and a cross. The look itself is asked for
 /// as each page opens ([UpdateWatch]); this draws what it found. Put away with its cross, it stays away for that
 /// version and comes back for the next.
 class UpdateBanner extends StatefulWidget {
@@ -35,12 +35,23 @@ class _UpdateBannerState extends State<UpdateBanner> {
     Sms.instance.update().then((u) {
       if (mounted) setState(() => _update = u);
     }).catchError((_) {});
+    HeaderEnd.changed.addListener(_place);
   }
 
   @override
   void dispose() {
+    HeaderEnd.changed.removeListener(_place);
     _sub?.cancel();
     super.dispose();
+  }
+
+  /// Where the header of the page in front ends (HeaderEnd), looked for whenever a page says its header has moved.
+  double? _under;
+
+  void _place() {
+    if (!mounted) return;
+    final y = HeaderEnd.lowest();
+    if (y != _under) setState(() => _under = y);
   }
 
   /// What the banner says, or null where there is nothing to say: no newer version, or one being looked for.
@@ -61,37 +72,85 @@ class _UpdateBannerState extends State<UpdateBanner> {
     final app = AppState.of(context);
     final words = line(_update);
     final show = words != null && app.choice('update_dismissed', '') != _update.available;
-    if (!show) return widget.child;
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
     final busy = _update.phase == 'downloading' || _update.phase == 'installing';
-    final paper = t.color('app-paper');
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ColoredBox(
-        color: t.color('app-ink'),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), pad.top + t.space(1), t.space(1), t.space(1)),
-          child: Row(children: [
-            AppIcon(Lucide.download, size: 16, color: paper, wash: false),
-            SizedBox(width: t.space(2)),
-            Expanded(child: Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: paper))),
-            if (!busy)
-              GlacierPressable(
-                onPressed: () => _update.phase == 'ready' ? Sms.instance.updateInstall() : Sms.instance.updateCheck(install: true),
-                semanticLabel: 'Update now',
-                builder: (context, state) => Container(
-                  margin: EdgeInsets.symmetric(horizontal: t.space(1)),
-                  padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-                  decoration: BoxDecoration(color: paper.withValues(alpha: state.pressed ? 0.75 : 1), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
-                  child: Text('Update now', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))),
+    const white = Color(0xFFFFFFFF);
+    // Over the page's content and under its header (Matt, 2026-11-14: "Redo the update banner to show over the
+    // content but not over the header, make it have an x button and be more colorful"): each page marks where its
+    // header ends (HeaderEnd: under the title, and on the list under the search too), the banner hangs just below
+    // that, and the page keeps its place. It was a bar across the very top, in the status bar's room, that pushed
+    // every page down.
+    return Stack(children: [
+      widget.child,
+      Positioned(
+        top: (_under ?? pad.top + t.lenOf('3.5rem')) + t.space(1),
+        left: t.space(3),
+        right: t.space(3),
+        child: IgnorePointer(
+          ignoring: !show,
+          child: AnimatedSlide(
+            offset: show ? Offset.zero : const Offset(0, -0.35),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: show ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: t.lenOf('34rem')),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      // Indigo to violet to pink: the one thing on the page that is not the page's own colours.
+                      gradient: const LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [Color(0xFF4F5BD5), Color(0xFF8B5CF6), Color(0xFFEC4899)]),
+                      borderRadius: BorderRadius.circular(t.radius('xl')),
+                      boxShadow: t.shadowOf('0 8px 24px rgba(79,91,213,0.35)'),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(t.radius('xl')),
+                      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+                          child: Row(children: [
+                            Container(
+                              width: t.lenOf('2rem'),
+                              height: t.lenOf('2rem'),
+                              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x33FFFFFF)),
+                              alignment: Alignment.center,
+                              child: AppIcon(busy ? Lucide.download : Lucide.sparkles, size: 16, color: white, wash: false),
+                            ),
+                            SizedBox(width: t.space(2)),
+                            Expanded(child: Text(words ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: white, height: 1.25))),
+                            if (!busy)
+                              GlacierPressable(
+                                onPressed: () => _update.phase == 'ready' ? Sms.instance.updateInstall() : Sms.instance.updateCheck(install: true),
+                                semanticLabel: 'Update now',
+                                builder: (context, state) => Container(
+                                  margin: EdgeInsets.only(left: t.space(2)),
+                                  padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                                  decoration: BoxDecoration(color: white.withValues(alpha: state.pressed ? 0.8 : 1), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+                                  child: Text('Update now', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFF4F3FC4))),
+                                ),
+                              ),
+                            // Put away at any time, a download going on behind it or not: it stays away for this
+                            // version and comes back for the next.
+                            IconTap(icon: Lucide.x, label: 'Not now', size: 18, box: t.lenOf('2.5rem'), color: white, onPressed: () => app.set('update_dismissed', _update.available ?? '')),
+                          ]),
+                        ),
+                        if (_update.phase == 'downloading')
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FractionallySizedBox(widthFactor: (_update.progress ?? 0.04).clamp(0.04, 1.0), child: Container(height: 3, color: white)),
+                          ),
+                      ]),
+                    ),
+                  ),
                 ),
               ),
-            if (!busy) IconTap(icon: Lucide.x, label: 'Not now', size: 16, box: t.lenOf('2.25rem'), color: paper, onPressed: () => app.set('update_dismissed', _update.available ?? '')),
-          ]),
+            ),
+          ),
         ),
       ),
-      // The banner has taken the status bar's room: the page under it starts at its own top.
-      Expanded(child: MediaQuery.removePadding(context: context, removeTop: true, child: widget.child)),
     ]);
   }
 }

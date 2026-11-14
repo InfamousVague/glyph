@@ -142,10 +142,19 @@ int _voiceBeat = 0;
 /// A third voice message has arrived in the voice conversation.
 bool _voiceMore = false;
 
+/// What the screens asked the phone to do, and the ticks they asked of it: looked at after a row is dragged.
+final _asked = <String>[];
+final _ticks = <String>[];
+
 void _answerChannel() {
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    if (call.method == 'HapticFeedback.vibrate') _ticks.add('${call.arguments}');
+    return null;
+  });
   messenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
     final args = (call.arguments as Map?) ?? const {};
+    if (call.method == 'archive' || call.method == 'threadFlag' || call.method == 'deleteThread') _asked.add('${call.method} $args');
     switch (call.method) {
       case 'status':
         return {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
@@ -308,6 +317,47 @@ void main() {
       await _shoot(tester, sheet, const UpdateBanner(child: ConversationsScreen()), '1-update-banner', dark: dark);
       expect(find.textContaining('is out'), findsOneWidget);
       expect(find.text('Update now'), findsOneWidget);
+      // A row dragged sideways (lib/ui/swipe_actions.dart): to the left past Archive, on past Delete, back to
+      // Archive and let go; then to the right past Pin. The phone ticks at each detent it passes into.
+      _asked.clear();
+      _ticks.clear();
+      final left = await tester.startGesture(tester.getCenter(find.text('Dad')));
+      await left.moveBy(const Offset(-30, 0));
+      await left.moveBy(const Offset(-80, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      await _shootAgain(tester, '1-conversations-swipe-archive', dark: dark);
+      await left.moveBy(const Offset(-180, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      await _shootAgain(tester, '1-conversations-swipe-delete', dark: dark);
+      await left.moveBy(const Offset(180, 0));
+      await left.up();
+      await _settle(tester);
+      expect(_ticks, ['HapticFeedbackType.mediumImpact', 'HapticFeedbackType.heavyImpact', 'HapticFeedbackType.mediumImpact'], reason: 'a tick into Archive, a knock into Delete, a tick back into Archive');
+      expect(_asked.single, startsWith('archive'), reason: 'let go at Archive, it archives and nothing else');
+      _asked.clear();
+      _ticks.clear();
+      // The archive's toast is let pass before the next drag.
+      await tester.pump(const Duration(seconds: 6));
+      await _settle(tester);
+      final right = await tester.startGesture(tester.getCenter(find.text('Dad')));
+      await right.moveBy(const Offset(30, 0));
+      await right.moveBy(const Offset(90, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      await _shootAgain(tester, '1-conversations-swipe-pin', dark: dark);
+      await right.up();
+      await _settle(tester);
+      expect(_ticks, ['HapticFeedbackType.mediumImpact']);
+      expect(_asked.single, startsWith('threadFlag'), reason: 'let go at Pin, it changes the pin');
+      // A short drag comes to nothing: no tick, nothing asked.
+      _asked.clear();
+      _ticks.clear();
+      final short = await tester.startGesture(tester.getCenter(find.text('Dad')));
+      await short.moveBy(const Offset(-30, 0));
+      await short.moveBy(const Offset(-20, 0));
+      await short.up();
+      await _settle(tester);
+      expect(_ticks, isEmpty);
+      expect(_asked, isEmpty);
       // Several chosen at once: a long press's Select, then a tap on another.
       await tester.longPress(find.text('Dad'));
       await _settle(tester);
@@ -384,6 +434,9 @@ void main() {
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
+      // The banner over a conversation: under its header, over its messages, with its cross.
+      await _shoot(tester, sheet, const UpdateBanner(child: ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')])), '1-update-banner-thread', dark: dark);
+      expect(find.bySemanticsLabel('Not now'), findsWidgets);
       // Nothing to show (here, nothing a search finds): the app's logo stands where the list would be.
       await _shoot(tester, sheet, const ConversationsScreen(), '1-conversations-none', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'zzzz');

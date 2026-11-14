@@ -499,7 +499,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
       if (!Sms.remote)
         Choice('Delete message', Lucide.trash2, () async {
-          await Sms.instance.deleteMessage(m);
+          // Gone from the screen at once; put back, with why, if Android would not delete it.
+          final before = _messages;
+          setState(() {
+            _messages = _messages?.where((x) => x.key != m.key).toList();
+            _folded = Folded(messages: _folded.messages.where((x) => x.key != m.key).toList(), reactions: _folded.reactions);
+          });
+          try {
+            await Sms.instance.deleteMessage(m);
+          } catch (e) {
+            if (mounted) {
+              setState(() => _messages = before);
+              toast(context, 'Couldn\'t delete: ${_said(e)}', tone: GlacierToastTone.danger);
+            }
+          }
           _load();
         }, danger: true),
     ];

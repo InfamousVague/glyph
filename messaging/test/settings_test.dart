@@ -156,7 +156,8 @@ void main() {
       expect(bubbleNeedsRim(const Color(0xFFFFFFFF), const Color(0xFFFDFDFD)), isTrue);
       expect(bubbleNeedsRim(const Color(0xFF0A84FF), const Color(0xFFFDFDFD)), isFalse);
       final app = AppState();
-      expect(bubbleChoice(app, 4), 'ghost');
+      // White where nothing has been chosen (Matt, 2026-11-14: "change the default chat bubble to be white").
+      expect(bubbleChoice(app, 4), 'white');
       app.setBubble('gray');
       expect(bubbleChoice(app, 4), 'gray');
       app.set('bubble_4', 'white');
