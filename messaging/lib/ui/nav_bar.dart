@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart' show HitTestEntry;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -111,6 +112,9 @@ class _RingState extends State<_Ring> {
   bool _open = false;
   List<Widget> _rows = const [];
 
+  /// On the ring, for its menu to hang from.
+  final GlobalKey _ringKey = GlobalKey(debugLabel: 'navigation ring');
+
   /// A press with the other button, or a long press where there is no other button.
   void _showMenu() {
     final rows = widget.item.menu?.call(context) ?? const <Widget>[];
@@ -127,12 +131,16 @@ class _RingState extends State<_Ring> {
     final round = _round(context);
     if (widget.item.menu == null) return round;
     // A small list by the ring it came from, its right edge on the ring's, no wider than its longest row needs and
-    // no taller than the window has room for: more rows than that scroll inside it.
+    // no taller than the window has room for: more rows than that scroll inside it. It hangs from the ring as
+    // though the ring were as tall as the pill round it, so it stands clear of the pill, a gap between the two:
+    // hung from the ring itself its foot lay on the pill's top edge, and it read as going behind the bar (Matt,
+    // 2026-11-14: "the context menu is rendering behind the navbar").
     return GlacierMenu(
       open: _open,
       onOpenChange: (open) {
         if (!open && _open) setState(() => _open = false);
       },
+      anchor: _RingAnchor(_ringKey, t.space(2) + t.len('glacier-hairline')),
       placement: Placement.topEnd,
       ariaLabel: widget.item.label,
       style: GlacierMenuStyle(
@@ -140,7 +148,7 @@ class _RingState extends State<_Ring> {
         maxWidth: t.lenOf('15rem'),
         maxHeight: math.max(t.lenOf('10rem'), math.min(t.lenOf('26rem'), MediaQuery.sizeOf(context).height - t.len('app-ring') - t.lenOf('7rem'))),
       ),
-      trigger: (context, trigger) => round,
+      trigger: (context, trigger) => KeyedSubtree(key: _ringKey, child: round),
       children: _rows,
     );
   }
@@ -228,6 +236,42 @@ class _RingState extends State<_Ring> {
       ),
     );
   }
+}
+
+/// What a ring's menu hangs from: the ring, taken to reach [reach] past its top and its foot, which is as far as
+/// the pill round it does. A press on the ring is not a press outside its menu.
+class _RingAnchor extends GlacierAnchor {
+  const _RingAnchor(this.key, this.reach);
+  final GlobalKey key;
+  final double reach;
+
+  RenderBox? get _box {
+    final object = key.currentContext?.findRenderObject();
+    return object is RenderBox && object.attached && object.hasSize ? object : null;
+  }
+
+  @override
+  Rect? rect() {
+    final box = _box;
+    if (box == null) return null;
+    final ring = MatrixUtils.transformRect(box.getTransformTo(null), Offset.zero & box.size);
+    return Rect.fromLTRB(ring.left, ring.top - reach, ring.right, ring.bottom + reach);
+  }
+
+  @override
+  TextDirection? direction() => key.currentContext?.getInheritedWidgetOfExactType<Directionality>()?.textDirection;
+
+  @override
+  bool holds(Iterable<HitTestEntry> path, Offset position) {
+    final box = _box;
+    return box != null && path.any((entry) => identical(entry.target, box));
+  }
+
+  @override
+  bool operator ==(Object other) => other is _RingAnchor && other.key == key && other.reach == reach;
+
+  @override
+  int get hashCode => Object.hash(key, reach);
 }
 
 /// A ring's words while the pointer rests on it (the dock's `DockTip`): over the ring here, since the pill lies
