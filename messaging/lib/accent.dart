@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
 import 'backgrounds.dart';
+import 'kit/settings_css.dart';
 
 /// The app's accent: the colour of your bubbles everywhere, worn by what is pressed and chosen across the app too
 /// (Matt, 2026-11-14: "make the bubble color the accent color for the app so the send button, segmented toggles,
@@ -44,7 +45,11 @@ class AccentSheets {
     if (css == null) return base;
     if (css != _css) {
       _css = css;
+      // With Settings' own rules added, as the app adds them to [base] as it starts (each section's colour, its
+      // chip's wash): a sheet made without them drew every section grey (Matt, 2026-11-14: "all the colors went
+      // missing for the settings section when we updated the accent color in the latest version").
       _sheet = TokenSheet.parseAll([..._sources, css]);
+      installSettingsStyles(_sheet!);
     }
     return _sheet!;
   }

@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/kit/settings_css.dart';
+import 'package:ghost_messaging/kit/settings_kit.dart';
 import 'package:glacier/glacier.dart';
 
 /// The bubble colour chosen everywhere is the app's accent (Matt, 2026-11-14: "make the bubble color the accent color
@@ -32,6 +34,8 @@ void main() {
 
   testWidgets('the sheet for a bubble colour gives the app\'s accent and the kit\'s toggles and switches that colour', (tester) async {
     final accents = await tester.runAsync(AccentSheets.load);
+    // As the app does as it starts (lib/main.dart).
+    installSettingsStyles(accents!.base);
     final app = AppState()..setBubble('blue');
     Tokens? light, dark, plain;
     Widget themed(TokenSheet sheet, String theme, void Function(Tokens) got) => GlacierTheme(
@@ -45,7 +49,7 @@ void main() {
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,
       child: Column(children: [
-        themed(accents!.of(app), 'light', (t) => light = t),
+        themed(accents.of(app), 'light', (t) => light = t),
         themed(accents.of(app), 'dark', (t) => dark = t),
         themed(accents.base, 'light', (t) => plain = t),
       ]),
@@ -58,6 +62,17 @@ void main() {
       expect(argb(t, 'glacier-accent-solid'), 0xFF0A84FF, reason: 'a switch that is on');
     }
     expect(argb(plain!, 'app-accent'), argb(plain!, 'app-ink'), reason: 'with no accent laid over, the page\'s ink');
+    // Settings' sections keep their colours on a sheet with an accent laid over, as on the plain one.
+    Tokens? hued, hueBase;
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: Column(children: [
+        GlacierTheme(sheet: accents.of(app), attrs: const {'platform': 'mobile', 'theme': 'light'}, child: GlacierScope(attrs: const {'hue': 'coral'}, child: Builder(builder: (c) { hued = c.tokens; return const SizedBox.shrink(); }))),
+        GlacierTheme(sheet: accents.base, attrs: const {'platform': 'mobile', 'theme': 'light'}, child: GlacierScope(attrs: const {'hue': 'coral'}, child: Builder(builder: (c) { hueBase = c.tokens; return const SizedBox.shrink(); }))),
+      ]),
+    ));
+    expect(settingsHue(hued!).toARGB32(), settingsHue(hueBase!).toARGB32(), reason: 'a section\'s colour is the same with the accent laid over');
+    expect(settingsHue(hued!).toARGB32(), isNot(hued!.color('app-ink').toARGB32()), reason: 'and is a colour, not the ink');
     // The same colour twice is parsed once.
     expect(identical(accents.of(app), accents.of(AppState()..setBubble('blue'))), isTrue);
   });
