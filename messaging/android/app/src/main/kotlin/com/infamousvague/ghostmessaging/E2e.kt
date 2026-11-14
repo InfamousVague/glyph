@@ -119,6 +119,15 @@ object E2e {
         save(context, address, o)
     }
 
+    /**
+     * The key this phone and the holder of [publicKey] share, made as a conversation's is: for a member of a group
+     * this phone is in, whose key came with the group and not by text (Groups.peers).
+     */
+    fun pairKey(context: Context, publicKey: ByteArray): ByteArray? = try {
+        val (mine, minePub) = identity(context)
+        E2eCrypto.conversationKey(mine, minePub, publicKey)
+    } catch (e: Exception) { Log.e(TAG, "pair key", e); null }
+
     // --- for the app's routes (Net.kt) ---------------------------------------------------------------------------------
 
     /** This phone's public key, 33 bytes: what the routes know it by. Made if there is none yet. */

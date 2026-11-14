@@ -250,7 +250,15 @@ class Friends extends ChangeNotifier {
   Future<void> _received(Received r) async {
     final address = r.peer.address;
     if (address == null || !r.sealed) return;
-    switch (r.envelope.kind) {
+    final kind = r.envelope.kind;
+    if (kind != 'friend' && kind != 'text') return;
+    // Only from someone encryption is on with. The routes also reach the members of a group this phone is in
+    // (groups.dart), who are not for that people it has exchanged keys with.
+    if (!(of(address)?.on ?? false)) {
+      await refresh();
+      if (!(of(address)?.on ?? false)) return;
+    }
+    switch (kind) {
       case 'friend':
         await _friend(address, r.envelope.body['do']);
       case 'text':
@@ -336,6 +344,12 @@ class Friends extends ChangeNotifier {
     if (d.handed == Handed.held) _wake(peer);
     return true;
   }
+
+  /// Whether a route that costs nothing is up now, for groups of friends too (groups.dart).
+  bool get online => _port.internet;
+
+  /// The wake, for a member of a group the relay server is keeping something for (groups.dart).
+  void wake(Peer peer) => _wake(peer);
 
   /// One data text, with nothing in it and in the clear, to a friend the relay server is keeping something for:
   /// their phone says a message is waiting (android Friends.woken). It is a text on this phone's plan, so it goes

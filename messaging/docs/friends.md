@@ -27,8 +27,9 @@ with them is turned off, and with a key of theirs that is not the one it was mad
   A request never answered is said again as the app opens, by a route that costs nothing.
 - **Nothing is offered until a relay server is known to answer** (`Friends.available`): a route that costs nothing is
   up, or one has been before on this phone, or the conversation's look (`Friends.look`, as it opens with someone who
-  has the app, at most every ten minutes) found one answering at the relay server's address. `wss://ghost-sms.com/hub`
-  does not answer yet, so a build released before the relay is put there offers what it did before.
+  has the app, at most every ten minutes) found one answering at the relay server's address. Ours answers at
+  `wss://ghost-sms.com/hub` since 2026-11-14 04:35 UTC (network.md), so the first release that carries friends
+  offers them wherever both phones have the app; 0.7.4 was cut before they landed and does not.
 
 ## What friends write
 

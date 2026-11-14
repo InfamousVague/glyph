@@ -481,12 +481,19 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   later text is not, and since the list does not know whose the last words are, a code the person texts to a
   number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
   which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
+- **Groups of friends** (not released; [docs/groups.md](docs/groups.md); Matt, 2026-11-14: "expand on the ability
+  to create, name and manage groups like telegram"). New group, in the address book, makes one out of friends: a
+  name every member sees, members, and admins, who rename it, add a friend, take someone out and make another
+  admin; anyone can leave. What is written in it goes to each member over the internet by the app's routes, sealed,
+  never as an MMS, and its conversation is its own, with lines for what happened to the group ("Ann added Dan").
+  Members need not be friends of each other: the group gives each the others' keys. Words only for now, and written
+  from the phone. Like friends, nothing of it is offered until a relay server answers.
 - **A group's name** (0.7.5; Matt, 2026-11-14: "expand on the ability to create, name and manage groups like
   telegram"). A group conversation's settings have a Group name field; named, the group goes by it in the list, in
   its conversation and on a paired computer, and emptied it goes by its people's first names again. The name is the
   phone's own (`Store.threadName`, sixty letters at most): a group text has nowhere to carry one, so the others in
-  the group do not see it. A computer sets it through the phone (`threadName` over the link). The first piece of
-  groups; groups of friends over the routes, with members added and removed, are not built.
+  the group do not see it. A computer sets it through the phone (`threadName` over the link). This is a group text's name; a group of
+  friends (above) has one every member sees.
 - **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation
@@ -494,7 +501,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   and are kept in the same conversation with a globe beside them. A friend is someone keys were exchanged with by
   text, which is what proves the number: no account. With no relay server reached they go as the encrypted texts
   they would have been; a friend whose app is closed is sent one silent data text and their phone says a message
-  is waiting. Nothing of it is offered until a relay server answers, and ours is not up yet.
+  is waiting. Nothing of it is offered until a relay server answers; ours does, at wss://ghost-sms.com/hub, since
+  2026-11-14.
 - **Spam filter** (0.7.4; `lib/plugins/spam.dart`; Matt, 2026-11-14: "filtering out spam messages"). The
   second plugin, off until it is switched on in Settings › Plugins: a filter that takes messages out of the list is
   chosen, not given. On, a conversation whose newest text looks like spam, with nobody in it a contact, leaves the

@@ -130,11 +130,15 @@ object Friends {
         for (m in messages) {
             val from = m.originatingAddress ?: continue
             val bytes = m.userData ?: continue
-            if (!isWake(bytes) || E2e.friend(context, from) != "yes") continue
+            if (!isWake(bytes)) continue
+            // From a friend, or from someone this phone is in a group with: that group's conversation says it.
+            val friend = E2e.friend(context, from) == "yes"
+            val shared = if (friend) null else Groups.threadWith(context, from)
+            if (!friend && shared == null) continue
             DevLog.add(context, "friends", "wake in")
             if (NetSms.listener != null) continue
             val store = Store(context)
-            val thread = store.threadFor(listOf(from))
+            val thread = shared ?: store.threadFor(listOf(from))
             if (store.isMuted(thread)) continue
             Notifier.waiting(context, thread, store.contact(from)["name"] as? String ?: from)
         }

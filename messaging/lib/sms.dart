@@ -27,6 +27,7 @@ class Conversation {
     required this.archived,
     this.pinned = false,
     this.name,
+    this.groupId,
     this.muted = false,
     this.blocked = false,
     this.draft,
@@ -54,6 +55,7 @@ class Conversation {
         archived: archived ?? this.archived,
         pinned: pinned ?? this.pinned,
         name: name,
+        groupId: groupId,
         muted: muted,
         blocked: blocked,
         draft: draft,
@@ -72,12 +74,15 @@ class Conversation {
   /// A name given to the conversation on this phone (android Store.threadName): a group's. Null where none was.
   final String? name;
 
+  /// The group of friends this conversation is (lib/friends/groups.dart), by its id; null for any other.
+  final String? groupId;
+
   /// What the conversation is called: its name where it was given one, else its people.
   String get title => name ?? peopleTitle(people);
 
   /// A conversation by its people: the one person, or a group's first names.
   static String peopleTitle(List<Person> people) => people.isEmpty ? 'Unknown' : people.map((p) => people.length > 1 ? p.label.split(' ').first : p.label).join(', ');
-  bool get group => people.length > 1;
+  bool get group => people.length > 1 || groupId != null;
 
   factory Conversation.from(Map m) => Conversation(
         id: (m['id'] as num).toInt(),
@@ -89,6 +94,7 @@ class Conversation {
         archived: m['archived'] == true,
         pinned: m['pinned'] == true,
         name: m['name'] as String?,
+        groupId: m['group'] as String?,
         muted: m['muted'] == true,
         blocked: m['blocked'] == true,
         draft: m['draft'] as String?,
@@ -626,6 +632,31 @@ class Sms {
 
   /// This phone's signature over [message], r then s.
   Future<Uint8List> netSign(List<int> message) async => (await _calls.invokeMethod('netSign', {'message': Uint8List.fromList(message)})) as Uint8List;
+
+  // --- groups of friends (lib/friends/groups.dart, android Groups.kt) ------------------------------------------------
+
+  /// The groups this phone is in, each as android Groups.view gives it.
+  Future<List<Map>> groups() async => ((await _calls.invokeMethod('groups')) as List? ?? const []).cast<Map>();
+
+  /// The group a conversation is, or null.
+  Future<Map?> groupOf(int thread) async => (await _calls.invokeMethod('groupOf', {'thread': thread})) as Map?;
+
+  /// A new group of this phone's making, out of people encryption is on with: its state, as JSON, not kept yet.
+  Future<String> groupDraft(String id, String name, List<String> addresses) async => (await _calls.invokeMethod('groupDraft', {'id': id, 'name': name, 'addresses': addresses})) as String;
+
+  /// A person encryption is on with, as a member of a group: JSON.
+  Future<String> groupMember(String address) async => (await _calls.invokeMethod('groupMember', {'address': address})) as String;
+
+  /// Keeps a group as it now is ([state]: JSON); answers it as [groups] gives one.
+  Future<Map> groupSave(String state) async => (await _calls.invokeMethod('groupSave', {'state': state})) as Map;
+  Future<void> groupForget(String id) => _calls.invokeMethod('groupForget', {'id': id});
+
+  /// What is written in a group, kept in its conversation: going (its row), what became of it, come, and a line
+  /// about the group itself.
+  Future<int> groupTextOut(String id, String body) async => ((await _calls.invokeMethod('groupTextOut', {'id': id, 'body': body})) as num).toInt();
+  Future<void> groupTextState(int row, String state) => _calls.invokeMethod('groupTextState', {'row': row, 'state': state});
+  Future<void> groupTextIn(String id, String from, String body, int at) => _calls.invokeMethod('groupTextIn', {'id': id, 'from': from, 'body': body, 'at': at});
+  Future<void> groupNote(String id, String body) => _calls.invokeMethod('groupNote', {'id': id, 'body': body});
 
   // --- friends (lib/friends/friends.dart, android Friends.kt) --------------------------------------------------------
 
