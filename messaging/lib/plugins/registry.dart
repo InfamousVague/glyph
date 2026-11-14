@@ -8,12 +8,15 @@ import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
 import 'codes.dart';
+import 'kinds.dart';
 import 'plugin.dart';
 import 'spam.dart';
 
 /// The plugins the app ships with, in the order Settings › Plugins lists them and their sections are asked: a text
 /// that is a sign-in code is in Codes whatever the spam filter makes of it.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), SpamPlugin()];
+// Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
+// that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin()];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {

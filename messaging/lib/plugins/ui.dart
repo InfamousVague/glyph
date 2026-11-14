@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../art/svg_path.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
@@ -128,6 +129,85 @@ class MarkAllRead extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The list's filter: a round button beside Mark all read, as tall as the tabs' toggle, that opens a small menu of
+/// the kinds of text (lib/plugins/kinds.dart) to show or hide in Messages and to show alone (Matt, 2026-11-14: "I'm
+/// thinking a filter dropdown where showing spam, political messages, and debt collectors are filtered out by
+/// default"). It wears how many conversations it is hiding, and is drawn filled while one kind is shown alone.
+class FilterButton extends StatefulWidget {
+  const FilterButton({super.key, required this.hidden, required this.rows, this.only = false});
+
+  /// How many conversations the filter is hiding from Messages.
+  final int hidden;
+
+  /// The menu's rows, asked for as it opens and each time the list is drawn while it is open.
+  final List<Widget> Function(BuildContext context) rows;
+
+  /// One kind is shown alone.
+  final bool only;
+
+  @override
+  State<FilterButton> createState() => _FilterButtonState();
+}
+
+class _FilterButtonState extends State<FilterButton> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = MarkAllRead.size(t);
+    final ink = widget.only ? t.color('app-on-accent') : t.color('app-ink');
+    return GlacierMenu(
+      open: _open,
+      onOpenChange: (open) => setState(() => _open = open),
+      placement: Placement.bottomEnd,
+      ariaLabel: 'Filter',
+      style: GlacierMenuStyle(minWidth: t.lenOf('16rem'), maxWidth: t.lenOf('19rem'), maxHeight: math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height * 0.6)),
+      trigger: (context, trigger) => HoverTip(
+        message: widget.hidden == 0 ? 'Filter' : 'Filter · ${widget.hidden} hidden',
+        below: true,
+        end: true,
+        child: GlacierPressable(
+          onPressed: trigger.toggle,
+          semanticLabel: widget.hidden == 0 ? 'Filter' : 'Filter, ${widget.hidden} hidden',
+          builder: (context, state) => GlacierFocusRing(
+            visible: state.focused,
+            radius: t.radius('full'),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: widget.only ? t.color('app-accent') : t.color(state.pressed || _open ? 'app-paper-3' : 'app-paper-2'),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: widget.only ? t.color('app-accent') : t.color('app-rule')),
+                ),
+                alignment: Alignment.center,
+                child: ExcludeSemantics(child: AppIcon(LucideMore.funnel, size: 16, strokeWidth: 2.2, wash: false, color: ink)),
+              ),
+              if (widget.hidden > 0)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: ExcludeSemantics(
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: t.color('app-ink-3'), borderRadius: BorderRadius.circular(9), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                      child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(10, weight: 'bold', height: 1.15, color: t.color('app-paper'))),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ),
+      children: widget.rows(context),
     );
   }
 }

@@ -448,6 +448,42 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Summaries of unread conversations** (0.7.16; `lib/summaries.dart`, android `Summaries.kt`; Matt, 2026-11-14:
+  "Use a local AI to summarize unread message conversations like apple does"). Several unread texts in a row (since
+  you last wrote), or one long one, are summed up in a line in the list, marked with a sparkle, in place of the last
+  words; reading the conversation puts them back. Made on the phone by Android's own model (Gemini Nano, kept by
+  AICore) through ML Kit's GenAI Summarization API (`com.google.mlkit:genai-summarization` 1.0.0-beta1, conversation
+  in, one bullet out, English); nothing leaves the phone. Where the model can be had and is not here, AICore is asked
+  for it; a phone without it, or a computer, shows the texts as before. A summary is made once for a conversation's
+  newest text (kept as `summary_<thread>`). Settings › Messages › Summaries turns it off and says where the model
+  stands.
+- **Kinds of text and the list's filter** (0.7.16; `lib/plugins/kinds.dart`, `FilterButton` in
+  `lib/plugins/ui.dart`; Matt, 2026-11-14: "I'd like to have tabs for messages with a intelligent spam filter, debt
+  collectors, political messages, payment reminders, tracking information, etc ... I'm thinking a filter dropdown
+  where showing spam, political messages, and debt collectors are filtered out by default", and "also add in
+  blocking of door to door sales and other sales messages like tree trimming, gutter cleaning, buying the house,
+  etc"). Texts from numbers that are not contacts are sorted on the phone into kinds: Debt collectors, Political,
+  Sales & solicitors and Spam (hidden from Messages as the app ships), Payment reminders, Deliveries & tracking and
+  Appointments (shown). A kind is a filter, not a tab (`ListSection.filter`, `hidden`): a round funnel button
+  beside Mark all read, wearing how many it hides, opens a small menu to tick each kind shown or hidden (kept as
+  `filter_<id>`; All at the top ticks every kind), each with its icon; "N hidden · Show" at the list's foot shows what
+  is hidden.
+  Each kind is a few patterns, said in Settings › Kinds of text: one strong sign or two weaker ones. Contacts and
+  your own words are never sorted; a shown kind leaves a text that looks like spam to Spam, so a fake delivery fee
+  is not shown as a delivery. "Not political" (and the like) on a conversation puts it back in Messages for good.
+  The Spam filter is on from the start now, its section one of the kinds rather than a tab.
+- **The bubble colour is the app's accent** (0.7.15; `lib/accent.dart`; Matt, 2026-11-14: "make the bubble
+  color the accent color for the app so the send button, segmented toggles, etc all get the same color as the
+  bubbles if set globally and only settings inside a chat soley change the bubble color"). Two app tokens,
+  `--app-accent` and `--app-on-accent` (the page's ink and paper by default, in assets/css/app.css), are worn by
+  Send (a filled `IconTap`), a toggle's chosen tab (`--glacier-segment-thumb`), a switch that is on and the kit's
+  solid accent (`--glacier-accent-solid`), and the page shown in the navigation pill. `AccentSheets` keeps the
+  stylesheets as read and parses them again with a rule setting the two tokens to the bubble colour chosen
+  everywhere, per theme; a colour that would not be seen on a theme's page (white, silver on the light page) leaves
+  that page's accent the ink. A conversation's own colour (`bubble_<thread>`) is its bubbles' alone.
+- **"Tell friends I'm here" turns itself on** (0.7.16; `lib/me/me.dart`; Matt, 2026-11-14: "once an account is
+  linked or the phone number verified, automatically tick tell friends I'm here"): when an account is newly linked
+  or the number verified, unless the person switched it off themselves (`me_listed_chosen`).
 - **One Settings, on the phone and the Mac** (0.7.10; `lib/ui/settings.dart`, `lib/ui/shell.dart`,
   `lib/desktop/ui/desk_settings.dart`; Matt, 2026-11-14: "update the desktop app to have a full features settings
   page like the ghost markdown app with the plugins and all being able to make their own setting sections instead

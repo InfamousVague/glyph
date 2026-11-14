@@ -7,6 +7,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'me/me.dart';
+import 'accent.dart';
+import 'summaries.dart';
 import 'app_state.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
@@ -55,17 +57,18 @@ Future<void> main() async {
   // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
   // the phone) are asked for together: none waits on another.
   final loaded = await Future.wait<Object?>([
-    loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css']),
+    AccentSheets.load(),
     state.load(),
     PhonePalette.load(),
   ]);
-  final sheet = loaded[0]! as TokenSheet;
+  final accents = loaded[0]! as AccentSheets;
+  final sheet = accents.base;
   installSettingsStyles(sheet);
   Sms.instance.listen();
   _logErrors();
   _watchFrames();
   Sms.instance.prefsChanged.stream.listen((_) => state.reload());
-  runApp(GhostMessagingApp(sheet: sheet, state: state));
+  runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 
 final _navigator = GlobalKey<NavigatorState>();
@@ -111,9 +114,13 @@ GlacierTypography ghostTypography(String emoji) {
 }
 
 class GhostMessagingApp extends StatelessWidget {
-  const GhostMessagingApp({super.key, required this.sheet, required this.state});
+  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents});
   final TokenSheet sheet;
   final AppState state;
+
+  /// The stylesheets with the bubble colour chosen everywhere as the accent (lib/accent.dart); [sheet] alone where
+  /// not given.
+  final AccentSheets? accents;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +138,7 @@ class GhostMessagingApp extends StatelessWidget {
           pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) =>
               PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
           builder: (context, child) => GlacierTheme(
-            sheet: sheet,
+            sheet: accents?.of(state) ?? sheet,
             attrs: {'platform': 'mobile', if (state.theme != 'system') 'theme': state.theme},
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
@@ -202,6 +209,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
       Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+      // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
+      // for where it can be had.
+      Summaries.instance.start(app);
       // And the number's verification, done here for a paired computer that asks (Sms.me on the computer).
       Sms.answer('me', Me.instance.forComputer);
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
@@ -253,9 +263,12 @@ class InkOverrides extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => GlacierOverrides(switchThumbColor: _paper, segmentedSelectedLabelColor: _paper, segmentedThumbShadow: _none, child: child);
+  Widget build(BuildContext context) => GlacierOverrides(switchThumbColor: _paper, segmentedSelectedLabelColor: _onAccent, segmentedThumbShadow: _none, child: child);
 
   static Color _paper(Tokens t) => t.color('app-paper');
+
+  /// The words on a toggle's chosen tab, which wears the accent (lib/accent.dart).
+  static Color _onAccent(Tokens t) => t.color('app-on-accent');
   static List<BoxShadow> _none(Tokens t) => const [];
 }
 

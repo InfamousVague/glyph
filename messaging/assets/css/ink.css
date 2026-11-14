@@ -280,7 +280,7 @@
   --glacier-text-disabled: var(--app-ink-4);
 
   --glacier-segment-track: var(--app-paper-2);
-  --glacier-segment-thumb: var(--app-ink);
+  --glacier-segment-thumb: var(--app-accent);
   --glacier-slider-thumb: var(--app-paper);
 
   --glacier-danger-solid: var(--app-ink);
@@ -483,13 +483,13 @@
   --glacier-accent-10: var(--app-gray-11);
   --glacier-accent-11: var(--app-gray-12);
   --glacier-accent-12: var(--app-gray-12);
-  --glacier-accent-solid: var(--app-ink);
-  --glacier-accent-solid-hover: var(--app-ink-2);
+  --glacier-accent-solid: var(--app-accent);
+  --glacier-accent-solid-hover: var(--app-accent);
   --glacier-accent-soft: var(--app-paper-2);
   --glacier-accent-soft-hover: var(--app-paper-3);
   --glacier-accent-border: var(--app-ink-3);
   --glacier-accent-text: var(--app-ink);
-  --glacier-accent-contrast: var(--app-paper);
+  --glacier-accent-contrast: var(--app-on-accent);
   /* The ring round whatever has the keyboard: ink with no accent, and the accent's own when there is one, since a
      focus ring is exactly the kind of mark an accent is for. */
   --glacier-focus-ring: var(--app-ink);

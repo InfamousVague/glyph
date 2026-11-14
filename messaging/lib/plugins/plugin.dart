@@ -259,7 +259,16 @@ class RowFace {
 /// when the chip is chosen, the newest first. The chip is there only while the section has conversations.
 @immutable
 class ListSection {
-  const ListSection({required this.id, required this.label, required this.icon, required this.takes, this.leavesMain = true, this.row});
+  const ListSection({required this.id, required this.label, required this.icon, required this.takes, this.leavesMain = true, this.row, this.filter = false, this.hidden = false});
+
+  /// A kind the list's filter shows or hides (lib/plugins/kinds.dart), not a tab of its own: its conversations stay
+  /// in Messages while it is shown and leave it while it is hidden, and the filter can show it alone. Matt,
+  /// 2026-11-14: "I'm thinking a filter dropdown where showing spam, political messages, and debt collectors are
+  /// filtered out by default".
+  final bool filter;
+
+  /// A filter kind hidden from Messages until the person shows it.
+  final bool hidden;
 
   /// Its name among every plugin's sections, and what a conversation is filed under ([PluginHost.move]).
   final String id;

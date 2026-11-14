@@ -12,9 +12,16 @@ import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.database.Cursor
 import android.graphics.drawable.Icon
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.net.Uri
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.provider.Telephony
 import java.io.File
@@ -40,6 +47,69 @@ object Notifier {
         return nm
     }
 
+    /** Texts keep to a group of their own, apart from the paired-computer notification's ("desk"). */
+    private const val GROUP = "texts"
+
+    /**
+     * The conversation's shortcut, which makes its notification a conversation's (Matt, 2026-11-14: "can we make it
+     * a seperate notification chain", of the paired-computer notification beside the texts): Android puts a
+     * notification with a long-lived conversation shortcut in the shade's Conversations section, at its top and
+     * apart from every other notification, the paired-computer one included (that one is Silent, at its foot).
+     * Null where Android would not take it; the notification is then an ordinary one, as before.
+     */
+    /**
+     * The face Android shows for a conversation's notification: the contact's photo, or the first letter of their
+     * name on a colour of its own (the app's avatars' way), drawn here since the shade cannot read the contacts.
+     */
+    private fun face(context: Context, name: String, photo: String?): Icon {
+        val side = 192
+        if (photo != null) try {
+            context.contentResolver.openInputStream(Uri.parse(photo))?.use { stream ->
+                BitmapFactory.decodeStream(stream)?.let { return Icon.createWithAdaptiveBitmap(squareOf(it, side)) }
+            }
+        } catch (_: Exception) {}
+        val hues = intArrayOf(0xFF4F5BD5.toInt(), 0xFF2A9D4B.toInt(), 0xFFE0662A.toInt(), 0xFFB04CC8.toInt(), 0xFF1E88C8.toInt(), 0xFFD6455D.toInt())
+        // Adaptive: a square drawn larger than it is shown, its middle two thirds the part in sight.
+        val big = (side * 1.5).toInt()
+        val bitmap = Bitmap.createBitmap(big, big, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(hues[Math.floorMod(name.hashCode(), hues.size)])
+        val letter = name.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "#"
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); textSize = side * 0.42f; textAlign = Paint.Align.CENTER; isFakeBoldText = true }
+        canvas.drawText(letter, big / 2f, big / 2f - (paint.descent() + paint.ascent()) / 2, paint)
+        return Icon.createWithAdaptiveBitmap(bitmap)
+    }
+
+    private fun squareOf(src: Bitmap, side: Int): Bitmap {
+        val big = (side * 1.5).toInt()
+        val cut = minOf(src.width, src.height)
+        val square = Bitmap.createBitmap(src, (src.width - cut) / 2, (src.height - cut) / 2, cut, cut)
+        return Bitmap.createScaledBitmap(square, big, big, true)
+    }
+
+    private fun shortcut(context: Context, thread: Long, title: String, people: List<Person>, icon: Icon): String? = try {
+        val id = "thread-$thread"
+        val info = ShortcutInfo.Builder(context, id)
+            .setShortLabel(title.take(40).ifBlank { "Conversation" })
+            .setLongLabel(title.ifBlank { "Conversation" })
+            .setLongLived(true)
+            .setPersons(people.toTypedArray())
+            .setCategories(setOf(ShortcutInfo.SHORTCUT_CATEGORY_CONVERSATION))
+            .setIcon(icon)
+            .setIntent(Intent(context, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                putExtra(EXTRA_THREAD, thread)
+            })
+            .build()
+        val sm = context.getSystemService(ShortcutManager::class.java)
+        if (Build.VERSION.SDK_INT >= 30) sm.pushDynamicShortcut(info)
+        else if (sm.dynamicShortcuts.none { it.id == id } && sm.dynamicShortcuts.size >= sm.maxShortcutCountPerActivity) { /* no room: an ordinary notification */ null }
+        else sm.addDynamicShortcuts(listOf(info))
+        if (Build.VERSION.SDK_INT >= 30 || sm.dynamicShortcuts.any { it.id == id }) id else null
+    } catch (_: Exception) {
+        null
+    }
+
     private fun open(context: Context, thread: Long): PendingIntent =
         PendingIntent.getActivity(context, thread.toInt(), Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
@@ -60,12 +130,14 @@ object Notifier {
         val group = people.size > 1
         val title = people.joinToString(", ") { (it["name"] as String?) ?: (it["address"] as String) }
         val me = Person.Builder().setName("You").build()
+        val senders = LinkedHashMap<String, Person>()
         val style = Notification.MessagingStyle(me).setGroupConversation(group)
         if (group) style.conversationTitle = title
         for (m in unread) {
             val addr = (m["address"] as String).ifEmpty { (people.firstOrNull()?.get("address") as String?) ?: "" }
             val c = store.contact(addr)
             val sender = Person.Builder().setName((c["name"] as String?) ?: addr).setKey(addr).build()
+            senders[addr] = sender
             var body = m["body"] as String
             when (m["notice"]) {
                 "key" -> body = if (E2e.isOn(context, addr)) "Texts with them are now encrypted." else "Sent an encryption key. Open to turn encryption on."
@@ -104,7 +176,11 @@ object Notifier {
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setColor(0xFF4F5BD5.toInt())
-            .setShortcutId(null)
+            .setGroup(GROUP)
+            .setShortcutId(shortcut(context, thread, title, people.map { p ->
+                val a = p["address"] as String
+                senders[a] ?: Person.Builder().setName((p["name"] as String?) ?: a).setKey(a).build()
+            }, if (group) face(context, title, null) else face(context, title, people.firstOrNull()?.let { store.contact(it["address"] as String)["photo"] as String? })))
         if (code != null) {
             builder.addAction(Notification.Action.Builder(
                 Icon.createWithResource(context, android.R.drawable.ic_menu_save), "Copy $code",

@@ -17,7 +17,8 @@ class Network {
   final String id;
   final String name;
 
-  /// Its colour among Settings' (kit/settings_css.dart), and the letters on its chip. No network's own logo is drawn.
+  /// Its colour among Settings' (kit/settings_css.dart), and the letter on its chip where its logo is not to hand
+  /// (its logo is lib/me/network_marks.g.dart's).
   final String hue;
   final String mark;
 
@@ -346,9 +347,14 @@ class Me extends ChangeNotifier {
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':
         if (network != null && m['handle'] is String) {
+          final fresh = links[network] == null;
           links[network] = m['handle'] as String;
           _app?.setFlag('me_used', true);
           _write();
+          // An account linked or the number verified turns "Tell friends I'm here" on (Matt, 2026-11-14: "once an
+          // account is linked or the phone number verified, automatically tick tell friends I'm here"), unless the
+          // person has switched it off themselves, which stands.
+          if (fresh && !listed && !(_app?.flag('me_listed_chosen', fallback: false) ?? false)) _list(true);
         }
         _waiting.remove('linked:${network ?? ''}')?.complete(m);
       case 'listed':
@@ -491,7 +497,13 @@ class Me extends ChangeNotifier {
     }
   }
 
+  /// The person's own choice of "Tell friends I'm here": kept as theirs, so a link made later does not undo an off.
   void setListed(bool on) {
+    _app?.setFlag('me_listed_chosen', true);
+    _list(on);
+  }
+
+  void _list(bool on) {
     listed = on;
     _app?.setFlag('me_used', true);
     _write();

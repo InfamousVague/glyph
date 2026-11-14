@@ -12,9 +12,12 @@ import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../plugins/list.dart';
-import '../plugins/ui.dart' show MarkAllRead;
+import '../art/lucide_more.dart';
+import '../plugins/registry.dart' show PluginSection;
+import '../plugins/ui.dart' show FilterButton, MarkAllRead;
 import '../reactions.dart';
 import '../sms.dart';
+import '../summaries.dart';
 import 'common.dart';
 import 'compose.dart';
 import 'settings.dart';
@@ -122,6 +125,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // What was open in the pane has closed, or given way to something else: read again, as on coming back to the
     // list from a page.
     _shell = AppShell.maybeOf(context)?..closed.addListener(_back);
+    // A summary made comes into its row.
+    Summaries.instance.addListener(_summed);
     _load();
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
@@ -131,8 +136,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     });
   }
 
+  void _summed() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    Summaries.instance.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
     _changes?.cancel();
@@ -284,20 +294,89 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget? _tabsRow(Tokens t) {
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu);
     final unread = _of(_section).where((c) => c.unread).length;
-    if (tabs == null && unread == 0) return null;
+    final kinds = _plugins.kinds;
+    if (tabs == null && unread == 0 && kinds.isEmpty) return null;
+    final only = _section != null && (_section == ListPlugins.hiddenView || kinds.any((k) => k.id == _section));
     return Padding(
       // From the search field's edge, which is the cards' edge too.
       padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
-      // As tall as the toggle, which is as tall as the round button beside it.
-      child: SizedBox(
-        height: MarkAllRead.size(t),
-        child: Row(children: [
-          Expanded(child: tabs ?? const SizedBox.shrink()),
-          SizedBox(width: t.space(2)),
-          MarkAllRead(unread: unread, onPress: () => _markAllRead(_section)),
-        ]),
-      ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // As tall as the toggle, which is as tall as the round buttons beside it.
+        SizedBox(
+          height: MarkAllRead.size(t),
+          child: Row(children: [
+            Expanded(child: tabs ?? const SizedBox.shrink()),
+            if (kinds.isNotEmpty) ...[
+              SizedBox(width: t.space(2)),
+              FilterButton(hidden: _plugins.hiddenCount, only: only, rows: (context) => _filterRows(kinds)),
+            ],
+            SizedBox(width: t.space(2)),
+            MarkAllRead(unread: unread, onPress: () => _markAllRead(_section)),
+          ]),
+        ),
+        // One kind shown alone: which, and the way back to everything.
+        if (only)
+          Padding(
+            padding: EdgeInsets.only(top: t.space(2), left: t.space(2)),
+            child: Row(children: [
+              Expanded(
+                child: Text(_section == ListPlugins.hiddenView ? 'Hidden by the filter' : 'Only ${_plugins.tabName(_section)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
+              ),
+              GlacierPressable(
+                onPressed: () => setState(() => _section = null),
+                builder: (context, state) => Padding(
+                  padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
+                  child: Text('Show all', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color(state.pressed ? 'app-ink-3' : 'app-ink'))),
+                ),
+              ),
+            ]),
+          ),
+      ]),
     );
+  }
+
+  /// The filter's menu (Matt, 2026-11-14: "a filter dropdown where showing spam, political messages, and debt
+  /// collectors are filtered out by default"; then "Remove the show only toggle and just habe all at the top and each
+  /// of these filters get ticked on or off With the icons"): All at the top, and under it each kind of text with its
+  /// icon, how many there are, and a tick while it is shown in Messages. A press ticks or unticks it; All ticks every
+  /// kind, or, with all ticked, unticks them.
+  List<Widget> _filterRows(List<PluginSection> kinds) {
+    final app = AppState.of(context);
+    final t = context.tokens;
+    bool on(PluginSection k) => ListPlugins.kindShown(app, k);
+    final all = kinds.every(on);
+    Widget tick(bool shown) => shown ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16, height: 16);
+    Widget row(String label, int n, bool shown) => Opacity(
+          opacity: shown ? 1 : 0.5,
+          child: Row(children: [
+            Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (n > 0) ...[SizedBox(width: t.space(3)), Opacity(opacity: 0.6, child: Text('$n')), SizedBox(width: t.space(2))],
+          ]),
+        );
+    return [
+      GlacierMenuItem(
+        icon: const AppIcon(Lucide.listFilter, size: 16),
+        shortcut: tick(all),
+        closes: false,
+        ariaLabel: all ? 'All, shown' : 'All',
+        onSelect: () {
+          for (final k in kinds) {
+            app.setFlag('filter_${k.id}', !all);
+          }
+        },
+        child: row('All', 0, true),
+      ),
+      const GlacierMenuSeparator(),
+      for (final k in kinds)
+        GlacierMenuItem(
+          icon: AppIcon(k.section.icon, size: 16),
+          shortcut: tick(on(k)),
+          closes: false,
+          ariaLabel: '${k.section.label}, ${on(k) ? 'shown' : 'hidden'}',
+          onSelect: () => app.setFlag('filter_${k.id}', !on(k)),
+          child: row(k.section.label, _plugins.countOf(k.id), on(k)),
+        ),
+    ];
   }
 
   /// Marks every unread conversation of a tab as read: from the button beside the tabs, or a tab's own menu.
@@ -523,8 +602,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final app = AppState.of(context);
     // Plugins: given the person's choices, then asked which section each conversation is in. A section that has
     // emptied gives way to the main list.
-    if (!widget.archived) _plugins.bind(app);
-    if (!_plugins.sort(widget.archived ? null : _all).has(_section)) _section = null;
+    if (!widget.archived) {
+      _plugins.bind(app);
+      // The filter: which kinds of text Messages shows, as the person chose or as each kind starts.
+      _plugins.shown = (k) => ListPlugins.kindShown(app, k);
+    }
+    final sorted = _plugins.sort(widget.archived ? null : _all);
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0)) _section = null;
     final shown = _shown;
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
@@ -575,9 +659,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       final extras = (notice ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
+      // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
+      final hiddenNow = !widget.archived && _query.isEmpty && !_selecting && _section == null ? _plugins.hiddenCount : 0;
+      final foot = hiddenNow > 0;
       body = RefreshableList(
         onRefresh: _load,
-        itemCount: extras + shown.length + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
+        itemCount: extras + shown.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
         itemBuilder: (context, i) {
           if (notice && i == 0) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
@@ -606,6 +693,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(
                       conversation: c,
+                      // Unread texts summed up by the phone's own model, made as the row is first shown.
+                      summary: widget.archived ? null : (Summaries.instance..want(c)).of(c),
                       selecting: _selecting,
                       selected: selected,
                       onPress: () => _selecting ? _toggle(c) : _open(c),
@@ -613,7 +702,21 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     ),
             );
           }
-          if (tail && at == shown.length) {
+          if (foot && at == shown.length) {
+            return GlacierPressable(
+              onPressed: () => setState(() => _section = ListPlugins.hiddenView),
+              semanticLabel: '$hiddenNow hidden by the filter. Show them.',
+              builder: (context, state) => Padding(
+                padding: EdgeInsets.symmetric(horizontal: gutter, vertical: t.space(4)),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  AppIcon(LucideMore.funnel, size: 15, color: t.color(state.pressed ? 'app-ink-4' : 'app-ink-3')),
+                  SizedBox(width: t.space(2)),
+                  Text('$hiddenNow hidden · Show', style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color(state.pressed ? 'app-ink-4' : 'app-ink-3'))),
+                ]),
+              ),
+            );
+          }
+          if (tail && at == shown.length + (foot ? 1 : 0)) {
             return GlacierPressable(
               onPressed: () async {
                 await push<void>(context, (_) => const ConversationsScreen(archived: true));
@@ -629,7 +732,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               ),
             );
           }
-          if (more && at == shown.length + (tail ? 1 : 0)) {
+          if (more && at == shown.length + (foot ? 1 : 0) + (tail ? 1 : 0)) {
             return Padding(
               padding: EdgeInsets.symmetric(vertical: t.space(4)),
               child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
@@ -791,8 +894,12 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary});
   final Conversation conversation;
+
+  /// What its unread texts come to, in a line, by the phone's own model (lib/summaries.dart): shown in place of the
+  /// last words, marked as a summary.
+  final String? summary;
   final VoidCallback onPress;
   final VoidCallback onLongPress;
 
@@ -875,7 +982,19 @@ class ConversationRow extends StatelessWidget {
                                     TextSpan(text: 'Draft: ', style: TextStyle(color: t.colorOf('#dd3a30'), fontWeight: t.weight('medium'))),
                                     TextSpan(text: c.draft!.replaceAll('\n', ' ')),
                                   ])
-                                : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' ')),
+                                : summary != null && !c.error
+                                    // A summary, as Apple marks one: the model's mark, then its line.
+                                    ? TextSpan(children: [
+                                        WidgetSpan(
+                                          alignment: PlaceholderAlignment.middle,
+                                          child: Padding(
+                                            padding: EdgeInsets.only(right: t.space(1)),
+                                            child: Semantics(label: 'Summary', child: AppIcon(Lucide.sparkles, size: 13, strokeWidth: 2.2, wash: false, color: t.color('app-ink-2'))),
+                                          ),
+                                        ),
+                                        TextSpan(text: summary),
+                                      ])
+                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' ')),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),

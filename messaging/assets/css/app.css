@@ -22,6 +22,11 @@
 }
 
 :root {
+  /* The app's accent (lib/accent.dart): what is pressed and chosen wears it - Send, a toggle's chosen tab, a
+     switch that is on, the page shown in the navigation pill. The page's ink and paper, unless the bubble colour
+     chosen everywhere is laid over them. */
+  --app-accent: var(--app-ink);
+  --app-on-accent: var(--app-paper);
   /* The notch and home-indicator insets, named once so every surface that
      hugs an edge reads the same number. Real values only arrive because the
      viewport meta says viewport-fit=cover. */

@@ -23,6 +23,7 @@ import 'encryption.dart';
 import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
+import '../summaries.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -272,7 +273,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.15';
+const appVersion = '0.7.17';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -413,6 +414,25 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
         control: GlacierSwitch(checked: app.enterSends, onCheckedChange: (v) => app.setFlag('enter_sends', v), ariaLabel: 'Enter sends'),
       ),
     ]),
+    // Summaries of unread conversations by the phone's own model (lib/summaries.dart; Matt, 2026-11-14: "Use a local
+    // AI to summarize unread message conversations like apple does").
+    PaneSection(
+      title: 'Summaries',
+      footer: Text(switch (Summaries.instance.status) {
+        'available' => 'Several unread texts in a row, or one long one, are summed up in a line in the list, marked with a sparkle. They are made on this phone by Android\'s own model; nothing is sent anywhere.',
+        'downloading' || 'downloadable' => 'Android is fetching its on-phone model for this, over Wi-Fi. Summaries begin once it is here; nothing is sent anywhere.',
+        'unknown' => 'Looking for Android\'s on-phone model.',
+        _ => Sms.remote ? 'Summaries are made on your phone, where Android\'s own model is.' : 'This phone has no on-phone model for summaries (Android\'s Gemini Nano, on newer phones). The list shows the texts as they came.',
+      }),
+      children: [
+        SettingRow(
+          icon: _icon(Lucide.sparkles),
+          label: 'Summarize unread conversations',
+          disabledReason: const {'available', 'downloading', 'downloadable', 'unknown'}.contains(Summaries.instance.status) ? null : 'Not on this phone',
+          control: GlacierSwitch(checked: Summaries.chosen(app), onCheckedChange: (v) => app.setFlag('summaries', v), ariaLabel: 'Summarize unread conversations'),
+        ),
+      ],
+    ),
     PaneSection(
       title: 'Reactions',
       footer: const Text('Other phones send a reaction as a text, like Loved “See you at 7”. On, it is drawn as a ❤️ on the message it names. Off, every text is shown as it came.'),
