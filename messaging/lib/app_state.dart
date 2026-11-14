@@ -49,9 +49,10 @@ class AppState extends ChangeNotifier {
   String get emoji => choice('emoji', 'system');
   void setEmoji(String v) => set('emoji', v);
 
-  /// Your own bubbles: 'ghost' is Ghost Keyboard's primary, 'ink' the page's ink on paper, 'wallpaper' the accent
+  /// Your own bubbles: white where nothing has been chosen (Matt, 2026-11-14: "change the default chat bubble to
+  /// be white"; it was 'ghost', Ghost Keyboard's primary), 'ink' the page's ink on paper, 'wallpaper' the accent
   /// Android takes from the phone's wallpaper (lib/backgrounds.dart).
-  String get bubble => choice('bubble', 'ghost');
+  String get bubble => choice('bubble', 'white');
   void setBubble(String v) => set('bubble', v);
 
   /// The size of a message's words: small, default, large, larger.

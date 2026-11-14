@@ -199,7 +199,7 @@ final List<SettingsSection> settingsSections = [
 ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.1';
+const appVersion = '0.7.3';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -232,7 +232,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.messageSquare),
           label: 'Your bubbles',
           layout: SettingRowLayout.stacked,
-          control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'ghost' : app.bubble, onPick: app.setBubble),
+          control: BubbleSwatches(chosen: app.bubble == 'wallpaper' && !palette ? 'white' : app.bubble, onPick: app.setBubble),
         ),
       ],
     ),
@@ -815,14 +815,14 @@ String updateLine(UpdateState u) => switch (u.phase) {
           : '${u.available} is downloaded and ready.',
       'installing' => 'Installing ${u.available}…',
       'failed' => u.error == 'offline'
-          ? 'This phone is offline. It will look again when the app next opens.'
+          ? 'This phone is offline. It will look again the next time the app is in front.'
           : u.error != null && u.error!.contains('not signed by this app')
               ? 'This copy is a test build, signed differently from the release. Install the release from ${_host(u)} once, and it updates itself from then on.'
               : _notServing(u)
                   ? '${_host(u)} isn\'t serving updates yet.'
                   : 'Couldn\'t update: ${u.error ?? 'something went wrong'}',
       'disabled' => 'Updates are off in debug builds.',
-      _ => 'Looks for a new version when the app opens, at most twice a day.',
+      _ => 'Looks for a new version whenever the app is in front.',
     };
 
 /// The same, short, for the row on Settings' list.

@@ -53,6 +53,7 @@ class GhostPage extends StatelessWidget {
               ],
             ),
           ),
+          const HeaderEnd(),
           Expanded(child: body),
           if (footer != null) Padding(padding: EdgeInsets.only(bottom: inset > 0 ? inset : pad.bottom), child: footer!),
         ],
@@ -134,6 +135,86 @@ class _ArcPainter extends CustomPainter {
 }
 
 /// A round icon button, the kit's press and focus ring round it.
+/// Where a page's header ends: a mark of no size that a page puts under its header (GhostPage puts one under its
+/// title; the list of conversations puts another under its search field). The update banner hangs just below the
+/// lowest one on the page in front, so it is over the page's content and never over its header.
+class HeaderEnd extends StatefulWidget {
+  const HeaderEnd({super.key});
+
+  static final _marks = <_HeaderEndState>{};
+
+  /// Told whenever a mark comes, goes, or its page comes to the front or leaves it.
+  static final changed = ValueNotifier<int>(0);
+
+  /// How far down the screen the header of the page in front ends, or null where no page has said.
+  static double? lowest() {
+    double? y;
+    for (final mark in _marks) {
+      if (!mark.mounted || !(mark._route?.isCurrent ?? true)) continue;
+      final box = mark.context.findRenderObject();
+      if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+      final at = box.localToGlobal(Offset.zero).dy;
+      if (y == null || at > y) y = at;
+    }
+    return y;
+  }
+
+  @override
+  State<HeaderEnd> createState() => _HeaderEndState();
+}
+
+class _HeaderEndState extends State<HeaderEnd> {
+  ModalRoute<dynamic>? _route;
+
+  void _say() => WidgetsBinding.instance.addPostFrameCallback((_) => HeaderEnd.changed.value++);
+
+  @override
+  void initState() {
+    super.initState();
+    HeaderEnd._marks.add(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The page coming to the front or leaving it is a change of this, and so is its arriving.
+    _route = ModalRoute.of(context);
+    _say();
+  }
+
+  @override
+  void dispose() {
+    HeaderEnd._marks.remove(this);
+    _say();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: double.infinity, height: 0);
+}
+
+/// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it
+/// (assets/art/ghost-mark.png, cut from the icon by tool/app_icon.py). Black in either theme, since the mark is white.
+class GhostLogo extends StatelessWidget {
+  const GhostLogo({super.key, this.size});
+
+  /// Its side; 2.75rem where not said, which fills the box an empty screen gives its picture.
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final side = size ?? t.lenOf('2.75rem');
+    return Container(
+      width: side,
+      height: side,
+      decoration: BoxDecoration(color: const Color(0xFF000000), borderRadius: BorderRadius.circular(side * 0.27), border: Border.all(color: t.color('app-rule'))),
+      alignment: Alignment.center,
+      child: Image.asset('assets/art/ghost-mark.png', width: side * 0.64, height: side * 0.64, filterQuality: FilterQuality.medium),
+    );
+  }
+}
+
 class IconTap extends StatelessWidget {
   const IconTap({super.key, required this.icon, required this.label, required this.onPressed, this.size = 20, this.color, this.filled = false, this.box});
 

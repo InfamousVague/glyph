@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -15,6 +16,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'compose.dart';
 import 'settings.dart';
+import 'swipe_actions.dart';
 import 'thread.dart';
 
 /// Home: every conversation, the newest first, with a search over names, numbers and the last message.
@@ -217,23 +219,52 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     showChoices(context, title: c.title, choices: [
       Choice('Select', Lucide.circleCheck, () => _toggle(c)),
       if (c.unread) Choice('Mark as read', Lucide.checkCheck, () async { await Sms.instance.markRead(c.id); _load(); }),
-      Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () async { await Sms.instance.threadFlag('pinned', c.id, !c.pinned); _load(); }),
+      Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () => _pin(c)),
       Choice(c.muted ? 'Unmute' : 'Mute notifications', c.muted ? Lucide.bell : GhostIcons.bellOff, () async {
         await Sms.instance.threadFlag('muted', c.id, !c.muted);
         await _load();
         if (mounted) toast(context, c.muted ? 'Notifications on' : 'Muted. Messages still arrive, quietly.');
       }),
-      Choice(c.archived ? 'Unarchive' : 'Archive', c.archived ? Lucide.archiveRestore : Lucide.archive, () async {
-        await Sms.instance.archive(c.id, !c.archived);
-        await _load();
-        if (!mounted) return;
-        toast(context, c.archived ? 'Moved back to Messages' : 'Archived',
-            action: GlacierToastAction(label: 'Undo', onPress: () async { await Sms.instance.archive(c.id, c.archived); _load(); }));
-      }),
+      Choice(c.archived ? 'Unarchive' : 'Archive', c.archived ? Lucide.archiveRestore : Lucide.archive, () => _archive(c)),
       if (!c.group && c.people.isNotEmpty)
         Choice(c.blocked ? 'Unblock' : 'Block number', Lucide.ban, () => c.blocked ? _setBlocked(c, false) : _confirmBlock(c), danger: !c.blocked),
       Choice('Delete conversation', Lucide.trash2, () => _confirmDelete(c), danger: true),
     ]);
+  }
+
+  /// What the list holds of one conversation is changed at once, before Android has answered: the row moves as the
+  /// finger lets go, not when the read that follows comes back.
+  void _patch(int id, Conversation Function(Conversation) change) {
+    setState(() => _all = [for (final c in _all ?? const <Conversation>[]) c.id == id ? change(c) : c]);
+  }
+
+  /// Archives [c], or takes it back out: from its menu, or by dragging its row to the left.
+  Future<void> _archive(Conversation c) async {
+    _patch(c.id, (x) => x.copyWith(archived: !c.archived));
+    try {
+      await Sms.instance.archive(c.id, !c.archived);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t ${c.archived ? 'unarchive' : 'archive'}: $e', tone: GlacierToastTone.danger);
+    }
+    _load();
+    if (!mounted) return;
+    toast(context, c.archived ? 'Moved back to Messages' : 'Archived',
+        action: GlacierToastAction(label: 'Undo', onPress: () async {
+          _patch(c.id, (x) => x.copyWith(archived: c.archived));
+          await Sms.instance.archive(c.id, c.archived);
+          _load();
+        }));
+  }
+
+  /// Pins [c] to the top, or lets it go: from its menu, or by dragging its row to the right.
+  Future<void> _pin(Conversation c) async {
+    _patch(c.id, (x) => x.copyWith(pinned: !c.pinned));
+    try {
+      await Sms.instance.threadFlag('pinned', c.id, !c.pinned);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t ${c.pinned ? 'unpin' : 'pin'}: $e', tone: GlacierToastTone.danger);
+    }
+    _load();
   }
 
   void _confirmBlock(Conversation c) {
@@ -256,9 +287,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   void _confirmDelete(Conversation c) {
     showChoices(context, title: 'Delete every message with ${c.title}? This can\'t be undone.', choices: [
       Choice('Delete', Lucide.trash2, () async {
-        await Sms.instance.deleteThread(c.id);
-        await _load();
-        if (mounted) toast(context, 'Conversation deleted');
+        try {
+          await Sms.instance.deleteThread(c.id);
+          // Gone from the list at once, where it used to stay until every conversation had been read again.
+          if (mounted) setState(() => _all = _all?.where((x) => x.id != c.id).toList());
+          if (mounted) toast(context, 'Conversation deleted');
+        } catch (e) {
+          if (mounted) toast(context, 'Couldn\'t delete: ${e is PlatformException ? (e.message ?? e.code) : e}', tone: GlacierToastTone.danger);
+        }
+        _load();
       }, danger: true),
     ]);
   }
@@ -277,7 +314,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         Choice('Delete ${_count(ids.length)}', Lucide.trash2, () async {
           try {
             await Sms.instance.deleteThreads(ids);
-            if (mounted) setState(_selected.clear);
+            if (mounted) {
+              setState(() {
+                _selected.clear();
+                _all = _all?.where((x) => !ids.contains(x.id)).toList();
+              });
+            }
             await _load();
             if (mounted) toast(context, '${_count(ids.length)} deleted');
           } catch (e) {
@@ -340,7 +382,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
-          icon: AppIcon(Lucide.ghost, size: 28, color: t.color('app-ink-3')),
+          // The app's own mark, as it is on the home screen (Matt, 2026-11-14: "I also want the ghost image used
+          // when there are no messages to use the logo"), where a drawn outline of a ghost stood.
+          icon: const GhostLogo(),
           title: _query.isNotEmpty ? (more ? 'Nothing found yet' : 'Nothing found') : (widget.archived ? 'Nothing archived' : 'No conversations yet'),
           body: Text(_query.isNotEmpty
               ? (more ? 'Older conversations are still being read. Nothing so far matches "$_query".' : 'No name, number or message matches "$_query".')
@@ -365,12 +409,24 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           final at = i - extras;
           if (at < shown.length) {
             final c = shown[at];
-            return ConversationRow(
-              conversation: c,
-              selecting: _selecting,
-              selected: _selected.contains(c.id),
-              onPress: () => _selecting ? _toggle(c) : _open(c),
-              onLongPress: () => _selecting ? _toggle(c) : _menu(c),
+            // Dragged left it archives, further it deletes (asked first), right it pins: lib/ui/swipe_actions.dart.
+            return SwipeActions(
+              key: ValueKey('swipe-${c.id}'),
+              enabled: !_selecting,
+              archiveLabel: c.archived ? 'Unarchive' : 'Archive',
+              archiveIcon: c.archived ? Lucide.archiveRestore : Lucide.archive,
+              pinLabel: c.pinned ? 'Unpin' : 'Pin',
+              pinIcon: c.pinned ? Lucide.pinOff : Lucide.pin,
+              onArchive: () => _archive(c),
+              onDelete: () => _confirmDelete(c),
+              onPin: () => _pin(c),
+              child: ConversationRow(
+                conversation: c,
+                selecting: _selecting,
+                selected: _selected.contains(c.id),
+                onPress: () => _selecting ? _toggle(c) : _open(c),
+                onLongPress: () => _selecting ? _toggle(c) : _menu(c),
+              ),
             );
           }
           if (tail && at == shown.length) {
@@ -434,6 +490,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   onValueChange: (v) => setState(() => _query = v),
                 ),
               ),
+              // The search is this page's header too: the update banner hangs under it, not over it.
+              const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.
               SizedBox(
                 height: 3,

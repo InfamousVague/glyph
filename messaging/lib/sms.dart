@@ -40,6 +40,22 @@ class Conversation {
   final bool pinned;
   final bool muted;
 
+  /// This conversation with its archive or its pin changed: what the list shows at once, before Android answers.
+  Conversation copyWith({bool? archived, bool? pinned}) => Conversation(
+        id: id,
+        date: date,
+        people: people,
+        snippet: snippet,
+        unread: unread,
+        error: error,
+        archived: archived ?? this.archived,
+        pinned: pinned ?? this.pinned,
+        muted: muted,
+        blocked: blocked,
+        draft: draft,
+        encrypted: encrypted,
+      );
+
   /// The one person of the conversation is on Android's blocked list.
   final bool blocked;
 

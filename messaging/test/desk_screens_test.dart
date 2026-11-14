@@ -249,7 +249,7 @@ void main() {
 
       await shoot('6-waiting', paired(null), dark: dark);
       expect(find.textContaining('Waiting for your phone'), findsOneWidget);
-      expect(find.text('Update now'), findsNothing);
+      expect(find.textContaining('is ready to install'), findsNothing);
 
       // A newer version is in place beside this one: the banner the phone has says so over the page, and Update now
       // swaps it in and opens it (Matt: "bring the same update banner we have on mobile to the desktop app").

@@ -17,6 +17,7 @@ import '../../ui/thread.dart';
 import '../desk.dart';
 import 'desk_settings.dart';
 import '../../ui/contacts.dart';
+import '../../ui/update_banner.dart';
 import 'nav_bar.dart';
 import 'wizard.dart';
 
@@ -319,6 +320,8 @@ class _DeskShellState extends State<DeskShell> {
         SizedBox(width: 340, child: side),
         Container(width: 1, color: t.color('app-rule')),
         Expanded(
+          // The phone's own update banner, over the pane and under its page's header (lib/ui/update_banner.dart).
+          child: UpdateBanner(
           // The phone's screens measure themselves against the screen they are on: here that is the pane.
           child: LayoutBuilder(
             builder: (context, box) => MediaQuery(
@@ -328,6 +331,7 @@ class _DeskShellState extends State<DeskShell> {
                 onGenerateRoute: (_) => _page(const _Nothing()),
               ),
             ),
+          ),
           ),
         ),
       ]),

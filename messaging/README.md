@@ -186,6 +186,42 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
   same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
   sheet's tabs slide, and the pack it opens on is brought into view.
+- **Swiping a conversation** (0.7.3; Matt, 2026-11-14: "add swiping to archive, further drag to delete, drag the
+  other direction to pin, add haptic detents for each"). A row of the list dragged to the left uncovers Archive,
+  dragged further Delete, and dragged to the right Pin (`lib/ui/swipe_actions.dart`). Each is a detent: the phone
+  ticks as the row passes into Archive or Pin, knocks harder into Delete, and ticks lightly on the way back out, so
+  the hand knows what letting go will do. Letting go does it and the row slides back; deleting still asks first.
+  Archive, pin and delete change the list at once, before Android has answered.
+- **Deleting that says when it has not** (0.7.3; Matt: "deleting messages isn't working"). On an emulator a text, a
+  picture message and a whole conversation all delete, so what he met could not be made to happen here. What was
+  wrong either way: a delete Android refused left no word (the screen said "deleted"), and a deleted conversation
+  stayed in the list until every conversation had been read again. `Store.deleteMessage` and `deleteThread` now ask
+  a second way where the first deletes nothing, check that the thing is gone, and tell the screen if it is not
+  (with a line in Settings › Developer); the row or message goes from the screen at once and comes back with the
+  reason if Android would not delete it.
+- **The update banner, redone** (0.7.3; Matt: "Redo the update banner to show over the content but not over the
+  header, make it have an x button and be more colorful"). A card in indigo, violet and pink that hangs under the
+  page's header (`HeaderEnd` marks where each page's header ends; on the list that is under the search field) and
+  over its content, with Update now and a cross that is always there. It was a bar across the very top that pushed
+  every page down.
+- **White bubbles** (0.7.3; Matt: "change the default chat bubble to be white"): your own bubbles are white where
+  no colour has been chosen, with the line a white bubble needs on the light page. Anyone who chose a colour keeps
+  it; Settings › Appearance has the others, the old teal ("Ghost") among them.
+- **The logo where there is nothing** (0.7.2; Matt, 2026-11-14: "I also want the ghost image used when there are no
+  messages to use the logo"). The empty list, an empty archive and a search that finds nothing show the app's own
+  mark, the white ghost on black as it is on the home screen (`GhostLogo` in `lib/ui/common.dart`), where an
+  outline of a ghost stood.
+- **Reactions, plainer** (0.7.2; Matt, 2026-11-14: "The reactions should show up under the context menu not a second
+  row under emoji, don't shwo the border on the emoji reaction just show the emoji's with no background pinned under
+  it a bit larger"). Holding a message shows the reactions, then what can be done with the message, then the screen
+  effects in their row under that menu, where the effects sat between the two (`lib/ui/message_popover.dart`). A
+  message's reactions are the emoji alone, a little larger, pinned under the bubble: no chip, line or shadow round
+  them, and a count only where there are more reactions than emoji shown (`_ReactionChip`).
+- **Updates while the app is in front** (0.7.2; Matt, 2026-11-14: "it should auto check for updates when the app is
+  in focus"). The app looks at ghost-sms.com each time it comes forward and every ten minutes while it stays there
+  (`Updater.focusCheck`, from `MainActivity.onResume`; no oftener than once a minute), where it looked as it opened
+  at most twice a day and as a page opened. What it finds is on the banner over every page; with automatic updates
+  on it downloads, and installs by itself where Android allows that without asking.
 - **Mischief moves** (0.7.1; Matt, 2026-11-14: "Update the sticker pack to use the animated sprites from the
   desktop"). `~/Desktop/AnimatedStickers` held each of the pack's sixteen stickers drawn six times;
   `python3 tool/sticker_packs.py mischief=~/Desktop/AnimatedStickers` cuts each into its drawings, lays them in one

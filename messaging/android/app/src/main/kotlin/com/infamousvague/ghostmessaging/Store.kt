@@ -719,13 +719,35 @@ class Store(private val context: Context) {
         resolver.update(Telephony.Mms.CONTENT_URI, v, "thread_id = ? AND read = 0", arrayOf(thread.toString()))
     }
 
+    /**
+     * Deletes every message of [thread], and says so if Android did not (Matt, 2026-11-14: "deleting messages isn't
+     * working"). On an emulator the plain way works; a phone's own store may want it asked another way, so where
+     * the conversation still holds messages afterwards its texts and its picture messages are deleted by the
+     * conversation they say they are in, and if they are still there after that the screen is told, not left
+     * showing "deleted" over something that was not.
+     */
     fun deleteThread(thread: Long) {
-        resolver.delete(Uri.parse("content://mms-sms/conversations/$thread"), null, null)
+        var gone = 0
+        try { gone += resolver.delete(Uri.parse("content://mms-sms/conversations/$thread"), null, null) } catch (e: Exception) { android.util.Log.w("GhostMessaging", "delete conversation", e) }
+        if (hasMessages(thread)) {
+            try { gone += resolver.delete(Telephony.Sms.CONTENT_URI, "thread_id = ?", arrayOf(thread.toString())) } catch (_: Exception) {}
+            try { gone += resolver.delete(Telephony.Mms.CONTENT_URI, "thread_id = ?", arrayOf(thread.toString())) } catch (_: Exception) {}
+            DevLog.add(context, "del", "a conversation was not deleted the usual way; asked for its messages by conversation instead ($gone gone)")
+        }
+        if (hasMessages(thread)) throw IllegalStateException("Android did not delete it. Is Ghost Messaging still the default SMS app?")
+        snippets.remove(thread)
     }
 
+    /** Deletes one message, and says so if Android did not: asked by its own address, then by its number. */
     fun deleteMessage(kind: String, id: Long) {
-        val uri = if (kind == "mms") Uri.parse("content://mms/$id") else Uri.parse("content://sms/$id")
-        resolver.delete(uri, null, null)
+        val all = if (kind == "mms") Telephony.Mms.CONTENT_URI else Telephony.Sms.CONTENT_URI
+        var gone = try { resolver.delete(Uri.withAppendedPath(all, id.toString()), null, null) } catch (e: Exception) { android.util.Log.w("GhostMessaging", "delete message", e); 0 }
+        if (gone == 0) {
+            gone = try { resolver.delete(all, "_id = ?", arrayOf(id.toString())) } catch (_: Exception) { 0 }
+            if (gone > 0) DevLog.add(context, "del", "a message was not deleted by its address; deleted by its number instead")
+        }
+        val still = try { resolver.query(all, arrayOf("_id"), "_id = ?", arrayOf(id.toString()), null)?.use { it.count > 0 } ?: false } catch (_: Exception) { false }
+        if (still) throw IllegalStateException("Android did not delete it. Is Ghost Messaging still the default SMS app?")
         editsPrefs.edit().remove("$kind:$id").apply()
     }
 
