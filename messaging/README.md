@@ -186,6 +186,10 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
   same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
   sheet's tabs slide, and the pack it opens on is brought into view.
+- **The logo where there is nothing** (0.7.2; Matt, 2026-11-14: "I also want the ghost image used when there are no
+  messages to use the logo"). The empty list, an empty archive and a search that finds nothing show the app's own
+  mark, the white ghost on black as it is on the home screen (`GhostLogo` in `lib/ui/common.dart`), where an
+  outline of a ghost stood.
 - **Reactions, plainer** (0.7.2; Matt, 2026-11-14: "The reactions should show up under the context menu not a second
   row under emoji, don't shwo the border on the emoji reaction just show the emoji's with no background pinned under
   it a bit larger"). Holding a message shows the reactions, then what can be done with the message, then the screen

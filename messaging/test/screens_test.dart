@@ -11,7 +11,7 @@ import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
 import 'package:ghost_messaging/ui/chat_settings.dart';
-import 'package:ghost_messaging/ui/common.dart' show IconTap;
+import 'package:ghost_messaging/ui/common.dart' show GhostLogo, IconTap;
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
@@ -384,6 +384,14 @@ void main() {
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
+      // Nothing to show (here, nothing a search finds): the app's logo stands where the list would be.
+      await _shoot(tester, sheet, const ConversationsScreen(), '1-conversations-none', dark: dark);
+      await tester.enterText(find.byType(EditableText).first, 'zzzz');
+      // The empty screen is built, then its picture is given the real time it takes to be read.
+      await _settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 250)));
+      await _shootAgain(tester, '1-conversations-none', dark: dark);
+      expect(find.byType(GhostLogo), findsOneWidget);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.
       final packs = (await tester.runAsync(stickerPacks))!;
       expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet', 'Mischief']);

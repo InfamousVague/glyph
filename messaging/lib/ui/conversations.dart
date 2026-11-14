@@ -340,7 +340,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
-          icon: AppIcon(Lucide.ghost, size: 28, color: t.color('app-ink-3')),
+          // The app's own mark, as it is on the home screen (Matt, 2026-11-14: "I also want the ghost image used
+          // when there are no messages to use the logo"), where a drawn outline of a ghost stood.
+          icon: const GhostLogo(),
           title: _query.isNotEmpty ? (more ? 'Nothing found yet' : 'Nothing found') : (widget.archived ? 'Nothing archived' : 'No conversations yet'),
           body: Text(_query.isNotEmpty
               ? (more ? 'Older conversations are still being read. Nothing so far matches "$_query".' : 'No name, number or message matches "$_query".')

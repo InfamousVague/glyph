@@ -134,6 +134,28 @@ class _ArcPainter extends CustomPainter {
 }
 
 /// A round icon button, the kit's press and focus ring round it.
+/// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it
+/// (assets/art/ghost-mark.png, cut from the icon by tool/app_icon.py). Black in either theme, since the mark is white.
+class GhostLogo extends StatelessWidget {
+  const GhostLogo({super.key, this.size});
+
+  /// Its side; 2.75rem where not said, which fills the box an empty screen gives its picture.
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final side = size ?? t.lenOf('2.75rem');
+    return Container(
+      width: side,
+      height: side,
+      decoration: BoxDecoration(color: const Color(0xFF000000), borderRadius: BorderRadius.circular(side * 0.27), border: Border.all(color: t.color('app-rule'))),
+      alignment: Alignment.center,
+      child: Image.asset('assets/art/ghost-mark.png', width: side * 0.64, height: side * 0.64, filterQuality: FilterQuality.medium),
+    );
+  }
+}
+
 class IconTap extends StatelessWidget {
   const IconTap({super.key, required this.icon, required this.label, required this.onPressed, this.size = 20, this.color, this.filled = false, this.box});
 
