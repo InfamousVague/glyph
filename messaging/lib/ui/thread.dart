@@ -129,7 +129,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _draftSave?.cancel();
     // Leaving the conversation: a recording under way is thrown away, and whatever is playing stops.
     if (_recordingLimit != null) Sms.instance.cancelVoice().catchError((_) {});
-    if (!Sms.remote) Sms.instance.stopVoice().catchError((_) {});
+    Sms.instance.stopVoice().catchError((_) {});
     if (_editing == null) Sms.instance.setDraft(widget.thread, _text.text);
     _text.dispose();
     _focus.dispose();
@@ -506,11 +506,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           Clipboard.setData(ClipboardData(text: m.body));
           toast(context, 'Copied');
         }),
-      if (_canEdit(m) && !Sms.remote) Choice(m.state == 'failed' ? 'Edit and send again' : 'Edit', Lucide.pencil, () => _startEdit(m)),
+      if (_canEdit(m) && Sms.can('editMessage')) Choice(m.state == 'failed' ? 'Edit and send again' : 'Edit', Lucide.pencil, () => _startEdit(m)),
       if (m.edited && m.original != null) Choice('Show original', Lucide.clock, () => _showOriginal(m)),
-      if (m.state == 'failed' && !Sms.remote) Choice('Send again', Lucide.rotateCcw, () => _retry(m)),
+      if (m.state == 'failed' && _canRetry(m)) Choice('Send again', Lucide.rotateCcw, () => _retry(m)),
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
-      if (!Sms.remote)
+      if (Sms.can('deleteMessage'))
         Choice('Delete message', Lucide.trash2, () async {
           // Gone from the screen at once; put back, with why, if Android would not delete it.
           final before = _messages;
@@ -590,13 +590,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             ? (_e2e.verified ? 'Encrypted · verified' : 'Encrypted')
             : (_people.isNotEmpty && _people.first.name != null ? _people.first.address : null);
 
-    // On a computer (Sms.remote) the conversation fills a pane beside the list: there is no way back to draw, and
-    // what only the phone can do (call, the conversation's own settings, pictures, stickers, editing, deleting,
-    // turning encryption on) is not offered.
+    // Beside the list the conversation draws no way back (PaneRoot, lib/ui/common.dart). On a computer what the
+    // phone at the other end does for one is offered (Sms.can); calling is the phone's alone.
     final remote = Sms.remote;
     return GhostPage(
       title: title,
-      back: !remote,
+      back: true,
       titleWidget: GlacierPressable(
         onPressed: _openSettings,
         builder: (context, state) => Row(children: [
@@ -673,7 +672,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         status: showStatus ? _statusText(m) : (lastOfRun ? clock(m.date) : null),
         onLongPress: (at) => _messageMenu(m, at),
         // A picture that could not be brought down: asked for again from here (the phone's to do, not a computer's).
-        onRetryDownload: m.state == 'pending_download' && !Sms.remote
+        onRetryDownload: m.state == 'pending_download' && Sms.can('retryDownload')
             ? () async {
                 try {
                   await Sms.instance.retryDownload(m);
@@ -683,7 +682,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 _load();
               }
             : null,
-        onTapFailed: failed && !Sms.remote ? () => _retry(m) : null,
+        onTapFailed: failed && _canRetry(m) ? () => _retry(m) : null,
         reactions: _folded.reactions[m.key] ?? const [],
         onReactionsTap: () => _showReactions(_folded.reactions[m.key] ?? const []),
         edited: m.edited ? (_corrected.contains(m.key) ? 'Edited · correction sent' : 'Edited') : null,
@@ -734,11 +733,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
   /// A picture message says why, where the phone was told (Matt: "almost like MMS isn't working"); trying again is
-  /// a tap on the phone, and not offered on a computer (lib/desktop).
+  /// a tap, where it can be tried from here ([_canRetry]).
   String _notSent(Message m) {
     final said = m.why == null || m.why!.isEmpty ? 'Not sent' : 'Not sent: ${m.why}';
-    return Sms.remote ? said : '$said. Tap to try again.';
+    return _canRetry(m) ? '$said. Tap to try again.' : said;
   }
+
+  /// Whether [m], which did not go, can be sent again from here: always on the phone; on a computer where the phone
+  /// it is paired with does that for one (a picture message goes again whole, a text is deleted and sent anew).
+  static bool _canRetry(Message m) => Sms.can(m.kind == 'mms' ? 'resendMms' : 'deleteMessage');
 
   String _statusText(Message m) => switch (m.state) {
         'sending' => 'Sending…',
@@ -757,7 +760,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final isMms = _group || _attachments.isNotEmpty;
     // Nothing written and nothing attached: the microphone stands where Send would, to record a voice message.
-    final voiceOffered = !Sms.remote && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
+    final voiceOffered = Sms.can('sendVoice') && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
     // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
     // typed, and plain letters whatever was typed.
     final sealed = _e2e.on && !isMms;
@@ -776,7 +779,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // Both phones have Ghost Messaging and nothing has been exchanged: encryption is offered, until it is
           // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
           // to enable encryption for better security").
-          if (!Sms.remote && !_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
+          if (Sms.can('e2eOffer') && !_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
             _E2eBar(
               text: '${_people.first.label} has Ghost Messaging too. Encrypt this conversation for better security?',
               action: 'Turn on',
@@ -787,18 +790,19 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // Encryption is on and their texts are coming without it (Matt, 2026-11-14: "we need to be able to detect
           // if a user is sending us unencrypted messages and let us know so we can disable it"): said here, with Turn
           // off beside it. Put away, it comes back with their next plain text; it goes by itself when one comes sealed.
-          // On a computer it is said and not offered: encryption is turned off from the phone.
+          // Where encryption cannot be turned off from here (a computer whose phone has an older app) it is said and
+          // not offered.
           if (!_group && _people.isNotEmpty && _e2e.plainWarning)
             _E2eBar(
               warning: true,
               text: '${_people.first.label}\'s ${_e2e.plain == 1 ? 'last text' : 'last ${_e2e.plain} texts'} came without encryption. '
-                  'They may have turned it off or changed phones, and then can\'t read what you send.${Sms.remote ? ' Turn it off from the phone.' : ''}',
-              action: Sms.remote ? null : 'Turn off',
+                  'They may have turned it off or changed phones, and then can\'t read what you send.${Sms.can('e2eOff') ? '' : ' Turn it off from the phone.'}',
+              action: Sms.can('e2eOff') ? 'Turn off' : null,
               onAction: _e2eStop,
-              onPress: Sms.remote ? () {} : () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
-              onDismiss: Sms.remote ? null : () => Sms.instance.e2ePlainSeen(_people.first.address).then((_) => _e2eChanged()).catchError((_) {}),
+              onPress: Sms.can('e2eOff') ? () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged) : () {},
+              onDismiss: Sms.can('e2ePlainSeen') ? () => Sms.instance.e2ePlainSeen(_people.first.address).then((_) => _e2eChanged()).catchError((_) {}) : null,
             ),
-          if (!Sms.remote && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
+          if (Sms.can('e2eOffer') && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
             _E2eBar(
               text: switch (_e2e.state) {
                 'pending' => _e2e.changed ? '${_people.first.label} sent a NEW encryption key' : '${_people.first.label} wants to encrypt this conversation',
@@ -883,7 +887,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             )
           else
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (!Sms.remote) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
+            if (Sms.can('sendPictures')) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
               // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
@@ -942,8 +946,24 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       ),
                     )),
                   ),
+                  // A computer's own emoji (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and sticker
+                  // selector to the desktop app as well"): the Mac's "Emoji & Symbols", which types where the cursor
+                  // is, so the cursor is put in the field first. A phone's keyboard has its own.
+                  if (Sms.remote)
+                    IconTap(
+                      icon: LucideMore.smile,
+                      label: 'Emoji',
+                      size: 19,
+                      box: t.lenOf('2.25rem'),
+                      color: t.color('app-ink-2'),
+                      onPressed: () {
+                        _focus.requestFocus();
+                        _field.currentState?.requestKeyboard();
+                        Sms.instance.emojiPanel().catchError((_) {});
+                      },
+                    ),
                   // Stickers, while nothing is being written: once there are words the room is theirs.
-                  if (!Sms.remote && !editing && _text.text.isEmpty && _attachments.isEmpty)
+                  if (Sms.can('sendSticker') && !editing && _text.text.isEmpty && _attachments.isEmpty)
                     IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
                   if (voiceOffered)
@@ -1224,7 +1244,7 @@ class _Bubble extends StatelessWidget {
               ink: ink,
               radius: radius,
               rim: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null,
-              playable: !Sms.remote,
+              playable: true,
             ),
           )
         else

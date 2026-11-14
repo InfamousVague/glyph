@@ -21,6 +21,7 @@ class AppState extends ChangeNotifier {
       _prefs
         ..clear()
         ..addAll(next);
+      pluginsStamp++;
       notifyListeners();
     } catch (_) {}
   }
@@ -32,11 +33,16 @@ class AppState extends ChangeNotifier {
 
   void set(String key, String value) {
     _prefs[key] = value;
+    if (key.startsWith('plugin')) pluginsStamp++;
     Sms.instance.setPref(key, value);
     notifyListeners();
   }
 
   void setFlag(String key, bool on) => set(key, on ? 'on' : 'off');
+
+  /// Plugins (lib/plugins/registry.dart) keep their switches and their own choices here, under `plugin…`. This goes
+  /// up whenever one of those changes, so that what was worked out from them is worked out again.
+  int pluginsStamp = 0;
 
   /// Something the screens draw from has changed that is not one of these choices: the phone's wallpaper palette.
   void changed() => notifyListeners();

@@ -118,10 +118,16 @@ object Notifier {
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
     }
 
-    private val codeWord = Regex("(?i)(code|passcode|password|pin|otp|verif|one[- ]time|2fa|login|log in|sign in|security)")
+    // A word of its own: "pin" is in "shipping", "shopping" and "opinion", and "code" in "barcode", and a text with one
+    // of those and an order's number is not a sign-in code. "verif" starts verify, verification, verified.
+    private val codeWord = Regex("(?i)(?<![A-Za-z0-9_])(?:(?:code|passcode|password|pin|otp|one[- ]time|2fa|login|log in|sign in|security)(?![A-Za-z0-9_])|verif)")
     private val codeDigits = Regex("(?<![\\w.,/-])(\\d{3}[- ]\\d{3}|\\d{4,8})(?![\\w/-]|[.,]\\d)")
 
-    /** The sign-in code in [body], if it reads like one: 4 to 8 digits (or 123-456) in a text that speaks of a code. */
+    /**
+     * The sign-in code in [body], if it reads like one: 4 to 8 digits (or 123-456) in a text that speaks of a code.
+     * The list's Codes section (lib/plugins/codes.dart, `signInCode`) is these two rules written again in Dart, and
+     * both are held to test/code_vectors.json: change one, change the other.
+     */
     fun otp(body: String): String? {
         if (body.length > 400 || !codeWord.containsMatchIn(body)) return null
         return codeDigits.find(body)?.value?.filter { it.isDigit() }

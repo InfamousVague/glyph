@@ -10,6 +10,7 @@ import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
+import 'package:ghost_messaging/plugins/ui.dart' show PluginRow, SectionChips;
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
@@ -65,6 +66,12 @@ final _conversations = [
 /// The warning that Sam's texts are coming without encryption: put away, or encryption turned off with him.
 bool _plainSeen = false;
 bool _plainOff = false;
+
+/// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers.
+final _sortable = <Map<String, Object>>[
+  {'id': 101, 'date': _ago(minutes: 2), 'people': [_p('70220')], 'snippet': '771-204 is your login code. It expires in 10 minutes.', 'unread': true, 'error': false, 'archived': false},
+  {'id': 102, 'date': _ago(hours: 3), 'people': [_p('+18005550142')], 'snippet': 'Use PIN 9041 to sign in to your account', 'unread': false, 'error': false, 'archived': false},
+];
 
 /// Where encryption stands with each person (android/.../E2e.kt): on and verified with Riley, Noor's key waiting
 /// for a yes, nothing with anyone else.
@@ -654,6 +661,43 @@ void main() {
           dark: dark,
         );
       }
+    }
+  });
+
+  // The plugins (lib/plugins): the list with its sections' chips, the Codes section, and Settings › Plugins.
+  // Pictures 12-plugins-*.
+  testWidgets('plugins: the list\'s sections and Settings › Plugins', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    // More of what the plugins sort than the list above holds, for this test alone.
+    _conversations.addAll(_sortable);
+    addTearDown(() => _conversations.removeWhere((c) => (c['id'] as int) >= 100));
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    Finder chip(String label) => find.descendant(of: find.byType(SectionChips), matching: find.text(label));
+    for (final dark in [false, true]) {
+      // The list as it opens: the codes have left it for their chip, which counts them.
+      await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-list', dark: dark);
+      expect(chip('Messages'), findsOneWidget);
+      expect(chip('Codes'), findsOneWidget);
+      expect(find.textContaining('482913'), findsNothing);
+      // Codes: the newest first, each code large over the words it came in, with Copy at the row's end.
+      await tester.tap(chip('Codes'));
+      await _shootAgain(tester, '12-plugins-codes', dark: dark);
+      expect(find.byType(PluginRow), findsNWidgets(3));
+      expect(find.text('482913'), findsOneWidget);
+      // A tap copies, and says so.
+      await tester.tap(find.text('771204'));
+      await _shootAgain(tester, '12-plugins-codes-copied', dark: dark);
+      expect(find.text('Copied 771204'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6));
+      await _settle(tester);
+      // Settings › Plugins: each plugin with its switch, and its own settings under it.
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
+      expect(find.text('Mark as read when copied'), findsOneWidget);
     }
   });
 

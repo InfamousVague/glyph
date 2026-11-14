@@ -388,12 +388,71 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   messages, the contacts, the archive with its number, Settings), where the phone had a round "New message" button,
   Settings in the header and Archived as a row at the list's end. Android's back closes what is in the pane, then
   leaves the archive, then leaves the app. What a notification
-  or another app's "text this number" asks for opens in the pane too. The Mac's window still has its own copy of
-  this (`lib/desktop/ui/shell.dart`) until the desktop session moves it over: `AppShell` takes what the Mac keeps
+  or another app's "text this number" asks for opens in the pane too. The Mac's window is this same frame
+  (`lib/desktop/ui/shell.dart` is a few lines now): `AppShell` takes what the Mac keeps
   under its search field (`status`), what its pane says when empty (`nothing`) and its own Settings (`settings`).
+  What a screen offers on a computer is what the phone it is paired with says it does for one (`Sms.can`):
+  pictures, stickers, voice messages, editing, deleting, blocking, encryption's choices; a phone that is behind is
+  offered none of them.
   A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
   (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
   to the effects not a row of effect icons").
+- **Plugins** (not released; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
+  placing UI elements and doing things like filtering out spam messages separating OTPs into their own section and
+  more"). A plugin is a name, a line saying what it does and a switch in Settings › Plugins, kept with the person's
+  other choices (`plugin_<id>`). Switched off it adds nothing and is never asked. Switched on it adds through four
+  kinds of extension point (`plugin.dart` is the contract, `registry.dart` is what the screens ask):
+  - **Classifiers** say which tags a conversation or a message deserves (`code`, `spam`) from who sent it, what it
+    says and whether the sender is a contact. The list has each conversation classified once and keeps the answer
+    until its last words change (`tag_store.dart`): the first 64 handed over, which is the first screen, at once;
+    after those for no longer than two milliseconds at a time, the rest between frames. So the list opens as fast
+    with thousands of conversations as it does with no plugin.
+  - **Sections** of the list: a chip under the search field, beside "Messages", for each section that has
+    conversations in it, and a list of its own when the chip is chosen, the newest first. A section takes the
+    conversations it wants out of the main list and says how its rows look in words the list draws: a value drawn
+    large, a quiet line, a button at the row's end, a word to press, what a tap does. A search from the main list
+    looks through the sections too. A conversation can be filed by hand, in a section or in the main list, and
+    stays there whatever the classifiers say of it afterwards (`plugins_filed`).
+  - **Slots** are named places on the screens for a plugin's buttons, menu lines or widgets (`Slots`). Drawn now:
+    the list's header, between the search field and the list, a conversation's long-press menu in the list, and a
+    plugin's own card on Settings › Plugins. Defined, and waiting for `lib/ui/thread.dart` to ask for them: a
+    conversation's header, the composer's row of buttons, a message's menu.
+  - **Rules for a message that has just come**: mute the conversation, mark it as read, file it in a section. They
+    are decided in Dart, by the list, for each unread conversation as it is first seen: while the app is open, and
+    catching up the next time it is opened. Android's side has posted the notification by then (`Messaging.kt`
+    calls `Notifier.incoming` as the text is stored), so the text that lands a conversation in a rule still
+    notifies. For a rule to hold while the app is closed the receiver would have to decide before it notifies:
+    the classifier it needs written in Kotlin (the code finder already is, `Notifier.otp`) or run in a Dart
+    isolate the receiver starts, reading the same choices (they are in the `ui` preferences, under `plugin…`).
+
+  The plugins the app ships with are compiled in (`shippedPlugins` in `registry.dart`): Codes, below. A screen asks the
+  registry what there is for a place and draws it; a plugin is handed facts and a host to ask things of (say
+  something, copy, open a conversation, mark it read, file it), never a screen. One that throws is left out and
+  said in Settings › Developer's log. All of the contract but the widget slots is data in and data out
+  (`MessageFacts.toJson` is what a plugin is shown), so a plugin from outside the app could meet it. What that
+  would still need: something to run it (an interpreter for a script; a package would have to be built in, since a
+  release build cannot load Dart that was not compiled with it), a way to install and list one, a time limit on a
+  classifier, a say for the person in what a plugin that reads their messages may ask of the host (none of the
+  host's verbs reaches the network, and that is the whole of what a plugin can do), and a way to describe widgets
+  in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
+  conversations are handed over in about 4 ms and sorted into sections in about 3) and
+  `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
+- **Codes** (not released; `lib/plugins/codes.dart`; Matt, 2026-11-14: "separating OTPs into their own section").
+  The first plugin, on until it is switched off in Settings › Plugins. A conversation whose newest text is a sign-in
+  code, from one number that is not in the phone's contacts, leaves the main list for a Codes section: a chip under
+  the search field that counts them, and in it the newest first, each code drawn large over the words it came in.
+  A tap on the row, or the button at its end, copies the code and marks the conversation as read (its own setting,
+  "Mark as read when copied"). Its long press opens the conversation, copies, or keeps it in Messages, which
+  sticks. A contact's "the door code is 4417" stays in the main list, where its long press has "Copy 4417" and
+  "Move to Codes". What reads as a code is what the notification's Copy button says is one: `signInCode` is
+  `Notifier.otp` written again in Dart, and the two are held to the same examples (`test/code_vectors.json`, read
+  by `test/plugin_codes_test.dart` and by `CodesTest.kt`), so they cannot drift apart. In both, the word that
+  speaks of a code is now a word of its own: "pin" is in "shipping", "shopping" and "opinion", so "Your order
+  482913 is shipping today" was taken for a code, which a Copy button could bear and a section cannot. The list knows a
+  conversation by its last words: it is in Codes while its newest text is a code and back in the main list once a
+  later text is not, and since the list does not know whose the last words are, a code the person texts to a
+  number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
+  which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by
@@ -438,6 +497,7 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
 | Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
 | The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`). |
 | The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building

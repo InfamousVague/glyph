@@ -73,6 +73,10 @@ class _Calls extends LinkCalls {
 
   final _prefs = <String, String>{'enter_sends': 'on'};
 
+  /// The phone at the other end has the app that does everything for a computer (android DeskCalls.CAPS).
+  @override
+  Set<String> get caps => const {'deleteMessage', 'deleteThread', 'deleteThreads', 'editMessage', 'resendMms', 'setBlocked', 'blockedNumbers', 'e2eOffer', 'e2eOff', 'e2eVerify', 'e2ePlainSeen', 'e2eList', 'mmsStatus', 'voiceLimit', 'put', 'drop', 'sendPictures', 'sendVoice', 'sendSticker'};
+
   @override
   int get waiting => 1;
 }
@@ -178,11 +182,16 @@ void main() {
       expect(find.text('Waiting for your phone'), findsOneWidget); // under the text typed while it was away
       expect(find.textContaining('Connected over the local network'), findsOneWidget);
       // What only the phone does is not offered here.
-      expect(_button('Send'), findsOneWidget);
-      expect(_button('Call'), findsNothing);
-      expect(_button('Stickers'), findsNothing);
-      expect(_button('Add an attachment'), findsNothing);
+      // What the phone does for a computer is offered here as on the phone (Matt: "the desktop app should get all
+      // featues its missing from mobile"; "an emoji picker, file upload, voice memo and sticker selector"): a
+      // picture to add, the Mac's emoji, stickers, and a voice message where Send would be with nothing written.
+      expect(_button('Add an attachment'), findsOneWidget);
+      expect(_button('Emoji'), findsOneWidget);
+      expect(_button('Stickers'), findsOneWidget);
+      expect(_button('Record a voice message'), findsOneWidget);
       expect(_button('Conversation settings'), findsOneWidget, reason: 'a conversation has its own settings on a computer too');
+      // Calling is the phone's alone; and beside the list there is nowhere to go back to.
+      expect(_button('Call'), findsNothing);
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
       // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.

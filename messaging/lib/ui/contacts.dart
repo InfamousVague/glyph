@@ -92,7 +92,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final found = _found;
     return GhostPage(
       title: 'Contacts',
-      back: !Sms.remote,
+      back: true,
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
