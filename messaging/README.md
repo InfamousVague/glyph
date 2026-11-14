@@ -367,13 +367,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
   over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
   yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
-- **A link in a message opens** (not released; `lib/links.dart`; Matt, 2026-11-14: "I can't click to open links in
+- **A link in a message opens** (0.7.6; `lib/links.dart`; Matt, 2026-11-14: "I can't click to open links in
   the desktop app"). A link was underlined and nothing more, on the phone as on a computer. Now a press on one
   opens it in the browser: the phone's (`Arriving.openLink`), or the computer's own (`open`, in
   `lib/desktop/remote.dart`). `MessageLink.find` says what a link is (http, https or www up to the next space,
   less the full stop, comma or stray bracket that ends the sentence), and only a web address is ever opened:
   nothing in a text can start another app. A long press is still the message's menu. On a Mac the pointer turns to
-  a hand over one. Not tried on the Mac itself, which needs a Mac release to have it.
+  a hand over one. The Mac has it from its first release (0.7.6, 2026-11-14); a press there has not been watched.
 - **Pictures that never arrived, on Verizon** (0.7.4; Matt, 2026-11-14, with his phone's report: "Im getting this
   error on freshly sent photos": `not fetched: the carrier no longer has it … (result 4, HTTP 404)`). Verizon
   announces a picture at an address that stops at "=" and serves it only with the announcement's transaction id
@@ -481,7 +481,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   later text is not, and since the list does not know whose the last words are, a code the person texts to a
   number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
   which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
-- **Groups of friends** (not released; [docs/groups.md](docs/groups.md); Matt, 2026-11-14: "expand on the ability
+- **Groups of friends** (0.7.6; [docs/groups.md](docs/groups.md); Matt, 2026-11-14: "expand on the ability
   to create, name and manage groups like telegram"). New group, in the address book, makes one out of friends: a
   name every member sees, members, and admins, who rename it, add a friend, take someone out and make another
   admin; anyone can leave. What is written in it goes to each member over the internet by the app's routes, sealed,

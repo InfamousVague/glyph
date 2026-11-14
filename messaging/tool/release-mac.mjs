@@ -193,7 +193,9 @@ function notaryCredentials() {
     );
     issuer ||= kept.ASC_ISSUER_ID;
     keyId ||= kept.ASC_KEY_ID;
-    keyPath ||= kept.ASC_KEY_PATH;
+    // The shared file is written for a shell to read, and names the key under $HOME (or ~): said in full here, or
+    // the key is "not there" and --notarize stops (as it did on 2026-11-14, until the three were passed in).
+    keyPath ||= kept.ASC_KEY_PATH?.replace(/^\$\{?HOME\}?(?=\/)|^~(?=\/)/, homedir());
   }
   return issuer && keyId && keyPath && existsSync(keyPath) ? { issuer, keyId, keyPath } : null;
 }
