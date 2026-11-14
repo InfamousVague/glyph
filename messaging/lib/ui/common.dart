@@ -395,9 +395,10 @@ class _Ringed extends StatelessWidget {
   const _Ringed({required this.size, required this.child});
   final double size;
   final Widget child;
+  // The page's colour fills the ring too, so a face whose colour is see-through (initials on a hue wash) hides the face it overlaps.
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: context.tokens.color('glacier-bg'), width: 2)),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: context.tokens.color('glacier-bg'), border: Border.all(color: context.tokens.color('glacier-bg'), width: 2)),
         child: child,
       );
 }

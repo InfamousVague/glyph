@@ -201,6 +201,9 @@ void main() {
         expect(_nav(label), findsOneWidget, reason: label);
       }
       expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
+      // A computer keeps the pill laid along its sidebar's foot: stood up at the right is a wide phone's.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
       // Archive shows the archived ones, and Messages the others again.
       await tester.tap(_nav('Archive'));
       await tester.pump(const Duration(milliseconds: 400));
@@ -314,6 +317,17 @@ void main() {
       });
       expect(find.byType(SettingsScreen), findsNothing);
       expect(find.text('Kept on this Mac'), findsOneWidget);
+      // A small list hung over the ring, in the sidebar (Matt: "too large and way too wide", of the sheet across
+      // the window it first was), with the Mac's own sections under "This Mac".
+      expect(tester.getRect(find.byType(GlacierMenuItem).first).right, lessThan(340));
+      expect(tester.getRect(find.byType(GlacierMenuItem).first).width, lessThan(250));
+      expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text('THIS MAC')), findsOneWidget);
+      // It stands clear of the pill, a gap between the two: nothing of it lies on the bar or under it (Matt,
+      // 2026-11-14: "the context menu is rendering behind the navbar", of a menu whose foot lay on the pill's edge).
+      final pillTop = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first).top;
+      final menuRows = find.byType(GlacierMenuItem).hitTestable();
+      expect(menuRows, findsWidgets);
+      expect(tester.getRect(menuRows.last).bottom, lessThanOrEqualTo(pillTop - 4), reason: 'the menu ends above the pill');
       // A long list of sections scrolls inside the menu.
       await tester.ensureVisible(find.text('Kept on this Mac'));
       await tester.pump(const Duration(milliseconds: 60));

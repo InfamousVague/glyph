@@ -33,6 +33,20 @@ String _onOff(bool on) => on ? 'On' : 'Off';
 /// (SettingsSources: a plugin's page, a computer's own), and those for another kind of device left out.
 List<SettingsSection> get settingsSections => SettingsSources.around(_ownSections());
 
+/// What a group of sections is called where groups are named: the Settings ring's menu (lib/ui/shell.dart). A name
+/// is never one of its own sections' names, which stand right under it.
+String settingsGroupLabel(String group) => switch (group) {
+      'computer' => 'Phone',
+      'me' => 'You',
+      'look' => 'Look',
+      'messages' => 'Conversations',
+      'plugins' => 'Extras',
+      'privacy' => 'Privacy',
+      'phone' => 'This phone',
+      'app' => Sms.remote ? 'This Mac' : 'App',
+      _ => group,
+    };
+
 /// The same for one kind of device, whichever this is: what a phone's Settings has, or a computer's.
 List<SettingsSection> settingsSectionsOn(SettingsWhere here) => SettingsSources.around(_ownSections(), here: here);
 
@@ -258,7 +272,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.12';
+const appVersion = '0.7.13';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
