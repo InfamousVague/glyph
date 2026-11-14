@@ -25,7 +25,11 @@ import 'ui/update_banner.dart';
 /// developer setting with copying errors and reporting"): what it was and where, never what a message said.
 void _logErrors() {
   String where(StackTrace? stack) {
-    final lines = (stack?.toString() ?? '').split('\n').where((l) => l.contains('package:ghost_messaging')).take(2).map((l) => l.replaceAll(RegExp(r'^#\d+\s+'), '').trim());
+    final all = (stack?.toString() ?? '').split('\n').where((l) => l.trim().isNotEmpty).toList();
+    // The app's own lines where the error passed through any; else wherever it was thrown, so the report still
+    // says where (Matt's report, 2026-11-14, held "Null check operator used on a null value" and nothing more).
+    final ours = all.where((l) => l.contains('package:ghost_messaging')).take(2).toList();
+    final lines = (ours.isNotEmpty ? ours : all.take(3)).map((l) => l.replaceAll(RegExp(r'^#\d+\s+'), '').replaceAll(RegExp(r'\s+'), ' ').trim());
     return lines.isEmpty ? '' : ' at ${lines.join(' < ')}';
   }
 

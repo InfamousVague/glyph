@@ -35,10 +35,13 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(conf)
     def do_GET(self):
-        path = os.path.join(DIR, 'serve', os.path.basename(self.path))
+        # A carrier that announces an address stopping at "=" and wants the transaction id after it (Verizon):
+        # `/m?message-id=<id>` serves serve/<id>, and with nothing after the "=" it is "not found".
+        name = self.path.split('message-id=', 1)[1] if 'message-id=' in self.path else os.path.basename(self.path)
+        path = os.path.join(DIR, 'serve', os.path.basename(name) or '-')
         if os.path.exists(os.path.join(DIR, 'down')):      # the carrier's server is having a bad minute
             self.send_response(503); self.end_headers(); return
-        if not os.path.exists(path):
+        if not os.path.isfile(path):
             self.send_response(404); self.end_headers(); return
         data = open(path, 'rb').read()
         self.send_response(200)

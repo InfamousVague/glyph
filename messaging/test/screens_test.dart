@@ -23,6 +23,7 @@ import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
+import 'package:ghost_messaging/ui/network.dart' show inviteText;
 import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
@@ -73,10 +74,13 @@ bool _plainSeen = false;
 String _mayaFriend = '';
 bool _plainOff = false;
 
-/// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers.
+/// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers,
+/// and two texts that look like spam.
 final _sortable = <Map<String, Object>>[
   {'id': 101, 'date': _ago(minutes: 2), 'people': [_p('70220')], 'snippet': '771-204 is your login code. It expires in 10 minutes.', 'unread': true, 'error': false, 'archived': false},
   {'id': 102, 'date': _ago(hours: 3), 'people': [_p('+18005550142')], 'snippet': 'Use PIN 9041 to sign in to your account', 'unread': false, 'error': false, 'archived': false},
+  {'id': 103, 'date': _ago(minutes: 20), 'people': [_p('+15559870002')], 'snippet': 'Congratulations! You\'ve won a \$1,000 gift card. Claim now: http://prize.example/win', 'unread': true, 'error': false, 'archived': false},
+  {'id': 104, 'date': _ago(days: 2), 'people': [_p('+15559870004')], 'snippet': 'Your package could not be delivered. Reschedule here: bit.ly/3xYz', 'unread': false, 'error': false, 'archived': false},
 ];
 
 /// Where encryption stands with each person (android/.../E2e.kt): on and verified with Riley, Noor's key waiting
@@ -246,6 +250,9 @@ void _answerChannel() {
         ];
       case 'contact':
         return _conversations.expand((c) => c['people'] as List).cast<Map>().firstWhere((p) => p['address'] == args['address'], orElse: () => _p(args['address'] as String));
+      // A new chat's people have a conversation: the first one, here.
+      case 'threadFor':
+        return 1;
       case 'netSmsAvailable':
         return false;
       case 'netSmsDrain':
@@ -611,6 +618,8 @@ void main() {
       expect(find.textContaining('Ready'), findsOneWidget);
       expect(find.textContaining('cannot send data texts'), findsOneWidget);
       expect(find.textContaining('A test was sent to Riley Fox'), findsOneWidget);
+      expect(find.text('Invite someone by text'), findsOneWidget);
+      expect(inviteText, contains('https://ghost-sms.com'));
       expect(hub.carried, 1, reason: 'the test went by the route that is up');
       expect(sms.carried, 0);
       await tester.runAsync(Net.instance.shutdown);
@@ -708,9 +717,24 @@ void main() {
       expect(find.text('Copied 771204'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
       await _settle(tester);
-      // Settings › Plugins: each plugin with its switch, and its own settings under it.
+      // Settings › Plugins: each plugin with its switch, and its own settings under it. The spam filter is off.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
+      expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.text('Mute conversations in Spam'), findsNothing);
+      // The spam filter switched on: Spam beside Codes, and in it each conversation with why it is there.
+      await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
+      expect(find.textContaining('You\'ve won'), findsNothing, reason: 'spam has left the main list');
+      await tester.tap(chip('Spam'));
+      await _shootAgain(tester, '12-plugins-spam', dark: dark);
+      expect(find.byType(PluginRow), findsNWidgets(2));
+      expect(find.text('Looks like spam: a link, prize wording'), findsOneWidget);
+      expect(find.text('Not spam'), findsNWidgets(2));
+      // And its own settings, with what counts as spam said rule by rule.
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
+      expect(find.text('Mute conversations in Spam'), findsOneWidget);
+      await tester.drag(find.text('Mute conversations in Spam'), const Offset(0, -520));
+      await _shootAgain(tester, '12-plugins-settings-spam-rules', dark: dark);
     }
   });
 
@@ -926,6 +950,25 @@ void main() {
       expect(find.byType(SettingsScreen), findsNothing);
       expect(find.byType(ThreadScreen), findsOneWidget);
       expect(shown(), 'messages');
+      // Settings › Network's invitation opens a new chat beside the list; choosing who opens the conversation with
+      // the invitation written in its message field, to send as any text.
+      tester.state<AppShellState>(find.byType(AppShell)).settings('network');
+      await _settle(tester);
+      await tester.tap(find.text('Invite someone by text'));
+      await _settle(tester);
+      expect(find.byType(ComposeScreen), findsOneWidget);
+      expect(shown(), 'new');
+      await tester.enterText(find.byType(EditableText).last, 'Mom');
+      await _settle(tester);
+      await tester.tap(find.text('Mom').last);
+      await _settle(tester);
+      await tester.tap(find.text('Next'));
+      await _settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-wide-invite', dark: dark);
+      expect(find.byType(ThreadScreen), findsOneWidget);
+      expect(find.textContaining('Join me on Ghost Messaging'), findsOneWidget);
       // The next round starts with a frame of its own.
       await tester.pumpWidget(const SizedBox());
     }

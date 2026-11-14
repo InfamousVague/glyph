@@ -7,7 +7,9 @@ import '../kit/settings_kit.dart';
 import '../net/carrier.dart';
 import '../net/net.dart';
 import 'common.dart';
+import 'compose.dart';
 import 'settings.dart';
+import 'shell.dart';
 
 /// How the network stands, in a line: Settings' row for it.
 String networkSummary() {
@@ -19,6 +21,10 @@ String networkSummary() {
   final up = net.board?.carriers.where((c) => c.state.value == CarrierState.up).length ?? 0;
   return '${people == 1 ? '1 person' : '$people people'} · ${up == 1 ? '1 route' : '$up routes'} ready';
 }
+
+/// What an invitation says: where to get the app, in words a person would send. When they have it and the two
+/// phones text each other, the app offers to exchange keys, and that is what makes them reachable by the routes.
+const inviteText = 'Join me on Ghost Messaging: calls and private chats straight between our phones. Get it at https://ghost-sms.com';
 
 String _routeLine(Carrier c, {required bool on, required bool anyone, required bool off}) {
   if (off || !on) return 'Off';
@@ -105,6 +111,26 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
           SettingRowBox(child: _HubField(net: net)),
         ],
       ),
+    PaneSection(
+      title: 'Invite',
+      footer: const Text('Once they have the app and you text each other, it offers to turn encryption on between you. From then they are someone the routes reach.'),
+      children: [
+        SettingRow(
+          icon: icon(Lucide.userPlus),
+          label: 'Invite someone by text',
+          hint: const Text('Opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text.'),
+          onPress: () {
+            // In the app's frame a new chat opens in the pane, the invitation already in its message field.
+            final shell = AppShell.maybeOf(context);
+            if (shell != null) {
+              shell.compose(body: inviteText);
+            } else {
+              push<void>(context, (_) => const ComposeScreen(body: inviteText));
+            }
+          },
+        ),
+      ],
+    ),
     if (anyone)
       PaneSection(
         title: 'People you can reach',

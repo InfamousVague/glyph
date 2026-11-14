@@ -367,6 +367,17 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
   over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
   yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
+- **Pictures that never arrived, on Verizon** (0.7.4; Matt, 2026-11-14, with his phone's report: "Im getting this
+  error on freshly sent photos": `not fetched: the carrier no longer has it … (result 4, HTTP 404)`). Verizon
+  announces a picture at an address that stops at "=" and serves it only with the announcement's transaction id
+  after it; its settings say so (`enabledTransID`), Android's own texting apps add it, and this app did not, so
+  every picture sent to a Verizon phone was "not found". Now the id is added where the carrier's settings ask
+  (`MmsWhy.fetchAddress`), and where they do not say and the bare address is answered "not found", it is asked for
+  once more with the id before anyone is told (`MmsWhy.worthAskingWithId`). Each fetch writes which server was
+  asked and how to the Developer log. Reproduced and mended on an emulator against a stand-in carrier that behaves
+  that way (`tool/mms/README.md`); not yet seen on Verizon itself. Pictures that failed before can be asked for
+  again with Try again, for as long as the carrier keeps them. An error of the app's own in the report
+  ("Null check operator used on a null value") said nothing of where: such a line now names where it was thrown.
 - **Routes: a relay system that can be swapped** (not released; [docs/network.md](docs/network.md); Matt,
   2026-11-14: "implement a full relay system for the app that's replacable and swappable ... The goal will be to
   have multiple sources to feed data to eachother from wifi locally, p2p, internet, sms, etc"). `lib/net/`: a route
@@ -377,6 +388,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   relay server's address, and a test to each person that says which route carried it. Nothing in the app is carried
   by them yet but that test: calls, receipts and the local-network and peer-to-peer routes come next. The hub is
   not on our server yet, so on a phone the relay route says it cannot be reached.
+- **Invite someone by text** (not released; Matt, 2026-11-14: "Id like to also be able to invite people to join
+  ghost messaging over text which would prompt them to install the app"). Settings › Network › Invite someone by
+  text opens a new chat with the invitation written (`inviteText` in `lib/ui/network.dart`: what the app is for and
+  ghost-sms.com, where it is downloaded); the person chooses who, may change the words, and sends it as any text.
+  Once the other has the app and the two text each other, the app's own finding of the other (`GhostMark.kt`)
+  offers to turn encryption on, which is what makes them someone the routes reach. Not done: an invitation that
+  carries this phone's key, so that the first text from the other phone is all it takes.
 - **One frame, phone and computer** (0.7.4; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
   to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
   app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from
@@ -416,7 +434,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Slots** are named places on the screens for a plugin's buttons, menu lines or widgets (`Slots`). Drawn now:
     the list's header, between the search field and the list, a conversation's long-press menu in the list, and a
     plugin's own card on Settings › Plugins. Defined, and waiting for `lib/ui/thread.dart` to ask for them: a
-    conversation's header, the composer's row of buttons, a message's menu.
+    conversation's header, the composer's row of buttons, a message's menu. `conversation.dart` answers all three
+    ready to put in place (`ConversationPlugins.header`, `.composer`, `.message`), a line each when it does.
   - **Rules for a message that has just come**: mute the conversation, mark it as read, file it in a section. They
     are decided in Dart, by the list, for each unread conversation as it is first seen: while the app is open, and
     catching up the next time it is opened. Android's side has posted the notification by then (`Messaging.kt`
@@ -425,7 +444,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
     the classifier it needs written in Kotlin (the code finder already is, `Notifier.otp`) or run in a Dart
     isolate the receiver starts, reading the same choices (they are in the `ui` preferences, under `plugin…`).
 
-  The plugins the app ships with are compiled in (`shippedPlugins` in `registry.dart`): Codes, below. A screen asks the
+  The plugins the app ships with are compiled in (`shippedPlugins` in `registry.dart`): Codes and the Spam filter, below. A screen asks the
   registry what there is for a place and draws it; a plugin is handed facts and a host to ask things of (say
   something, copy, open a conversation, mark it read, file it), never a screen. One that throws is left out and
   said in Settings › Developer's log. All of the contract but the widget slots is data in and data out
@@ -461,6 +480,23 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   text, which is what proves the number: no account. With no relay server reached they go as the encrypted texts
   they would have been; a friend whose app is closed is sent one silent data text and their phone says a message
   is waiting. Nothing of it is offered until a relay server answers, and ours is not up yet.
+- **Spam filter** (not released; `lib/plugins/spam.dart`; Matt, 2026-11-14: "filtering out spam messages"). The
+  second plugin, off until it is switched on in Settings › Plugins: a filter that takes messages out of the list is
+  chosen, not given. On, a conversation whose newest text looks like spam, with nobody in it a contact, leaves the
+  main list for a Spam section beside Codes. Its row says which signs the text showed ("Looks like spam: a link,
+  prize wording") and has "Not spam", which puts it back in the main list for good, whatever comes in it later. A
+  conversation the rules missed is moved there by hand from its long press ("Move to Spam"), unless it is a
+  contact's. The rules are six signs, each a line in the plugin's card in Settings: a link, sent from an email
+  address, prize wording, pressure to act, a money offer, a delivery problem. A text is spam when it shows two of
+  them, or three where it also holds a sign-in code (which often comes with a link and "if this wasn't you"); a
+  contact's text is never looked at. They are a list of plain values (`spamRules`: a pattern for the words, or for
+  the address a text came from), so another list can stand in for them (`SpamPlugin(rules: …)`). All of it is
+  decided on the phone: nothing is sent anywhere, deleted or blocked. "Mute conversations in Spam" (on) mutes a
+  conversation in Spam as its text is seen, so what comes in it next arrives without a notification; "Not spam", or
+  switching the filter off, takes that mute off again, and a mute the person made is left alone. The text that
+  first puts a conversation in Spam has already notified (Plugins, above, says what Android's side would have to
+  do). A text that is both a sign-in code and spam is in Codes, which is asked first. Tests:
+  `test/plugin_spam_test.dart`. Pictures: `test/shots/12-plugins-spam-*`, `12-plugins-settings-spam-*`.
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by
@@ -505,7 +541,7 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
 | Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
 | The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
-| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`). |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `spam.dart`). |
 | The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building
