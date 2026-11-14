@@ -37,6 +37,7 @@ import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
 import 'package:ghost_messaging/ui/update_banner.dart';
+import 'package:ghost_messaging/ui/video.dart' show shrunkNote;
 import 'package:glacier/glacier.dart';
 
 import 'support/fake_friends.dart';
@@ -333,7 +334,8 @@ void _answerChannel() {
       // Videos: a picture of where one starts and how long it runs; none for the kind that cannot be read.
       case 'videoPreview':
         return (args['part'] as num).toInt() == 921
-            ? {'picture': File('assets/stickers/party/03.webp').readAsBytesSync(), 'millis': 12400, 'width': 640, 'height': 360}
+            // As a video comes from an iPhone as a picture message: 320 by 240, under a megabyte.
+            ? {'picture': File('assets/stickers/party/03.webp').readAsBytesSync(), 'millis': 12400, 'width': 640, 'height': 360, 'videoWidth': 320, 'videoHeight': 240, 'bytes': 912384}
             : {'picture': null, 'millis': 0, 'width': 0, 'height': 0};
       case 'videoPlay':
         _videosPlayed.add((args['part'] as num).toInt());
@@ -554,6 +556,10 @@ void main() {
       expect(players, findsNWidgets(2));
       expect(find.text('0:12'), findsOneWidget);
       expect(find.text('clip.mp4'), findsNothing, reason: 'one with a picture is not named');
+      // Under it, how large it came, and, it having come small from someone else, why (Matt: "the videos sent from
+      // iphone are extremely low quality"). One nothing is known of says nothing.
+      expect(find.text('320 × 240 · 913 KB'), findsOneWidget);
+      expect(find.text(shrunkNote), findsOneWidget);
       // One no picture can be made of is still named, and can still be tried.
       expect(find.text('9864ade8-2512-4c3f-83b2-8d46dbb76b14.webm'), findsOneWidget);
       await tester.tap(players.first);

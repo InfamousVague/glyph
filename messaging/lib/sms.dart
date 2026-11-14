@@ -520,11 +520,29 @@ class _ChannelCalls implements SmsCalls {
 /// A video in a message, as the conversation draws it before it is played: a picture of where it starts (null where
 /// none can be made of it) and how long it runs.
 class VideoPreview {
-  const VideoPreview({this.picture, this.length = Duration.zero, this.width = 0, this.height = 0});
+  const VideoPreview({this.picture, this.length = Duration.zero, this.width = 0, this.height = 0, this.videoWidth = 0, this.videoHeight = 0, this.bytes = 0});
   final Uint8List? picture;
   final Duration length;
   final int width;
   final int height;
+
+  /// The video as it arrived: its own size as it plays, in pixels, and its file's in bytes; 0 where not known.
+  final int videoWidth;
+  final int videoHeight;
+  final int bytes;
+
+  /// How large it came, in words: "320 × 240 · 0.9 MB". Null where nothing is known of it.
+  String? get facts {
+    final parts = [
+      if (videoWidth > 0 && videoHeight > 0) '$videoWidth × $videoHeight',
+      if (bytes > 0) bytes >= 1000 * 1000 ? '${(bytes / (1000 * 1000)).toStringAsFixed(1)} MB' : '${(bytes / 1000).ceil()} KB',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  /// It came small: under 480 pixels the short way, which is what a phone makes of a video to send it as a picture
+  /// message (a carrier takes about a megabyte). One filmed and sent whole is 720 or more.
+  bool get small => videoWidth > 0 && videoHeight > 0 && (videoWidth < videoHeight ? videoWidth : videoHeight) < 480;
 
   /// Nothing is known of it: not a picture, not its length.
   bool get empty => picture == null && length == Duration.zero;
@@ -534,6 +552,9 @@ class VideoPreview {
         length: Duration(milliseconds: (m?['millis'] as num?)?.toInt() ?? 0),
         width: (m?['width'] as num?)?.toInt() ?? 0,
         height: (m?['height'] as num?)?.toInt() ?? 0,
+        videoWidth: (m?['videoWidth'] as num?)?.toInt() ?? 0,
+        videoHeight: (m?['videoHeight'] as num?)?.toInt() ?? 0,
+        bytes: (m?['bytes'] as num?)?.toInt() ?? 0,
       );
 }
 

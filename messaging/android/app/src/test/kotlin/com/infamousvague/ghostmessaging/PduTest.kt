@@ -53,6 +53,11 @@ class PduTest {
         assertEquals(405 to 720, Video.fitted(1080, 1920))
         assertEquals(320 to 240, Video.fitted(320, 240)) // never enlarged
         assertEquals(720 to 720, Video.fitted(2000, 2000))
+        // Its own size is as it plays: one filmed upright is kept on its side.
+        assertEquals(240 to 320, Video.turned(320, 240, 90))
+        assertEquals(240 to 320, Video.turned(320, 240, 270))
+        assertEquals(320 to 240, Video.turned(320, 240, 0))
+        assertEquals(320 to 240, Video.turned(320, 240, 180))
         assertEquals(720 to 1, Video.fitted(4000, 2)) // never nothing
         assertEquals(0 to 0, Video.fitted(0, 0))
         // A video goes as its own part, named as one in the message's layout, and reads back whole.

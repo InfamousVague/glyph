@@ -35,16 +35,30 @@ object Video {
         return maxOf(1, Math.round(width * scale).toInt()) to maxOf(1, Math.round(height * scale).toInt())
     }
 
+    /** A video's size as it plays: one kept on its side ([turn] 90 or 270 degrees) is as tall as it is kept wide. */
+    fun turned(width: Int, height: Int, turn: Int): Pair<Int, Int> = if (turn == 90 || turn == 270) height to width else width to height
+
     /**
      * The video in the message part [part]: `picture` (a JPEG of where it starts, or null where none can be made:
      * a kind this phone cannot read, or sound alone), `millis` (how long it runs, 0 where unknown), and the picture's
-     * `width` and `height`.
+     * `width` and `height`. And the video as it arrived (Matt, 2026-11-14: "the videos sent from iphone are
+     * extremely low quality"; a phone that sends one as a picture message shrinks it to fit the carrier's limit, and
+     * the conversation says how small it came): `videoWidth` and `videoHeight`, its own size as it plays, and
+     * `bytes`, its file's; 0 where not known.
      */
     fun preview(context: Context, part: Long): Map<String, Any?> {
         val m = MediaMetadataRetriever()
         return try {
             m.setDataSource(context.applicationContext, Uri.parse("content://mms/part/$part"))
             val millis = m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val (videoWidth, videoHeight) = turned(
+                m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0,
+                m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0,
+                m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0,
+            )
+            val bytes = try {
+                context.applicationContext.contentResolver.openFileDescriptor(Uri.parse("content://mms/part/$part"), "r")?.use { it.statSize } ?: 0L
+            } catch (e: Exception) { 0L }
             // The first frame that can be drawn by itself: where the video starts, or just after.
             val frame = try { m.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) } catch (e: Exception) { null }
             var picture: ByteArray? = null
@@ -59,7 +73,7 @@ object Video {
                 width = w
                 height = h
             }
-            mapOf("picture" to picture, "millis" to millis, "width" to width, "height" to height)
+            mapOf("picture" to picture, "millis" to millis, "width" to width, "height" to height, "videoWidth" to videoWidth, "videoHeight" to videoHeight, "bytes" to maxOf(0L, bytes))
         } catch (e: Exception) {
             Log.w(TAG, "video preview", e)
             mapOf("picture" to null, "millis" to 0L, "width" to 0, "height" to 0)
