@@ -173,6 +173,7 @@ channel removed; the service and its notification there while paired and gone af
 camera. Then again on 0.6.1's tree, each pairing started as a camera would start it, by opening the QR code's link
 on the phone: the question, the digits, the list a lot at a time, a text each way (the phone's own store holding
 the Mac's as sent) and unpairing, over the local network three times, through the relay, and with both allowed.
+And once more with both allowed after 0.6.2 was merged in: paired through the relay, then the local network taken.
 
 **Not tried**, since they need the Fold or a signed build: the two finding each other by Bonjour and NSD on a real
 network; reading the QR code with a real camera; the Keychain (the builds here kept the key in a file); the service

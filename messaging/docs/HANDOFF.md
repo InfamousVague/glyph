@@ -21,7 +21,7 @@ of it: how it works, how to run each part, what was tried on the emulator and wh
   the releaser's. The phone app needs that release for the Mac app to have anything to pair with (Matt's camera on
   the Mac's QR code said no app could use it).
 - The QR code is a link (`ghostmsg://pair/…`) the phone's camera opens in the app; conversations cross to the Mac
-  a lot at a time. Both were run to the end on an emulator, on 0.6.1's tree.
+  a lot at a time. Both were run to the end on an emulator, on 0.6.1's tree and again on this one.
 - The Mac app's icon is drawn whole by macOS 27 (it sat small on a grey plate: a black-and-white picture is stored
   as greyscale by the asset catalog, and macOS plates those; `tool/app_icon.py` and docs/desktop.md say the rest).
   A Mac that already drew the old one keeps it for that path until the app is touched or moved.
