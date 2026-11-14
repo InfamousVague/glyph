@@ -573,7 +573,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       title: title,
       back: !remote,
       titleWidget: GlacierPressable(
-        onPressed: remote ? null : _openSettings,
+        onPressed: _openSettings,
         builder: (context, state) => Row(children: [
           Avatar(people: _people, size: t.lenOf('2.1rem')),
           SizedBox(width: t.space(2)),
@@ -593,7 +593,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         if (!remote && !_group && _people.isNotEmpty)
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
-        if (!remote) IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
+        // On a computer too (Matt, 2026-11-14: "There needs to be chat settings on desktop as well"): what a computer
+        // can change of a conversation, and what it can only show (lib/ui/chat_settings.dart).
+        IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
       ],
       body: Stack(children: [
         if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),

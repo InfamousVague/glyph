@@ -180,13 +180,12 @@ void main() {
       expect(_button('Call'), findsNothing);
       expect(_button('Stickers'), findsNothing);
       expect(_button('Add an attachment'), findsNothing);
-      expect(_button('Conversation settings'), findsNothing);
+      expect(_button('Conversation settings'), findsOneWidget, reason: 'a conversation has its own settings on a computer too');
       expect(_button('Back'), findsNothing);
-      // The navigation bar at the sidebar's foot: a new chat, the messages, the archive with how many are in it,
-      // Settings. Messages is the one shown.
+      // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
+      // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
       for (final label in ['New chat', 'Messages', 'Archive', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
-        expect(find.text(label), findsWidgets);
       }
       expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
       // Archive shows the archived ones, and Messages the others again.
@@ -204,6 +203,25 @@ void main() {
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+
+      // A conversation's own settings, on a computer too (Matt: "There needs to be chat settings on desktop as
+      // well"): who is in it, how it looks here, where its encryption stands, mute, pin and archive.
+      await shoot('9-chat-settings', paired('local'), dark: dark, then: () async {
+        await tester.tap(find.text('Maya Chen'));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await tester.tap(_button('Conversation settings'));
+      });
+      expect(find.text('Conversation settings'), findsOneWidget);
+      expect(find.text('Chat background'), findsOneWidget);
+      expect(find.text('Your bubbles here'), findsOneWidget);
+      expect(find.textContaining('on this computer'), findsOneWidget, reason: 'its look is this computer\'s own');
+      await tester.scrollUntilVisible(find.text('Encryption'), 200, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Encryption'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Pin to top'), 200, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Mute notifications'), findsOneWidget);
+      expect(find.textContaining('On the phone'), findsOneWidget);
 
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
