@@ -7,10 +7,11 @@ library;
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
+import 'codes.dart';
 import 'plugin.dart';
 
 /// The plugins the app ships with, in the order Settings › Plugins lists them and their sections are asked.
-const List<GhostPlugin> shippedPlugins = [];
+const List<GhostPlugin> shippedPlugins = [CodesPlugin()];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {

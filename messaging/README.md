@@ -415,7 +415,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
     the classifier it needs written in Kotlin (the code finder already is, `Notifier.otp`) or run in a Dart
     isolate the receiver starts, reading the same choices (they are in the `ui` preferences, under `plugin…`).
 
-  The plugins the app ships with are compiled in (`shippedPlugins` in `registry.dart`): none yet. A screen asks the
+  The plugins the app ships with are compiled in (`shippedPlugins` in `registry.dart`): Codes, below. A screen asks the
   registry what there is for a place and draws it; a plugin is handed facts and a host to ask things of (say
   something, copy, open a conversation, mark it read, file it), never a screen. One that throws is left out and
   said in Settings › Developer's log. All of the contract but the widget slots is data in and data out
@@ -427,6 +427,20 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
+- **Codes** (not released; `lib/plugins/codes.dart`; Matt, 2026-11-14: "separating OTPs into their own section").
+  The first plugin, on until it is switched off in Settings › Plugins. A conversation whose newest text is a sign-in
+  code, from one number that is not in the phone's contacts, leaves the main list for a Codes section: a chip under
+  the search field that counts them, and in it the newest first, each code drawn large over the words it came in.
+  A tap on the row, or the button at its end, copies the code and marks the conversation as read (its own setting,
+  "Mark as read when copied"). Its long press opens the conversation, copies, or keeps it in Messages, which
+  sticks. A contact's "the door code is 4417" stays in the main list, where its long press has "Copy 4417" and
+  "Move to Codes". What reads as a code is what the notification's Copy button says is one: `signInCode` is
+  `Notifier.otp` written again in Dart, and the two are held to the same examples (`test/code_vectors.json`, read
+  by `test/plugin_codes_test.dart` and by `CodesTest.kt`), so they cannot drift apart. The list knows a
+  conversation by its last words: it is in Codes while its newest text is a code and back in the main list once a
+  later text is not, and since the list does not know whose the last words are, a code the person texts to a
+  number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
+  which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by
@@ -471,7 +485,7 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
 | Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
 | The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
-| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what is drawn of them (`ui.dart`) and Settings › Plugins (`settings.dart`). |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`). |
 | The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building

@@ -1,8 +1,10 @@
 package com.infamousvague.ghostmessaging
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /** The sign-in codes offered to Ghost Keyboard ([Codes.pick]): which texts' codes, in what order, for how long. */
 class CodesTest {
@@ -30,6 +32,20 @@ class CodesTest {
         assertTrue(codes("Your code is 482913" to ago(10.0)).isEmpty())
         // A text dated ahead of the clock (a carrier's stamp, a clock set back) is not offered for ever.
         assertTrue(codes("Your code is 482913" to now + 5 * 60_000L).isEmpty())
+    }
+
+    /**
+     * What reads as a code is the list's Codes section's too (lib/plugins/codes.dart, `signInCode`): the finder here
+     * and the one there are held to the same examples, test/code_vectors.json.
+     */
+    @Test fun theFinderAgreesWithTheListsOwn() {
+        val cases = JSONObject(File("../../test/code_vectors.json").readText()).getJSONArray("cases")
+        assertTrue(cases.length() >= 20)
+        for (i in 0 until cases.length()) {
+            val case = cases.getJSONObject(i)
+            val text = case.getString("text")
+            assertEquals(text, if (case.isNull("code")) null else case.getString("code"), Notifier.otp(text))
+        }
     }
 
     @Test fun threeAtMost() {
