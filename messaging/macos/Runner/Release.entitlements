@@ -2,10 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<!-- The Mac dials out: to the phone on the local network, and to the relay. It opens no port of its own. -->
-	<key>com.apple.security.network.client</key>
-	<true/>
+	<!--
+	  Nothing is asked for. The app is not sandboxed: it updates itself by putting the new version where the old one
+	  is (Runner/UpdatesChannel.swift), which a sandboxed app cannot do, and it is not sold in the Mac App Store,
+	  the one place that requires the sandbox. It is signed with the Developer ID under the hardened runtime
+	  (tool/release-mac.mjs). Reaching the phone and the relay needs no entitlement outside the sandbox; finding the
+	  phone on the local network is asked of the person by macOS (Info.plist, NSLocalNetworkUsageDescription).
+	-->
 </dict>
 </plist>

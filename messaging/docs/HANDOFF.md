@@ -31,8 +31,11 @@ of it: how it works, how to run each part, what was tried on the emulator and wh
   the phone by itself on the Wi-Fi (never done: an emulator's network hides Bonjour; if it does not, the phone's
   address from Settings › Computers goes in the Mac's Settings); leave the phone overnight and see whether a text
   still reaches the Mac in the morning; answer macOS's one question about the local network.
-- To do for a release of the Mac app: sign it (the Keychain holds the pairing's key only in a properly signed
-  build; `GHOST_DESK_KEYCHAIN`), notarise it, and decide where it is downloaded from. None of that is started.
+- The Mac app is installed on Matt's Mac (/Applications/Ghost Messaging.app, signed with the Developer ID, not
+  sandboxed) and updates itself (docs/desktop.md, "Updating itself"). To publish a Mac release, on Matt's word:
+  `node tool/deploy-site.mjs --caddy` once (the block now names `/mac.json` and `/ghost-messaging-mac.zip`), then
+  `node tool/release-mac.mjs --publish`. Neither has been run: `mac.json` answers 404 and installed copies read
+  that as nothing newer. Not done: notarising (`--notarize`, for a download from a browser) and a download page.
 - Three things the design asked Matt and he has not answered by name (docs/desktop.md, its last section).
 - Android 16's local network permission is not asked for (targetSdk 36 does not need it); a later target will.
 

@@ -124,7 +124,7 @@ void main() {
     SchedulerBinding.instance.addPersistentFrameCallback((_) => frames++);
     final heartbeat = Timer.periodic(const Duration(seconds: 5), (_) => say('DESK-TICK phase=${watched?.attempt?.phase} via=${watched?.via} paired=${watched?.phone != null} frames=$frames'));
     addTearDown(heartbeat.cancel);
-    await desktopMain(peers: _mode == 'relay' ? const [] : [Peer.parse(_peer)!], folder: dir.path, bonjour: false);
+    await desktopMain(peers: _mode == 'relay' ? const [] : [Peer.parse(_peer)!], folder: dir.path, bonjour: false, updates: false);
     await until(() => find.text('Your texts, on your Mac').evaluate().isNotEmpty, 'the wizard');
     final link = DeskScope.of(tester.element(find.byType(PairWizard))).link;
     watched = link;

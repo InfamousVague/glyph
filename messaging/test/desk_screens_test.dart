@@ -9,6 +9,7 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
+import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/common.dart';
@@ -75,6 +76,20 @@ class _Calls extends LinkCalls {
   int get waiting => 1;
 }
 
+/// The Mac's half of an update, standing in: it counts the restarts asked for.
+class _Mac implements UpdateHost {
+  int restarts = 0;
+  @override
+  Future<InstalledMac?> installed() async => null;
+  @override
+  Future<String> install(String path, {required String sha256, required int bytes}) async => 'ready';
+  @override
+  Future<String> restart() async {
+    restarts++;
+    return 'restarting';
+  }
+}
+
 Finder _button(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
 
 class _Store implements LinkStore {
@@ -109,14 +124,14 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('ghost-desk-shots');
     addTearDown(() => dir.deleteSync(recursive: true));
 
-    Future<void> shoot(String name, PhoneLink link, {required bool dark, Future<void> Function()? then}) async {
+    Future<void> shoot(String name, PhoneLink link, {required bool dark, Future<void> Function()? then, MacUpdates? updates}) async {
       final store = DeskStore(dir, keychain: false);
       final calls = _Calls(link, store);
       Sms.calls = calls;
       final state = AppState()
         ..setTheme(dark ? 'dark' : 'light')
         ..set('emoji', 'noto');
-      await tester.pumpWidget(KeyedSubtree(key: ValueKey('$name$dark'), child: DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store)));
+      await tester.pumpWidget(KeyedSubtree(key: ValueKey('$name$dark'), child: DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, updates: updates)));
       for (var i = 0; i < 16; i++) {
         await tester.pump(const Duration(milliseconds: 60));
       }
@@ -172,6 +187,34 @@ void main() {
 
       await shoot('6-waiting', paired(null), dark: dark);
       expect(find.textContaining('Waiting for your phone'), findsOneWidget);
+      expect(find.text('Restart to update'), findsNothing);
+
+      // A newer version is in place beside this one: a bar over the page says so, and Restart to update swaps it in.
+      final mac = _Mac();
+      final ready = MacUpdates.standing(
+        installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'),
+        phase: MacUpdatePhase.ready,
+        release: MacRelease(version: '0.7.0', build: 470000, sha256: 'ab' * 32, bytes: 35000000, url: Uri.parse('https://ghost-sms.com/ghost-messaging-mac.zip')),
+        host: mac,
+      );
+      await shoot('7-update-ready', paired('local'), dark: dark, updates: ready);
+      expect(find.text('Ghost Messaging 0.7.0 is ready'), findsOneWidget);
+      await tester.tap(find.text('Restart to update'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(mac.restarts, 1);
+      expect(find.text('Restarting as Ghost Messaging 0.7.0…'), findsOneWidget);
+      expect(find.text('Restart to update'), findsNothing);
+      // And in Settings: where the updates stand, and a look for one when asked.
+      final idle = MacUpdates.standing(installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'), phase: MacUpdatePhase.idle, host: mac);
+      await shoot('8-settings-updates', paired('local'), dark: dark, updates: idle, then: () async {
+        await tester.tap(_button('Settings'));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await tester.scrollUntilVisible(find.text('Look for an update'), 200, scrollable: find.byType(Scrollable).last);
+      });
+      expect(find.text('Look for an update'), findsOneWidget);
+      expect(find.textContaining('Up to date. This is 0.6.2 (456601)'), findsOneWidget);
     }
     // Leave nothing running: the wizard's question to the relay, a toast.
     await tester.pumpWidget(const SizedBox());

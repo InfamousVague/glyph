@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -15,7 +16,9 @@ import 'platform.dart';
 import 'remote.dart';
 import 'store.dart';
 import 'ui/shell.dart';
+import 'ui/update_bar.dart';
 import 'ui/wizard.dart';
+import 'updates.dart';
 
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
 /// my phone to my desktop and then send back to the phone to send again"; docs/desktop.md). The phone's screens,
@@ -27,8 +30,9 @@ import 'ui/wizard.dart';
 /// keeps in another folder, and `GHOST_DESK_BONJOUR=off` leaves the local network unsearched.
 ///
 /// [peers], [folder] and [bonjour] are the same three, for a test that starts the app itself
-/// (integration_test/desk_live_test.dart).
-Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour}) async {
+/// (integration_test/desk_live_test.dart). The app looks for a newer version of itself (updates.dart) unless
+/// `GHOST_DESK_UPDATES=off` or [updates] is false, as it is for a test.
+Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
   final env = Platform.environment;
   final dir = folder ?? env['GHOST_DESK_DIR'];
@@ -52,17 +56,22 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour}) asy
   final sheet = loaded[0]! as TokenSheet;
   installSettingsStyles(sheet);
   await link.start();
-  runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers));
+  // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
+  // opens whether or not the site answers.
+  final macUpdates = updates ? MacUpdates.fromEnvironment(env) : null;
+  if (macUpdates != null) unawaited(macUpdates.start());
+  runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates));
 }
 
 class DesktopApp extends StatelessWidget {
-  const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const []});
+  const DesktopApp({super.key, required this.sheet, required this.state, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates});
   final TokenSheet sheet;
   final AppState state;
   final PhoneLink link;
   final LinkCalls calls;
   final DeskStore store;
   final List<Peer> envPeers;
+  final MacUpdates? updates;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +80,7 @@ class DesktopApp extends StatelessWidget {
       calls: calls,
       store: store,
       envPeers: envPeers,
+      updates: updates,
       child: AppScope(
         state: state,
         child: ListenableBuilder(
@@ -84,7 +94,8 @@ class DesktopApp extends StatelessWidget {
               sheet: sheet,
               attrs: {'platform': 'desktop', if (state.theme != 'system') 'theme': state.theme},
               typography: ghostTypography(state.emoji),
-              child: InkOverrides(child: GlacierToastProvider(child: child!)),
+              // A newer version in place says so over every page (ui/update_bar.dart).
+              child: InkOverrides(child: GlacierToastProvider(child: DeskUpdateBar(child: child!))),
             ),
             home: const DeskHome(),
           ),

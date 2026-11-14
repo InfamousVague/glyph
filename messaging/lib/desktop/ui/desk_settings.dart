@@ -12,6 +12,8 @@ import '../../ui/common.dart';
 import '../../ui/computers.dart';
 import '../desk.dart';
 import '../link/link.dart';
+import '../updates.dart';
+import 'update_bar.dart';
 import 'wizard.dart';
 
 /// The Mac's settings: the phone it is paired with and how the two connect, unpairing, and how this Mac draws
@@ -153,6 +155,25 @@ class _DeskSettingsScreenState extends State<DeskSettingsScreen> {
                 label: 'Ghost Messaging for the Mac ${scope.link.app}',
                 hint: const Text('This Mac keeps the pairing and these choices, and nothing else: your texts are held in memory while the app is open and read from the phone again each time. The phone sends and receives; a relay, where one is used, only ever carries sealed data.'),
               ),
+              // The app's own updates (lib/desktop/updates.dart): where they stand, and a look for one when asked.
+              if (scope.updates != null)
+                ListenableBuilder(
+                  listenable: scope.updates!,
+                  builder: (context, _) {
+                    final u = scope.updates!;
+                    final here = u.installed;
+                    if (here == null) return const SizedBox.shrink();
+                    final ready = u.phase == MacUpdatePhase.ready;
+                    final busy = u.phase == MacUpdatePhase.checking || u.phase == MacUpdatePhase.downloading || u.phase == MacUpdatePhase.restarting;
+                    return SettingRow(
+                      icon: icon(Lucide.download),
+                      label: ready ? 'Restart to update' : 'Look for an update',
+                      hint: Text('${updateLine(u).replaceFirst(RegExp(r'\.$'), '')}. This is ${here.version} (${here.build}); it updates itself from ghost-sms.com, and quitting puts a waiting update in place too.'),
+                      disabled: busy,
+                      onPress: busy ? null : (ready ? u.restart : u.check),
+                    );
+                  },
+                ),
             ]),
           ];
           return ListView(

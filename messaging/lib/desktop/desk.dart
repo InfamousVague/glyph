@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'link/link.dart';
 import 'remote.dart';
 import 'store.dart';
+import 'updates.dart';
 
 /// Where the relay would be once it is on a server (docs/desktop.md): the address the wizard starts with.
 const defaultRelay = 'wss://ghost-sms.com/relay';
@@ -12,10 +13,13 @@ const defaultRelay = 'wss://ghost-sms.com/relay';
 /// The Mac app's own parts, handed down to its screens: the link to the phone, what answers the phone's screens,
 /// and what is kept on this Mac.
 class DeskScope extends InheritedWidget {
-  const DeskScope({super.key, required this.link, required this.calls, required this.store, this.envPeers = const [], required super.child});
+  const DeskScope({super.key, required this.link, required this.calls, required this.store, this.envPeers = const [], this.updates, required super.child});
   final PhoneLink link;
   final LinkCalls calls;
   final DeskStore store;
+
+  /// The app's own updates (lib/desktop/updates.dart); null where it looks for none (a test, `GHOST_DESK_UPDATES=off`).
+  final MacUpdates? updates;
 
   /// Addresses for the phone given as the app was started (GHOST_DESK_PEERS), kept beside one given in Settings.
   final List<Peer> envPeers;

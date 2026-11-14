@@ -278,6 +278,12 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **The Mac app updates itself** (built 2026-11-14; Matt: "install the app on my mac and make sure it has OTA
+  updates so we don't need to reinstall again"). It reads `https://ghost-sms.com/mac.json` as it opens and every six
+  hours, brings the newer app down, takes it only if it is whole and signed by its own team (Matt's Developer ID),
+  puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
+  over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
+  yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by

@@ -133,6 +133,48 @@ The choice can be changed later from either side, and the change is sent to the 
 - A side that was away: through the relay, the Mac hears from the phone that the pairing is gone and says so. On the
   local network alone the Mac goes on waiting, and is unpaired there by hand.
 
+## Updating itself
+
+Matt, 2026-11-13: "install the app on my mac and make sure it has OTA updates so we don't need to reinstall again".
+The Mac app updates itself as Ghost.md's Mac app does (the same steps, carried over from `macos/Runner/
+UpdatesChannel.swift` in the repository's root, where they have run since 2026-10-24).
+
+- **What it reads** is `https://ghost-sms.com/mac.json`, beside the phone app's `apk.json`: `{ version, versionCode,
+  sha256, bytes, url }`, the url being `ghost-messaging-mac.zip`, the signed app zipped by `ditto`. Newer is a
+  `versionCode` (the app's `CFBundleVersion`) above its own. It looks as it opens and every six hours, and from
+  Settings › Look for an update (`lib/desktop/updates.dart`).
+- **What it believes.** The download is held to the size and SHA-256 the description gives. Then what came out of
+  the zip has to be this app (its bundle id), newer (never a step back), and whole and signed by this app's own
+  team: `anchor apple generic and certificate leaf[subject.OU] = "F6ZAL7ANAD"`, every architecture and every nested
+  library, strictly (`macos/Runner/UpdatesChannel.swift`). Only Matt's Developer ID signs as that team, so nothing
+  the server or the network says can stand in for it, and there is no second key to keep or lose.
+- **How it is put in place.** Unpacked beside the running app in a hidden folder
+  (`/Applications/.Ghost Messaging.app-update`), then the two trade places in one step, the app quits, and a small
+  helper opens the new one and removes the old only once the new one has said it opened; if it has not in two
+  minutes the old one is put back. A bar over every page offers Restart to update; quitting swaps it in as well, so
+  the next launch is the new version either way.
+- **Not sandboxed**, since a sandboxed app cannot replace itself (`Runner/Release.entitlements` says so). It is
+  signed with the Developer ID under the hardened runtime and asks for no entitlement.
+- **Making a release**: `node tool/release-mac.mjs` builds, signs inside out, checks what an installed copy will
+  ask, zips, and writes `mac.json` into `build/release-mac`. `--install` puts the app in /Applications (once),
+  `--notarize` has Apple notarise it (for a copy downloaded with a browser; a copy that updates itself is not asked
+  for it), `--publish` puts the two files on the box as `tool/release.mjs` does the phone's. The number is the
+  minutes since 2026 began, so it rises by itself.
+- **Before the first release answers**, ghost-sms.com's Caddy block has to name the two files: it serves the
+  release folder's files by name, and `tool/deploy-site.mjs` now names `/mac.json` and `/ghost-messaging-mac.zip`
+  beside the phone's two. `node tool/deploy-site.mjs --caddy` once, then `node tool/release-mac.mjs --publish`.
+  Until then `mac.json` answers 404, which an installed copy reads as nothing newer.
+
+**Tried on this Mac, 2026-11-14**, with two builds signed as a release is (456590, then 456591) and a local server
+standing in for ghost-sms.com (`GHOST_DESK_UPDATES=http://127.0.0.1:8793/mac.json`, `GHOST_DESK_UPDATE_RESTART=now`
+so no hand is needed): the older read the description, brought the zip down, checked it, swapped itself, quit, and
+was opened again as the newer in six seconds, the old one removed (`~/Library/Caches/com.infamousvague.
+ghostmessaging.mac/update-install/install.log` has each step). An update changed after it was signed was refused
+("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Ghost
+Messaging's developer"); the running app was left as it was both times. **Not tried**: an update from
+ghost-sms.com itself (nothing is published there), `--publish`, `--notarize`, and quitting with an update waiting
+(the swap is the same code as Restart; what differs is that nothing reopens the app).
+
 ## What changed in the phone app
 
 - The camera permission (asked for when scanning), a foreground service, starting at boot.
@@ -184,7 +226,8 @@ the Mac's as sent) and unpairing, over the local network three times, through th
 And once more with both allowed after 0.6.2 was merged in: paired through the relay, then the local network taken.
 
 **Not tried**, since they need the Fold or a signed build: the two finding each other by Bonjour and NSD on a real
-network; reading the QR code with a real camera; the Keychain (the builds here kept the key in a file); the service
+network; reading the QR code with a real camera; the Keychain (the builds paired here kept the key in a file; the
+copy now in /Applications is signed and keeps it in the Keychain, and has not been paired yet); the service
 through a night of deep sleep, and whether a text arriving brings it back; anything on a carrier.
 
 ## Matt has not said
