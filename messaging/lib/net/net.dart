@@ -206,9 +206,18 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> setRoute(String id, bool value) async {
     final board = _board;
     if (board == null) return;
-    await board.setOn(id, value && on && _peers.isNotEmpty);
-    if (!value) board.off.add(id);
+    // The person's choice is kept whatever happens to be running; then the routes are started or stopped to suit.
+    // It was handed straight to the route as "on only if there is someone to reach", and with nobody encrypted that
+    // was "off", which the switchboard writes down as switched off: the switch flipped back and could never be
+    // turned on again (Matt, 2026-11-14: "I also can't toggle the relay server back on or SMS").
+    if (value) {
+      board.off.remove(id);
+    } else {
+      board.off.add(id);
+    }
     _app?.set('net_off', board.off.join(','));
+    if (!value) await board.setOn(id, false);
+    await _apply();
     notifyListeners();
   }
 

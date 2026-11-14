@@ -90,6 +90,24 @@ void main() {
     expect(hub.running, isFalse);
   });
 
+  test('a route switched off can be switched on again, with nobody to reach', () async {
+    // Matt, 2026-11-14: "I also can't toggle the relay server back on or SMS".
+    final hub = _Counted('hub'), sms = _Counted('sms');
+    final app = AppState();
+    await Net.instance.start(app, carriers: [hub, sms]);
+    await Net.instance.setRoute('hub', false);
+    await Net.instance.setRoute('sms', false);
+    expect(Net.instance.board!.off, containsAll(['hub', 'sms']));
+    await Net.instance.setRoute('hub', true);
+    await Net.instance.setRoute('sms', true);
+    expect(Net.instance.board!.off, isEmpty, reason: 'both switches stay on');
+    expect(app.choice('net_off', 'x'), '');
+    // And with Settings › Me wanting the relay server, the hub dials once it is on again.
+    await Net.instance.want('me', true);
+    expect(hub.running, isTrue);
+    expect(sms.running, isFalse, reason: 'nobody to text');
+  });
+
   test('Settings › Me asks for the relay server as it opens, and from the start once it has been used', () async {
     final asked = <bool>[];
     final store = MemoryMeStore();
