@@ -377,6 +377,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   relay server's address, and a test to each person that says which route carried it. Nothing in the app is carried
   by them yet but that test: calls, receipts and the local-network and peer-to-peer routes come next. The hub is
   not on our server yet, so on a phone the relay route says it cannot be reached.
+- **Invite someone by text** (not released; Matt, 2026-11-14: "Id like to also be able to invite people to join
+  ghost messaging over text which would prompt them to install the app"). Settings › Network › Invite someone by
+  text opens a new chat with the invitation written (`inviteText` in `lib/ui/network.dart`: what the app is for and
+  ghost-sms.com, where it is downloaded); the person chooses who, may change the words, and sends it as any text.
+  Once the other has the app and the two text each other, the app's own finding of the other (`GhostMark.kt`)
+  offers to turn encryption on, which is what makes them someone the routes reach. Not done: an invitation that
+  carries this phone's key, so that the first text from the other phone is all it takes.
 - **One frame, phone and computer** (0.7.4; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
   to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
   app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from

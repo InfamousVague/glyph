@@ -22,6 +22,7 @@ import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
+import 'package:ghost_messaging/ui/network.dart' show inviteText;
 import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
@@ -233,6 +234,9 @@ void _answerChannel() {
         ];
       case 'contact':
         return _conversations.expand((c) => c['people'] as List).cast<Map>().firstWhere((p) => p['address'] == args['address'], orElse: () => _p(args['address'] as String));
+      // A new chat's people have a conversation: the first one, here.
+      case 'threadFor':
+        return 1;
       case 'netSmsAvailable':
         return false;
       case 'netSmsDrain':
@@ -598,6 +602,8 @@ void main() {
       expect(find.textContaining('Ready'), findsOneWidget);
       expect(find.textContaining('cannot send data texts'), findsOneWidget);
       expect(find.textContaining('A test was sent to Riley Fox'), findsOneWidget);
+      expect(find.text('Invite someone by text'), findsOneWidget);
+      expect(inviteText, contains('https://ghost-sms.com'));
       expect(hub.carried, 1, reason: 'the test went by the route that is up');
       expect(sms.carried, 0);
       await tester.runAsync(Net.instance.shutdown);
@@ -845,6 +851,25 @@ void main() {
       expect(find.byType(SettingsScreen), findsNothing);
       expect(find.byType(ThreadScreen), findsOneWidget);
       expect(shown(), 'messages');
+      // Settings › Network's invitation opens a new chat beside the list; choosing who opens the conversation with
+      // the invitation written in its message field, to send as any text.
+      tester.state<AppShellState>(find.byType(AppShell)).settings('network');
+      await _settle(tester);
+      await tester.tap(find.text('Invite someone by text'));
+      await _settle(tester);
+      expect(find.byType(ComposeScreen), findsOneWidget);
+      expect(shown(), 'new');
+      await tester.enterText(find.byType(EditableText).last, 'Mom');
+      await _settle(tester);
+      await tester.tap(find.text('Mom').last);
+      await _settle(tester);
+      await tester.tap(find.text('Next'));
+      await _settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-wide-invite', dark: dark);
+      expect(find.byType(ThreadScreen), findsOneWidget);
+      expect(find.textContaining('Join me on Ghost Messaging'), findsOneWidget);
       // The next round starts with a frame of its own.
       await tester.pumpWidget(const SizedBox());
     }
