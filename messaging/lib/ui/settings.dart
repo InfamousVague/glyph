@@ -343,7 +343,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             const HeaderEnd(),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside ? NavPill.clearance(t) : t.space(8))),
+                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside && !AppShell.railOf(context) ? NavPill.clearance(t) : t.space(8))),
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 children: [
                   if (query.isEmpty)
@@ -528,7 +528,7 @@ class SettingsList extends StatelessWidget {
                 // The row of the section open beside the list is brought into view when it was not: a section
                 // jumped to from somewhere else (a search, the Settings ring's menu) is marked where it can be seen.
                 shown: beside && section.id == chosen,
-                foot: beside ? NavPill.clearance(t) : 0,
+                foot: beside && !AppShell.railOf(context) ? NavPill.clearance(t) : 0,
                 child: _SectionRow(
                   label: section.label,
                   icon: section.icon,

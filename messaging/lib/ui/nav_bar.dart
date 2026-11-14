@@ -40,9 +40,18 @@ class NavItem {
 /// page's ink; the one shown now filled with ink, its mark in paper, as the dock's one filled ring is; a number on a
 /// ring's corner, in red (the dock wears its own in ink; here Matt asked for red); and a ring's words over it while the pointer rests there, where the dock's
 /// come up beside it.
+///
+/// On a wide phone (a folding phone opened out, a tablet) it stands up instead, as Ghost.md's does: its rings close
+/// under one another in a pill no wider than a ring, at the foot of a strip of its own down the window's right
+/// ([upright]; Matt, 2026-11-14: "on wider phones like my fold 8 make the navbar render vertically condensed on the
+/// right of the screen like we do in ghost markdown"). The frame gives it that strip (lib/ui/shell.dart), so it
+/// stands over nothing: not the Send button, not the newest messages.
 class NavPill extends StatelessWidget {
-  const NavPill({super.key, required this.items, required this.active, required this.onSelect});
+  const NavPill({super.key, required this.items, required this.active, required this.onSelect, this.upright = false});
   final List<NavItem> items;
+
+  /// Stood up, its rings a step apart head to foot, rather than laid along the list's foot and spread across it.
+  final bool upright;
 
   /// The id of the item shown now.
   final String active;
@@ -54,6 +63,16 @@ class NavPill extends StatelessWidget {
   /// How much of the list's end the pill stands over, with its room: what the list leaves clear there.
   static double clearance(Tokens t) => t.len('app-ring') + (t.space(2) + t.len('glacier-hairline')) * 2 + inset(t) * 2;
 
+  /// Stood up: how wide the strip it stands in is, the pill and a step of room on either side of it.
+  static double railWidth(Tokens t) => t.len('app-ring') + (t.space(2) + t.len('glacier-hairline')) * 2 + _railRoom(t) * 2;
+
+  /// The room on either side of the pill stood up: a small step, since every bit of it is taken from the pane.
+  static double _railRoom(Tokens t) => t.space(2);
+
+  /// Stood up with [count] rings: how tall it is with its room above and below. A window shorter than this (a
+  /// small phone on its side) has no room for it stood up.
+  static double railHeight(Tokens t, int count) => t.len('app-ring') * count + t.space(2) * (count - 1) + (t.space(2) + t.len('glacier-hairline')) * 2 + inset(t) * 2;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -62,10 +81,14 @@ class NavPill extends StatelessWidget {
     // The pill runs the sidebar's width and its rings stand evenly along it, the first and the last at its ends
     // (Matt, 2026-11-14: "Evenly space the icons across the bottom of the sidebar instead of condensing them to the
     // center").
+    final rings = [
+      for (final item in items)
+        _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, upright: upright, onPressed: () => onSelect(item.id)),
+    ];
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), inset(t)),
+      padding: upright ? EdgeInsets.symmetric(horizontal: _railRoom(t), vertical: inset(t)) : EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), inset(t)),
       child: SizedBox(
-        width: double.infinity,
+        width: upright ? null : double.infinity,
         child: Semantics(
           container: true,
           label: 'Navigation',
@@ -78,13 +101,10 @@ class NavPill extends StatelessWidget {
                 padding: EdgeInsets.all(gap + t.len('glacier-hairline')),
                 foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
                 decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    for (final item in items)
-                      _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
-                  ],
-                ),
+                child: upright
+                    // Ghost.md's dock as it is there: head to foot, a step between its rings.
+                    ? Column(mainAxisSize: MainAxisSize.min, spacing: gap, children: rings)
+                    : Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: rings),
               ),
             ),
           ),
@@ -97,9 +117,12 @@ class NavPill extends StatelessWidget {
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown. One with a
 /// menu of its own ([NavItem.menu]) hangs it over itself.
 class _Ring extends StatefulWidget {
-  const _Ring({super.key, required this.item, required this.shown, required this.onPressed});
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.upright = false});
   final NavItem item;
   final bool shown;
+
+  /// In a pill stood up at the window's right: its words keep their right edge on the ring's, inside the window.
+  final bool upright;
   final VoidCallback onPressed;
 
   @override
@@ -133,7 +156,9 @@ class _RingState extends State<_Ring> {
       onOpenChange: (open) {
         if (!open && _open) setState(() => _open = false);
       },
-      placement: Placement.topEnd,
+      // Over the ring where the pill is laid along; beside it, towards the pane, where the pill is stood up and
+      // over the ring is another ring.
+      placement: widget.upright ? Placement.leftEnd : Placement.topEnd,
       ariaLabel: widget.item.label,
       style: GlacierMenuStyle(
         minWidth: t.lenOf('12.5rem'),
@@ -157,6 +182,7 @@ class _RingState extends State<_Ring> {
     final ink = shown ? t.color('app-paper') : t.color('glacier-text');
     return HoverTip(
       message: item.label,
+      end: widget.upright,
       child: GestureDetector(
        behavior: HitTestBehavior.translucent,
        onSecondaryTapUp: onMenu == null ? null : (_) => onMenu(),

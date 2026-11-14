@@ -201,6 +201,9 @@ void main() {
         expect(_nav(label), findsOneWidget, reason: label);
       }
       expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
+      // A computer keeps the pill laid along its sidebar's foot: stood up at the right is a wide phone's.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
       // Archive shows the archived ones, and Messages the others again.
       await tester.tap(_nav('Archive'));
       await tester.pump(const Duration(milliseconds: 400));
