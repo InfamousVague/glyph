@@ -569,7 +569,11 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   none: both wizards offer local network then relay (the default), local only, or relay only. Settings › Computers
   lists the paired computers, how each is connected, and Unpair; the Mac unpairs too. While a computer is paired the
   phone shows a quiet permanent notification, which is what lets Android keep it reachable. What is typed on the Mac
-  while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps no texts on its disk. A
+  while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps what it has read (the
+  list and each conversation's messages) sealed on its disk with a key made from the pairing's, answers the
+  screens from that at once, and fetches only what is new from the phone behind them (not released; docs/desktop.md,
+  "What the Mac keeps"; Matt, 2026-11-14: "cache messages on the desktop app so that we don't need to fetch them
+  all from the phone every time, just fetching updates in the background"). A
   computer can read, send text, mark read, pin, mute and archive; it cannot delete, block, change encryption or
   send pictures. The relay is on our server since 2026-11-14 (`wss://ghost-sms.com/relay`).
 - **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and

@@ -29,12 +29,36 @@ class _DeskSettingsScreenState extends State<DeskSettingsScreen> {
   final _address = TextEditingController();
   bool _read = false;
 
+  /// How much of what was read is kept on this Mac (lib/desktop/cache.dart); null until it has been counted.
+  ({int conversations, int bytes})? _kept;
+
+  void _countKept() {
+    DeskScope.of(context).calls.cache.size().then((k) {
+      if (mounted) setState(() => _kept = k);
+    });
+  }
+
+  /// "Kept on this Mac" was pressed: what is kept can be thrown away, and is read from the phone again as it is
+  /// opened.
+  void _clearKept() {
+    final calls = DeskScope.of(context).calls;
+    showChoices(context, title: 'Clear the conversations and messages kept on this Mac? They are read from your phone again as you open them.', choices: [
+      Choice('Clear what is kept', Lucide.trash2, () async {
+        await calls.clearKept();
+        if (!mounted) return;
+        toast(context, 'Cleared');
+        _countKept();
+      }, danger: true),
+    ]);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_read) return;
     _read = true;
     _address.text = AppState.of(context).choice('peer', '');
+    _countKept();
   }
 
   @override
@@ -42,6 +66,8 @@ class _DeskSettingsScreenState extends State<DeskSettingsScreen> {
     _address.dispose();
     super.dispose();
   }
+
+  static String _keptSize(int bytes) => bytes >= 1024 * 1024 ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB' : '${(bytes / 1024).ceil()} KB';
 
   /// The phone's address, given by hand for a network where it is not found by itself.
   void _saveAddress() {
@@ -148,12 +174,23 @@ class _DeskSettingsScreenState extends State<DeskSettingsScreen> {
                 label: 'Message effects',
                 control: GlacierSwitch(checked: app.effects, onCheckedChange: app.setEffects, ariaLabel: 'Message effects'),
               ),
+              // What was read from the phone is kept here (Matt, 2026-11-14: "cache messages on the desktop app so
+              // that we don't need to fetch them all from the phone every time"): how much, and a way to clear it.
+              SettingRow(
+                icon: icon(Lucide.hardDrive),
+                label: 'Kept on this Mac',
+                value: _kept == null || _kept!.bytes == 0 ? null : Text(_keptSize(_kept!.bytes)),
+                hint: Text(_kept == null || _kept!.bytes == 0
+                    ? 'Conversations you open are kept here, sealed with your pairing\'s key, so they open at once and are there while your phone is away.'
+                    : 'The list and ${_kept!.conversations} ${_kept!.conversations == 1 ? 'conversation\'s' : 'conversations\''} messages, sealed with your pairing\'s key. They open at once, and only what is new is fetched from your phone. Press to clear.'),
+                onPress: _kept == null || _kept!.bytes == 0 ? null : _clearKept,
+              ),
             ]),
             PaneSection(title: 'About', children: [
               SettingRow(
                 icon: icon(Lucide.info),
                 label: 'Ghost Messaging for the Mac ${scope.link.app}',
-                hint: const Text('This Mac keeps the pairing and these choices, and nothing else: your texts are held in memory while the app is open and read from the phone again each time. The phone sends and receives; a relay, where one is used, only ever carries sealed data.'),
+                hint: const Text('This Mac keeps the pairing, these choices, and the conversations you have read, sealed with the pairing\'s key so nothing else on it can read them (Messages, above, clears them). The phone sends and receives; a relay, where one is used, only ever carries sealed data.'),
               ),
               // The app's own updates (lib/desktop/updates.dart): where they stand, and a look for one when asked.
               if (scope.updates != null)

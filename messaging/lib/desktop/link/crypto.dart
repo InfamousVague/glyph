@@ -139,6 +139,26 @@ class DeskCrypto {
     return n;
   }
 
+  /// [clear] sealed to be kept on this computer's disk (lib/desktop/cache.dart): twelve random bytes, then
+  /// AES-256-GCM under [key] with them, "ghost-desk-rest-v1" bound in. Each sealing is under bytes of its own, so
+  /// the same words kept twice do not look alike.
+  static Uint8List sealAtRest(List<int> key, List<int> clear) {
+    final nonce = randomBytes(12);
+    final c = GCMBlockCipher(AESEngine())..init(true, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, nonce, _utf8('ghost-desk-rest-v1')));
+    return concat([nonce, c.process(Uint8List.fromList(clear))]);
+  }
+
+  /// What [sealAtRest] sealed, or null where it is not that: another key's, cut short, or changed.
+  static Uint8List? openAtRest(List<int> key, List<int> sealed) {
+    if (sealed.length < 12 + 16) return null;
+    try {
+      final c = GCMBlockCipher(AESEngine())..init(false, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, Uint8List.fromList(sealed.sublist(0, 12)), _utf8('ghost-desk-rest-v1')));
+      return c.process(Uint8List.fromList(sealed.sublist(12)));
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Uint8List _gcm(bool seal, List<int> key, int counter, List<int> input) {
     final c = GCMBlockCipher(AESEngine())..init(seal, AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, _nonce(counter), _aad));
     return c.process(Uint8List.fromList(input));

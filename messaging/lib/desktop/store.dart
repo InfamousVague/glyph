@@ -5,8 +5,8 @@ import 'link/link.dart';
 import 'platform.dart';
 
 /// Where the Mac keeps what it must between runs: the pairing (who the phone is, how the two connect, and the
-/// pairing's key) and the person's choices (the theme, the relay's address). Never a text: conversations are held in
-/// memory and read from the phone again each time the app opens (docs/desktop.md).
+/// pairing's key) and the person's choices (the theme, the relay's address). What was read from the phone is kept
+/// apart, sealed with a key made from the pairing's (cache.dart; docs/desktop.md, "What the Mac keeps").
 ///
 /// The key is kept in the Keychain. Where the Keychain will not take it (a build signed to run on this Mac alone
 /// loses its Keychain items' trust with every rebuild, and macOS would ask for the password each time), it is kept

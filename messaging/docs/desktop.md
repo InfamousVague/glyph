@@ -150,8 +150,35 @@ The choice can be changed later from either side, and the change is sent to the 
 - In deep sleep (still, unplugged, screen off a long while) Android cuts the app's network. What is typed on the
   Mac waits there, drawn as "Waiting for your phone", and goes when the phone is back. Settings › Computers leads to
   Android's battery setting for those who want the phone reachable in deep sleep.
-- Nothing waits on the relay, ever. The Mac keeps the pairing and its own choices and nothing else: texts are held
-  in memory and read from the phone again each time it opens.
+- Nothing waits on the relay, ever. The Mac keeps the pairing, its own choices, and what it has read from the
+  phone (below, "What the Mac keeps").
+
+## What the Mac keeps
+
+Matt, 2026-11-14: "cache messages on the desktop app so that we don't need to fetch them all from the phone every
+time, just fetching updates in the background". Until then every list and every conversation was asked of the
+phone each time it was shown, and the Mac opened empty until the phone answered.
+
+- **Kept** (`lib/desktop/cache.dart`, a `cache` folder in the app's own): the list of conversations, and each
+  conversation's messages as the phone last gave them, up to as many as were asked for. Not pictures, voice
+  messages or videos, which are fetched as they are shown.
+- **Sealed.** Each file is AES-256-GCM (`DeskCrypto.sealAtRest`) under a key made from the pairing's key, which
+  is in the Keychain. Nothing in the folder can be read without it. Unpairing deletes the folder, and Settings ›
+  Messages › Kept on this Mac says how much there is and clears it.
+- **Answered from what is kept** (`lib/desktop/remote.dart`). The list and a conversation that has been read
+  before are on the screen at once, the phone there or not. The phone is waited for only where nothing is kept,
+  where more is asked for than is kept (reading back, until the phone has no more), and after something done from
+  the Mac that the phone has to make something of (a picture sent, a message deleted).
+- **Only what is new is fetched, behind the screens.** When the phone says a conversation changed, the Mac asks for
+  its line in the list and its newest forty messages and joins them to what it keeps (`LinkCalls.merged`: the
+  newest are the phone's, the older stay, one deleted among the newest goes); where more came than forty, the
+  conversation is read whole. Each conversation is read whole once each time the app runs, so what was deleted or
+  changed far back is put right. When the phone is reached again everything is taken for possibly changed and
+  read again in the same way. The screens are told when what is kept changed, and read it.
+- **Ahead.** After the list is read, the eight conversations at its top have their messages read too, one after
+  another, so each opens at once though it was never opened here.
+- The first time, with nothing kept, the list asks the phone for its first lot as it did, and all of it is read
+  behind that.
 
 ## Unpairing
 
@@ -285,5 +312,6 @@ and read it back on two later starts, each of which showed his conversations and
 The design asked three things, and "Yes, build it" answered none by name, so it is built as the design had it:
 
 1. The permanent notification on the phone while a computer is paired.
-2. The Mac keeps no texts on its disk, so it opens empty until the phone answers.
+2. ~~The Mac keeps no texts on its disk, so it opens empty until the phone answers.~~ It keeps what it has read,
+   sealed, since 2026-11-14 ("What the Mac keeps").
 3. The relay at `ghost-sms.com/relay` when he says, and on the Mac until then.
