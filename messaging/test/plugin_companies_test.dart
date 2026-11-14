@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/plugins/codes.dart';
+import 'package:ghost_messaging/art/svg_path.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
+import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace;
 
 // Who a sign-in code is from (lib/plugins/companies.dart; Matt, 2026-11-14: "have the codes section try to parse the
@@ -111,6 +113,32 @@ void main() {
       // And each is found by its own name.
       expect(companyIn('Your ${c.name} code is 482913.')?.name, c.name, reason: c.name);
     }
+  });
+
+  test('every mark is a known company\'s, and draws inside its square', () {
+    // lib/plugins/company_marks.g.dart, made by tool/company_marks.py from an open pack of brand icons.
+    final domains = {for (final c in companies) c.domain};
+    expect(companyMarks, isNotEmpty);
+    for (final e in companyMarks.entries) {
+      expect(domains, contains(e.key), reason: 'a mark for nobody: ${e.key}');
+      final box = parseSvgPath(e.value).getBounds();
+      expect(box.isEmpty, isFalse, reason: e.key);
+      // A path's bounds take in the handles of its curves, which stand outside what is drawn (DoorDash's reach
+      // 25.8, Signal's -4.5): held to the square with that much room, which still catches a path read wrongly.
+      // The picture 12-plugins-company-faces shows each as it is drawn.
+      expect(box.left, greaterThanOrEqualTo(-6), reason: e.key);
+      expect(box.top, greaterThanOrEqualTo(-6), reason: e.key);
+      expect(box.right, lessThanOrEqualTo(30), reason: e.key);
+      expect(box.bottom, lessThanOrEqualTo(30), reason: e.key);
+      // And it is a mark, not a speck: it reaches across most of the square one way or the other.
+      expect(box.longestSide, greaterThan(14), reason: e.key);
+    }
+    // The two Matt named have one.
+    expect(companyMarks['coinbase.com'], isNotNull);
+    expect(companyMarks['discover.com'], isNotNull);
+    // One the pack took out at its owner's wish is not here: it is drawn as a letter.
+    expect(companyMarks['microsoft.com'], isNull);
+    expect(companyMarks['amazon.com'], isNull);
   });
 
   test('a company\'s face: its letter, in ink on a light colour and white on a dark one', () {

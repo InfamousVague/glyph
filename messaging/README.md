@@ -465,6 +465,24 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
+- **Who a code is from** (not released; `lib/plugins/companies.dart`; Matt, 2026-11-14: "have the codes section try
+  to parse the company that's sending the code and show their company logo as the code profile picture like
+  coinbase discover etc"). A code comes from a short number that says nothing; the company is in its words. A row
+  in Codes is called by it, and wears its face: for one of about 120 companies the app knows by name (or by another
+  it goes by, "BofA", "Amex", or by its web address in the text), a disc of the company's colour with its mark on
+  it; for any other, the name its text gives itself ("Acme: your code is…", "Your Acme verification code is…") and
+  that name's letters; for a text that names nobody, its number as before. All of it is read on the phone from the
+  text alone, and nothing is looked up for a name out of a text. **The marks** are built into the app from an open
+  pack of brand icons (Matt, asked where logos should come from: "download in the app look for brand icon packs
+  that might exist"): Simple Icons, CC0 1.0, each one path, made into `lib/plugins/company_marks.g.dart` by
+  `tool/company_marks.py` (its head says how to fetch the pack and run it). 72 companies have one. The rest get
+  their letter on their colour: 36 the pack does not have (most banks and shops), and 14 it has taken out at their
+  owners' wish and keeps only for old uses (Amazon, Microsoft, LinkedIn, Walmart, Slack and others), which are
+  left out here too. The marks are trademarks of their owners, drawn only to say who a text is from. A switch in
+  the plugin's settings, "Show who a code is from". Tests: `test/plugin_companies_test.dart`. Pictures:
+  `test/shots/12-plugins-codes-*`, and every face in `12-plugins-company-faces-*`. Found on the way and not
+  changed: "G-482913 is your Google verification code" is not taken for a code at all (the "-" before its digits),
+  by `signInCode` and `Notifier.otp` alike.
 - **Codes** (0.7.4; `lib/plugins/codes.dart`; Matt, 2026-11-14: "separating OTPs into their own section").
   The first plugin, on until it is switched off in Settings › Plugins. A conversation whose newest text is a sign-in
   code, from one number that is not in the phone's contacts, leaves the main list for a Codes section: a chip under

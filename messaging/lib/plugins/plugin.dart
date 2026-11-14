@@ -239,7 +239,7 @@ class RowLook {
 /// web address its logo is found by. Said in words, as the rest of a row's look is, and drawn by the list.
 @immutable
 class RowFace {
-  const RowFace({required this.name, required this.color, this.domain});
+  const RowFace({required this.name, required this.color, this.domain, this.mark});
 
   /// The company's name: its first letter stands in the face where there is no logo to draw.
   final String name;
@@ -249,6 +249,10 @@ class RowFace {
 
   /// Its web address, where it is a company the app knows; null for anything else.
   final String? domain;
+
+  /// Its mark, where the app has one: one path on a 24 by 24 square (company_marks.g.dart). Drawn on the colour
+  /// in place of the letter.
+  final String? mark;
 }
 
 /// A section of the list of conversations: a chip under the search field beside "Messages", and a list of its own

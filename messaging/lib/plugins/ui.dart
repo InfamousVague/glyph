@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/svg_path.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
@@ -233,8 +234,8 @@ class PluginNote extends StatelessWidget {
   }
 }
 
-/// A company's face on a row (plugin.dart, RowFace): a disc of its own colour with its name's first letter in it,
-/// in white or in ink, whichever reads on that colour.
+/// A company's face on a row (plugin.dart, RowFace): a disc of its own colour with its mark on it where the app
+/// has one, else its name's first letter, in white or in ink, whichever reads on that colour.
 class BrandFace extends StatelessWidget {
   const BrandFace({super.key, required this.face, required this.size});
   final RowFace face;
@@ -249,6 +250,13 @@ class BrandFace extends StatelessWidget {
 
     final light = 0.2126 * part((color >> 16) & 0xff) + 0.7152 * part((color >> 8) & 0xff) + 0.0722 * part(color & 0xff);
     return light > 0.5;
+  }
+
+  /// How much of the disc's width a mark's square takes. A company's name written out ("coinbase", "DISCOVER") is
+  /// wide and low and can run nearly the disc's width; a badge that fills its square has to stay inside the round.
+  static double markShare(String mark) {
+    final box = svgPath(mark).getBounds();
+    return box.height < box.width * 0.5 ? 0.78 : 0.56;
   }
 
   /// The letter that stands for [name]: its first letter or figure.
@@ -268,11 +276,31 @@ class BrandFace extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: color, border: Border.all(color: t.color('app-rule'), width: 1)),
         alignment: Alignment.center,
-        child: Text(
-          letterOf(face.name),
-          style: pageText(t, size * 0.44, weight: 'bold', color: inkOn(face.color) ? const Color(0xFF111111) : const Color(0xFFFFFFFF), height: 1),
-        ),
+        child: face.mark != null
+            ? CustomPaint(size: Size.square(size * markShare(face.mark!)), painter: _MarkPainter(face.mark!, inkOn(face.color) ? const Color(0xFF111111) : const Color(0xFFFFFFFF)))
+            : Text(
+                letterOf(face.name),
+                style: pageText(t, size * 0.44, weight: 'bold', color: inkOn(face.color) ? const Color(0xFF111111) : const Color(0xFFFFFFFF), height: 1),
+              ),
       ),
     );
   }
+}
+
+/// A company's mark: one filled path on a 24 by 24 square, drawn to fit.
+class _MarkPainter extends CustomPainter {
+  const _MarkPainter(this.mark, this.color);
+  final String mark;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    canvas.drawPath(svgPath(mark), Paint()..color = color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MarkPainter old) => old.mark != mark || old.color != color;
 }

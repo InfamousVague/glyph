@@ -12,6 +12,7 @@ library;
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import 'companies.dart';
+import 'company_marks.g.dart';
 import 'plugin.dart';
 
 // A word of its own: "pin" is in "shipping", "shopping" and "opinion", and "code" in "barcode".
@@ -81,8 +82,9 @@ class CodesPlugin extends GhostPlugin {
             final copy = _copy(code, facts.thread);
             // Who it is from is in its words, not its number (companies.dart; Matt: "have the codes section try
             // to parse the company that's sending the code and show their company logo as the code profile
-            // picture"): a company the app knows gets its name and its own face, and any other the name its text
-            // gives itself.
+            // picture"): a company the app knows gets its name and its own face (its mark from an open pack of
+            // brand icons where the pack has one, tool/company_marks.py; else its letter), and any other the name
+            // its text gives itself.
             final company = prefs.flag('company') ? companyIn(facts.text) : null;
             final named = company?.name ?? (prefs.flag('company') ? senderNameIn(facts.text) : null);
             return RowLook(
@@ -90,7 +92,7 @@ class CodesPlugin extends GhostPlugin {
               end: copy,
               tap: copy,
               title: named,
-              face: company == null ? null : RowFace(name: company.name, color: company.color, domain: company.domain),
+              face: company == null ? null : RowFace(name: company.name, color: company.color, domain: company.domain, mark: companyMarks[company.domain]),
             );
           },
         ),

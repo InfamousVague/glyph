@@ -10,8 +10,12 @@ import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/friends/groups.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
+import 'package:ghost_messaging/kit/settings_type.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
+import 'package:ghost_messaging/plugins/companies.dart';
+import 'package:ghost_messaging/plugins/company_marks.g.dart';
+import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, PluginRow, SectionChips;
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
@@ -786,6 +790,46 @@ void main() {
 
   // The app's frame (lib/ui/shell.dart): the list beside what is opened from it where the window is wide, under it
   // where it is narrow, and the same pages kept as the window changes. Pictures 11-frame-*.
+  testWidgets('companies: every face the Codes section can draw', (tester) async {
+    // Each company lib/plugins/companies.dart knows, as its code's row shows it: its mark on its colour where the
+    // open pack of brand icons has one, its letter where it has not. A picture to look them all over by.
+    tester.view.physicalSize = const Size(412 * 2.0, 1500 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    for (final dark in [false, true]) {
+      await _shoot(
+        tester,
+        sheet,
+        Builder(builder: (context) {
+          final t = context.tokens;
+          return ColoredBox(
+            color: t.color('glacier-bg'),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 16, 10, 16),
+              child: Wrap(spacing: 6, runSpacing: 10, children: [
+                for (final c in companies)
+                  SizedBox(
+                    width: 50,
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      BrandFace(face: RowFace(name: c.name, color: c.color, domain: c.domain, mark: companyMarks[c.domain]), size: 40),
+                      const SizedBox(height: 3),
+                      Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: pageText(t, 8, color: t.color('app-ink-2'))),
+                    ]),
+                  ),
+              ]),
+            ),
+          );
+        }),
+        '12-plugins-company-faces',
+        dark: dark,
+      );
+      expect(find.byType(BrandFace), findsNWidgets(companies.length));
+    }
+  });
+
   testWidgets('a group is given a name', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;
