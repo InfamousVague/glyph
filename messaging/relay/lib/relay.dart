@@ -81,6 +81,10 @@ class Relay {
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
     // The hub is its own thing with its own way in (hub.dart): `/hub`, behind whatever the web server puts before it.
     if (upgrade && name == 'hub' && hub != null) return hub!.accept(request);
+    // Signing in with a network to link its handle (handles.dart): a browser's pages, under /link/.
+    if (!upgrade && segments.isNotEmpty && segments.first == 'link' && hub?.handles != null) {
+      if (await hub!.handles!.http(request)) return;
+    }
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok

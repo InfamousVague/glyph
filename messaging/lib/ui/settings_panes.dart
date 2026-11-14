@@ -20,6 +20,7 @@ import 'common.dart';
 import 'computers.dart';
 import 'conversations.dart';
 import 'encryption.dart';
+import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
 
@@ -29,6 +30,24 @@ String _onOff(bool on) => on ? 'On' : 'Off';
 
 /// Every section, in the order of the list. Rows with the same group share a card.
 final List<SettingsSection> settingsSections = [
+  SettingsSection(
+    id: 'me',
+    label: 'Me',
+    icon: _icon(Lucide.userRound),
+    hue: 'blue',
+    group: 'me',
+    summary: meSummary,
+    page: mePane,
+  ),
+  SettingsSection(
+    id: 'friends-joining',
+    label: 'Friends joining',
+    icon: _icon(Lucide.userPlus),
+    hue: 'green',
+    group: 'me',
+    summary: friendsSummary,
+    page: friendsPane,
+  ),
   SettingsSection(
     id: 'appearance',
     label: 'Appearance',

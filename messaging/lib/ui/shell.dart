@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../me/me.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
@@ -282,7 +283,9 @@ class AppShellState extends State<AppShell> {
                           bottom: MediaQuery.paddingOf(context).bottom,
                           child: ValueListenableBuilder<int>(
                             valueListenable: archived,
-                            builder: (context, count, _) => NavPill(
+                            builder: (context, count, _) => ListenableBuilder(
+                             listenable: Me.instance,
+                             builder: (context, _) => NavPill(
                               active: _showing ?? (_archivedOpen ? 'archive' : 'messages'),
                               onSelect: go,
                               items: [
@@ -290,8 +293,10 @@ class AppShellState extends State<AppShell> {
                                 const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
                                 const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
                                 NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count),
-                                const NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
+                                // Someone watched for has joined (Settings › Friends joining).
+                                NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen),
                               ],
+                             ),
                             ),
                           ),
                         ),

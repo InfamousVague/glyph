@@ -74,6 +74,7 @@ class HubCarrier implements Carrier {
   final _arrived = StreamController<Arrived>.broadcast();
   final _rooms = StreamController<RoomEvent>.broadcast();
   final _roomPackets = StreamController<({String room, String from, Uint8List bytes})>.broadcast();
+  final _handles = StreamController<Map<String, dynamic>>.broadcast();
   @override
   Stream<Arrived> get arrived => _arrived.stream;
 
@@ -82,6 +83,18 @@ class HubCarrier implements Carrier {
 
   /// What the others in a room sent to it.
   Stream<({String room, String from, Uint8List bytes})> get roomPackets => _roomPackets.stream;
+
+  /// What the server's keeper of handles says to this install (relay/lib/handles.dart): every message that starts
+  /// `{"dir": …}`. lib/me/me.dart listens.
+  Stream<Map<String, dynamic>> get handles => _handles.stream;
+
+  /// Says something to the keeper of handles; false where the route is not up.
+  bool sayHandles(Map<String, Object?> what) {
+    final ws = _ws;
+    if (ws == null || !_ready) return false;
+    ws.add(jsonEncode(what));
+    return true;
+  }
 
   /// The names, of those asked about ([watch]), that are connected to the hub now.
   final ValueNotifier<Set<String>> here = ValueNotifier(const {});
@@ -202,6 +215,8 @@ class HubCarrier implements Carrier {
       for (final e in _joined.entries) {
         ws.add(jsonEncode({'join': e.key, 'token': e.value}));
       }
+    } else if (m['dir'] is String) {
+      _handles.add(m);
     } else if (m.containsKey('ack')) {
       _sent.remove(m['ack'])?.complete(m['here'] == true ? Handed.passed : Handed.held);
     } else if (m.containsKey('nak')) {
