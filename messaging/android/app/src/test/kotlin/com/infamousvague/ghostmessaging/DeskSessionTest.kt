@@ -48,6 +48,26 @@ class DeskSessionTest {
         override fun e2e(address: String) = mapOf<String, Any?>("state" to "none")
         override fun sent(key: String): Long? = keys[key]
         override fun remember(key: String, thread: Long) { keys[key] = thread }
+
+        /** What the phone's screens do, asked of it by a computer: each remembered as it was asked. */
+        val did = ArrayList<String>()
+        val files = ArrayList<DeskFile>()
+        override fun deleteMessage(kind: String, id: Long) { did += "deleteMessage $kind $id" }
+        override fun deleteThreads(threads: List<Long>): Int { did += "deleteThreads $threads"; return threads.size }
+        override fun editMessage(kind: String, id: Long, body: String) { did += "editMessage $kind $id $body" }
+        override fun resendMms(id: Long, body: String?): Long { did += "resendMms $id $body"; return 7L }
+        override fun setBlocked(address: String, blocked: Boolean) { did += "setBlocked $address $blocked" }
+        override fun blockedNumbers() = listOf(mapOf<String, Any?>("address" to "+15550199"))
+        override fun e2eOffer(address: String): Map<String, Any?> { did += "e2eOffer $address"; return mapOf("state" to "offered") }
+        override fun e2eOff(address: String) { did += "e2eOff $address" }
+        override fun e2eVerify(address: String, verified: Boolean) { did += "e2eVerify $address $verified" }
+        override fun e2ePlainSeen(address: String) { did += "e2ePlainSeen $address" }
+        override fun e2eList() = listOf(mapOf<String, Any?>("address" to "+15550100", "state" to "on"))
+        override fun mmsStatus() = mapOf<String, Any?>("dataOn" to true)
+        override fun voiceLimit() = mapOf<String, Any?>("seconds" to 91, "bytes" to 299008)
+        override fun sendPictures(addresses: List<String>, body: String, files: List<DeskFile>): Long { did += "sendPictures $addresses $body ${files.map { it.name + ":" + it.type }}"; this.files += files; return 7L }
+        override fun sendVoice(addresses: List<String>, sound: DeskFile): Long { did += "sendVoice $addresses ${sound.name}"; files += sound; return 7L }
+        override fun sendSticker(addresses: List<String>, name: String, picture: ByteArray): Long { did += "sendSticker $addresses $name"; files += DeskFile(name, "image/png", picture); return 7L }
     }
 
     private class Host(val phone: FakePhone) : DeskHost {
@@ -220,12 +240,139 @@ class DeskSessionTest {
     fun whatAComputerMayNotDoIsRefused() {
         val (_, mac) = paired()
         mac.hello(); mac.ready()
-        for (method in listOf("deleteThread", "deleteMessage", "setBlocked", "e2eReset", "prefs", "setPref", "sendSticker")) {
+        // Deleting, blocking and a sticker were refused here until the computer's screens became the phone's own
+        // (aComputerDoesWhatThePhonesScreensDo). What is the phone's alone still is: its key, its settings, its other
+        // computers, its log, its own update.
+        for (method in listOf("e2eReset", "prefs", "setPref", "deskList", "deskUnpair", "devLogRead", "updateInstall", "shareText", "e2eMine")) {
             val answer = mac.ask(method, JSONObject().put("thread", 7))
             assertFalse(method, answer.getBoolean("ok"))
         }
         assertFalse(mac.ask("threadFlag", JSONObject().put("name", "archived").put("thread", 7)).getBoolean("ok"))
         assertTrue(mac.ask("threadFlag", JSONObject().put("name", "pinned").put("thread", 7)).getBoolean("ok"))
+    }
+
+    /** Hands [bytes] over to [calls] as [id], [piece] bytes at a time, as a computer does. */
+    private fun handOver(calls: DeskCalls, id: String, bytes: ByteArray, piece: Int = DeskCalls.PIECE) {
+        var at = 0
+        while (at < bytes.size) {
+            val end = minOf(bytes.size, at + piece)
+            val said = calls.call("put", JSONObject().put("upload", id).put("offset", at).put("total", bytes.size).put("data", Base64.getEncoder().encodeToString(bytes.copyOfRange(at, end)))) as Map<*, *>
+            assertEquals(end, said["have"])
+            at = end
+        }
+    }
+
+    private fun refused(why: String, what: () -> Any?) {
+        try { what(); throw AssertionError("was not refused: $why") } catch (e: IllegalArgumentException) { /* refused, with words */ assertTrue(why, (e.message ?: "").isNotEmpty()) }
+    }
+
+    /** What the phone's screens do, a computer may ask for too: each reaches the phone as it was asked. */
+    @Test
+    fun aComputerDoesWhatThePhonesScreensDo() {
+        val phone = FakePhone()
+        val calls = DeskCalls(phone)
+        calls.call("deleteMessage", JSONObject().put("kind", "sms").put("id", 41))
+        assertEquals(2, calls.call("deleteThreads", JSONObject().put("threads", JSONArray(listOf(7, 8)))))
+        assertEquals(1, calls.call("deleteThread", JSONObject().put("thread", 9)))
+        calls.call("editMessage", JSONObject().put("kind", "mms").put("id", 5).put("body", "at 8"))
+        assertEquals(7L, calls.call("resendMms", JSONObject().put("id", 12)))
+        calls.call("resendMms", JSONObject().put("id", 13).put("body", "with other words"))
+        calls.call("setBlocked", JSONObject().put("address", "+15550199").put("blocked", true))
+        assertEquals("offered", (calls.call("e2eOffer", JSONObject().put("address", "+15550100")) as Map<*, *>)["state"])
+        calls.call("e2eOff", JSONObject().put("address", "+15550100"))
+        calls.call("e2eVerify", JSONObject().put("address", "+15550100").put("verified", false))
+        calls.call("e2ePlainSeen", JSONObject().put("address", "+15550100"))
+        assertEquals(listOf(
+            "deleteMessage sms 41", "deleteThreads [7, 8]", "deleteThreads [9]", "editMessage mms 5 at 8", "resendMms 12 null",
+            "resendMms 13 with other words", "setBlocked +15550199 true", "e2eOffer +15550100", "e2eOff +15550100",
+            "e2eVerify +15550100 false", "e2ePlainSeen +15550100",
+        ), phone.did)
+        assertEquals(91, (calls.call("voiceLimit", JSONObject()) as Map<*, *>)["seconds"])
+        assertEquals(1, (calls.call("blockedNumbers", JSONObject()) as List<*>).size)
+        assertEquals(1, (calls.call("e2eList", JSONObject()) as List<*>).size)
+        // The computer asks what this phone does, and offers only that.
+        val caps = calls.call("caps", JSONObject()) as List<*>
+        for (m in listOf("deleteMessage", "editMessage", "sendPictures", "sendVoice", "sendSticker", "put", "e2eOff")) assertTrue(m, caps.contains(m))
+        // A message is a text or a picture message, nothing else; and what was never there is still refused.
+        refused("a made-up kind") { calls.call("deleteMessage", JSONObject().put("kind", "../sms").put("id", 1)) }
+        refused("the phone's own key") { calls.call("e2eReset", JSONObject()) }
+        refused("the phone's settings") { calls.call("setPref", JSONObject().put("key", "theme").put("value", "dark")) }
+    }
+
+    /** A voice recording, pictures and a sticker handed over in pieces and sent once, whole. */
+    @Test
+    fun whatAComputerHandsOverArrivesWholeAndIsSentOnce() {
+        val phone = FakePhone()
+        val calls = DeskCalls(phone)
+        val to = JSONArray(listOf("+15550100"))
+        val sound = ByteArray(900_000) { (it * 7 % 251).toByte() }
+        handOver(calls, "aaaaaaaa00000001", sound)
+        val sent = calls.call("sendVoice", JSONObject().put("key", "v1").put("addresses", to).put("upload", "aaaaaaaa00000001").put("name", "voice-20261114-030000.m4a")) as Map<*, *>
+        assertEquals(7L, sent["thread"])
+        assertArrayEquals(sound, phone.files.single().bytes)
+        assertEquals("audio/mp4", phone.files.single().type)
+        // Asked again (its answer was lost): said where it went, and not sent twice, though what was handed over is gone.
+        val again = calls.call("sendVoice", JSONObject().put("key", "v1").put("addresses", to).put("upload", "aaaaaaaa00000001").put("name", "voice.m4a")) as Map<*, *>
+        assertEquals(true, again["again"])
+        assertEquals(1, phone.files.size)
+        // Two pictures and words; a file's name is never a path.
+        val one = ByteArray(40_000) { 1 }
+        val two = ByteArray(500_000) { 2 }
+        handOver(calls, "bbbbbbbb00000001", one)
+        handOver(calls, "bbbbbbbb00000002", two, piece = 100_000)
+        calls.call("sendPictures", JSONObject().put("key", "p1").put("addresses", to).put("body", "look").put("files", JSONArray(listOf(
+            JSONObject().put("upload", "bbbbbbbb00000001").put("name", "../../etc/IMG 0001.jpg").put("type", "image/jpeg"),
+            JSONObject().put("upload", "bbbbbbbb00000002").put("name", "shot.png").put("type", "image/png"),
+        ))))
+        assertEquals("sendPictures [+15550100] look [IMG0001.jpg:image/jpeg, shot.png:image/png]", phone.did.last())
+        assertArrayEquals(two, phone.files.last().bytes)
+        // A sticker is one of the app's own, by its travelling name.
+        handOver(calls, "cccccccc00000001", one)
+        calls.call("sendSticker", JSONObject().put("key", "s1").put("addresses", to).put("name", "ghost-sticker-party-03.png").put("upload", "cccccccc00000001"))
+        assertEquals("sendSticker [+15550100] ghost-sticker-party-03.png", phone.did.last())
+        handOver(calls, "cccccccc00000002", one)
+        refused("not a sticker's name") { calls.call("sendSticker", JSONObject().put("key", "s2").put("addresses", to).put("name", "holiday.png").put("upload", "cccccccc00000002")) }
+        // What is not a picture is not sent as one, and nothing is sent of it.
+        handOver(calls, "dddddddd00000001", one)
+        val before = phone.did.size
+        refused("a file that is no picture") {
+            calls.call("sendPictures", JSONObject().put("key", "p2").put("addresses", to).put("files", JSONArray(listOf(JSONObject().put("upload", "dddddddd00000001").put("name", "notes.pdf").put("type", "application/pdf")))))
+        }
+        assertEquals(before, phone.did.size)
+    }
+
+    /** Pieces come in order and add up to what was said; what is let go, too large or never whole is refused. */
+    @Test
+    fun whatIsHandedOverBadlyIsRefused() {
+        val phone = FakePhone()
+        var clock = 1_000_000L
+        val calls = DeskCalls(phone) { clock }
+        val to = JSONArray(listOf("+15550100"))
+        fun piece(id: String, offset: Int, total: Int, size: Int) = calls.call("put", JSONObject().put("upload", id).put("offset", offset).put("total", total).put("data", Base64.getEncoder().encodeToString(ByteArray(size) { 9 })))
+        refused("a name that is no name") { piece("../up", 0, 10, 10) }
+        refused("larger than may be handed over") { piece("eeeeeeee00000001", 0, DeskCalls.MOST_BYTES + 1, 10) }
+        refused("not from its beginning") { piece("eeeeeeee00000002", 5, 10, 5) }
+        piece("eeeeeeee00000003", 0, 300, 100)
+        refused("out of its turn") { piece("eeeeeeee00000003", 200, 300, 100) }
+        // The same piece again is answered and not kept twice.
+        assertEquals(100, (piece("eeeeeeee00000003", 0, 300, 100) as Map<*, *>)["have"])
+        refused("more than it said") { piece("eeeeeeee00000003", 100, 300, 250) }
+        refused("its length changed") { piece("eeeeeeee00000003", 100, 400, 100) }
+        // Not whole yet: it is not sent.
+        refused("not whole") { calls.call("sendVoice", JSONObject().put("key", "v9").put("addresses", to).put("upload", "eeeeeeee00000003")) }
+        // Let go by the computer, or left too long: it is gone.
+        piece("eeeeeeee00000004", 0, 100, 100)
+        calls.call("drop", JSONObject().put("upload", "eeeeeeee00000004"))
+        refused("dropped") { calls.call("sendVoice", JSONObject().put("key", "v8").put("addresses", to).put("upload", "eeeeeeee00000004")) }
+        piece("eeeeeeee00000005", 0, 100, 100)
+        clock += DeskCalls.STALE + 1
+        piece("eeeeeeee00000006", 0, 100, 100)
+        refused("left too long") { calls.call("sendVoice", JSONObject().put("key", "v7").put("addresses", to).put("upload", "eeeeeeee00000005")) }
+        // Only so many are held at once: the oldest gives way.
+        for (i in 0 until DeskCalls.MOST_AT_ONCE + 2) piece("ffffffff%08d".format(i), 0, 100, 100)
+        refused("the oldest gave way") { calls.call("sendVoice", JSONObject().put("key", "v6").put("addresses", to).put("upload", "ffffffff00000000")) }
+        calls.call("sendVoice", JSONObject().put("key", "v5").put("addresses", to).put("upload", "ffffffff%08d".format(DeskCalls.MOST_AT_ONCE + 1)))
+        assertEquals(1, phone.files.size)
     }
 
     @Test

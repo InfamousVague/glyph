@@ -50,6 +50,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   );
   final calls = LinkCalls(link, store);
   await calls.init();
+  // Where a voice message the Mac is playing has got to, told to the screens as the phone tells its own.
+  MacPlatform.listenToVoice((m) => Sms.instance.voice.add(VoicePlayback.from(m)));
   Sms.calls = calls;
   final state = AppState();
   final loaded = await Future.wait<Object?>([loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css']), state.load()]);

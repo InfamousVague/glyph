@@ -221,16 +221,57 @@ interface DeskPhone {
     /** The conversation a text the computer named [key] went to, if it was already sent; and remembering one. */
     fun sent(key: String): Long?
     fun remember(key: String, thread: Long)
+
+    // What a computer may also do since the phone's screens became the computer's (Matt, 2026-11-14: "the desktop
+    // app should get all featues its missing from mobile"): what those screens do on the phone.
+    fun deleteMessage(kind: String, id: Long)
+    fun deleteThreads(threads: List<Long>): Int
+    fun editMessage(kind: String, id: Long, body: String)
+
+    /** A picture message that did not go, sent again with its own pictures ([body]: other words for it). */
+    fun resendMms(id: Long, body: String?): Long
+    fun setBlocked(address: String, blocked: Boolean)
+    fun blockedNumbers(): List<Map<String, Any?>>
+    fun e2eOffer(address: String): Map<String, Any?>
+    fun e2eOff(address: String)
+    fun e2eVerify(address: String, verified: Boolean)
+    fun e2ePlainSeen(address: String)
+    fun e2eList(): List<Map<String, Any?>>
+    fun mmsStatus(): Map<String, Any?>
+
+    /** How long a voice message may run on this phone's carrier: `seconds`, and `bytes`. */
+    fun voiceLimit(): Map<String, Any?>
+
+    /** Pictures the computer handed over, sent as the phone sends its own: made to fit, with [body] beside them. */
+    fun sendPictures(addresses: List<String>, body: String, files: List<DeskFile>): Long
+
+    /** A recording made on the computer, sent as a voice message (Voice.kt's kind: AAC in an `.m4a`). */
+    fun sendVoice(addresses: List<String>, sound: DeskFile): Long
+
+    /** One of the app's stickers, which the computer has too: its picture under its travelling [name]. */
+    fun sendSticker(addresses: List<String>, name: String, picture: ByteArray): Long
 }
 
+/** Something a computer handed over to be sent: its name, its kind, and what is in it. */
+class DeskFile(val name: String, val type: String, val bytes: ByteArray)
+
 /**
- * The computer's requests, by name, onto [DeskPhone]. What is not here the computer cannot do: it reads, sends text,
- * marks read, pins, mutes, archives and keeps a draft. It cannot delete, block, change encryption or read the
- * phone's settings.
+ * The computer's requests, by name, onto [DeskPhone]. What is not here the computer cannot do. At first it read, sent
+ * text, marked read, pinned, muted, archived and kept a draft, and no more. Since 2026-11-14 the computer's screens
+ * are the phone's own (Matt: "Unify the UI experience … the desktop app should get all featues its missing from
+ * mobile"), so it also does what those screens do: deletes and edits, sends a picture message again, blocks, turns
+ * encryption on and off with someone, and sends pictures, a voice recording and stickers, which it hands over in
+ * pieces ([put]) since a frame holds less than a megabyte. It still cannot read or change the phone's own settings,
+ * its other paired computers, or its encryption key. [CAPS] says what this phone does, so a computer asks first
+ * and offers only that.
  */
-class DeskCalls(private val phone: DeskPhone) {
+class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = System::currentTimeMillis) {
     /** The picture last asked for, kept while its pieces are fetched. */
     private var lastPart: Pair<Long, ByteArray>? = null
+
+    /** What the computer is handing over, by the name it gave each: filled a piece at a time, taken by what sends it. */
+    private class Upload(val total: Int, var touched: Long) { val bytes = java.io.ByteArrayOutputStream() }
+    private val uploads = LinkedHashMap<String, Upload>()
 
     fun call(method: String, a: JSONObject): Any? = when (method) {
         "ping" -> null
@@ -262,22 +303,114 @@ class DeskCalls(private val phone: DeskPhone) {
         "draft" -> phone.draft(a.getLong("thread"))
         "setDraft" -> { phone.setDraft(a.getLong("thread"), a.optString("text")); null }
         "e2e" -> phone.e2e(a.getString("address"))
+        "caps" -> CAPS
+        "deleteMessage" -> { phone.deleteMessage(kind(a), a.getLong("id")); null }
+        "deleteThread" -> phone.deleteThreads(listOf(a.getLong("thread")))
+        "deleteThreads" -> phone.deleteThreads(longs(a.getJSONArray("threads")))
+        "editMessage" -> { phone.editMessage(kind(a), a.getLong("id"), a.optString("body")); null }
+        "resendMms" -> phone.resendMms(a.getLong("id"), if (a.isNull("body")) null else a.optString("body"))
+        "setBlocked" -> { phone.setBlocked(a.getString("address"), a.optBoolean("blocked", true)); null }
+        "blockedNumbers" -> phone.blockedNumbers()
+        "e2eOffer" -> phone.e2eOffer(a.getString("address"))
+        "e2eOff" -> { phone.e2eOff(a.getString("address")); null }
+        "e2eVerify" -> { phone.e2eVerify(a.getString("address"), a.optBoolean("verified", true)); null }
+        "e2ePlainSeen" -> { phone.e2ePlainSeen(a.getString("address")); null }
+        "e2eList" -> phone.e2eList()
+        "mmsStatus" -> phone.mmsStatus()
+        "voiceLimit" -> phone.voiceLimit()
+        "put" -> put(a.getString("upload"), a.optInt("offset", 0), a.getInt("total"), Base64.getDecoder().decode(a.getString("data")))
+        "drop" -> { synchronized(uploads) { uploads.remove(a.getString("upload")) }; null }
+        "sendPictures" -> {
+            val listed = a.getJSONArray("files")
+            require(listed.length() in 1..MOST_PICTURES) { "A message takes up to $MOST_PICTURES pictures" }
+            val files = (0 until listed.length()).map { listed.getJSONObject(it) }
+            for (f in files) require(f.optString("type").startsWith("image/")) { "Only pictures can be sent from a computer for now" }
+            once(a.getString("key")) {
+                phone.sendPictures(strings(a.getJSONArray("addresses")), a.optString("body"), files.map { DeskFile(safeName(it.optString("name"), "picture"), it.getString("type"), take(it.getString("upload"))) })
+            }
+        }
+        "sendVoice" -> once(a.getString("key")) {
+            phone.sendVoice(strings(a.getJSONArray("addresses")), DeskFile(safeName(a.optString("name"), "voice.m4a"), "audio/mp4", take(a.getString("upload"))))
+        }
+        "sendSticker" -> {
+            val name = a.getString("name")
+            require(Stickers.isSticker(name) && name == safeName(name, "")) { "That is not one of the app's stickers" }
+            once(a.getString("key")) { phone.sendSticker(strings(a.getJSONArray("addresses")), name, take(a.getString("upload"))) }
+        }
         else -> throw IllegalArgumentException("The phone doesn't do \"$method\" for a computer")
     }
+
+    private fun kind(a: JSONObject): String = a.getString("kind").also { require(it == "sms" || it == "mms") { "Not a kind of message" } }
 
     /**
      * Sends [body] once. The computer names each text it asks for; asked again for one already sent (its answer was
      * lost with the connection, and it tried again), the phone says where it went and sends nothing.
      */
-    @Synchronized
     private fun send(key: String, addresses: List<String>, body: String): Map<String, Any?> {
-        require(key.isNotBlank() && key.length <= 64) { "A text needs a name" }
         require(body.isNotBlank()) { "Nothing to send" }
+        return once(key) { phone.send(addresses, body) }
+    }
+
+    /** Whatever is sent is sent once: [send] under [key], or where that already went if it did. */
+    @Synchronized
+    private fun once(key: String, send: () -> Long): Map<String, Any?> {
+        require(key.isNotBlank() && key.length <= 64) { "What is sent needs a name" }
         phone.sent(key)?.let { return mapOf("thread" to it, "again" to true) }
-        val thread = phone.send(addresses, body)
+        val thread = send()
         phone.remember(key, thread)
         return mapOf("thread" to thread)
     }
+
+    /**
+     * A piece of something the computer is handing over: [data] at [offset] of [total] bytes, under the name [id] it
+     * gave. Pieces come in order; one already had is answered and not kept twice (its answer was lost, and it was sent
+     * again). Answers how much is here. What is never sent is let go after [STALE] milliseconds, or when a newer one
+     * needs the room.
+     */
+    private fun put(id: String, offset: Int, total: Int, data: ByteArray): Map<String, Any?> = synchronized(uploads) {
+        require(Regex("[0-9a-f]{8,32}").matches(id)) { "Not a name for what is handed over" }
+        require(total in 1..MOST_BYTES) { "That is too large to hand over (${MOST_BYTES / (1024 * 1024)} MB at most)" }
+        require(data.size in 1..PIECE) { "Not a piece" }
+        val at = now()
+        uploads.entries.removeAll { at - it.value.touched > STALE }
+        val u = uploads[id] ?: Upload(total, at).also {
+            require(offset == 0) { "That did not start at its beginning" }
+            while (uploads.size >= MOST_AT_ONCE || uploads.values.sumOf { v -> v.total } + total > MOST_HELD) {
+                uploads.remove(uploads.keys.firstOrNull() ?: break)
+            }
+            uploads[id] = it
+        }
+        require(u.total == total) { "Its length changed on the way" }
+        val have = u.bytes.size()
+        when {
+            offset == have -> {
+                require(have + data.size <= total) { "More came than it said it holds" }
+                u.bytes.write(data)
+            }
+            // A piece already here, come again.
+            offset + data.size <= have -> {}
+            else -> throw IllegalArgumentException("A piece came out of its turn")
+        }
+        u.touched = at
+        mapOf("have" to u.bytes.size())
+    }
+
+    /** What was handed over as [id], whole, and no longer held. */
+    private fun take(id: String): ByteArray = synchronized(uploads) {
+        val u = uploads[id] ?: throw IllegalArgumentException("That was not handed over, or was let go: send it again")
+        require(u.bytes.size() == u.total) { "That did not arrive whole" }
+        uploads.remove(id)
+        u.bytes.toByteArray()
+    }
+
+    /** A file's name as the phone will keep it: its last part, plain letters, never a path. */
+    private fun safeName(said: String, otherwise: String): String {
+        val last = said.substringAfterLast('/').substringAfterLast('\\')
+        val plain = last.filter { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }.take(80).trimStart('.')
+        return plain.ifEmpty { otherwise }
+    }
+
+    private fun longs(a: JSONArray): List<Long> = (0 until a.length()).map { a.getLong(it) }
 
     /** A picture crosses in pieces: [max] bytes from [offset], and how long the whole is. */
     @Synchronized
@@ -297,5 +430,21 @@ class DeskCalls(private val phone: DeskPhone) {
 
         /** The most conversations handed over at once. */
         const val LOT = 250
+
+        /** What a computer hands over: the most one may hold, how many at once and in all, and how long unsent. */
+        const val MOST_BYTES = 12 * 1024 * 1024
+        const val MOST_AT_ONCE = 8
+        const val MOST_HELD = 36 * 1024 * 1024
+        const val STALE = 5 * 60 * 1000L
+
+        /** As many pictures as the phone's own message takes. */
+        const val MOST_PICTURES = 5
+
+        /** What this phone does for a computer beyond the first few: a computer asks (`caps`) and offers these. */
+        val CAPS = listOf(
+            "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
+            "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
+            "put", "drop", "sendPictures", "sendVoice", "sendSticker",
+        )
     }
 }

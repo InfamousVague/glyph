@@ -466,6 +466,75 @@ object Desk : DeskHost {
         override fun setDraft(thread: Long, text: String) = store.setDraft(thread, text)
         override fun e2e(address: String) = E2e.state(context, address)
 
+        // --- what the phone's screens do, done for a computer too -----------------------------------------------------
+
+        override fun deleteMessage(kind: String, id: Long) { store.deleteMessage(kind, id); Bus.changed(-1) }
+
+        override fun deleteThreads(threads: List<Long>): Int {
+            for (t in threads) { store.deleteThread(t); Notifier.cancel(context, t) }
+            Bus.changed(-1)
+            return threads.size
+        }
+
+        override fun editMessage(kind: String, id: Long, body: String) { store.editMessage(kind, id, body); Bus.changed(-1) }
+        override fun resendMms(id: Long, body: String?) = Sender.resendMms(context, id, body)
+        override fun setBlocked(address: String, blocked: Boolean) { store.setBlocked(address, blocked); Bus.changed(-1) }
+        override fun blockedNumbers() = store.blockedNumbers()
+
+        override fun e2eOffer(address: String): Map<String, Any?> {
+            // As the phone's own screen does it: this phone's key goes to them as a plain text.
+            Sender.send(context, listOf(address), E2e.keyMessage(context), plain = true)
+            E2e.offered(context, address)
+            Bus.changed(-1)
+            return E2e.state(context, address)
+        }
+
+        override fun e2eOff(address: String) { E2e.off(context, address); Bus.changed(-1) }
+        override fun e2eVerify(address: String, verified: Boolean) { E2e.setVerified(context, address, verified); Bus.changed(-1) }
+        override fun e2ePlainSeen(address: String) { E2e.plainSeen(context, address); Bus.changed(-1) }
+        override fun e2eList() = E2e.list(context).map { it + ("person" to store.contact(it["address"] as String)) }
+        override fun mmsStatus() = MmsDiag.status(context)
+
+        override fun voiceLimit(): Map<String, Any?> {
+            val bytes = Sender.voiceBudget(context)
+            return mapOf("bytes" to bytes, "seconds" to Voice.maxSeconds(bytes))
+        }
+
+        /** Where what a computer hands over is kept for as long as it takes to send: the app's own cache. */
+        private fun kept(file: DeskFile): java.io.File {
+            val dir = java.io.File(context.cacheDir, "desk-upload").apply { mkdirs() }
+            // What was never tidied (the app stopped mid-send) does not pile up.
+            dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 60 * 60 * 1000L) it.delete() }
+            return java.io.File(dir, "${System.nanoTime()}-${file.name}").also { it.writeBytes(file.bytes) }
+        }
+
+        override fun sendPictures(addresses: List<String>, body: String, files: List<DeskFile>): Long {
+            val here = files.map(::kept)
+            try {
+                DevLog.add(context, "desk", "from a computer: ${files.size} picture${if (files.size == 1) "" else "s"}, ${files.sumOf { it.bytes.size } / 1024} KB, words ${body.length}")
+                // The phone's own way with a picture: read from where it is kept, made to fit the carrier.
+                return Sender.send(context, addresses, body, here.map { android.net.Uri.fromFile(it).toString() })
+            } catch (e: Exception) {
+                DevLog.add(context, "desk", "from a computer, not sent: ${e.message ?: e.javaClass.simpleName}")
+                throw e
+            } finally { here.forEach { it.delete() } }
+        }
+
+        override fun sendVoice(addresses: List<String>, sound: DeskFile): Long {
+            val dir = java.io.File(context.cacheDir, "voice").apply { mkdirs() }
+            val file = java.io.File(dir, Voice.fileName())
+            file.writeBytes(sound.bytes)
+            try {
+                DevLog.add(context, "desk", "from a computer: a voice message, ${sound.bytes.size / 1024} KB")
+                return Sender.sendVoice(context, addresses, file)
+            } catch (e: Exception) {
+                DevLog.add(context, "desk", "from a computer, voice not sent: ${e.message ?: e.javaClass.simpleName}")
+                throw e
+            } finally { file.delete() }
+        }
+
+        override fun sendSticker(addresses: List<String>, name: String, picture: ByteArray) = Sender.sendSticker(context, addresses, picture, name)
+
         override fun sent(key: String): Long? = sent.getLong("k:$key", -1).takeIf { it >= 0 }
 
         override fun remember(key: String, thread: Long) {

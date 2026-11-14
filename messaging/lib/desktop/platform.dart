@@ -35,6 +35,95 @@ class MacPlatform {
     }
   }
 
+  // --- the message field's own (macos/Runner/DeskChannels.swift, DeskSound.swift) --------------------------------
+
+  /// The Mac's panel for choosing pictures: the paths chosen, none where it was put away.
+  static Future<List<String>> pickPictures({int most = 5}) async {
+    try {
+      return [for (final p in (await _system.invokeMethod<List>('pickPictures', {'most': most})) ?? const []) '$p'];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Opens the Mac's own "Emoji & Symbols": what is chosen there is typed where the cursor is.
+  static Future<void> emoji() async {
+    try {
+      await _system.invokeMethod('emoji');
+    } catch (_) {}
+  }
+
+  /// Starts recording a voice message with the Mac's microphone, which stops itself at [bytes]: `ok`, or `denied`
+  /// where macOS was told no, or an `error` in words.
+  static Future<Map> voiceStart(int bytes) async {
+    try {
+      return (await _system.invokeMapMethod<Object?, Object?>('voiceStart', {'bytes': bytes})) ?? const {'ok': false};
+    } on MissingPluginException {
+      return const {'ok': false, 'error': 'This copy of the app has no recorder'};
+    }
+  }
+
+  /// How loud it is now (`level`, 0 to 1) and whether the recording is as long as it may be (`full`).
+  static Future<Map> voiceLevel() async {
+    try {
+      return (await _system.invokeMapMethod<Object?, Object?>('voiceLevel')) ?? const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static Future<void> voiceCancel() async {
+    try {
+      await _system.invokeMethod('voiceCancel');
+    } catch (_) {}
+  }
+
+  /// Ends the recording: its bytes (AAC in an `.m4a`), or null where there is nothing worth keeping.
+  static Future<Uint8List?> voiceStop() async {
+    try {
+      return await _system.invokeMethod<Uint8List>('voiceStop');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Plays a message's sound ([bytes] the first time; null goes on with the one paused). Null, or why it cannot.
+  static Future<String?> voicePlay(int part, Uint8List? bytes) async {
+    try {
+      return await _system.invokeMethod<String>('voicePlay', {'part': part, 'bytes': bytes});
+    } on MissingPluginException {
+      return 'this copy of the app has no player';
+    }
+  }
+
+  static Future<void> voicePause() async {
+    try {
+      await _system.invokeMethod('voicePause');
+    } catch (_) {}
+  }
+
+  static Future<void> voiceHalt() async {
+    try {
+      await _system.invokeMethod('voiceHalt');
+    } catch (_) {}
+  }
+
+  static Future<int> voiceLength(Uint8List bytes) async {
+    try {
+      return (await _system.invokeMethod<num>('voiceLength', {'bytes': bytes}))?.toInt() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Where the sound being played has got to, as the Mac says it (DeskSound.swift `heard`): handed to [heard].
+  static void listenToVoice(void Function(Map state) heard) {
+    _system.setMethodCallHandler((call) async {
+      if (call.method == 'voice' && call.arguments is Map) heard(call.arguments as Map);
+      return null;
+    });
+  }
+
   /// A picture of where a video starts and how long it runs (macos/Runner/DeskVideo.swift), from its bytes.
   static Future<Map?> videoPreview(int id, Uint8List bytes, String ending) async {
     try {

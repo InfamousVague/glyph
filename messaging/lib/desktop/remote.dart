@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../sms.dart';
@@ -17,13 +19,35 @@ import 'updates.dart';
 /// The Mac keeps conversations in memory only. While the phone cannot be reached, what was read last is still shown,
 /// and what is typed waits here, drawn as "Waiting for your phone", and goes when the phone is back. Each text has a
 /// name the phone remembers, so one sent twice (its answer lost with the connection) is sent once.
-class LinkCalls implements SmsCalls {
+class LinkCalls implements SmsCalls, CapableCalls {
   LinkCalls(this.link, this.store);
 
   final PhoneLink link;
   final DeskStore store;
 
   Map<String, String> _prefs = {};
+
+  /// What the phone does for a computer beyond the first few (android DeskCalls.CAPS): asked each time it is reached,
+  /// since it may have been updated since. A phone from before there were any does none of them, and the screens
+  /// offer none ([Sms.can]).
+  @override
+  Set<String> get caps => _caps;
+  Set<String> _caps = const {};
+
+  Future<void> _askCaps() async {
+    Set<String> next;
+    try {
+      next = {for (final c in ((await link.request('caps')) as List? ?? const [])) '$c'};
+    } on LinkDown {
+      return;
+    } catch (_) {
+      next = const {};
+    }
+    if (next.length != _caps.length || !next.containsAll(_caps)) {
+      _caps = next;
+      Sms.instance.changes.add(-1);
+    }
+  }
 
   /// The app's own updates, once the app has handed them over ([attachUpdates]); none in a test that has none.
   MacUpdates? _updates;
@@ -82,7 +106,9 @@ class LinkCalls implements SmsCalls {
     _events = link.events.stream.listen((e) {
       if (e.name == 'changed') Sms.instance.changes.add((e.args['thread'] as num?)?.toInt() ?? -1);
     });
+    if (link.online) unawaited(_askCaps());
     _connected = link.connected.stream.listen((_) async {
+      await _askCaps();
       await _flush();
       // Whatever changed while the phone was away is read again.
       Sms.instance.changes.add(-1);
@@ -164,7 +190,83 @@ class LinkCalls implements SmsCalls {
           return _cached((a['thread'] as num).toInt())?['people'] ?? const [];
         }
       case 'send':
-        return _send(a);
+        return ((a['attachments'] as List?)?.isNotEmpty ?? false) ? _sendPictures(a) : _send(a);
+
+      // --- what the message field has (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and sticker
+      // selector to the desktop app as well"): the Mac chooses, records and holds; the phone sends. What is sent is
+      // handed over in pieces first ([_handOver]).
+      case 'pickImages':
+        return MacPlatform.pickPictures();
+      case 'emoji':
+        await MacPlatform.emoji();
+        return null;
+      case 'sendSticker':
+        final sticker = a['picture'] as Uint8List;
+        final sent = (await link.request('sendSticker', {'key': _name(), 'addresses': a['addresses'], 'name': a['name'], 'upload': await _handOver(sticker)})) as Map;
+        return _went(sent);
+      case 'voiceStart':
+        // How long one may run is the phone's carrier's to say; the Mac's recorder stops itself there.
+        final limit = (await link.request('voiceLimit')) as Map;
+        final began = await MacPlatform.voiceStart((limit['bytes'] as num).toInt());
+        if (began['ok'] == true) return {'ok': true, 'seconds': (limit['seconds'] as num).toInt()};
+        if (began['denied'] == true) return {'ok': false, 'denied': true};
+        throw PhoneError('${began['error'] ?? 'The microphone could not be started'}');
+      case 'voiceLevel':
+        final heard = await MacPlatform.voiceLevel();
+        if (heard['full'] == true) Sms.instance.voiceFull.add(null);
+        return (heard['level'] as num?)?.toDouble() ?? 0.0;
+      case 'voiceCancel':
+        await MacPlatform.voiceCancel();
+        return null;
+      case 'voiceSend':
+        final sound = await MacPlatform.voiceStop();
+        if (sound == null) throw const PhoneError('That was too short to send');
+        final sent = (await link.request('sendVoice', {'key': _name(), 'addresses': a['addresses'], 'name': 'voice.m4a', 'upload': await _handOver(sound)})) as Map;
+        return {'thread': _went(sent), 'millis': 0};
+      case 'voicePlay':
+        final part = (a['part'] as num).toInt();
+        final sound = await _video(part);
+        if (sound == null) throw const LinkDown('Your phone isn\'t reachable, and the voice message is on it. Try again when it is back.');
+        final why = await MacPlatform.voicePlay(part, sound);
+        if (why != null) throw PhoneError('Couldn\'t play it: $why.');
+        return null;
+      case 'voicePause':
+        await MacPlatform.voicePause();
+        return null;
+      case 'voiceStop':
+        await MacPlatform.voiceHalt();
+        return null;
+      case 'voiceLength':
+        final sound = await _video((a['part'] as num).toInt());
+        return sound == null ? 0 : await MacPlatform.voiceLength(sound);
+
+      // --- what the phone's screens do to what is kept, done through the phone (android DeskCalls) ----------------
+      case 'deleteMessage' || 'editMessage' || 'setBlocked' || 'e2eOff' || 'e2eVerify' || 'e2ePlainSeen':
+        await link.request(method, a);
+        _reread();
+        return null;
+      case 'deleteThread':
+        await link.request('deleteThreads', {'threads': [a['thread']]});
+        _reread();
+        return null;
+      case 'deleteThreads' || 'resendMms' || 'e2eOffer':
+        final done = await link.request(method, a);
+        _reread();
+        return done;
+      case 'e2eList' || 'blockedNumbers':
+        if (!_caps.contains(method)) return const [];
+        try {
+          return await link.request(method, a);
+        } on LinkDown {
+          return const [];
+        }
+      case 'mmsStatus':
+        if (!_caps.contains(method)) return const <String, dynamic>{};
+        try {
+          return await link.request(method, a);
+        } on LinkDown {
+          return const <String, dynamic>{};
+        }
       case 'markRead':
         final thread = (a['thread'] as num).toInt();
         try {
@@ -273,7 +375,7 @@ class LinkCalls implements SmsCalls {
         return <String, dynamic>{};
       case 'perfOn' || 'keyboardHere' || 'ghostPeers' || 'deskUnrestricted':
         return false;
-      case 'e2eList' || 'blockedNumbers' || 'deskList':
+      case 'deskList':
         return const [];
       case 'deskState':
         return {'phase': 'none'};
@@ -348,11 +450,78 @@ class LinkCalls implements SmsCalls {
     return -1;
   }
 
+  /// A name for something sent, so the phone sends it once however many times it is asked.
+  String _name() => DeskCrypto.hex(DeskCrypto.randomBytes(12));
+
+  /// Hands [bytes] over to the phone a piece at a time under a name of their own, which the call that sends them
+  /// gives: a frame carries less than a megabyte, and a picture is more.
+  Future<String> _handOver(Uint8List bytes) async {
+    if (bytes.isEmpty) throw const PhoneError('There is nothing in that to send');
+    if (bytes.length > mostBytes) throw PhoneError('That is too large to send (${mostBytes ~/ (1024 * 1024)} MB at most)');
+    final id = DeskCrypto.hex(DeskCrypto.randomBytes(8));
+    for (var at = 0; at < bytes.length; at += piece) {
+      final end = math.min(bytes.length, at + piece);
+      await link.request('put', {'upload': id, 'offset': at, 'total': bytes.length, 'data': base64.encode(Uint8List.sublistView(bytes, at, end))});
+    }
+    return id;
+  }
+
+  /// As much as one frame carries, and the most the phone takes (android DeskCalls.PIECE, MOST_BYTES).
+  static const piece = 384 * 1024;
+  static const mostBytes = 12 * 1024 * 1024;
+
+  /// Where what was sent went: read again, since it is in the conversation now.
+  int _went(Map sent) {
+    final thread = (sent['thread'] as num).toInt();
+    _messages.remove(thread);
+    Sms.instance.changes.add(thread);
+    return thread;
+  }
+
+  /// Something the phone keeps was changed from here: what was read is read again.
+  void _reread() {
+    _messages.clear();
+    Sms.instance.changes.add(-1);
+  }
+
+  /// What a picture's file is, by its name's ending; null for what is not one the phone can make ready.
+  static String? pictureType(String name) {
+    final dot = name.lastIndexOf('.');
+    return switch (dot < 0 ? '' : name.substring(dot + 1).toLowerCase()) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'heic' || 'heif' => 'image/heic',
+      'bmp' => 'image/bmp',
+      _ => null,
+    };
+  }
+
+  /// Pictures chosen on the Mac ([a]'s `attachments` are their paths), handed to the phone and sent as it sends its
+  /// own: made to fit the carrier there, with the words beside them.
+  Future<int> _sendPictures(Map<String, dynamic> a) async {
+    final files = <Map<String, String>>[];
+    for (final path in (a['attachments'] as List)) {
+      final name = '$path'.split('/').last;
+      final type = pictureType(name);
+      if (type == null) throw PhoneError('$name isn\'t a picture. Only pictures can be sent from here for now.');
+      final Uint8List bytes;
+      try {
+        bytes = await File('$path').readAsBytes();
+      } catch (_) {
+        throw PhoneError('$name couldn\'t be read.');
+      }
+      files.add({'upload': await _handOver(bytes), 'name': name, 'type': type});
+    }
+    final sent = (await link.request('sendPictures', {'key': _name(), 'addresses': a['addresses'], 'body': '${a['body'] ?? ''}', 'files': files})) as Map;
+    return _went(sent);
+  }
+
   Future<int> _send(Map<String, dynamic> a) async {
     final addresses = [for (final x in (a['addresses'] as List? ?? const [])) '$x'];
     final body = '${a['body'] ?? ''}';
-    if ((a['attachments'] as List?)?.isNotEmpty ?? false) throw const PhoneError('Pictures are sent from the phone.');
-    final key = DeskCrypto.hex(DeskCrypto.randomBytes(12));
+    final key = _name();
     try {
       final r = (await link.request('send', {'key': key, 'addresses': addresses, 'body': body})) as Map;
       return (r['thread'] as num).toInt();

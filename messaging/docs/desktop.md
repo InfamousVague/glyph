@@ -65,8 +65,36 @@ happened (`ev`).
 | `markRead`, `threadFlag` (pinned, muted), `archive`, `draft`, `setDraft` | does it on the phone |
 | | `changed` (a conversation), whenever a text arrives, is sent or changes state |
 
-- Anything else is refused: a computer cannot delete, block, change encryption, read the phone's settings or send a
-  picture. The Mac's screens do not offer those.
+- **Since 2026-11-14 the computer does what the phone's screens do** (Matt: "Unify the UI experience … the desktop
+  app should get all featues its missing from mobile"; "Add an emoji picker, file upload, voice memo and sticker
+  selector to the desktop app as well"). The first design had a computer read, send text, mark read, pin, mute,
+  archive and keep a draft, and refused the rest. It now also asks, and the phone does:
+
+  | The Mac asks | The phone |
+  | --- | --- |
+  | `deleteMessage`, `deleteThread`, `deleteThreads`, `editMessage`, `resendMms` | as its own screens do |
+  | `setBlocked`, `blockedNumbers` | Android's blocked numbers |
+  | `e2eOffer`, `e2eOff`, `e2eVerify`, `e2ePlainSeen`, `e2eList` | encryption with someone: its key goes, it is turned off, a safety number marked |
+  | `mmsStatus`, `voiceLimit` | what would stop a picture message; how long a voice message may run on its carrier |
+  | `put` (a piece), `drop` | keeps what the computer is handing over, by the name the computer gave it |
+  | `sendPictures`, `sendVoice`, `sendSticker` (a name for it, the numbers, what was handed over) | sends it as it sends its own, once for each name |
+  | `caps` | the names above: what this phone does for a computer |
+
+  Still refused, since they are the phone's alone: its encryption key (`e2eReset`, `e2eMine`), its settings, its
+  other paired computers, its log, its own update.
+- **Handing over.** A frame holds less than a megabyte and a picture is more, so what the computer sends crosses in
+  pieces of 384 KB (`put`: a name the computer makes, where the piece starts, how long the whole is), in order; a
+  piece come twice is answered and kept once. The phone holds up to eight at a time, 12 MB each, 36 MB in all, for
+  five minutes, in memory; the call that sends takes them and they are gone. A picture is then written to the
+  app's cache for as long as `Sender.send` takes to make it fit the carrier, and removed.
+- **An older phone.** A phone whose app is from before this answers that it does not do `caps`, and the computer's
+  screens offer none of it (`Sms.can`, `LinkCalls.caps`): they are asked each time the phone is reached, since it
+  may have been updated since.
+- **What the Mac does itself** (`macos/Runner/DeskChannels.swift`, `DeskSound.swift`): the Mac's own panel to
+  choose pictures; its own "Emoji & Symbols", which types into the field the cursor is in; a voice message
+  recorded with its microphone (AAC in an `.m4a` at 24 kbit/s, as the phone records its own, stopped at what the
+  phone says a message may weigh; macOS asks for the microphone the first time) and played from the bytes the
+  phone hands over. A recording is in the temporary directory only until it is stopped.
 - Conversations cross a lot at a time, newest first, as 0.6.1's own list reads them: the newest forty and the
   pinned at once, the rest behind them, never more than 250 in one answer. An answer too long for one frame is
   refused in words ("Too much to send at once") and the connection stands.
@@ -78,7 +106,7 @@ happened (`ev`).
 - A conversation encrypted phone to phone works as it does on the phone: the phone opens and seals those texts, and
   they cross to the Mac under the pairing's seal.
 - Either side says `mode` when how to connect is changed, and `unpaired`.
-- Later: sending pictures and stickers, editing and deleting from the Mac, Mac notifications, Windows and Linux.
+- Later: files that are not pictures (the phone sends only pictures today), Mac notifications, Windows and Linux.
 
 ## Local network
 

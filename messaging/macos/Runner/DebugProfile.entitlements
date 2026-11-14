@@ -6,5 +6,9 @@
 	     same places, and a debug build can be walked through an update of itself. -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
+	<!-- A voice message is recorded with the Mac's microphone (Runner/DeskSound.swift), only while one is being
+	     recorded: the hardened runtime wants this said, and macOS asks the person the first time. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
 </dict>
 </plist>

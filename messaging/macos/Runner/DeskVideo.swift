@@ -40,6 +40,12 @@ final class DeskVideo: NSObject, NSWindowDelegate {
     }
   }
 
+  /// A place in this run's folder for a file named [name], for this account alone (a recording: DeskSound.swift).
+  static func place(named name: String) throws -> URL {
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    return folder.appendingPathComponent(name)
+  }
+
   /// A file's ending AVFoundation knows the kind by; anything else is tried as an mp4.
   private static func ending(_ said: String) -> String {
     let known = ["mp4", "m4v", "mov", "3gp", "3g2"]

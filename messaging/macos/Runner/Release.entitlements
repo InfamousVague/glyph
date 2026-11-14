@@ -3,11 +3,15 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  Nothing is asked for. The app is not sandboxed: it updates itself by putting the new version where the old one
+	  Only the microphone is asked for (below). The app is not sandboxed: it updates itself by putting the new version where the old one
 	  is (Runner/UpdatesChannel.swift), which a sandboxed app cannot do, and it is not sold in the Mac App Store,
 	  the one place that requires the sandbox. It is signed with the Developer ID under the hardened runtime
 	  (tool/release-mac.mjs). Reaching the phone and the relay needs no entitlement outside the sandbox; finding the
 	  phone on the local network is asked of the person by macOS (Info.plist, NSLocalNetworkUsageDescription).
 	-->
+	<!-- A voice message is recorded with the Mac's microphone (Runner/DeskSound.swift), only while one is being
+	     recorded: the hardened runtime wants this said, and macOS asks the person the first time. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
 </dict>
 </plist>

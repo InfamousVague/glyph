@@ -1,6 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import Security
+import UniformTypeIdentifiers
 
 /// What the Mac app asks of macOS itself (lib/desktop/platform.dart): the Mac's name, the Keychain for the pairing's
 /// key, and Bonjour to find the phone on the local network. Everything else, the sealing and the connections, is
@@ -17,6 +18,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     found = FlutterEventChannel(name: "ghost_desktop/bonjour", binaryMessenger: messenger)
     super.init()
     found.setStreamHandler(self)
+    // Where the voice message being played has got to, told to the screens as the phone tells its own.
+    DeskSound.shared.heard = { [weak self] state in self?.system.invokeMethod("voice", arguments: state) }
     system.setMethodCallHandler { [weak self] call, result in
       let args = call.arguments as? [String: Any] ?? [:]
       switch call.method {
@@ -29,6 +32,33 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         result(DeskChannels.keychain(write: args["account"] as? String ?? "", value: args["value"] as? String ?? ""))
       case "keyDelete":
         result(DeskChannels.keychain(delete: args["account"] as? String ?? ""))
+      // What the message field has on a Mac that the phone has from Android: pictures to choose, the Mac's own
+      // emoji, and a voice message to record and to play (DeskSound.swift).
+      case "pickPictures":
+        result(DeskChannels.pickPictures(most: args["most"] as? Int ?? 5))
+      case "emoji":
+        // The Mac's own "Emoji & Symbols": what is chosen there is typed into the field the cursor is in.
+        NSApp.orderFrontCharacterPalette(nil)
+        result(nil)
+      case "voiceStart":
+        DeskSound.shared.start(most: args["bytes"] as? Int ?? 0) { result($0) }
+      case "voiceLevel":
+        result(DeskSound.shared.level())
+      case "voiceCancel":
+        DeskSound.shared.cancel()
+        result(nil)
+      case "voiceStop":
+        result(DeskSound.shared.stop().map { FlutterStandardTypedData(bytes: $0) })
+      case "voicePlay":
+        result(DeskSound.shared.play(part: args["part"] as? Int ?? -1, data: (args["bytes"] as? FlutterStandardTypedData)?.data))
+      case "voicePause":
+        DeskSound.shared.pause()
+        result(nil)
+      case "voiceHalt":
+        DeskSound.shared.halt()
+        result(nil)
+      case "voiceLength":
+        result((args["bytes"] as? FlutterStandardTypedData).map { DeskSound.length(of: $0.data) } ?? 0)
       // A video in a message (DeskVideo.swift): a picture of where it starts, and a window that plays it.
       case "videoPreview":
         guard let bytes = (args["bytes"] as? FlutterStandardTypedData)?.data else { return result(nil) }
@@ -50,6 +80,21 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         result(FlutterMethodNotImplemented)
       }
     }
+  }
+
+  // MARK: Choosing pictures
+
+  /// The Mac's own panel for choosing files, for pictures: the paths chosen, none where it was put away.
+  private static func pickPictures(most: Int) -> [String] {
+    let panel = NSOpenPanel()
+    panel.title = "Choose pictures"
+    panel.prompt = "Add"
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = most > 1
+    panel.allowedContentTypes = [.image]
+    guard panel.runModal() == .OK else { return [] }
+    return panel.urls.prefix(max(1, most)).map { $0.path }
   }
 
   // MARK: The Keychain: the pairing's key, as a generic password of this app's.

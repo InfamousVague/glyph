@@ -353,6 +353,14 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
   folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
   the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
+- **What a computer may ask of the phone** (not released; Matt, 2026-11-14: "the desktop app should get all featues
+  its missing from mobile", and of the Mac's message field "an emoji picker, file upload, voice memo and sticker
+  selector"). The link carries what the phone's screens do: deleting, editing, sending a picture message again,
+  blocking, encryption on and off, and pictures, a voice recording and a sticker sent from the Mac, handed to the
+  phone in pieces and sent by it once ([docs/desktop.md](docs/desktop.md), "What they say to each other"). The Mac
+  has its own panel for choosing pictures, its own emoji, a recorder and a player. A phone with an older app says
+  it does none of it, and the Mac offers none (`Sms.can`). The screens do not offer these yet: that is the shared
+  shell's to switch on.
 - **The Mac app updates itself** (built 2026-11-14; Matt: "install the app on my mac and make sure it has OTA
   updates so we don't need to reinstall again"). It reads `https://ghost-sms.com/mac.json` as it opens and every six
   hours, brings the newer app down, takes it only if it is whole and signed by its own team (Matt's Developer ID),

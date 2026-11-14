@@ -21,6 +21,17 @@ class FakePhone {
   bool mine = false;
   bool theirs = false;
 
+  /// A phone whose app is from before a computer could do more than read and send text: it does none of the newer
+  /// things, and says so in the words the real one does.
+  bool old = false;
+
+  /// What the Mac handed over in pieces and had sent, whole: pictures, a voice recording, a sticker.
+  final uploads = <String, BytesBuilder>{};
+  final handed = <({String what, String name, String body, List<Uint8List> bytes})>[];
+
+  /// What the Mac asked the phone to do to what it keeps.
+  final did = <String>[];
+
   /// What the Mac asked to be sent, and by which names.
   final sent = <({List<String> addresses, String body})>[];
   final sentKeys = <String, int>{};
@@ -250,6 +261,51 @@ class FakePhone {
         return null;
       case 'setDraft' || 'threadFlag' || 'archive':
         return null;
+      // What a phone with the newer app does for a computer (android DeskCalls.CAPS); an older one ([old]) does none.
+      case 'caps' when !old:
+        return ['deleteMessage', 'deleteThread', 'deleteThreads', 'editMessage', 'resendMms', 'setBlocked', 'blockedNumbers', 'e2eOffer', 'e2eOff', 'e2eVerify', 'e2ePlainSeen', 'e2eList', 'mmsStatus', 'voiceLimit', 'put', 'drop', 'sendPictures', 'sendVoice', 'sendSticker'];
+      case 'put' when !old:
+        final id = a['upload'] as String, offset = (a['offset'] as num).toInt(), total = (a['total'] as num).toInt();
+        final data = base64.decode(a['data'] as String);
+        final had = uploads.putIfAbsent(id, () => BytesBuilder());
+        if (offset != had.length) throw 'A piece came out of its turn';
+        if (had.length + data.length > total) throw 'More came than it said it holds';
+        had.add(data);
+        return {'have': had.length};
+      case 'sendPictures' || 'sendVoice' || 'sendSticker' when !old:
+        final key = a['key'] as String;
+        if (sentKeys.containsKey(key)) return {'thread': sentKeys[key], 'again': true};
+        Uint8List take(String id) => (uploads.remove(id) ?? (throw 'That was not handed over')).takeBytes();
+        if (method == 'sendPictures') {
+          for (final f in (a['files'] as List)) {
+            if (!'${(f as Map)['type']}'.startsWith('image/')) throw 'Only pictures can be sent from a computer for now';
+          }
+          handed.add((what: 'pictures', name: [for (final f in (a['files'] as List)) '${(f as Map)['name']}'].join(','), body: '${a['body'] ?? ''}', bytes: [for (final f in (a['files'] as List)) take('${(f as Map)['upload']}')]));
+        } else {
+          handed.add((what: method == 'sendVoice' ? 'voice' : 'sticker', name: '${a['name']}', body: '', bytes: [take(a['upload'] as String)]));
+        }
+        sentKeys[key] = 7;
+        changed(7);
+        return {'thread': 7};
+      case 'voiceLimit' when !old:
+        return {'seconds': 91, 'bytes': 299008};
+      case 'deleteMessage' || 'editMessage' || 'setBlocked' || 'e2eOff' || 'e2eVerify' || 'e2ePlainSeen' when !old:
+        did.add('$method ${a['id'] ?? a['address']}');
+        return null;
+      case 'deleteThreads' when !old:
+        did.add('deleteThreads ${a['threads']}');
+        conversations = [for (final c in conversations) if (!(a['threads'] as List).contains(c['id'])) c];
+        return (a['threads'] as List).length;
+      case 'resendMms' when !old:
+        did.add('resendMms ${a['id']}');
+        return 7;
+      case 'e2eOffer' when !old:
+        did.add('e2eOffer ${a['address']}');
+        return {'address': a['address'], 'state': 'offered'};
+      case 'e2eList' || 'blockedNumbers' when !old:
+        return [{'address': '+15550100', 'state': 'on'}];
+      case 'mmsStatus' when !old:
+        return {'dataOn': true};
       default:
         throw 'The phone doesn\'t do "$method" for a computer';
     }

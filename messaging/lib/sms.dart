@@ -473,6 +473,13 @@ abstract class SmsCalls {
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]);
 }
 
+/// Calls that reach the phone from somewhere else (a computer's link), where what can be asked depends on the phone
+/// at the other end: an older Ghost Messaging there does less. [caps] names what it does beyond the first few
+/// (android DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
+abstract class CapableCalls {
+  Set<String> get caps;
+}
+
 class _ChannelCalls implements SmsCalls {
   const _ChannelCalls();
   static const _channel = MethodChannel('ghost_messaging/sms');
@@ -530,6 +537,14 @@ class Sms {
 
   /// These screens are on a computer, not the phone: what only the phone can do is not offered.
   static bool get remote => _calls is! _ChannelCalls;
+
+  /// Whether [what] can be done from here: anything on the phone itself; on a computer, what the phone it is paired
+  /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
+  static bool can(String what) {
+    final calls = _calls;
+    if (calls is _ChannelCalls) return true;
+    return calls is CapableCalls && (calls as CapableCalls).caps.contains(what);
+  }
 
   /// The conversation that changed, each time one does (-1: some conversation, which is not known).
   final changes = StreamController<int>.broadcast();
@@ -780,6 +795,10 @@ class Sms {
 
   /// Plays the video [a]: the whole screen on the phone, a window of its own on a computer.
   Future<void> playVideo(Attachment a) => _calls.invokeMethod('videoPlay', {'part': a.id, 'type': a.type, 'ending': a.ending, 'name': a.name});
+
+  /// Opens the computer's own panel of emoji, which types what is chosen where the cursor is. A phone's keyboard has
+  /// its own, so this is a computer's alone ([remote]).
+  Future<void> emojiPanel() => _calls.invokeMethod('emoji');
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 
