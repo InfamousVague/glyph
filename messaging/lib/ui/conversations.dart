@@ -564,10 +564,20 @@ class ConversationRow extends StatelessWidget {
       child: GlacierPressable(
         onPressed: onPress,
         semanticLabel: selecting ? '${c.title}, ${selected ? 'selected' : 'not selected'}' : null,
-        builder: (context, state) => ColoredBox(
-          color: selected ? t.colorOf('color-mix(in srgb, #4f5bd5 14%, transparent)') : (state.pressed ? t.color('app-paper-2') : const Color(0x00000000)),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(3)),
+        // Each conversation is a card, and the one chosen (the one open on a computer, the ones ticked on a phone)
+        // wears a line round it in the page's ink, white on the dark page (Matt, 2026-11-14: "I don't like the style
+        // of selected messages having the light blue background, instead make each in cards so the card can have a
+        // 2px white outline for selected chats with rounded borders"). The line's room is always kept, so choosing
+        // one moves nothing.
+        builder: (context, state) => Padding(
+          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
+              borderRadius: BorderRadius.circular(t.lenOf('1rem')),
+              border: Border.all(color: selected ? t.color('app-ink') : const Color(0x00000000), width: 2),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: t.space(3) - 2, vertical: t.space(3) - 2),
             child: Row(
               children: [
                 if (selecting)
