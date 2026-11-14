@@ -352,8 +352,8 @@ class Store(private val context: Context) {
         return when {
             rest.any { (it["type"] as String).startsWith("image/") && Stickers.isSticker(it["name"] as String?) } -> "Sticker"
             rest.any { (it["type"] as String).startsWith("image/") } -> "Picture"
+            rest.any { (it["type"] as String).startsWith("audio/") } -> "Voice message"
             rest.any { (it["type"] as String).startsWith("video/") } -> "Video"
-            rest.any { (it["type"] as String).startsWith("audio/") } -> "Audio"
             rest.isNotEmpty() -> "Attachment"
             else -> ""
         }
@@ -484,6 +484,27 @@ class Store(private val context: Context) {
                 }
             }
         }
+        return out
+    }
+
+    /**
+     * A stored picture message's parts as they would be sent: its pictures, stickers, sound and words, read back from
+     * where they are kept. Its layout is left out (it is written anew), and [body], where given, stands for its words.
+     */
+    fun partsToSendAgain(id: Long, body: String? = null): List<Pdu.Part> {
+        val out = ArrayList<Pdu.Part>()
+        (mmsPartsOf(listOf(id))[id] ?: emptyList()).forEachIndexed { i, p ->
+            val type = p["type"] as String
+            val name = (p["name"] as String?)?.takeIf { it.isNotBlank() } ?: "part$i"
+            when {
+                type == "application/smil" -> {}
+                type == "text/plain" -> if (body == null) (p["text"] as String?)?.takeIf { it.isNotEmpty() }?.let {
+                    out += Pdu.Part("text/plain", it.toByteArray(), contentLocation = "text$i.txt", contentId = "text$i")
+                }
+                else -> readPart(p["id"] as Long)?.let { out += Pdu.Part(type, it, name = name, contentLocation = name, contentId = "part$i") }
+            }
+        }
+        if (!body.isNullOrEmpty()) out += Pdu.Part("text/plain", body.toByteArray(), contentLocation = "text0.txt", contentId = "text0")
         return out
     }
 

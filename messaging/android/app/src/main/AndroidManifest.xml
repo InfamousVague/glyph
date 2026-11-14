@@ -23,6 +23,9 @@
     <!-- Paired computers (DeskService.kt, docs/desktop.md): the camera reads the computer's QR code, asked for when
          scanning; the foreground service keeps the phone reachable by a paired computer, and starts again after a
          restart. None is used until a computer is paired. -->
+    <!-- Voice messages (Voice.kt): asked for the first time one is recorded, and open only while one is. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />

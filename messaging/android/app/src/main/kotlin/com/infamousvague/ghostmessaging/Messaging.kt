@@ -83,6 +83,46 @@ object Sender {
         return thread
     }
 
+    /** The most a message may weigh on this phone's carrier, less room for its own headers: what a voice message may fill. */
+    fun voiceBudget(context: Context): Long {
+        val config = try { smsManager(context, defaultSub()).carrierConfigValues } catch (_: Exception) { Bundle() }
+        return (config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, 300 * 1024).coerceAtLeast(100 * 1024) - 8 * 1024).toLong()
+    }
+
+    /**
+     * Sends a voice message (Voice.kt) to [addresses]: the recording in [file], as an MMS with one audio part, which
+     * any phone can play. It goes as a picture does, so it is not encrypted. Returns the conversation.
+     */
+    fun sendVoice(context: Context, addresses: List<String>, file: File): Long {
+        val store = Store(context)
+        val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        require(clean.isNotEmpty()) { "No one to send to" }
+        val bytes = file.readBytes()
+        require(bytes.size <= voiceBudget(context) + 8 * 1024) { "That recording is too long for a message on this carrier" }
+        val thread = store.threadFor(clean)
+        sendMms(context, store, thread, clean, "", emptyList(), listOf(Pdu.Part("audio/mp4", bytes, name = file.name, contentLocation = file.name, contentId = "voice")))
+        Bus.changed(thread)
+        return thread
+    }
+
+    /**
+     * Sends a picture message that did not go once more, as it was: its pictures, stickers, sound and words read back
+     * from where they are kept ([body], where given, in place of its words). The one that failed is removed only once
+     * the new one is on its way, so a voice message that could not go is never lost to trying again.
+     */
+    fun sendAgain(context: Context, id: Long, addresses: List<String>, body: String? = null): Long {
+        val store = Store(context)
+        val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        require(clean.isNotEmpty()) { "No one to send to" }
+        val kept = store.partsToSendAgain(id, body)
+        require(kept.isNotEmpty()) { "What that message held is no longer on this phone" }
+        val thread = store.threadFor(clean)
+        sendMms(context, store, thread, clean, "", emptyList(), kept)
+        store.deleteMessage("mms", id)
+        Bus.changed(thread)
+        return thread
+    }
+
     fun send(context: Context, addresses: List<String>, body: String, attachments: List<String> = emptyList(), plain: Boolean = false): Long {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()

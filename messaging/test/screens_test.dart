@@ -11,6 +11,7 @@ import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
 import 'package:ghost_messaging/ui/chat_settings.dart';
+import 'package:ghost_messaging/ui/common.dart' show IconTap;
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
@@ -66,6 +67,14 @@ Map<String, Object?> _e2e(String address) => switch (address) {
     };
 
 List<Map<String, Object?>> _messages(int thread) {
+  if (thread == 4) {
+    // Voice messages (android Voice.kt): one that came, one sent, each a picture message with sound in it.
+    return [
+      {'id': 53, 'kind': 'mms', 'address': '', 'body': '', 'date': _ago(minutes: 3), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 912, 'type': 'audio/mp4', 'name': 'voice-20261113-194502.m4a'}]},
+      {'id': 52, 'kind': 'mms', 'address': '+15551230001', 'body': '', 'date': _ago(minutes: 5), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 911, 'type': 'audio/amr', 'name': 'recording.amr'}]},
+      {'id': 51, 'kind': 'sms', 'address': '+15551230001', 'body': 'Too much to type, one sec', 'date': _ago(minutes: 6), 'outgoing': false, 'state': 'received', 'read': true},
+    ];
+  }
   if (thread == 3) {
     // Two picture messages the carrier announced: one that could not be brought down, one coming down now.
     return [
@@ -124,6 +133,8 @@ List<Map<String, Object?>> _messages(int thread) {
 /// The pairing with a computer being made, as Android would say it stands (android/.../Desk.kt): set before the
 /// pairing screen is drawn at each of its steps.
 Map<String, Object?> _pairing = {'phase': 'none'};
+
+int _voiceBeat = 0;
 
 void _answerChannel() {
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -191,6 +202,15 @@ void _answerChannel() {
         return false;
       case 'deskAddresses':
         return ['192.168.1.20:47811'];
+      // Voice messages: how long each runs, and a recording that hears a voice rise and fall.
+      case 'voiceLength':
+        return (args['part'] as num).toInt() == 911 ? 7400 : 23000;
+      case 'voiceStart':
+        _voiceBeat = 0;
+        return {'ok': true, 'seconds': 91};
+      case 'voiceLevel':
+        _voiceBeat++;
+        return 0.04 + 0.5 * ((_voiceBeat * 37) % 17) / 17 * (_voiceBeat % 9 < 6 ? 1 : 0.15);
       case 'part':
         // The two stickers in the group conversation, as the phone would hand a picture message's part over.
         return switch ((args['id'] as num).toInt()) {
@@ -293,6 +313,43 @@ void main() {
       expect(find.text('This picture couldn\'t be downloaded'), findsOneWidget);
       expect(find.text('Try again'), findsOneWidget);
       expect(find.text('Downloading picture…'), findsOneWidget);
+      // Voice messages: each drawn as a player that says how long it runs; the microphone stands where Send would.
+      await _shoot(tester, sheet, const ThreadScreen(thread: 4, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread-voice', dark: dark);
+      expect(find.text('0:07'), findsOneWidget);
+      expect(find.text('0:23'), findsOneWidget);
+      final mic = find.byWidgetPredicate((w) => w is IconTap && w.label == 'Record a voice message');
+      expect(mic, findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsNothing);
+      // One playing: where it has got to, and Pause where Play was.
+      Sms.instance.voice.add(const VoicePlayback(part: 911, position: Duration(seconds: 3), length: Duration(milliseconds: 7400), playing: true));
+      await _settle(tester);
+      expect(find.text('0:03'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == 'Pause voice message'), findsOneWidget);
+      // Another starts: the first is back at its start.
+      Sms.instance.voice.add(const VoicePlayback(part: 912, position: Duration(seconds: 1), length: Duration(seconds: 23), playing: true));
+      await _settle(tester);
+      expect(find.text('0:07'), findsOneWidget);
+      expect(find.text('0:01'), findsOneWidget);
+      Sms.instance.voice.add(const VoicePlayback(part: 912, position: Duration.zero, length: Duration(seconds: 23), playing: false));
+      // The microphone tapped: the composer is the recording, with its clock, how loud it is, and Send.
+      await tester.tap(mic);
+      for (var i = 0; i < 44; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await _shootAgain(tester, '2-thread-voice-recording', dark: dark);
+      expect(find.text('0:04'), findsOneWidget, reason: 'the clock counts while it records');
+      expect(find.text('1:31'), findsOneWidget, reason: 'how long one may run on this carrier');
+      expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send voice message'), findsOneWidget);
+      expect(mic, findsNothing);
+      // Thrown away: the composer is as it was.
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Discard the recording'));
+      await _settle(tester);
+      expect(mic, findsOneWidget);
+      // Words written: Send is back where the microphone stood.
+      await tester.enterText(find.byType(EditableText), 'On my way');
+      await _settle(tester);
+      expect(mic, findsNothing);
+      expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.

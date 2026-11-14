@@ -26,6 +26,7 @@ class MainActivity : FlutterActivity() {
         private const val PERMS_REQUEST = 42
         private const val PICK_REQUEST = 43
         private const val SCAN_REQUEST = 44
+        private const val MIC_REQUEST = 45
     }
 
     private val io = Executors.newSingleThreadExecutor()
@@ -51,6 +52,7 @@ class MainActivity : FlutterActivity() {
     private var permsResult: MethodChannel.Result? = null
     private var pickResult: MethodChannel.Result? = null
     private var scanResult: MethodChannel.Result? = null
+    private var micResult: MethodChannel.Result? = null
     private lateinit var store: Store
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -69,10 +71,11 @@ class MainActivity : FlutterActivity() {
                 Bus.listener = { thread -> events?.success(mapOf("type" to "changed", "thread" to thread)) }
                 Bus.prefsListener = { events?.success(mapOf("type" to "prefs")) }
                 Desk.listener = { events?.success(mapOf("type" to "desk")) }
+                Voice.listener = { state -> main.post { events?.success(state) } }
                 updateListener = { state -> events?.success(mapOf("type" to "update") + state.toMap(applicationContext)) }
                 Updater.addListener(updateListener!!)
             }
-            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
+            override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
         MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
@@ -109,6 +112,26 @@ class MainActivity : FlutterActivity() {
                 "send" -> bg {
                     Sender.send(applicationContext, call.argument<List<String>>("addresses")!!, call.argument<String>("body") ?: "", call.argument<List<String>>("attachments") ?: emptyList())
                 }
+                "sendAgain" -> bg {
+                    Sender.sendAgain(applicationContext, call.argument<Number>("id")!!.toLong(), call.argument<List<String>>("addresses")!!, call.argument<String>("body"))
+                }
+                // Voice messages (Voice.kt): the microphone is asked for the first time one is recorded.
+                "voiceStart" -> {
+                    if (granted(Manifest.permission.RECORD_AUDIO)) startVoice(result)
+                    else { micResult = result; requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST) }
+                }
+                "voiceLevel" -> result.success(Voice.level())
+                "voiceCancel" -> { Voice.cancel(); result.success(null) }
+                "voiceSend" -> bg {
+                    val recorded = Voice.stop() ?: throw IllegalStateException("That was too short to send")
+                    try {
+                        mapOf("thread" to Sender.sendVoice(applicationContext, call.argument<List<String>>("addresses")!!, recorded.first), "millis" to recorded.second)
+                    } finally { recorded.first.delete() }
+                }
+                "voicePlay" -> { Voice.play(applicationContext, call.argument<Number>("part")!!.toLong()); result.success(null) }
+                "voicePause" -> { Voice.pause(); result.success(null) }
+                "voiceStop" -> { Voice.halt(); result.success(null) }
+                "voiceLength" -> on(pictures) { Voice.length(applicationContext, call.argument<Number>("part")!!.toLong()) }
                 // Try again, on a picture message that could not be brought down (Store.insertMmsNotice).
                 "retryDownload" -> bg { MmsPushReceiver.retry(applicationContext, call.argument<Number>("id")!!.toLong()); null }
                 "markRead" -> bg {
@@ -253,7 +276,22 @@ class MainActivity : FlutterActivity() {
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
         super.onDestroy()
     }
-    override fun onPause() { super.onPause(); inFront = false }
+    override fun onPause() {
+        super.onPause()
+        inFront = false
+        // The microphone is open only while the person is recording with the app in front: leaving throws the
+        // recording away, and the screen is told so.
+        if (Voice.recording) {
+            Voice.cancel()
+            events?.success(mapOf("type" to "voiceStopped"))
+        }
+        Voice.pause()
+    }
+
+    private fun startVoice(result: MethodChannel.Result) {
+        try { result.success(mapOf("ok" to true, "seconds" to Voice.start(applicationContext, Sender.voiceBudget(applicationContext)))) }
+        catch (e: Exception) { result.error("failed", e.message ?: "The microphone could not be started", null) }
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -419,5 +457,10 @@ class MainActivity : FlutterActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMS_REQUEST) { store.contactsChanged(); permsResult?.success(status()); permsResult = null }
+        if (requestCode == MIC_REQUEST) {
+            val asked = micResult ?: return
+            micResult = null
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoice(asked) else asked.success(mapOf("ok" to false, "denied" to true))
+        }
     }
 }

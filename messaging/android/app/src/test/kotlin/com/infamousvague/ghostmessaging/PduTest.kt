@@ -30,6 +30,38 @@ class PduTest {
         assertEquals("Hello 👻 group", m.parts[2].text())
     }
 
+    /** A voice message (Voice.kt): one audio part, which the message's layout names as sound, read back whole. */
+    @Test
+    fun aVoiceMessageReadsBack() {
+        val sound = ByteArray(40_000) { (it * 13).toByte() }
+        val name = Voice.fileName(1_794_600_000_000L)
+        val bytes = Pdu.sendReq(listOf("+15551234567"), listOf(Pdu.Part("audio/mp4", sound, name = name, contentLocation = name, contentId = "voice")))
+        val m = Pdu.parse(bytes)
+        assertEquals(2, m.parts.size)
+        assertEquals("application/smil", m.parts[0].contentType)
+        val layout = String(m.parts[0].data)
+        assertEquals("the layout plays it as sound: $layout", true, layout.contains("<audio src=\"$name\""))
+        assertEquals("audio/mp4", m.parts[1].contentType)
+        assertEquals(name, m.parts[1].name)
+        assertArrayEquals(sound, m.parts[1].data)
+    }
+
+    /** How long a voice message may run is what the carrier's limit on a message leaves room for. */
+    @Test
+    fun aVoiceMessagesLengthIsWhatFitsInAMessage() {
+        // 300 KB, the least any carrier takes: about a minute and a half.
+        assertEquals(true, Voice.maxSeconds(292L * 1024) in 85..95)
+        // 1 MB: about five minutes.
+        assertEquals(true, Voice.maxSeconds(1016L * 1024) in 300..330)
+        // Never nothing, and never more than ten minutes whatever the carrier says.
+        assertEquals(5, Voice.maxSeconds(0))
+        assertEquals(600, Voice.maxSeconds(50L * 1024 * 1024))
+        // What it is recorded at fits: the seconds allowed, at the bit rate, are under the budget.
+        val budget = 292L * 1024
+        assertEquals(true, Voice.maxSeconds(budget) * (Voice.BIT_RATE / 8L) < budget)
+        assertEquals(true, Regex("voice-\\d{8}-\\d{6}\\.m4a").matches(Voice.fileName()))
+    }
+
     @Test
     fun notifyRespInd() {
         val m = Pdu.parse(Pdu.notifyRespInd("abc123"))

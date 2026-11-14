@@ -164,8 +164,10 @@ old conversations; send and receive an SMS; delivery ticks; a picture each way a
 `Pdu.kt`, held only by `PduTest`); a notification with Reply, Mark as read and Copy code; a reaction each way with a
 phone on Google Messages and with an iPhone; an edit with its correction; each emoji set, joined emoji among them;
 an effect arriving; block and unblock; the updater against the first real release; encryption between two
-phones with the app; and a sticker each way (it is a picture message: does its clear background arrive, on a phone
-with the app and on one without).
+phones with the app; a sticker each way (it is a picture message: does its clear background arrive, on a phone
+with the app and on one without); and a voice message each way, with an iPhone and with a phone on Google Messages
+(it is an MMS with an `.m4a` in it: does it arrive, does it play there, does theirs play here, and how long does
+the Fold's carrier let one run).
 
 ## Ways of working that Matt has asked for
 

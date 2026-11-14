@@ -217,6 +217,20 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
 - **The update banner** (not released; Matt: "the app should auto check for updates on load of any page so it pops
   the banner"). Every page that opens asks for a look for a newer version, made no oftener than every five minutes,
   and while one is waiting a banner over every page says which, with Update now (`lib/ui/update_banner.dart`).
+- **Voice messages** (not released; `Voice.kt`, `lib/ui/voice.dart`; Matt: "I also want to have the ability to send
+  audio messages"). With nothing written, a microphone stands where Send would. Tap it and the composer becomes the
+  recording: a clock, how loud it hears you, how long one may run, a bin to throw it away, Send. It goes as a
+  picture message does, an MMS with one sound in it (AAC in an `.m4a`, about three kilobytes a second), so any phone
+  can play it and it is not encrypted, which an encrypted conversation says before it goes. How long one may run is
+  what the carrier lets a message weigh: about a minute and a half at 300 KB, about five minutes at 1 MB; the
+  recorder stops itself there. One that comes or goes is drawn as a player: play and pause, how far through, how
+  long. Android gives the default SMS app the microphone along with the role, so it is asked for only where that was
+  taken back; it is open only while a recording is under way with the app in front, and leaving the app throws the
+  recording away. On a Mac a voice message is named and not played.
+- **Trying a picture message again** (not released). "Not sent. Tap to try again." on a message with a picture, a
+  sticker or a voice message in it sent only its words again and dropped the rest. It now goes again as it was, read
+  back from where the phone keeps it (`Sender.sendAgain`), and the one that failed is removed only once the new one
+  is on its way.
 - **Stickers** (0.6.0; Matt: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio
   one"). Four packs of sixteen, made by `python3 tool/sticker_packs.py` from the ghost's poses on the effects' sheets,
   each with a sticker's white edge: **Ghost** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and
@@ -331,7 +345,10 @@ the manifest was checked for every component Android looks for before it offers 
 Sending, receiving, MMS download and reports through a real carrier, notifications, blocking and the updater's
 install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
 Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS), nor a
-0.6.0 sticker through a carrier (it is an MMS too: on an emulator it was stored and drawn, and could not go). `docs/HANDOFF.md` section 3 is the list to go through on a phone.
+0.6.0 sticker through a carrier (it is an MMS too: on an emulator it was stored and drawn, and could not go). A voice
+message was recorded on an emulator (whose microphone hears nothing), kept, played back, sent again after it failed,
+and thrown away on leaving the app mid-recording; it has not gone through a carrier, been heard, or been played on
+another phone. `docs/HANDOFF.md` section 3 is the list to go through on a phone.
 
 The Mac app and the phone's half of it were tried against each other on an emulator, by each way of connecting
 ([docs/desktop.md](docs/desktop.md), "Trying it"). Not on the Fold: the two finding each other on a real network

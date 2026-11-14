@@ -23,6 +23,7 @@ import 'common.dart';
 import 'encryption.dart';
 import 'message_popover.dart';
 import 'sticker_picker.dart';
+import 'voice.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
@@ -51,6 +52,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Offset? _fieldDown;
   final List<String> _attachments = [];
   bool _sending = false;
+
+  /// A voice message is being recorded (lib/ui/voice.dart): the most seconds it may run. Null when none is.
+  int? _recordingLimit;
+  StreamSubscription<void>? _voiceStopped;
 
   /// What [_messages] draws as: reaction texts folded onto their messages, your corrections onto your edits.
   Folded _folded = const Folded(messages: [], reactions: {});
@@ -118,7 +123,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     WidgetsBinding.instance.removeObserver(this);
     Sms.instance.setOpenThread(null);
     _changes?.cancel();
+    _voiceStopped?.cancel();
     _draftSave?.cancel();
+    // Leaving the conversation: a recording under way is thrown away, and whatever is playing stops.
+    if (_recordingLimit != null) Sms.instance.cancelVoice().catchError((_) {});
+    if (!Sms.remote) Sms.instance.stopVoice().catchError((_) {});
     if (_editing == null) Sms.instance.setDraft(widget.thread, _text.text);
     _text.dispose();
     _focus.dispose();
@@ -281,6 +290,57 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       await Sms.instance.sendSticker(to, data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), stickerName(asset));
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the sticker: $e', tone: GlacierToastTone.danger);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      _load();
+    }
+  }
+
+  /// The microphone: starts recording a voice message, asking Android for the microphone the first time
+  /// (Matt, 2026-11-13: "I also want to have the ability to send audio messages").
+  Future<void> _record() async {
+    if (_sending || _recordingLimit != null) return;
+    try {
+      final limit = await Sms.instance.startVoice();
+      if (!mounted) {
+        if (limit != null) Sms.instance.cancelVoice().catchError((_) {});
+        return;
+      }
+      if (limit == null) {
+        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        return;
+      }
+      HapticFeedback.lightImpact();
+      // The phone throws the recording away if the app leaves the screen: the microphone is never left open.
+      _voiceStopped ??= Sms.instance.voiceStopped.stream.listen((_) {
+        if (!mounted || _recordingLimit == null) return;
+        setState(() => _recordingLimit = null);
+        toast(context, 'The recording was thrown away when you left Ghost Messaging.');
+      });
+      setState(() => _recordingLimit = limit);
+    } catch (e) {
+      if (mounted) toast(context, voiceProblem(e), tone: GlacierToastTone.danger);
+    }
+  }
+
+  void _discardVoice() {
+    Sms.instance.cancelVoice().catchError((_) {});
+    setState(() => _recordingLimit = null);
+  }
+
+  /// Ends the recording and sends it: a picture message with the sound in it, which any phone can play.
+  Future<void> _sendVoice() async {
+    final to = _people.map((p) => p.address).toList();
+    if (to.isEmpty || _sending) return _discardVoice();
+    setState(() {
+      _recordingLimit = null;
+      _sending = true;
+    });
+    HapticFeedback.lightImpact();
+    try {
+      await Sms.instance.sendVoice(to);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
     } finally {
       if (mounted) setState(() => _sending = false);
       _load();
@@ -453,9 +513,16 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   Future<void> _retry(Message m, {String? body}) async {
-    await Sms.instance.deleteMessage(m);
+    final to = _people.map((p) => p.address).toList();
     try {
-      await Sms.instance.send(_people.map((p) => p.address).toList(), body ?? m.body);
+      if (m.kind == 'mms' && m.attachments.isNotEmpty) {
+        // A picture, a sticker or a voice message goes again as it was, read back from where the phone keeps it:
+        // sending only the words again would lose it.
+        await Sms.instance.sendAgain(m, to, body: body);
+      } else {
+        await Sms.instance.deleteMessage(m);
+        await Sms.instance.send(to, body ?? m.body);
+      }
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send: $e', tone: GlacierToastTone.danger);
     }
@@ -637,6 +704,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final composerStrut = StrutStyle.fromTextStyle(composerText, forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final isMms = _group || _attachments.isNotEmpty;
+    // Nothing written and nothing attached: the microphone stands where Send would, to record a voice message.
+    final voiceOffered = !Sms.remote && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
     // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
     // typed, and plain letters whatever was typed.
     final sealed = _e2e.on && !isMms;
@@ -733,6 +802,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 IconTap(icon: Lucide.x, label: 'Stop editing', size: 16, onPressed: _cancelEdit),
               ]),
             ),
+          if (_recordingLimit != null)
+            VoiceRecorder(
+              limit: _recordingLimit!,
+              onDiscard: _discardVoice,
+              onSend: _sendVoice,
+              note: _e2e.on ? 'Voice messages aren\'t encrypted. This goes as an ordinary message.' : null,
+            )
+          else
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (!Sms.remote) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
@@ -797,6 +874,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   if (!Sms.remote && !editing && _text.text.isEmpty && _attachments.isEmpty)
                     IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
+                  if (voiceOffered)
+                    IconTap(icon: Lucide.mic, label: 'Record a voice message', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _record)
+                  else
                   editing
                       ? IconTap(icon: Lucide.check, label: 'Save edit', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _saveEdit : null)
                       : IconTap(icon: Lucide.send, label: 'Send', filled: true, size: 16, box: t.lenOf('2.25rem'), onPressed: canSend ? _send : null),
@@ -1045,6 +1125,19 @@ class _Bubble extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
             child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth),
+          )
+        else if (a.isAudio)
+          // A voice message: a player (on a computer, its name: the sound stays on the phone).
+          Padding(
+            padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
+            child: VoiceBubble(
+              part: a.id,
+              ground: ground,
+              ink: ink,
+              radius: radius,
+              rim: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null,
+              playable: !Sms.remote,
+            ),
           )
         else
           _Pill(text: a.name ?? a.type, ground: ground, ink: ink),

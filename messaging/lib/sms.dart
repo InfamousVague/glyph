@@ -75,6 +75,9 @@ class Attachment {
   final String? name;
   bool get isImage => type.startsWith('image/');
 
+  /// Sound: a voice message (android Voice.kt records them), drawn with a player.
+  bool get isAudio => type.startsWith('audio/') || type == 'application/ogg';
+
   /// One of Ghost Messaging's stickers (android Sender.sendSticker names them so): drawn small, on the page.
   bool get isSticker => isImage && (name ?? '').split('/').last.startsWith('ghost-sticker');
 }
@@ -369,6 +372,22 @@ class _ChannelCalls implements SmsCalls {
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]) => _channel.invokeMethod<T>(method, arguments);
 }
 
+/// Where the voice message being played has got to (android/.../Voice.kt): its part, and whether it is playing now.
+class VoicePlayback {
+  const VoicePlayback({required this.part, required this.position, required this.length, required this.playing});
+  final int part;
+  final Duration position;
+  final Duration length;
+  final bool playing;
+
+  factory VoicePlayback.from(Map m) => VoicePlayback(
+        part: (m['part'] as num?)?.toInt() ?? -1,
+        position: Duration(milliseconds: (m['position'] as num?)?.toInt() ?? 0),
+        length: Duration(milliseconds: (m['duration'] as num?)?.toInt() ?? 0),
+        playing: m['playing'] == true,
+      );
+}
+
 /// The native side (android/.../MainActivity.kt): Android's SMS database, sending, the SMS role.
 class Sms {
   Sms._();
@@ -395,6 +414,14 @@ class Sms {
 
   /// Something about the computers paired with this phone changed: one connected, a pairing moved on.
   final computersChanged = StreamController<void>.broadcast();
+
+  /// Where the voice message being played has got to, a few times a second while one plays.
+  final voice = StreamController<VoicePlayback>.broadcast();
+
+  /// The recording under way is as long as a message may be ([voiceFull]), or was thrown away because the app left
+  /// the screen ([voiceStopped]).
+  final voiceFull = StreamController<void>.broadcast();
+  final voiceStopped = StreamController<void>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -405,6 +432,9 @@ class Sms {
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
       if (m['type'] == 'prefs') prefsChanged.add(null);
       if (m['type'] == 'desk') computersChanged.add(null);
+      if (m['type'] == 'voice') voice.add(VoicePlayback.from(m));
+      if (m['type'] == 'voiceFull') voiceFull.add(null);
+      if (m['type'] == 'voiceStopped') voiceStopped.add(null);
     });
   }
 
@@ -452,6 +482,11 @@ class Sms {
   /// pack and number.
   Future<int> sendSticker(List<String> addresses, Uint8List picture, String name) async =>
       ((await _calls.invokeMethod('sendSticker', {'addresses': addresses, 'picture': picture, 'name': name})) as num).toInt();
+
+  /// Sends a picture message that did not go once more, as it was: its pictures, stickers and sound with it
+  /// ([body], where given, in place of its words). The conversation.
+  Future<int> sendAgain(Message m, List<String> addresses, {String? body}) async =>
+      ((await _calls.invokeMethod('sendAgain', {'id': m.id, 'addresses': addresses, 'body': body})) as num).toInt();
 
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
 
@@ -524,6 +559,44 @@ class Sms {
     }
     return bytes;
   }
+
+  // --- voice messages (android/.../Voice.kt) -------------------------------------------------------------------
+
+  /// Starts recording a voice message with the phone's microphone, asking Android for it the first time. Answers the
+  /// most seconds one may run (the carrier's limit on a message decides), or null where the microphone was refused.
+  Future<int?> startVoice() async {
+    final m = await _calls.invokeMethod('voiceStart') as Map?;
+    if (m == null || m['ok'] != true) return null;
+    return (m['seconds'] as num?)?.toInt() ?? 60;
+  }
+
+  /// How loud the microphone hears it right now, 0 to 1.
+  Future<double> voiceLevel() async => ((await _calls.invokeMethod('voiceLevel')) as num?)?.toDouble() ?? 0;
+
+  /// Throws the recording away.
+  Future<void> cancelVoice() => _calls.invokeMethod('voiceCancel');
+
+  /// Ends the recording and sends it to [addresses] as a picture message with the sound in it. The conversation.
+  Future<int> sendVoice(List<String> addresses) async =>
+      (((await _calls.invokeMethod('voiceSend', {'addresses': addresses})) as Map)['thread'] as num).toInt();
+
+  /// Plays the sound in a message's part [part] (or goes on with it, where it was paused); [voice] says how far.
+  Future<void> playVoice(int part) => _calls.invokeMethod('voicePlay', {'part': part});
+  Future<void> pauseVoice() => _calls.invokeMethod('voicePause');
+
+  /// Stops whatever is playing: leaving the conversation.
+  Future<void> stopVoice() => _calls.invokeMethod('voiceStop');
+
+  final _voiceLengths = <int, Future<Duration>>{};
+
+  /// How long the sound in part [part] runs; zero where it cannot be read.
+  Future<Duration> voiceLength(int part) => _voiceLengths[part] ??= () async {
+        try {
+          return Duration(milliseconds: ((await _calls.invokeMethod('voiceLength', {'part': part})) as num?)?.toInt() ?? 0);
+        } catch (_) {
+          return Duration.zero;
+        }
+      }();
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 
