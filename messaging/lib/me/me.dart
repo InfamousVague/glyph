@@ -13,7 +13,7 @@ import '../plugins/codes.dart' show signInCode;
 /// etc"). Discord, Telegram and X are proved by signing in there; Bluesky, Mastodon and GitHub by a code put in the
 /// account's public profile, and those three say who an account follows, which the others do not let an app read.
 class Network {
-  const Network(this.id, this.name, this.hue, this.mark, {required this.signIn, this.example = 'username', this.where = ''});
+  const Network(this.id, this.name, this.hue, this.mark, {required this.signIn, this.example = 'username', this.where = '', this.soon = false});
   final String id;
   final String name;
 
@@ -28,8 +28,12 @@ class Network {
   /// Where in the account the code goes, for a network proved by code.
   final String where;
 
+  /// Shown as "Coming soon", and neither linked nor watched for yet (Matt, 2026-11-14: "remove mastadon and the
+  /// other options to link or mark them as 'coming soon'", once Discord, X and Telegram had their keys).
+  final bool soon;
+
   /// Who you follow there can be read, and so brought into the watch list.
-  bool get follows => !signIn;
+  bool get follows => !signIn && !soon;
 
   /// The page of [handle]'s account, or null where a username alone does not make an address (Discord).
   String? profile(String handle) => switch (id) {
@@ -46,10 +50,13 @@ const networks = [
   Network('discord', 'Discord', 'indigo', 'D', signIn: true),
   Network('telegram', 'Telegram', 'cyan', 'T', signIn: true),
   Network('x', 'X', 'graphite', 'X', signIn: true),
-  Network('bluesky', 'Bluesky', 'blue', 'B', signIn: false, example: 'you.bsky.social', where: 'your Bluesky bio (Edit profile › Description)'),
-  Network('mastodon', 'Mastodon', 'purple', 'M', signIn: false, example: 'you@mastodon.social', where: 'your Mastodon bio, or one of its profile fields (Edit profile)'),
-  Network('github', 'GitHub', 'slate', 'G', signIn: false, where: 'your GitHub bio (Edit profile › Bio)'),
+  Network('bluesky', 'Bluesky', 'blue', 'B', signIn: false, example: 'you.bsky.social', where: 'your Bluesky bio (Edit profile › Description)', soon: true),
+  Network('mastodon', 'Mastodon', 'purple', 'M', signIn: false, example: 'you@mastodon.social', where: 'your Mastodon bio, or one of its profile fields (Edit profile)', soon: true),
+  Network('github', 'GitHub', 'slate', 'G', signIn: false, where: 'your GitHub bio (Edit profile › Bio)', soon: true),
 ];
+
+/// The networks that can be linked and watched for now.
+List<Network> get openNetworks => [for (final n in networks) if (!n.soon) n];
 
 Network networkOf(String id) => networks.firstWhere((n) => n.id == id, orElse: () => networks.first);
 

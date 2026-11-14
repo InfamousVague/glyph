@@ -412,6 +412,7 @@ class _LinkRow extends StatelessWidget implements PaneRow {
         ]),
       );
     }
+    if (n.soon) return SettingRow(icon: mark, label: n.name, hint: const Text('Coming soon'), disabled: true);
     if (Sms.remote || !me.ready) return SettingRow(icon: mark, label: n.name, hint: const Text('Not linked'), disabled: true);
     if (n.signIn && me.ways[n.id] != 'signin') {
       return SettingRow(icon: mark, label: n.name, hint: Text('Signing in with ${n.name} isn\'t set up on the relay server yet.'), disabled: true);
@@ -565,7 +566,7 @@ List<Widget> friendsPane(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: 'Watching for',
-      description: const Text('The handles you want to hear about. Discord, Telegram and X don\'t let an app read your friends or followers, so add those yourself. Bluesky, Mastodon and GitHub can bring in everyone you follow.'),
+      description: const Text('The handles you want to hear about. Discord, Telegram and X don\'t let an app read your friends or followers, so add those yourself.'),
       footer: Text(me.watch.isEmpty
           ? 'The relay server is given a scrambled form of each handle, never the handle itself.'
           : '${me.watch.length} ${me.watch.length == 1 ? 'handle' : 'handles'}. The relay server holds a scrambled form of each, never the handle itself.'),
@@ -652,7 +653,7 @@ class AddWatchScreen extends StatefulWidget {
 }
 
 class _AddWatchScreenState extends State<AddWatchScreen> {
-  String _network = networks.first.id;
+  String _network = openNetworks.first.id;
   final _text = TextEditingController();
   final _focus = FocusNode();
 
@@ -704,7 +705,7 @@ class _AddWatchScreenState extends State<AddWatchScreen> {
               PaneSection(
                 title: 'Where',
                 children: [
-                  for (final net in networks)
+                  for (final net in openNetworks)
                     SettingRow(
                       icon: NetworkMark(net),
                       label: net.name,

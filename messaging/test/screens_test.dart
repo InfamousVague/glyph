@@ -660,13 +660,16 @@ void main() {
         ready: true,
         listed: true,
         ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof', 'phone': 'text'},
-        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social', 'phone': '+15550100199'},
+        links: {'discord': 'matt', 'telegram': 'mattsoftware', 'phone': '+15550100199'},
         watch: const [Watched('discord', 'maya'), Watched('discord', 'jordan.p'), Watched('telegram', 'samrivera'), Watched('x', 'alexkim'), Watched('bluesky', 'priya.bsky.social'), Watched('bluesky', 'noor.bsky.social')],
         joined: [Joined('discord', 'maya', DateTime.now().subtract(const Duration(minutes: 12))), Joined('bluesky', 'priya.bsky.social', DateTime.now().subtract(const Duration(days: 2)), seen: true)],
       );
       await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me', dark: dark);
       expect(find.text('@matt'), findsOneWidget);
       expect(find.textContaining('isn\'t set up on the relay server yet'), findsOneWidget);
+      // Bluesky, Mastodon and GitHub: not yet (Matt: "remove mastadon and the other options to link or mark them as
+      // 'coming soon'").
+      expect(find.text('Coming soon'), findsNWidgets(3));
       // The number, as a code texted to it showed it to be: said so under it, and not counted among what friends
       // are told.
       expect(find.text('+1 (555) 010-0199'), findsOneWidget);
