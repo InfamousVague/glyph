@@ -423,7 +423,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Slots** are named places on the screens for a plugin's buttons, menu lines or widgets (`Slots`). Drawn now:
     the list's header, between the search field and the list, a conversation's long-press menu in the list, and a
     plugin's own card on Settings › Plugins. Defined, and waiting for `lib/ui/thread.dart` to ask for them: a
-    conversation's header, the composer's row of buttons, a message's menu.
+    conversation's header, the composer's row of buttons, a message's menu. `conversation.dart` answers all three
+    ready to put in place (`ConversationPlugins.header`, `.composer`, `.message`), a line each when it does.
   - **Rules for a message that has just come**: mute the conversation, mark it as read, file it in a section. They
     are decided in Dart, by the list, for each unread conversation as it is first seen: while the app is open, and
     catching up the next time it is opened. Android's side has posted the notification by then (`Messaging.kt`
@@ -521,7 +522,7 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
 | Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
 | The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
-| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `spam.dart`). |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `spam.dart`). |
 | The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building
