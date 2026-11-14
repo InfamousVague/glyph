@@ -207,6 +207,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   reactions, then the twenty screen effects, then Copy, Edit and Delete (`lib/ui/message_popover.dart`). An effect
   chosen there goes as a reaction with the effect's own emoji (`Reacted 🎈 to “…”`), which every phone can read; this
   app hangs it on the message and plays the effect over the conversation, on both phones, once.
+- **A picture that could not be downloaded** (not released; Matt: "the message app said that a photo could not be
+  downloaded… when I tap it I'd like it to take me to the associated chat and show the failed image with a retry if
+  needed"). A picture message is announced by the carrier first and fetched after. The announcement is now kept in
+  the sender's conversation until the picture is here (`Store.insertMmsNotice`): "Downloading picture…" while it
+  comes, and where it cannot be fetched, "This picture couldn't be downloaded" with Try again, which asks the
+  carrier for it once more (`MmsPushReceiver.retry`). The notification opens that conversation. Before this the
+  notification led nowhere and nothing was kept to try again from.
 - **The update banner** (not released; Matt: "the app should auto check for updates on load of any page so it pops
   the banner"). Every page that opens asks for a look for a newer version, made no oftener than every five minutes,
   and while one is waiting a banner over every page says which, with Update now (`lib/ui/update_banner.dart`).

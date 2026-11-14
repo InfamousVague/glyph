@@ -145,14 +145,21 @@ object Notifier {
         try { manager(context).notify(-thread.toInt() - 1, n) } catch (_: SecurityException) {}
     }
 
-    fun downloadFailed(context: Context) {
+    /**
+     * A picture message could not be brought down. A tap opens the conversation it is for ([thread], where its
+     * announcement was kept), which shows it with Try again (Matt, 2026-11-13: "when I tap it I'd like it to take me
+     * to the associated chat and show the failed image with a retry if needed").
+     */
+    fun downloadFailed(context: Context, thread: Long? = null) {
         val n = Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_ghost)
-            .setContentTitle("A picture message couldn't be downloaded")
-            .setContentText("Check mobile data is on. Your carrier will usually send it again.")
+            .setContentTitle("A picture couldn't be downloaded")
+            .setContentText(if (thread != null) "Tap to open the conversation and try again. Check mobile data is on." else "Check mobile data is on. Your carrier will usually send it again.")
             .setAutoCancel(true)
+            .apply { if (thread != null) setContentIntent(open(context, thread)) }
             .build()
-        try { manager(context).notify(42, n) } catch (_: SecurityException) {}
+        // One for each conversation, so a second failure does not take the first one's place.
+        try { manager(context).notify(if (thread != null) 4200 + (thread % 1000).toInt() else 42, n) } catch (_: SecurityException) {}
     }
 }
 

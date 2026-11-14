@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../app_state.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../effects.dart';
 import '../edits.dart';
@@ -332,7 +333,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _load();
   }
 
-  bool _canEdit(Message m) => m.outgoing && m.body.isNotEmpty && m.state != 'sending' && m.state != 'pending_download';
+  bool _canEdit(Message m) => m.outgoing && m.body.isNotEmpty && m.state != 'sending' && m.state != 'pending_download' && m.state != 'downloading';
 
   void _startEdit(Message m) {
     setState(() {
@@ -409,7 +410,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// what else can be done come up beside it (lib/ui/message_popover.dart). A line that is no bubble (a key, a
   /// background) has the sheet from the foot of the screen.
   void _messageMenu(Message m, [Rect? at]) {
-    final canReact = m.state != 'sending' && m.state != 'waiting' && m.state != 'failed' && m.state != 'pending_download' && m.notice == null;
+    final canReact = m.state != 'sending' && m.state != 'waiting' && m.state != 'failed' && m.state != 'pending_download' && m.state != 'downloading' && m.notice == null;
     final mine = {for (final r in _folded.reactions[m.key] ?? const <Reaction>[]) if (r.by.isEmpty) r.emoji};
     final choices = [
       if (m.body.isNotEmpty)
@@ -559,6 +560,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         bottom: lastOfRun,
         status: showStatus ? _statusText(m) : (lastOfRun ? clock(m.date) : null),
         onLongPress: (at) => _messageMenu(m, at),
+        // A picture that could not be brought down: asked for again from here (the phone's to do, not a computer's).
+        onRetryDownload: m.state == 'pending_download' && !Sms.remote
+            ? () async {
+                try {
+                  await Sms.instance.retryDownload(m);
+                } catch (e) {
+                  if (mounted) toast(context, 'Couldn\'t try again: $e', tone: GlacierToastTone.danger);
+                }
+                _load();
+              }
+            : null,
         onTapFailed: failed && !Sms.remote ? () => _retry(m) : null,
         reactions: _folded.reactions[m.key] ?? const [],
         onReactionsTap: () => _showReactions(_folded.reactions[m.key] ?? const []),
@@ -938,6 +950,7 @@ class _Bubble extends StatelessWidget {
     required this.bottom,
     required this.group,
     required this.onLongPress,
+    this.onRetryDownload,
     this.sender,
     this.senderPerson,
     this.showFace = false,
@@ -967,6 +980,9 @@ class _Bubble extends StatelessWidget {
   /// Told where the bubble is on the screen, so what a long press brings up can sit beside it.
   final ValueChanged<Rect> onLongPress;
   final VoidCallback? onTapFailed;
+
+  /// Try again, for a picture message that could not be brought down; null where it is not this one's to offer.
+  final VoidCallback? onRetryDownload;
   final List<Reaction> reactions;
   final VoidCallback? onReactionsTap;
 
@@ -1032,7 +1048,9 @@ class _Bubble extends StatelessWidget {
           )
         else
           _Pill(text: a.name ?? a.type, ground: ground, ink: ink),
-      if (m.state == 'pending_download') _Pill(text: 'Picture message not downloaded yet', ground: ground, ink: ink),
+      // A picture message the carrier announced that is not here: coming down now, or it could not be, with a way to
+      // ask for it again (Matt, 2026-11-13: "show the failed image with a retry if needed").
+      if (m.state == 'downloading' || m.state == 'pending_download') _Undelivered(downloading: m.state == 'downloading', ground: ground, ink: ink, onRetry: onRetryDownload),
       if (body.isNotEmpty && jumbo)
         // One to three emoji and nothing else: large, on the page, with no bubble.
         Padding(
@@ -1177,6 +1195,57 @@ class _Bubble extends StatelessWidget {
     }
     if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
     return TextSpan(children: spans);
+  }
+}
+
+/// Where a picture would be, for one that is not here: being brought down, or it could not be.
+class _Undelivered extends StatelessWidget {
+  const _Undelivered({required this.downloading, required this.ground, required this.ink, this.onRetry});
+  final bool downloading;
+  final Color ground;
+  final Color ink;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      width: t.lenOf('14rem'),
+      padding: EdgeInsets.all(t.space(3)),
+      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(t.lenOf('1.1rem'))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          if (downloading) const GhostSpinner(size: 18) else AppIcon(LucideMore.imageOff, size: 20, color: ink),
+          SizedBox(width: t.space(2)),
+          Expanded(
+            child: Text(
+              downloading ? 'Downloading picture…' : 'This picture couldn\'t be downloaded',
+              style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink, height: 1.3),
+            ),
+          ),
+        ]),
+        if (!downloading) ...[
+          SizedBox(height: t.space(1)),
+          Text('Check mobile data is on: pictures come over it even on Wi-Fi.', style: pageText(t, t.fontSize('xs'), color: ink.withValues(alpha: 0.7), height: 1.35)),
+          if (onRetry != null) ...[
+            SizedBox(height: t.space(2)),
+            GlacierPressable(
+              onPressed: onRetry,
+              semanticLabel: 'Try again',
+              builder: (context, state) => Container(
+                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                decoration: BoxDecoration(color: ink.withValues(alpha: state.pressed ? 0.24 : 0.14), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  AppIcon(Lucide.rotateCcw, size: 15, color: ink, wash: false),
+                  SizedBox(width: t.space(2)),
+                  Text('Try again', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
+                ]),
+              ),
+            ),
+          ],
+        ],
+      ]),
+    );
   }
 }
 

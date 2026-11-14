@@ -98,7 +98,8 @@ List<Conversation> mergeConversations(List<Conversation>? old, List<Conversation
   return all;
 }
 
-/// sending, sent, delivered, failed, received, pending_download
+/// sending, sent, delivered, failed, received, and for a picture message the carrier has announced that is not here:
+/// downloading (being brought down now), pending_download (it could not be: the conversation offers to try again).
 class Message {
   const Message({
     required this.id,
@@ -453,6 +454,9 @@ class Sms {
       ((await _calls.invokeMethod('sendSticker', {'addresses': addresses, 'picture': picture, 'name': name})) as num).toInt();
 
   Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
+
+  /// Tries again to bring down a picture message that could not be ([Message.state] `pending_download`).
+  Future<void> retryDownload(Message m) => _calls.invokeMethod('retryDownload', {'id': m.id});
   Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread});
   Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads});
 

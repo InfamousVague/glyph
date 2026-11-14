@@ -402,12 +402,12 @@ class Store(private val context: Context) {
         }
         resolver.query(
             Telephony.Mms.CONTENT_URI,
-            arrayOf("_id", "date", "msg_box", "read", "m_type", "sub", "m_id"),
+            arrayOf("_id", "date", "msg_box", "read", "m_type", "sub", "m_id", "st"),
             "thread_id = ?", arrayOf(thread.toString()), "date DESC LIMIT $limit",
         )?.use { c ->
             // Every message's parts in one question to Android, where it was one question a message.
             val rows = ArrayList<List<Any?>>()
-            while (c.moveToNext()) rows += listOf(c.getLong(0), c.getLong(1), c.getInt(2), c.getInt(3), c.getInt(4), c.getString(5), c.getString(6))
+            while (c.moveToNext()) rows += listOf(c.getLong(0), c.getLong(1), c.getInt(2), c.getInt(3), c.getInt(4), c.getString(5), c.getString(6), c.getInt(7))
             val partsOf = mmsPartsOf(rows.map { it[0] as Long })
             for (row in rows) {
                 val id = row[0] as Long
@@ -429,7 +429,9 @@ class Store(private val context: Context) {
                     "date" to (row[1] as Long) * 1000,
                     "outgoing" to outgoing,
                     "state" to when {
-                        mType == 130 -> "pending_download" // a notification whose message never came down
+                        // A picture message announced and not here: being brought down now, or it could not be
+                        // (insertMmsNotice). The conversation draws it with a way to try again.
+                        mType == Pdu.NOTIFICATION_IND -> if ((row[7] as Int) == NOTICE_DOWNLOADING) "downloading" else "pending_download"
                         box == Telephony.Mms.MESSAGE_BOX_OUTBOX -> "sending"
                         box == Telephony.Mms.MESSAGE_BOX_FAILED -> "failed"
                         outgoing -> receipts[row[6] as String? ?: ""] ?: "sent"
@@ -610,6 +612,50 @@ class Store(private val context: Context) {
         return uri
     }
 
+    /**
+     * A picture message the carrier has announced and that is not here yet (Matt, 2026-11-13, of "a photo could not
+     * be downloaded": "when I tap it I'd like it to take me to the associated chat and show the failed image with a
+     * retry if needed"). Kept as Android keeps one, a row of the announcement itself: where the picture waits at the
+     * carrier, and the name the carrier knows the fetch by. It stands in the sender's conversation until the picture
+     * comes down, which takes its place, and is what Try again fetches from. One announced twice is one row.
+     */
+    fun insertMmsNotice(thread: Long, from: String, location: String, transactionId: String?, subId: Int): Uri? {
+        resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("_id"), "m_type = ${Pdu.NOTIFICATION_IND} AND ct_l = ?", arrayOf(location), null)?.use { c ->
+            if (c.moveToFirst()) return Uri.withAppendedPath(Telephony.Mms.CONTENT_URI, c.getLong(0).toString()).also { setMmsNoticeDownloading(it, true) }
+        }
+        val uri = resolver.insert(Telephony.Mms.CONTENT_URI, ContentValues().apply {
+            put("thread_id", thread)
+            put("date", System.currentTimeMillis() / 1000)
+            put("msg_box", Telephony.Mms.MESSAGE_BOX_INBOX)
+            put("read", 0)
+            put("seen", 0)
+            put("m_type", Pdu.NOTIFICATION_IND)
+            put("v", 0x12)
+            put("ct_l", location)
+            if (transactionId != null) put("tr_id", transactionId)
+            put("st", NOTICE_DOWNLOADING)
+            put("sub_id", subId)
+        }) ?: return null
+        val id = uri.lastPathSegment ?: return uri
+        resolver.insert(Uri.parse("content://mms/$id/addr"), ContentValues().apply { put("address", from); put("type", 137); put("charset", 106) })
+        return uri
+    }
+
+    /** Whether the picture [notice] stands for is being brought down now, or could not be. */
+    fun setMmsNoticeDownloading(notice: Uri, downloading: Boolean) {
+        resolver.update(notice, ContentValues().apply { put("st", if (downloading) NOTICE_DOWNLOADING else NOTICE_FAILED) }, null, null)
+    }
+
+    /** Where the picture message announced as [id] waits at the carrier, the fetch's name there, and the SIM. */
+    fun mmsNotice(id: Long): Triple<String, String?, Int>? {
+        resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("ct_l", "tr_id", "sub_id"), "_id = ? AND m_type = ${Pdu.NOTIFICATION_IND}", arrayOf(id.toString()), null)?.use { c ->
+            if (c.moveToFirst()) return Triple(c.getString(0) ?: return null, c.getString(1), c.getInt(2))
+        }
+        return null
+    }
+
+    fun deleteMms(uri: Uri) { resolver.delete(uri, null, null) }
+
     fun setMmsBox(uri: Uri, box: Int) {
         resolver.update(uri, ContentValues().apply { put("msg_box", box) }, null, null)
     }
@@ -759,6 +805,10 @@ class Store(private val context: Context) {
     }
 
     companion object {
+        /** A picture message's announcement: being brought down, or it could not be (Android's own two numbers). */
+        const val NOTICE_DOWNLOADING = 129
+        const val NOTICE_FAILED = 130
+
         fun sameNumber(a: String, b: String): Boolean {
             if (a.contains('@') || b.contains('@')) return a.equals(b, ignoreCase = true)
             val da = a.filter { it.isDigit() }

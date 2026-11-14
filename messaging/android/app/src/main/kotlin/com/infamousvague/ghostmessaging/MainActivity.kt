@@ -109,6 +109,8 @@ class MainActivity : FlutterActivity() {
                 "send" -> bg {
                     Sender.send(applicationContext, call.argument<List<String>>("addresses")!!, call.argument<String>("body") ?: "", call.argument<List<String>>("attachments") ?: emptyList())
                 }
+                // Try again, on a picture message that could not be brought down (Store.insertMmsNotice).
+                "retryDownload" -> bg { MmsPushReceiver.retry(applicationContext, call.argument<Number>("id")!!.toLong()); null }
                 "markRead" -> bg {
                     val t = call.argument<Number>("thread")!!.toLong()
                     store.markRead(t); Notifier.cancel(applicationContext, t); null

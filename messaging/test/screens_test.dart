@@ -66,6 +66,14 @@ Map<String, Object?> _e2e(String address) => switch (address) {
     };
 
 List<Map<String, Object?>> _messages(int thread) {
+  if (thread == 3) {
+    // Two picture messages the carrier announced: one that could not be brought down, one coming down now.
+    return [
+      {'id': 43, 'kind': 'mms', 'address': '+15551230005', 'body': '', 'date': _ago(minutes: 2), 'outgoing': false, 'state': 'downloading', 'read': true, 'parts': []},
+      {'id': 42, 'kind': 'mms', 'address': '+15551230005', 'body': '', 'date': _ago(hours: 4), 'outgoing': false, 'state': 'pending_download', 'read': true, 'parts': []},
+      {'id': 41, 'kind': 'sms', 'address': '+15551230005', 'body': 'Call me when you land', 'date': _ago(hours: 5), 'outgoing': false, 'state': 'received', 'read': true},
+    ];
+  }
   if (thread == 2) {
     return [
       // Two of the app's stickers (android Stickers.kt names them): one sent, one from someone else with the app.
@@ -279,6 +287,12 @@ void main() {
       await _shootAgain(tester, '2-thread-held-theirs', dark: dark);
       await tester.tapAt(const Offset(10, 10));
       await _settle(tester);
+      // A picture that could not be downloaded, shown where it would be with a way to ask for it again; and one
+      // being brought down.
+      await _shoot(tester, sheet, const ThreadScreen(thread: 3, people: [Person(address: '+15551230005', name: 'Dad')]), '2-thread-picture-failed', dark: dark);
+      expect(find.text('This picture couldn\'t be downloaded'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Downloading picture…'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.

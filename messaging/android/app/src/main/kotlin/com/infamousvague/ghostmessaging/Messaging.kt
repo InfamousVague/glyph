@@ -297,11 +297,20 @@ class MmsPushReceiver : BroadcastReceiver() {
             return
         }
         if (ind.type != Pdu.NOTIFICATION_IND || ind.contentLocation == null) return
-        download(context, ind.contentLocation, ind.transactionId, sub)
+        // The announcement is kept in the sender's conversation until the picture is here: if it cannot be brought
+        // down, that is where it is shown, with a way to try again.
+        val store = Store(context)
+        val from = ind.from?.takeIf { it.isNotBlank() && !it.contains("insert-address-token", ignoreCase = true) }
+        val notice = if (from == null) null else try {
+            store.insertMmsNotice(store.threadFor(listOf(from)), from, ind.contentLocation, ind.transactionId, sub)
+        } catch (e: Exception) { Log.e(TAG, "notice", e); null }
+        if (notice != null) Bus.changed(store.threadOfMms(notice))
+        download(context, ind.contentLocation, ind.transactionId, sub, notice)
     }
 
     companion object {
-        fun download(context: Context, location: String, transactionId: String?, sub: Int) {
+        /** Asks Android to fetch the picture message waiting at [location]. [notice]: its announcement's row, if kept. */
+        fun download(context: Context, location: String, transactionId: String?, sub: Int, notice: Uri? = null) {
             val file = File(MmsFileProvider.dir(context), "recv-${System.nanoTime()}.pdu")
             val uri = MmsFileProvider.uriFor(context, file)
             val done = PendingIntent.getBroadcast(context, file.name.hashCode(), Intent(context, MmsResultReceiver::class.java).apply {
@@ -310,13 +319,34 @@ class MmsPushReceiver : BroadcastReceiver() {
                 putExtra("location", location)
                 putExtra("tid", transactionId)
                 putExtra("sub", sub)
+                if (notice != null) putExtra("notice", notice.toString())
             }, MUTABLE)
             try {
                 smsManager(context, sub).downloadMultimediaMessage(context, location, uri, null, done)
             } catch (e: Exception) {
                 Log.e(TAG, "download", e)
-                Notifier.downloadFailed(context)
+                failed(context, notice)
             }
+        }
+
+        /** The picture could not be brought down: its announcement says so in its conversation, and a notification leads there. */
+        fun failed(context: Context, notice: Uri?) {
+            val store = Store(context)
+            val thread = notice?.let {
+                try { store.setMmsNoticeDownloading(it, false); store.threadOfMms(it) } catch (e: Exception) { Log.e(TAG, "notice", e); null }
+            }
+            Notifier.downloadFailed(context, thread)
+            if (thread != null) Bus.changed(thread)
+        }
+
+        /** Try again, from the conversation: the picture message announced as [id] is asked for once more. */
+        fun retry(context: Context, id: Long) {
+            val store = Store(context)
+            val (location, transactionId, sub) = store.mmsNotice(id) ?: throw IllegalStateException("That picture is no longer waiting")
+            val notice = Uri.withAppendedPath(Telephony.Mms.CONTENT_URI, id.toString())
+            store.setMmsNoticeDownloading(notice, true)
+            Bus.changed(store.threadOfMms(notice))
+            download(context, location, transactionId, if (sub >= 0) sub else defaultSub(), notice)
         }
     }
 }
@@ -355,14 +385,20 @@ class MmsResultReceiver : BroadcastReceiver() {
                 val sub = intent.getIntExtra("sub", defaultSub())
                 val bytes = file?.takeIf { it.exists() }?.readBytes()
                 file?.delete()
+                val notice = intent.getStringExtra("notice")?.let { Uri.parse(it) }
                 if (resultCode != Activity.RESULT_OK || bytes == null || bytes.isEmpty()) {
                     Log.w(TAG, "mms download result $resultCode")
-                    Notifier.downloadFailed(context)
+                    MmsPushReceiver.failed(context, notice)
                     return
                 }
                 val pending = goAsync()
                 Thread {
-                    try { keep(context, store, bytes, intent.getStringExtra("tid"), sub) } catch (e: Exception) { Log.e(TAG, "keep", e) }
+                    try {
+                        if (keep(context, store, bytes, intent.getStringExtra("tid"), sub)) {
+                            // The picture is here: its announcement has done its work.
+                            notice?.let { val thread = store.threadOfMms(it); store.deleteMms(it); Bus.changed(thread) }
+                        } else MmsPushReceiver.failed(context, notice)
+                    } catch (e: Exception) { Log.e(TAG, "keep", e); MmsPushReceiver.failed(context, notice) }
                     finally { pending.finish() }
                 }.start()
             }
@@ -370,9 +406,10 @@ class MmsResultReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun keep(context: Context, store: Store, bytes: ByteArray, notificationTid: String?, sub: Int) {
+    /** Keeps the picture message in [bytes]; false where they are no picture message, or it could not be kept. */
+    private fun keep(context: Context, store: Store, bytes: ByteArray, notificationTid: String?, sub: Int): Boolean {
         val m = Pdu.parse(bytes)
-        if (m.type != Pdu.RETRIEVE_CONF) return
+        if (m.type != Pdu.RETRIEVE_CONF) return false
         val own = store.ownNumbers()
         val from = m.from ?: ""
         // The people of the conversation: the sender and everyone else it went to, never this phone. With no number
@@ -399,7 +436,7 @@ class MmsResultReceiver : BroadcastReceiver() {
             Bus.changed(thread)
         }
         // Tell the MMSC it came down, or it may send the notification again.
-        val tid = notificationTid ?: m.transactionId ?: return
+        val tid = notificationTid ?: m.transactionId ?: return row != null
         try {
             val ack = File(MmsFileProvider.dir(context), "ack-${System.nanoTime()}.pdu")
             ack.writeBytes(Pdu.notifyRespInd(tid))
@@ -408,5 +445,6 @@ class MmsResultReceiver : BroadcastReceiver() {
             }, MUTABLE)
             smsManager(context, sub).sendMultimediaMessage(context, MmsFileProvider.uriFor(context, ack), null, null, pi)
         } catch (e: Exception) { Log.w(TAG, "ack", e) }
+        return row != null
     }
 }
