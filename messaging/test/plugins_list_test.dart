@@ -145,7 +145,15 @@ void main() {
     // One segmented toggle holds the tabs, and Mark all read stands beside it with the main list's two unread.
     expect(find.descendant(of: find.byType(SectionTabs), matching: find.byType(GlacierSegmentedControl)), findsOneWidget);
     expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
-    expect(find.text('Mark all read'), findsOneWidget);
+    // The button is its picture alone, in a circle as tall as the toggle beside it (Matt, 2026-11-14: "change mark
+    // all as read to just be the icon in a circle button"), and the toggle is the kit's middle size ("the
+    // segmented toggle for messages vs codes can be a size larger").
+    expect(find.text('Mark all read'), findsNothing);
+    final button = tester.getSize(find.byType(MarkAllRead)), toggle = tester.getRect(find.byType(GlacierSegmentedControl));
+    expect(button.width, button.height);
+    expect(button.height, closeTo(toggle.height, 0.5));
+    expect(tester.getRect(find.byType(MarkAllRead)).center.dy, closeTo(toggle.center.dy, 0.5));
+    expect(tester.widget<GlacierSegmentedControl>(find.byType(GlacierSegmentedControl)).size, GlacierSegmentedSize.md);
 
     // The button marks the tab shown: Maya's and Dad's, and not the ticket, which is in its own tab.
     phone.asked.clear();

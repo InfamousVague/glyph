@@ -7,6 +7,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -523,15 +524,21 @@ class SettingsList extends StatelessWidget {
         for (final group in groups.values) ...[
           _Group(rows: [
             for (final section in group)
-              _SectionRow(
-                label: section.label,
-                icon: section.icon,
-                hue: section.hue,
-                summary: section.summary?.call(model),
-                index: index++,
-                selected: beside && section.id == chosen,
-                chevron: !beside,
-                onPress: () => onOpen != null ? onOpen!(section) : push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model)),
+              _Reveal(
+                // The row of the section open beside the list is brought into view when it was not: a section
+                // jumped to from somewhere else (a search, the Settings ring's menu) is marked where it can be seen.
+                shown: beside && section.id == chosen,
+                foot: beside ? NavPill.clearance(t) : 0,
+                child: _SectionRow(
+                  label: section.label,
+                  icon: section.icon,
+                  hue: section.hue,
+                  summary: section.summary?.call(model),
+                  index: index++,
+                  selected: beside && section.id == chosen,
+                  chevron: !beside,
+                  onPress: () => onOpen != null ? onOpen!(section) : push<void>(context, (context) => section.screen != null ? section.screen!(context, model) : SectionPage(section: section, model: model)),
+                ),
               ),
           ]),
           SizedBox(height: t.space(5)),
@@ -539,6 +546,49 @@ class SettingsList extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Scrolls its child into view when [shown] becomes true and the child is not wholly seen ([foot]: how much of
+/// the list's end something stands over, which is not seen either).
+class _Reveal extends StatefulWidget {
+  const _Reveal({required this.shown, required this.child, this.foot = 0});
+  final bool shown;
+  final double foot;
+  final Widget child;
+
+  @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.shown) _reveal();
+  }
+
+  @override
+  void didUpdateWidget(_Reveal old) {
+    super.didUpdateWidget(old);
+    if (widget.shown && !old.shown) _reveal();
+  }
+
+  void _reveal() => WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final box = context.findRenderObject();
+        final position = Scrollable.maybeOf(context)?.position;
+        if (box is! RenderBox || !box.attached || position == null) return;
+        final viewport = RenderAbstractViewport.maybeOf(box);
+        if (viewport == null) return;
+        // Where the list would stand with the row's top at its top, and with the row's foot at its foot.
+        final top = viewport.getOffsetToReveal(box, 0).offset, foot = viewport.getOffsetToReveal(box, 1).offset + widget.foot;
+        // Seen whole already (a press on it): nothing moves.
+        if (position.pixels <= top && position.pixels >= foot) return;
+        Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+      });
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// `.settingsScreen__group`: rows sharing one card, a hairline between them.

@@ -8,9 +8,12 @@ import '../art/app_icon.dart';
 
 /// One place the navigation pill goes to: one ring.
 class NavItem {
-  const NavItem({required this.id, required this.icon, required this.label, this.count = 0});
+  const NavItem({required this.id, required this.icon, required this.label, this.count = 0, this.menu = false});
   final String id;
   final LucideIcon icon;
+
+  /// It has a menu of its own ([NavPill.onMenu]): a press with the other button on it, or a long press.
+  final bool menu;
 
   /// What the ring is read aloud by, and shown by while the pointer rests on it.
   final String label;
@@ -32,12 +35,16 @@ class NavItem {
 /// ring's corner, in red (the dock wears its own in ink; here Matt asked for red); and a ring's words over it while the pointer rests there, where the dock's
 /// come up beside it.
 class NavPill extends StatelessWidget {
-  const NavPill({super.key, required this.items, required this.active, required this.onSelect});
+  const NavPill({super.key, required this.items, required this.active, required this.onSelect, this.onMenu});
   final List<NavItem> items;
 
   /// The id of the item shown now.
   final String active;
   final ValueChanged<String> onSelect;
+
+  /// Asked for the menu of an item that has one ([NavItem.menu]; Matt, 2026-11-14: "add a right click context menu
+  /// to archive as well and settings to quick jump to settings sections"), as the list's tabs are asked for theirs.
+  final ValueChanged<String>? onMenu;
 
   /// How far in from the sidebar's foot the pill stands.
   static double inset(Tokens t) => t.space(4);
@@ -72,7 +79,14 @@ class NavPill extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    for (final item in items) _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
+                    for (final item in items)
+                      _Ring(
+                        key: ValueKey('nav-${item.id}'),
+                        item: item,
+                        shown: item.id == active,
+                        onPressed: () => onSelect(item.id),
+                        onMenu: item.menu && onMenu != null ? () => onMenu!(item.id) : null,
+                      ),
                   ],
                 ),
               ),
@@ -86,10 +100,13 @@ class NavPill extends StatelessWidget {
 
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown.
 class _Ring extends StatelessWidget {
-  const _Ring({super.key, required this.item, required this.shown, required this.onPressed});
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed, this.onMenu});
   final NavItem item;
   final bool shown;
   final VoidCallback onPressed;
+
+  /// Asked for its menu: a press with the other button, or a long press where there is no other button.
+  final VoidCallback? onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +115,13 @@ class _Ring extends StatelessWidget {
     final size = shown ? 18.0 : t.lenOf('1.15rem');
     final stroke = shown ? 2.2 : 2.0;
     final ink = shown ? t.color('app-paper') : t.color('glacier-text');
-    return _Tip(
+    return HoverTip(
       message: item.label,
-      child: GlacierPressable(
+      child: GestureDetector(
+       behavior: HitTestBehavior.translucent,
+       onSecondaryTapUp: onMenu == null ? null : (_) => onMenu!(),
+       onLongPress: onMenu,
+       child: GlacierPressable(
         onPressed: onPressed,
         semanticLabel: item.label,
         builder: (context, state) {
@@ -163,6 +184,7 @@ class _Ring extends StatelessWidget {
             ],
           );
         },
+       ),
       ),
     );
   }
@@ -170,16 +192,21 @@ class _Ring extends StatelessWidget {
 
 /// A ring's words while the pointer rests on it (the dock's `DockTip`): over the ring here, since the pill lies
 /// along the sidebar's foot and beside a ring is another ring.
-class _Tip extends StatefulWidget {
-  const _Tip({required this.message, required this.child});
+///
+/// Any button that is a picture alone can wear one ([below]: under it, for one near the top of its column; [end]:
+/// its right edge on the button's, for one at its column's right).
+class HoverTip extends StatefulWidget {
+  const HoverTip({super.key, required this.message, required this.child, this.below = false, this.end = false});
   final String message;
   final Widget child;
+  final bool below;
+  final bool end;
 
   @override
-  State<_Tip> createState() => _TipState();
+  State<HoverTip> createState() => _HoverTipState();
 }
 
-class _TipState extends State<_Tip> {
+class _HoverTipState extends State<HoverTip> {
   final OverlayPortalController _portal = OverlayPortalController(debugLabel: 'navigation tip');
   final LayerLink _link = LayerLink();
   Timer? _waiting;
@@ -218,9 +245,9 @@ class _TipState extends State<_Tip> {
             child: CompositedTransformFollower(
               link: _link,
               showWhenUnlinked: false,
-              targetAnchor: Alignment.topCenter,
-              followerAnchor: Alignment.bottomCenter,
-              offset: Offset(0, -t.space(3)),
+              targetAnchor: widget.below ? (widget.end ? Alignment.bottomRight : Alignment.bottomCenter) : (widget.end ? Alignment.topRight : Alignment.topCenter),
+              followerAnchor: widget.below ? (widget.end ? Alignment.topRight : Alignment.topCenter) : (widget.end ? Alignment.bottomRight : Alignment.bottomCenter),
+              offset: Offset(0, widget.below ? t.space(2) : -t.space(3)),
               child: IgnorePointer(
                 child: ExcludeSemantics(
                   child: Container(

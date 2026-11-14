@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -306,6 +307,24 @@ void main() {
         await section('Kept on this Mac');
       });
       expect(find.text('Clear what is kept'), findsOneWidget);
+      // The Settings ring's own menu, with the other button: every section by name, to open Settings there (Matt,
+      // 2026-11-14: "settings to quick jump to settings sections").
+      await shoot('5-settings-ring-menu', paired('local'), dark: dark, then: () async {
+        await tester.tap(find.byKey(const ValueKey('nav-settings')), buttons: kSecondaryButton);
+      });
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.text('Kept on this Mac'), findsOneWidget);
+      // A long list of sections scrolls inside the menu.
+      await tester.ensureVisible(find.text('Kept on this Mac'));
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(find.text('Kept on this Mac'));
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text('Clear what is kept'), findsOneWidget);
+      // Its row in Settings' list, far down it, has been brought into view.
+      expect(find.descendant(of: find.byType(SettingsList), matching: find.text('Kept on this Mac')).hitTestable(), findsOneWidget);
       // In the smallest window the Mac allows, the two are still side by side.
       tester.view.physicalSize = const Size(760 * 2.0, 520 * 2.0);
       await shoot('5-settings-small', paired('local'), dark: dark, then: () async {

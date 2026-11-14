@@ -15,6 +15,7 @@ import '../kit/settings_type.dart';
 import '../reactions.dart';
 import '../sms.dart';
 import '../ui/common.dart';
+import '../ui/nav_bar.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
@@ -23,7 +24,8 @@ import 'registry.dart';
 /// were chips in a row that scrolled sideways.
 ///
 /// A press with the other button on a tab, or a long press, asks for that tab's menu ([onMenu]; Matt, the same
-/// message: "add a right click menu for the codes and messages tabs").
+/// message: "add a right click menu for the codes and messages tabs"). It is the kit's middle size (Matt, later
+/// that day: "the segmented toggle for messages vs codes can be a size larger").
 class SectionTabs extends StatelessWidget {
   const SectionTabs({super.key, required this.sections, required this.counts, required this.unread, required this.chosen, required this.onPick, this.onMenu});
 
@@ -50,7 +52,7 @@ class SectionTabs extends StatelessWidget {
 
     // In the toggle's own type and colour, which are the chosen tab's or a quiet one's by turns.
     Widget label(String words, {LucideIcon? icon, int? count, bool dot = false}) => Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (icon != null) ...[AppIcon(icon, size: 14, strokeWidth: 2.2, wash: false), SizedBox(width: t.space(1))],
+          if (icon != null) ...[AppIcon(icon, size: 15, strokeWidth: 2.2, wash: false), SizedBox(width: t.space(1))],
           Flexible(child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false)),
           if (count != null) ...[SizedBox(width: t.space(1)), Opacity(opacity: 0.6, child: Text('$count'))],
           if (dot) ...[SizedBox(width: t.space(1)), Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5')))],
@@ -69,7 +71,7 @@ class SectionTabs extends StatelessWidget {
         onLongPressStart: onMenu == null ? null : (d) => menu(d.localPosition.dx),
         child: GlacierSegmentedControl(
           fullWidth: true,
-          size: GlacierSegmentedSize.sm,
+          size: GlacierSegmentedSize.md,
           ariaLabel: 'Which conversations',
           value: chosen ?? _main,
           onValueChange: (v) => onPick(v == _main ? null : v),
@@ -84,44 +86,44 @@ class SectionTabs extends StatelessWidget {
 }
 
 /// The button beside the list's tabs that marks every conversation of the tab shown as read (Matt, 2026-11-14:
-/// "a button to mark all read"). Quiet while nothing there is unread. Where the tabs leave little room it is its
-/// picture alone.
+/// "a button to mark all read"): its picture alone in a circle as tall as the tabs' toggle (Matt, later that day:
+/// "change mark all as read to just be the icon in a circle button"), with its words in a tip while a pointer
+/// rests on it. Quiet while nothing there is unread.
 class MarkAllRead extends StatelessWidget {
-  const MarkAllRead({super.key, required this.unread, required this.onPress, this.words = true});
+  const MarkAllRead({super.key, required this.unread, required this.onPress});
 
   /// How many conversations of the tab shown are unread.
   final int unread;
   final VoidCallback onPress;
 
-  /// Whether there is room for "Mark all read" beside its picture.
-  final bool words;
+  /// How wide and tall it is: the tabs' toggle's height, so the two stand level.
+  static double size(Tokens t) => t.len('glacier-control-height-md');
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final any = unread > 0;
     final ink = t.color(any ? 'app-ink' : 'app-ink-4');
-    return GlacierPressable(
-      onPressed: any ? onPress : null,
-      semanticLabel: any ? 'Mark all read, $unread unread' : 'Mark all read, nothing unread',
-      builder: (context, state) => GlacierFocusRing(
-        visible: state.focused,
-        radius: t.radius('full'),
-        child: Container(
-          height: double.infinity,
-          padding: EdgeInsets.symmetric(horizontal: t.space(words ? 3 : 2)),
-          constraints: BoxConstraints(minWidth: t.lenOf('2rem')),
-          decoration: BoxDecoration(
-            color: t.color(state.pressed && any ? 'app-paper-3' : 'app-paper-2'),
-            borderRadius: BorderRadius.circular(t.radius('full')),
-            border: Border.all(color: t.color('app-rule')),
-          ),
-          alignment: Alignment.center,
-          child: ExcludeSemantics(
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              AppIcon(Lucide.checkCheck, size: 15, strokeWidth: 2.2, wash: false, color: ink),
-              if (words) ...[SizedBox(width: t.space(1)), Text('Mark all read', maxLines: 1, softWrap: false, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink))],
-            ]),
+    return HoverTip(
+      message: any ? 'Mark all read' : 'Nothing unread',
+      below: true,
+      end: true,
+      child: GlacierPressable(
+        onPressed: any ? onPress : null,
+        semanticLabel: any ? 'Mark all read, $unread unread' : 'Mark all read, nothing unread',
+        builder: (context, state) => GlacierFocusRing(
+          visible: state.focused,
+          radius: t.radius('full'),
+          child: Container(
+            width: size(t),
+            height: size(t),
+            decoration: BoxDecoration(
+              color: t.color(state.pressed && any ? 'app-paper-3' : 'app-paper-2'),
+              shape: BoxShape.circle,
+              border: Border.all(color: t.color('app-rule')),
+            ),
+            alignment: Alignment.center,
+            child: ExcludeSemantics(child: AppIcon(Lucide.checkCheck, size: 17, strokeWidth: 2.2, wash: false, color: ink)),
           ),
         ),
       ),

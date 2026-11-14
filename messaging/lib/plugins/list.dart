@@ -147,9 +147,6 @@ class ListPlugins {
     return SectionTabs(sections: s.sections, counts: s.counts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
   }
 
-  /// How many tabs there are, the main list among them: what is left of the row for a button beside them.
-  int get tabCount => _sorted.sections.isEmpty ? 0 : _sorted.sections.length + 1;
-
   /// What a tab is called: "Messages" for the main list, else its section's own name.
   String tabName(String? section) {
     if (section == null) return 'Messages';

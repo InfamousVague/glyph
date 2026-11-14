@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../me/me.dart';
+import '../app_state.dart';
+import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
@@ -239,7 +241,7 @@ class AppShellState extends State<AppShell> {
 
   /// One of the pill's rings is pressed. A new chat and the contacts open in the pane; Settings takes the list's
   /// place with its page in the pane; Messages and Archive are the list itself, and put away whatever was open.
-  void go(String id) {
+  void go(String id, {bool selectAll = false}) {
     switch (id) {
       case 'new':
         compose();
@@ -251,14 +253,14 @@ class AppShellState extends State<AppShell> {
         if (_showing != null) close();
         final side = _side.currentState;
         if (side == null) return;
-        // The Archived list as it stands, unless Settings is over it.
-        if (id == 'archive' && _archivedOpen && !settingsOpen) return;
+        // The Archived list as it stands, unless Settings is over it or it is asked for with everything chosen.
+        if (id == 'archive' && _archivedOpen && !settingsOpen && !selectAll) return;
         side.popUntil((r) => r.isFirst);
         if (id != 'archive') return;
         final route = PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 160),
           reverseTransitionDuration: const Duration(milliseconds: 120),
-          pageBuilder: (context, _, _) => const ConversationsScreen(archived: true),
+          pageBuilder: (context, _, _) => ConversationsScreen(archived: true, selectAll: selectAll),
           transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
         );
         setState(() => _archive = route);
@@ -267,6 +269,61 @@ class AppShellState extends State<AppShell> {
           if (mounted && _archive == route) setState(() => _archive = null);
         });
     }
+  }
+
+  /// A ring's own menu (Matt, 2026-11-14: "add a right click context menu to archive as well and settings to quick
+  /// jump to settings sections"): a press with the other button on it, or a long press where there is no other
+  /// button, as the list's tabs have theirs. Archive's is the tabs' own two choices, for the conversations put
+  /// away; Settings' is its sections by name, each opening Settings there.
+  void ringMenu(String id) {
+    switch (id) {
+      case 'archive':
+        final n = archived.value;
+        showChoices(context, title: n == 0 ? 'Archive · nothing archived' : 'Archive · $n ${n == 1 ? 'conversation' : 'conversations'}', choices: [
+          Choice('Mark all as read', Lucide.checkCheck, _archiveRead),
+          // Every archived conversation chosen at once, for the bar at the top to take back out or delete.
+          if (n > 0) Choice('Select all', Lucide.listChecks, () => go('archive', selectAll: true)),
+        ]);
+      case 'settings':
+        // The sections as they stand for this device and these choices (a plugin's own, while it is on).
+        final model = SettingsModel(AppState.of(context));
+        final sections = [for (final s in settingsSections) if (s.when?.call(model) ?? true) s];
+        model.dispose();
+        showChoices(context, title: 'Settings', choices: [
+          for (final s in sections) Choice(s.label, s.icon is AppIcon ? (s.icon as AppIcon).icon : Lucide.settings, () => settings(s.id)),
+        ]);
+    }
+  }
+
+  /// Marks every archived conversation that is unread as read, from the Archive ring's menu: where they are, with
+  /// the archive left closed.
+  Future<void> _archiveRead() async {
+    final List<Conversation> unread;
+    try {
+      unread = (await Sms.instance.conversationsPage(archived: true)).items.where((c) => c.unread).toList();
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t read the archive: $e', tone: GlacierToastTone.danger);
+      return;
+    }
+    if (!mounted) return;
+    if (unread.isEmpty) return toast(context, 'Nothing is unread in the archive');
+    var failed = 0;
+    for (final c in unread) {
+      try {
+        await Sms.instance.markRead(c.id);
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (!mounted) return;
+    // The lists read their conversations again.
+    closed.value++;
+    final n = unread.length - failed;
+    toast(
+      context,
+      failed == 0 ? '$n ${n == 1 ? 'conversation' : 'conversations'} marked as read' : '$n marked as read; $failed could not be',
+      tone: failed == 0 ? GlacierToastTone.neutral : GlacierToastTone.danger,
+    );
   }
 
   /// Closes what is open in the pane.
@@ -356,13 +413,14 @@ class AppShellState extends State<AppShell> {
                              builder: (context, _) => NavPill(
                               active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
                               onSelect: go,
+                              onMenu: ringMenu,
                               items: [
                                 const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
                                 const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
                                 const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
-                                NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count),
+                                NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: true),
                                 // Someone watched for has joined (Settings › Friends joining).
-                                NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen),
+                                NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: true),
                               ],
                              ),
                             ),
