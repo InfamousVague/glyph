@@ -5,7 +5,7 @@
  * tool/release.mjs, for this app (Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the
  * domain to the same server ghost kbd uses").
  *
- *   node tool/release.mjs [--glyph ~/path/to/glyph] [--version 0.4.0] [--no-deploy] [--keep-connection]
+ *   node tool/release.mjs [--glyph ~/path/to/glyph] [--version 0.4.0] [--no-deploy] [--keep-connection] [--again]
  *
  * Put in /opt/ghost-sms-release, which ghost-sms.com's Caddy block (tool/deploy-site.mjs --caddy) serves at:
  *
@@ -161,6 +161,11 @@ const live = await liveRelease();
 const pub = pubspecVersion();
 const versionName = flag('version') ?? pub.name;
 const versionCode = Math.max((live?.versionCode ?? 0) + 1, pub.build);
+// A version that is live already is not published a second time (tool/release-mac.mjs says why): the same name
+// live means someone has released it since this was started. --again says it is meant.
+if (deploy && live && live.version === versionName && !args.includes('--again')) {
+  fail(`${versionName} is live already (code ${live.versionCode}, published ${live.build ?? 'earlier'}): someone has released it. Nothing was built or sent. If it really is to go out again under the same name, pass --again.`);
+}
 say(`> Building Ghost Messaging ${versionName} (code ${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 run('flutter', ['build', 'apk', '--release', '--target-platform', 'android-arm64', `--build-name=${versionName}`, `--build-number=${versionCode}`], { cwd: ROOT });
@@ -212,6 +217,12 @@ const { BOX_ENV_KEYS, boxSshOptions, openBox } = await import(pathToFileURL(join
 const { loadEnv } = await import(pathToFileURL(join(glyph, 'scripts/lib/env.mjs')).href);
 const env = loadEnv(BOX_ENV_KEYS);
 const box = openBox(env, boxSshOptions({ connectTimeout: 20 }));
+// Asked once more, just before the login: the build took minutes, and it may have been released by someone else
+// since this started.
+{
+  const now = await liveRelease();
+  if (now && now.version === versionName && !args.includes('--again')) fail(`${versionName} was released while this was being made (code ${now.versionCode}, published ${now.build ?? 'just now'}). Nothing was sent.`);
+}
 say('> Logging in to the box');
 box.logIn();
 const STAGE = '/tmp/ghost-messaging-stage';

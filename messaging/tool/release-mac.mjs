@@ -7,7 +7,7 @@
  *   node tool/release-mac.mjs                        # build, sign, zip, describe: into build/release-mac
  *   node tool/release-mac.mjs --install              # ...and put the app in /Applications (once: it updates itself after)
  *   node tool/release-mac.mjs --notarize             # ...and have Apple notarise it and staple the ticket
- *   node tool/release-mac.mjs --publish [--glyph ~/path/to/glyph] [--keep-connection]
+ *   node tool/release-mac.mjs --publish [--glyph ~/path/to/glyph] [--keep-connection] [--again]
  *                                                    # ...and put the zip and its description on the box
  *   --version 0.6.2   the version's name (pubspec.yaml's otherwise)
  *   --build 455123    its number (see below)
@@ -111,6 +111,13 @@ const minutes = Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 60000);
 const versionCode = flag('build') ? Number(flag('build')) : Math.max(minutes, (live?.versionCode ?? 0) + 1);
 if (!Number.isInteger(versionCode) || versionCode <= 0) fail(`--build ${flag('build')} is not a number.`);
 if (live && versionCode <= live.versionCode) fail(`Build ${versionCode} is not above the live release's ${live.versionCode}: no installed copy would take it.`);
+// A version that is live already is not published a second time. Two sessions were once told to release 0.7.10
+// within minutes of each other (2026-11-14): one published it while the other was waiting for the box's login
+// window, and the second was stopped by hand only because the line below this one said what was live. The branch's
+// version goes up as each release is recorded, so the same name live means someone has released it since.
+if (has('publish') && live && live.version === versionName && !has('again')) {
+  fail(`${versionName} is live already (${live.versionCode}, published ${live.build ?? 'earlier'}): someone has released it. Nothing was built or sent. If it really is to go out again under the same name, pass --again.`);
+}
 say(`> Building Ghost Messaging for the Mac ${versionName} (${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 if (!read('security', ['find-identity', '-v', '-p', 'codesigning']).includes(`"${IDENTITY}"`)) {
@@ -270,6 +277,12 @@ const { loadEnv } = await import(pathToFileURL(join(glyph, 'scripts/lib/env.mjs'
 const env = loadEnv(BOX_ENV_KEYS);
 const box = openBox(env, boxSshOptions({ connectTimeout: 20 }));
 const keepConnection = has('keep-connection');
+// Asked once more, just before the login: building and Apple's reading took minutes, and it may have been
+// released by someone else since this started.
+{
+  const now = await liveRelease();
+  if (now && now.version === versionName && !has('again')) fail(`${versionName} was released while this was being made (${now.versionCode}, published ${now.build ?? 'just now'}). Nothing was sent.`);
+}
 say('> Logging in to the box');
 box.logIn();
 const STAGE = '/tmp/ghost-messaging-mac-stage';
