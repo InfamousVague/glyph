@@ -289,9 +289,19 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /** While the app is in front it looks for an update: as it comes forward, then every ten minutes it stays. */
+    private val focusChecks = object : Runnable {
+        override fun run() {
+            try { Updater.focusCheck(applicationContext) } catch (_: Exception) {}
+            main.postDelayed(this, 10 * 60 * 1000L)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         inFront = true
+        main.removeCallbacks(focusChecks)
+        focusChecks.run()
         // Picture messages announced and never fetched are asked for again as the app comes forward.
         io.execute {
             try { MmsPushReceiver.retryWaiting(applicationContext) } catch (_: Exception) {}
@@ -311,6 +321,7 @@ class MainActivity : FlutterActivity() {
     override fun onPause() {
         super.onPause()
         inFront = false
+        main.removeCallbacks(focusChecks)
         // The microphone is open only while the person is recording with the app in front: leaving throws the
         // recording away, and the screen is told so.
         if (Voice.recording) {

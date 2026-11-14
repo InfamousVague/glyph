@@ -186,6 +186,11 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
   same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
   sheet's tabs slide, and the pack it opens on is brought into view.
+- **Updates while the app is in front** (0.7.2; Matt, 2026-11-14: "it should auto check for updates when the app is
+  in focus"). The app looks at ghost-sms.com each time it comes forward and every ten minutes while it stays there
+  (`Updater.focusCheck`, from `MainActivity.onResume`; no oftener than once a minute), where it looked as it opened
+  at most twice a day and as a page opened. What it finds is on the banner over every page; with automatic updates
+  on it downloads, and installs by itself where Android allows that without asking.
 - **Mischief moves** (0.7.1; Matt, 2026-11-14: "Update the sticker pack to use the animated sprites from the
   desktop"). `~/Desktop/AnimatedStickers` held each of the pack's sixteen stickers drawn six times;
   `python3 tool/sticker_packs.py mischief=~/Desktop/AnimatedStickers` cuts each into its drawings, lays them in one

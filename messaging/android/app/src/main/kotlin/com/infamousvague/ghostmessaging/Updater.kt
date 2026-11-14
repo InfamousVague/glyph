@@ -48,6 +48,7 @@ object Updater {
     private const val FOUND = "found"
     private const val BACKGROUND_EVERY_MS = 12 * 60 * 60 * 1000L
     private const val PAGE_EVERY_MS = 5 * 60 * 1000L
+    private const val FOCUS_FLOOR_MS = 60 * 1000L
 
     data class Release(val version: String, val code: Long, val sha256: String, val bytes: Long, val url: String)
 
@@ -158,6 +159,21 @@ object Updater {
         if (isDebuggable(app)) return
         val last = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(CHECKED_AT, 0L)
         if (System.currentTimeMillis() - last < PAGE_EVERY_MS) return
+        check(app, install = auto(app), silentOnly = true)
+    }
+
+    /**
+     * The look whenever the app is in front (Matt, 2026-11-14: "it should auto check for updates when the app is in
+     * focus"): each time it comes forward, and every ten minutes while it stays there (MainActivity.focusChecks).
+     * No oftener than once a minute, so flicking between apps is not a question to the site each time. What it
+     * finds is on the banner over every page; it installs by itself only where automatic updates are on and
+     * Android lets the app update with no prompt, as every other look does.
+     */
+    fun focusCheck(context: Context) {
+        val app = context.applicationContext
+        if (isDebuggable(app)) return
+        val last = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(CHECKED_AT, 0L)
+        if (System.currentTimeMillis() - last < FOCUS_FLOOR_MS) return
         check(app, install = auto(app), silentOnly = true)
     }
 
