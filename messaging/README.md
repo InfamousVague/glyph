@@ -424,7 +424,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
   (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
   to the effects not a row of effect icons").
-- **The list's tabs** (not released; Matt, 2026-11-14: "add a right click menu for the codes and messages tabs as
+- **The list's tabs** (0.7.10; Matt, 2026-11-14: "add a right click menu for the codes and messages tabs as
   well as a button to mark all read and change the messages and codes to a segmented toggle"). Messages and each
   section a plugin makes (Codes, Spam) are one segmented toggle under the search field (`SectionTabs` in
   `lib/plugins/ui.dart`), where they were chips in a row. Beside it, Mark all read marks every unread conversation
@@ -501,7 +501,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
-- **How large a video came** (not released; `lib/ui/video.dart`; Matt, 2026-11-14: "the videos sent from iphone are
+- **How large a video came** (0.7.10; `lib/ui/video.dart`; Matt, 2026-11-14: "the videos sent from iphone are
   extremely low quality", and, asked whether the app should say so, "Yes, add it"). Under a video in a conversation
   is its own size and its file's ("320 × 240 · 913 KB"), and, where it came from someone else under 480 pixels the
   short way, "Shrunk by the sender's phone to send as a picture message." The app does nothing to a video: it is
@@ -616,7 +616,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone shows a quiet permanent notification, which is what lets Android keep it reachable. What is typed on the Mac
   while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps what it has read (the
   list and each conversation's messages) sealed on its disk with a key made from the pairing's, answers the
-  screens from that at once, and fetches only what is new from the phone behind them (not released; docs/desktop.md,
+  screens from that at once, and fetches only what is new from the phone behind them (0.7.10; docs/desktop.md,
   "What the Mac keeps"; Matt, 2026-11-14: "cache messages on the desktop app so that we don't need to fetch them
   all from the phone every time, just fetching updates in the background"). A
   computer can read, send text, mark read, pin, mute and archive; it cannot delete, block, change encryption or
