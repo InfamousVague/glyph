@@ -17,7 +17,6 @@ import '../reactions.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'compose.dart';
-import 'nav_bar.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
@@ -637,7 +636,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             );
           }
           // Clear of the bar at the foot of the phone's screen, and of the frame's pill floating over the list's end.
-          return SizedBox(height: MediaQuery.paddingOf(context).bottom + (framed ? NavPill.clearance(t) : t.space(4)));
+          return SizedBox(height: MediaQuery.paddingOf(context).bottom + (framed ? AppShell.pillRoom(context) : t.space(4)));
         },
       );
     }

@@ -654,24 +654,39 @@ void main() {
       for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
-      // Settings › Me and Friends joining: two accounts linked, X's sign-in not set up on the server, a watch list,
-      // and one of them here and new.
+      // Settings › Me and Friends joining: the number verified by a code texted to it, two accounts linked, X's
+      // sign-in not set up on the server, a watch list, and one of them here and new.
       Me.instance.seed(
         ready: true,
         listed: true,
-        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'},
-        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social'},
+        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof', 'phone': 'text'},
+        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social', 'phone': '+15550100199'},
         watch: const [Watched('discord', 'maya'), Watched('discord', 'jordan.p'), Watched('telegram', 'samrivera'), Watched('x', 'alexkim'), Watched('bluesky', 'priya.bsky.social'), Watched('bluesky', 'noor.bsky.social')],
         joined: [Joined('discord', 'maya', DateTime.now().subtract(const Duration(minutes: 12))), Joined('bluesky', 'priya.bsky.social', DateTime.now().subtract(const Duration(days: 2)), seen: true)],
       );
       await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me', dark: dark);
       expect(find.text('@matt'), findsOneWidget);
       expect(find.textContaining('isn\'t set up on the relay server yet'), findsOneWidget);
+      // The number, as a code texted to it showed it to be: said so under it, and not counted among what friends
+      // are told.
+      expect(find.text('+1 (555) 010-0199'), findsOneWidget);
+      expect(find.text('Verified'), findsOneWidget);
+      expect(find.textContaining('People watching for one of your accounts'), findsOneWidget);
       await _shoot(tester, sheet, const SettingsSectionScreen('friends-joining'), '5-settings-friends-joining', dark: dark);
       // New beside her handle, in the label's own line.
       expect(find.textContaining('@maya', findRichText: true), findsOneWidget);
       expect(find.text('New'), findsOneWidget);
       await _shoot(tester, sheet, ProofScreen(network: networkOf('bluesky')), '5-settings-me-proof', dark: dark);
+      // Verifying a number: the phone's own, filled in, before a code is asked for.
+      await _shoot(tester, sheet, const NumberScreen(own: '5550100142'), '5-settings-me-number', dark: dark);
+      expect(find.text('Text me a code'), findsOneWidget);
+      // Not verified, on a server that has no texting service: the Me page says so in two words, and the page it
+      // opens says why nothing can be sent.
+      Me.instance.seed(links: {'discord': 'matt'}, ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'});
+      await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me-unverified', dark: dark);
+      expect(find.text('Not verified'), findsOneWidget);
+      await _shoot(tester, sheet, const NumberScreen(own: '5550100142'), '5-settings-me-number-off', dark: dark);
+      expect(find.textContaining('Verifying a number by text isn\'t set up'), findsOneWidget);
       await _shoot(tester, sheet, const AddWatchScreen(), '5-settings-me-add', dark: dark);
       Me.instance.seed(ready: false, listed: false, links: {}, watch: [], joined: [], ways: {});
       // Settings › Network: the app's routes, with two people to reach, the relay server ready and SMS not allowed,
@@ -1105,9 +1120,24 @@ void main() {
       tester.view.physicalSize = open;
       await _shoot(tester, sheet, const AppShell(), '11-frame-wide', dark: dark);
       final side = AppShell.sideWidth(750);
-      // Wide: the list down the side with the Mac's pill at its foot (a new chat, the messages, the contacts, the
-      // archive with its number, Settings), and the pane saying to choose.
+      // Wide: the list down the side, the pane saying to choose, and the pill (a new chat, the messages, the
+      // contacts, the archive with its number, Settings) stood up at the foot of a strip down the screen's right,
+      // as Ghost.md's dock is (Matt, 2026-11-14: "on wider phones like my fold 8 make the navbar render vertically
+      // condensed on the right of the screen like we do in ghost markdown").
       expect(find.text('Choose a conversation'), findsOneWidget);
+      expect(find.text('Or start a new chat from the bar on the right.'), findsOneWidget);
+      final strip = NavPill.railWidth(tester.element(find.byType(NavPill)).tokens);
+      final pill = tester.getRect(find.byType(NavPill));
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue);
+      expect(pill.right, 750);
+      expect(pill.left, closeTo(750 - strip, 0.01));
+      expect(pill.bottom, 832 - 16, reason: 'clear of the bar at the foot of the screen');
+      // Head to foot, a step apart: no wider than a ring and its room, and nothing of the pane under it.
+      expect(tester.getCenter(ring('new')).dx, tester.getCenter(ring('settings')).dx);
+      expect(tester.getCenter(ring('new')).dy, lessThan(tester.getCenter(ring('messages')).dy));
+      expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, closeTo(750 - strip - 1, 0.01));
+      // The list keeps no room at its foot for a pill that is not there.
+      expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, side);
       for (final id in ['new', 'messages', 'contacts', 'archive', 'settings']) {
         expect(ring(id), findsOneWidget, reason: 'the pill has $id');
       }
@@ -1162,6 +1192,18 @@ void main() {
       expect(find.byType(ThreadScreen), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
       expect(find.text('Choose a conversation'), findsNothing);
+      // Folded, the pill is along the list's foot again, its rings across it.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(tester.getCenter(ring('new')).dy, tester.getCenter(ring('settings')).dy);
+      expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, 412);
+      // A small phone on its side is wide, and too short for five rings head to foot: the pill stays under the list.
+      tester.view.physicalSize = const Size(800 * 2.0, 320 * 2.0);
+      await _settle(tester);
+      expect(find.text('Choose a conversation'), findsOneWidget);
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
+      tester.view.physicalSize = cover;
+      await _settle(tester);
       // A new chat, from the pill, slides over the list; Android's back closes it.
       await tester.tap(ring('new'));
       await _settle(tester);
@@ -1295,18 +1337,19 @@ void main() {
       for (final group in ['YOU', 'LOOK', 'CONVERSATIONS', 'PRIVACY', 'THIS PHONE', 'APP']) {
         expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text(group)), findsOneWidget, reason: group);
       }
-      // Small, and by its ring: no wider than fifteen rems, inside the list's column, just over the pill.
+      // Small, and by its ring: no wider than fifteen rems. On a folding phone opened out the pill is stood up at
+      // the window's right, where over a ring is another ring: the list hangs beside its ring, towards the pane,
+      // and reaches up from the ring's foot. (Over the ring, on a computer: test/desk_screens_test.dart.)
       final first = tester.getRect(find.byType(GlacierMenuItem).first), settingsRing = tester.getRect(ring('settings'));
       expect(first.width, lessThan(250));
-      expect(first.right, lessThanOrEqualTo(side));
-      expect(first.right, closeTo(settingsRing.right, 12));
-      expect(tester.getRect(find.byType(GlacierMenuLabel).first).bottom, lessThan(settingsRing.top));
+      expect(first.right, lessThanOrEqualTo(settingsRing.left));
+      // Beside its ring, a step past the pill's own edge: near, not across the pane.
+      expect(first.right, greaterThan(settingsRing.left - 36));
+      expect(tester.getRect(find.byType(GlacierMenuLabel).first).top, lessThan(settingsRing.top));
       // It stands clear of the pill, a gap between the two: nothing of it lies on the bar or under it (Matt,
-      // 2026-11-14: "the context menu is rendering behind the navbar", of a menu whose foot lay on the pill's edge).
-      final pillTop = tester.getRect(find.byType(NavPill)).top;
-      final rows = find.byType(GlacierMenuItem).hitTestable();
-      expect(rows, findsWidgets);
-      expect(tester.getRect(rows.last).bottom, lessThanOrEqualTo(pillTop - 4), reason: 'the menu ends above the pill');
+      // 2026-11-14: "the context menu is rendering behind the navbar", of a menu whose edge lay on the pill's).
+      final pillLeft = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first).left;
+      expect(first.right, lessThanOrEqualTo(pillLeft - 4), reason: 'the menu ends short of the pill');
       await choose('Blocked numbers');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');

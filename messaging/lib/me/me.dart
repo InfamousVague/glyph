@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
+import '../plugins/codes.dart' show signInCode;
 
 /// A network an account can be linked on (Matt, 2026-11-14: "allow linking popular social like telegram, discord, x,
 /// etc"). Discord, Telegram and X are proved by signing in there; Bluesky, Mastodon and GitHub by a code put in the
@@ -76,6 +77,33 @@ bool handleFits(String network, String handle) {
       return _plain.hasMatch(handle);
   }
 }
+
+/// A phone number as it is compared and texted: "+", the country's code, the digits. Ten digits, or eleven that
+/// start with 1, are read as a North American number. Empty where what was typed holds anything a number does not
+/// (the server's `Handles.tidyNumber`; test/me_test.dart holds the two to the same answer).
+String tidyNumber(String typed) {
+  final t = typed.trim();
+  if (!RegExp(r'^\+?[0-9 ().\-]+$').hasMatch(t)) return '';
+  final digits = t.replaceAll(RegExp(r'[^0-9]'), '');
+  if (t.startsWith('+')) return '+$digits';
+  if (digits.length == 10) return '+1$digits';
+  if (digits.length == 11 && digits.startsWith('1')) return '+$digits';
+  return digits;
+}
+
+final _number = RegExp(r'^\+[1-9][0-9]{7,14}$');
+final _northAmerican = RegExp(r'^\+1[2-9][0-9]{9}$');
+
+/// Whether [number] (tidied) is a whole phone number.
+bool numberFits(String number) => _number.hasMatch(number) && (!number.startsWith('+1') || _northAmerican.hasMatch(number));
+
+/// A tidied number as it is read: "+1 (555) 010-0199" for a North American one, as it is for any other.
+String showNumber(String number) =>
+    _northAmerican.hasMatch(number) ? '+1 (${number.substring(2, 5)}) ${number.substring(5, 8)}-${number.substring(8)}' : number;
+
+/// The code in a text, where the text is the one asked for with [Me.textCode]: a sign-in code in a text that names
+/// the app. Another company's code that arrives meanwhile is not read as ours, so it never leaves the phone.
+String? ownCodeIn(String text) => text.toLowerCase().contains('ghost') ? signInCode(text) : null;
 
 /// What a handle is kept and watched by on the server: a hash, so its lists name nobody (the server's
 /// `Handles.keyOf`; relay/test/handles_test.dart holds the two to the same answer).
@@ -165,8 +193,21 @@ class Me extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _sub;
   VoidCallback? _stateListener;
 
-  /// network -> handle, for the accounts proved.
+  /// network -> handle, for the accounts proved; and "phone" -> this phone's number, once a code texted to it
+  /// came back ([textCode], [tryCode]).
   Map<String, String> links = {};
+
+  /// This phone's number, where it has been shown to be: nobody is told it, listed or not.
+  String? get number => links['phone'];
+
+  /// The accounts linked: every link but the number.
+  Map<String, String> get accounts => {
+        for (final e in links.entries)
+          if (e.key != 'phone') e.key: e.value,
+      };
+
+  /// Whether the server we are connected to can text a number its code.
+  bool get texts => ways['phone'] == 'text';
 
   /// Whether friends who watch for one of [links] are told. Off until switched on.
   bool listed = false;
@@ -280,6 +321,7 @@ class Me extends ChangeNotifier {
         _write();
       case 'link':
       case 'proof':
+      case 'text':
       case 'follows':
       case 'unlinked':
       case 'forgotten':
@@ -306,8 +348,8 @@ class Me extends ChangeNotifier {
       case 'err':
         final about = m['about'] as String?;
         final error = MeError((m['err'] as String?) ?? 'That did not work.');
-        // A check that fails answers whoever waits for "linked".
-        for (final key in ['$about:${network ?? ''}', if (about == 'check') 'linked:${network ?? ''}']) {
+        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked".
+        for (final key in ['$about:${network ?? ''}', if (about == 'check' || about == 'code') 'linked:${network ?? ''}']) {
           final c = _waiting.remove(key);
           if (c != null && !c.isCompleted) c.completeError(error);
         }
@@ -315,7 +357,14 @@ class Me extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Stands in for the server where a page is drawn with none (test/number_screen_test.dart): what is asked of
+  /// it, and its answer or its [MeError].
+  @visibleForTesting
+  Future<Map<String, dynamic>> Function(Map<String, Object?> what)? asking;
+
   Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25)}) {
+    final stand = asking;
+    if (stand != null) return stand(what);
     final hub = _hub;
     if (hub == null || !hub.sayHandles(what)) return Future.error(MeError('The relay server can\'t be reached right now.'));
     _app?.setFlag('me_used', true);
@@ -337,6 +386,14 @@ class Me extends ChangeNotifier {
 
   /// Has the server read the profile and look for the code: linked where it is there.
   Future<void> check(String network, String handle) => _ask({'dir': 'check', 'p': network, 'handle': tidyHandle(handle)}, 'linked', wait: const Duration(seconds: 40));
+
+  /// Has a code texted to [number], to show it reaches this phone. The number as the server read it.
+  Future<String> textCode(String number) async =>
+      (await _ask({'dir': 'text', 'p': 'phone', 'handle': tidyNumber(number)}, 'text', wait: const Duration(seconds: 30)))['handle'] as String;
+
+  /// Says the code that reached [number]: it is linked where that is the one sent.
+  Future<void> tryCode(String number, String code) =>
+      _ask({'dir': 'code', 'p': 'phone', 'handle': tidyNumber(number), 'code': code}, 'linked', wait: const Duration(seconds: 30));
 
   Future<void> unlink(String network) async {
     links.remove(network);

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'sha256.dart';
+import 'texts.dart';
 
 /// The handles people linked: where someone who has the app says "this Discord, Telegram, X, Bluesky, Mastodon or
 /// GitHub account is mine", and where someone else who asked to be told hears that they joined (Matt, 2026-11-14:
@@ -20,6 +21,10 @@ import 'sha256.dart';
 ///   who signed in); Telegram by its login widget (signed with our bot's token); Bluesky, Mastodon and GitHub by a
 ///   code this server makes up, put in the account's public profile and read back from the network's own public
 ///   API. Those three have no secrets to set up, and their follow lists are public, so they can be imported.
+/// - **A phone number** is a link too ("phone"), proved by a code texted to it by a service that makes and checks
+///   the code itself (texts.dart; Matt, 2026-11-14: "send the text code to a number to verify so it can't be
+///   spoofed"). It is the one link whose hash can be worked back, there being only so many numbers: this server
+///   is to be thought of as knowing a linked number. So a number is told to nobody, listed or not ([_quiet]).
 /// - **What is kept** (`handles.json`): for each install, per network, the SHA-256 of the handle and of the account's
 ///   number there, and the day. Never the handle itself, a name, a token, or anything else the network said. A watch
 ///   list is kept as the same hashes. So this file says "this install has some Discord account" and nothing about
@@ -32,10 +37,11 @@ import 'sha256.dart';
 /// What it can see beyond the hub: that an install has an account on a network, and how many handles another is
 /// watching for. What it cannot do: tell anyone a person's number, key or name. None of those are here.
 class Handles {
-  Handles({this.dataDir, this.config = const HandlesConfig(), Fetch? fetch, DateTime Function()? now, Random? random, this.verbose = false})
+  Handles({this.dataDir, this.config = const HandlesConfig(), Fetch? fetch, DateTime Function()? now, Random? random, TextCodes? texts, this.verbose = false})
       : _fetch = fetch ?? defaultFetch,
         _now = now ?? DateTime.now,
-        _random = random ?? Random.secure();
+        _random = random ?? Random.secure(),
+        _texts = texts ?? (config.texts ? TwilioVerify(fetch ?? defaultFetch, sid: config.twilioSid, token: config.twilioToken, service: config.twilioVerify) : null);
 
   /// Where `handles.json` is kept; null keeps nothing across restarts.
   final Directory? dataDir;
@@ -45,8 +51,15 @@ class Handles {
   final DateTime Function() _now;
   final Random _random;
 
-  static const networks = ['discord', 'telegram', 'x', 'bluesky', 'mastodon', 'github'];
+  /// Who texts a number its code; null where that is not set up, and a number cannot be linked.
+  final TextCodes? _texts;
+
+  static const networks = ['discord', 'telegram', 'x', 'bluesky', 'mastodon', 'github', 'phone'];
   static const _signIn = {'discord', 'telegram', 'x'};
+  static const _proof = {'bluesky', 'mastodon', 'github'};
+
+  /// Linked, and told to nobody: see the class's words on a phone number.
+  static const _quiet = {'phone'};
   static const maxWatch = 5000;
   static const maxPending = 300;
   static const maxFollows = 5000;
@@ -55,6 +68,15 @@ class Handles {
   /// How many proofs, checks and imports one install may ask for in an hour: each makes this server fetch from
   /// someone else's.
   static const fetchesAnHour = 40;
+
+  /// Texts cost money, and reach a phone whose owner may not have asked: how many codes one install may ask for,
+  /// and one number be sent whoever asks, in an hour and in a day. (All installs together: [HandlesConfig.textsADay].)
+  static const textsAnHour = 3;
+  static const textsADay = 6;
+
+  /// How many codes one install may try in an hour, and how long one is good for at the service.
+  static const triesAnHour = 10;
+  static const codeLife = Duration(minutes: 10);
 
   /// install -> network -> {k: the handle's hash, a: the account's hash, at: the day}
   final Map<String, Map<String, Map<String, String>>> _links = {};
@@ -72,6 +94,14 @@ class Handles {
   final Map<String, void Function(Map<String, Object?>)> _here = {};
   final Map<String, _Asked> _asked = {};
   final Map<String, List<DateTime>> _fetched = {};
+
+  // Codes by text, none of it kept: when each install asked, when each number (by its hash) was texted, when
+  // anyone was, which installs a number's code was sent for, and when each tried one.
+  final Map<String, List<DateTime>> _textedBy = {};
+  final Map<String, List<DateTime>> _textedTo = {};
+  final List<DateTime> _textedAll = [];
+  final Map<String, Map<String, DateTime>> _codeFor = {};
+  final Map<String, List<DateTime>> _tried = {};
   Timer? _saver;
 
   int get linked => _links.values.fold(0, (n, m) => n + m.length);
@@ -81,8 +111,9 @@ class Handles {
   /// The hash a handle is kept and watched by: the same in the app (lib/me/me.dart).
   static String keyOf(String network, String handle) => hexOf(sha256(utf8.encode('ghost-handle v1|$network|${tidy(network, handle)}')));
 
-  /// A handle as it is compared: no "@" in front, no spaces, lower case.
+  /// A handle as it is compared: no "@" in front, no spaces, lower case. A phone number: [tidyNumber].
   static String tidy(String network, String handle) {
+    if (network == 'phone') return tidyNumber(handle);
     var h = handle.trim().toLowerCase();
     while (h.startsWith('@')) {
       h = h.substring(1);
@@ -90,12 +121,29 @@ class Handles {
     return h;
   }
 
+  /// A phone number as it is compared and texted: "+", the country's code, the digits (E.164). Ten digits, or
+  /// eleven that start with 1, are read as a North American number, as people there write theirs. Empty where what
+  /// was typed holds anything a number does not.
+  static String tidyNumber(String typed) {
+    final t = typed.trim();
+    if (!RegExp(r'^\+?[0-9 ().\-]+$').hasMatch(t)) return '';
+    final digits = t.replaceAll(RegExp(r'[^0-9]'), '');
+    if (t.startsWith('+')) return '+$digits';
+    if (digits.length == 10) return '+1$digits';
+    if (digits.length == 11 && digits.startsWith('1')) return '+$digits';
+    return digits;
+  }
+
+  static final _number = RegExp(r'^\+[1-9][0-9]{7,14}$');
+  static final _northAmerican = RegExp(r'^\+1[2-9][0-9]{9}$');
   static final _plain = RegExp(r'^[a-z0-9._-]{1,64}$');
   static final _host = RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,24}$');
 
   /// Whether [handle] (tidied) could be one on [network]: what is fetched is built from it.
   static bool wellFormed(String network, String handle) {
     switch (network) {
+      case 'phone':
+        return _number.hasMatch(handle) && (!handle.startsWith('+1') || _northAmerican.hasMatch(handle));
       case 'mastodon':
         final at = handle.indexOf('@');
         return at > 0 && _plain.hasMatch(handle.substring(0, at)) && _host.hasMatch(handle.substring(at + 1)) && handle.length <= 120;
@@ -166,10 +214,18 @@ class Handles {
 
   void _changed() => _saver ??= Timer(const Duration(seconds: 2), save);
 
-  /// Forgets sign-ins that were started and never finished.
+  /// Forgets sign-ins that were started and never finished, and codes by text that have run out.
   void sweep() {
-    final cutoff = _now().subtract(stateLife);
+    final now = _now();
+    final cutoff = now.subtract(stateLife);
     _asked.removeWhere((_, a) => a.at.isBefore(cutoff));
+    for (final lists in [_textedBy, _textedTo, _tried]) {
+      lists.removeWhere((_, list) => !list.any((t) => now.difference(t) <= const Duration(days: 1)));
+    }
+    _codeFor.removeWhere((_, who) {
+      who.removeWhere((_, at) => now.difference(at) > codeLife);
+      return who.isEmpty;
+    });
   }
 
   // --- an install comes, speaks, and goes ---------------------------------------------------------------------------
@@ -180,19 +236,29 @@ class Handles {
     if (identical(_here[id], tell)) _here.remove(id);
   }
 
-  /// How each network is linked here: "signin" or "proof", or "off" where its sign-in has not been set up.
+  /// How each network is linked here: "signin" or "proof", "text" for a phone number, or "off" where what it
+  /// needs has not been set up.
   Map<String, String> get ways => {
         for (final n in networks)
-          n: !_signIn.contains(n)
-              ? 'proof'
-              : switch (n) {
-                  'discord' => config.discordId.isNotEmpty && config.discordSecret.isNotEmpty,
-                  'x' => config.xId.isNotEmpty,
-                  _ => config.telegramBot.isNotEmpty && config.telegramToken.isNotEmpty,
-                }
-                  ? 'signin'
-                  : 'off',
+          n: n == 'phone'
+              ? (_texts != null ? 'text' : 'off')
+              : _proof.contains(n)
+                  ? 'proof'
+                  : switch (n) {
+                      'discord' => config.discordId.isNotEmpty && config.discordSecret.isNotEmpty,
+                      'x' => config.xId.isNotEmpty,
+                      _ => config.telegramBot.isNotEmpty && config.telegramToken.isNotEmpty,
+                    }
+                      ? 'signin'
+                      : 'off',
       };
+
+  /// Whether [list] has room for one more: fewer than [anHour] in the last hour, and than [aDay] in the last day.
+  static bool _room(List<DateTime>? list, DateTime now, int anHour, int aDay) {
+    if (list == null) return true;
+    list.removeWhere((t) => now.difference(t) > const Duration(days: 1));
+    return list.length < aDay && list.where((t) => now.difference(t) <= const Duration(hours: 1)).length < anHour;
+  }
 
   bool _mayFetch(String id) {
     final now = _now();
@@ -235,9 +301,62 @@ class Handles {
           final verifier = base64Url.encode([for (var i = 0; i < 48; i++) _random.nextInt(256)]).replaceAll('=', '');
           _asked[state] = _Asked(id, network, verifier, _now());
           tell({'dir': 'link', 'p': network, 'url': '${config.publicUrl}/link/$network?s=$state'});
+        case 'text':
+          // A code, texted to a number by the service (texts.dart). Nothing is linked yet.
+          if (network != 'phone') return err('Only a phone number is linked by a text.');
+          final texts = _texts;
+          if (texts == null) return err('Verifying a number by text is not set up on this server yet.');
+          final number = said['handle'] is String ? tidyNumber(said['handle'] as String) : '';
+          if (!wellFormed('phone', number)) return err('That does not look like a phone number. Write it with its country code, like +1 555 010 0199.');
+          if (!config.textTo.any(number.startsWith)) return err('Numbers in that country cannot be verified yet.');
+          final k = keyOf('phone', number);
+          final now = _now();
+          sweep();
+          if (!_room(_textedBy[id], now, textsAnHour, textsADay)) return err('You have asked for a few codes already. Try again in an hour.');
+          if (!_room(_textedTo[k], now, textsAnHour, textsADay)) return err('That number has been sent a few codes already. Try again in an hour.');
+          if (!_room(_textedAll, now, config.textsADay, config.textsADay)) return err('No more codes can be sent today. Try again tomorrow.');
+          // Counted before it is sent: one that fails is still one asked of the service.
+          (_textedBy[id] ??= []).add(now);
+          (_textedTo[k] ??= []).add(now);
+          _textedAll.add(now);
+          switch (await texts.send(number)) {
+            case Texted.sent:
+              (_codeFor[k] ??= {})[id] = now;
+              _say('${id.substring(0, 6)} was texted a code');
+              tell({'dir': 'text', 'p': 'phone', 'handle': number});
+            case Texted.cannot:
+              err('That number cannot be sent a text. Check it is a mobile number, with its country code.');
+            case Texted.tooOften:
+              err('That number has been sent a few codes already. Try again in ten minutes.');
+            case Texted.down:
+              _say('the text service did not send');
+              err('The code could not be sent just now. Try again in a while.');
+          }
+        case 'code':
+          // The code that reached the number, come back: the service says whether it is the one it sent.
+          if (network != 'phone') return err('Only a phone number is linked by a text.');
+          final texts = _texts;
+          if (texts == null) return err('Verifying a number by text is not set up on this server yet.');
+          final number = said['handle'] is String ? tidyNumber(said['handle'] as String) : '';
+          final code = said['code'] is String ? (said['code'] as String).replaceAll(RegExp(r'[\s-]'), '') : '';
+          if (!wellFormed('phone', number) || !RegExp(r'^[0-9]{4,10}$').hasMatch(code)) return err('That does not look like the code. It is the digits in the text.');
+          final k = keyOf('phone', number);
+          final now = _now();
+          // Only an install the code was sent for may try it: nobody else's guesses are passed on.
+          final asked = _codeFor[k]?[id];
+          if (asked == null || now.difference(asked) > codeLife) return err('Ask for a code first. One lasts ten minutes.');
+          if (!_room(_tried[id], now, triesAnHour, triesAnHour * 3)) return err('Too many tries. Ask for a new code in an hour.');
+          (_tried[id] ??= []).add(now);
+          final right = await texts.check(number, code);
+          if (right == null) return err('The code could not be checked just now. Try again.');
+          if (!right) return err('That is not the code. Look at the text again, or ask for a new one.');
+          _codeFor[k]?.remove(id);
+          if (_codeFor[k]?.isEmpty ?? false) _codeFor.remove(k);
+          _link(id, 'phone', number, number);
         case 'proof':
         case 'check':
           final handle = said['handle'] is String ? tidy(network is String ? network : '', said['handle'] as String) : '';
+          if (network == 'phone') return err('A phone number is linked by a code sent to it.');
           if (!known || _signIn.contains(network)) return err('That network is linked by signing in.');
           if (!wellFormed(network, handle)) return err('That does not look like a handle there.');
           final code = codeFor(id, network, handle);
@@ -259,8 +378,8 @@ class Handles {
         case 'listed':
           final on = said['on'] == true;
           if (on && _listed.add(id)) {
-            for (final link in (_links[id] ?? const <String, Map<String, String>>{}).values) {
-              _announce(id, link['k']!);
+            for (final link in (_links[id] ?? const <String, Map<String, String>>{}).entries) {
+              if (!_quiet.contains(link.key)) _announce(id, link.value['k']!);
             }
           } else if (!on) {
             _listed.remove(id);
@@ -302,7 +421,7 @@ class Handles {
           tell({'dir': 'forgotten'});
         case 'follows':
           final handle = said['handle'] is String ? tidy(network is String ? network : '', said['handle'] as String) : '';
-          if (!known || _signIn.contains(network)) return err('Who you follow there cannot be read.');
+          if (!_proof.contains(network)) return err('Who you follow there cannot be read.');
           // Only of the account this install proved is its own.
           if (_links[id]?[network]?['k'] != keyOf(network, handle)) return err('Link that account first.');
           if (!_mayFetch(id)) return err('Too many tries this hour. Try again later.');
@@ -318,7 +437,7 @@ class Handles {
 
   Iterable<String> _listedHolders(String k) sync* {
     for (final e in _links.entries) {
-      if (_listed.contains(e.key) && e.value.values.any((l) => l['k'] == k)) yield e.key;
+      if (_listed.contains(e.key) && e.value.entries.any((l) => l.value['k'] == k && !_quiet.contains(l.key))) yield e.key;
     }
   }
 
@@ -351,7 +470,7 @@ class Handles {
       (_done[id] ??= []).add(told);
     }
     _say('${id.substring(0, 6)} linked $network');
-    if (_listed.contains(id) && old?['k'] != k) _announce(id, k);
+    if (_listed.contains(id) && old?['k'] != k && !_quiet.contains(network)) _announce(id, k);
   }
 
   /// Tells everyone watching for [k] that it is here now.
@@ -640,6 +759,11 @@ class HandlesConfig {
     this.telegramBot = '',
     this.telegramToken = '',
     this.githubToken = '',
+    this.twilioSid = '',
+    this.twilioToken = '',
+    this.twilioVerify = '',
+    this.textTo = const ['+1'],
+    this.textsADay = 200,
   });
 
   factory HandlesConfig.fromEnvironment(Map<String, String> env) => HandlesConfig(
@@ -651,6 +775,14 @@ class HandlesConfig {
         telegramBot: env['GHOST_TELEGRAM_BOT'] ?? '',
         telegramToken: env['GHOST_TELEGRAM_TOKEN'] ?? '',
         githubToken: env['GHOST_GITHUB_TOKEN'] ?? '',
+        twilioSid: env['GHOST_TWILIO_SID'] ?? '',
+        twilioToken: env['GHOST_TWILIO_TOKEN'] ?? '',
+        twilioVerify: env['GHOST_TWILIO_VERIFY'] ?? '',
+        textTo: [
+          for (final p in (env['GHOST_TEXT_TO'] ?? '+1').split(','))
+            if (RegExp(r'^\+[0-9]{1,6}$').hasMatch(p.trim())) p.trim(),
+        ],
+        textsADay: int.tryParse(env['GHOST_TEXTS_A_DAY'] ?? '') ?? 200,
       );
 
   /// Where this server is reached from outside: what a sign-in comes back to.
@@ -666,6 +798,21 @@ class HandlesConfig {
 
   /// Optional: GitHub lets a server with a token read far more often than one without.
   final String githubToken;
+
+  /// What texts a phone number its code (texts.dart, Twilio Verify): the account's SID and auth token, or an API
+  /// key's SID and secret, and the Verify service's SID. With any of the three empty a number cannot be linked.
+  final String twilioSid;
+  final String twilioToken;
+  final String twilioVerify;
+
+  /// The numbers that may be texted, by how they start: North America unless said otherwise. Texts to some
+  /// countries cost many times more, and are what people who make money from texts being sent ask for.
+  final List<String> textTo;
+
+  /// The most texts sent in a day, to everyone together: what a mistake or an attack can cost.
+  final int textsADay;
+
+  bool get texts => twilioSid.isNotEmpty && twilioToken.isNotEmpty && twilioVerify.isNotEmpty;
 }
 
 class Fetched {
