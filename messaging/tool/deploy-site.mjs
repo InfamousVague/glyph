@@ -64,8 +64,10 @@ ${DOMAIN} {
 	}
 	# The relay (relay/, tool/deploy-relay.mjs): a phone and the computer it is paired with at /relay/<channel>, and
 	# the hub two people's apps find each other through at /hub. WebSockets, passed to the service on this box.
-	# The port is tool/deploy-relay.mjs's PORT: the two must agree.
-	@relay path /hub /relay/*
+	# The port is tool/deploy-relay.mjs's PORT: the two must agree. /link/* is the same service's pages for signing
+	# in with a network to link an account (relay/lib/handles.dart, docs/me.md): what Discord, X and Telegram send
+	# a person back to.
+	@relay path /hub /relay/* /link/*
 	handle @relay {
 		reverse_proxy 127.0.0.1:18787
 	}

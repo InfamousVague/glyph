@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'handles.dart';
 import 'p256.dart';
 import 'sha256.dart';
 
@@ -30,13 +31,17 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
   final bool verbose;
   final DateTime Function() _now;
   final Random _random;
+
+  /// The handles people linked (handles.dart): what a connection says that starts `{"dir": …}` is its to answer.
+  /// None where null, and such a message is then answered that there is none.
+  final Handles? handles;
 
   /// What is signed to connect: these words, then the hub's number.
   static const greeting = 'ghost-hub v1 ';
@@ -74,11 +79,18 @@ class Hub {
   int get rooms => _rooms.length;
   int heldFor(String id) => _mail[id]?.length ?? 0;
 
-  void start() => _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) => sweep());
+  void start() {
+    handles?.load();
+    _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) {
+      sweep();
+      handles?.sweep();
+    });
+  }
 
   void stop() {
     _sweeper?.cancel();
     _sweeper = null;
+    handles?.save();
     for (final end in _here.values.toList()) {
       end.ws.close(WebSocketStatus.goingAway);
     }
@@ -143,6 +155,7 @@ class Hub {
         set?.remove(e);
         if (set != null && set.isEmpty) _watching.remove(id);
       }
+      handles?.went(e.id, e.tell);
       if (!identical(_here[e.id], e)) return; // replaced by a newer connection under the same name
       _here.remove(e.id);
       for (final w in _watching[e.id] ?? const <_End>{}) {
@@ -171,10 +184,11 @@ class Hub {
           return;
         }
         waiting.cancel();
-        final made = _End(id as String, ws);
+        final made = _End(id as String, ws, (what) => _tell(ws, what));
         _here[made.id]?.ws.close(4409, 'replaced');
         _here[made.id] = made;
         end = made;
+        handles?.came(made.id, made.tell);
         final held = _mail.remove(made.id) ?? const <_Held>[];
         _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);
@@ -200,6 +214,13 @@ class Hub {
       if (said == null) return;
       if (said.containsKey('ping')) {
         _tell(ws, {'pong': said['ping']});
+      } else if (said['dir'] is String) {
+        final h = handles;
+        if (h == null) {
+          _tell(ws, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no handles.'});
+        } else {
+          h.said(e.id, said);
+        }
       } else if (said['watch'] is List) {
         final ids = (said['watch'] as List).where((i) => _hex(i, 32)).cast<String>().take(maxWatched).toList();
         for (final id in ids) {
@@ -313,9 +334,12 @@ class Hub {
 }
 
 class _End {
-  _End(this.id, this.ws);
+  _End(this.id, this.ws, this.tell);
   final String id;
   final WebSocket ws;
+
+  /// Says something to this connection, as JSON.
+  final void Function(Map<String, Object?>) tell;
   final Set<String> rooms = {};
   final Set<String> watches = {};
 }

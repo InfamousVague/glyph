@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'me/me.dart';
 import 'app_state.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
@@ -198,6 +199,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // And friends, who are reached by them (lib/friends/friends.dart).
       final app = AppState.of(context);
       Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start());
+      // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
+      // one has been.
+      Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub);
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
       final req = await Sms.instance.openRequest();
       if (req != null) _open(req);

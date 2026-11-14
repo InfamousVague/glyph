@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../me/me.dart';
 import '../app_state.dart';
 import '../effects.dart';
 import '../kit/fold.dart';
@@ -74,6 +75,7 @@ class SettingsModel extends ChangeNotifier {
     _changes = Sms.instance.changes.stream.listen((_) => refresh());
     // The app's routes come and go on their own (lib/net/net.dart): Settings › Network is drawn again as they do.
     Net.instance.addListener(_say);
+    Me.instance.addListener(_say);
     _computers = Sms.instance.computersChanged.stream.listen((_) async {
       try {
         computers = await Sms.instance.computers();
@@ -122,6 +124,7 @@ class SettingsModel extends ChangeNotifier {
   void dispose() {
     _gone = true;
     Net.instance.removeListener(_say);
+    Me.instance.removeListener(_say);
     app.removeListener(notifyListeners);
     _updates?.cancel();
     _changes?.cancel();

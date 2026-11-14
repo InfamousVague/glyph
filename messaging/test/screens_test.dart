@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/me/me.dart';
+import 'package:ghost_messaging/ui/me.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/friends/friends.dart';
@@ -645,6 +647,26 @@ void main() {
       for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
+      // Settings › Me and Friends joining: two accounts linked, X's sign-in not set up on the server, a watch list,
+      // and one of them here and new.
+      Me.instance.seed(
+        ready: true,
+        listed: true,
+        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'},
+        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social'},
+        watch: const [Watched('discord', 'maya'), Watched('discord', 'jordan.p'), Watched('telegram', 'samrivera'), Watched('x', 'alexkim'), Watched('bluesky', 'priya.bsky.social'), Watched('bluesky', 'noor.bsky.social')],
+        joined: [Joined('discord', 'maya', DateTime.now().subtract(const Duration(minutes: 12))), Joined('bluesky', 'priya.bsky.social', DateTime.now().subtract(const Duration(days: 2)), seen: true)],
+      );
+      await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me', dark: dark);
+      expect(find.text('@matt'), findsOneWidget);
+      expect(find.textContaining('isn\'t set up on the relay server yet'), findsOneWidget);
+      await _shoot(tester, sheet, const SettingsSectionScreen('friends-joining'), '5-settings-friends-joining', dark: dark);
+      // New beside her handle, in the label's own line.
+      expect(find.textContaining('@maya', findRichText: true), findsOneWidget);
+      expect(find.text('New'), findsOneWidget);
+      await _shoot(tester, sheet, ProofScreen(network: networkOf('bluesky')), '5-settings-me-proof', dark: dark);
+      await _shoot(tester, sheet, const AddWatchScreen(), '5-settings-me-add', dark: dark);
+      Me.instance.seed(ready: false, listed: false, links: {}, watch: [], joined: [], ways: {});
       // Settings › Network: the app's routes, with two people to reach, the relay server ready and SMS not allowed,
       // and a test sent to one of them.
       final hub = _Route('hub', 'Relay server', 'Through a server on the internet. Works between any two networks; the server sees who talks to whom, never what is said.');

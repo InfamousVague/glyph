@@ -71,6 +71,9 @@ After=network.target
 [Service]
 User=ghost-relay
 Group=ghost-relay
+# The networks' sign-ins for Settings › Me (docs/me.md): GHOST_DISCORD_ID and the rest, one NAME=value a line, in a
+# file only root reads. It need not exist: a network with no values is "off" in the app, and nothing else changes.
+EnvironmentFile=-/etc/ghost-relay/env
 ExecStart=${DIR}/ghost-relay --host 127.0.0.1 --port ${PORT} --data ${DATA}
 Restart=always
 RestartSec=2

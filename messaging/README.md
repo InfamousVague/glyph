@@ -512,6 +512,18 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone's own (`Store.threadName`, sixty letters at most): a group text has nowhere to carry one, so the others in
   the group do not see it. A computer sets it through the phone (`threadName` over the link). This is a group text's name; a group of
   friends (above) has one every member sees.
+- **Me, and friends joining** (0.7.9; [docs/me.md](docs/me.md); Matt, 2026-11-14: "Add a 'me' section to settings
+  and allow linking popular social like telegram, discord, x, etc to be notified when one of your friends or
+  followers joins ghost messaging"). Settings › Me links an account by proving it is yours: Discord, X and Telegram
+  by signing in there, Bluesky, Mastodon and GitHub by a code in the public profile. Settings › Friends joining is a
+  watch list of handles (typed or pasted; brought in from who you follow on Bluesky, Mastodon and GitHub, the three
+  that publish it) and who of them is here, with the number of new ones on the Settings ring. Someone is told only
+  of a person who linked that account AND switched on "Tell friends I'm here". The relay server's keeper of handles
+  (`relay/lib/handles.dart`) holds hashes of handles, never a handle, name or number, and is told nothing until an
+  account is linked, a handle added or the page opened. Each network's sign-in is off until its app is registered
+  and its values put on the box (docs/me.md says how); the three proved by code need nothing. Held by
+  `relay/test/handles_test.dart` and `test/me_test.dart` (two installs through the real relay) with the networks
+  stood in for: **not yet deployed, and not run against a real network.**
 - **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation
