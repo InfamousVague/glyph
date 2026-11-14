@@ -18,7 +18,7 @@ import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
-import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, PluginRow, SectionChips;
+import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, PluginRow, SectionTabs;
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
@@ -761,7 +761,7 @@ void main() {
     addTearDown(() => _conversations.removeWhere((c) => (c['id'] as int) >= 100));
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
     installSettingsStyles(sheet);
-    Finder chip(String label) => find.descendant(of: find.byType(SectionChips), matching: find.text(label));
+    Finder chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
     for (final dark in [false, true]) {
       // The list as it opens: the codes have left it for their chip, which counts them.
       await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-list', dark: dark);

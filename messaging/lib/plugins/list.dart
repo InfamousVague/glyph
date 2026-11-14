@@ -139,11 +139,24 @@ class ListPlugins {
 
   // --- what the screen draws ----------------------------------------------------------------------------------------
 
-  /// The chips under the search field, or null while no section has a conversation in it.
-  Widget? chips(String? chosen, ValueChanged<String?> onPick) {
+  /// The tabs under the search field, or null while no section has a conversation in it. [onMenu] is asked for a
+  /// tab's menu (a press with the other button, or a long one).
+  Widget? tabs(String? chosen, ValueChanged<String?> onPick, {ValueChanged<String?>? onMenu}) {
     final s = _sorted;
     if (s.sections.isEmpty) return null;
-    return SectionChips(sections: s.sections, counts: s.counts, unread: s.unread, chosen: chosen, onPick: onPick);
+    return SectionTabs(sections: s.sections, counts: s.counts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
+  }
+
+  /// How many tabs there are, the main list among them: what is left of the row for a button beside them.
+  int get tabCount => _sorted.sections.isEmpty ? 0 : _sorted.sections.length + 1;
+
+  /// What a tab is called: "Messages" for the main list, else its section's own name.
+  String tabName(String? section) {
+    if (section == null) return 'Messages';
+    for (final s in _sorted.sections) {
+      if (s.id == section) return s.section.label;
+    }
+    return 'Messages';
   }
 
   ConversationPlace _place(Conversation c) => ConversationPlace(MessageFacts.conversation(c), tags.of(c.id), section: _sorted.at[c.id]?.id);

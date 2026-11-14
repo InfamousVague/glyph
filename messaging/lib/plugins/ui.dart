@@ -1,4 +1,4 @@
-/// What the screens draw of the plugins: the chips of the list's sections, a section's row as its plugin describes
+/// What the screens draw of the plugins: the tabs of the list's sections, a section's row as its plugin describes
 /// it, and a quiet note a plugin can put in a widget slot. Drawn by the app, in the app's own type and colours; a
 /// plugin says what, in words (plugin.dart).
 library;
@@ -18,10 +18,14 @@ import '../ui/common.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
-/// The sections of the list, under its search field: "Messages" and a chip for each section that has conversations
-/// in it, with how many. The one chosen is in ink. It scrolls sideways where the chips are wider than the list.
-class SectionChips extends StatelessWidget {
-  const SectionChips({super.key, required this.sections, required this.counts, required this.unread, required this.chosen, required this.onPick});
+/// The list's tabs, under its search field: "Messages" and each section that has conversations in it, with how
+/// many, as one segmented toggle (Matt, 2026-11-14: "change the messages and codes to a segmented toggle"). They
+/// were chips in a row that scrolled sideways.
+///
+/// A press with the other button on a tab, or a long press, asks for that tab's menu ([onMenu]; Matt, the same
+/// message: "add a right click menu for the codes and messages tabs").
+class SectionTabs extends StatelessWidget {
+  const SectionTabs({super.key, required this.sections, required this.counts, required this.unread, required this.chosen, required this.onPick, this.onMenu});
 
   final List<PluginSection> sections;
   final Map<String, int> counts;
@@ -33,66 +37,90 @@ class SectionChips extends StatelessWidget {
   final String? chosen;
   final ValueChanged<String?> onPick;
 
+  /// Asked for a tab's menu; null for the main list's.
+  final ValueChanged<String?>? onMenu;
+
+  /// What the toggle calls the main list, which the app calls null.
+  static const _main = '';
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return SizedBox(
-      height: t.lenOf('2.5rem'),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        // From the search field's edge, which is the cards' edge too.
-        padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
-        child: Row(children: [
-          _Chip(label: 'Messages', chosen: chosen == null, onPress: () => onPick(null)),
-          for (final s in sections) ...[
-            SizedBox(width: t.space(2)),
-            _Chip(label: s.section.label, icon: s.section.icon, count: counts[s.id] ?? 0, unread: unread.contains(s.id), chosen: chosen == s.id, onPress: () => onPick(s.id)),
+    final values = [_main, for (final s in sections) s.id];
+
+    // In the toggle's own type and colour, which are the chosen tab's or a quiet one's by turns.
+    Widget label(String words, {LucideIcon? icon, int? count, bool dot = false}) => Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (icon != null) ...[AppIcon(icon, size: 14, strokeWidth: 2.2, wash: false), SizedBox(width: t.space(1))],
+          Flexible(child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false)),
+          if (count != null) ...[SizedBox(width: t.space(1)), Opacity(opacity: 0.6, child: Text('$count'))],
+          if (dot) ...[SizedBox(width: t.space(1)), Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5')))],
+        ]);
+
+    return LayoutBuilder(builder: (context, box) {
+      // The tabs share the toggle's width equally, so where a press landed says which tab it was on.
+      void menu(double x) {
+        final at = (x / (box.maxWidth / values.length)).floor().clamp(0, values.length - 1);
+        onMenu?.call(values[at] == _main ? null : values[at]);
+      }
+
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onSecondaryTapUp: onMenu == null ? null : (d) => menu(d.localPosition.dx),
+        onLongPressStart: onMenu == null ? null : (d) => menu(d.localPosition.dx),
+        child: GlacierSegmentedControl(
+          fullWidth: true,
+          size: GlacierSegmentedSize.sm,
+          ariaLabel: 'Which conversations',
+          value: chosen ?? _main,
+          onValueChange: (v) => onPick(v == _main ? null : v),
+          options: [
+            GlacierSegmentedOption(value: _main, label: label('Messages')),
+            for (final s in sections) GlacierSegmentedOption(value: s.id, label: label(s.section.label, icon: s.section.icon, count: counts[s.id] ?? 0, dot: unread.contains(s.id))),
           ],
-        ]),
-      ),
-    );
+        ),
+      );
+    });
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.chosen, required this.onPress, this.icon, this.count, this.unread = false});
-  final String label;
-  final LucideIcon? icon;
-  final int? count;
-  final bool unread;
-  final bool chosen;
+/// The button beside the list's tabs that marks every conversation of the tab shown as read (Matt, 2026-11-14:
+/// "a button to mark all read"). Quiet while nothing there is unread. Where the tabs leave little room it is its
+/// picture alone.
+class MarkAllRead extends StatelessWidget {
+  const MarkAllRead({super.key, required this.unread, required this.onPress, this.words = true});
+
+  /// How many conversations of the tab shown are unread.
+  final int unread;
   final VoidCallback onPress;
+
+  /// Whether there is room for "Mark all read" beside its picture.
+  final bool words;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final ink = t.color(chosen ? 'app-paper' : 'app-ink-2');
+    final any = unread > 0;
+    final ink = t.color(any ? 'app-ink' : 'app-ink-4');
     return GlacierPressable(
-      onPressed: onPress,
-      semanticLabel: '$label${count == null ? '' : ', $count'}${chosen ? ', chosen' : ''}',
+      onPressed: any ? onPress : null,
+      semanticLabel: any ? 'Mark all read, $unread unread' : 'Mark all read, nothing unread',
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         radius: t.radius('full'),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: t.space(3)),
+          height: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: t.space(words ? 3 : 2)),
+          constraints: BoxConstraints(minWidth: t.lenOf('2rem')),
           decoration: BoxDecoration(
-            color: chosen ? t.color('app-ink') : t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
+            color: t.color(state.pressed && any ? 'app-paper-3' : 'app-paper-2'),
             borderRadius: BorderRadius.circular(t.radius('full')),
-            border: Border.all(color: chosen ? t.color('app-ink') : t.color('app-rule')),
+            border: Border.all(color: t.color('app-rule')),
           ),
           alignment: Alignment.center,
           child: ExcludeSemantics(
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (icon != null) ...[AppIcon(icon!, size: 14, strokeWidth: 2.2, wash: false, color: ink), SizedBox(width: t.space(1))],
-              Text(label, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink)),
-              if (count != null) ...[
-                SizedBox(width: t.space(1)),
-                Text('$count', style: pageText(t, t.fontSize('sm'), color: chosen ? ink : t.color('app-ink-3'))),
-              ],
-              if (unread) ...[
-                SizedBox(width: t.space(1)),
-                Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5'))),
-              ],
+              AppIcon(Lucide.checkCheck, size: 15, strokeWidth: 2.2, wash: false, color: ink),
+              if (words) ...[SizedBox(width: t.space(1)), Text('Mark all read', maxLines: 1, softWrap: false, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink))],
             ]),
           ),
         ),

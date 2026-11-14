@@ -12,6 +12,7 @@ import '../kit/fold.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../plugins/list.dart';
+import '../plugins/ui.dart' show MarkAllRead;
 import '../reactions.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -255,6 +256,88 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       }
       return false;
     }).toList();
+  }
+
+  // --- the tabs --------------------------------------------------------------------------------------------------------
+
+  /// One tab's conversations (null: the main list's), whatever is typed in the search: not the archived ones.
+  List<Conversation> _of(String? section) {
+    final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
+    return _plugins.pick(held, section, searching: false);
+  }
+
+  /// The row under the search field: the tabs as a segmented toggle (Matt, 2026-11-14: "change the messages and
+  /// codes to a segmented toggle") and, at its end, Mark all read for the tab shown ("a button to mark all read").
+  /// With no section to make a tab of, the button stands alone, and only while something is unread; with nothing
+  /// of either there is no row.
+  Widget? _tabsRow(Tokens t) {
+    final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu);
+    final unread = _of(_section).where((c) => c.unread).length;
+    if (tabs == null && unread == 0) return null;
+    return SizedBox(
+      height: t.lenOf('2.5rem'),
+      child: Padding(
+        // From the search field's edge, which is the cards' edge too.
+        padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
+        child: LayoutBuilder(builder: (context, box) {
+          // The words go with the button's picture where the tabs still have a fair width each beside them.
+          final words = tabs == null || (box.maxWidth - t.lenOf('8.5rem')) / _plugins.tabCount >= t.lenOf('5.5rem');
+          return Row(children: [
+            Expanded(child: tabs ?? const SizedBox.shrink()),
+            SizedBox(width: t.space(2)),
+            MarkAllRead(unread: unread, words: words, onPress: () => _markAllRead(_section)),
+          ]);
+        }),
+      ),
+    );
+  }
+
+  /// Marks every unread conversation of a tab as read: from the button beside the tabs, or a tab's own menu.
+  Future<void> _markAllRead(String? section) async {
+    final unread = _of(section).where((c) => c.unread).toList();
+    if (unread.isEmpty) {
+      toast(context, 'Nothing is unread in ${_plugins.tabName(section)}');
+      return;
+    }
+    // Shown at once: the dots go as the button is let go, not as the phone gets round to each.
+    final ids = {for (final c in unread) c.id};
+    setState(() => _all = [for (final c in _all ?? const <Conversation>[]) ids.contains(c.id) ? c.copyWith(unread: false) : c]);
+    var failed = 0;
+    for (final c in unread) {
+      try {
+        await Sms.instance.markRead(c.id);
+      } catch (_) {
+        failed++;
+      }
+    }
+    _load();
+    if (!mounted) return;
+    toast(
+      context,
+      failed == 0 ? '${_count(unread.length)} marked as read' : '${unread.length - failed} marked as read; $failed could not be',
+      tone: failed == 0 ? GlacierToastTone.neutral : GlacierToastTone.danger,
+    );
+  }
+
+  /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
+  /// other button on it, or a long press where there is no other button.
+  void _tabMenu(String? section) {
+    final all = _of(section);
+    final unread = all.where((c) => c.unread).length;
+    final name = _plugins.tabName(section);
+    showChoices(context, title: '$name · ${unread == 0 ? 'nothing unread' : '$unread unread'}', choices: [
+      Choice('Mark all as read', Lucide.checkCheck, () => _markAllRead(section)),
+      // Every conversation of the tab chosen at once, for the bar at the top to archive or delete.
+      if (all.isNotEmpty)
+        Choice('Select all', Lucide.listChecks, () {
+          setState(() {
+            _section = section;
+            _selected
+              ..clear()
+              ..addAll(all.map((c) => c.id));
+          });
+        }),
+    ]);
   }
 
   Future<void> _open(Conversation c) async {
@@ -591,8 +674,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               ),
               // What the frame keeps under the search: on a computer, how the phone is connected.
               if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
-              // Plugins: a chip for each section that has conversations in it, beside "Messages".
-              if (!widget.archived && !_selecting) ?_plugins.chips(_section, (section) => setState(() => _section = section)),
+              // The tabs: "Messages" and each section that has conversations in it, as one toggle, and beside them
+              // the button that marks the tab shown as read (_tabsRow).
+              if (!widget.archived && !_selecting) ?_tabsRow(t),
               // The search is this page's header too: the update banner hangs under it, not over it.
               const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.

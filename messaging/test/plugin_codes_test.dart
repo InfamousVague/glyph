@@ -17,7 +17,7 @@ import 'support/list_harness.dart';
 /// sign-in code, which conversations the section takes, and the section in the list.
 MessageFacts _facts(String text, {bool contact = false, bool group = false, int thread = 4}) => MessageFacts(thread: thread, senders: const ['28849'], text: text, contact: contact, group: group);
 
-Finder _chip(String label) => find.descendant(of: find.byType(SectionChips), matching: find.text(label));
+Finder _chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
 
 void main() {
   group('what reads as a code', () {
@@ -162,7 +162,7 @@ void main() {
       ListPhone(phone()).install();
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, const ConversationsScreen(), AppState()..setFlag('plugin_codes', false));
-      expect(find.byType(SectionChips), findsNothing);
+      expect(find.byType(SectionTabs), findsNothing);
       expect(find.byType(ConversationRow), findsNWidgets(5));
     });
   });

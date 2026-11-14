@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
@@ -26,7 +27,7 @@ List<Map<String, Object?>> _phone() => [
       ListPhone.conversation(6, '70003', 'ticket 9000, long ago', minutes: 9000, archived: true),
     ];
 
-Finder _chip(String label) => find.descendant(of: find.byType(SectionChips), matching: find.text(label));
+Finder _chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
 Finder _icon(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
 
 void main() {
@@ -39,7 +40,7 @@ void main() {
     final phone = ListPhone(_phone())..install();
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
-    expect(find.byType(SectionChips), findsNothing);
+    expect(find.byType(SectionTabs), findsNothing);
     expect(find.byType(ConversationRow), findsNWidgets(5));
     expect(find.byType(PluginRow), findsNothing);
     expect(phone.asked, isEmpty);
@@ -98,7 +99,7 @@ void main() {
     // The word on the last row does the same: the section is empty, its chip goes, and the list is the main one.
     await tester.tap(find.text('Keep in Messages'));
     await settle(tester);
-    expect(find.byType(SectionChips), findsNothing);
+    expect(find.byType(SectionTabs), findsNothing);
     expect(find.byType(ConversationRow), findsNWidgets(5));
     expect(find.text('ticket 5522 was closed'), findsOneWidget);
     expect(phone.prefs[Filing.key], '4:,2:');
@@ -131,6 +132,82 @@ void main() {
     expect(find.text('5522'), findsOneWidget);
   });
 
+  testWidgets('the tabs are one toggle; the button beside them and a tab\'s own menu mark its conversations as read', (tester) async {
+    PluginRegistry.instance = PluginRegistry([TicketsPlugin()]);
+    final all = _phone();
+    all[0] = ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4, unread: true);
+    all[2] = ListPhone.conversation(3, '+15551230005', 'Call me when you land', name: 'Dad', minutes: 50, unread: true);
+    final phone = ListPhone(all)..install();
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
+    await settle(tester);
+    // One segmented toggle holds the tabs, and Mark all read stands beside it with the main list's two unread.
+    expect(find.descendant(of: find.byType(SectionTabs), matching: find.byType(GlacierSegmentedControl)), findsOneWidget);
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
+    expect(find.text('Mark all read'), findsOneWidget);
+
+    // The button marks the tab shown: Maya's and Dad's, and not the ticket, which is in its own tab.
+    phone.asked.clear();
+    await tester.tap(find.byType(MarkAllRead));
+    await settle(tester);
+    expect(phone.asked.toSet(), {'markRead 1', 'markRead 3'});
+    expect(find.text('2 conversations marked as read'), findsOneWidget);
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 0);
+    // Nothing left unread there: the button is quiet, and a press on it asks nothing.
+    phone.asked.clear();
+    await tester.tap(find.byType(MarkAllRead));
+    await settle(tester);
+    expect(phone.asked, isEmpty);
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
+
+    // A press with the other button on a tab brings up that tab's menu, whichever tab is shown.
+    await tester.tap(_chip('Tickets'), buttons: kSecondaryButton);
+    await settle(tester);
+    expect(find.textContaining('Tickets ·'), findsOneWidget);
+    expect(find.text('Mark all as read'), findsOneWidget);
+    // Select all goes to that tab with every conversation of it chosen, for the bar at the top to act on.
+    await tester.tap(find.text('Select all'));
+    await settle(tester);
+    expect(find.text('2 selected'), findsOneWidget);
+    await tester.tap(_icon('Stop selecting'));
+    await settle(tester);
+    expect(find.byType(PluginRow), findsNWidgets(2), reason: 'it is the Tickets tab that is shown now');
+
+    // A long press does the same where there is no other button: the main list's menu, from the Tickets tab.
+    await tester.longPress(_chip('Messages'));
+    await settle(tester);
+    expect(find.textContaining('Messages · nothing unread'), findsOneWidget);
+    phone.asked.clear();
+    await tester.tap(find.text('Mark all as read'));
+    await settle(tester);
+    expect(phone.asked, isEmpty);
+    expect(find.text('Nothing is unread in Messages'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
+  });
+
+  testWidgets('with no section to make a tab of, Mark all read stands alone while something is unread', (tester) async {
+    PluginRegistry.instance = PluginRegistry(const []);
+    final all = _phone();
+    all[0] = ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4, unread: true);
+    final phone = ListPhone(all)..install();
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
+    await settle(tester);
+    expect(find.byType(SectionTabs), findsNothing);
+    // Conversation 2 is unread in the phone's list too: two in all.
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
+    phone.asked.clear();
+    await tester.tap(find.byType(MarkAllRead));
+    await settle(tester);
+    expect(phone.asked.toSet(), {'markRead 1', 'markRead 2'});
+    // Nothing unread, no tabs: no row.
+    await tester.pump(const Duration(seconds: 6));
+    await settle(tester);
+    expect(find.byType(MarkAllRead), findsNothing);
+  });
+
   testWidgets('several can be chosen in a section, where a tap then chooses', (tester) async {
     PluginRegistry.instance = PluginRegistry([TicketsPlugin()]);
     final phone = ListPhone(_phone())..install();
@@ -143,7 +220,7 @@ void main() {
     await tester.tap(find.text('Select'));
     await settle(tester);
     expect(find.text('1 selected'), findsOneWidget);
-    expect(find.byType(SectionChips), findsNothing, reason: 'the chips give way while choosing');
+    expect(find.byType(SectionTabs), findsNothing, reason: 'the chips give way while choosing');
     await tester.tap(find.text('5522'));
     await settle(tester);
     expect(find.text('2 selected'), findsOneWidget);
@@ -163,7 +240,7 @@ void main() {
 
     state.setFlag(PluginRegistry.switchKey(plugin), false);
     await settle(tester);
-    expect(find.byType(SectionChips), findsNothing);
+    expect(find.byType(SectionTabs), findsNothing);
     expect(find.byType(PluginRow), findsNothing);
     expect(find.byType(ConversationRow), findsNWidgets(5));
     expect(_icon('Ticket desk'), findsNothing);

@@ -424,6 +424,14 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
   (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
   to the effects not a row of effect icons").
+- **The list's tabs** (not released; Matt, 2026-11-14: "add a right click menu for the codes and messages tabs as
+  well as a button to mark all read and change the messages and codes to a segmented toggle"). Messages and each
+  section a plugin makes (Codes, Spam) are one segmented toggle under the search field (`SectionTabs` in
+  `lib/plugins/ui.dart`), where they were chips in a row. Beside it, Mark all read marks every unread conversation
+  of the tab shown (`MarkAllRead`; quiet while nothing there is unread, its picture alone where the tabs leave
+  little room, and standing alone where there is no section to make a tab of). A press with the other button on a
+  tab, or a long press, brings up that tab's menu: Mark all as read, and Select all, which chooses every
+  conversation of the tab for the bar at the top to archive or delete.
 - **Plugins** (0.7.4; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
   placing UI elements and doing things like filtering out spam messages separating OTPs into their own section and
   more"). A plugin is a name, a line saying what it does and a switch in Settings › Plugins, kept with the person's

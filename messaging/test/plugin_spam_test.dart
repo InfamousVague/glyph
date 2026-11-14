@@ -18,7 +18,7 @@ MessageFacts _facts(String text, {List<String> from = const ['+15550001111'], bo
 
 List<String> _signs(String text, {List<String> from = const ['+15550001111']}) => [for (final s in judgeSpam(_facts(text, from: from)).signs) s.id];
 
-Finder _chip(String label) => find.descendant(of: find.byType(SectionChips), matching: find.text(label));
+Finder _chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
 
 const _prize = 'Congratulations! You\'ve won a \$1,000 gift card. Claim now: http://prize.example/win';
 const _locked = 'Your account has been locked. Verify your identity at https://secure-login.example';
@@ -176,7 +176,7 @@ void main() {
       final listed = ListPhone(phone())..install();
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
-      expect(find.byType(SectionChips), findsNothing);
+      expect(find.byType(SectionTabs), findsNothing);
       expect(find.byType(ConversationRow), findsNWidgets(6));
       expect(listed.asked, isEmpty);
     });
