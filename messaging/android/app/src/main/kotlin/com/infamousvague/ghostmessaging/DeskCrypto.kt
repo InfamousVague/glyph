@@ -31,6 +31,16 @@ import javax.crypto.spec.SecretKeySpec
 object DeskCrypto {
     const val OFFER_TAG = "GHOSTPAIR1:"
 
+    /**
+     * The same code as a link, which is what the computer's QR code holds (Matt, 2026-11-13, pointing his phone's
+     * camera at it: "linking the Qr code said it can't be used by any app on my phone"). A phone's own camera opens
+     * a link in the app that takes it; plain words it can only show.
+     */
+    const val OFFER_LINK = "ghostmsg://pair/"
+
+    /** Whether [text] looks like a pairing code, in either form: before it is read. */
+    fun isOffer(text: String): Boolean = text.trim().let { it.startsWith(OFFER_TAG) || it.startsWith(OFFER_LINK, ignoreCase = true) }
+
     /** The first byte of a frame: a hello, in the clear (it carries nothing but random numbers and public keys), or sealed. */
     const val HELLO: Byte = 1
     const val SEALED: Byte = 2
@@ -70,9 +80,13 @@ object DeskCrypto {
     /** What a scanned or pasted code offers, or null when it is not one of ours or is not whole. */
     fun parseOffer(text: String): Offer? {
         val body = text.trim()
-        if (!body.startsWith(OFFER_TAG)) return null
+        val payload = when {
+            body.startsWith(OFFER_TAG) -> body.substring(OFFER_TAG.length)
+            body.startsWith(OFFER_LINK, ignoreCase = true) -> body.substring(OFFER_LINK.length)
+            else -> return null
+        }
         return try {
-            val o = JSONObject(String(Base64.getUrlDecoder().decode(body.substring(OFFER_TAG.length).trim().trimEnd('=')), Charsets.UTF_8))
+            val o = JSONObject(String(Base64.getUrlDecoder().decode(payload.trim().trimEnd('=')), Charsets.UTF_8))
             val key = Base64.getDecoder().decode(o.getString("k"))
             val secret = Base64.getDecoder().decode(o.getString("s"))
             val mode = o.optString("m", "both")

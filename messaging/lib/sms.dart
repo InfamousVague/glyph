@@ -278,18 +278,22 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing});
   final int? thread;
   final List<String> addresses;
   final String? body;
 
   /// The "Paired with …" notification was tapped: Settings › Computers.
   final bool computers;
+
+  /// A computer's pairing link was opened (the phone's camera read its QR code): the pairing page, with it.
+  final String? pairing;
   factory OpenRequest.from(Map m) => OpenRequest(
         thread: (m['thread'] as num?)?.toInt(),
         addresses: [for (final a in (m['addresses'] as List? ?? const [])) a as String],
         body: m['body'] as String?,
         computers: m['desk'] == true,
+        pairing: m['pair'] as String?,
       );
 }
 
@@ -545,6 +549,9 @@ class Sms {
 
   Future<List<Computer>> computers() async => [for (final m in (await _calls.invokeMethod<List>('deskList')) ?? const []) Computer.from(m as Map)];
   Future<PairingState> pairing() async => PairingState.from((await _calls.invokeMethod('deskState')) as Map);
+
+  /// The name of the computer a pairing code is from, before anything is done with it. Throws when it is not one.
+  Future<String> pairingCodeName(String code) async => (((await _calls.invokeMethod('deskPeek', {'code': code})) as Map)['name'] as String?) ?? 'A computer';
 
   /// The camera, looking for a computer's QR code: its words, or null when the screen was left (or `denied`, when
   /// the camera was refused).

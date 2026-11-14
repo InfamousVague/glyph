@@ -188,7 +188,12 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
 /// Pairing with a computer, start to end: scan its code (or paste it), choose how the two connect, compare the six
 /// digits, done.
 class PairComputerScreen extends StatefulWidget {
-  const PairComputerScreen({super.key});
+  const PairComputerScreen({super.key, this.offered});
+
+  /// A pairing code that came from outside the app: the phone's camera opened the link in a computer's QR code, or
+  /// something else did. It is not acted on until the person says so here, since anything can open a link: a page
+  /// that wanted this phone's texts could offer a code of its own.
+  final String? offered;
 
   @override
   State<PairComputerScreen> createState() => _PairComputerScreenState();
@@ -202,6 +207,10 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
   bool _pasting = false;
   String? _problem;
 
+  /// The computer an offered code is from, once it has been read; and whether the person has said to go on.
+  String? _offeredName;
+  bool _accepted = false;
+
   @override
   void initState() {
     super.initState();
@@ -209,6 +218,19 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
     // A code that runs out is noticed when asked about: asked now and then while the page waits.
     _tick = Timer.periodic(const Duration(seconds: 5), (_) => _read());
     _read();
+    final offered = widget.offered;
+    if (offered != null) {
+      Sms.instance.pairingCodeName(offered).then((name) {
+        if (mounted) setState(() => _offeredName = name);
+      }).catchError((Object _) {
+        if (mounted) {
+          setState(() {
+            _accepted = true;
+            _problem = 'That link isn\'t a Ghost Messaging pairing code.';
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -258,7 +280,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
-    if (text.startsWith('GHOSTPAIR1:')) {
+    if (text.startsWith('GHOSTPAIR1:') || text.toLowerCase().startsWith('ghostmsg://pair/')) {
       _code.text = text;
       _begin(text);
     } else if (mounted) {
@@ -295,7 +317,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
       'code' => _compare(t, s),
       'done' => _done(t, s),
       'failed' => _failed(t, s),
-      _ => _start(t),
+      _ => widget.offered != null && !_accepted ? _asked(t) : _start(t),
     };
     return GhostPage(
       title: 'Pair a computer',
@@ -307,6 +329,28 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
         ],
       ),
     );
+  }
+
+  /// A code that came by a link: who it is from, and a yes before anything is sent or listened for.
+  List<Widget> _asked(Tokens t) {
+    final name = _offeredName;
+    if (name == null) return [const _Lead(icon: Lucide.laptop, title: 'Reading the code', body: 'A moment.', busy: true)];
+    return [
+      _Lead(
+        icon: Lucide.laptop,
+        title: 'Pair with $name?',
+        body: 'It will show this phone\'s conversations and send texts through this phone. Go on only if you are setting up Ghost Messaging on your own computer right now, and it is showing this code. You will compare six digits with it before anything is shared.',
+      ),
+      PairButton(
+        label: 'Pair with $name',
+        icon: Lucide.link,
+        onPressed: () {
+          setState(() => _accepted = true);
+          _begin(widget.offered!);
+        },
+      ),
+      PairButton(label: 'Not now', icon: Lucide.x, quiet: true, onPressed: () => Navigator.of(context).maybePop()),
+    ];
   }
 
   List<Widget> _start(Tokens t) => [

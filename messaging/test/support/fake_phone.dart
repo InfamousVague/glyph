@@ -27,6 +27,9 @@ class FakePhone {
   final read = <int>[];
   final heard = <String>[];
 
+  /// Each lot of conversations the Mac asked for: from which row, and how many.
+  final asked = <({int offset, int limit})>[];
+
   /// Every hello this phone answered, by how it arrived.
   final hellos = <String>[];
 
@@ -206,6 +209,17 @@ class FakePhone {
         return null;
       case 'conversations':
         return conversations;
+      case 'conversationsPage':
+        if (a['archived'] == true) return {'items': [for (final c in conversations) if (c['archived'] == true) c], 'next': null};
+        final offset = (a['offset'] as num?)?.toInt() ?? 0;
+        final limit = ((a['limit'] as num?)?.toInt() ?? 250).clamp(1, 250);
+        final end = (offset + limit).clamp(0, conversations.length);
+        asked.add((offset: offset, limit: limit));
+        return {'items': conversations.sublist(offset.clamp(0, conversations.length), end), 'next': end < conversations.length ? end : null};
+      case 'conversation':
+        return conversations.where((c) => c['id'] == a['thread']).firstOrNull;
+      case 'archivedCount':
+        return conversations.where((c) => c['archived'] == true).length;
       case 'messages':
         return messages[(a['thread'] as num).toInt()] ?? const [];
       case 'people':

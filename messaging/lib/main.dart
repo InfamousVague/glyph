@@ -12,6 +12,7 @@ import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'sms.dart';
 import 'ui/compose.dart';
+import 'ui/computers.dart';
 import 'ui/conversations.dart';
 import 'ui/settings.dart';
 import 'ui/setup.dart';
@@ -171,7 +172,10 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     final nav = _navigator.currentState;
     if (nav == null || _isDefault != true) return;
     nav.popUntil((r) => r.isFirst);
-    if (req.computers) {
+    if (req.pairing != null) {
+      // A computer's pairing link, opened by the camera: the pairing page, which asks first.
+      nav.push(_route((_) => PairComputerScreen(offered: req.pairing)));
+    } else if (req.computers) {
       // The "Paired with …" notification.
       nav.push(_route((_) => const SettingsSectionScreen('computers')));
     } else if (req.thread != null) {

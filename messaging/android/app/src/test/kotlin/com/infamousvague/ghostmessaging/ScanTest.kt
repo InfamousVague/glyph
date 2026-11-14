@@ -6,12 +6,14 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 /** A computer's QR code, drawn here as a camera would see it (brightness alone), read back and taken as an offer. */
 class ScanTest {
-    private val code = JSONObject(File("../../test/desk_vectors.json").readText()).getString("offerText")
+    // What the Mac's QR code holds: the code as a link.
+    private val code = JSONObject(File("../../test/desk_vectors.json").readText()).getString("offerLink")
 
     /** [text] as a QR code in the middle of a grey frame, each module [scale] pixels, turned a quarter if [turned]. */
     private fun frame(text: String, width: Int, height: Int, scale: Int, turned: Boolean = false): ByteArray {
@@ -31,7 +33,8 @@ class ScanTest {
     fun aPairingCodeIsReadFromAFrameAndIsAnOffer() {
         val text = Scan.read(frame(code, 1280, 720, 5), 1280, 720)
         assertEquals(code, text)
-        val offer = DeskCrypto.parseOffer(text!!)
+        assertTrue(DeskCrypto.isOffer(text!!))
+        val offer = DeskCrypto.parseOffer(text)
         assertNotNull(offer)
         assertEquals("Matt's MacBook", offer!!.name)
         // Held sideways, and small in the frame.

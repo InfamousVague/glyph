@@ -215,6 +215,7 @@ class MainActivity : FlutterActivity() {
                 "deskList" -> bg { Desk.list() }
                 "deskAddresses" -> bg { Desk.addresses() }
                 "deskState" -> result.success(Desk.state())
+                "deskPeek" -> bg { Desk.peek(call.argument<String>("code") ?: "") }
                 "deskScan" -> {
                     scanResult = result
                     @Suppress("DEPRECATION")
@@ -265,6 +266,9 @@ class MainActivity : FlutterActivity() {
         if (thread >= 0) return mapOf("thread" to thread)
         // The "Paired with …" notification: Settings › Computers.
         if (intent.getBooleanExtra("desk", false)) return mapOf("desk" to true)
+        // A computer's pairing link, opened by the phone's camera or anything else: the pairing page, which asks
+        // before it does anything with a code that came from outside the app.
+        intent.data?.let { link -> if (link.scheme.equals("ghostmsg", ignoreCase = true) && link.host == "pair") return mapOf("pair" to link.toString()) }
         val data = intent.data
         if (data != null && data.scheme in setOf("sms", "smsto", "mms", "mmsto")) {
             val to = data.schemeSpecificPart.substringBefore('?').split(',', ';').map { Uri.decode(it).trim() }.filter { it.isNotEmpty() }

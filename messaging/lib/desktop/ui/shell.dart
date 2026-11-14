@@ -34,18 +34,30 @@ class _DeskShellState extends State<DeskShell> {
   String? _error;
   String _query = '';
   bool _archived = false;
+  int _archivedCount = 0;
   int? _current;
   StreamSubscription<int>? _changes;
   Timer? _debounce;
   int _reads = 0;
 
+  /// A whole read is under way, and something changed meanwhile: the newest are read again once it ends.
+  bool _reading = false;
+  bool _stale = false;
+
+  /// The first lot, which fills the list a few times over, and each lot after it: as the phone's own list reads
+  /// them (lib/ui/conversations.dart), so a phone with thousands shows its newest here at once.
+  static const _first = 40;
+  static const _lot = 250;
+
   @override
   void initState() {
     super.initState();
     _load();
-    _changes = Sms.instance.changes.stream.listen((_) {
+    _changes = Sms.instance.changes.stream.listen((thread) {
       _debounce?.cancel();
-      _debounce = Timer(const Duration(milliseconds: 200), _load);
+      // A text came or went: it is among the newest, so only those are read again. -1 is "anything may have
+      // changed" (the phone is back, a pin, an archive): the whole list.
+      _debounce = Timer(const Duration(milliseconds: 200), thread < 0 ? _load : _newest);
     });
   }
 
@@ -56,18 +68,64 @@ class _DeskShellState extends State<DeskShell> {
     super.dispose();
   }
 
+  /// Reads the conversations from the phone, the newest first: the first lot and the pinned ones at once, then the
+  /// rest a lot at a time behind them. What the whole read did not find has gone.
   Future<void> _load() async {
     final read = ++_reads;
+    _reading = true;
     try {
-      final all = await Sms.instance.conversations();
+      Sms.instance.archivedCount().then((n) {
+        if (mounted && read == _reads) setState(() => _archivedCount = n);
+      }).catchError((_) {});
+      final seen = <int>{};
+      int? at = 0;
+      while (at != null) {
+        final page = await Sms.instance.conversationsPage(limit: at == 0 ? _first : _lot, offset: at, pinned: at == 0);
+        if (!mounted || read != _reads) return;
+        seen.addAll(page.items.map((c) => c.id));
+        final last = page.next == null;
+        setState(() {
+          _all = mergeConversations(_all, page.items, only: last ? seen : null);
+          _error = null;
+        });
+        at = page.next;
+      }
+      // The archived ones are asked for by name: they may lie anywhere among thousands.
+      final archived = await Sms.instance.conversationsPage(archived: true);
       if (!mounted || read != _reads) return;
-      setState(() {
-        _all = all;
-        _error = null;
-      });
+      setState(() => _all = mergeConversations(_all, archived.items));
     } catch (e) {
       if (!mounted || read != _reads) return;
       setState(() => _error = '$e');
+    } finally {
+      if (read == _reads) {
+        _reading = false;
+        if (_stale && mounted) {
+          _stale = false;
+          _newest();
+        }
+      }
+    }
+  }
+
+  /// Reads the newest conversations again and lays them over the ones held: what a text that has just come or gone
+  /// changes.
+  Future<void> _newest() async {
+    if (_all == null) return _load();
+    if (_reading) {
+      _stale = true;
+      return;
+    }
+    final read = _reads;
+    try {
+      final page = await Sms.instance.conversationsPage(limit: _first, pinned: true);
+      if (!mounted || read != _reads) return;
+      setState(() {
+        _all = mergeConversations(_all, page.items);
+        _error = null;
+      });
+    } catch (_) {
+      // The list shown stands.
     }
   }
 
@@ -128,7 +186,7 @@ class _DeskShellState extends State<DeskShell> {
     final t = context.tokens;
     final scope = DeskScope.of(context);
     final shown = _shown;
-    final archivedCount = (_all ?? const <Conversation>[]).where((c) => c.archived).length;
+    final archivedCount = _archivedCount;
     final gutter = t.space(4);
 
     Widget list;

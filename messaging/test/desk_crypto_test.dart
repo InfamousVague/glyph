@@ -60,6 +60,12 @@ void main() {
     expect(read.name, "Matt's MacBook");
     expect(read.mode, 'both');
     expect(read.relay, 'wss://ghost-sms.com/relay');
+    // As the link the QR code holds: the same offer, read back the same.
+    expect(offer.link, v['offerLink']);
+    final linked = DeskOffer.parse(v['offerLink'] as String)!;
+    expect(DeskCrypto.hex(linked.key), v['deskPublic']);
+    expect(DeskCrypto.hex(linked.secret), input['secret']);
+    expect(DeskOffer.parse('ghostmsg://pair/'), isNull);
     expect(DeskOffer.parse('https://example.com'), isNull);
     expect(DeskOffer.parse('GHOSTPAIR1:e30'), isNull);
     expect(DeskOffer.parse('GHOSTPAIR1:!!!'), isNull);

@@ -50,6 +50,9 @@ class _Calls extends LinkCalls {
     final a = (arguments as Map?) ?? const {};
     final Object? answer = switch (method) {
       'conversations' => _conversations,
+      'conversationsPage' => {'items': [for (final c in _conversations) if ((c['archived'] == true) == (a['archived'] == true)) c], 'next': null},
+      'conversation' => _conversations.where((c) => c['id'] == a['thread']).firstOrNull,
+      'archivedCount' => 1,
       'messages' => a['thread'] == 1 ? _messages : const [],
       'people' => _conversations.firstWhere((c) => c['id'] == a['thread'])['people'],
       'e2e' => {'address': a['address'], 'state': a['address'] == '+15551230011' ? 'on' : 'none'},

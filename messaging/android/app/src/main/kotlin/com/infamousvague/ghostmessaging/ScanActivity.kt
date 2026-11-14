@@ -164,7 +164,7 @@ class ScanActivity : Activity() {
                     if (plane.rowStride == w) buffer.get(luminance, 0, minOf(buffer.remaining(), w * h))
                     else for (row in 0 until h) { buffer.position(row * plane.rowStride); buffer.get(luminance, row * w, minOf(w, buffer.remaining())) }
                     val text = Scan.read(luminance, w, h)
-                    if (text != null && text.startsWith(DeskCrypto.OFFER_TAG)) found(text)
+                    if (text != null && DeskCrypto.isOffer(text)) found(text)
                     else if (text != null) runOnUiThread { hint.text = "That code isn't a Ghost Messaging pairing code" }
                 } catch (e: Exception) { Log.w(TAG, "frame", e) } finally { image.close() }
             }, background)

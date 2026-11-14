@@ -21,7 +21,17 @@ class DeskSessionTest {
         val read = ArrayList<Long>()
         val keys = HashMap<String, Long>()
         var picture = ByteArray(1000000) { (it % 251).toByte() }
-        override fun conversations() = listOf(mapOf("id" to 7L, "snippet" to "See you at 7", "people" to listOf(mapOf("address" to "+15550100", "name" to "Maya"))))
+        /** How many conversations the phone holds, each with a snippet [snippetLength] long. */
+        var held = 1
+        var snippetLength = 12
+        private fun one(i: Int) = mapOf("id" to (7L + i), "snippet" to if (i == 0) "See you at 7" else "x".repeat(snippetLength), "people" to listOf(mapOf("address" to "+15550100", "name" to "Maya")))
+        override fun conversations() = (0 until held).map(::one)
+        override fun conversationsPage(limit: Int, offset: Int, pinned: Boolean, archived: Boolean): Map<String, Any?> {
+            val end = if (limit <= 0) held else minOf(held, offset + limit)
+            return mapOf("items" to (offset until end).map(::one), "next" to (if (end < held) end else null), "asked" to limit)
+        }
+        override fun conversation(thread: Long) = if (thread == 7L) one(0) else null
+        override fun archivedCount() = 0
         override fun messages(thread: Long, limit: Int) = listOf(mapOf("id" to 1L, "kind" to "sms", "body" to "See you at 7", "thread" to thread, "limit" to limit))
         override fun people(thread: Long) = listOf(mapOf("address" to "+15550100"))
         override fun threadFor(addresses: List<String>) = 7L
@@ -216,6 +226,36 @@ class DeskSessionTest {
         }
         assertFalse(mac.ask("threadFlag", JSONObject().put("name", "archived").put("thread", 7)).getBoolean("ok"))
         assertTrue(mac.ask("threadFlag", JSONObject().put("name", "pinned").put("thread", 7)).getBoolean("ok"))
+    }
+
+    @Test
+    fun aGreatManyConversationsCrossALotAtATimeAndNeverInOneFrameTooLongToCarry() {
+        val (host, mac) = paired()
+        mac.hello(); mac.ready()
+        host.phone.held = 3000
+        host.phone.snippetLength = 400
+        // The whole list at once is more than a frame carries: said in words, with the connection left standing.
+        val whole = mac.ask("conversations")
+        assertFalse(whole.getBoolean("ok"))
+        assertEquals("Too much to send at once", whole.getString("e"))
+        assertFalse(mac.session.closed)
+        // A lot at a time: never more than the phone hands over at once, however many are asked for.
+        var at: Int? = 0
+        var got = 0
+        var lots = 0
+        while (at != null) {
+            val page = mac.ask("conversationsPage", JSONObject().put("limit", 100000).put("offset", at)).getJSONObject("r")
+            assertEquals(DeskCalls.LOT, page.getInt("asked"))
+            got += page.getJSONArray("items").length()
+            at = if (page.isNull("next")) null else page.getInt("next")
+            lots++
+        }
+        assertEquals(3000, got)
+        assertEquals(12, lots)
+        assertEquals(40, mac.ask("conversationsPage", JSONObject().put("limit", 40).put("pinned", true)).getJSONObject("r").getJSONArray("items").length())
+        assertEquals("See you at 7", mac.ask("conversation", JSONObject().put("thread", 7)).getJSONObject("r").getString("snippet"))
+        assertTrue(mac.ask("conversation", JSONObject().put("thread", 1)).isNull("r"))
+        assertEquals(0, mac.ask("archivedCount").getInt("r"))
     }
 
     @Test

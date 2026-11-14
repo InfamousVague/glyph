@@ -198,6 +198,12 @@ object Desk : DeskHost {
         )
     }
 
+    /** What a code offers, before anything is done with it: the computer's name and how it would connect. */
+    fun peek(code: String): Map<String, Any?> {
+        val offer = DeskCrypto.parseOffer(code) ?: throw IllegalArgumentException("That isn't a Ghost Messaging pairing code")
+        return mapOf("name" to offer.name, "mode" to offer.mode, "relay" to offer.relay)
+    }
+
     /**
      * A code was scanned or pasted: this phone's key pair for the pairing is made, and with it the pairing's key.
      * The service then listens, and the computer, which is looking, connects. [mode] is how the two will connect
@@ -413,6 +419,10 @@ object Desk : DeskHost {
         private val sent = context.getSharedPreferences("desk_sent", Context.MODE_PRIVATE)
 
         override fun conversations() = store.conversations()
+        override fun conversationsPage(limit: Int, offset: Int, pinned: Boolean, archived: Boolean) =
+            store.conversationsPage(limit = limit, offset = offset, pinnedToo = pinned, only = if (archived) store.archivedThreads() else null)
+        override fun conversation(thread: Long) = store.conversation(thread)
+        override fun archivedCount() = (store.conversationsPage(only = store.archivedThreads())["items"] as List<*>).size
         override fun messages(thread: Long, limit: Int) = store.messages(thread, limit)
         override fun people(thread: Long) = store.threadPeople(thread)
         override fun threadFor(addresses: List<String>) = store.threadFor(addresses)

@@ -31,6 +31,7 @@
     "r": "wss://ghost-sms.com/relay"
   },
   "offerText": "GHOSTPAIR1:eyJrIjoiQTVmT3pIOWZHbVRWeEhNRHBySWxCTm5paGlqUFliSXRDbi9tRDAxYU9VRnoiLCJzIjoib0tHaW82U2xwcWVvcWFxcnJLMnVydz09IiwibiI6Ik1hdHQncyBNYWNCb29rIiwibSI6ImJvdGgiLCJyIjoid3NzOi8vZ2hvc3Qtc21zLmNvbS9yZWxheSJ9",
+  "offerLink": "ghostmsg://pair/eyJrIjoiQTVmT3pIOWZHbVRWeEhNRHBySWxCTm5paGlqUFliSXRDbi9tRDAxYU9VRnoiLCJzIjoib0tHaW82U2xwcWVvcWFxcnJLMnVydz09IiwibiI6Ik1hdHQncyBNYWNCb29rIiwibSI6ImJvdGgiLCJyIjoid3NzOi8vZ2hvc3Qtc21zLmNvbS9yZWxheSJ9",
   "frames": [
     {
       "from": "desk",

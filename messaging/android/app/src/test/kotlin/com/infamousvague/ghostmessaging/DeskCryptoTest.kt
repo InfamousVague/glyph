@@ -68,6 +68,15 @@ class DeskCryptoTest {
         val again = DeskCrypto.parseOffer(DeskCrypto.offerText(offer))!!
         assertArrayEquals(offer.key, again.key)
         assertEquals(offer.relay, again.relay)
+        // As the link the computer's QR code holds, which the phone's camera opens: the same offer.
+        val linked = DeskCrypto.parseOffer(v.getString("offerLink"))!!
+        assertArrayEquals(offer.key, linked.key)
+        assertArrayEquals(offer.secret, linked.secret)
+        assertEquals(offer.name, linked.name)
+        assertTrue(DeskCrypto.isOffer(v.getString("offerLink")) && DeskCrypto.isOffer(v.getString("offerText")) && DeskCrypto.isOffer(" GhostMsg://pair/abc"))
+        assertFalse(DeskCrypto.isOffer("https://example.com/pair/abc"))
+        assertNull(DeskCrypto.parseOffer("ghostmsg://pair/"))
+        assertNull(DeskCrypto.parseOffer("ghostmsg://other/" + v.getString("offerLink").substringAfterLast('/')))
         assertNull(DeskCrypto.parseOffer("https://example.com"))
         assertNull(DeskCrypto.parseOffer("GHOSTPAIR1:not base64 !!"))
         assertNull(DeskCrypto.parseOffer("GHOSTPAIR1:e30")) // {}

@@ -173,8 +173,9 @@ class _PairWizardState extends State<PairWizard> {
   }
 
   List<Widget> _showing(Tokens t, PairingAttempt a) => [
-        _title(t, 'Scan this with your phone', 'On the phone, open Ghost Messaging, then Settings › Computers › Pair a computer.'),
-        Center(child: QrView(data: a.offer.text)),
+        _title(t, 'Scan this with your phone', 'Point the phone\'s camera at it and open the link in Ghost Messaging. Or, in Ghost Messaging on the phone: Settings › Computers › Pair a computer.'),
+        // The code as a link: the phone's own camera opens it in Ghost Messaging, and the app's scanner reads it too.
+        Center(child: QrView(data: a.offer.link)),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const GhostSpinner(size: 16),
           SizedBox(width: t.space(2)),

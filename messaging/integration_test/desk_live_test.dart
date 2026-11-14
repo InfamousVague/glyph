@@ -21,7 +21,8 @@ import 'package:integration_test/integration_test.dart';
 ///     flutter test integration_test/desk_live_test.dart -d macos \
 ///       --dart-define=DESK_MODE=local --dart-define=DESK_PEER=127.0.0.1:47900
 ///
-/// - `DESK-CODE <code>`: paste it on the phone (Settings › Computers › Pair a computer), then `adb forward` the port
+/// - `DESK-CODE <code>` and `DESK-LINK <link>`: paste the code on the phone (Settings › Computers › Pair a
+///   computer), or open the link there as its camera would; then `adb forward` the port
 ///   the phone says it listens on to DESK_PEER's (local), or `adb reverse` the relay's port (relay).
 /// - `DESK-DIGITS <six>`: the phone should show the same; press "They match" there.
 /// - `DESK-WAITING-FOR-TEXT <tag>`: send the emulator a text from 5550100 with the tag in it.
@@ -126,6 +127,8 @@ void main() {
     await until(() => link.attempt != null, 'the pairing code');
     expect(link.attempt!.offer.mode, _mode);
     say('DESK-CODE ${link.attempt!.offer.text}');
+    // What the QR code holds: opened on the phone as its camera would (adb shell am start -a android.intent.action.VIEW -d <link>).
+    say('DESK-LINK ${link.attempt!.offer.link}');
     await shot('2-code');
 
     await until(() => link.attempt?.phase == 'code', 'the phone', max: const Duration(minutes: 8));

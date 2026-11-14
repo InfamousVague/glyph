@@ -176,6 +176,8 @@ void _answerChannel() {
         ];
       case 'deskState':
         return _pairing;
+      case 'deskPeek':
+        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay'};
       case 'deskUnrestricted':
         return false;
       case 'deskAddresses':
@@ -300,6 +302,9 @@ void main() {
         await _shoot(tester, sheet, const PairComputerScreen(), '10-pair-$name', dark: dark);
       }
       _pairing = {'phase': 'none'};
+      // The phone's camera opened a computer's pairing link: asked first, before anything is done with it.
+      await _shoot(tester, sheet, const PairComputerScreen(offered: 'ghostmsg://pair/abc'), '10-pair-asked', dark: dark);
+      expect(find.text('Pair with Matt\'s MacBook Pro?'), findsOneWidget);
       // Encryption in a conversation: on and verified, and a key waiting for a yes.
       await _shoot(tester, sheet, const ThreadScreen(thread: 8, people: [Person(address: '+15551230011', name: 'Riley Fox')]), '8-encrypted', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 9, people: [Person(address: '+15551230012', name: 'Noor Haddad')]), '8-encryption-asked', dark: dark);

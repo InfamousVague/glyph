@@ -13,6 +13,10 @@ class DeskCrypto {
   DeskCrypto._();
 
   static const offerTag = 'GHOSTPAIR1:';
+
+  /// The same code as a link, which is what the QR code holds: a phone's own camera opens a link in the app that
+  /// takes it, where plain words it can only show.
+  static const offerLink = 'ghostmsg://pair/';
   static const int hello = 1;
   static const int sealed = 2;
 
@@ -185,13 +189,26 @@ class DeskOffer {
 
   static const modes = {'both', 'local', 'relay'};
 
-  String get text => DeskCrypto.offerTag + base64Url.encode(utf8.encode(jsonEncode({'k': base64.encode(key), 's': base64.encode(secret), 'n': name, 'm': mode, 'r': relay}))).replaceAll('=', '');
+  String get _payload => base64Url.encode(utf8.encode(jsonEncode({'k': base64.encode(key), 's': base64.encode(secret), 'n': name, 'm': mode, 'r': relay}))).replaceAll('=', '');
+
+  /// The code as words, to paste on the phone.
+  String get text => DeskCrypto.offerTag + _payload;
+
+  /// The code as a link, for the QR code.
+  String get link => DeskCrypto.offerLink + _payload;
 
   static DeskOffer? parse(String text) {
     final body = text.trim();
-    if (!body.startsWith(DeskCrypto.offerTag)) return null;
+    final String payload;
+    if (body.startsWith(DeskCrypto.offerTag)) {
+      payload = body.substring(DeskCrypto.offerTag.length);
+    } else if (body.toLowerCase().startsWith(DeskCrypto.offerLink)) {
+      payload = body.substring(DeskCrypto.offerLink.length);
+    } else {
+      return null;
+    }
     try {
-      final o = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(body.substring(DeskCrypto.offerTag.length).trim())))) as Map;
+      final o = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(payload.trim())))) as Map;
       final key = base64.decode(o['k'] as String);
       final secret = base64.decode(o['s'] as String);
       final mode = (o['m'] as String?) ?? 'both';

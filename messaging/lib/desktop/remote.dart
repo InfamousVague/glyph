@@ -68,12 +68,42 @@ class LinkCalls implements SmsCalls {
     switch (method) {
       // --- the phone's -------------------------------------------------------------------------------------------------
       case 'conversations':
+        // Every conversation: asked for a lot at a time, since a phone with thousands has more than a frame carries.
+        final all = <dynamic>[];
+        int? at = 0;
+        while (at != null) {
+          final page = (await _call('conversationsPage', {'limit': lot, 'offset': at, 'pinned': at == 0})) as Map;
+          all.addAll(page['items'] as List);
+          at = (page['next'] as num?)?.toInt();
+        }
+        final seen = <Object?>{};
+        return [for (final c in all) if (seen.add((c as Map)['id'])) c];
+      case 'conversationsPage':
         try {
-          return _conversations = (await link.request('conversations')) as List;
+          final page = (await link.request('conversationsPage', a)) as Map;
+          _remember(page['items'] as List);
+          return page;
         } on LinkDown {
+          // The phone is away: what was read last, all of it, as one lot.
           final had = _conversations;
-          if (had != null) return had;
-          rethrow;
+          if (had == null) rethrow;
+          final archived = a['archived'] == true;
+          return {'items': [for (final c in had) if (!archived || (c as Map)['archived'] == true) c], 'next': null};
+        }
+      case 'conversation':
+        final thread = (a['thread'] as num).toInt();
+        try {
+          final c = await link.request('conversation', a);
+          if (c is Map) _remember([c]);
+          return c;
+        } on LinkDown {
+          return _cached(thread);
+        }
+      case 'archivedCount':
+        try {
+          return await link.request('archivedCount');
+        } on LinkDown {
+          return (_conversations ?? const []).where((c) => (c as Map)['archived'] == true).length;
         }
       case 'messages':
         final thread = (a['thread'] as num).toInt();
@@ -173,6 +203,15 @@ class LinkCalls implements SmsCalls {
       default:
         throw const PhoneError('That is done on the phone.');
     }
+  }
+
+  /// The most conversations asked of the phone at once (the phone hands over no more: android DeskCalls.LOT).
+  static const lot = 250;
+
+  /// Keeps [items] among the conversations read last, each in place of the one held under its id, newest first.
+  void _remember(List<dynamic> items) {
+    final byId = <Object?, dynamic>{for (final c in _conversations ?? const []) (c as Map)['id']: c, for (final c in items) (c as Map)['id']: c};
+    _conversations = byId.values.toList()..sort((x, y) => (((y as Map)['date'] as num?) ?? 0).compareTo(((x as Map)['date'] as num?) ?? 0));
   }
 
   Map<String, dynamic>? _cached(int thread) {

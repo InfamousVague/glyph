@@ -64,6 +64,14 @@
                 <data android:scheme="mms" />
                 <data android:scheme="mmsto" />
             </intent-filter>
+            <!-- A computer's pairing link (ghostmsg://pair/…), which is what its QR code holds: the phone's own camera
+                 opens it here (Desk.kt, docs/desktop.md). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ghostmsg" android:host="pair" />
+            </intent-filter>
             <!-- Shared text from other apps. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

@@ -221,6 +221,42 @@ void main() {
     expect(changes, contains(-1));
   });
 
+  test('a phone with a great many conversations hands them over a lot at a time, and what was read stays while it is away', () async {
+    final link = mac(MemoryStore());
+    await pair(link, 'local');
+    phone.conversations = [
+      for (var i = 0; i < 1200; i++)
+        {'id': 1000 + i, 'date': 1700000000000 - i * 60000, 'people': [{'address': '+1555${(100000 + i)}', 'name': 'Person $i', 'photo': null}], 'snippet': 'Text $i', 'unread': false, 'error': false, 'archived': i == 700},
+    ];
+    final bridge = LinkCalls(link, DeskStore(Directory.systemTemp.createTempSync('ghost-desk-test'), keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+
+    // The first lot is what the list shows at once.
+    final first = await Sms.instance.conversationsPage(limit: 40, pinned: true);
+    expect(first.items.length, 40);
+    expect(first.items.first.title, 'Person 0');
+    expect(first.next, 40);
+    // All of them, for whoever asks: never more than 250 at once, however many there are.
+    phone.asked.clear();
+    final all = await Sms.instance.conversations();
+    expect(all.length, 1200);
+    expect(phone.asked.length, 5);
+    expect(phone.asked.every((a) => a.limit <= 250), isTrue);
+    expect(await Sms.instance.archivedCount(), 1);
+    expect((await Sms.instance.conversationsPage(archived: true)).items.single.title, 'Person 700');
+    expect((await Sms.instance.conversation(1005))!.title, 'Person 5');
+
+    // The phone goes: what was read is still there to show.
+    await phone.leaveLocal();
+    await until(() => !link.online);
+    final away = await Sms.instance.conversationsPage(limit: 40, pinned: true);
+    expect(away.items.length, 1200);
+    expect(away.next, isNull);
+    expect((await Sms.instance.conversation(1005))!.title, 'Person 5');
+    expect(await Sms.instance.archivedCount(), 1);
+  });
+
   test('a text whose answer was lost is asked for again under the same name, and sent once', () async {
     final link = mac(MemoryStore());
     await pair(link, 'local');

@@ -80,5 +80,7 @@ console.log(JSON.stringify({
   phoneKey: hex(phoneKey),
   offer,
   offerText: 'GHOSTPAIR1:' + Buffer.from(JSON.stringify(offer), 'utf8').toString('base64url'),
+  // The same, as the link the Mac's QR code holds, which a phone's own camera can open in the app.
+  offerLink: 'ghostmsg://pair/' + Buffer.from(JSON.stringify(offer), 'utf8').toString('base64url'),
   frames,
 }, null, 2));

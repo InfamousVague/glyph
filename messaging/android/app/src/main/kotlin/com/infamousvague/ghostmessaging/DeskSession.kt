@@ -106,9 +106,14 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
                 val method = m.optString("m")
                 val args = m.optJSONObject("a") ?: JSONObject()
                 host.run(method) {
-                    val answer = JSONObject().put("t", "res").put("id", call)
+                    var answer = JSONObject().put("t", "res").put("id", call)
                     try { answer.put("ok", true).put("r", toJson(host.call(this, method, args))) }
                     catch (e: Exception) { answer.put("ok", false).put("e", e.message ?: e.toString()) }
+                    // An answer too long for one frame would end the connection at the other end, and the next one
+                    // after it: it is said in words, and the computer asks for less (a list a lot at a time).
+                    if (answer.toString().length > DeskCrypto.MAX_FRAME - 1024) {
+                        answer = JSONObject().put("t", "res").put("id", call).put("ok", false).put("e", "Too much to send at once")
+                    }
                     send(answer)
                 }
             }
@@ -193,6 +198,11 @@ interface DeskHost {
 /** What the phone does for a computer: what the screen's own channel asks of Android (MainActivity), a part of it. */
 interface DeskPhone {
     fun conversations(): List<Map<String, Any?>>
+
+    /** A lot of conversations, the newest first: `items`, and `next`, the row the next lot starts at (Store). */
+    fun conversationsPage(limit: Int, offset: Int, pinned: Boolean, archived: Boolean): Map<String, Any?>
+    fun conversation(thread: Long): Map<String, Any?>?
+    fun archivedCount(): Int
     fun messages(thread: Long, limit: Int): List<Map<String, Any?>>
     fun people(thread: Long): List<Map<String, Any?>>
     fun threadFor(addresses: List<String>): Long
@@ -225,6 +235,15 @@ class DeskCalls(private val phone: DeskPhone) {
     fun call(method: String, a: JSONObject): Any? = when (method) {
         "ping" -> null
         "conversations" -> phone.conversations()
+        // A lot at a time, as the phone's own list reads them: never the whole of a store with thousands at once.
+        "conversationsPage" -> phone.conversationsPage(
+            limit = if (a.optBoolean("archived")) 0 else a.optInt("limit", LOT).coerceIn(1, LOT),
+            offset = a.optInt("offset", 0).coerceAtLeast(0),
+            pinned = a.optBoolean("pinned"),
+            archived = a.optBoolean("archived"),
+        )
+        "conversation" -> phone.conversation(a.getLong("thread"))
+        "archivedCount" -> phone.archivedCount()
         "messages" -> phone.messages(a.getLong("thread"), a.optInt("limit", 300).coerceIn(1, 1000))
         "people" -> phone.people(a.getLong("thread"))
         "threadFor" -> phone.threadFor(strings(a.getJSONArray("addresses")))
@@ -275,5 +294,8 @@ class DeskCalls(private val phone: DeskPhone) {
     companion object {
         /** As much of a picture as one frame carries: its base64 stays well under [DeskCrypto.MAX_FRAME]. */
         const val PIECE = 384 * 1024
+
+        /** The most conversations handed over at once. */
+        const val LOT = 250
     }
 }
