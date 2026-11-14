@@ -293,7 +293,15 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         inFront = true
         // Picture messages announced and never fetched are asked for again as the app comes forward.
-        io.execute { try { MmsPushReceiver.retryWaiting(applicationContext) } catch (_: Exception) {} }
+        io.execute {
+            try { MmsPushReceiver.retryWaiting(applicationContext) } catch (_: Exception) {}
+            // Ones fetched that could not be read are read again, and ones left on Sending are let go of.
+            try { MmsResultReceiver.readKept(applicationContext) } catch (_: Exception) {}
+            try {
+                val stale = store.failStale()
+                if (stale > 0) { DevLog.add(applicationContext, "send", "$stale left on Sending for a quarter of an hour marked not sent"); Bus.changed(-1) }
+            } catch (_: Exception) {}
+        }
     }
 
     override fun onDestroy() {

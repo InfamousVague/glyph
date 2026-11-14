@@ -20,6 +20,19 @@ class StickersTest {
     }
 
     @Test
+    fun aStickerThatMovesSaysSoBeforeItsPicture() {
+        fun chunk(name: String, data: ByteArray) = byteArrayOf(0, 0, 0, data.size.toByte()) + name.toByteArray() + data + ByteArray(4)
+        val head = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 13, 10, 26, 10)
+        val still = head + chunk("IHDR", ByteArray(13)) + chunk("PLTE", ByteArray(30)) + chunk("IDAT", ByteArray(40)) + chunk("IEND", ByteArray(0))
+        val moving = head + chunk("IHDR", ByteArray(13)) + chunk("acTL", ByteArray(8)) + chunk("PLTE", ByteArray(30)) + chunk("IDAT", ByteArray(40)) + chunk("IEND", ByteArray(0))
+        assertFalse(Stickers.moves(still))
+        assertTrue(Stickers.moves(moving))
+        // Not a PNG at all, and too short to be anything.
+        assertFalse(Stickers.moves("RIFF....WEBP".toByteArray() + ByteArray(80)))
+        assertFalse(Stickers.moves(ByteArray(3)))
+    }
+
+    @Test
     fun anyOtherPictureIsNotASticker() {
         assertFalse(Stickers.isSticker(null))
         assertFalse(Stickers.isSticker("image0.jpg"))

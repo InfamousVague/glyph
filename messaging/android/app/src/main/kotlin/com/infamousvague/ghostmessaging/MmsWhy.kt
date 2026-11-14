@@ -26,6 +26,23 @@ object MmsWhy {
         else -> "Android gave no reason (code $code)"
     }
 
+    /**
+     * Whether a send that failed this way is worth trying again unasked: the phone could not reach the carrier, or
+     * the carrier's server was in trouble, either of which a minute often mends. Not where the person has to do
+     * something first (mobile data off, no SIM) or where the carrier said no to the message itself.
+     */
+    fun worthAnotherTry(code: Int, http: Int): Boolean = when (code) {
+        3, 6, 8 -> true
+        4 -> http == 0 || http >= 500
+        else -> false
+    }
+
+    /** How long to wait before try number [next] (the second, the third): long enough for a connection to come back. */
+    fun waitBefore(next: Int): Long = if (next <= 2) 20_000L else 90_000L
+
+    /** How many times a picture message is sent before the person is told it did not go. */
+    const val TRIES = 3
+
     /** Why Android could not fetch one that was announced. Reads after "Couldn't download a picture message: ". */
     fun download(code: Int, http: Int = 0): String = when (code) {
         4 -> if (http == 404 || http == 410) "the carrier no longer has it (it kept it for a few days)" else if (http > 0) "the carrier's server refused (HTTP $http)" else "the carrier's server couldn't be reached. Check mobile data"

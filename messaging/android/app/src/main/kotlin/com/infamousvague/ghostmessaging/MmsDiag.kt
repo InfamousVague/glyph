@@ -27,8 +27,15 @@ object MmsDiag {
     }
 
     fun cleared(context: Context, row: Uri) {
-        prefs(context).edit().remove("why:${row.lastPathSegment}").remove("small:${row.lastPathSegment}").apply()
+        prefs(context).edit().remove("why:${row.lastPathSegment}").remove("small:${row.lastPathSegment}").remove("tries:${row.lastPathSegment}").apply()
     }
+
+    /** How many times the picture message in [row] has been sent, this one included. */
+    fun tried(context: Context, row: Uri, times: Int) {
+        prefs(context).edit().putInt("tries:${row.lastPathSegment}", times).apply()
+    }
+
+    fun tries(context: Context, id: Long): Int = prefs(context).getInt("tries:$id", 1)
 
     /** The carrier refused the picture message [id] as it was: sent again, its pictures go smaller. */
     fun wantsSmaller(context: Context, id: Long): Boolean = prefs(context).getBoolean("small:$id", false)

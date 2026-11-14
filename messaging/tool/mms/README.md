@@ -12,7 +12,9 @@ this changes its carrier settings as root.
 
 It answers a message sent with the carrier's acceptance (m-send-conf), and serves `/tmp/mms/serve/<name>` to a phone
 fetching one. `touch /tmp/mms/refuse` makes it take a message and refuse it ("Unknown subscriber"), which Android
-reports as sent; `touch /tmp/mms/down` makes it refuse fetches (HTTP 503).
+reports as sent; `touch /tmp/mms/down` makes it refuse fetches (HTTP 503); `echo 4 > /tmp/mms/flaky` makes it
+refuse the next four messages sent (HTTP 503) and then mend, which is what the app's own second and third tries are
+for (Android itself tries a message three times before it reports a failure).
 
 ## Pointing the emulator at it
 

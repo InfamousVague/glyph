@@ -1,6 +1,7 @@
 package com.infamousvague.ghostmessaging
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,6 +29,23 @@ class MmsWhyTest {
     fun aMessageTheCarrierNoLongerHasIsNotAFault() {
         assertTrue(MmsWhy.download(4, 404).contains("no longer has it"))
         assertEquals(MmsWhy.send(11), MmsWhy.download(11))
+    }
+
+    @Test
+    fun aLostConnectionIsTriedAgainAndARefusalIsNot() {
+        // No route to the carrier, the carrier asking for patience, its server in trouble or not answering.
+        assertTrue(MmsWhy.worthAnotherTry(3, 0))
+        assertTrue(MmsWhy.worthAnotherTry(6, 0))
+        assertTrue(MmsWhy.worthAnotherTry(8, 0))
+        assertTrue(MmsWhy.worthAnotherTry(4, 503))
+        assertTrue(MmsWhy.worthAnotherTry(4, 0))
+        // What the person has to mend, or the carrier said no to: asking again changes nothing.
+        assertFalse(MmsWhy.worthAnotherTry(11, 0))
+        assertFalse(MmsWhy.worthAnotherTry(12, 0))
+        assertFalse(MmsWhy.worthAnotherTry(13, 0))
+        assertFalse(MmsWhy.worthAnotherTry(4, 413))
+        assertFalse(MmsWhy.worthAnotherTry(5, 0))
+        assertTrue(MmsWhy.waitBefore(2) < MmsWhy.waitBefore(3))
     }
 
     @Test

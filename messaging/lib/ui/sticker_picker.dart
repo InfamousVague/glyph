@@ -89,7 +89,11 @@ class _StickerSheetState extends State<StickerSheet> {
                     final sliding = all.length > 4;
                     Widget tab(StickerPack p) => GlacierPressable(
                           onPressed: () {
-                            setState(() => _pack = p.id);
+                            // A tab half off the edge slides into view as it is chosen.
+                            setState(() {
+                              _pack = p.id;
+                              _broughtIntoView = false;
+                            });
                             app.set('sticker_pack', p.id);
                           },
                           semanticLabel: '${p.name} stickers',
