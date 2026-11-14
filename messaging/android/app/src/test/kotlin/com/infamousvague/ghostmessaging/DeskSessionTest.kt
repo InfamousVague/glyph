@@ -42,6 +42,7 @@ class DeskSessionTest {
         override fun send(addresses: List<String>, body: String): Long { sentTexts += addresses to body; return 7L }
         override fun markRead(thread: Long) { read += thread }
         override fun setFlag(name: String, thread: Long, on: Boolean) {}
+        override fun setName(thread: Long, name: String) { did += "name $thread $name" }
         override fun archive(thread: Long, archived: Boolean) {}
         override fun draft(thread: Long): String? = null
         override fun setDraft(thread: Long, text: String) {}
@@ -271,6 +272,11 @@ class DeskSessionTest {
     fun aComputerDoesWhatThePhonesScreensDo() {
         val phone = FakePhone()
         val calls = DeskCalls(phone)
+        // A group's name, given from the computer, is the phone's to keep.
+        calls.call("threadName", JSONObject().put("thread", 7).put("name", "Family"))
+        assertEquals(listOf("name 7 Family"), phone.did)
+        phone.did.clear()
+        assertTrue(DeskCalls.CAPS.contains("threadName"))
         calls.call("deleteMessage", JSONObject().put("kind", "sms").put("id", 41))
         assertEquals(2, calls.call("deleteThreads", JSONObject().put("threads", JSONArray(listOf(7, 8)))))
         assertEquals(1, calls.call("deleteThread", JSONObject().put("thread", 9)))

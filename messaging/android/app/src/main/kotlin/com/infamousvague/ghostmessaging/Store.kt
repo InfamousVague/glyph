@@ -227,6 +227,7 @@ class Store(private val context: Context) {
                         "archived" to archived.contains(id),
                         "pinned" to pinned.contains(id),
                         "muted" to muted.contains(id),
+                        "name" to threadName(id),
                         "draft" to drafts[id.toString()],
                         "blocked" to (recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
                     )
@@ -306,6 +307,7 @@ class Store(private val context: Context) {
                     "archived" to archived.contains(id),
                     "pinned" to pinned.contains(id),
                     "muted" to muted.contains(id),
+                    "name" to threadName(id),
                     "draft" to drafts[id.toString()],
                     "blocked" to (one != null && isBlocked(one)),
                 )
@@ -823,6 +825,18 @@ class Store(private val context: Context) {
 
     private val prefs get() = context.getSharedPreferences("ghost", Context.MODE_PRIVATE)
 
+    /**
+     * A name given to a conversation on this phone (Matt, 2026-11-14: "expand on the ability to create, name and
+     * manage groups like telegram"): a group's, which otherwise goes by its people's first names. It is this
+     * phone's own: a group text has nowhere to carry one, so the others in it do not see it.
+     */
+    fun threadName(thread: Long): String? = prefs.getString("name_$thread", null)?.takeIf { it.isNotBlank() }
+
+    fun setThreadName(thread: Long, name: String) {
+        val clean = name.trim().take(NAME_MOST)
+        prefs.edit().apply { if (clean.isEmpty()) remove("name_$thread") else putString("name_$thread", clean) }.apply()
+    }
+
     /** A set of conversations kept by this app under [name]: "pinned", "muted". */
     fun threadFlags(name: String): Set<Long> = prefs.getStringSet(name, emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 
@@ -883,6 +897,9 @@ class Store(private val context: Context) {
     }
 
     companion object {
+        /** The longest name a conversation can be given. */
+        const val NAME_MOST = 60
+
         /** A picture message's announcement: being brought down, or it could not be (Android's own two numbers). */
         const val NOTICE_DOWNLOADING = 129
         const val NOTICE_FAILED = 130

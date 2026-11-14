@@ -322,6 +322,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
         if (why != null) throw PhoneError('Couldn\'t play it: $why.');
         return null;
       case 'threadFlag':
+      case 'threadName':
       case 'archive':
         await link.request(method, a);
         return null;

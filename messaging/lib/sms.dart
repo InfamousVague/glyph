@@ -26,6 +26,7 @@ class Conversation {
     required this.error,
     required this.archived,
     this.pinned = false,
+    this.name,
     this.muted = false,
     this.blocked = false,
     this.draft,
@@ -52,6 +53,7 @@ class Conversation {
         error: error,
         archived: archived ?? this.archived,
         pinned: pinned ?? this.pinned,
+        name: name,
         muted: muted,
         blocked: blocked,
         draft: draft,
@@ -67,7 +69,14 @@ class Conversation {
   /// Encryption is on with the one person of the conversation.
   final bool encrypted;
 
-  String get title => people.isEmpty ? 'Unknown' : people.map((p) => people.length > 1 ? p.label.split(' ').first : p.label).join(', ');
+  /// A name given to the conversation on this phone (android Store.threadName): a group's. Null where none was.
+  final String? name;
+
+  /// What the conversation is called: its name where it was given one, else its people.
+  String get title => name ?? peopleTitle(people);
+
+  /// A conversation by its people: the one person, or a group's first names.
+  static String peopleTitle(List<Person> people) => people.isEmpty ? 'Unknown' : people.map((p) => people.length > 1 ? p.label.split(' ').first : p.label).join(', ');
   bool get group => people.length > 1;
 
   factory Conversation.from(Map m) => Conversation(
@@ -79,6 +88,7 @@ class Conversation {
         error: m['error'] == true,
         archived: m['archived'] == true,
         pinned: m['pinned'] == true,
+        name: m['name'] as String?,
         muted: m['muted'] == true,
         blocked: m['blocked'] == true,
         draft: m['draft'] as String?,
@@ -736,6 +746,9 @@ class Sms {
   Future<void> deleteMessage(Message m) => _calls.invokeMethod('deleteMessage', {'kind': m.kind, 'id': m.id});
   Future<void> editMessage(Message m, String body) => _calls.invokeMethod('editMessage', {'kind': m.kind, 'id': m.id, 'body': body});
   Future<void> archive(int thread, bool archived) => _calls.invokeMethod('archive', {'thread': thread, 'archived': archived});
+  /// Gives the conversation a name on this phone, or takes it away with an empty one: a group's.
+  Future<void> setThreadName(int thread, String name) => _calls.invokeMethod('threadName', {'thread': thread, 'name': name});
+
   Future<void> threadFlag(String name, int thread, bool on) => _calls.invokeMethod('threadFlag', {'name': name, 'thread': thread, 'on': on});
   Future<String?> draft(int thread) => _calls.invokeMethod<String>('draft', {'thread': thread});
   Future<void> setDraft(int thread, String text) => _calls.invokeMethod('setDraft', {'thread': thread, 'text': text});

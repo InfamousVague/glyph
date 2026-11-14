@@ -218,6 +218,16 @@ void _answerChannel() {
         return {'items': _conversations.sublist(from.clamp(0, _conversations.length), to), 'next': to < _conversations.length ? to : null};
       case 'conversation':
         return _conversations.where((c) => c['id'] == args['thread']).firstOrNull;
+      case 'threadName':
+        // android Store.setThreadName: kept trimmed, and an empty one takes the name away.
+        final name = (args['name'] as String).trim();
+        final named = _conversations.firstWhere((c) => c['id'] == args['thread']);
+        if (name.isEmpty) {
+          named.remove('name');
+        } else {
+          named['name'] = name;
+        }
+        return null;
       case 'archivedCount':
         return _conversations.where((c) => c['archived'] == true).length;
       case 'messages':
@@ -740,6 +750,47 @@ void main() {
 
   // The app's frame (lib/ui/shell.dart): the list beside what is opened from it where the window is wide, under it
   // where it is narrow, and the same pages kept as the window changes. Pictures 11-frame-*.
+  testWidgets('a group is given a name', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    const group = [Person(address: '+15551230002', name: 'Jordan Park'), Person(address: '+15551230003', name: 'Sam Rivera'), Person(address: '+15551230004', name: 'Alex Kim')];
+    addTearDown(() => _conversations.firstWhere((c) => c['id'] == 2).remove('name'));
+    for (final dark in [false, true]) {
+      _conversations.firstWhere((c) => c['id'] == 2).remove('name');
+      // The group's settings have a field for its name (Matt: "expand on the ability to create, name and manage
+      // groups like telegram"), which shows what it goes by until one is given: its people's first names.
+      await _shoot(tester, sheet, ChatSettingsScreen(key: ValueKey('group-$dark'), thread: 2, people: group), '14-group-name-settings', dark: dark);
+      expect(find.textContaining(RegExp('group name', caseSensitive: false)), findsOneWidget);
+      expect(find.text('Jordan, Sam, Alex'), findsWidgets);
+      await tester.enterText(find.byType(EditableText).first, '  Weekend crew ');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await _shootAgain(tester, '14-group-name-settings', dark: dark);
+      expect(_conversations.firstWhere((c) => c['id'] == 2)['name'], 'Weekend crew');
+      // The page's own heading, the list and the conversation go by it from then on.
+      expect(find.text('Weekend crew'), findsWidgets);
+      await tester.pump(const Duration(seconds: 6));
+      await _shoot(tester, sheet, ConversationsScreen(key: ValueKey('list-$dark')), '14-group-name-list', dark: dark);
+      expect(find.text('Weekend crew'), findsOneWidget);
+      expect(find.text('Jordan, Sam, Alex'), findsNothing);
+      await _shoot(tester, sheet, ThreadScreen(key: ValueKey('named-$dark'), thread: 2, people: group), '14-group-name-thread', dark: dark);
+      expect(find.text('Weekend crew'), findsOneWidget);
+      // Emptied, the group goes by its people again. One person's conversation has no such field.
+      await _shoot(tester, sheet, ChatSettingsScreen(key: ValueKey('group-again-$dark'), thread: 2, people: group), '14-group-name-settings', dark: dark);
+      await tester.enterText(find.byType(EditableText).first, '');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await _settle(tester);
+      expect(_conversations.firstWhere((c) => c['id'] == 2)['name'], isNull);
+      await tester.pump(const Duration(seconds: 6));
+      await _shoot(tester, sheet, const ChatSettingsScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-chat-settings-one', dark: dark);
+      expect(find.textContaining(RegExp('group name', caseSensitive: false)), findsNothing);
+    }
+  });
+
   testWidgets('friends: the offer, a request each way, friends', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;

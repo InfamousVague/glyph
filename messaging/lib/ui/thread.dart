@@ -84,6 +84,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// Where Ghost Messaging's own encryption stands with the one person here (android/.../E2e.kt); none in a group.
   E2eState _e2e = const E2eState();
 
+  /// The name this conversation was given on this phone, where it was: a group's (lib/ui/chat_settings.dart).
+  String? _name;
+
   /// Settings › Messages: reaction texts hung on their messages. Read as the page's choices change.
   bool _foldOn = true;
 
@@ -162,7 +165,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   /// Where encryption stands with the one person here: asked again each time the conversation changes, since a key
   /// arriving is a text like any other.
+  Future<void> _loadName() async {
+    try {
+      final c = await Sms.instance.conversation(widget.thread);
+      if (mounted && c?.name != _name) setState(() => _name = c?.name);
+    } catch (_) {}
+  }
+
   Future<void> _loadE2e() async {
+    // A group has no encryption to read, and may have a name: read as the conversation opens, and again after its
+    // settings close.
+    if (_group) _loadName();
     if (_group || _people.isEmpty) return;
     try {
       final s = await Sms.instance.e2e(_people.first.address);
@@ -623,7 +636,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Widget build(BuildContext context) {
     final t = context.tokens;
     final background = ChatBackground.of(AppState.of(context), widget.thread);
-    final title = _people.isEmpty ? '' : (_group ? _people.map((p) => p.label.split(' ').first).join(', ') : _people.first.label);
+    final title = _people.isEmpty ? '' : (_group ? (_name ?? Conversation.peopleTitle(_people)) : _people.first.label);
     final subtitle = _group
         ? '${_people.length} people'
         : _e2e.on

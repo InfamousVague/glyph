@@ -175,6 +175,8 @@ class MainActivity : FlutterActivity() {
                     store.setThreadFlag(call.argument<String>("name")!!, call.argument<Number>("thread")!!.toLong(), call.argument<Boolean>("on") ?: true)
                     Bus.changed(-1); null
                 }
+                // A conversation's name, this phone's own: a group's (Store.setThreadName).
+                "threadName" -> bg { store.setThreadName(call.argument<Number>("thread")!!.toLong(), call.argument<String>("name") ?: ""); Bus.changed(-1); null }
                 "draft" -> bg { store.draft(call.argument<Number>("thread")!!.toLong()) }
                 "setDraft" -> bg { store.setDraft(call.argument<Number>("thread")!!.toLong(), call.argument<String>("text") ?: ""); null }
                 "setBlocked" -> bg { store.setBlocked(call.argument<String>("address")!!, call.argument<Boolean>("blocked") ?: true); Bus.changed(-1); null }

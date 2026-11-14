@@ -460,6 +460,7 @@ object Desk : DeskHost {
         // Told to the phone's own screen alone: a computer that heard "changed" would read the conversation again
         // and mark it read again, round and round.
         override fun markRead(thread: Long) { store.markRead(thread); Notifier.cancel(context, thread); Bus.changedOnPhone(thread) }
+        override fun setName(thread: Long, name: String) { store.setThreadName(thread, name); Bus.changed(-1) }
         override fun setFlag(name: String, thread: Long, on: Boolean) { store.setThreadFlag(name, thread, on); Bus.changed(-1) }
         override fun archive(thread: Long, archived: Boolean) { store.setArchived(thread, archived); Bus.changed(-1) }
         override fun draft(thread: Long) = store.draft(thread)

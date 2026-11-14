@@ -213,6 +213,9 @@ interface DeskPhone {
     fun send(addresses: List<String>, body: String): Long
     fun markRead(thread: Long)
     fun setFlag(name: String, thread: Long, on: Boolean)
+
+    /** Gives a conversation a name on this phone, or takes it away with an empty one (Store.setThreadName). */
+    fun setName(thread: Long, name: String)
     fun archive(thread: Long, archived: Boolean)
     fun draft(thread: Long): String?
     fun setDraft(thread: Long, text: String)
@@ -299,6 +302,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
             require(name == "pinned" || name == "muted") { "Not something a computer can change" }
             phone.setFlag(name, a.getLong("thread"), a.optBoolean("on", true)); null
         }
+        "threadName" -> { phone.setName(a.getLong("thread"), a.optString("name")); null }
         "archive" -> { phone.archive(a.getLong("thread"), a.optBoolean("archived", true)); null }
         "draft" -> phone.draft(a.getLong("thread"))
         "setDraft" -> { phone.setDraft(a.getLong("thread"), a.optString("text")); null }
@@ -442,7 +446,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
 
         /** What this phone does for a computer beyond the first few: a computer asks (`caps`) and offers these. */
         val CAPS = listOf(
-            "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
+            "threadName", "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
             "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
             "put", "drop", "sendPictures", "sendVoice", "sendSticker",
         )

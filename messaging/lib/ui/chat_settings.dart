@@ -97,7 +97,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final people = widget.people;
     final c = _conversation;
     final own = ChatBackground.own(app, thread);
-    final title = people.isEmpty ? 'Conversation' : (_group ? people.map((p) => p.label.split(' ').first).join(', ') : people.first.label);
+    final title = people.isEmpty ? 'Conversation' : (c?.name ?? Conversation.peopleTitle(people));
     return GlacierScope(
       attrs: const {'hue': 'indigo'},
       child: Builder(builder: (context) {
@@ -123,6 +123,18 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ],
                 ]),
                 SizedBox(height: t.space(5)),
+                // A group can be given a name (Matt, 2026-11-14: "expand on the ability to create, name and manage
+                // groups like telegram"). It is this phone's own: a group text has nowhere to carry one. On a
+                // computer it is asked of the phone, where the phone can (Sms.can).
+                if (_group && Sms.can('threadName')) ...[
+                  PaneSection(title: 'Group name', footer: const Text('Only you see this name. The others in the group see it as they always have.'), children: [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                      child: _GroupName(key: ValueKey('name-${c?.name}'), thread: thread, name: c?.name, people: people, onSaved: _load),
+                    ),
+                  ]),
+                  SizedBox(height: t.space(5)),
+                ],
                 PaneSection(title: _group ? '${people.length} people' : 'Person', children: [
                   for (final p in people)
                     SettingRow(
@@ -227,4 +239,49 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       }),
     );
   }
+}
+
+/// A group's name, typed: kept as the field is left or Enter is pressed; emptied, the group goes by its people's
+/// names again.
+class _GroupName extends StatefulWidget {
+  const _GroupName({super.key, required this.thread, required this.name, required this.people, required this.onSaved});
+  final int thread;
+  final String? name;
+  final List<Person> people;
+  final VoidCallback onSaved;
+
+  @override
+  State<_GroupName> createState() => _GroupNameState();
+}
+
+class _GroupNameState extends State<_GroupName> {
+  late final _text = TextEditingController(text: widget.name ?? '');
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final typed = _text.text.trim();
+    if (typed == (widget.name ?? '')) return;
+    try {
+      await Sms.instance.setThreadName(widget.thread, typed);
+      if (mounted) toast(context, typed.isEmpty ? 'Name removed' : 'Named $typed');
+      widget.onSaved();
+    } catch (_) {
+      if (mounted) toast(context, 'Couldn\'t save the name', tone: GlacierToastTone.danger);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GlacierInput(
+        controller: _text,
+        placeholder: Conversation.peopleTitle(widget.people),
+        ariaLabel: 'Group name',
+        size: GlacierFieldSize.md,
+        onSubmitted: (_) => _save(),
+        onBlur: _save,
+      );
 }
