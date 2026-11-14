@@ -170,7 +170,7 @@ gets right.
    With any of the three missing, verifying is off and the page says so. `GHOST_TEXT_TO` and `GHOST_TEXTS_A_DAY`
    need setting only to change `+1` and 200.
 6. **The relay put up again with this in it** (below; Matt's word each time), and an app release that has the
-   page (0.7.11 or later).
+   page (0.7.12 or later; 0.7.11 went out without it).
 
 To see it is on: Settings › Me › Number › **Text me a code** is a button, where before it said verifying is not set
 up on the relay server yet.
