@@ -367,6 +367,17 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
   over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
   yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
+- **Pictures that never arrived, on Verizon** (0.7.4; Matt, 2026-11-14, with his phone's report: "Im getting this
+  error on freshly sent photos": `not fetched: the carrier no longer has it … (result 4, HTTP 404)`). Verizon
+  announces a picture at an address that stops at "=" and serves it only with the announcement's transaction id
+  after it; its settings say so (`enabledTransID`), Android's own texting apps add it, and this app did not, so
+  every picture sent to a Verizon phone was "not found". Now the id is added where the carrier's settings ask
+  (`MmsWhy.fetchAddress`), and where they do not say and the bare address is answered "not found", it is asked for
+  once more with the id before anyone is told (`MmsWhy.worthAskingWithId`). Each fetch writes which server was
+  asked and how to the Developer log. Reproduced and mended on an emulator against a stand-in carrier that behaves
+  that way (`tool/mms/README.md`); not yet seen on Verizon itself. Pictures that failed before can be asked for
+  again with Try again, for as long as the carrier keeps them. An error of the app's own in the report
+  ("Null check operator used on a null value") said nothing of where: such a line now names where it was thrown.
 - **Routes: a relay system that can be swapped** (not released; [docs/network.md](docs/network.md); Matt,
   2026-11-14: "implement a full relay system for the app that's replacable and swappable ... The goal will be to
   have multiple sources to feed data to eachother from wifi locally, p2p, internet, sms, etc"). `lib/net/`: a route

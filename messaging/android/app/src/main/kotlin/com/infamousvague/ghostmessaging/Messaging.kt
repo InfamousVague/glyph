@@ -432,26 +432,33 @@ class MmsPushReceiver : BroadcastReceiver() {
 
     companion object {
         /** Asks Android to fetch the picture message waiting at [location]. [notice]: its announcement's row, if kept. */
-        fun download(context: Context, location: String, transactionId: String?, sub: Int, notice: Uri? = null) {
+        fun download(context: Context, location: String, transactionId: String?, sub: Int, notice: Uri? = null, addId: Boolean = false) {
             val file = File(MmsFileProvider.dir(context), "recv-${System.nanoTime()}.pdu")
             val uri = MmsFileProvider.uriFor(context, file)
-            val done = PendingIntent.getBroadcast(context, file.name.hashCode(), Intent(context, MmsResultReceiver::class.java).apply {
-                action = MmsResultReceiver.DOWNLOADED
-                putExtra("file", file.absolutePath)
-                putExtra("location", location)
-                putExtra("tid", transactionId)
-                putExtra("sub", sub)
-                if (notice != null) putExtra("notice", notice.toString())
-            }, MUTABLE)
             // It waits from now until it has come: a fetch that fails is asked for again (retryWaiting).
             MmsDiag.fetching(context, location, transactionId, sub)
             try {
                 val sms = smsManager(context, sub)
                 // The carrier's own settings say whether its server wants the transaction id on the address
-                // (MmsWhy.fetchAddress): without it, on those carriers, every fetch is "not found".
-                val append = try { sms.carrierConfigValues?.getBoolean(SmsManager.MMS_CONFIG_APPEND_TRANSACTION_ID, false) ?: false } catch (_: Exception) { false }
-                val from = MmsWhy.fetchAddress(location, transactionId, append)
-                DevLog.add(context, "mms", "fetching from ${MmsWhy.hostOf(location)} on SIM $sub${if (from != location) ", the transaction id added as the carrier's settings ask" else ""}")
+                // (MmsWhy.fetchAddress): without it, on those carriers (Verizon), every fetch is "not found".
+                // [addId]: the address as announced has just been answered "not found", and is asked for with it.
+                val asks = try { sms.carrierConfigValues?.getBoolean(SmsManager.MMS_CONFIG_APPEND_TRANSACTION_ID, false) ?: false } catch (_: Exception) { false }
+                val from = MmsWhy.fetchAddress(location, transactionId, asks || addId)
+                val done = PendingIntent.getBroadcast(context, file.name.hashCode(), Intent(context, MmsResultReceiver::class.java).apply {
+                    action = MmsResultReceiver.DOWNLOADED
+                    putExtra("file", file.absolutePath)
+                    putExtra("location", location)
+                    putExtra("tid", transactionId)
+                    putExtra("sub", sub)
+                    putExtra("with_id", from != location)
+                    if (notice != null) putExtra("notice", notice.toString())
+                }, MUTABLE)
+                val how = when {
+                    from == location -> if (asks) ", as announced (the carrier's settings ask for the transaction id, and this address takes none)" else ", as announced"
+                    asks -> ", the transaction id added as the carrier's settings ask"
+                    else -> ", the transaction id added after \"not found\" without it"
+                }
+                DevLog.add(context, "mms", "fetching from ${MmsWhy.hostOf(location)} on SIM $sub$how")
                 sms.downloadMultimediaMessage(context, from, uri, null, done)
             } catch (e: Exception) {
                 Log.e(TAG, "download", e)
@@ -587,6 +594,14 @@ class MmsResultReceiver : BroadcastReceiver() {
                 val location = intent.getStringExtra("location")
                 if (resultCode != Activity.RESULT_OK || bytes == null || bytes.isEmpty()) {
                     val http = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
+                    // "Not found" at an address that stops at an equals sign, asked for without the transaction id:
+                    // the carrier expects the id there and this phone's settings for it did not say so. Asked for
+                    // once more with it, before anyone is told the picture could not be fetched.
+                    if (location != null && MmsWhy.worthAskingWithId(http, location, intent.getStringExtra("tid"), intent.getBooleanExtra("with_id", false))) {
+                        DevLog.add(context, "mms", "not found at the address as announced (HTTP 404): asking again with the transaction id added")
+                        MmsPushReceiver.download(context, location, intent.getStringExtra("tid"), sub, notice, addId = true)
+                        return
+                    }
                     val why = if (resultCode == Activity.RESULT_OK) "the carrier sent nothing" else MmsWhy.download(resultCode, http)
                     Log.w(TAG, "mms download result $resultCode: $why")
                     DevLog.add(context, "mms", "not fetched: $why (result $resultCode, HTTP $http)")

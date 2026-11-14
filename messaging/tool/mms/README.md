@@ -49,3 +49,19 @@ class 1 (data coding 0x15) or the phone refuses it ("injectSmsPdu: not class 1")
     adb push /tmp/mms/m1.push.pdu /data/local/tmp/ && adb shell 'CLASSPATH=/data/local/tmp/pducheck.dex app_process / Inject /data/local/tmp/m1.push.pdu 1'
 
 The app fetches `m1` from the stand-in carrier, stores it and raises its notification.
+
+### As Verizon announces one
+
+Matt's report, 2026-11-14 (Verizon, 0.7.3): "not fetched: the carrier no longer has it … (result 4, HTTP 404)" on
+every picture just sent to him. Some carriers announce an address that stops at "=" and serve the message only
+with the announcement's transaction id after it; their settings say so (`enabledTransID`). `id-after` makes one
+that way, and the stand-in answers 404 at the bare address:
+
+    python3 tool/mms/make_incoming.py /tmp/mms/post-1.bin /tmp/mms v1 id-after
+    adb push /tmp/mms/v1.push.pdu /data/local/tmp/ && adb shell 'CLASSPATH=/data/local/tmp/pducheck.dex app_process / Inject /data/local/tmp/v1.push.pdu 1'
+
+With the emulator's settings as they come (`enabledTransID` false) the stand-in logs three `GET /m?message-id=`
+answered 404, which is the report's failure exactly, then `GET /m?message-id=n-v1` answered 200: the app asked once
+more with the id (`MmsWhy.worthAskingWithId`) and its log says "fetched 294 KB". After
+`adb shell cmd phone cc set-value enabledTransID true` there is one `GET`, with the id, answered 200
+(`MmsWhy.fetchAddress`).

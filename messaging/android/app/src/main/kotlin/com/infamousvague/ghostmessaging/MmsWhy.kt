@@ -52,18 +52,29 @@ object MmsWhy {
     }
 
     /**
-     * Where an announced picture message is fetched from (Matt, 2026-11-14: "debugging why pictures are not being
-     * received"). It is the address the announcement gave; but some carriers' own settings ask for the
-     * announcement's transaction id on the end of it (Android's `enabledTransID`), and their server answers "not
-     * found" without. Android's own texting apps add it where the carrier's settings say so; this app did not, so
-     * on such a carrier no picture could be fetched. [append] is that setting. An address that already ends with
-     * the id is left as it is.
+     * Where an announced picture message is fetched from (Matt, 2026-11-14, on Verizon: "Im getting this error on
+     * freshly sent photos", with his report's `not fetched … (result 4, HTTP 404)`). It is the address the
+     * announcement gave; but some carriers announce an address that stops at an equals sign
+     * (`…/servlets/mms?message-id=`) and expect the announcement's transaction id after it: their settings say so
+     * (Android's `enabledTransID`), and their server answers "not found" without. Android's own texting apps add
+     * the id where the carrier's settings ask and the address ends that way (PushReceiver in the platform's Mms
+     * app); this app did not, so on such a carrier no picture could be fetched. [append] is that setting, or that
+     * the address as announced has just been answered "not found". An address that does not end in an equals sign
+     * is whole, and is left as it is.
      */
     fun fetchAddress(location: String, transactionId: String?, append: Boolean): String {
         val id = transactionId?.trim().orEmpty()
-        if (!append || id.isEmpty() || location.endsWith(id)) return location
+        if (!append || id.isEmpty() || !location.endsWith("=")) return location
         return location + id
     }
+
+    /**
+     * Whether a fetch that was answered "not found" should be asked for once more with the transaction id on the
+     * address: where it went without one, and the address is of the kind that takes one. For a phone whose
+     * settings for its carrier do not say what the carrier's server expects.
+     */
+    fun worthAskingWithId(http: Int, location: String?, transactionId: String?, wentWithId: Boolean): Boolean =
+        http == 404 && !wentWithId && location != null && fetchAddress(location, transactionId, true) != location
 
     /** The server a picture message is fetched from, for the log: its name alone, never the rest of the address. */
     fun hostOf(location: String): String =
