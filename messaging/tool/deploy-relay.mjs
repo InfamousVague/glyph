@@ -100,9 +100,12 @@ rm -rf "$STAGE"; mkdir -p "$STAGE"; cat > "$STAGE/ghost-relay"
 chmod +x "$STAGE/ghost-relay"
 # Run here before anything is changed: a build that cannot start on this box stops the deploy.
 "$STAGE/ghost-relay" --help >/dev/null || { echo "x the relay does not run on this box"; exit 1; }
-# The port is the relay's own, or nobody's.
+# The port is the relay's own, or nobody's. Its own is known by the process that holds it being the service's: the
+# name ss gives is cut short ("dart:ghost-rela"), which the first deploy over a running relay took for a stranger.
 if $SUDO ss -ltnp 2>/dev/null | grep -q ":${PORT} "; then
-  $SUDO ss -ltnp | grep ":${PORT} " | grep -q ghost-relay || { echo "x port ${PORT} is in use by something else:"; $SUDO ss -ltnp | grep ":${PORT} "; exit 1; }
+  HOLDER=$($SUDO ss -ltnp | grep ":${PORT} " | sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | head -1)
+  OURS=$($SUDO systemctl show -p MainPID --value ghost-relay 2>/dev/null || true)
+  { [ -n "$HOLDER" ] && [ "$HOLDER" = "$OURS" ]; } || { echo "x port ${PORT} is in use by something else:"; $SUDO ss -ltnp | grep ":${PORT} "; exit 1; }
 fi
 id ghost-relay >/dev/null 2>&1 || $SUDO useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ghost-relay
 $SUDO mkdir -p ${DIR} ${DATA}

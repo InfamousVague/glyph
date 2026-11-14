@@ -525,7 +525,10 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   account is linked, a handle added or the page opened. Each network's sign-in is off until its app is registered
   and its values put on the box (docs/me.md says how); the three proved by code need nothing. Held by
   `relay/test/handles_test.dart` and `test/me_test.dart` (two installs through the real relay) with the networks
-  stood in for: **not yet deployed, and not run against a real network.**
+  stood in for. **On the server since 2026-11-14 18:04 UTC** (the relay put up again with the keeper of handles in
+  it, and ghost-sms.com's block passing `/link/*` to it; Matt: "deploy both yes"), so the three proved by a code
+  can be tried; Discord's, X's and Telegram's sign-ins are still off, their apps not registered. **Not run against
+  a real network yet.**
 - **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation

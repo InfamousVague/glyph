@@ -109,6 +109,17 @@ From `messaging/`, on the Mac (the box's account is Ghost.md's `tauri/.env`):
 `/etc/ghost-relay/env` where there is one. `deploy-site.mjs --caddy` adds `/link/*` to what ghost-sms.com's block
 passes to the relay. A restart drops whoever is connected to the hub; the apps connect again by themselves.
 
+**Done on 2026-11-14, both on one login at 18:02:03 UTC** (Matt, asked whether to deploy the server's half: "deploy
+both yes"). The relay was up again at 18:03:52 and the block at 18:04:14, with every other site on the box
+answering after as it had before, and `/apk.json` and `/mac.json` still served. `https://ghost-sms.com/link/`
+answers from the relay; `tool/net/live_hub_test.dart` against `wss://ghost-sms.com/hub` passed after it (signed in,
+a packet held and handed over, one answered, a room). There is no `/etc/ghost-relay/env` on the box yet: Discord,
+X and Telegram are off in the app until their apps are registered and their values put there (above), which is
+Matt's to do. The first run stopped before changing anything: the script's check that the port is the relay's own
+went by the name `ss` prints, which is cut short ("dart:ghost-rela"), so the running relay looked like a stranger.
+It now goes by the service's own process, and the second run went through on the same connection. What the hub
+was holding in memory for people who were away at that moment was lost with the restart, as every restart loses it.
+
 ## Not yet
 
 - **Not run against the real networks.** `handles_test.dart` and `me_test.dart` stand in for Discord, X, Telegram,
