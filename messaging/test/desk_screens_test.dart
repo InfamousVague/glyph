@@ -132,6 +132,8 @@ void main() {
       final store = DeskStore(dir, keychain: false);
       final calls = _Calls(link, store);
       Sms.calls = calls;
+      // The app's own updates are told to the phone's screens, as the app itself does it (desktop/main.dart).
+      if (updates != null) calls.attachUpdates(updates);
       final state = AppState()
         ..setTheme(dark ? 'dark' : 'light')
         ..set('emoji', 'noto');
@@ -247,9 +249,10 @@ void main() {
 
       await shoot('6-waiting', paired(null), dark: dark);
       expect(find.textContaining('Waiting for your phone'), findsOneWidget);
-      expect(find.text('Restart to update'), findsNothing);
+      expect(find.text('Update now'), findsNothing);
 
-      // A newer version is in place beside this one: a bar over the page says so, and Restart to update swaps it in.
+      // A newer version is in place beside this one: the banner the phone has says so over the page, and Update now
+      // swaps it in and opens it (Matt: "bring the same update banner we have on mobile to the desktop app").
       final mac = _Mac();
       final ready = MacUpdates.standing(
         installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'),
@@ -258,12 +261,13 @@ void main() {
         host: mac,
       );
       await shoot('7-update-ready', paired('local'), dark: dark, updates: ready);
-      expect(find.text('Ghost Messaging 0.7.0 is ready'), findsOneWidget);
-      await tester.tap(find.text('Restart to update'));
+      expect(find.text('Ghost Messaging 0.7.0 is ready to install'), findsOneWidget);
+      await tester.tap(find.text('Update now'));
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
       expect(mac.restarts, 1);
-      expect(find.text('Restarting as Ghost Messaging 0.7.0…'), findsOneWidget);
-      expect(find.text('Restart to update'), findsNothing);
+      expect(find.text('Installing Ghost Messaging 0.7.0…'), findsOneWidget);
+      expect(find.text('Update now'), findsNothing);
       // And in Settings: where the updates stand, and a look for one when asked.
       final idle = MacUpdates.standing(installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'), phase: MacUpdatePhase.idle, host: mac);
       await shoot('8-settings-updates', paired('local'), dark: dark, updates: idle, then: () async {

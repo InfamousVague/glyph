@@ -8,6 +8,7 @@ import 'link/link.dart';
 import 'link/session.dart';
 import 'platform.dart';
 import 'store.dart';
+import 'updates.dart';
 
 /// The phone's screens, on the Mac: every call they make of Android (lib/sms.dart) is answered here, by the phone
 /// over the link where it is the phone's to answer, and by the Mac itself where it is the Mac's own (its theme, its
@@ -23,6 +24,45 @@ class LinkCalls implements SmsCalls {
   final DeskStore store;
 
   Map<String, String> _prefs = {};
+
+  /// The app's own updates, once the app has handed them over ([attachUpdates]); none in a test that has none.
+  MacUpdates? _updates;
+  DateTime _looked = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Hands over the app's own updates: where they stand is told to the phone's screens (`Sms.instance.updates`), in
+  /// the words the phone's own updater uses, each time it moves.
+  void attachUpdates(MacUpdates updates) {
+    _updates = updates;
+    updates.addListener(() => Sms.instance.updates.add(UpdateState.from(updateState())));
+  }
+
+  /// Where the app's own update stands, as the phone's updater says it (android/.../Updater.kt): `ready` is the new
+  /// version in place beside this one, and installing it is a restart.
+  Map<String, Object?> updateState() {
+    final u = _updates;
+    final here = u?.installed;
+    if (u == null || here == null) return {'phase': 'disabled', 'current': link.app};
+    return {
+      'phase': switch (u.phase) {
+        MacUpdatePhase.idle => 'idle',
+        MacUpdatePhase.checking => 'checking',
+        MacUpdatePhase.downloading => 'downloading',
+        MacUpdatePhase.ready => 'ready',
+        MacUpdatePhase.restarting => 'installing',
+        // There is a newer one this copy cannot put in place itself.
+        MacUpdatePhase.manual => 'available',
+        MacUpdatePhase.failed => 'failed',
+      },
+      'current': here.version,
+      'available': u.release?.version,
+      'progress': u.phase == MacUpdatePhase.downloading ? u.progress : null,
+      'error': u.problem,
+      'auto': true,
+      'canInstall': u.phase != MacUpdatePhase.manual,
+      'source': u.feed.host,
+    };
+  }
+
   List<dynamic>? _conversations;
   final Map<int, List<dynamic>> _messages = {};
   final Map<int, String> _drafts = {};
@@ -203,8 +243,32 @@ class LinkCalls implements SmsCalls {
         return null;
       case 'status':
         return {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true};
+      // The app's own updates (updates.dart), told to the phone's screens in the phone's words, so the banner and
+      // the Settings a phone has are the ones a computer has (Matt, 2026-11-14: "bring the same update banner we
+      // have on mobile to the desktop app").
       case 'update':
-        return {'phase': 'disabled', 'current': link.app};
+        return updateState();
+      case 'updateCheck':
+        final u = _updates;
+        if (u == null) return null;
+        if (a['install'] == true && u.phase == MacUpdatePhase.ready) {
+          await u.restart();
+        } else {
+          _looked = DateTime.now();
+          unawaited(u.check());
+        }
+        return null;
+      case 'updateInstall':
+        await _updates?.restart();
+        return null;
+      case 'updatePage' || 'updateBackground':
+        // As a page opens: a look, no oftener than every five minutes (the phone's Updater.pageCheck).
+        final u = _updates;
+        if (u != null && DateTime.now().difference(_looked) >= const Duration(minutes: 5)) {
+          _looked = DateTime.now();
+          unawaited(u.check());
+        }
+        return null;
       case 'arriving':
         return <String, dynamic>{};
       case 'perfOn' || 'keyboardHere' || 'ghostPeers' || 'deskUnrestricted':
@@ -213,7 +277,7 @@ class LinkCalls implements SmsCalls {
         return const [];
       case 'deskState':
         return {'phase': 'none'};
-      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'updateBackground' || 'updatePage' || 'updateCheck' || 'setAutoUpdate':
+      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'setAutoUpdate':
         return null;
       default:
         throw const PhoneError('That is done on the phone.');

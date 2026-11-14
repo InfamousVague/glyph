@@ -16,7 +16,7 @@ import 'platform.dart';
 import 'remote.dart';
 import 'store.dart';
 import 'ui/shell.dart';
-import 'ui/update_bar.dart';
+import '../ui/update_banner.dart';
 import 'ui/wizard.dart';
 import 'updates.dart';
 
@@ -59,7 +59,11 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
   // opens whether or not the site answers.
   final macUpdates = updates ? MacUpdates.fromEnvironment(env) : null;
-  if (macUpdates != null) unawaited(macUpdates.start());
+  if (macUpdates != null) {
+    // Told to the phone's screens too, so its banner and its words are the computer's (remote.dart).
+    calls.attachUpdates(macUpdates);
+    unawaited(macUpdates.start());
+  }
   runApp(DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, envPeers: envPeers, updates: macUpdates));
 }
 
@@ -90,12 +94,15 @@ class DesktopApp extends StatelessWidget {
             color: const Color(0xFF4F5BD5),
             debugShowCheckedModeBanner: false,
             pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
+            // Each page that opens asks for a look for a newer version, as on the phone.
+            navigatorObservers: [UpdateWatch()],
             builder: (context, child) => GlacierTheme(
               sheet: sheet,
               attrs: {'platform': 'desktop', if (state.theme != 'system') 'theme': state.theme},
               typography: ghostTypography(state.emoji),
-              // A newer version in place says so over every page (ui/update_bar.dart).
-              child: InkOverrides(child: GlacierToastProvider(child: DeskUpdateBar(child: child!))),
+              // A newer version says so over every page, with the banner the phone has (lib/ui/update_banner.dart;
+              // Matt, 2026-11-14: "bring the same update banner we have on mobile to the desktop app").
+              child: InkOverrides(child: GlacierToastProvider(child: UpdateBanner(child: child!))),
             ),
             home: const DeskHome(),
           ),

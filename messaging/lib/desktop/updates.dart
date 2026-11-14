@@ -175,7 +175,11 @@ class MacUpdates extends ChangeNotifier {
     _release = release;
     _problem = problem;
     _checked = DateTime.now();
+    _standing = true;
   }
+
+  /// Made to stand as it is, for a picture: it looks nowhere.
+  bool _standing = false;
 
   /// The updater for this run of the app: where `GHOST_DESK_UPDATES` says to look, or nowhere for `off`.
   static MacUpdates? fromEnvironment(Map<String, String> env) {
@@ -240,7 +244,7 @@ class MacUpdates extends ChangeNotifier {
   /// Looks for a newer version and, where there is one, brings it down and has it put in place.
   Future<void> check() async {
     final here = _installed;
-    if (here == null || _busy) return;
+    if (here == null || _busy || _standing) return;
     // One in place is not looked past, and one this copy cannot take is not fetched again each time.
     if (_phase == MacUpdatePhase.ready || _phase == MacUpdatePhase.restarting || _phase == MacUpdatePhase.manual) return;
     _busy = true;
