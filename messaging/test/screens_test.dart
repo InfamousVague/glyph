@@ -367,12 +367,22 @@ void main() {
       await tester.tap(find.text('Priya Natarajan'));
       await _shootAgain(tester, '1-conversations-selecting', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread', dark: dark);
-      // A message held: its reactions under it, the screen effects under those, then what else can be done.
+      // A message held: its reactions under it, then what else can be done, the screen effects one item of that.
       await tester.longPress(find.text('Movie night is still on for tonight right?'));
       await _shootAgain(tester, '2-thread-held', dark: dark);
       expect(find.text('👍'), findsOneWidget);
-      expect(find.text('🎈'), findsOneWidget, reason: 'the screen effects are offered beside the reactions');
+      expect(find.text('🎈'), findsNothing, reason: 'the effects are behind Effects, not a row of their pictures');
       expect(find.text('Copy text'), findsOneWidget);
+      // Effects opens them in the menu's own place, each by its name, with the way back at the top.
+      await tester.tap(find.text('Effects'));
+      await _settle(tester);
+      await _shootAgain(tester, '2-thread-held-effects', dark: dark);
+      expect(find.text('Copy text'), findsNothing);
+      expect(find.text('Confetti'), findsOneWidget);
+      expect(find.text('🎈'), findsOneWidget);
+      await tester.tap(find.text('Effects'));
+      await _settle(tester);
+      expect(find.text('Copy text'), findsOneWidget, reason: 'the way back is the sub-menu\'s own first row');
       // An incoming one near the top: the same, on its own side.
       await tester.tapAt(const Offset(10, 10));
       await _settle(tester);
