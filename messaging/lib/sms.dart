@@ -823,6 +823,38 @@ class Sms {
   Future<List<Person>> blockedNumbers() async => [for (final m in (await _calls.invokeMethod<List>('blockedNumbers')) ?? const []) Person.from(m as Map)];
   Future<void> notificationSettings() => _calls.invokeMethod('notificationSettings');
 
+  /// Where the phone's own model for summaries stands (android/.../Summaries.kt): "available", "downloading",
+  /// "downloadable" or "unavailable". A computer has none of its own.
+  Future<String> summaryStatus() async {
+    if (remote) return 'unavailable';
+    try {
+      return (await _calls.invokeMethod<String>('summaryStatus')) ?? 'unavailable';
+    } catch (_) {
+      return 'unavailable';
+    }
+  }
+
+  /// Asks for the model where the phone can have it and has not yet; where it stands after.
+  Future<String> summaryPrepare() async {
+    if (remote) return 'unavailable';
+    try {
+      return (await _calls.invokeMethod<String>('summaryPrepare')) ?? 'unavailable';
+    } catch (_) {
+      return 'unavailable';
+    }
+  }
+
+  /// One line on what [conversation] (a line a text, `<name>: <words>`) says, by the phone's own model; null where it
+  /// cannot say.
+  Future<String?> summarize(String conversation) async {
+    if (remote) return null;
+    try {
+      return await _calls.invokeMethod<String>('summarize', {'text': conversation});
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Android's page for the "Paired with…" notification alone, where the person can turn it off.
   Future<void> deskNotificationSettings() => _calls.invokeMethod('deskNotificationSettings');
 

@@ -8,6 +8,7 @@ import 'package:glacier/glacier.dart';
 
 import 'me/me.dart';
 import 'accent.dart';
+import 'summaries.dart';
 import 'app_state.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
@@ -208,6 +209,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
       Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+      // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
+      // for where it can be had.
+      Summaries.instance.start(app);
       // And the number's verification, done here for a paired computer that asks (Sms.me on the computer).
       Sms.answer('me', Me.instance.forComputer);
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();

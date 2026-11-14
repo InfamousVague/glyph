@@ -17,6 +17,7 @@ import '../plugins/registry.dart' show PluginSection;
 import '../plugins/ui.dart' show FilterButton, MarkAllRead;
 import '../reactions.dart';
 import '../sms.dart';
+import '../summaries.dart';
 import 'common.dart';
 import 'compose.dart';
 import 'settings.dart';
@@ -124,6 +125,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // What was open in the pane has closed, or given way to something else: read again, as on coming back to the
     // list from a page.
     _shell = AppShell.maybeOf(context)?..closed.addListener(_back);
+    // A summary made comes into its row.
+    Summaries.instance.addListener(_summed);
     _load();
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
@@ -133,8 +136,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     });
   }
 
+  void _summed() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    Summaries.instance.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
     _changes?.cancel();
@@ -685,6 +693,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(
                       conversation: c,
+                      // Unread texts summed up by the phone's own model, made as the row is first shown.
+                      summary: widget.archived ? null : (Summaries.instance..want(c)).of(c),
                       selecting: _selecting,
                       selected: selected,
                       onPress: () => _selecting ? _toggle(c) : _open(c),
@@ -884,8 +894,12 @@ class _RcsNotice extends StatelessWidget {
 /// One conversation in the list: its face, its name, its last words and when. The Mac's list (lib/desktop) draws its
 /// rows with it too.
 class ConversationRow extends StatelessWidget {
-  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false});
+  const ConversationRow({super.key, required this.conversation, required this.onPress, required this.onLongPress, this.selecting = false, this.selected = false, this.summary});
   final Conversation conversation;
+
+  /// What its unread texts come to, in a line, by the phone's own model (lib/summaries.dart): shown in place of the
+  /// last words, marked as a summary.
+  final String? summary;
   final VoidCallback onPress;
   final VoidCallback onLongPress;
 
@@ -968,7 +982,19 @@ class ConversationRow extends StatelessWidget {
                                     TextSpan(text: 'Draft: ', style: TextStyle(color: t.colorOf('#dd3a30'), fontWeight: t.weight('medium'))),
                                     TextSpan(text: c.draft!.replaceAll('\n', ' ')),
                                   ])
-                                : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' ')),
+                                : summary != null && !c.error
+                                    // A summary, as Apple marks one: the model's mark, then its line.
+                                    ? TextSpan(children: [
+                                        WidgetSpan(
+                                          alignment: PlaceholderAlignment.middle,
+                                          child: Padding(
+                                            padding: EdgeInsets.only(right: t.space(1)),
+                                            child: Semantics(label: 'Summary', child: AppIcon(Lucide.sparkles, size: 13, strokeWidth: 2.2, wash: false, color: t.color('app-ink-2'))),
+                                          ),
+                                        ),
+                                        TextSpan(text: summary),
+                                      ])
+                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' ')),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),

@@ -9,6 +9,8 @@ import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/ui/me.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/friends/groups.dart';
@@ -23,6 +25,7 @@ import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, FilterButton, PluginRow, SectionTabs;
 import 'package:ghost_messaging/sms.dart';
+import 'package:ghost_messaging/summaries.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
 import 'package:ghost_messaging/ui/chat_settings.dart';
@@ -120,6 +123,9 @@ Map<String, Object?> _e2e(String address) => switch (address) {
       '+15551230001' => {'address': address, 'state': switch (_mayaFriend) { '' => 'none', 'want' => 'offered', _ => 'on' }, 'verified': false, 'changed': false, 'hasGhost': true, 'declined': false, 'friend': _mayaFriend, 'person': _p(address, 'Maya Chen')},
       _ => {'address': address, 'state': 'none', 'verified': false, 'changed': false},
     };
+
+/// For the picture of a summary (17-summary): the text waiting for the phone in Maya's conversation is left out.
+bool _summaryPicture = false;
 
 List<Map<String, Object?>> _messages(int thread) {
   if (thread == 6) {
@@ -270,6 +276,14 @@ void _answerChannel() {
             ..._messages(thread),
           ];
         }
+        // The picture of a summary: Maya's newest are hers, the text waiting for the phone set aside.
+        if (_summaryPicture && thread == 1) {
+          return [
+            {'id': 41, 'kind': 'sms', 'address': '+15551230001', 'body': 'Bring the projector cable if you still have it', 'date': _ago(minutes: 4), 'outgoing': false, 'state': 'received'},
+            {'id': 40, 'kind': 'sms', 'address': '+15551230001', 'body': 'Sounds good, see you at 7!', 'date': _ago(minutes: 5), 'outgoing': false, 'state': 'received'},
+            {'id': 39, 'kind': 'sms', 'address': '', 'body': 'Dinner at mine first?', 'date': _ago(minutes: 30), 'outgoing': true, 'state': 'delivered'},
+          ];
+        }
         return _messages(thread);
       case 'people':
         return (_conversations.firstWhere((c) => c['id'] == args['thread'])['people']);
@@ -299,6 +313,11 @@ void _answerChannel() {
       // A new chat's people have a conversation: the first one, here.
       case 'threadFor':
         return 1;
+      // The phone's own model for summaries (lib/summaries.dart), standing in.
+      case 'summaryStatus':
+        return 'available';
+      case 'summarize':
+        return 'Maya confirms 7pm and asks you to bring the projector cable.';
       case 'netSmsAvailable':
         return false;
       case 'netSmsDrain':
@@ -1178,6 +1197,32 @@ void main() {
       expect(hues().length, greaterThan(4), reason: 'Settings\' sections are in their colours, not the ink');
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 6));
+    }
+  });
+
+  testWidgets('an unread conversation summed up in its row', (tester) async {
+    // Matt, 2026-11-14: "Use a local AI to summarize unread message conversations like apple does".
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    await tester.runAsync(() => Summaries.instance.start(AppState()));
+    // Maya's newest are hers, unread: the text the person had waiting for the phone is set aside for this picture.
+    _summaryPicture = true;
+    addTearDown(() => _summaryPicture = false);
+    for (final dark in [false, true]) {
+      await _shoot(tester, sheet, const ConversationsScreen(), '17-summary', dark: dark);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await _shootAgain(tester, '17-summary', dark: dark);
+      expect(find.textContaining('Maya confirms 7pm'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.sparkles), findsOneWidget, reason: 'marked as a summary');
+      // In Settings › Messages: the switch, and that it is made on this phone.
+      await _shoot(tester, sheet, const SettingsSectionScreen('messages'), '17-summary-settings', dark: dark);
+      expect(find.text('Summarize unread conversations'), findsOneWidget);
+      expect(find.textContaining('nothing is sent anywhere'), findsOneWidget);
     }
   });
 

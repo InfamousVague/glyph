@@ -275,6 +275,10 @@ class MainActivity : FlutterActivity() {
                 "arriving" -> bg { Arriving.state(applicationContext) }
 // A link pressed in a message (lib/links.dart): the phone's browser, and only for a web address.
                 "openLink" -> result.success(Arriving.openLink(this, call.argument<String>("url") ?: ""))
+                // Summaries of unread conversations by the phone's own model (Summaries.kt).
+                "summaryStatus" -> bg { Summaries.status(this) }
+                "summaryPrepare" -> bg { Summaries.prepare(this) }
+                "summarize" -> bg { Summaries.summarize(this, call.argument<String>("text") ?: "") }
                 "openOldApp" -> result.success(Arriving.openOld(this))
                 "openAppInfo" -> result.success(Arriving.openAppInfo(this))
                 "openDefaultApps" -> result.success(Arriving.openDefaultApps(this))

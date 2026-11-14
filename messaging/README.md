@@ -448,6 +448,15 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Summaries of unread conversations** (not released; `lib/summaries.dart`, android `Summaries.kt`; Matt, 2026-11-14:
+  "Use a local AI to summarize unread message conversations like apple does"). Several unread texts in a row (since
+  you last wrote), or one long one, are summed up in a line in the list, marked with a sparkle, in place of the last
+  words; reading the conversation puts them back. Made on the phone by Android's own model (Gemini Nano, kept by
+  AICore) through ML Kit's GenAI Summarization API (`com.google.mlkit:genai-summarization` 1.0.0-beta1, conversation
+  in, one bullet out, English); nothing leaves the phone. Where the model can be had and is not here, AICore is asked
+  for it; a phone without it, or a computer, shows the texts as before. A summary is made once for a conversation's
+  newest text (kept as `summary_<thread>`). Settings › Messages › Summaries turns it off and says where the model
+  stands.
 - **Kinds of text and the list's filter** (not released; `lib/plugins/kinds.dart`, `FilterButton` in
   `lib/plugins/ui.dart`; Matt, 2026-11-14: "I'd like to have tabs for messages with a intelligent spam filter, debt
   collectors, political messages, payment reminders, tracking information, etc ... I'm thinking a filter dropdown
@@ -457,7 +466,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   Sales & solicitors and Spam (hidden from Messages as the app ships), Payment reminders, Deliveries & tracking and
   Appointments (shown). A kind is a filter, not a tab (`ListSection.filter`, `hidden`): a round funnel button
   beside Mark all read, wearing how many it hides, opens a small menu to tick each kind shown or hidden (kept as
-  `filter_<id>`) and to show one alone, or everything hidden; "N hidden · Show" at the list's foot does the same.
+  `filter_<id>`; All at the top ticks every kind), each with its icon; "N hidden · Show" at the list's foot shows what
+  is hidden.
   Each kind is a few patterns, said in Settings › Kinds of text: one strong sign or two weaker ones. Contacts and
   your own words are never sorted; a shown kind leaves a text that looks like spam to Spam, so a fake delivery fee
   is not shown as a delivery. "Not political" (and the like) on a conversation puts it back in Messages for good.

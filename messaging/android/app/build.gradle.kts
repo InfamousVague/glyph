@@ -74,6 +74,10 @@ flutter {
 dependencies {
     // Reads the QR code a computer shows to pair with (ScanActivity.kt): on the phone, with nothing from Google Play.
     implementation("com.google.zxing:core:3.5.3")
+    // Summaries of unread conversations on the phone itself (Summaries.kt; Matt, 2026-11-14: "Use a local AI to
+    // summarize unread message conversations like apple does"): Android's own on-device model (Gemini Nano, through
+    // AICore) by ML Kit's GenAI Summarization API, in beta. Nothing is sent anywhere; a phone without it says so.
+    implementation("com.google.mlkit:genai-summarization:1.0.0-beta1")
     testImplementation("junit:junit:4.13.2")
     // Android's own org.json is a stub on the JVM: the desktop link's tests (DeskSessionTest) need a real one.
     testImplementation("org.json:json:20240303")
