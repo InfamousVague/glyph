@@ -214,6 +214,11 @@ class AppShellState extends State<AppShell> {
   /// Takes the list back to the conversations, from Archived.
   void home() => _side.currentState?.popUntil((r) => r.isFirst);
 
+  /// Says that [child] stands in a column of the window [width] wide, where it does: the list beside a pane.
+  /// Always there, so the list keeps its place in the tree as the window changes: a width without end says the
+  /// list is the whole window.
+  Widget _column(bool beside, double width, Widget child) => HeaderColumn(left: 0, width: beside ? width : double.infinity, child: child);
+
   Widget _sized(Widget child) => LayoutBuilder(
         // The screens measure themselves against the screen they are on: here that is their share of the window.
         builder: (context, box) => MediaQuery(data: MediaQuery.of(context).copyWith(size: Size(box.maxWidth, box.maxHeight)), child: child),
@@ -254,7 +259,9 @@ class AppShellState extends State<AppShell> {
                     enabled: !covered,
                     child: HeaderCover(
                       covered: !wide && _open != null,
-                      child: _sized(Stack(children: [
+                      // Beside a pane the list is a column of the window: what hangs under its header (the update
+                      // banner) is as wide as the list, not laid across list and pane both.
+                      child: _column(wide, side, _sized(Stack(children: [
                         Positioned.fill(
                           child: NotificationListener<NavigationNotification>(
                             onNotification: (n) {
@@ -288,7 +295,7 @@ class AppShellState extends State<AppShell> {
                             ),
                           ),
                         ),
-                      ])),
+                      ]))),
                     ),
                   ),
                 ),

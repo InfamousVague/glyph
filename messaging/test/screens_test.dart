@@ -1148,6 +1148,20 @@ void main() {
       await _shootAgain(tester, '11-frame-wide-invite', dark: dark);
       expect(find.byType(ThreadScreen), findsOneWidget);
       expect(find.textContaining('Join me on Ghost Messaging'), findsOneWidget);
+      // A newer version waiting: beside a pane the banner is in the list's column, under its search field, with
+      // the app's name left out so its words and its button fit; on a narrow screen it runs the screen's width and
+      // says the name.
+      tester.view.physicalSize = open;
+      await _shoot(tester, sheet, const UpdateBanner(child: AppShell()), '11-frame-wide-banner', dark: dark);
+      final button = tester.getRect(find.text('Update now'));
+      expect(button.right, lessThan(side), reason: 'the banner is in the list\'s column, not across the window');
+      expect(tester.getRect(find.textContaining('is out')).left, greaterThan(0));
+      expect(find.text('0.6.2 is out'), findsOneWidget);
+      expect(tester.getRect(find.text('0.6.2 is out')).top, greaterThan(tester.getRect(find.byType(GlacierSearchField).first).bottom - 1));
+      tester.view.physicalSize = cover;
+      await _settle(tester);
+      expect(find.text('Ghost Messaging 0.6.2 is out'), findsOneWidget);
+      expect(tester.getRect(find.text('Update now')).right, greaterThan(300));
       // The next round starts with a frame of its own.
       await tester.pumpWidget(const SizedBox());
     }

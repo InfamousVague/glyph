@@ -162,6 +162,17 @@ class HeaderCover extends InheritedWidget {
   bool updateShouldNotify(HeaderCover old) => old.covered != covered;
 }
 
+/// Round a page that stands in a column of the window, not the whole of it: the list of conversations beside a
+/// pane (lib/ui/shell.dart). What hangs under that page's header (the update banner) is as wide as the column.
+class HeaderColumn extends InheritedWidget {
+  const HeaderColumn({super.key, required this.left, required this.width, required super.child});
+  final double left;
+  final double width;
+
+  @override
+  bool updateShouldNotify(HeaderColumn old) => old.left != left || old.width != width;
+}
+
 /// Where a page's header ends: a mark of no size that a page puts under its header (GhostPage puts one under its
 /// title; the list of conversations puts another under its search field). The update banner hangs just below the
 /// lowest one on the page in front, so it is over the page's content and never over its header.
@@ -173,18 +184,24 @@ class HeaderEnd extends StatefulWidget {
   /// Told whenever a mark comes, goes, or its page comes to the front or leaves it.
   static final changed = ValueNotifier<int>(0);
 
-  /// How far down the screen the header of the page in front ends, or null where no page has said.
-  static double? lowest() {
-    double? y;
+  /// Where the header of the page in front ends: the lowest such mark, as a line across the screen at its height.
+  /// It runs the window's width (a width without end), unless its page stands in a column of the window
+  /// ([HeaderColumn]: the list beside a pane), and then it is that column's. Beside a pane the list's mark is the
+  /// lowest, its search field being under its title. Null where no page has said.
+  static Rect? lowestRect() {
+    Rect? found;
     for (final mark in _marks) {
       if (!mark.mounted || mark._covered || !(mark._route?.isCurrent ?? true)) continue;
       final box = mark.context.findRenderObject();
       if (box is! RenderBox || !box.attached || !box.hasSize) continue;
-      final at = box.localToGlobal(Offset.zero).dy;
-      if (y == null || at > y) y = at;
+      final y = box.localToGlobal(Offset.zero).dy;
+      if (found == null || y > found.top) found = Rect.fromLTWH(mark._column?.left ?? 0, y, mark._column?.width ?? double.infinity, 0);
     }
-    return y;
+    return found;
   }
+
+  /// How far down the screen the header of the page in front ends, or null where no page has said.
+  static double? lowest() => lowestRect()?.top;
 
   @override
   State<HeaderEnd> createState() => _HeaderEndState();
@@ -193,6 +210,7 @@ class HeaderEnd extends StatefulWidget {
 class _HeaderEndState extends State<HeaderEnd> {
   ModalRoute<dynamic>? _route;
   bool _covered = false;
+  HeaderColumn? _column;
 
   void _say() => WidgetsBinding.instance.addPostFrameCallback((_) => HeaderEnd.changed.value++);
 
@@ -208,6 +226,7 @@ class _HeaderEndState extends State<HeaderEnd> {
     // The page coming to the front or leaving it is a change of this, and so is its arriving.
     _route = ModalRoute.of(context);
     _covered = HeaderCover.of(context);
+    _column = context.dependOnInheritedWidgetOfExactType<HeaderColumn>();
     _say();
   }
 
@@ -218,8 +237,44 @@ class _HeaderEndState extends State<HeaderEnd> {
     super.dispose();
   }
 
+  // Told when it has moved up or down the screen (a row of chips came in over it, a line of words went): what
+  // hangs under it follows.
   @override
-  Widget build(BuildContext context) => const SizedBox(width: double.infinity, height: 0);
+  Widget build(BuildContext context) => _HeaderMark(onMoved: _say);
+}
+
+/// A line of no height that says when it has been drawn somewhere else down the screen than last time.
+class _HeaderMark extends LeafRenderObjectWidget {
+  const _HeaderMark({required this.onMoved});
+  final VoidCallback onMoved;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHeaderMark(onMoved);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderHeaderMark mark) => mark.onMoved = onMoved;
+}
+
+class _RenderHeaderMark extends RenderBox {
+  _RenderHeaderMark(this.onMoved);
+  VoidCallback onMoved;
+  double? _y;
+
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => Size(constraints.hasBoundedWidth ? constraints.maxWidth : 0, 0);
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    // How far down the screen, which a page sliding in from the side does not change.
+    final y = localToGlobal(Offset.zero).dy;
+    if (y != _y) {
+      _y = y;
+      onMoved();
+    }
+  }
 }
 
 /// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it

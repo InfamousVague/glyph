@@ -270,12 +270,16 @@ void main() {
         host: mac,
       );
       await shoot('7-update-ready', paired('local'), dark: dark, updates: ready);
-      expect(find.text('Ghost Messaging 0.7.0 is ready to install'), findsOneWidget);
+      // In the sidebar, under its search field, as wide as the list and no wider (Matt, 2026-11-14: "the banner
+      // shows up in the middle of the page instead of in the sidebar"); in a column that narrow the app's name is
+      // left out.
+      expect(find.text('0.7.0 is ready to install'), findsOneWidget);
+      expect(tester.getRect(find.text('Update now')).right, lessThan(340));
       await tester.tap(find.text('Update now'));
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
       expect(mac.restarts, 1);
-      expect(find.text('Installing Ghost Messaging 0.7.0…'), findsOneWidget);
+      expect(find.text('Installing 0.7.0…'), findsOneWidget);
       expect(find.text('Update now'), findsNothing);
       // And in Settings: where the updates stand, and a look for one when asked.
       final idle = MacUpdates.standing(installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'), phase: MacUpdatePhase.idle, host: mac);

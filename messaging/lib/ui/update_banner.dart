@@ -45,24 +45,27 @@ class _UpdateBannerState extends State<UpdateBanner> {
     super.dispose();
   }
 
-  /// Where the header of the page in front ends (HeaderEnd), looked for whenever a page says its header has moved.
-  double? _under;
+  /// Where the header of the page in front ends (HeaderEnd), and how wide that page is: looked for whenever a page
+  /// says its header has moved.
+  Rect? _under;
 
   void _place() {
     if (!mounted) return;
-    final y = HeaderEnd.lowest();
-    if (y != _under) setState(() => _under = y);
+    final at = HeaderEnd.lowestRect();
+    if (at != _under) setState(() => _under = at);
   }
 
   /// What the banner says, or null where there is nothing to say: no newer version, or one being looked for.
-  static String? line(UpdateState u) {
+  /// [short] leaves the app's name out, for a banner no wider than the list's column.
+  static String? line(UpdateState u, {bool short = false}) {
     final version = u.available;
     if (version == null || version.isEmpty) return null;
+    final what = short ? version : 'Ghost Messaging $version';
     return switch (u.phase) {
-      'available' => 'Ghost Messaging $version is out',
-      'ready' => 'Ghost Messaging $version is ready to install',
-      'downloading' => 'Getting Ghost Messaging $version${u.progress == null ? '' : ' · ${(u.progress! * 100).round()}%'}',
-      'installing' => 'Installing Ghost Messaging $version…',
+      'available' => '$what is out',
+      'ready' => '$what is ready to install',
+      'downloading' => 'Getting $what${u.progress == null ? '' : ' · ${(u.progress! * 100).round()}%'}',
+      'installing' => 'Installing $what…',
       _ => null,
     };
   }
@@ -76,6 +79,15 @@ class _UpdateBannerState extends State<UpdateBanner> {
     final pad = MediaQuery.paddingOf(context);
     final busy = _update.phase == 'downloading' || _update.phase == 'installing';
     const white = Color(0xFFFFFFFF);
+    // As wide as the page whose header it hangs under. Where the list stands beside a pane (a computer, a folding
+    // phone opened out) that is the list's column (Matt, 2026-11-14, of the Mac: "the banner shows up in the middle
+    // of the page instead of in the sidebar"): it had been laid across the whole window, half over each.
+    final left = _under?.left ?? 0;
+    final column = _under?.width ?? double.infinity;
+    final across = column.isFinite ? column : MediaQuery.sizeOf(context).width;
+    // In a column that narrow the app's name is left out, so the words and the button still fit.
+    final narrow = across < t.lenOf('24rem');
+    final said = line(_update, short: narrow);
     // Over the page's content and under its header (Matt, 2026-11-14: "Redo the update banner to show over the
     // content but not over the header, make it have an x button and be more colorful"): each page marks where its
     // header ends (HeaderEnd: under the title, and on the list under the search too), the banner hangs just below
@@ -84,9 +96,9 @@ class _UpdateBannerState extends State<UpdateBanner> {
     return Stack(children: [
       widget.child,
       Positioned(
-        top: (_under ?? pad.top + t.lenOf('3.5rem')) + t.space(1),
-        left: t.space(3),
-        right: t.space(3),
+        top: (_under?.top ?? pad.top + t.lenOf('3.5rem')) + t.space(1),
+        left: left + t.space(narrow ? 2 : 3),
+        width: across - t.space(narrow ? 2 : 3) * 2,
         child: IgnorePointer(
           ignoring: !show,
           child: AnimatedSlide(
@@ -120,7 +132,7 @@ class _UpdateBannerState extends State<UpdateBanner> {
                               child: AppIcon(busy ? Lucide.download : Lucide.sparkles, size: 16, color: white, wash: false),
                             ),
                             SizedBox(width: t.space(2)),
-                            Expanded(child: Text(words ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: white, height: 1.25))),
+                            Expanded(child: Text(said ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: white, height: 1.25))),
                             if (!busy)
                               GlacierPressable(
                                 onPressed: () => _update.phase == 'ready' ? Sms.instance.updateInstall() : Sms.instance.updateCheck(install: true),
