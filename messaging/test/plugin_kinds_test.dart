@@ -68,6 +68,16 @@ void main() {
     }
   });
 
+  test('food delivery texts are their own kind, ahead of parcels', () {
+    expect(kindOf('DoorDash: Your Dasher is on the way with your order from Thai Basil.'), 'food');
+    expect(kindOf('Uber Eats: your food is arriving in 5 minutes.'), 'food');
+    expect(kindOf('Your Instacart shopper has picked up your groceries.'), 'food');
+    expect(kindOf('Your driver is outside with your order. Leave a tip in the app.'), 'food');
+    expect(kindOf('Grubhub: the restaurant is preparing your order.'), 'food');
+    expect(kindOf('Your package is out for delivery. Tracking number 1Z999AA10123456784'), 'deliveries');
+    expect(kindOf('Want to grab food later?'), isNull);
+  });
+
   test('a scam dressed as a delivery or a bill is not shown as one: the Spam filter has it', () {
     expect(kindOf('USPS: your package could not be delivered, pay the redelivery fee now at bit.ly/3xYz'), isNull);
     expect(kindOf('URGENT: your bill payment failed, your account is suspended. Verify at http://pay.example'), isNull);
@@ -75,7 +85,7 @@ void main() {
 
   // What sampling real texts showed (2026-11-14; reworded, nothing of anyone's own).
   test('what a sample of real texts showed: kinds it missed, and things it took for a kind wrongly', () {
-    expect(kindOf('Your order was dropped off. See the photo your Dasher took.'), 'deliveries');
+    expect(kindOf('Your order was dropped off. See the photo your Dasher took.'), 'food');
     expect(kindOf('Store: items in order W123 were delivered. Enjoy!'), 'deliveries');
     expect(kindOf('Hi, this is Mike with a local arborist. Discounts on tree trimmings & removals nearby. Interested?'), 'sales');
     expect(kindOf('Do you want a health insurance quote? New plans with no deductible.'), 'sales');

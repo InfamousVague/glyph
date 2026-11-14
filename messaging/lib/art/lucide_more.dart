@@ -55,5 +55,8 @@ abstract final class LucideMore {
   static const reply = LucideIcon('reply', ['M20 18v-2a4 4 0 0 0-4-4H4', 'm9 17-5-5 5-5'], []);
   static const sunMedium = LucideIcon('sun-medium', ['M8 12A4 4 0 1 0 16 12A4 4 0 1 0 8 12Z', 'M12 3v1', 'M12 20v1', 'M3 12h1', 'M20 12h1', 'm18.364 5.636-.707.707', 'm6.343 17.657-.707.707', 'm5.636 5.636.707.707', 'm17.657 17.657.707.707'], [0]);
   static const calendarClock = LucideIcon('calendar-clock', ['M16 14v2.2l1.6 1', 'M16 2v3', 'M21 7.338V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h2.338', 'M3 9h5.859', 'M8 2v3', 'M10 16A6 6 0 1 0 22 16A6 6 0 1 0 10 16Z'], [5]);
-  static const userRoundSearch = LucideIcon('user-round-search', ['M5 8A5 5 0 1 0 15 8A5 5 0 1 0 5 8Z', 'M2 21a8 8 0 0 1 10.434-7.62', 'M15 18A3 3 0 1 0 21 18A3 3 0 1 0 15 18Z', 'm22 22-1.9-1.9'], [0, 2]);
+  // Food delivery texts (lib/plugins/kinds.dart), and Messages on the list's toggle (lib/plugins/ui.dart).
+  static const utensils = LucideIcon('utensils', ['M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2', 'M7 2v20', 'M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7'], []);
+  static const messageCircle = LucideIcon('message-circle', ['M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719'], []);
+  static const userRoundSearch =LucideIcon('user-round-search', ['M5 8A5 5 0 1 0 15 8A5 5 0 1 0 5 8Z', 'M2 21a8 8 0 0 1 10.434-7.62', 'M15 18A3 3 0 1 0 21 18A3 3 0 1 0 15 18Z', 'm22 22-1.9-1.9'], [0, 2]);
 }
