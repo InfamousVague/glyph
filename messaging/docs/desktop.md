@@ -144,7 +144,7 @@ The choice can be changed later from either side, and the change is sent to the 
 ## When the phone is asleep, or Android stops the app
 
 - While a computer is paired, or being paired, the phone runs a foreground service (`DeskService`, Android's
-  "remote messaging" kind) with a quiet permanent notification, "Paired with Matt's MacBook". It holds the port and
+  "remote messaging" kind). Android has it post a notification ("Paired with Matt's MacBook"), on a channel that is off from the start, so it is not shown (Matt, 2026-11-14: "don't show the notification for the phone app and desktop app being linked it's blocking notifications for text messages"); Android's own notification settings for the app (Paired computers) turn it on. It holds the port and
   the relay connection, and starts again after a restart or an update. It stops when no computer is paired.
 - If Android stops it anyway, a new text starts it again, and the Mac reads what it missed when it reconnects.
 - In deep sleep (still, unplugged, screen off a long while) Android cuts the app's network. What is typed on the
@@ -311,7 +311,8 @@ and read it back on two later starts, each of which showed his conversations and
 
 The design asked three things, and "Yes, build it" answered none by name, so it is built as the design had it:
 
-1. The permanent notification on the phone while a computer is paired.
+1. ~~The permanent notification on the phone while a computer is paired.~~ Still posted, as Android has it, on a
+   channel that is off from the start, so it is not shown (2026-11-14).
 2. ~~The Mac keeps no texts on its disk, so it opens empty until the phone answers.~~ It keeps what it has read,
    sealed, since 2026-11-14 ("What the Mac keeps").
 3. The relay at `ghost-sms.com/relay` when he says, and on the Mac until then.

@@ -46,7 +46,12 @@ class DeskService : Service() {
     companion object {
         private const val TAG = "GhostDesk"
         const val SERVICE_TYPE = "_ghostmsg._tcp"
-        private const val CHANNEL = "desk"
+        // A channel that is off from the start (Matt, 2026-11-14: "don't show the notification for the phone app and
+        // desktop app being linked it's blocking notifications for text messages"). Android has a foreground service
+        // post a notification, but one on a channel that is off is not shown: the service runs as before, and the
+        // shade holds only texts. "desk" was the shown one, at the least importance; it is taken away.
+        private const val CHANNEL = "desk-quiet"
+        private const val OLD_CHANNEL = "desk"
         private const val NOTIFICATION = 7301
         private const val MAX_CONNECTIONS = 8
 
@@ -122,9 +127,10 @@ class DeskService : Service() {
 
     private fun notification(): Notification {
         val nm = getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel(OLD_CHANNEL) != null) try { nm.deleteNotificationChannel(OLD_CHANNEL) } catch (_: Exception) {}
         if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Paired computers", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "Shown while a computer is paired, so Android keeps the phone reachable by it."
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Paired computers", NotificationManager.IMPORTANCE_NONE).apply {
+                description = "Off: Android asks for a notification while a computer is paired, and this one is not shown. Turn it on to see when the phone is reachable by your computer."
                 setShowBadge(false)
             })
         }
@@ -137,6 +143,10 @@ class DeskService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .setShowWhen(false)
+            // Never bundled with the texts' notifications, where it could fold them under itself.
+            .setGroup("desk")
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setLocalOnly(true)
             .build()
     }
 
