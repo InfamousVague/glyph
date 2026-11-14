@@ -196,6 +196,10 @@ class Me extends ChangeNotifier {
 
   MeStore? _app;
   HubCarrier? Function()? _hubNow;
+  void Function(bool yes)? _needHub;
+
+  /// Settings › Me has been opened since the app started: the server is said hello to as soon as it can be.
+  bool _woken = false;
   HubCarrier? _hub;
   StreamSubscription<Map<String, dynamic>>? _sub;
   VoidCallback? _stateListener;
@@ -264,10 +268,14 @@ class Me extends ChangeNotifier {
 
   /// Follows the app's routes: whichever relay server the app is connected to is the one spoken to. [routes] says
   /// when that may have changed, and [hub] which it is now (the app: its routes, lib/net/net.dart, and their hub).
-  Future<void> start(MeStore app, Listenable routes, HubCarrier? Function() hub) async {
+  /// [needHub] is told whether the relay server must be kept connected for this (the app: Net.want): from the
+  /// start where anything has ever been said to it, and from the moment Settings › Me is opened.
+  Future<void> start(MeStore app, Listenable routes, HubCarrier? Function() hub, {void Function(bool yes)? needHub}) async {
     _app = app;
     _hubNow = hub;
+    _needHub = needHub;
     _read();
+    if (_inUse) _needHub?.call(true);
     routes.addListener(_attach);
     _attach();
     notifyListeners();
@@ -284,7 +292,7 @@ class Me extends ChangeNotifier {
     _sub = hub.handles.listen(_heard);
     void changed() {
       if (hub.state.value == CarrierState.up) {
-        if (_inUse) _hello();
+        if (_inUse || _woken) _hello();
       } else if (ready) {
         ready = false;
         notifyListeners();
@@ -300,6 +308,9 @@ class Me extends ChangeNotifier {
 
   /// Speaks to the server for the first time, where nothing has been before (the Me page as it opens).
   void wake() {
+    _woken = true;
+    // The relay server is dialled from now on, where it was not (nothing else here needed it).
+    _needHub?.call(true);
     if (ready || _hub == null) return;
     _hello();
   }

@@ -238,6 +238,17 @@ class MainActivity : FlutterActivity() {
                 "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
                 "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
                 "blockedNumbers" -> bg { store.blockedNumbers() }
+                // Android's page for the "Paired with…" notification alone, where it can be turned off.
+                "deskNotificationSettings" -> {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                            .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, DeskService.CHANNEL))
+                    } catch (_: Exception) {
+                        try { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)) } catch (_: Exception) {}
+                    }
+                    result.success(null)
+                }
                 "notificationSettings" -> {
                     try {
                         startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))

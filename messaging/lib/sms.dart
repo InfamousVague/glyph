@@ -823,6 +823,9 @@ class Sms {
   Future<List<Person>> blockedNumbers() async => [for (final m in (await _calls.invokeMethod<List>('blockedNumbers')) ?? const []) Person.from(m as Map)];
   Future<void> notificationSettings() => _calls.invokeMethod('notificationSettings');
 
+  /// Android's page for the "Paired with…" notification alone, where the person can turn it off.
+  Future<void> deskNotificationSettings() => _calls.invokeMethod('deskNotificationSettings');
+
   Future<UpdateState> update() async => UpdateState.from((await _calls.invokeMethod('update')) as Map);
   Future<void> updateCheck({bool install = false}) => _calls.invokeMethod('updateCheck', {'install': install});
   Future<void> updateInstall() => _calls.invokeMethod('updateInstall');

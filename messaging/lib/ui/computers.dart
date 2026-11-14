@@ -166,7 +166,8 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: icon(Lucide.bell),
             label: 'The "Paired with…" notification',
-            hint: const Text('Android stops an app minutes after the screen goes off unless it shows that it is running. The notification is quiet, and goes when no computer is paired.'),
+            hint: const Text('Android stops an app minutes after the screen goes off unless it shows a notification, and won\'t let the app hide it. It is as quiet as Android allows: one line at the foot of the shade, no icon, no sound. Press to turn it off on Android\'s page; the computer still reaches the phone.'),
+            onPress: () => Sms.instance.deskNotificationSettings(),
           ),
           if (m.phoneAddresses.isNotEmpty)
             SettingRow(
