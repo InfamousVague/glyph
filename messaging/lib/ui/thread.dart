@@ -14,6 +14,7 @@ import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../effects.dart';
 import '../friends/friends.dart';
+import '../friends/groups.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
@@ -90,7 +91,38 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// Settings › Messages: reaction texts hung on their messages. Read as the page's choices change.
   bool _foldOn = true;
 
-  bool get _group => _people.length > 1;
+  bool get _group => _people.length > 1 || _isGhost;
+
+  /// The group of friends this conversation is (lib/friends/groups.dart), where it is one: as the phone's own
+  /// groups have it, or (on a computer, and before those are read) by the id its conversation carries.
+  Group? get _ghost => Groups.instance.ofThread(widget.thread);
+  String? _groupId;
+  bool get _isGhost => _ghost != null || _groupId != null;
+
+  /// Why nothing can be written here, where nothing can: a group this phone has left, or one seen from a computer.
+  String? get _closed {
+    if (!_isGhost) return null;
+    if (_ghost?.gone ?? false) return 'You are no longer in this group.';
+    if (Sms.remote) return 'Write in this group from your phone for now.';
+    return null;
+  }
+
+  void _groupsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Sends [body] to whoever this conversation is with: in a group of friends to each member by the app's routes,
+  /// which is the only way one is written to; anywhere else as a text.
+  Future<void> _sendWords(String body) async {
+    if (!_isGhost) {
+      await Sms.instance.send(_people.map((p) => p.address).toList(), body);
+      return;
+    }
+    final closed = _closed;
+    if (closed != null) throw _NotSent(closed);
+    if (!await Groups.instance.sendText(_ghost?.id ?? _groupId!, body)) throw _NotSent('no connection. A group of friends needs the internet');
+  }
+
 
   @override
   void initState() {
@@ -111,6 +143,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     });
     // Friends (lib/friends/friends.dart): a request that came or was answered, or a relay server found to answer.
     Friends.instance.addListener(_friendsChanged);
+    Groups.instance.addListener(_groupsChanged);
     _text.addListener(() {
       // The composer draws itself again as the words change (it listens to them): the messages above are not
       // redrawn for a keystroke.
@@ -131,6 +164,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     WidgetsBinding.instance.removeObserver(this);
     Sms.instance.setOpenThread(null);
     Friends.instance.removeListener(_friendsChanged);
+    Groups.instance.removeListener(_groupsChanged);
     _changes?.cancel();
     _voiceStopped?.cancel();
     _draftSave?.cancel();
@@ -168,14 +202,19 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Future<void> _loadName() async {
     try {
       final c = await Sms.instance.conversation(widget.thread);
-      if (mounted && c?.name != _name) setState(() => _name = c?.name);
+      if (mounted && (c?.name != _name || c?.groupId != _groupId)) {
+        setState(() {
+          _name = c?.name;
+          _groupId = c?.groupId;
+        });
+      }
     } catch (_) {}
   }
 
   Future<void> _loadE2e() async {
     // A group has no encryption to read, and may have a name: read as the conversation opens, and again after its
     // settings close.
-    if (_group) _loadName();
+    _loadName();
     if (_group || _people.isEmpty) return;
     try {
       final s = await Sms.instance.e2e(_people.first.address);
@@ -343,8 +382,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       // To a friend, words alone go by the app's routes where one that costs nothing is up, and are kept with the
       // conversation as a text is (lib/friends/friends.dart); anything else, and anything the routes could not
       // take, goes as a text.
-      final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.remote && await Friends.instance.sendText(to.first, body);
-      if (!byRoute) await Sms.instance.send(to, body, attachments: files);
+      if (_isGhost) {
+        await _sendWords(body);
+      } else {
+        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.remote && await Friends.instance.sendText(to.first, body);
+        if (!byRoute) await Sms.instance.send(to, body, attachments: files);
+      }
     } catch (e) {
       if (mounted) {
         // What was to be sent is put back, pictures too: nothing went.
@@ -467,7 +510,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final mine = (_folded.reactions[m.key] ?? const <Reaction>[]).any((r) => r.by.isEmpty && r.emoji == emoji);
     HapticFeedback.lightImpact();
     try {
-      await Sms.instance.send(_people.map((p) => p.address).toList(), reactionText(emoji, m, removed: mine));
+      await _sendWords(reactionText(emoji, m, removed: mine));
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the reaction: $e', tone: GlacierToastTone.danger);
     }
@@ -520,7 +563,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _cancelEdit();
     try {
       await Sms.instance.editMessage(m, body);
-      if (send) await Sms.instance.send(_people.map((p) => p.address).toList(), correctionText(body));
+      if (send) await _sendWords(correctionText(body));
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t edit: $e', tone: GlacierToastTone.danger);
     }
@@ -608,13 +651,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   Future<void> _retry(Message m, {String? body}) async {
     try {
-      if (m.kind == 'mms') {
+      if (_isGhost) {
+        // In a group of friends what did not go is taken away and written again, by the routes.
+        await Sms.instance.deleteMessage(m);
+        await _sendWords(body ?? m.body);
+      } else if (m.kind == 'mms') {
         // A picture message goes again with its own pictures, read back from Android's store. Sending its words
         // alone, as this did, lost the picture of every picture message that was tried again.
         await Sms.instance.resendMms(m.id, body: body);
       } else {
         await Sms.instance.deleteMessage(m);
-        await Sms.instance.send(_people.map((p) => p.address).toList(), body ?? m.body);
+        await _sendWords(body ?? m.body);
       }
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send: ${_said(e)}', tone: GlacierToastTone.danger);
@@ -636,8 +683,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Widget build(BuildContext context) {
     final t = context.tokens;
     final background = ChatBackground.of(AppState.of(context), widget.thread);
-    final title = _people.isEmpty ? '' : (_group ? (_name ?? Conversation.peopleTitle(_people)) : _people.first.label);
-    final subtitle = _group
+    final ghost = _ghost;
+    final title = ghost != null ? ghost.title : (_people.isEmpty ? (_name ?? '') : (_group ? (_name ?? Conversation.peopleTitle(_people)) : _people.first.label));
+    final subtitle = _isGhost
+        ? (ghost == null ? 'Group' : '${ghost.members.length} ${ghost.members.length == 1 ? 'member' : 'members'}')
+        : _group
         ? '${_people.length} people'
         : _e2e.on
             ? (_e2e.isFriend ? (_e2e.verified ? 'Friend · verified' : 'Friend · encrypted') : (_e2e.verified ? 'Encrypted · verified' : 'Encrypted'))
@@ -679,7 +729,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : _list(t, background)),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
       ]),
-      footer: ListenableBuilder(listenable: _text, builder: (context, _) => _composer(t)),
+      // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
+      footer: _closed != null
+          ? Padding(
+              padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(4) + MediaQuery.paddingOf(context).bottom),
+              child: Text(_closed!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            )
+          : ListenableBuilder(listenable: _text, builder: (context, _) => _composer(t)),
     );
   }
 
@@ -702,8 +758,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // have been a bubble.
         final who = m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : (m.address.isEmpty ? 'They' : m.address)));
         items.add(_Notice(
-          icon: m.notice == 'key' ? Lucide.keyRound : Lucide.image,
-          text: m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background',
+          // A line about a group of friends itself ("Ann added Dan") is its own words.
+          icon: m.notice == 'group' ? Lucide.users : (m.notice == 'key' ? Lucide.keyRound : Lucide.image),
+          text: m.notice == 'group' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background'),
           busy: busy,
           onLongPress: () => _messageMenu(m),
         ));
@@ -779,7 +836,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   /// Drawn as a line in the conversation, not a bubble: a text that carried a key or a chat background.
-  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background';
+  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background' || m.notice == 'group';
 
   static const _evenLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
 
@@ -811,9 +868,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final composerText = pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
     final composerStrut = StrutStyle.fromTextStyle(composerText, forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
-    final isMms = _group || _attachments.isNotEmpty;
+    final isMms = !_isGhost && (_group || _attachments.isNotEmpty);
     // Nothing written and nothing attached: the microphone stands where Send would, to record a voice message.
-    final voiceOffered = Sms.can('sendVoice') && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
+    final voiceOffered = Sms.can('sendVoice') && !_isGhost && !editing && _people.isNotEmpty && _text.text.isEmpty && _attachments.isEmpty;
     // A sealed text goes as `ghost:e1:` and base64 of its bytes with 28 more (E2eCrypto.seal): longer than what was
     // typed, and plain letters whatever was typed.
     final sealed = _e2e.on && !isMms;
@@ -969,7 +1026,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             )
           else
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (Sms.can('sendPictures')) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
+            if (Sms.can('sendPictures') && !_isGhost) IconTap(icon: Lucide.plus, label: 'Add an attachment', onPressed: editing || _attachments.length >= 5 ? null : _attach),
             SizedBox(width: t.space(1)),
             Expanded(
               // The field with Send inside it, at its end: a smaller disc that keeps to the bottom as the text grows.
@@ -1000,7 +1057,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
                         if (_text.text.isEmpty)
-                          IgnorePointer(child: Text(isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
+                          IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
                         EditableText(
                           key: _field,
                           controller: _text,
@@ -1045,7 +1102,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       },
                     ),
                   // Stickers, while nothing is being written: once there are words the room is theirs.
-                  if (Sms.can('sendSticker') && !editing && _text.text.isEmpty && _attachments.isEmpty)
+                  if (Sms.can('sendSticker') && !_isGhost && !editing && _text.text.isEmpty && _attachments.isEmpty)
                     IconTap(icon: Lucide.sticker, label: 'Stickers', size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: _sending ? null : _sticker),
                   SizedBox(width: t.space(1)),
                   if (voiceOffered)
@@ -1731,4 +1788,12 @@ class _ReactionRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Why something was not sent, in words for the person.
+class _NotSent implements Exception {
+  _NotSent(this.why);
+  final String why;
+  @override
+  String toString() => why;
 }

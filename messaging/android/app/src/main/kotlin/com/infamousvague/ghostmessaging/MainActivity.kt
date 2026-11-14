@@ -197,11 +197,23 @@ class MainActivity : FlutterActivity() {
 // The app's routes (lib/net; Net.kt, NetSms.kt): who this phone is, who it can reach, a signature for a
                 // hub, and data texts.
                 "netIdentity" -> bg { Net.identity(applicationContext) }
-                "netPeers" -> bg { Net.peers(applicationContext) }
+                // With the members of this phone's groups, whose keys came with the group (Groups.peers).
+                "netPeers" -> bg { Net.peers(applicationContext).let { known -> known + Groups.peers(applicationContext, known.map { it["id"] as String }.toSet()) } }
                 "netSign" -> bg { Net.sign(applicationContext, call.argument<ByteArray>("message")!!) }
                 "netSmsAvailable" -> bg { NetSms.available(applicationContext) }
                 "netSmsSend" -> bg { NetSms.send(applicationContext, call.argument<String>("address")!!, call.argument<ByteArray>("bytes")!!); null }
                 "netSmsDrain" -> bg { NetSms.drain(applicationContext) }
+                // Groups of friends (Groups.kt): the records, and what is written in one kept in its conversation.
+                "groups" -> bg { Groups.views(applicationContext) }
+                "groupOf" -> bg { Groups.ofThread(applicationContext, call.argument<Number>("thread")!!.toLong())?.let { Groups.view(applicationContext, it) } }
+                "groupDraft" -> bg { Groups.draft(applicationContext, call.argument<String>("id")!!, call.argument<String>("name") ?: "", call.argument<List<String>>("addresses") ?: emptyList()).toString() }
+                "groupMember" -> bg { Groups.member(applicationContext, call.argument<String>("address")!!).toString() }
+                "groupSave" -> bg { Groups.save(applicationContext, org.json.JSONObject(call.argument<String>("state")!!)).also { Bus.prefsChanged(); Bus.changed(-1) } }
+                "groupForget" -> bg { Groups.forget(applicationContext, call.argument<String>("id")!!); Bus.prefsChanged(); Bus.changed(-1); null }
+                "groupTextOut" -> bg { Groups.storeOut(applicationContext, call.argument<String>("id")!!, call.argument<String>("body")!!) }
+                "groupTextState" -> bg { Groups.setRow(applicationContext, (call.argument<Number>("row")!!).toLong(), call.argument<String>("state")!!); null }
+                "groupTextIn" -> bg { Groups.storeIn(applicationContext, call.argument<String>("id")!!, call.argument<String>("from")!!, call.argument<String>("body")!!, (call.argument<Number>("at") ?: 0).toLong()); null }
+                "groupNote" -> bg { Groups.note(applicationContext, call.argument<String>("id")!!, call.argument<String>("body")!!); null }
                 // Friends (Friends.kt): where the two stand, and a friend's words kept with the phone's messages.
                 "friendSet" -> bg { E2e.setFriend(applicationContext, call.argument<String>("address")!!, call.argument<String>("state") ?: ""); Bus.prefsChanged(); Bus.changed(-1); null }
                 "netTextOut" -> bg { Friends.storeOut(applicationContext, call.argument<String>("address")!!, call.argument<String>("body")!!) }

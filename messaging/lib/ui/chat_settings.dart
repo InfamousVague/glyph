@@ -12,6 +12,7 @@ import '../backgrounds.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../friends/friends.dart';
+import '../friends/groups.dart';
 import '../sms.dart';
 import 'background_picker.dart';
 import 'common.dart';
@@ -57,17 +58,60 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
   StreamSubscription<int>? _changes;
 
-  bool get _group => widget.people.length > 1;
+  /// The group of friends this conversation is, where it is one (lib/friends/groups.dart).
+  Group? get _ghost => Groups.instance.ofThread(widget.thread);
+  bool get _group => widget.people.length > 1 || _ghost != null;
+
+  void _groupsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// A member's row was pressed, by an admin: make them one too (or no longer), or take them out.
+  void _member(Group g, GroupMember m) {
+    showChoices(context, title: m.label, choices: [
+      Choice(m.admin ? 'Remove as admin' : 'Make admin', Lucide.shieldCheck, () => _try(() => Groups.instance.setAdmin(g.id, m.id, !m.admin))),
+      Choice('Remove from group', Lucide.userMinus, () => _try(() => Groups.instance.remove(g.id, m.id)), danger: true),
+    ]);
+  }
+
+  /// Add people: the friends who are not in it yet.
+  void _addPeople(Group g) {
+    final inIt = {for (final m in g.members) Friends.digits(m.address)};
+    final can = Friends.instance.friends.where((f) => !inIt.contains(Friends.digits(f.address))).toList();
+    if (can.isEmpty) {
+      toast(context, 'Every friend of yours is in it already');
+      return;
+    }
+    showChoices(context, title: 'Add a friend to ${g.title}', choices: [
+      for (final f in can) Choice(f.person?.label ?? f.address, Lucide.userPlus, () => _try(() => Groups.instance.add(g.id, f.address))),
+    ]);
+  }
+
+  void _leave(Group g) {
+    showChoices(context, title: 'Leave ${g.title}? Its conversation stays on this phone, and you can be added again.', choices: [
+      Choice('Leave group', Lucide.logOut, () => _try(() => Groups.instance.leave(g.id)), danger: true),
+    ]);
+  }
+
+  Future<void> _try(Future<void> Function() change) async {
+    try {
+      await change();
+    } catch (e) {
+      if (mounted) toast(context, e is StateError ? e.message : 'Couldn\'t change the group', tone: GlacierToastTone.danger);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _load();
     _changes = Sms.instance.changes.stream.listen((_) => _load());
+    Groups.instance.addListener(_groupsChanged);
   }
 
   @override
   void dispose() {
+    Groups.instance.removeListener(_groupsChanged);
     _changes?.cancel();
     super.dispose();
   }
@@ -97,7 +141,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final people = widget.people;
     final c = _conversation;
     final own = ChatBackground.own(app, thread);
-    final title = people.isEmpty ? 'Conversation' : (c?.name ?? Conversation.peopleTitle(people));
+    final ghost = _ghost;
+    final title = ghost != null ? ghost.title : (people.isEmpty ? (c?.name ?? 'Conversation') : (c?.name ?? Conversation.peopleTitle(people)));
     return GlacierScope(
       attrs: const {'hue': 'indigo'},
       child: Builder(builder: (context) {
@@ -126,7 +171,45 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 // A group can be given a name (Matt, 2026-11-14: "expand on the ability to create, name and manage
                 // groups like telegram"). It is this phone's own: a group text has nowhere to carry one. On a
                 // computer it is asked of the phone, where the phone can (Sms.can).
-                if (_group && Sms.can('threadName')) ...[
+                // A group of friends has a name every member sees, which its admins give it; its members, with who
+                // is an admin; and, for an admin, adding a friend, making another admin and taking someone out
+                // (Matt: "create, name and manage groups like telegram"). Anyone can leave.
+                if (ghost != null) ...[
+                  if (ghost.amAdmin) ...[
+                    PaneSection(title: 'Group name', footer: const Text('Everyone in the group sees this name.'), children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                        child: _GroupName(
+                          key: ValueKey('shared-${ghost.name}'),
+                          thread: thread,
+                          name: ghost.name.isEmpty ? null : ghost.name,
+                          people: people,
+                          onSaved: _load,
+                          save: (typed) => Groups.instance.rename(ghost.id, typed),
+                        ),
+                      ),
+                    ]),
+                    SizedBox(height: t.space(5)),
+                  ],
+                  PaneSection(
+                    title: '${ghost.members.length} ${ghost.members.length == 1 ? 'member' : 'members'}',
+                    footer: Text(ghost.gone ? 'You are no longer in this group.' : 'What is written here goes to each member over the internet, encrypted, never as a text.'),
+                    children: [
+                      for (final m in ghost.members)
+                        SettingRow(
+                          icon: AppIcon(m.admin ? Lucide.shieldCheck : Lucide.userRound, size: 18),
+                          label: m.me ? 'You' : (m.name ?? (m.address.isEmpty ? 'Someone' : m.address)),
+                          value: m.admin ? const Text('Admin') : null,
+                          hint: m.name != null && !m.me ? Text(m.address) : null,
+                          onPress: ghost.amAdmin && !m.me ? () => _member(ghost, m) : null,
+                        ),
+                      if (ghost.amAdmin) SettingRow(icon: const AppIcon(Lucide.userPlus, size: 18), label: 'Add people', onPress: () => _addPeople(ghost)),
+                      if (!ghost.gone) SettingRow(icon: const AppIcon(Lucide.logOut, size: 18), label: 'Leave group', onPress: () => _leave(ghost)),
+                    ],
+                  ),
+                  SizedBox(height: t.space(5)),
+                ],
+                if (ghost == null && _group && Sms.can('threadName')) ...[
                   PaneSection(title: 'Group name', footer: const Text('Only you see this name. The others in the group see it as they always have.'), children: [
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
@@ -135,7 +218,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ]),
                   SizedBox(height: t.space(5)),
                 ],
-                PaneSection(title: _group ? '${people.length} people' : 'Person', children: [
+                if (ghost == null) PaneSection(title: _group ? '${people.length} people' : 'Person', children: [
                   for (final p in people)
                     SettingRow(
                       icon: AppIcon(Sms.remote ? Lucide.copy : Lucide.phone, size: 18),
@@ -244,7 +327,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 /// A group's name, typed: kept as the field is left or Enter is pressed; emptied, the group goes by its people's
 /// names again.
 class _GroupName extends StatefulWidget {
-  const _GroupName({super.key, required this.thread, required this.name, required this.people, required this.onSaved});
+  const _GroupName({super.key, required this.thread, required this.name, required this.people, required this.onSaved, this.save});
+
+  /// How the name is kept, where it is not this phone's own name for the conversation: a group of friends'.
+  final Future<void> Function(String name)? save;
   final int thread;
   final String? name;
   final List<Person> people;
@@ -267,7 +353,8 @@ class _GroupNameState extends State<_GroupName> {
     final typed = _text.text.trim();
     if (typed == (widget.name ?? '')) return;
     try {
-      await Sms.instance.setThreadName(widget.thread, typed);
+      final own = widget.save;
+      await (own != null ? own(typed) : Sms.instance.setThreadName(widget.thread, typed));
       if (mounted) toast(context, typed.isEmpty ? 'Name removed' : 'Named $typed');
       widget.onSaved();
     } catch (_) {

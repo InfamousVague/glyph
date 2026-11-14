@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/friends/friends.dart';
+import 'package:ghost_messaging/friends/groups.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/net/carrier.dart';
@@ -23,6 +24,7 @@ import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
+import 'package:ghost_messaging/ui/new_group.dart';
 import 'package:ghost_messaging/ui/network.dart' show inviteText;
 import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/shell.dart';
@@ -32,6 +34,7 @@ import 'package:ghost_messaging/ui/update_banner.dart';
 import 'package:glacier/glacier.dart';
 
 import 'support/fake_friends.dart';
+import 'support/fake_groups.dart';
 
 /// The screens drawn with made-up conversations, in light and dark, written to test/shots/ (run with
 /// `flutter test --update-goldens test/screens_test.dart`). Nothing here talks to Android: the channel is answered
@@ -69,6 +72,9 @@ final _conversations = [
 
 /// The warning that Sam's texts are coming without encryption: put away, or encryption turned off with him.
 bool _plainSeen = false;
+
+/// The lines about a group of friends kept in conversation 2 (android Groups.note), for the groups' test alone.
+final List<String> _groupNotes = [];
 
 /// Where being friends with Maya stands (android E2e.friend), for the friends' test alone: '' everywhere else.
 String _mayaFriend = '';
@@ -236,6 +242,14 @@ void _answerChannel() {
         if (thread == 1 && _mayaFriend == 'yes') {
           final all = _messages(thread);
           return [for (final m in all) (m['id'] as int) >= 6 ? {...m, 'via': 'net', 'encrypted': true} : m];
+        }
+        // A group of friends' conversation holds lines about the group itself, newest first like the rest.
+        if (thread == 2 && _groupNotes.isNotEmpty) {
+          return [
+            for (var i = _groupNotes.length - 1; i >= 0; i--)
+              {'id': 900 + i, 'kind': 'mms', 'address': '', 'body': _groupNotes[i], 'notice': 'group', 'date': DateTime.now().millisecondsSinceEpoch - (_groupNotes.length - i), 'outgoing': true, 'state': 'sent', 'read': true},
+            ..._messages(thread),
+          ];
         }
         return _messages(thread);
       case 'people':
@@ -791,6 +805,110 @@ void main() {
     }
   });
 
+  testWidgets('groups of friends: made, written in, managed, left', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    const jordan = Person(address: '+15551230002', name: 'Jordan Park'), sam = Person(address: '+15551230003', name: 'Sam Rivera'), alex = Person(address: '+15551230004', name: 'Alex Kim');
+    addTearDown(() {
+      Friends.instance = null;
+      Groups.instance = null;
+      _groupNotes.clear();
+    });
+    for (final dark in [false, true]) {
+      // This phone and three others, each a friend of this one; a relay server answers.
+      final world = World();
+      final mine = _GroupsPort(world, '+15550000000');
+      for (final p in [jordan, sam, alex]) {
+        FakeGroupsPort(world, p.address).friends.add(mine.number);
+        mine.friends.add(p.address);
+        mine.names[p.address] = p.name!;
+      }
+      _groupNotes.clear();
+      final friends = Friends(_ThreeFriends('+15550000000', [jordan, sam, alex]));
+      Friends.instance = friends;
+      final groups = Groups(mine);
+      Groups.instance = groups;
+      await friends.start();
+      await groups.start();
+      // The address book offers New group where there is a friend to put in one.
+      await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-$dark')), '15-groups-contacts', dark: dark);
+      expect(find.text('New group'), findsOneWidget);
+      // Its name, and who is in it; Create waits for someone to be chosen.
+      await _shoot(tester, sheet, NewGroupScreen(key: ValueKey('new-$dark')), '15-groups-new', dark: dark);
+      await tester.tap(find.text('Create'));
+      await _settle(tester);
+      expect(groups.all, isEmpty);
+      await tester.enterText(find.byType(EditableText).first, 'Weekend crew');
+      await tester.tap(find.text('Jordan Park'));
+      await tester.tap(find.text('Sam Rivera'));
+      await _shootAgain(tester, '15-groups-new', dark: dark);
+      expect(find.text('2 chosen. You will be its admin.'), findsOneWidget);
+      await tester.tap(find.text('Create'));
+      await _settle(tester);
+      final made = groups.all.single;
+      expect(made.name, 'Weekend crew');
+      expect(made.members.length, 3);
+      expect(made.amAdmin, isTrue);
+      // Its conversation: its name, how many are in it, the line that says it was made, and words alone to write.
+      mine.threads[made.id] = 2;
+      await groups.refresh();
+      await _shoot(tester, sheet, ThreadScreen(key: ValueKey('group-$dark'), thread: 2, people: const [jordan, sam]), '15-groups-thread', dark: dark);
+      expect(find.text('Weekend crew'), findsOneWidget);
+      expect(find.text('3 members'), findsOneWidget);
+      expect(find.text('You made the group "Weekend crew"'), findsOneWidget);
+      expect(find.text('Message'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Add an attachment'), findsNothing);
+      await tester.enterText(find.byType(EditableText).first, 'Hike on Saturday?');
+      await tester.pump();
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
+      await _settle(tester);
+      expect(mine.rows.values.single, (group: made.id, words: 'Hike on Saturday?', state: 'sent'));
+      // Its settings, for its admin: the name everyone sees, the members, adding a friend, making another admin,
+      // taking someone out.
+      await tester.pump(const Duration(seconds: 6));
+      await _shoot(tester, sheet, ChatSettingsScreen(key: ValueKey('gs-$dark'), thread: 2, people: const [jordan, sam]), '15-groups-settings', dark: dark);
+      expect(find.text('Everyone in the group sees this name.'), findsOneWidget);
+      // Far enough down for the last of the members' rows, and no further.
+      Scrollable.ensureVisible(tester.element(find.text('Leave group')), alignment: 0.85);
+      await _settle(tester);
+      await _shootAgain(tester, '15-groups-settings', dark: dark);
+      expect(find.text('Admin'), findsOneWidget);
+      await tester.tap(find.text('Add people'));
+      await _settle(tester);
+      await tester.tap(find.text('Alex Kim'));
+      await _settle(tester);
+      expect(groups.of(made.id)!.members.length, 4);
+      expect(_groupNotes.last, 'You added Alex Kim');
+      await tester.pump(const Duration(seconds: 6));
+      await tester.tap(find.text('Sam Rivera'));
+      await _shootAgain(tester, '15-groups-member', dark: dark);
+      await tester.tap(find.text('Make admin'));
+      await _settle(tester);
+      expect(groups.of(made.id)!.members.where((m) => m.admin).length, 2);
+      await tester.tap(find.text('Jordan Park'));
+      await _settle(tester);
+      await tester.tap(find.text('Remove from group'));
+      await _settle(tester);
+      expect(groups.of(made.id)!.members.map((m) => m.label), ['You', 'Sam Rivera', 'Alex Kim']);
+      // Leaving: the conversation stays, and says nothing more can be written in it.
+      await tester.tap(find.text('Leave group'));
+      await _settle(tester);
+      await tester.tap(find.text('Leave group').last);
+      await _settle(tester);
+      expect(groups.of(made.id)!.gone, isTrue);
+      expect(find.text('You are no longer in this group.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6));
+      await _shoot(tester, sheet, ThreadScreen(key: ValueKey('left-$dark'), thread: 2, people: const [sam, alex]), '15-groups-left', dark: dark);
+      expect(find.text('You are no longer in this group.'), findsOneWidget);
+      expect(find.text('You left the group'), findsOneWidget);
+    }
+  });
+
   testWidgets('friends: the offer, a request each way, friends', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;
@@ -1072,4 +1190,21 @@ class _FriendsPort extends FakePort {
 
   @override
   Future<List<E2eState>> states() async => [E2eState.from(_e2e('+15551230001'))];
+}
+
+/// The routes and the phone under Groups for the groups' pictures: the lines about a group go into conversation 2.
+class _GroupsPort extends FakeGroupsPort {
+  _GroupsPort(super.world, super.number);
+
+  @override
+  Future<void> note(String id, String words) async => _groupNotes.add(words);
+}
+
+/// The routes and the phone under Friends for the groups' pictures: three people, each a friend.
+class _ThreeFriends extends FakePort {
+  _ThreeFriends(super.me, this.people);
+  final List<Person> people;
+
+  @override
+  Future<List<E2eState>> states() async => [for (final p in people) E2eState(address: p.address, state: 'on', friend: 'yes', hasGhost: true, person: p)];
 }

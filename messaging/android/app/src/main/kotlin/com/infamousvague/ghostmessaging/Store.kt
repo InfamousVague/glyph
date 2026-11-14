@@ -201,6 +201,9 @@ class Store(private val context: Context) {
                 fun col(name: String) = c.getColumnIndex(name)
                 val iId = col("_id"); val iDate = col("date"); val iCount = col("message_count"); val iRec = col("recipient_ids")
                 val iSnip = col("snippet"); val iRead = col("read"); val iErr = col("error"); val iAtt = col("has_attachment")
+                // The groups of friends this phone is in, by their conversations (Groups.kt): who is in one, and what
+                // it is called, are read from its record, not from who Android holds the conversation to be with.
+                val groups = Groups.byThread(context)
                 fun row(): Map<String, Any?>? {
                     val id = c.getLong(iId)
                     // A store that takes no notice of which were asked for is held to them here.
@@ -209,9 +212,10 @@ class Store(private val context: Context) {
                     // A count of nothing is believed only where the conversation holds nothing: some phones' stores
                     // do not keep the count, and every conversation would be left out.
                     if (count == 0 && !hasMessages(id)) return null
-                    val recipients = recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
+                    val group = groups[id]
+                    val recipients = if (group != null) Groups.people(context, group) else recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
                     val date = if (iDate >= 0) c.getLong(iDate) else 0L
-                    val summary = E2e.preview(context, recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
+                    val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
                     return mapOf(
                         "id" to id,
                         "date" to date,
@@ -220,16 +224,17 @@ class Store(private val context: Context) {
                         // A picture message's summary in Android's list is its subject, often empty: its words, or
                         // what it is, instead.
                         "snippet" to summary.ifBlank { latestSnippet(id, "$date:$count") },
-                        "encrypted" to (recipients.size == 1 && E2e.isOn(context, recipients[0])),
+                        "encrypted" to (group != null || (recipients.size == 1 && E2e.isOn(context, recipients[0]))),
+                        "group" to group?.optString("id"),
                         "unread" to (iRead >= 0 && c.getInt(iRead) == 0),
                         "error" to (iErr >= 0 && c.getInt(iErr) != 0),
                         "attachment" to (iAtt >= 0 && c.getInt(iAtt) != 0),
                         "archived" to archived.contains(id),
                         "pinned" to pinned.contains(id),
                         "muted" to muted.contains(id),
-                        "name" to threadName(id),
+                        "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id)),
                         "draft" to drafts[id.toString()],
-                        "blocked" to (recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
+                        "blocked" to (group == null && recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
                     )
                 }
                 if (offset <= 0 || c.moveToPosition(offset - 1)) {
@@ -362,6 +367,8 @@ class Store(private val context: Context) {
     }
 
     fun threadPeople(thread: Long): List<Map<String, Any?>> {
+        // A group of friends' conversation is with its members, as its record has them (Groups.kt).
+        Groups.ofThread(context, thread)?.let { return Groups.people(context, it).map { a -> contact(a) } }
         resolver.query(Uri.parse("content://mms-sms/conversations?simple=true"), arrayOf("_id", "recipient_ids"), "_id = ?", arrayOf(thread.toString()), null)?.use {
             if (it.moveToFirst()) return recipientsOf(it.getString(1)).map { a -> contact(a) }
         }
@@ -410,6 +417,9 @@ class Store(private val context: Context) {
             arrayOf("_id", "date", "msg_box", "read", "m_type", "sub", "m_id", "st"),
             "thread_id = ?", arrayOf(thread.toString()), "date DESC LIMIT $limit",
         )?.use { c ->
+            // In a group of friends (Groups.kt): what came or went by the app's routes, and the lines about the group.
+            val groupNet = Groups.netIds(context)
+            val groupNotes = Groups.noteIds(context)
             // Every message's parts in one question to Android, where it was one question a message.
             val rows = ArrayList<List<Any?>>()
             while (c.moveToNext()) rows += listOf(c.getLong(0), c.getLong(1), c.getInt(2), c.getInt(3), c.getInt(4), c.getString(5), c.getString(6), c.getInt(7))
@@ -429,7 +439,8 @@ class Store(private val context: Context) {
                     "kind" to "mms",
                     "address" to (if (outgoing) "" else mmsSender(id)),
                     "body" to text,
-                    "notice" to (if (background != null) "background" else null),
+                    "notice" to (if (id in groupNotes) "group" else if (background != null) "background" else null),
+                    "via" to (if (id in groupNet) "net" else null),
                     "subject" to row[5] as String?,
                     "date" to (row[1] as Long) * 1000,
                     "outgoing" to outgoing,
