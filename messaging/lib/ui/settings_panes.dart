@@ -212,7 +212,7 @@ final List<SettingsSection> settingsSections = [
 ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.4';
+const appVersion = '0.7.5';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 

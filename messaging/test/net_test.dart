@@ -338,6 +338,29 @@ void main() {
           await hubA.stop();
         });
 
+    test('what is held for everyone together has a limit, and what was handed over no longer counts', () async {
+      await relay.stop();
+      relay = Relay(hub: Hub(heldBytes: 2500));
+      url = 'ws://127.0.0.1:${await relay.start(port: 0)}/hub';
+      final a = NetKeys.generate(), b = NetKeys.generate(), c = NetKeys.generate();
+      final hubA = HubCarrier(url: url, signer: KeysSigner(a));
+      await up(hubA);
+      final packet = Uint8List(1000);
+      expect(await hubA.send(Peer(id: b.id), packet), Handed.held);
+      expect(await hubA.send(Peer(id: c.id), packet), Handed.held);
+      await expectLater(hubA.send(Peer(id: c.id), packet), throwsA(isA<CarrierError>()), reason: 'a third thousand bytes is over the limit');
+      expect(relay.hub!.holding, greaterThan(2000));
+      // B comes and is handed theirs: there is room again.
+      final hubB = HubCarrier(url: url, signer: KeysSigner(b));
+      final got = hubB.arrived.first;
+      await up(hubB);
+      await got.timeout(const Duration(seconds: 3));
+      expect(relay.hub!.holding, lessThan(1100));
+      expect(await hubA.send(Peer(id: c.id), packet), Handed.held);
+      await hubA.stop();
+      await hubB.stop();
+    });
+
     test('a name is only its key holder\'s to connect under', () async {
           final real = NetKeys.generate(), thief = NetKeys.generate();
           final c = HubCarrier(url: url, signer: _Impostor(real, thief), retry: const Duration(hours: 1));
