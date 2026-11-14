@@ -29,7 +29,7 @@ class NavItem {
 /// laid along where that one stands up, and as wide as the sidebar with its rings evenly along it: a pill of glass, a step of space round its rings and between them, a
 /// hairline round it; each ring `--app-ring` across, the page's colour with a line round it and its mark in the
 /// page's ink; the one shown now filled with ink, its mark in paper, as the dock's one filled ring is; a number on a
-/// ring's corner as the dock wears one; and a ring's words over it while the pointer rests there, where the dock's
+/// ring's corner, in red (the dock wears its own in ink; here Matt asked for red); and a ring's words over it while the pointer rests there, where the dock's
 /// come up beside it.
 class NavPill extends StatelessWidget {
   const NavPill({super.key, required this.items, required this.active, required this.onSelect});
@@ -143,15 +143,20 @@ class _Ring extends StatelessWidget {
             children: [
               round,
               PositionedDirectional(
-                end: -2,
-                top: -2,
+                end: -5,
+                top: -5,
                 child: ExcludeSemantics(
                   child: Container(
-                    constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    // Large enough to read at a glance, and red: a count is the one thing on the pill that is not
+                    // the page's own ink (Matt, 2026-11-14: "the badge is too small and it doesn't look like it's
+                    // the right color make it red"). It was fourteen across in the page's ink, which on the ring
+                    // that is shown (itself ink) read as a hole in it. A line of the page's ground round it keeps
+                    // it off the ring in either case.
+                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(7), border: Border.all(color: t.color('glacier-bg'), width: 1.5)),
-                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(9, weight: 'semibold', height: 1.2, color: t.color('app-paper'))),
+                    decoration: BoxDecoration(color: t.colorOf('#dd3a30'), borderRadius: BorderRadius.circular(10), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(11, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
                   ),
                 ),
               ),
