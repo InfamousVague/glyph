@@ -9,9 +9,11 @@ import 'package:flutter/widgets.dart';
 import '../app_state.dart';
 import 'codes.dart';
 import 'plugin.dart';
+import 'spam.dart';
 
-/// The plugins the app ships with, in the order Settings › Plugins lists them and their sections are asked.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin()];
+/// The plugins the app ships with, in the order Settings › Plugins lists them and their sections are asked: a text
+/// that is a sign-in code is in Codes whatever the spam filter makes of it.
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), SpamPlugin()];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {
@@ -202,6 +204,10 @@ class PluginRegistry {
   }
 
   void setOn(GhostPlugin plugin, PluginStore store, bool on) => store.write(switchKey(plugin), on ? 'on' : 'off');
+
+  /// Which plugins are on, as a mark that changes only when one is switched. What the classifiers said of a
+  /// conversation holds until it does: they are given none of the person's other choices.
+  String switches(PluginStore store) => [for (final e in _entries) isOn(e.plugin, store) ? '1' : '0'].join();
 
   /// The plugin's own choices, kept under its name (`plugin_<id>_<key>`).
   PluginPrefs prefsOf(GhostPlugin plugin, PluginStore store) => _Prefs(store, 'plugin_${plugin.id}_');

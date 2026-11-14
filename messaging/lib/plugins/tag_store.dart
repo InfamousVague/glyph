@@ -16,7 +16,8 @@ import 'registry.dart';
 /// when a slice changes something. A conversation not looked at yet has no tags and stands in the main list.
 ///
 /// Read again with the same last words, date and contact, a conversation is not classified again. When a plugin is
-/// switched on or off ([bind] sees the store's stamp move) every one held is, in the same slices.
+/// switched on or off ([bind] sees it) every one held is, in the same slices; a plugin's other choices, and where
+/// conversations are filed, change nothing a classifier says, and nothing is classified again for them.
 class TagStore extends ChangeNotifier {
   TagStore(this.registry, {this.atOnce = 64, this.slice = const Duration(milliseconds: 2), this.onTagged});
 
@@ -33,7 +34,9 @@ class TagStore extends ChangeNotifier {
   final void Function(MessageFacts facts, TagSet tags)? onTagged;
 
   PluginStore? _store;
-  int _stamp = -1;
+
+  /// Which plugins were on when the tags held were worked out ([PluginRegistry.switches]).
+  String? _switches;
   final _held = <int, _Held>{};
   final _waiting = <int, _Held>{};
   Timer? _later;
@@ -52,12 +55,13 @@ class TagStore extends ChangeNotifier {
   MessageFacts? facts(int thread) => (_waiting[thread] ?? _held[thread])?.facts;
 
   /// The person's choices, given before anything is classified and again whenever they may have changed. Where a
-  /// plugin's switch or choice has, everything held is classified again.
+  /// plugin has been switched on or off, everything held is classified again.
   void bind(PluginStore store) {
     final first = _store == null;
     _store = store;
-    if (store.stamp == _stamp) return;
-    _stamp = store.stamp;
+    final switches = registry.switches(store);
+    if (switches == _switches) return;
+    _switches = switches;
     if (!first) {
       for (final e in _held.entries) {
         _waiting.putIfAbsent(e.key, () => e.value);

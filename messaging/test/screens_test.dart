@@ -67,10 +67,13 @@ final _conversations = [
 bool _plainSeen = false;
 bool _plainOff = false;
 
-/// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers.
+/// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers,
+/// and two texts that look like spam.
 final _sortable = <Map<String, Object>>[
   {'id': 101, 'date': _ago(minutes: 2), 'people': [_p('70220')], 'snippet': '771-204 is your login code. It expires in 10 minutes.', 'unread': true, 'error': false, 'archived': false},
   {'id': 102, 'date': _ago(hours: 3), 'people': [_p('+18005550142')], 'snippet': 'Use PIN 9041 to sign in to your account', 'unread': false, 'error': false, 'archived': false},
+  {'id': 103, 'date': _ago(minutes: 20), 'people': [_p('+15559870002')], 'snippet': 'Congratulations! You\'ve won a \$1,000 gift card. Claim now: http://prize.example/win', 'unread': true, 'error': false, 'archived': false},
+  {'id': 104, 'date': _ago(days: 2), 'people': [_p('+15559870004')], 'snippet': 'Your package could not be delivered. Reschedule here: bit.ly/3xYz', 'unread': false, 'error': false, 'archived': false},
 ];
 
 /// Where encryption stands with each person (android/.../E2e.kt): on and verified with Riley, Noor's key waiting
@@ -695,9 +698,24 @@ void main() {
       expect(find.text('Copied 771204'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
       await _settle(tester);
-      // Settings › Plugins: each plugin with its switch, and its own settings under it.
+      // Settings › Plugins: each plugin with its switch, and its own settings under it. The spam filter is off.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
+      expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.text('Mute conversations in Spam'), findsNothing);
+      // The spam filter switched on: Spam beside Codes, and in it each conversation with why it is there.
+      await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
+      expect(find.textContaining('You\'ve won'), findsNothing, reason: 'spam has left the main list');
+      await tester.tap(chip('Spam'));
+      await _shootAgain(tester, '12-plugins-spam', dark: dark);
+      expect(find.byType(PluginRow), findsNWidgets(2));
+      expect(find.text('Looks like spam: a link, prize wording'), findsOneWidget);
+      expect(find.text('Not spam'), findsNWidgets(2));
+      // And its own settings, with what counts as spam said rule by rule.
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
+      expect(find.text('Mute conversations in Spam'), findsOneWidget);
+      await tester.drag(find.text('Mute conversations in Spam'), const Offset(0, -520));
+      await _shootAgain(tester, '12-plugins-settings-spam-rules', dark: dark);
     }
   });
 
