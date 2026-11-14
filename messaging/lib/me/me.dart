@@ -17,7 +17,8 @@ class Network {
   final String id;
   final String name;
 
-  /// Its colour among Settings' (kit/settings_css.dart), and the letters on its chip. No network's own logo is drawn.
+  /// Its colour among Settings' (kit/settings_css.dart), and the letter on its chip where its logo is not to hand
+  /// (its logo is lib/me/network_marks.g.dart's).
   final String hue;
   final String mark;
 

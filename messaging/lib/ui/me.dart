@@ -11,25 +11,62 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/svg_path.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../me/network_marks.g.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'settings.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
-/// A network's letter on the row's chip, in the chip's own colour: no network's logo is drawn.
+/// A network's logo on the row's chip, in the chip's own colour (Matt, 2026-11-14: "use the real brandicons on the
+/// icons for discord telegram and X and bluesky and github etc"): Simple Icons' mark (lib/me/network_marks.g.dart),
+/// or its letter where the pack has none.
 class NetworkMark extends StatelessWidget {
-  const NetworkMark(this.network, {super.key});
+  const NetworkMark(this.network, {super.key, this.size = 18});
   final Network network;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return Text(network.mark, style: pageText(t, 18, weight: 'bold', color: IconTheme.of(context).color ?? t.color('app-ink'), height: 1.1));
+    final ink = IconTheme.of(context).color ?? t.color('app-ink');
+    final logo = networkMarks[network.id];
+    // In the network's own colour (Simple Icons' for each), where it has one that is not black: X and GitHub are
+    // the page's ink, so they read on the dark page too. Dimmed with the row where it is not to be pressed.
+    final brand = _brand[network.id];
+    final color = (brand ?? t.color('app-ink')).withValues(alpha: ink.a);
+    if (logo == null) return Text(network.mark, style: pageText(t, size, weight: 'bold', color: ink, height: 1.1));
+    return Semantics(label: network.name, child: CustomPaint(size: Size.square(size), painter: _LogoPainter(logo, color)));
   }
+
+  static const _brand = {
+    'discord': Color(0xFF5865F2),
+    'telegram': Color(0xFF26A5E4),
+    'bluesky': Color(0xFF1185FE),
+    'mastodon': Color(0xFF6364FF),
+  };
+}
+
+/// One filled path on a 24 by 24 square, drawn to fit.
+class _LogoPainter extends CustomPainter {
+  const _LogoPainter(this.logo, this.color);
+  final String logo;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    canvas.drawPath(svgPath(logo), Paint()..color = color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_LogoPainter old) => old.logo != logo || old.color != color;
 }
 
 /// Speaks to the relay server as the page opens, where this install never has: nothing is said to it about handles
