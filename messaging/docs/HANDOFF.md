@@ -16,8 +16,14 @@ companion on top; it is not merged back, and nothing of it is released or deploy
 of it: how it works, how to run each part, what was tried on the emulator and what waits for the Fold.
 - The Mac app is this Flutter project's macOS platform (`macos/`, `lib/desktop/`), not a project of its own, so it
   draws conversations with the phone's own screens. `flutter build macos`; `flutter build apk` is unchanged.
-- The phone's half is `Desk*.kt` and Settings › Computers. The version in `pubspec.yaml` was left at 0.6.0+9 for
-  whoever releases: the phone app needs a release for the Mac app to have anything to pair with.
+- The phone's half is `Desk*.kt` and Settings › Computers. 0.6.1 is merged in, and `pubspec.yaml` is 0.6.1+10 as
+  it came: the version of the release with the companion in it is the releaser's. The phone app needs that release
+  for the Mac app to have anything to pair with (Matt's camera on the Mac's QR code said no app could use it).
+- The QR code is a link (`ghostmsg://pair/…`) the phone's camera opens in the app; conversations cross to the Mac
+  a lot at a time. Both were run to the end on an emulator on the merged tree.
+- The Mac app's icon is drawn whole by macOS 27 (it sat small on a grey plate: a black-and-white picture is stored
+  as greyscale by the asset catalog, and macOS plates those; `tool/app_icon.py` and docs/desktop.md say the rest).
+  A Mac that already drew the old one keeps it for that path until the app is touched or moved.
 - The relay (`relay/`) runs on the Mac only. Putting it at `wss://ghost-sms.com/relay` is Matt's to say, each time;
   the wizard already starts with that address and says nothing answers there.
 - To do on the Fold, in order: pair by scanning the Mac's QR code (never done with a real camera); see the Mac find

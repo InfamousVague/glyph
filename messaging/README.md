@@ -212,8 +212,9 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by
   default and show the option for both in the setup wizard"). Ghost Messaging for the Mac shows the phone's
   conversations beside the one open, shows a new text as it arrives, and sends what is typed there through the
-  phone, which stays the only thing that texts. The two are paired by a QR code the Mac shows and the phone scans
-  (Settings › Computers › Pair a computer; or the code pasted), and both then show six digits to compare. Everything
+  phone, which stays the only thing that texts. The two are paired by a QR code the Mac shows: the phone's own
+  camera opens it in the app, which asks first ("Pair with Matt's MacBook Pro?"), or Settings › Computers › Pair a
+  computer scans it or takes it pasted; both then show six digits to compare. Everything
   between them is sealed with a key made in the pairing (the phone-to-phone encryption's construction, with a key
   for each connection and a counter on every frame, so nothing can be replayed). They reach each other on the local
   network (the phone announces itself, the Mac finds it) or through a relay that passes the sealed frames and keeps

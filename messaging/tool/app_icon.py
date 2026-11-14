@@ -7,6 +7,7 @@ black, ~/Desktop/ghost_messenger.png).
 
     python3 tool/app_icon.py ~/Desktop/ghost_messenger.png    copies it to art/app-icon.png, then writes every icon
     python3 tool/app_icon.py                                  writes every icon from art/app-icon.png
+    python3 tool/app_icon.py --check <the built Mac app>      says whether macOS will draw its icon whole (mac_icon)
 
 Android's adaptive icon (minSdk 29, so no legacy PNGs): the foreground is the picture shrunk so the ghost, its tail
 included, sits inside the mask's 66dp safe circle, its black carried on past the edges to the full 108dp, over a black
@@ -50,56 +51,52 @@ def shrunk(picture, size, mode):
     return out
 
 
-def _corner(r):
-    """One corner of Apple's rounded square, from where it leaves the top edge to where it joins the side: three
-    curves that ease into the straight edges (what UIBezierPath draws, measured by PaintCode), as points for a
-    corner at the top right with the edge's end at (0, 0), x leftwards and y downwards, in units of [r]."""
-    curves = [
-        ((1.528665, 0), (1.08849296, 0), (0.86840694, 0), (0.63149379, 0.07491139)),
-        ((0.63149379, 0.07491139), (0.37282383, 0.16905956), (0.16905956, 0.37282383), (0.07491139, 0.63149379)),
-        ((0.07491139, 0.63149379), (0, 0.86840694), (0, 1.08849296), (0, 1.528665)),
-    ]
-    points = []
-    for p0, p1, p2, p3 in curves:
-        for i in range(25):
-            t = i / 24
-            u = 1 - t
-            points.append((
-                (u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0]) * r,
-                (u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1]) * r,
-            ))
-    return points
-
-
-def mac_shape(side, radius):
-    """Apple's rounded square, [side] across with corners of [radius], as a mask: white inside."""
+def mac_shape(side):
+    """
+    The outline of a macOS icon, [side] across, as a mask (white inside): a superellipse, |x|^5 + |y|^5 = 1,
+    measured from Ghost.md's Mac icon (it fits to under two pixels in 824). It is how the icon looks on a macOS
+    that masks nothing itself; it is not what keeps the icon off a plate (see mac_icon).
+    """
+    import math
     from PIL import ImageDraw
     big = 4
-    s, r = side * big, radius * big
-    c = _corner(r)
-    outline = (
-        [(s - x, y) for x, y in c]                      # top right, going down the right side
-        + [(s - y, s - x) for x, y in c]                # bottom right
-        + [(x, s - y) for x, y in c]                    # bottom left
-        + [(y, x) for x, y in c]                        # top left
-    )
+    s = side * big
+    half = s / 2
+    steps = 720
+    outline = []
+    for i in range(steps):
+        t = 2 * math.pi * i / steps
+        c, n = math.cos(t), math.sin(t)
+        # The point of the superellipse in the direction t: each coordinate's sign, and its size to the 2/5.
+        outline.append((half + half * math.copysign(abs(c) ** 0.4, c), half + half * math.copysign(abs(n) ** 0.4, n)))
     mask = Image.new('L', (s, s), 0)
     ImageDraw.Draw(mask).polygon(outline, fill=255)
     return mask.resize((side, side), LANCZOS)
 
 
+# The least blue anything in the Mac icon has: its black is (0, 0, 2), which no eye tells from black.
+MAC_TINT = 2
+
+
 def mac_icon(picture, size):
     """
-    The picture as a macOS icon (Matt, 2026-11-13: "the icon on the mac app is also not full width and height, it's
-    inset"). macOS (26 and later) fills its own icon shape only with an icon whose outline is Apple's: 824 of the
-    1024 across, the corners eased into the edges, a soft shadow under it. Anything else (a plain square edge to
-    edge, or corners that are arcs of a circle, which is what this drew first) it shrinks onto a plate of its own,
-    which is the inset. Ghost.md's Mac icon has this outline, and is drawn whole.
+    The picture as a macOS icon: 824 of the 1024 across, in the outline above, with a soft shadow under it.
+
+    Matt, 2026-11-13: "the icon on the mac app is also not full width and height, it's inset". macOS 27 drew it
+    small on a grey plate of its own. The cause was not the outline (three were tried, and a plain square too):
+    this picture is black and white and nothing else, Xcode's asset catalog stores a picture with no colour in it
+    as greyscale ("Monochrome"), and macOS puts a greyscale icon on a plate. With one pixel that is not grey the
+    catalog stores it as colour and macOS draws it whole, in any outline. So the black here carries [MAC_TINT] of
+    blue, and main() refuses to write a Mac icon that is all grey.
+
+    The test is the app as built, since an .icns beside it is not read: `python3 tool/app_icon.py --check
+    "build/macos/Build/Products/Release/Ghost Messaging.app"` says how its catalog stored the icon, and
+    `NSWorkspace.shared.icon(forFile:)` on it is what the Dock draws.
     """
     from PIL import ImageFilter
-    work, inner, radius = 1024, 824, 185.4
+    work, inner = 1024, 824
     at = (work - inner) // 2
-    mask = mac_shape(inner, radius)
+    mask = mac_shape(inner)
     # The shadow: the shape, a little lower, blurred, at a third of black.
     shadow = Image.new('L', (work, work), 0)
     shadow.paste(mask, (at, at + 12))
@@ -107,7 +104,35 @@ def mac_icon(picture, size):
     out = Image.new('RGBA', (work, work), (0, 0, 0, 0))
     out.putalpha(shadow)
     out.paste(picture.convert('RGB').resize((inner, inner), LANCZOS), (at, at), mask)
-    return out if size == work else out.resize((size, size), LANCZOS)
+    if size != work:
+        out = out.resize((size, size), LANCZOS)
+    # The tint last, at the size it is kept at: shrinking would round some of it away.
+    red, green, blue, alpha = out.split()
+    return Image.merge('RGBA', (red, green, blue.point(lambda v: max(v, MAC_TINT)), alpha))
+
+
+def has_colour(icon):
+    """Whether any pixel of [icon] that is not clear is not grey: what the asset catalog needs to keep it as colour."""
+    red, green, blue, alpha = icon.convert('RGBA').split()
+    solid = alpha.point(lambda v: 255 if v == 255 else 0)
+    from PIL import ImageChops
+    return ImageChops.multiply(ImageChops.difference(red, blue), solid).getbbox() is not None or \
+        ImageChops.multiply(ImageChops.difference(red, green), solid).getbbox() is not None
+
+
+def check_built(app):
+    """How the built Mac app's asset catalog stored its icon: every size must be colour (see mac_icon)."""
+    import json
+    import subprocess
+    car = os.path.join(app, 'Contents', 'Resources', 'Assets.car')
+    rows = json.loads(subprocess.run(['xcrun', 'assetutil', '--info', car], capture_output=True, text=True, check=True).stdout)
+    icons = [r for r in rows if r.get('AssetType') == 'Icon Image']
+    grey = [r for r in icons if r.get('ColorModel') != 'RGB']
+    for r in icons:
+        print(f"{r.get('PixelWidth')}px @{r.get('Scale')}x: {r.get('ColorModel')}")
+    if not icons or grey:
+        raise SystemExit('the Mac icon is stored as greyscale: macOS will draw it small on a plate' if grey else 'no icon in ' + car)
+    print('the Mac icon is stored as colour in', car)
 
 
 def silhouette(picture, size):
@@ -129,6 +154,8 @@ def silhouette(picture, size):
 
 
 def main():
+    if len(sys.argv) > 2 and sys.argv[1] == '--check':
+        return check_built(sys.argv[2])
     if len(sys.argv) > 1:
         os.makedirs(os.path.dirname(ART), exist_ok=True)
         shutil.copyfile(os.path.expanduser(sys.argv[1]), ART)
@@ -150,7 +177,10 @@ def main():
     silhouette(picture, 256).save(os.path.join(ROOT, 'assets', 'art', 'ghost-mark.png'), optimize=True)
     # The Mac app's icon (macos/, the desktop companion), in the outline macOS draws whole (mac_icon).
     for size in (16, 32, 64, 128, 256, 512, 1024):
-        mac_icon(picture, size).save(os.path.join(MAC, f'app_icon_{size}.png'), optimize=True)
+        icon = mac_icon(picture, size)
+        if not has_colour(icon):
+            raise SystemExit(f'the Mac icon at {size} is all grey: macOS would draw it small on a plate (mac_icon)')
+        icon.save(os.path.join(MAC, f'app_icon_{size}.png'), optimize=True)
     print('icons written from', ART)
 
 

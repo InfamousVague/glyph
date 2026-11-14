@@ -3,13 +3,16 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/desktop/desk.dart';
 import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
+import 'package:ghost_messaging/desktop/ui/shell.dart';
 import 'package:ghost_messaging/desktop/ui/wizard.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart';
+import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/common.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:integration_test/integration_test.dart';
@@ -59,6 +62,10 @@ void main() {
   if (live) binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
   testWidgets('the Mac app pairs with the phone, lists, hears a new text and sends one ($_mode)', (tester) async {
+    /// A picture of the window, sent to whoever listens on DESK_SHOTS. Never the reason a run stops: a picture
+    /// that cannot be taken in five seconds is said and passed over.
+    late final Future<void> Function(String name) shot;
+
     /// Lets [d] pass. Live, the app is drawing by itself and time simply passes; stepped, frames are asked for.
     Future<void> wait(Duration d) async {
       if (live) {
@@ -71,18 +78,27 @@ void main() {
       }
     }
 
+    /// Every piece of text on the screen now, in the order the screen is built: said when something waited for
+    /// never comes, so what was there in its place can be read.
+    List<String> onScreen() => [
+          for (final e in find.byType(Text).evaluate())
+            ((e.widget as Text).data ?? (e.widget as Text).textSpan?.toPlainText() ?? '').replaceAll('\n', ' '),
+        ].where((t) => t.isNotEmpty).toList();
+
     Future<void> until(bool Function() test, String what, {Duration max = const Duration(minutes: 4)}) async {
       final end = DateTime.now().add(max);
       while (!test()) {
-        if (DateTime.now().isAfter(end)) fail('Never happened: $what');
+        if (DateTime.now().isAfter(end)) {
+          say('DESK-NOTE on the screen when "$what" never came: ${onScreen().join(' | ')}');
+          await shot('failed');
+          fail('Never happened: $what');
+        }
         await wait(const Duration(milliseconds: 50));
       }
       await wait(const Duration(milliseconds: 300));
     }
 
-    /// A picture of the window, sent to whoever listens on DESK_SHOTS. Never the reason a run stops: a picture
-    /// that cannot be taken in five seconds is said and passed over.
-    Future<void> shot(String name) async {
+    shot = (String name) async {
       try {
         await wait(const Duration(milliseconds: 400));
         // The page as it was last painted: the route's own boundary, which fills the window.
@@ -97,12 +113,16 @@ void main() {
       } catch (e) {
         say('DESK-NOTE no picture of $name: $e');
       }
-    }
+    };
 
     final dir = Directory.systemTemp.createTempSync('ghost-desk-live');
     PhoneLink? watched;
     // Said every five seconds whatever else is happening: that the app is alive, and where the pairing stands.
-    final heartbeat = Timer.periodic(const Duration(seconds: 5), (_) => say('DESK-TICK phase=${watched?.attempt?.phase} via=${watched?.via} paired=${watched?.phone != null}'));
+    // And how many frames the window has drawn: a window that macOS has stopped drawing (covered, or the app set
+    // aside) shows nothing new however much has arrived, and what this reads off the screen is then stale.
+    var frames = 0;
+    SchedulerBinding.instance.addPersistentFrameCallback((_) => frames++);
+    final heartbeat = Timer.periodic(const Duration(seconds: 5), (_) => say('DESK-TICK phase=${watched?.attempt?.phase} via=${watched?.via} paired=${watched?.phone != null} frames=$frames'));
     addTearDown(heartbeat.cancel);
     await desktopMain(peers: _mode == 'relay' ? const [] : [Peer.parse(_peer)!], folder: dir.path, bonjour: false);
     await until(() => find.text('Your texts, on your Mac').evaluate().isNotEmpty, 'the wizard');
@@ -152,7 +172,7 @@ void main() {
     // A text arrives on the phone while the conversation is open here.
     say('DESK-WAITING-FOR-TEXT $_tag');
     // In the list (its last words) and in the conversation (a bubble).
-    await until(() => find.textContaining(_tag).evaluate().length >= 2, 'the new text', max: const Duration(minutes: 5));
+    await until(() => find.textContaining(_tag).evaluate().length >= 2, 'the new text, in the list and in the conversation', max: const Duration(seconds: 40));
     say('DESK-HEARD via=${link.via}');
     await shot('6-new-text');
 
@@ -161,7 +181,22 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, words);
     await wait(const Duration(milliseconds: 300));
     await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'));
-    await until(() => find.text(words).evaluate().isNotEmpty, 'the sent text as a bubble', max: const Duration(minutes: 1));
+    // Sent means the phone says so: the words among the conversation's own messages, read back from the phone,
+    // going out and no longer waiting. (The words on the screen prove nothing: they are in the field as typed.)
+    final thread = (await Sms.instance.conversations()).firstWhere((c) => c.title.contains('5550100')).id;
+    String state = '';
+    final gaveUp = DateTime.now().add(const Duration(minutes: 1));
+    while (true) {
+      final mine = (await Sms.instance.messages(thread)).where((m) => m.outgoing && m.body.contains(words)).firstOrNull;
+      final typed = tester.widget<EditableText>(find.byType(EditableText).last).controller.text;
+      final now = 'state=${mine?.state} field=${typed.isEmpty ? 'empty' : 'holds the words'} waiting=${DeskScope.of(tester.element(find.byType(DeskShell))).calls.waiting} via=${link.via}';
+      if (now != state) say('DESK-NOTE after Send: $now');
+      state = now;
+      if (mine != null && mine.state != 'waiting' && mine.state != 'failed') break;
+      if (DateTime.now().isAfter(gaveUp)) fail('The text typed on the Mac never left: $now');
+      await wait(const Duration(milliseconds: 500));
+    }
+    await until(() => find.text(words).evaluate().any((e) => e.widget is! EditableText), 'the sent text as a bubble', max: const Duration(seconds: 30));
     say('DESK-SENT $words');
     await wait(const Duration(seconds: 3));
     await shot('7-sent');

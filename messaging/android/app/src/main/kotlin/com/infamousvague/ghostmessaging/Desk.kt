@@ -69,6 +69,14 @@ object Desk : DeskHost {
 
     private val io = Executors.newSingleThreadExecutor()
     private val pictures = Executors.newFixedThreadPool(2)
+
+    /**
+     * The list of conversations is read on a thread of its own, and a text is sent on another, as the screen's own
+     * calls are (MainActivity): a long read of a great many conversations, or Android taking its time over a text,
+     * holds nothing else up.
+     */
+    private val lists = Executors.newSingleThreadExecutor()
+    private val sender = Executors.newSingleThreadExecutor()
     private val teller = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private var seenSaved = 0L
@@ -340,7 +348,17 @@ object Desk : DeskHost {
         val now = System.currentTimeMillis()
         p.seen = now
         if (now - seenSaved > 60_000) { seenSaved = now; save() }
-        return calls.call(method, args)
+        // What a computer asks for and how long it takes is written to Android's log when asked for
+        // (`adb shell setprop log.tag.GhostDesk VERBOSE`), as GhostPerf is for the screen's own calls: the request's
+        // name and its milliseconds, never what it carried.
+        if (!Log.isLoggable(TAG, Log.VERBOSE)) return calls.call(method, args)
+        val began = android.os.SystemClock.elapsedRealtime()
+        try {
+            return calls.call(method, args).also { Log.v(TAG, "$method ${android.os.SystemClock.elapsedRealtime() - began} ms (${session.via})") }
+        } catch (e: Exception) {
+            Log.v(TAG, "$method refused after ${android.os.SystemClock.elapsedRealtime() - began} ms: ${e.javaClass.simpleName}")
+            throw e
+        }
     }
 
     override fun event(session: DeskSession, name: String, args: JSONObject) {
@@ -390,7 +408,15 @@ object Desk : DeskHost {
     }
 
     override fun run(method: String, work: () -> Unit) {
-        (if (method == "photo" || method == "part") pictures else io).execute(work)
+        when (method) {
+            // "Are you there" is answered where it arrives, behind nothing: a computer that hears no answer takes
+            // the phone to be gone, and it should not think so because the phone is busy reading or sending.
+            "ping" -> work()
+            "photo", "part" -> pictures.execute(work)
+            "conversations", "conversationsPage", "archivedCount" -> lists.execute(work)
+            "send" -> sender.execute(work)
+            else -> io.execute(work)
+        }
     }
 
     override fun closed(session: DeskSession) {
