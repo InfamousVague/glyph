@@ -1132,7 +1132,12 @@ class _Bubble extends StatelessWidget {
     final app = AppState.of(context);
     final out = m.outgoing;
     final failed = m.state == 'failed';
-    final big = t.lenOf('1.15rem');
+    // On a computer a bubble is a size smaller than on the phone: its words, the room round them and its corners
+    // (Matt, 2026-11-14: "the chat bubbles are a bit too large on mac"). A window is read from further off than a
+    // phone is held, but it is also far wider, and the phone's bubbles filled it.
+    final desk = Sms.remote;
+    final size = desk ? 0.88 : 1.0;
+    final big = t.lenOf(desk ? '1rem' : '1.15rem');
     final small = t.lenOf('0.3rem');
     final radius = BorderRadius.only(
       topLeft: Radius.circular(!out && !top ? small : big),
@@ -1144,7 +1149,7 @@ class _Bubble extends StatelessWidget {
     final (mine, onMine) = myBubble(t, app, thread);
     final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : theirBubble(t, onBackground: onBackground);
     final ink = out && !failed ? onMine : t.color('app-ink');
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
+    final maxWidth = MediaQuery.sizeOf(context).width * (desk ? 0.62 : 0.76);
     final faceSize = t.lenOf('1.75rem');
     final emojis = m.attachments.isEmpty && !unopened && app.bigEmoji ? emojiOnly(body) : 0;
     final jumbo = emojis >= 1 && emojis <= 3;
@@ -1189,24 +1194,24 @@ class _Bubble extends StatelessWidget {
         // One to three emoji and nothing else: large, on the page, with no bubble.
         Padding(
           padding: EdgeInsets.symmetric(horizontal: t.space(1)),
-          child: Text(body.trim(), style: pageText(t, t.lenOf(emojis == 1 ? '3.2rem' : '2.5rem'), color: t.color('app-ink'), height: 1.2)),
+          child: Text(body.trim(), style: pageText(t, t.lenOf(emojis == 1 ? '3.2rem' : '2.5rem') * size, color: t.color('app-ink'), height: 1.2)),
         )
       else if (body.isNotEmpty)
         Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
-          padding: EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
+          padding: desk ? EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2) - 2) : EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
           // A bubble the page would swallow (white on the light page) wears a line round it.
           decoration: BoxDecoration(color: ground, borderRadius: radius, border: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null),
           child: unopened
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   AppIcon(Lucide.lock, size: 14, strokeWidth: 2.2, wash: false, color: ink),
                   SizedBox(width: t.space(2)),
-                  Flexible(child: Text(body, style: pageText(t, t.fontSize('sm') * app.textScale, color: ink, height: 1.35).copyWith(fontStyle: FontStyle.italic))),
+                  Flexible(child: Text(body, style: pageText(t, t.fontSize('sm') * app.textScale * size, color: ink, height: 1.35).copyWith(fontStyle: FontStyle.italic))),
                 ])
               : Text.rich(
                   _linked(body, ink),
                   // Settings › Appearance › Text size.
-                  style: pageText(t, t.fontSize('md') * app.textScale, color: ink, height: 1.35),
+                  style: pageText(t, t.fontSize('md') * app.textScale * size, color: ink, height: 1.35),
                 ),
         ),
     ];
