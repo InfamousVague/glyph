@@ -256,7 +256,7 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0});
   final String address;
   final String state;
   final bool verified;
@@ -275,6 +275,13 @@ class E2eState {
   /// The person here turned encryption off with them: it is not offered again.
   final bool declined;
 
+  /// How many texts have come from them without encryption while it is on, and not been put away (android
+  /// E2e.arrived): they may have turned it off or changed phones, and then cannot read what goes to them sealed.
+  final int plain;
+
+  /// Their texts are coming plain though encryption is on: the conversation says so, with a way to turn it off.
+  bool get plainWarning => on && plain > 0;
+
   bool get on => state == 'on';
 
   /// Both phones have the app and nothing has been exchanged yet: the conversation offers encryption.
@@ -289,6 +296,7 @@ class E2eState {
         person: m['person'] == null ? null : Person.from(m['person'] as Map),
         hasGhost: m['hasGhost'] == true,
         declined: m['declined'] == true,
+        plain: (m['plain'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -644,6 +652,9 @@ class Sms {
   Future<E2eState> e2e(String address) async => E2eState.from((await _calls.invokeMethod('e2e', {'address': address})) as Map);
   Future<E2eState> e2eOffer(String address) async => E2eState.from((await _calls.invokeMethod('e2eOffer', {'address': address})) as Map);
   Future<void> e2eOff(String address) => _calls.invokeMethod('e2eOff', {'address': address});
+
+  /// Puts away the warning that [address]'s texts are coming without encryption; the next plain one brings it back.
+  Future<void> e2ePlainSeen(String address) => _calls.invokeMethod('e2ePlainSeen', {'address': address});
   Future<void> e2eVerify(String address, bool verified) => _calls.invokeMethod('e2eVerify', {'address': address, 'verified': verified});
   Future<void> e2eReset() => _calls.invokeMethod('e2eReset');
   Future<String?> e2eMine() => _calls.invokeMethod<String>('e2eMine');

@@ -301,6 +301,14 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **Their texts are coming without encryption** (not released; `E2e.arrived`; Matt, 2026-11-14: "we need to be able
+  to detect if a user is sending us unencrypted messages and let us know so we can disable it"). Encryption on with
+  someone seals what goes to them; if they have turned it off, changed phones or left the app, they cannot read it,
+  and until now nothing said so. A text that comes from them plain while encryption is on is counted: the first one
+  raises a notification, and the conversation says "Sam's last 2 texts came without encryption…" over its message
+  field with Turn off beside it and a cross to put it away (it comes back with their next plain text). A text that
+  comes sealed again clears it. The app's own texts (a key, a chat background) count as neither. A conversation's
+  settings say the same under Encryption, and so does the Mac, where it is said and turned off from the phone.
 - **Videos** (not released; `Video.kt`, `lib/ui/video.dart`, `macos/Runner/DeskVideo.swift`; Matt, 2026-11-14: "mp4
   files are not loading it just shows up as a string of text for the filename"). A video in a message is drawn as a
   picture of where it starts, with Play over it and how long it runs, where it was its file's name and no more. A

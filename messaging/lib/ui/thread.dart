@@ -171,6 +171,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _load();
   }
 
+  /// The warning's Turn off: their texts are coming plain, so this conversation goes plain too and they can read it.
+  Future<void> _e2eStop() async {
+    final person = _people.first;
+    try {
+      await Sms.instance.e2eOff(person.address);
+      if (mounted) toast(context, 'Encryption is off with ${person.label}. Texts go as ordinary texts again.');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t turn it off: $e', tone: GlacierToastTone.danger);
+    }
+    _e2eChanged();
+  }
+
   /// The banner's Turn on: this phone's key goes to them, and encryption starts when they accept.
   Future<void> _e2eStart() async {
     final person = _people.first;
@@ -759,6 +771,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
               onDismiss: () => AppState.of(context).setFlag('e2e_banner_${widget.thread}', false),
             ),
+          // Encryption is on and their texts are coming without it (Matt, 2026-11-14: "we need to be able to detect
+          // if a user is sending us unencrypted messages and let us know so we can disable it"): said here, with Turn
+          // off beside it. Put away, it comes back with their next plain text; it goes by itself when one comes sealed.
+          // On a computer it is said and not offered: encryption is turned off from the phone.
+          if (!_group && _people.isNotEmpty && _e2e.plainWarning)
+            _E2eBar(
+              warning: true,
+              text: '${_people.first.label}\'s ${_e2e.plain == 1 ? 'last text' : 'last ${_e2e.plain} texts'} came without encryption. '
+                  'They may have turned it off or changed phones, and then can\'t read what you send.${Sms.remote ? ' Turn it off from the phone.' : ''}',
+              action: Sms.remote ? null : 'Turn off',
+              onAction: _e2eStop,
+              onPress: Sms.remote ? () {} : () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
+              onDismiss: Sms.remote ? null : () => Sms.instance.e2ePlainSeen(_people.first.address).then((_) => _e2eChanged()).catchError((_) {}),
+            ),
           if (!Sms.remote && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
             _E2eBar(
               text: switch (_e2e.state) {
@@ -965,8 +991,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 /// Over the composer while encryption waits on someone: their key is here and wants a yes, or yours went and theirs
 /// has not come. A press anywhere opens what can be done about it.
 class _E2eBar extends StatelessWidget {
-  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss});
+  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss, this.warning = false});
   final String text;
+
+  /// Something is wrong, not waiting: a warning's mark in place of the lock.
+  final bool warning;
   final VoidCallback onPress;
   final String? action;
   final VoidCallback? onAction;
@@ -985,7 +1014,7 @@ class _E2eBar extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
           decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg'))),
           child: Row(children: [
-            AppIcon(Lucide.lock, size: 16, color: t.color('app-ink-2')),
+            if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.colorOf('#c27c00'), wash: false) else AppIcon(Lucide.lock, size: 16, color: t.color('app-ink-2')),
             SizedBox(width: t.space(2)),
             Expanded(child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'), height: 1.3))),
             if (action != null) ...[

@@ -200,6 +200,8 @@ class MainActivity : FlutterActivity() {
                     E2e.state(applicationContext, address)
                 }
                 "e2eOff" -> bg { E2e.off(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
+                // The warning that their texts are coming without encryption was put away (E2e.arrived).
+                "e2ePlainSeen" -> bg { E2e.plainSeen(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
                 "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
                 "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
                 "blockedNumbers" -> bg { store.blockedNumbers() }

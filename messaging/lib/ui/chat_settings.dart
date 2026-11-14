@@ -143,6 +143,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       icon: AppIcon(_e2e.on ? (_e2e.verified ? Lucide.shieldCheck : Lucide.lock) : Lucide.keyRound, size: 18),
                       label: 'Encryption',
                       hint: Text(switch (_e2e.state) {
+                        'on' when _e2e.plainWarning => 'On, but ${people.first.label}\'s last ${_e2e.plain == 1 ? 'text' : '${_e2e.plain} texts'} came without it. They may not be able to read what you send.${Sms.remote ? ' It is turned off from the phone.' : ''}',
                         'on' when Sms.remote => _e2e.verified ? 'On, and the safety number is verified. It is turned off from the phone.' : 'On. It is turned off, and its safety number compared, from the phone.',
                         'on' => _e2e.verified ? 'On, and the safety number is verified.' : 'On. Compare the safety number to be sure nobody is in the middle.',
                         'pending' => _e2e.changed ? '${people.first.label} sent a NEW key. Review it before accepting.' : '${people.first.label} sent their key and waits for your yes.',

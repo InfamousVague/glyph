@@ -10,6 +10,34 @@ import org.junit.Test
 
 /** Two phones, and a third that should read nothing. */
 class E2eCryptoTest {
+    /** Texts that come plain from someone encryption is on with are counted, and the count is cleared when they seal again. */
+    @Test
+    fun plainTextsWhileEncryptedAreCounted() {
+        val a = E2eCrypto.newKeyPair()
+        val b = E2eCrypto.newKeyPair()
+        val key = E2eCrypto.conversationKey(a.private, E2eCrypto.publicBytes(a.public), E2eCrypto.publicBytes(b.public))!!
+        assertEquals("sealed", E2ePlain.kindOf(E2eCrypto.seal(key, "see you at 7")))
+        assertEquals("plain", E2ePlain.kindOf("see you at 7"))
+        assertEquals("plain", E2ePlain.kindOf("Your code is 482913"))
+        // A key is the app's own text: it says nothing of whether their texts are sealed.
+        assertEquals("ours", E2ePlain.kindOf(E2eCrypto.keyText(E2eCrypto.publicBytes(b.public))))
+        // One plain text, then another: counted, and warned of until put away.
+        var state = E2ePlain.next(0, 0, "plain")
+        assertEquals(1 to 0, state)
+        assertEquals(1, E2ePlain.unseen(state.first, state.second))
+        state = E2ePlain.next(state.first, state.second, "plain")
+        assertEquals(2 to 0, state)
+        // Put away at two: nothing to show, until the next plain one comes.
+        assertEquals(0, E2ePlain.unseen(2, 2))
+        state = E2ePlain.next(2, 2, "plain")
+        assertEquals(1, E2ePlain.unseen(state.first, state.second))
+        // A key or a background in between changes nothing.
+        assertEquals(state, E2ePlain.next(state.first, state.second, "ours"))
+        // They seal again: there is nothing left to warn of.
+        assertEquals(0 to 0, E2ePlain.next(state.first, state.second, "sealed"))
+        assertEquals(0, E2ePlain.unseen(0, 0))
+    }
+
     private val alice = E2eCrypto.newKeyPair()
     private val bob = E2eCrypto.newKeyPair()
     private val eve = E2eCrypto.newKeyPair()

@@ -56,17 +56,31 @@ final _conversations = [
   {'id': 9, 'date': _ago(hours: 2), 'people': [_p('+15551230012', 'Noor Haddad')], 'snippet': 'Encryption key', 'unread': false, 'error': false, 'archived': false},
 ];
 
+/// The warning that Sam's texts are coming without encryption: put away, or encryption turned off with him.
+bool _plainSeen = false;
+bool _plainOff = false;
+
 /// Where encryption stands with each person (android/.../E2e.kt): on and verified with Riley, Noor's key waiting
 /// for a yes, nothing with anyone else.
 Map<String, Object?> _e2e(String address) => switch (address) {
       '+15551230011' => {'address': address, 'state': 'on', 'verified': true, 'changed': false, 'safety': '04821 77310 59264 10388 92745 36601', 'person': _p(address, 'Riley Fox')},
       '+15551230012' => {'address': address, 'state': 'pending', 'verified': false, 'changed': false, 'safety': '61120 08347 55902 73418 20056 94471', 'person': _p(address, 'Noor Haddad')},
+      // Encryption is on with Sam, whose last two texts came without it (or it was turned off, or the warning put away).
+      '+15551230013' => {'address': address, 'state': _plainOff ? 'none' : 'on', 'verified': false, 'changed': false, 'person': _p(address, 'Sam Rivera'), 'plain': _plainOff || _plainSeen ? 0 : 2, 'declined': _plainOff},
       // Maya has the app too (its hello came from her), and nothing has been exchanged: the conversation offers it.
       '+15551230001' => {'address': address, 'state': 'none', 'verified': false, 'changed': false, 'hasGhost': true, 'declined': false},
       _ => {'address': address, 'state': 'none', 'verified': false, 'changed': false},
     };
 
 List<Map<String, Object?>> _messages(int thread) {
+  if (thread == 6) {
+    // Encryption is on with Sam: one text of his came sealed, then two came without it.
+    return [
+      {'id': 73, 'kind': 'sms', 'address': '+15551230013', 'body': 'You there?', 'date': _ago(minutes: 1), 'outgoing': false, 'state': 'received', 'read': true},
+      {'id': 72, 'kind': 'sms', 'address': '+15551230013', 'body': 'New phone, who dis', 'date': _ago(minutes: 3), 'outgoing': false, 'state': 'received', 'read': true},
+      {'id': 71, 'kind': 'sms', 'address': '+15551230013', 'body': 'See you Friday', 'date': _ago(days: 1), 'outgoing': false, 'state': 'received', 'read': true, 'encrypted': true},
+    ];
+  }
   if (thread == 5) {
     // Videos: one that came, which a picture can be made of, and one sent of a kind the phone cannot read.
     return [
@@ -189,6 +203,12 @@ void _answerChannel() {
         return '+15551239999';
       case 'e2e':
         return _e2e(args['address'] as String);
+      case 'e2ePlainSeen':
+        _plainSeen = true;
+        return null;
+      case 'e2eOff':
+        _plainOff = true;
+        return null;
       case 'e2eList':
         return [_e2e('+15551230011'), _e2e('+15551230012')];
       case 'e2eMine':
@@ -355,6 +375,26 @@ void main() {
       expect(find.text('This picture couldn\'t be downloaded'), findsOneWidget);
       expect(find.text('Try again'), findsOneWidget);
       expect(find.text('Downloading picture…'), findsOneWidget);
+      // Encryption is on with someone whose texts have started coming without it: the conversation says so, with
+      // Turn off beside it (Matt: "detect if a user is sending us unencrypted messages and let us know so we can
+      // disable it"). Put away, it goes; turned off, the conversation is plain again.
+      _plainSeen = false;
+      _plainOff = false;
+      const sam = [Person(address: '+15551230013', name: 'Sam Rivera')];
+      await _shoot(tester, sheet, const ThreadScreen(thread: 6, people: sam), '2-thread-plain-warning', dark: dark);
+      expect(find.textContaining('last 2 texts came without encryption'), findsOneWidget);
+      final turnOff = find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == 'Turn off');
+      expect(turnOff, findsOneWidget);
+      await tester.tap(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Not now'));
+      await _settle(tester);
+      expect(_plainSeen, isTrue);
+      expect(find.textContaining('came without encryption'), findsNothing);
+      _plainSeen = false;
+      await _shoot(tester, sheet, const ThreadScreen(key: ValueKey('again'), thread: 6, people: sam), '2-thread-plain-warning', dark: dark);
+      await tester.tap(turnOff);
+      await _settle(tester);
+      expect(_plainOff, isTrue);
+      expect(find.textContaining('came without encryption'), findsNothing);
       // Videos: a picture of where each starts with Play over it and its length, where it was the file's name
       // and no more (Matt: "mp4 files are not loading it just shows up as a string of text for the filename").
       _videosPlayed.clear();
