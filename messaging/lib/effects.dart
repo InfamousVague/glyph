@@ -241,10 +241,15 @@ Duration effectDuration(ScreenEffect effect) => Duration(milliseconds: _duration
 /// of the emoji and plain shapes it drew; the light and the message's own words (fireworks, lasers, the spotlight,
 /// echo) are still drawn, under them.
 class EffectSprites {
-  const EffectSprites(this.heroes, this.props);
+  const EffectSprites(this.heroes, this.props, [this.moving = const []]);
 
   /// The characters: fewer, larger, slower.
   final List<ui.Image> heroes;
+
+  /// The characters moving (Matt, 2026-11-13: "6 frame animations for each asset in a sprite sheet", "Wire up the
+  /// animated pack from the desktop"): for each of [heroes], its strip of frames side by side
+  /// (`<effect>-h<n>-f6.webp`, cut by tool/effect_frames.py), or null where it has none and keeps its still picture.
+  final List<EffectStrip?> moving;
 
   /// The props: many, small.
   final List<ui.Image> props;
@@ -279,10 +284,42 @@ class EffectSprites {
 
       final heroes = [for (final f in found) if (f.$2!.group(1) == 'h') await picture(f.$1)];
       final props = [for (final f in found) if (f.$2!.group(1) == 'p') await picture(f.$1)];
-      return heroes.isEmpty && props.isEmpty ? null : EffectSprites(heroes, props);
+      // Each character's strip of frames, by the character's number, where there is one.
+      final strip = RegExp('^assets/effects/${effect.name}-h(\\d+)-f(\\d+)\\.webp\$');
+      final strips = <int, (String, int)>{
+        for (final a in manifest.listAssets())
+          if (strip.firstMatch(a) case final m?) int.parse(m.group(1)!): (a, int.parse(m.group(2)!)),
+      };
+      final moving = <EffectStrip?>[
+        for (final f in found)
+          if (f.$2!.group(1) == 'h')
+            switch (strips[int.parse(f.$2!.group(2)!)]) {
+              (final asset, final frames) when frames > 0 => EffectStrip(await picture(asset), frames),
+              _ => null,
+            },
+      ];
+      return heroes.isEmpty && props.isEmpty ? null : EffectSprites(heroes, props, moving);
     } catch (_) {
       return null;
     }
+  }
+}
+
+/// A character's motion: its frames side by side in one picture, each the same width.
+class EffectStrip {
+  const EffectStrip(this.image, this.frames);
+  final ui.Image image;
+  final int frames;
+
+  /// How many of its frames a second: the six of a sheet are one beat of the motion, about three quarters of a second.
+  static const perSecond = 8.0;
+
+  /// The frame shown [seconds] into the effect, for the character that started [offset] frames in: they do not all
+  /// move in step.
+  Rect frameAt(double seconds, int offset) {
+    final index = ((seconds * perSecond).floor() + offset) % frames;
+    final width = image.width / frames;
+    return Rect.fromLTWH(index * width, 0, width, image.height.toDouble());
   }
 }
 
@@ -462,7 +499,7 @@ class EffectPainter extends CustomPainter {
       }
       final small = plan.small;
       _spriteFlight(canvas, size, time, fade, math.Random(seed ^ 0x5bd1), pictures.props, plan.props, plan.propCount, small ? 16 : 34, small ? 34 : 62, spin: small ? 1.6 : 0.3);
-      _spriteFlight(canvas, size, time, fade, math.Random(seed ^ 0x2f6b), pictures.heroes, plan.heroes, plan.heroCount, 96, 148, speed: 0.72, spin: 0.14);
+      _spriteFlight(canvas, size, time, fade, math.Random(seed ^ 0x2f6b), pictures.heroes, plan.heroes, plan.heroCount, 96, 148, speed: 0.72, spin: 0.14, moving: pictures.moving);
       return;
     }
     final flight = _flights[effect];
@@ -498,9 +535,11 @@ class EffectPainter extends CustomPainter {
 
   /// The effect's pictures rising like bubbles, falling like petals, or thrown out from the middle: [count] of
   /// them, each one of [images] in turn, from [smallest] to [largest] across.
-  void _spriteFlight(Canvas canvas, Size size, double time, double fade, math.Random r, List<ui.Image> images, _Flight flight, int count, double smallest, double largest, {double speed = 1, double spin = 0.3}) {
+  void _spriteFlight(Canvas canvas, Size size, double time, double fade, math.Random r, List<ui.Image> images, _Flight flight, int count, double smallest, double largest, {double speed = 1, double spin = 0.3, List<EffectStrip?> moving = const []}) {
     if (images.isEmpty) return;
     final paint = Paint()..filterQuality = FilterQuality.medium;
+    // How far into the effect, in seconds: what the moving characters' frames are stepped by.
+    final seconds = time * effectDuration(effect).inMilliseconds / 1000;
     for (var i = 0; i < count; i++) {
       final x0 = 0.07 + r.nextDouble() * 0.86;
       final delay = r.nextDouble() * 0.4;
@@ -529,14 +568,18 @@ class EffectPainter extends CustomPainter {
           alpha *= (1.2 - p * 1.1).clamp(0.0, 1.0);
       }
       if (y < -s * 2 || y > size.height + s * 2 || alpha <= 0) continue;
-      final w = image.width.toDouble();
-      final h = image.height.toDouble();
+      // A character with frames of its own is drawn from them, the frame of this moment; the rest are still.
+      final strip = i % images.length < moving.length ? moving[i % images.length] : null;
+      final from = strip == null ? Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()) : strip.frameAt(seconds, i * 2);
+      final w = from.width;
+      final h = from.height;
       final k = s * scale / math.max(w, h);
       canvas.save();
       canvas.translate(x, y);
-      canvas.rotate(math.sin(phase + p * 5) * spin);
+      // One that moves by itself is rocked less: its own motion is what is looked at.
+      canvas.rotate(math.sin(phase + p * 5) * (strip == null ? spin : spin * 0.4));
       paint.color = Color.fromRGBO(255, 255, 255, alpha);
-      canvas.drawImageRect(image, Rect.fromLTWH(0, 0, w, h), Rect.fromCenter(center: Offset.zero, width: w * k, height: h * k), paint);
+      canvas.drawImageRect(strip?.image ?? image, from, Rect.fromCenter(center: Offset.zero, width: w * k, height: h * k), paint);
       canvas.restore();
     }
   }

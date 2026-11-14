@@ -347,6 +347,23 @@ void main() {
         expect(sprites, isNotNull, reason: '${effect.name} has no pictures in assets/effects/');
         expect(sprites!.heroes, isNotEmpty, reason: '${effect.name} has no characters');
         expect(sprites.props, isNotEmpty, reason: '${effect.name} has no props');
+        // Its characters move: each has its strip of six frames (tool/effect_frames.py), but for the two Matt's
+        // pack has no sheet for (balloons' first, confetti's second), which keep their still picture.
+        expect(sprites.moving.length, sprites.heroes.length);
+        final strips = sprites.moving.whereType<EffectStrip>().toList();
+        final without = switch (effect) { ScreenEffect.balloons || ScreenEffect.confetti => 1, _ => 0 };
+        expect(strips.length, sprites.heroes.length - without, reason: '${effect.name}\'s moving characters');
+        expect(sprites.moving[switch (effect) { ScreenEffect.balloons => 0, ScreenEffect.confetti => 1, _ => 0 }] == null, without == 1);
+        for (final s in strips) {
+          expect(s.frames, 6);
+          final frame = s.image.width / 6;
+          // A frame every eighth of a second, round and round; a character that started later is frames ahead.
+          expect(s.frameAt(0, 0).left, 0);
+          expect(s.frameAt(0.13, 0).left, frame);
+          expect(s.frameAt(0.76, 0).left, 0);
+          expect(s.frameAt(0, 2).left, frame * 2);
+          expect(s.frameAt(0.7, 0).right, s.image.width.toDouble());
+        }
         await _shoot(
           tester,
           sheet,

@@ -196,6 +196,20 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   characters few and large, rising, falling or bursting as the effect does. What only the app can draw stays under
   them: the fireworks' and lasers' light, the spotlight, Echo's copies of the message's words. An effect with no
   pictures is drawn as before. 240 sprites, 2.6 MB.
+- **The effects' characters move** (not released; Matt: "Wire up the animated pack from the desktop"). Each ghost
+  character of each effect has six frames of a motion of its own (a wave, a sip, a wobble), cut from Matt's sheets by
+  `python3 tool/effect_frames.py ~/Desktop/Animated` into a strip, `assets/effects/<effect>-h<n>-f6.webp`. As a
+  character flies the app steps through its strip, eight frames a second. Two of the eighty had no sheet and keep
+  their still picture. 78 strips, 4.8 MB more in the app ([docs/effects.md](docs/effects.md)).
+- **Reactions under the message, and effects as reactions** (not released; Matt: "I want the message reactions to
+  pop up under the message like imessage does", "I'd like to be able to react with full screen effects by pressing
+  and holding on a message as well"). A long press on a bubble dims the page round it and brings up, beside it, the
+  reactions, then the twenty screen effects, then Copy, Edit and Delete (`lib/ui/message_popover.dart`). An effect
+  chosen there goes as a reaction with the effect's own emoji (`Reacted 🎈 to “…”`), which every phone can read; this
+  app hangs it on the message and plays the effect over the conversation, on both phones, once.
+- **The update banner** (not released; Matt: "the app should auto check for updates on load of any page so it pops
+  the banner"). Every page that opens asks for a look for a newer version, made no oftener than every five minutes,
+  and while one is waiting a banner over every page says which, with Update now (`lib/ui/update_banner.dart`).
 - **Stickers** (0.6.0; Matt: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio
   one"). Four packs of sixteen, made by `python3 tool/sticker_packs.py` from the ghost's poses on the effects' sheets,
   each with a sticker's white edge: **Ghost** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and

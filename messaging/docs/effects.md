@@ -38,6 +38,23 @@ the sheet's four-by-three are one sprite (three sound waves), and a speck on its
 inside a sprite's box is masked out. `build/effect-sprites/<effect>.png` shows every cut, to look over after a run.
 With no folder named, the sheets already in `art/effects/` are cut again.
 
+### The characters, moving
+
+Matt, 2026-11-13: "6 frame animations for each asset in a sprite sheet", then "Wire up the animated pack from the
+desktop". Each character has a sheet of its own, `<effect>_r1c<n> · <what it does>.png`: six frames of one motion
+(a wave, a sip, a wobble) in three columns and two rows on a clear background. `r1c<n>` is the character's place on
+the effect's still sheet, which is `<effect>-h<n>.webp`.
+
+    python3 tool/effect_frames.py ~/Desktop/Animated
+
+makes each a strip, `assets/effects/<effect>-h<n>-f6.webp`: the six frames side by side, each cut to the one box
+that holds all six (so what moves is the drawing, not the cut), 256 px on the longer side.
+`build/effect-frames/<effect>.png` shows an effect's strips to look over. As a character flies, the app steps
+through its strip eight frames a second (`EffectStrip`, `EffectSprites.moving`), each character starting on a
+different frame, and rocks it less than a still one. A character with no sheet keeps its still picture: of the
+eighty, balloons' first and confetti's second had none in the pack. 78 strips, 4.8 MB. The sheets themselves (227
+MB) are not kept in the repository.
+
 The app finds an effect's pictures by name (`EffectSprites.of`, `lib/effects.dart`), decodes them the first time the
 effect plays and keeps the last three effects' decoded. `_spritePlans` says how each effect's move: how many props
 and characters, and whether they rise, fall or burst. Props are many and small (confetti and snow smaller still, and
