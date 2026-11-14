@@ -290,6 +290,16 @@ class LinkCalls implements SmsCalls, CapableCalls {
           return {'address': a['address']};
         }
       case 'photo':
+        // A picture chosen on this Mac for a message not yet sent (its path, where the phone's is an address of
+        // Android's): drawn from where it is.
+        if ('${a['uri']}'.startsWith('/')) {
+          try {
+            final file = File('${a['uri']}');
+            return await file.length() > mostBytes ? null : await file.readAsBytes();
+          } catch (_) {
+            return null;
+          }
+        }
         try {
           final data = await link.request('photo', a);
           return data is String ? base64.decode(data) : null;

@@ -4,11 +4,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../art/app_icon.dart';
+import '../art/app_icon.dart';
 
-/// One place the Mac's navigation pill goes to: one ring.
-class DeskNavItem {
-  const DeskNavItem({required this.id, required this.icon, required this.label, this.count = 0});
+/// One place the navigation pill goes to: one ring.
+class NavItem {
+  const NavItem({required this.id, required this.icon, required this.label, this.count = 0});
   final String id;
   final LucideIcon icon;
 
@@ -19,25 +19,30 @@ class DeskNavItem {
   final int count;
 }
 
-/// The navigation pill that floats at the foot of the Mac's sidebar: a new chat, the messages, the archive, Settings
-/// (Matt, 2026-11-14: "at the bottom of the desktop sidebar, add a navigation bar floating", then "use the same
-/// navigation pill that we use in ghost markdown but horizontal instead of vertical").
+/// The navigation pill that floats at the foot of the list, on a computer and on the phone alike: a new chat, the
+/// messages, the address book, the archive, Settings (Matt, 2026-11-14: "at the bottom of the desktop sidebar, add a
+/// navigation bar floating", "use the same navigation pill that we use in ghost markdown but horizontal instead of
+/// vertical", "Evenly space the icons across the bottom of the sidebar … and add an address book icon", and of the
+/// phone, "the mobile app should gain the nav from desktop"). The app's frame draws it (lib/ui/shell.dart).
 ///
 /// It is Ghost.md's dock (lib/shell/page_dock.dart at the repository's root: `PageDock`, `DockRing`, `DockTip`),
-/// laid along where that one stands up, and as wide as the sidebar with its rings evenly along it: a pill of glass, a step of space round its rings and between them, a
-/// hairline round it; each ring `--app-ring` across, the page's colour with a line round it and its mark in the
-/// page's ink; the one shown now filled with ink, its mark in paper, as the dock's one filled ring is; a number on a
-/// ring's corner as the dock wears one; and a ring's words over it while the pointer rests there, where the dock's
-/// come up beside it.
-class DeskNavBar extends StatelessWidget {
-  const DeskNavBar({super.key, required this.items, required this.active, required this.onSelect});
-  final List<DeskNavItem> items;
+/// laid along where that one stands up, and as wide as the list with its rings evenly along it: a pill of glass, a
+/// step of space round its rings, a hairline round it; each ring `--app-ring` across, the page's colour with a line
+/// round it and its mark in the page's ink; the one shown now filled with ink, its mark in paper, as the dock's one
+/// filled ring is; a number on a ring's corner as the dock wears one; and a ring's words over it while a pointer
+/// rests there, where the dock's come up beside it.
+class NavPill extends StatelessWidget {
+  const NavPill({super.key, required this.items, required this.active, required this.onSelect, this.under = 0});
+  final List<NavItem> items;
 
   /// The id of the item shown now.
   final String active;
   final ValueChanged<String> onSelect;
 
-  /// How far in from the sidebar's foot the pill stands.
+  /// The room under the screen's foot that is not the app's (a phone's gesture bar): the pill stands clear of it.
+  final double under;
+
+  /// How far in from the list's foot the pill stands.
   static double inset(Tokens t) => t.space(4);
 
   /// How much of the list's end the pill stands over, with its room: what the list leaves clear there.
@@ -52,7 +57,7 @@ class DeskNavBar extends StatelessWidget {
     // (Matt, 2026-11-14: "Evenly space the icons across the bottom of the sidebar instead of condensing them to the
     // center").
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), inset(t)),
+      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), inset(t) + under),
       child: SizedBox(
         width: double.infinity,
         child: Semantics(
@@ -85,7 +90,7 @@ class DeskNavBar extends StatelessWidget {
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown.
 class _Ring extends StatelessWidget {
   const _Ring({required this.item, required this.shown, required this.onPressed});
-  final DeskNavItem item;
+  final NavItem item;
   final bool shown;
   final VoidCallback onPressed;
 

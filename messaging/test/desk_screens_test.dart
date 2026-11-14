@@ -9,7 +9,7 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
-import 'package:ghost_messaging/desktop/ui/nav_bar.dart';
+import 'package:ghost_messaging/ui/nav_pill.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
@@ -72,6 +72,10 @@ class _Calls extends LinkCalls {
   }
 
   final _prefs = <String, String>{'enter_sends': 'on'};
+
+  /// The phone at the other end has the app that does everything for a computer (android DeskCalls.CAPS).
+  @override
+  Set<String> get caps => const {'deleteMessage', 'deleteThread', 'deleteThreads', 'editMessage', 'resendMms', 'setBlocked', 'blockedNumbers', 'e2eOffer', 'e2eOff', 'e2eVerify', 'e2ePlainSeen', 'e2eList', 'mmsStatus', 'voiceLimit', 'put', 'drop', 'sendPictures', 'sendVoice', 'sendSticker'};
 
   @override
   int get waiting => 1;
@@ -178,32 +182,37 @@ void main() {
       expect(find.text('Waiting for your phone'), findsOneWidget); // under the text typed while it was away
       expect(find.textContaining('Connected over the local network'), findsOneWidget);
       // What only the phone does is not offered here.
-      expect(_button('Send'), findsOneWidget);
-      expect(_button('Call'), findsNothing);
-      expect(_button('Stickers'), findsNothing);
-      expect(_button('Add an attachment'), findsNothing);
+      // What the phone does for a computer is offered here as on the phone (Matt: "the desktop app should get all
+      // featues its missing from mobile"; "an emoji picker, file upload, voice memo and sticker selector"): a
+      // picture to add, the Mac's emoji, stickers, and a voice message where Send would be with nothing written.
+      expect(_button('Add an attachment'), findsOneWidget);
+      expect(_button('Emoji'), findsOneWidget);
+      expect(_button('Stickers'), findsOneWidget);
+      expect(_button('Record a voice message'), findsOneWidget);
       expect(_button('Conversation settings'), findsOneWidget, reason: 'a conversation has its own settings on a computer too');
+      // Calling is the phone's alone; and beside the list there is nowhere to go back to.
+      expect(_button('Call'), findsNothing);
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
       // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
       for (final label in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
       }
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
       // Archive shows the archived ones, and Messages the others again.
       await tester.tap(_nav('Archive'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'archive');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'archive');
       expect(find.text('Archived'), findsOneWidget);
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
       // The address book: the phone's contacts beside the list, and a press on one opens its conversation.
       await tester.tap(_nav('Contacts'));
       for (var i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 60));
       }
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'contacts');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'contacts');
       expect(find.text('Search contacts'), findsOneWidget);
       expect(find.text('Mom'), findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
@@ -217,10 +226,10 @@ void main() {
       // A new chat opens beside the list and is the one shown; Messages puts it away.
       await tester.tap(_nav('New chat'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'new');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'new');
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
 
       // A conversation's own settings, on a computer too (Matt: "There needs to be chat settings on desktop as
       // well"): who is in it, how it looks here, where its encryption stands, mute, pin and archive.

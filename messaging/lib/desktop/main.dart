@@ -102,7 +102,9 @@ class DesktopApp extends StatelessWidget {
               sheet: sheet,
               attrs: {'platform': 'desktop', if (state.theme != 'system') 'theme': state.theme},
               typography: ghostTypography(state.emoji),
-              child: InkOverrides(child: GlacierToastProvider(child: child!)),
+              // A newer version says so with the banner the phone has (lib/ui/update_banner.dart; Matt, 2026-11-14:
+              // "bring the same update banner we have on mobile to the desktop app"), over every page as there.
+              child: InkOverrides(child: GlacierToastProvider(child: UpdateBanner(child: child!))),
             ),
             home: const DeskHome(),
           ),
@@ -125,11 +127,8 @@ class DeskHome extends StatelessWidget {
         final a = link.attempt;
         // Paired a moment ago: the wizard's last step is the conversations themselves.
         if (a != null && a.phase == 'done') WidgetsBinding.instance.addPostFrameCallback((_) => link.pairingShown());
-        // A newer version says so with the banner the phone has (lib/ui/update_banner.dart; Matt, 2026-11-14:
-        // "bring the same update banner we have on mobile to the desktop app"): over the wizard here, and over the
-        // pane beside the list once a phone is paired (shell.dart), so it never lies across the sidebar.
         if (link.phone != null && (a == null || a.phase == 'done')) return DeskShell(key: ValueKey(link.phone!.id));
-        return const UpdateBanner(child: PairWizard());
+        return const PairWizard();
       },
     );
   }

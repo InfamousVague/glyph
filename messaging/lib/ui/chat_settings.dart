@@ -143,16 +143,17 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       icon: AppIcon(_e2e.on ? (_e2e.verified ? Lucide.shieldCheck : Lucide.lock) : Lucide.keyRound, size: 18),
                       label: 'Encryption',
                       hint: Text(switch (_e2e.state) {
-                        'on' when _e2e.plainWarning => 'On, but ${people.first.label}\'s last ${_e2e.plain == 1 ? 'text' : '${_e2e.plain} texts'} came without it. They may not be able to read what you send.${Sms.remote ? ' It is turned off from the phone.' : ''}',
-                        'on' when Sms.remote => _e2e.verified ? 'On, and the safety number is verified. It is turned off from the phone.' : 'On. It is turned off, and its safety number compared, from the phone.',
+                        'on' when _e2e.plainWarning => 'On, but ${people.first.label}\'s last ${_e2e.plain == 1 ? 'text' : '${_e2e.plain} texts'} came without it. They may not be able to read what you send.${Sms.can('e2eOff') ? '' : ' It is turned off from the phone.'}',
+                        'on' when !Sms.can('e2eOff') => _e2e.verified ? 'On, and the safety number is verified. It is turned off from the phone.' : 'On. It is turned off, and its safety number compared, from the phone.',
                         'on' => _e2e.verified ? 'On, and the safety number is verified.' : 'On. Compare the safety number to be sure nobody is in the middle.',
                         'pending' => _e2e.changed ? '${people.first.label} sent a NEW key. Review it before accepting.' : '${people.first.label} sent their key and waits for your yes.',
                         'offered' => 'Your key was sent. It starts when ${people.first.label} accepts.',
-                        _ when Sms.remote => 'Off. It is turned on from the phone.',
+                        _ when !Sms.can('e2eOffer') => 'Off. It is turned on from the phone.',
                         _ => _e2e.hasGhost ? '${people.first.label} has Ghost Messaging too: your texts can go sealed so only your two phones read them.' : 'Off. It needs ${people.first.label} to have Ghost Messaging too.',
                       }),
-                      // Keys are made, sent and agreed to on the phone that holds them: a computer shows where it stands.
-                      onPress: Sms.remote ? null : () => showEncryptionChoices(context, people.first, _e2e, _load),
+                      // Keys are made, sent and agreed to by the phone that holds them: a computer asks it to (Sms.can), or shows
+                      // where it stands where its phone's app is from before it could.
+                      onPress: Sms.can('e2eOffer') ? () => showEncryptionChoices(context, people.first, _e2e, _load) : null,
                     ),
                   ]),
                 ],

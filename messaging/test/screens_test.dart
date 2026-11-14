@@ -14,7 +14,9 @@ import 'package:ghost_messaging/ui/chat_settings.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostLogo, IconTap;
 import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
+import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:ghost_messaging/ui/nav_pill.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/shell.dart';
@@ -625,14 +627,24 @@ void main() {
     installSettingsStyles(sheet);
     Finder seen(Finder f) => f.hitTestable();
     Finder icon(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
+    // A ring of the navigation pill at the list's foot (lib/ui/nav_pill.dart), by what it is read as.
+    Finder nav(String label) => find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == label);
+    String place() => tester.widget<NavPill>(find.byType(NavPill)).active;
     for (final dark in [false, true]) {
       tester.view.physicalSize = open;
       await _shoot(tester, sheet, const AppShell(), '11-frame-wide', dark: dark);
       final side = AppShell.sideWidth(750);
-      // Wide: the list down the side with New message and Settings in its header, and the pane saying to choose.
+      // Wide: the list down the side, the pane saying to choose, and the navigation pill at the list's foot, as wide
+      // as the list: a new chat, the messages, the address book, the archive, Settings. Messages is where we are.
+      // (Matt: "the mobile app should gain the nav from desktop". The header's two buttons were this, before.)
       expect(find.text('Choose a conversation'), findsOneWidget);
-      expect(icon('New message'), findsWidgets);
-      expect(icon('Settings'), findsWidgets);
+      for (final ring in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
+        expect(seen(nav(ring)), findsOneWidget, reason: ring);
+      }
+      expect(icon('New message'), findsNothing);
+      expect(place(), 'messages');
+      expect(tester.getRect(find.byType(NavPill)).right, side);
+      expect(tester.widget<NavPill>(find.byType(NavPill)).items.firstWhere((i) => i.id == 'archive').count, 1, reason: 'the archive\'s ring wears how many are in it');
       expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);
       // A conversation opens beside the list, which stays, with no way back drawn: there is nowhere to go back to.
       await tester.tap(find.text('Maya Chen'));
@@ -681,21 +693,25 @@ void main() {
       expect(find.byType(ThreadScreen), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
       expect(find.text('Choose a conversation'), findsNothing);
-      // New message, from the list's header, slides over the list; Android's back closes it.
-      await tester.tap(icon('New message').first);
+      // On the cover the pill is at the screen's foot, clear of the phone's own bar, and as wide as the screen.
+      expect(seen(nav('New chat')), findsOneWidget);
+      expect(tester.getRect(find.byType(NavPill)).width, 412);
+      expect(tester.getRect(nav('Messages')).bottom, lessThan(892 - 16));
+      // A new chat, from the pill, slides over the list (and the pill); Android's back closes it.
+      await tester.tap(nav('New chat'));
       await _settle(tester);
       expect(find.byType(ComposeScreen), findsOneWidget);
       expect(seen(find.text('Dad')), findsNothing);
+      expect(seen(nav('Messages')), findsNothing);
       await tester.binding.handlePopRoute();
       await _settle(tester);
       expect(find.byType(ComposeScreen), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
       // Archived opens in the list's place; a conversation from it opens over it; back closes the conversation
       // first, then leaves Archived.
-      await tester.drag(find.text('Riley Fox'), const Offset(0, -700));
+      await tester.tap(nav('Archive'));
       await _settle(tester);
-      await tester.tap(find.textContaining('Archived ('));
-      await _settle(tester);
+      expect(place(), 'archive');
       expect(seen(find.text('Old Thread')), findsOneWidget);
       await tester.tap(find.text('Old Thread'));
       await _settle(tester);
@@ -708,11 +724,26 @@ void main() {
       await _settle(tester);
       expect(seen(find.text('Old Thread')), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
+      expect(place(), 'messages');
+      // The pill's Messages leaves the archive too; and the address book opens over the list.
+      await tester.tap(nav('Archive'));
+      await _settle(tester);
+      await tester.tap(nav('Messages'));
+      await _settle(tester);
+      expect(seen(find.text('Old Thread')), findsNothing);
+      await tester.tap(nav('Contacts'));
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-narrow-contacts', dark: dark);
+      expect(find.byType(ContactsScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await _settle(tester);
+      expect(find.byType(ContactsScreen), findsNothing);
       // Wide again: Settings opens beside the list with no way back, and a section of it opens over it with one.
       tester.view.physicalSize = open;
       await _settle(tester);
-      await tester.tap(icon('Settings').first);
+      await tester.tap(nav('Settings'));
       await _settle(tester);
+      expect(place(), 'settings');
       await _shootAgain(tester, '11-frame-wide-settings', dark: dark);
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(seen(find.text('Dad')), findsOneWidget);
@@ -726,6 +757,7 @@ void main() {
       await _settle(tester);
       expect(find.byType(SettingsScreen), findsNothing);
       expect(find.byType(ThreadScreen), findsOneWidget);
+      expect(place(), 'messages');
       // The next round starts with a frame of its own.
       await tester.pumpWidget(const SizedBox());
     }

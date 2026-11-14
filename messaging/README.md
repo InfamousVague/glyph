@@ -374,11 +374,16 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   as the Mac's first had it, with what is open beside it, its row marked, and no way back drawn; narrower (a phone,
   a folding phone's cover) the list is the screen and what is opened slides over it. Both are kept in place as the
   window changes, so a conversation open on the cover, and what is half written in it, is still open when the phone
-  is opened out. The list's header holds New message and Settings, where a round button floated over the list's
-  foot. Android's back closes what is in the pane, then leaves Archived, then leaves the app. What a notification
-  or another app's "text this number" asks for opens in the pane too. The Mac's window still has its own copy of
-  this (`lib/desktop/ui/shell.dart`) until the desktop session moves it over: `AppShell` takes what the Mac keeps
-  under its list (`foot`), what its pane says when empty (`nothing`) and its own Settings (`settings`).
+  is opened out. At the list's foot is the navigation pill the Mac had first (`lib/ui/nav_pill.dart`; Ghost.md's
+  dock laid on its side, the rings spread across the list's width): a new chat, Messages, the address book
+  (`lib/ui/contacts.dart`), the archive with how many are in it, Settings. It took the place of New message and
+  Settings in the list's header and of the "Archived (n)" row at the list's end. Android's back closes what is in
+  the pane, then leaves Archived, then leaves the app. What a notification or another app's "text this number"
+  asks for opens in the pane too. The Mac's window is this same frame (`lib/desktop/ui/shell.dart` is a few lines
+  now): `AppShell` takes what the Mac keeps under its search (`foot`: how it is connected), what its pane says when
+  empty (`nothing`) and its own Settings (`settings`). What a screen offers on a computer is what the phone it is
+  paired with says it does for one (`Sms.can`): pictures, stickers, voice messages, editing, deleting, blocking,
+  encryption's choices; a phone that is behind is offered none of them.
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by

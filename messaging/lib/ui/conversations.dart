@@ -257,9 +257,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         if (mounted) toast(context, c.muted ? 'Notifications on' : 'Muted. Messages still arrive, quietly.');
       }),
       Choice(c.archived ? 'Unarchive' : 'Archive', c.archived ? Lucide.archiveRestore : Lucide.archive, () => _archive(c)),
-      if (!c.group && c.people.isNotEmpty)
+      // On a computer, blocking and deleting are offered when the phone it is paired with does them for one.
+      if (!c.group && c.people.isNotEmpty && Sms.can('setBlocked'))
         Choice(c.blocked ? 'Unblock' : 'Block number', Lucide.ban, () => c.blocked ? _setBlocked(c, false) : _confirmBlock(c), danger: !c.blocked),
-      Choice('Delete conversation', Lucide.trash2, () => _confirmDelete(c), danger: true),
+      if (Sms.can('deleteThreads')) Choice('Delete conversation', Lucide.trash2, () => _confirmDelete(c), danger: true),
     ]);
   }
 
@@ -316,6 +317,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   void _confirmDelete(Conversation c) {
+    // A swipe can ask for this where the menu would not offer it: a computer paired with a phone that is behind.
+    if (!Sms.can('deleteThreads')) {
+      toast(context, 'Update Ghost Messaging on your phone to delete from here.');
+      return;
+    }
     showChoices(context, title: 'Delete every message with ${c.title}? This can\'t be undone.', choices: [
       Choice('Delete', Lucide.trash2, () async {
         try {
@@ -402,6 +408,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
     final foot = AppShell.footOf(context);
+    // The navigation pill's Archive ring wears how many are archived: the list is who counts them.
+    if (!widget.archived && _shell != null && _shell!.archived.value != archivedCount) {
+      final shell = _shell!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) shell.archived.value = archivedCount;
+      });
+    }
 
     Widget body;
     if (_all == null) {
@@ -429,13 +442,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? 'Conversations you archive wait here.'
                   : rcs
                       ? 'There are no texts in Android\'s store. Chats that were RCS in ${_arriving.app} stay in that app, where no other app can read them: they are not deleted.'
-                      : 'Start one with the new message button at the top.'),
+                      : (_shell == null ? 'Start one with the new message button at the top.' : 'Start one with the first button below.')),
           action: rcs ? SettingsEmptyAction('What to do', () => _settings('android')) : null,
         ),
       ]);
     } else {
       final extras = (notice ? 1 : 0);
-      final tail = !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting;
+      // The archive is the navigation pill's in the app's frame; with no frame a row at the list's end leads to it.
+      final tail = _shell == null && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting;
       body = RefreshableList(
         onRefresh: _load,
         itemCount: extras + shown.length + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
@@ -491,8 +505,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
             );
           }
-          // Clear of the bar at the foot of the phone's screen.
-          return SizedBox(height: MediaQuery.paddingOf(context).bottom + t.space(4));
+          // Clear of the bar at the foot of the phone's screen, and of the navigation pill floating over the list.
+          return SizedBox(height: MediaQuery.paddingOf(context).bottom + t.space(4) + AppShell.navRoomOf(context));
         },
       );
     }
@@ -513,9 +527,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         if (_selecting) ...[
           IconTap(icon: Lucide.checkCheck, label: 'Select all', onPressed: () => setState(() => _selected.addAll(shown.map((c) => c.id)))),
           IconTap(icon: widget.archived ? Lucide.archiveRestore : Lucide.archive, label: widget.archived ? 'Unarchive' : 'Archive', onPressed: _archiveSelected),
-          IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
-        ] else if (!widget.archived) ...[
-          // In the header, as the Mac's list has them, where a round button used to float over the list's foot.
+          if (Sms.can('deleteThreads')) IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
+        ] else if (!widget.archived && _shell == null) ...[
+          // In the app's frame these are the navigation pill's, at the list's foot (lib/ui/nav_pill.dart). A list
+          // shown with no frame (a test of this screen alone) keeps them here.
           IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
           IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
         ],
@@ -534,6 +549,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   onValueChange: (v) => setState(() => _query = v),
                 ),
               ),
+              // What the frame keeps with the list: on a computer, how the phone is connected.
+              if (foot != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: foot),
               // The search is this page's header too: the update banner hangs under it, not over it.
               const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.
@@ -542,12 +559,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 child: _slow && _all != null ? const GlacierProgressBar(indeterminate: true, ariaLabel: 'Loading your conversations') : null,
               ),
               Expanded(child: body),
-              // What the frame keeps under the list: on a computer, how the phone is connected.
-              if (foot != null)
-                DecoratedBox(
-                  decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule')))),
-                  child: Padding(padding: EdgeInsets.symmetric(horizontal: gutter, vertical: t.space(3)), child: foot),
-                ),
             ],
           ),
         ],
