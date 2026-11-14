@@ -90,6 +90,63 @@ void main() {
     });
   });
 
+  group('sections from outside, and a section for one kind of device', () {
+    // Matt, 2026-11-14: "desktop and mobile should also share the same settings pages": one list, with the few
+    // sections that are about a phone or a computer alone left out on the other.
+    SettingsSection made(String id, {SettingsWhere where = SettingsWhere.everywhere}) =>
+        SettingsSection(id: id, label: id, icon: const SizedBox.shrink(), hue: 'blue', group: 'made', where: where, page: (context, m) => const []);
+    List<SettingsSection> before() => [made('before'), made('mac', where: SettingsWhere.computer)];
+    List<SettingsSection> after() => [made('after'), made('handset', where: SettingsWhere.phone)];
+    tearDown(() {
+      SettingsSources.remove(before);
+      SettingsSources.remove(after);
+    });
+
+    test('a source\'s sections stand before or after the app\'s own, and go when it is taken out', () {
+      final own = [for (final s in settingsSections) s.id];
+      SettingsSources.add(before, first: true);
+      SettingsSources.add(after);
+      final ids = [for (final s in settingsSections) s.id];
+      expect(ids.first, 'before');
+      expect(ids.sublist(ids.length - 2), ['after', 'handset']);
+      expect(ids, isNot(contains('mac')), reason: 'a computer\'s section is not on a phone');
+      expect(ids.sublist(1, ids.length - 2), own);
+      // Added twice, it is there once.
+      SettingsSources.add(after);
+      expect([for (final s in settingsSections) s.id].where((id) => id == 'after').length, 1);
+      SettingsSources.remove(before);
+      SettingsSources.remove(after);
+      expect([for (final s in settingsSections) s.id], own);
+    });
+
+    test('on a computer the phone\'s own sections are left out, and the rest are the phone\'s', () {
+      final phone = [for (final s in settingsSections) s.id];
+      SettingsSources.add(before, first: true);
+      SettingsSources.add(after);
+      final ids = [for (final s in settingsSectionsOn(SettingsWhere.computer)) s.id];
+      expect(ids, containsAll(['before', 'mac', 'after', 'me', 'appearance', 'background', 'emoji', 'effects', 'messages', 'plugins', 'encryption', 'blocked', 'archived']));
+      for (final id in ['handset', 'receipts', 'notifications', 'number', 'android', 'keyboard', 'computers', 'network', 'updates', 'developer', 'about']) {
+        expect(ids, isNot(contains(id)), reason: '$id is the phone\'s alone');
+        if (id != 'handset') expect(phone, contains(id));
+      }
+    });
+
+    test('Settings is drawn again when what a source is read from changes', () {
+      final link = ValueNotifier(0);
+      addTearDown(link.dispose);
+      SettingsSources.add(before, watch: [link]);
+      final model = SettingsModel(AppState())..start();
+      var drawn = 0;
+      model.addListener(() => drawn++);
+      link.value = 1;
+      expect(drawn, 1);
+      // Gone, it no longer listens.
+      model.dispose();
+      link.value = 2;
+      expect(drawn, 1);
+    });
+  });
+
   group('chat backgrounds', () {
     test('a choice is read back as it was kept', () {
       for (final raw in ['none', 'wallpaper', 'preset:dusk', 'color:#DCE8FB', 'image:/data/user/0/app/files/backgrounds/all-1.jpg', 'wash:#EEF2F7,#DCE5F0,#0F141B,#172230']) {

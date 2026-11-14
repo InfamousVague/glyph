@@ -441,6 +441,28 @@ class PluginSetting {
   final LucideIcon? icon;
 }
 
+/// A section of its own in Settings for a plugin (Matt, 2026-11-14: "the plugins and all being able to make their
+/// own setting sections"), for one with more to set than a card on Settings › Plugins is the place for. While the
+/// plugin is on it is a row in Settings' list, under Plugins, that opens a page of the plugin's [GhostPlugin.settings]
+/// and of what it puts in [Slots.settings]; its card on Settings › Plugins gives way to it.
+@immutable
+class PluginSettingsPage {
+  const PluginSettingsPage({this.label, this.hue = 'rose', this.summary, this.intro});
+
+  /// What the row and its page are called; the plugin's name where not given.
+  final String? label;
+
+  /// Its colour, by the names Settings' own sections use (amber, blue, coral, cyan, green, indigo, lime, magenta,
+  /// mint, orange, purple, red, rose, slate, yellow, graphite).
+  final String hue;
+
+  /// The row's second line, from the plugin's choices as they stand.
+  final String Function(PluginPrefs prefs)? summary;
+
+  /// A line at the head of its page.
+  final String? intro;
+}
+
 // --- the plugin ------------------------------------------------------------------------------------------------------
 
 /// A plugin. The ones the app ships with are compiled in and listed in registry.dart.
@@ -466,4 +488,7 @@ abstract class GhostPlugin {
   List<SlotFill> get slots => const [];
   List<IncomingRule> get incoming => const [];
   List<PluginSetting> get settings => const [];
+
+  /// A section of its own in Settings for those, in place of a card on Settings › Plugins; null for none.
+  PluginSettingsPage? get settingsPage => null;
 }

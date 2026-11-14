@@ -11,6 +11,7 @@ import 'contacts.dart';
 import 'conversations.dart';
 import 'nav_bar.dart';
 import 'settings.dart';
+import 'settings_panes.dart' show settingsSections;
 import 'thread.dart';
 
 /// The app's one frame, on the phone and on a computer alike (Matt, 2026-11-14: "Unify the UI experience to match on
@@ -32,19 +33,17 @@ import 'thread.dart';
 /// first, then goes back in the list, then leaves the app.
 ///
 /// The way round is the pill floating at the list's foot (lib/ui/nav_bar.dart), the one the Mac's sidebar has: a
-/// new chat, the messages, the contacts, the archive with how many are in it, Settings. A new chat, the contacts
-/// and Settings open in the pane; Messages and Archive are the list itself, and put those away.
+/// new chat, the messages, the contacts, the archive with how many are in it, Settings. A new chat and the contacts
+/// open in the pane; Messages, Archive and Settings are the list's place itself: the conversations, the archived
+/// ones, or Settings' sections, with the page of the section chosen in the pane.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.status, this.nothing, this.settings, this.paneObservers = const []});
+  const AppShell({super.key, this.status, this.nothing, this.paneObservers = const []});
 
   /// Kept under the list's search field: on a computer, how the phone is connected.
   final Widget? status;
 
   /// What the pane says while nothing is open in it and the window is wide. "Choose a conversation" where not given.
   final WidgetBuilder? nothing;
-
-  /// The Settings page, and one section of it where a name is given. The phone's own where not given.
-  final Widget Function(BuildContext context, String? section)? settings;
 
   /// Told of the pages that open in the pane: the look for a newer version (lib/ui/update_banner.dart).
   final List<NavigatorObserver> paneObservers;
@@ -83,8 +82,20 @@ class AppShellState extends State<AppShell> {
   /// Which of the pill's rings the pane's page is, where it is one: 'new', 'contacts' or 'settings'.
   String? _showing;
 
-  /// The Archived list is open in the list's place.
-  bool _archivedOpen = false;
+  /// The Archived list, while it is open in the list's place.
+  Route<void>? _archive;
+  bool get _archivedOpen => _archive != null;
+
+  /// Settings' list of sections, while it is open in the list's place (Matt, 2026-11-14: "when the settings is open
+  /// on desktop replace the normal sidebar so it's only a two pane layout not a three pane"): the page of the
+  /// section chosen is the pane's, beside it in a wide window and over it on a phone.
+  Route<void>? _settings;
+
+  /// Whether Settings is open in the list's place.
+  bool get settingsOpen => _settings != null;
+
+  /// The section of Settings whose page is in the pane, or null: the row Settings' list marks.
+  final settingsSection = ValueNotifier<String?>(null);
 
   /// How many conversations are archived, as the list last counted them: the number on the pill's Archive.
   final archived = ValueNotifier<int>(0);
@@ -109,6 +120,7 @@ class AppShellState extends State<AppShell> {
   void dispose() {
     closed.dispose();
     archived.dispose();
+    settingsSection.dispose();
     super.dispose();
   }
 
@@ -116,24 +128,27 @@ class AppShellState extends State<AppShell> {
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (context, _, _) => _PanePage(child: page),
-        // Beside the list a page takes the place of the last one, so it fades in; over the list it slides across
-        // it, as a phone's pages do.
-        transitionsBuilder: (context, a, _, child) => AppShell.wideOf(context)
-            ? FadeTransition(opacity: CurvedAnimation(parent: a, curve: const Interval(0, 0.55)), child: child)
-            : SlideTransition(
-                position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
-                child: child,
-              ),
+        transitionsBuilder: _arrive,
       );
 
+  /// How a page arrives. Beside the list a page takes the place of the last one, so it fades in; over the list it
+  /// slides across it, as a phone's pages do.
+  static Widget _arrive(BuildContext context, Animation<double> a, Animation<double> _, Widget child) => AppShell.wideOf(context)
+      ? FadeTransition(opacity: CurvedAnimation(parent: a, curve: const Interval(0, 0.55)), child: child)
+      : SlideTransition(
+          position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+          child: child,
+        );
+
   /// Opens [page] in the pane, in place of whatever was there. [thread] is the conversation it is, for the list to
-  /// mark; [showing] is the pill's ring it is ('new', 'contacts', 'settings'), for the pill to fill.
-  void show(Widget page, {int? thread, String? showing}) {
+  /// mark; [showing] is the pill's ring it is ('new', 'contacts', 'settings'), for the pill to fill; [section] is
+  /// the section of Settings it is, for Settings' list to mark.
+  void show(Widget page, {int? thread, String? showing, String? section}) {
     final nav = _pane.currentState;
     if (nav == null) {
       // Asked for before the first frame (a notification that opened the app): once there is a pane.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pane.currentState != null) show(page, thread: thread, showing: showing);
+        if (mounted && _pane.currentState != null) show(page, thread: thread, showing: showing, section: section);
       });
       return;
     }
@@ -144,6 +159,10 @@ class AppShellState extends State<AppShell> {
       _thread = thread;
       _showing = showing;
     });
+    settingsSection.value = section;
+    // Anything but a page of Settings puts Settings' list away: a conversation, a new chat and the contacts are
+    // kept with the conversations.
+    if (showing != 'settings' && settingsOpen) home();
     nav.pushAndRemoveUntil(route, (r) => r.isFirst);
     // The list under a page that covers it is not drawn, and is drawn again as the page starts to leave.
     route.animation?.addStatusListener((_) {
@@ -156,6 +175,7 @@ class AppShellState extends State<AppShell> {
         _thread = null;
         _showing = null;
       });
+      settingsSection.value = null;
       closed.value++;
     });
     if (had) closed.value++;
@@ -170,17 +190,55 @@ class AppShellState extends State<AppShell> {
   /// Opens the new-message page, [body] already written where another app sent some words to text.
   void compose({String? body}) => show(ComposeScreen(key: UniqueKey(), body: body), showing: 'new');
 
-  /// Opens Settings, or the one [section] of it.
-  void settings([String? section]) {
-    final own = widget.settings;
-    show(own != null ? own(context, section) : (section == null ? const SettingsScreen() : SettingsSectionScreen(section)), showing: 'settings');
+  /// Opens Settings, or the one [section] of it ([seek]: a setting on that section's page to scroll to). Settings'
+  /// list of sections takes the list's place, and the section's page is the pane's: beside the list in a wide
+  /// window, where the first section is opened if none is named, and over it on a phone.
+  void settings([String? section, String? seek]) {
+    final side = _side.currentState;
+    if (side == null) {
+      // Asked for before the first frame: once there is a list.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _side.currentState != null) settings(section, seek);
+      });
+      return;
+    }
+    if (!settingsOpen) {
+      final route = PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 260),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, _, _) => const SettingsScreen(key: ValueKey('settings')),
+        transitionsBuilder: _arrive,
+      );
+      setState(() => _settings = route);
+      side.push(route);
+      route.popped.then((_) {
+        if (!mounted || _settings != route) return;
+        setState(() => _settings = null);
+        // Its page goes with it.
+        if (_showing == 'settings') close();
+      });
+    }
+    // Beside the list there is always a section's page: the first, where none is named and none is open.
+    if (section == null && _wide && settingsSection.value == null) section = settingsSections.where((s) => s.when == null).firstOrNull?.id;
+    if (section != null) {
+      show(SettingsSectionScreen(section, key: ValueKey('settings-$section-${seek ?? ''}'), seek: seek), showing: 'settings', section: section);
+    } else if (!_wide && _showing == 'settings') {
+      // On a phone, Settings asked for from one of its pages is its list.
+      close();
+    }
+  }
+
+  /// The section in the pane is no longer one of Settings' (a plugin's page, and the plugin was switched off): the
+  /// page goes, and beside the list the first section takes its place (Settings' list sees to that).
+  void settingsGone() {
+    if (_showing == 'settings') close();
   }
 
   /// Opens the address book: a press on someone in it opens the conversation with them.
   void contacts() => show(const ContactsScreen(key: ValueKey('contacts')), showing: 'contacts');
 
-  /// One of the pill's rings is pressed. A new chat, the contacts and Settings open in the pane; Messages and
-  /// Archive are the list itself, and put away whichever of those three was open.
+  /// One of the pill's rings is pressed. A new chat and the contacts open in the pane; Settings takes the list's
+  /// place with its page in the pane; Messages and Archive are the list itself, and put away whatever was open.
   void go(String id) {
     switch (id) {
       case 'new':
@@ -193,18 +251,20 @@ class AppShellState extends State<AppShell> {
         if (_showing != null) close();
         final side = _side.currentState;
         if (side == null) return;
-        if (id != 'archive') return side.popUntil((r) => r.isFirst);
-        if (_archivedOpen) return;
+        // The Archived list as it stands, unless Settings is over it.
+        if (id == 'archive' && _archivedOpen && !settingsOpen) return;
+        side.popUntil((r) => r.isFirst);
+        if (id != 'archive') return;
         final route = PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 160),
           reverseTransitionDuration: const Duration(milliseconds: 120),
           pageBuilder: (context, _, _) => const ConversationsScreen(archived: true),
           transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
         );
-        setState(() => _archivedOpen = true);
+        setState(() => _archive = route);
         side.push(route);
         route.popped.then((_) {
-          if (mounted) setState(() => _archivedOpen = false);
+          if (mounted && _archive == route) setState(() => _archive = null);
         });
     }
   }
@@ -212,7 +272,7 @@ class AppShellState extends State<AppShell> {
   /// Closes what is open in the pane.
   void close() => _pane.currentState?.popUntil((r) => r.isFirst);
 
-  /// Takes the list back to the conversations, from Archived.
+  /// Takes the list back to the conversations, from Archived or from Settings.
   void home() => _side.currentState?.popUntil((r) => r.isFirst);
 
   /// Says that [child] stands in a column of the window [width] wide, where it does: the list beside a pane.
@@ -242,7 +302,9 @@ class AppShellState extends State<AppShell> {
           canPop: !(_paneBack || _sideBack),
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
-            // What is open closes first; then the list goes back from Archived, or stops choosing.
+            // Beside Settings' list its page is all there is to go back from: back leaves Settings whole.
+            if (wide && settingsOpen && _showing == 'settings' && (_open?.isCurrent ?? false)) return go('messages');
+            // What is open closes first; then the list goes back from Archived or Settings, or stops choosing.
             (_paneBack ? _pane : _side).currentState?.maybePop();
           },
           child: ColoredBox(
@@ -277,16 +339,22 @@ class AppShellState extends State<AppShell> {
                         ),
                         // The way round floats over the list's end, clear of the bar at the foot of a phone's
                         // screen; the list leaves it room (NavPill.clearance).
+                        // On a phone Settings is a page over the list, with its own way back and no bar under it.
                         Positioned(
                           left: 0,
                           right: 0,
                           bottom: MediaQuery.paddingOf(context).bottom,
-                          child: ValueListenableBuilder<int>(
+                          child: IgnorePointer(
+                           ignoring: !wide && settingsOpen,
+                           child: AnimatedOpacity(
+                            opacity: !wide && settingsOpen ? 0 : 1,
+                            duration: const Duration(milliseconds: 160),
+                            child: ValueListenableBuilder<int>(
                             valueListenable: archived,
                             builder: (context, count, _) => ListenableBuilder(
                              listenable: Me.instance,
                              builder: (context, _) => NavPill(
-                              active: _showing ?? (_archivedOpen ? 'archive' : 'messages'),
+                              active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
                               onSelect: go,
                               items: [
                                 const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
@@ -298,6 +366,8 @@ class AppShellState extends State<AppShell> {
                               ],
                              ),
                             ),
+                            ),
+                           ),
                           ),
                         ),
                       ]))),

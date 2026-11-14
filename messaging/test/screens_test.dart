@@ -789,10 +789,23 @@ void main() {
       expect(find.text('Copied 771204'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
       await _settle(tester);
-      // Settings › Plugins: each plugin with its switch, and its own settings under it. The spam filter is off.
+      // Settings › Plugins: each plugin with its switch. The spam filter is off. Each of the two has a section of
+      // its own in Settings while it is on (Matt, 2026-11-14: "the plugins and all being able to make their own
+      // setting sections"), so its settings are there and not on this page.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
-      expect(find.text('Mark as read when copied'), findsOneWidget);
+      expect(find.text('Codes'), findsOneWidget);
       expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.text('Mark as read when copied'), findsNothing);
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-codes'), '12-plugins-settings-codes', dark: dark);
+      expect(find.text('Mark as read when copied'), findsOneWidget);
+      // Settings' list: Codes under Plugins, and no Spam filter while that is off.
+      await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list', dark: dark);
+      // Twice: Plugins says which are on, and under it is the row for Codes' own section.
+      expect(find.text('Codes'), findsNWidgets(2));
+      expect(find.text('Spam filter'), findsNothing);
+      // A section whose plugin is off is not there to open: Settings itself is.
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark);
+      expect(find.byType(GlacierSearchField), findsOneWidget);
       expect(find.text('Mute conversations in Spam'), findsNothing);
       // The spam filter switched on: Spam beside Codes, and in it each conversation with why it is there.
       await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
@@ -803,7 +816,7 @@ void main() {
       expect(find.text('Looks like spam: a link, prize wording'), findsOneWidget);
       expect(find.text('Not spam'), findsNWidgets(2));
       // And its own settings, with what counts as spam said rule by rule.
-      await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
       expect(find.text('Mute conversations in Spam'), findsOneWidget);
       await tester.drag(find.text('Mute conversations in Spam'), const Offset(0, -520));
       await _shootAgain(tester, '12-plugins-settings-spam-rules', dark: dark);
@@ -1188,23 +1201,70 @@ void main() {
       expect(find.byType(ContactsScreen), findsOneWidget);
       expect(shown(), 'contacts');
       expect(seen(find.text('Dad')), findsOneWidget);
-      // Settings opens beside the list with no way back, and a section of it opens over it with one.
+      // Settings takes the list's place: its sections where the conversations were, and the first one's page
+      // beside them. Two panes, not three (Matt, 2026-11-14: "when the settings is open on desktop replace the
+      // normal sidebar so it's only a two pane layout not a three pane").
+      Finder row(String label) => find.descendant(of: find.byType(SettingsList), matching: find.text(label));
       await tester.tap(ring('settings'));
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings', dark: dark);
       expect(find.byType(ContactsScreen), findsNothing);
       expect(shown(), 'settings');
       expect(find.byType(SettingsScreen), findsOneWidget);
-      expect(seen(find.text('Dad')), findsOneWidget);
-      expect(icon('Back'), findsNothing);
-      await tester.tap(find.text('Appearance').first);
+      expect(tester.getRect(find.byType(SettingsScreen)).right, closeTo(side, 1), reason: 'Settings\' list is the list\'s column');
+      expect(seen(find.text('Dad')), findsNothing, reason: 'the conversations have given way to Settings\' sections');
+      expect(find.byType(SectionPage), findsOneWidget, reason: 'the first section is open beside them');
+      expect(tester.getRect(find.byType(SectionPage)).left, greaterThanOrEqualTo(side));
+      expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'me');
+      expect(seen(icon('Back')), findsNothing);
+      expect(seen(ring('settings')), findsOneWidget, reason: 'the way round is still at the list\'s foot');
+      // A press on a section puts its page in the pane, in place of the last.
+      await tester.tap(row('Appearance'));
       await _settle(tester);
-      expect(seen(icon('Back')), findsWidgets);
-      expect(seen(find.text('Dad')), findsOneWidget);
-      // Choosing a conversation puts it in Settings' place.
-      await tester.tap(find.text('Dad'));
+      await _shootAgain(tester, '11-frame-wide-settings-appearance', dark: dark);
+      expect(seen(find.text('Text size')), findsOneWidget);
+      expect(find.byType(SectionPage), findsOneWidget);
+      expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'appearance');
+      expect(seen(icon('Back')), findsNothing);
+      // Folded shut with a section open: its page is over Settings' list, with its way back; back from it is the
+      // list of sections, as a phone has it (its own way back, no bar under it); back again, the conversations.
+      tester.view.physicalSize = cover;
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-narrow-settings-section', dark: dark);
+      expect(seen(find.text('Text size')), findsOneWidget);
+      expect(seen(icon('Back')), findsOneWidget);
+      await tester.tap(seen(icon('Back')));
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-narrow-settings', dark: dark);
+      expect(seen(row('Appearance')), findsOneWidget);
+      expect(seen(find.text('Text size')), findsNothing);
+      expect(seen(ring('settings')), findsNothing, reason: 'on a phone Settings is a page with its own way back');
+      await tester.tap(seen(icon('Back')));
       await _settle(tester);
       expect(find.byType(SettingsScreen), findsNothing);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      expect(seen(ring('settings')), findsOneWidget);
+      expect(shown(), 'messages');
+      // On the cover Settings opens as its list, and a section over it; opened out, the two are side by side.
+      await tester.tap(ring('settings'));
+      await _settle(tester);
+      expect(find.byType(SectionPage), findsNothing);
+      await tester.tap(row('Appearance'));
+      await _settle(tester);
+      expect(seen(find.text('Text size')), findsOneWidget);
+      tester.view.physicalSize = open;
+      await _settle(tester);
+      expect(seen(find.text('Text size')), findsOneWidget);
+      expect(seen(row('Appearance')), findsOneWidget);
+      // The Messages ring puts Settings away, list and page both.
+      await tester.tap(ring('messages'));
+      await _settle(tester);
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.byType(SectionPage), findsNothing);
+      expect(shown(), 'messages');
+      // Choosing a conversation opens it beside the list.
+      await tester.tap(find.text('Dad'));
+      await _settle(tester);
       expect(find.byType(ThreadScreen), findsOneWidget);
       expect(shown(), 'messages');
       // Settings › Network's invitation opens a new chat beside the list; choosing who opens the conversation with
@@ -1215,6 +1275,7 @@ void main() {
       await _settle(tester);
       expect(find.byType(ComposeScreen), findsOneWidget);
       expect(shown(), 'new');
+      expect(find.byType(SettingsScreen), findsNothing, reason: 'a new chat is kept with the conversations, not with Settings');
       await tester.enterText(find.byType(EditableText).last, 'Mom');
       await _settle(tester);
       await tester.tap(find.text('Mom').last);

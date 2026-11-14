@@ -12,6 +12,7 @@ import 'package:ghost_messaging/desktop/store.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
+import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/common.dart';
 import 'package:glacier/glacier.dart';
@@ -250,11 +251,77 @@ void main() {
       expect(find.text('Mute notifications'), findsOneWidget);
       expect(find.textContaining('On the phone'), findsOneWidget);
 
+      // Settings is the phone's own, whole (Matt, 2026-11-14: "a full features settings page like the ghost
+      // markdown app ... instead of the one small settings panel we have now"; "desktop and mobile should also
+      // share the same settings pages"): its sections where the conversations were and the one chosen beside them
+      // ("when the settings is open on desktop replace the normal sidebar so it's only a two pane layout not a
+      // three pane"), the Mac's own among them, and what is the phone's alone left to the phone.
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
         await tester.tap(_nav('Settings'));
       });
+      for (final label in ['Your phone', 'Me', 'Appearance', 'Chat background', 'Emoji', 'Effects', 'Messages', 'Plugins', 'Codes', 'Encryption', 'Blocked numbers', 'Archived', 'Kept on this Mac', 'About']) {
+        expect(find.text(label), findsWidgets, reason: '$label is a section of a computer\'s Settings');
+      }
+      for (final label in ['Your number', 'Android', 'Notifications', 'Receipts', 'Computers', 'Ghost Keyboard', 'Network', 'Developer']) {
+        expect(find.text(label), findsNothing, reason: '$label is the phone\'s alone');
+      }
+      // The first is open beside the list: the phone, how the two connect, and unpairing.
       expect(find.text('Unpair this phone'), findsOneWidget);
       expect(find.textContaining('Connected through the relay'), findsWidgets);
+      expect(find.text('Galaxy Z Fold8 · through the relay'), findsOneWidget);
+      final listRight = tester.getRect(find.text('Appearance')).right, pageLeft = tester.getRect(find.text('Unpair this phone')).left;
+      expect(pageLeft, greaterThan(listRight), reason: 'the page is beside the list of sections');
+      expect(tester.getRect(find.text('Settings')).top, tester.getRect(find.text('Your phone').last).top, reason: 'the two pages\' names are level');
+      expect(tester.getRect(find.byType(SettingsScreen)).left, 0, reason: 'Settings\' list is where the conversations were');
+      expect(find.text('Maya Chen').hitTestable(), findsNothing, reason: 'two panes, not three');
+      expect(_nav('Settings').hitTestable(), findsOneWidget);
+
+      // A shared page, as the phone has it: pressing a section puts its page beside the list.
+      Future<void> section(String label) async {
+        // The last so called: Plugins' own row says which are on ("Codes") just above the row for Codes.
+        final row = find.descendant(of: find.byType(SettingsList), matching: find.text(label)).last;
+        await tester.ensureVisible(row);
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.tap(row);
+      }
+
+      await shoot('5-settings-appearance', paired('local'), dark: dark, then: () async {
+        await tester.tap(_nav('Settings'));
+        await tester.pump(const Duration(milliseconds: 120));
+        await section('Appearance');
+      });
+      expect(find.text('Text size'), findsOneWidget);
+      expect(find.text('Unpair this phone'), findsNothing);
+      // A plugin's own section (Matt: "the plugins and all being able to make their own setting sections").
+      await shoot('5-settings-plugin', paired('local'), dark: dark, then: () async {
+        await tester.tap(_nav('Settings'));
+        await tester.pump(const Duration(milliseconds: 120));
+        await section('Codes');
+      });
+      expect(find.text('Mark as read when copied'), findsOneWidget);
+      // What is kept on this Mac, and a way to clear it.
+      await shoot('5-settings-kept', paired('local'), dark: dark, then: () async {
+        await tester.tap(_nav('Settings'));
+        await tester.pump(const Duration(milliseconds: 120));
+        await section('Kept on this Mac');
+      });
+      expect(find.text('Clear what is kept'), findsOneWidget);
+      // In the smallest window the Mac allows, the two are still side by side.
+      tester.view.physicalSize = const Size(760 * 2.0, 520 * 2.0);
+      await shoot('5-settings-small', paired('local'), dark: dark, then: () async {
+        await tester.tap(_nav('Settings'));
+      });
+      expect(find.text('Unpair this phone'), findsOneWidget);
+      // Messages, at the list's foot, puts Settings away: the conversations are back, with nothing open.
+      // (By its key: Settings has a section called Messages too.)
+      await tester.tap(find.byKey(const ValueKey('nav-messages')));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.text('Maya Chen').hitTestable(), findsOneWidget);
+      expect(find.text('Choose a conversation'), findsOneWidget);
+      tester.view.physicalSize = const Size(1100 * 2.0, 740 * 2.0);
 
       await shoot('6-waiting', paired(null), dark: dark);
       expect(find.textContaining('Waiting for your phone'), findsOneWidget);
@@ -288,10 +355,11 @@ void main() {
         for (var i = 0; i < 8; i++) {
           await tester.pump(const Duration(milliseconds: 60));
         }
-        await tester.scrollUntilVisible(find.text('Look for an update'), 200, scrollable: find.byType(Scrollable).last);
+        await section('Updates');
       });
       expect(find.text('Look for an update'), findsOneWidget);
-      expect(find.textContaining('Up to date. This is 0.6.2 (456601)'), findsOneWidget);
+      expect(find.text('0.6.2 (456601)'), findsOneWidget);
+      expect(find.text('Up to date'), findsWidgets);
     }
     // Leave nothing running: the wizard's question to the relay, a toast.
     await tester.pumpWidget(const SizedBox());

@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/list.dart';
+import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/settings.dart';
 import 'package:ghost_messaging/plugins/ui.dart';
@@ -333,6 +334,52 @@ void main() {
     expect(found, containsAll(['Tickets', 'Mark tickets as read', 'What a ticket is']));
   });
 
+  testWidgets('a plugin that asks for one has a section of its own in Settings while it is on', (tester) async {
+    // Matt, 2026-11-14: "the plugins and all being able to make their own setting sections".
+    final plugin = _PagedTickets();
+    final registry = PluginRegistry([plugin]);
+    final phone = ListPhone(_phone())..install();
+    final sheet = await loadSheet(tester);
+    final state = AppState();
+    final model = SettingsModel(state);
+    addTearDown(model.dispose);
+    // One section, for the one that asked; a plugin that does not ask has none.
+    expect(pluginPages(PluginRegistry([TicketsPlugin()])), isEmpty);
+    final pages = pluginPages(registry);
+    expect([for (final s in pages) s.id], ['plugin-paged']);
+    final own = pages.single;
+    expect(own.label, 'Paged tickets');
+    expect(own.group, pluginsSection(registry).group, reason: 'its row is under Plugins, on the same card');
+    expect(own.when!(model), isTrue);
+    expect(own.summary!(model), 'Left unread');
+
+    // Its page: what it says of itself, the rows it describes in words, and what it put in the settings slot.
+    await pumpScreen(tester, sheet, SectionPage(section: own, model: model), state);
+    expect(find.text('Tickets, set here.'), findsOneWidget);
+    expect(find.text('Mark tickets as read'), findsOneWidget);
+    expect(find.text('What a ticket is'), findsOneWidget);
+    expect(find.text('A row of its own'), findsOneWidget);
+    await tester.tap(find.byType(GlacierSwitch).first);
+    await settle(tester);
+    expect(phone.prefs['plugin_paged_read'], 'on');
+    expect(own.summary!(model), 'Read as they arrive');
+    // Found by Settings' search like any other page's.
+    final context = tester.element(find.byType(SectionPage));
+    expect([for (final h in searchSettings(context, model, [own], 'mark tickets')) h.setting], ['Mark tickets as read']);
+
+    // Settings › Plugins keeps its switch and leaves its settings to its own section.
+    await pumpScreen(tester, sheet, SectionPage(section: pluginsSection(registry), model: model), state);
+    expect(find.text('Paged tickets'), findsOneWidget);
+    expect(find.byType(GlacierSwitch), findsOneWidget);
+    expect(find.text('Mark tickets as read'), findsNothing);
+    expect(find.textContaining('has a section of its own in Settings'), findsOneWidget);
+
+    // Switched off, its section is gone.
+    state.setFlag(PluginRegistry.switchKey(plugin), false);
+    await settle(tester);
+    expect(own.when!(model), isFalse);
+  });
+
   test('sorting five thousand conversations into sections takes a few milliseconds, and is not done again for the same list', () async {
     final plugin = TicketsPlugin();
     final list = ListPlugins(changed: () {}, open: (_) {}, refresh: () async {}, registry: PluginRegistry([plugin]));
@@ -359,4 +406,18 @@ void main() {
     expect(list.pick(all, null, searching: false), hasLength(5000 - 556));
     expect(list.pick(all, 'tickets', searching: false), hasLength(556));
   });
+}
+
+/// The made-up plugin with a section of its own in Settings.
+class _PagedTickets extends TicketsPlugin {
+  @override
+  String get id => 'paged';
+  @override
+  String get name => 'Paged tickets';
+  @override
+  PluginSettingsPage? get settingsPage => PluginSettingsPage(
+        hue: 'amber',
+        intro: 'Tickets, set here.',
+        summary: (prefs) => prefs.flag('read', fallback: false) ? 'Read as they arrive' : 'Left unread',
+      );
 }

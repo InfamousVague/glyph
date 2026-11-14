@@ -116,7 +116,7 @@ happened (`ev`).
 - The phone listens, not the Mac, because a phone announcing is the dependable direction with its screen off, and
   the Mac then opens no port. macOS asks once to let the app find devices on the local network.
 - Where a network keeps the two from finding each other, the phone's address (Settings › Computers on the phone)
-  can be typed in the Mac's Settings.
+  can be typed in the Mac's Settings › Your phone.
 - Anything else that connects cannot finish the hello and learns nothing.
 
 ## The relay
@@ -164,7 +164,7 @@ phone each time it was shown, and the Mac opened empty until the phone answered.
   messages or videos, which are fetched as they are shown.
 - **Sealed.** Each file is AES-256-GCM (`DeskCrypto.sealAtRest`) under a key made from the pairing's key, which
   is in the Keychain. Nothing in the folder can be read without it. Unpairing deletes the folder, and Settings ›
-  Messages › Kept on this Mac says how much there is and clears it.
+  Kept on this Mac says how much there is and clears it.
 - **Answered from what is kept** (`lib/desktop/remote.dart`). The list and a conversation that has been read
   before are on the screen at once, the phone there or not. The phone is waited for only where nothing is kept,
   where more is asked for than is kept (reading back, until the phone has no more), and after something done from
@@ -183,7 +183,7 @@ phone each time it was shown, and the Mac opened empty until the phone answered.
 ## Unpairing
 
 - The phone: Settings › Computers lists each one (its name, how it is connected now or when it was last seen, how
-  it connects); a press chooses among the three ways, or Unpair. The Mac: Settings › Unpair this phone.
+  it connects); a press chooses among the three ways, or Unpair. The Mac: Settings › Your phone › Unpair this phone.
 - Either one deletes its key, tells the other if it is connected, and has the relay forget the channel.
 - A side that was away: through the relay, the Mac hears from the phone that the pairing is gone and says so. On the
   local network alone the Mac goes on waiting, and is unpaired there by hand.
@@ -197,7 +197,7 @@ UpdatesChannel.swift` in the repository's root, where they have run since 2026-1
 - **What it reads** is `https://ghost-sms.com/mac.json`, beside the phone app's `apk.json`: `{ version, versionCode,
   sha256, bytes, url }`, the url being `ghost-messaging-mac.zip`, the signed app zipped by `ditto`. Newer is a
   `versionCode` (the app's `CFBundleVersion`) above its own. It looks as it opens and every six hours, and from
-  Settings › Look for an update (`lib/desktop/updates.dart`).
+  Settings › Updates › Look for an update (`lib/desktop/updates.dart`).
 - **What it believes.** The download is held to the size and SHA-256 the description gives. Then what came out of
   the zip has to be this app (its bundle id), newer (never a step back), and whole and signed by this app's own
   team: `anchor apple generic and certificate leaf[subject.OU] = "F6ZAL7ANAD"`, every architecture and every nested

@@ -432,6 +432,34 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   little room, and standing alone where there is no section to make a tab of). A press with the other button on a
   tab, or a long press, brings up that tab's menu: Mark all as read, and Select all, which chooses every
   conversation of the tab for the bar at the top to archive or delete.
+- **One Settings, on the phone and the Mac** (0.7.10; `lib/ui/settings.dart`, `lib/ui/shell.dart`,
+  `lib/desktop/ui/desk_settings.dart`; Matt, 2026-11-14: "update the desktop app to have a full features settings
+  page like the ghost markdown app with the plugins and all being able to make their own setting sections instead
+  of the one small settings panel we have now", "desktop and mobile should also share the same settings pages",
+  "when the settings is open on desktop replace the normal sidebar so it's only a two pane layout not a three
+  pane"). The Mac's one small panel is gone: a computer has the phone's Settings and its pages.
+  - **Where it opens.** Settings' list of sections (`SettingsScreen`) takes the list's place in the frame, and the
+    page of the section chosen (`SettingsSectionScreen`) is the pane's. In a wide window (the Mac, a folding phone
+    opened out) that is two panes: sections where the conversations were, with the bar still at their foot, and the
+    chosen section's page beside them, the first one open from the start and its row marked. On a phone the list
+    is a page over the conversations with its own way back and no bar, and a section's page slides over it, as
+    before. The Messages ring, or anything that opens a conversation, a new chat or the contacts, puts Settings
+    away. The pages of Settings that are open share one `SettingsModel` (`SettingsModel.take` / `give`).
+  - **Which sections.** A section says which kind of device it is for (`SettingsSection.where`: everywhere, the
+    phone, a computer) and may say when it is there at all (`when`). Receipts, Notifications, Your number, Android,
+    Ghost Keyboard, Computers, Network, Updates, Developer and About are the phone's; a computer leaves the key and
+    finding people (Encryption) to the phone and says so.
+  - **Sections from outside** (`SettingsSources.add(source, first:, watch:)`): whatever has something to set hands
+    Settings its sections, before or after the app's own, and Settings is drawn again when what they are read from
+    changes. The Mac's frame hands over its four while a phone is paired (`DeskSettings`): **Your phone** (the
+    pairing, how the two connect, the phone's address by hand, unpairing), **Kept on this Mac** (how many
+    conversations and how much space, and clearing them), **Updates** (this version, look for one, restart to
+    update) and **About**.
+  - **A plugin's own section** (`GhostPlugin.settingsPage`, a `PluginSettingsPage`: its colour, a line of
+    introduction, a summary for its row). A plugin that asks for one has a row under Plugins while it is on, opening
+    a page of its own settings (`PluginSetting`s, then what it puts in `Slots.settings`); Settings › Plugins keeps
+    its switch and leaves its settings there. One that does not ask keeps its card on Settings › Plugins. Codes and
+    Spam filter each have one.
 - **Plugins** (0.7.4; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
   placing UI elements and doing things like filtering out spam messages separating OTPs into their own section and
   more"). A plugin is a name, a line saying what it does and a switch in Settings › Plugins, kept with the person's
