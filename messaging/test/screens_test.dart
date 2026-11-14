@@ -1192,10 +1192,24 @@ void main() {
       expect(find.byType(ThreadScreen), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
       expect(find.text('Choose a conversation'), findsNothing);
-      // Folded, the pill is along the list's foot again, its rings across it.
-      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
-      expect(tester.getCenter(ring('new')).dy, tester.getCenter(ring('settings')).dy);
+      // Folded, the pill stands up too, floating in the list's bottom right corner as Ghost.md's dock does (Matt,
+      // 2026-11-14: "Folded: make it vertical"), with no strip: the list keeps the screen's whole width.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue);
+      expect(tester.getCenter(ring('new')).dx, tester.getCenter(ring('settings')).dx);
+      expect(tester.getCenter(ring('new')).dy, lessThan(tester.getCenter(ring('settings')).dy));
+      expect(tester.getRect(find.byType(NavPill)).right, 412);
+      expect(tester.getRect(find.byType(NavPill)).bottom, 892 - 16);
       expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, 412);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
+      expect(tester.getRect(find.byType(ConversationsScreen)).width, 412);
+      // Matt's Galaxy Z Fold 8 opened out (2448 by 1848 at 420 dpi: 932 by 704), its bars as One UI has them: the
+      // pill is stood up at the right there too.
+      tester.view.physicalSize = const Size(932 * 2.0, 704 * 2.0);
+      tester.view.padding = const FakeViewPadding(top: 40 * 2.0, bottom: 48 * 2.0);
+      await _settle(tester);
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue, reason: 'the Fold 8 opened out');
+      expect(tester.getRect(find.byType(NavPill)).right, 932);
+      tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
       // A small phone on its side is wide, and too short for five rings head to foot: the pill stays under the list.
       tester.view.physicalSize = const Size(800 * 2.0, 320 * 2.0);
       await _settle(tester);
