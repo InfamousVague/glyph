@@ -1,0 +1,212 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The SMS role grants the SMS ones by itself once the person picks Ghost as the default. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.WRITE_SMS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
+    <!-- Asked for at first launch: names and faces, notifications, and this phone's own number (to tell a group
+         MMS's other people from the person). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- The app's own updates, from ghost-sms.com (Updater.kt): the one place it opens a connection to. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- So a failed look for an update can say the phone is offline, where it otherwise blames the site. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Paired computers (DeskService.kt, docs/desktop.md): the camera reads the computer's QR code, asked for when
+         scanning; the foreground service keeps the phone reachable by a paired computer, and starts again after a
+         restart. None is used until a computer is paired. -->
+    <!-- Voice messages (Voice.kt): asked for the first time one is recorded, and open only while one is. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-feature android:name="android.hardware.telephony" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <application
+        android:label="Ghost Messaging"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Required of a default SMS app: other apps' "text this number" (sms:, smsto:, mms:, mmsto:). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+            <!-- A computer's pairing link (ghostmsg://pair/…), which is what its QR code holds: the phone's own camera
+                 opens it here (Desk.kt, docs/desktop.md). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ghostmsg" android:host="pair" />
+            </intent-filter>
+            <!-- Shared text from other apps. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Required of a default SMS app: incoming SMS, delivered to the default app alone. -->
+        <receiver
+            android:name=".SmsDeliverReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The SMS route's data texts (NetSms.kt): an SMS addressed to this port comes here and nowhere else,
+             whether or not this is the phone's texting app. -->
+        <receiver
+            android:name=".NetSmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.DATA_SMS_RECEIVED" />
+                <data android:scheme="sms" android:host="*" android:port="16962" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The same data texts, looked at for one thing: the wake that says a friend's message is waiting at the
+             relay server while the app is closed (Friends.kt). -->
+        <receiver
+            android:name=".FriendWakeReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="998">
+                <action android:name="android.intent.action.DATA_SMS_RECEIVED" />
+                <data android:scheme="sms" android:host="*" android:port="16962" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Required of a default SMS app: incoming MMS notifications (WAP push). -->
+        <receiver
+            android:name=".MmsPushReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_WAP_PUSH">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Results the system sends back: an SMS sent or delivered, an MMS sent or downloaded, a reply from a
+             notification, a notification marked read. Never exported: only our own PendingIntents reach them. -->
+        <receiver android:name=".SmsStatusReceiver" android:exported="false" />
+        <receiver android:name=".MmsResultReceiver" android:exported="false" />
+        <receiver android:name=".NotificationActionReceiver" android:exported="false" />
+        <receiver android:name=".InstallReceiver" android:exported="false" />
+
+        <!-- Required of a default SMS app: "respond via message" from the incoming-call screen. -->
+        <service
+            android:name=".HeadlessSmsSendService"
+            android:exported="true"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
+
+        <!-- Plays a video that came or went in a message, the whole screen (Video.kt). It goes on through a turn
+             or a fold of the phone. -->
+        <activity
+            android:name=".VideoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Black.NoTitleBar" />
+
+        <!-- Scanning the QR code a computer shows to pair with (ScanActivity.kt). -->
+        <activity
+            android:name=".ScanActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Black.NoTitleBar" />
+
+        <!-- Keeps the phone reachable by the computers it is paired with, while there is one. "Remote messaging" is
+             Android's kind of foreground service for carrying texts to another of the person's own devices. -->
+        <service
+            android:name=".DeskService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+
+        <receiver android:name=".DeskBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Where an MMS is written for the phone process to send, and where it writes one it downloaded. -->
+        <provider
+            android:name=".MmsFileProvider"
+            android:authorities="${applicationId}.mmsfiles"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <!-- Sign-in codes, for Ghost Keyboard alone to ask for (Codes.kt): anyone may knock, and only the keyboard,
+             known by its certificate, is answered. -->
+        <provider
+            android:name=".CodesProvider"
+            android:authorities="${applicationId}.codes"
+            android:exported="true" />
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <queries>
+        <!-- Ghost Keyboard, so Settings can say whether it is on this phone. -->
+        <package android:name="com.infamousvague.devkeyboard" />
+        <!-- The texting apps people come from (Arriving.kt): whether one is on the phone, its name, and its settings
+             page, to say what to turn off there before switching. -->
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.samsung.android.messaging" />
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,696 @@
+# Ghost Messaging
+
+An SMS and MMS app for Android that replaces the phone's default messaging app, drawn with **Glacier**, the same
+UI kit Ghost.md and Ghost Keyboard use.
+
+Started 2026-11-13 at Matt's ask: "Sketch out a project and load it on my phone, use the same glacier UI we use for
+other projects like ghost MARKDOWN and ghost KBD include basic functionality so i can replace my current sms today".
+It lives in Ghost.md's repository for now, in its own folder, and can be moved to a repository of its own whole.
+
+## What it does
+
+- **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
+  there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
+  app. Switching back to another SMS app loses nothing.
+- **Conversations**: newest first, with contact names and photos, unread dots, a "Not sent" mark, search over
+  names, numbers and the last message, long press to mark as read, archive (this app's own list) or delete.
+- **A conversation**: bubbles grouped by sender and minute, day headings, sender names and faces in a group,
+  Sending / Sent / Delivered / Not sent (tap to try again), pictures inline (tap to zoom), links underlined, long press
+  to copy, delete or send again, a call button, and a counter once a text runs to more than one SMS.
+- **Sending**: one person gets an SMS (split into parts when it's long). Several people, or a picture (up to five,
+  scaled to the carrier's MMS size limit), get an MMS.
+- **Receiving**: SMS, and MMS downloaded through Android's MMS service, decoded and stored, including group MMS. Group
+  MMS leaves this phone's own number out of the list of people; when Android won't say what the number is, it can be
+  typed in Settings.
+- **Notifications**: one per conversation with its unread messages (MessagingStyle), with Reply and Mark as read.
+- **Other apps**: `sms:` / `smsto:` / `mms:` links, shared text, and "respond via message" from the call screen.
+- **Reactions** (0.2.0): texts like `❤️ to "See you at 7"` (Google Messages) or `Loved “See you at 7”` (iPhone)
+  are folded onto the message they name, as a chip on its corner, instead of a bubble of their own: hearts, likes,
+  laughs, `Reacted 🎉 to …`, reactions to a picture (`Loved an image`), and `Removed … from …` taking one off. A press
+  on the chip lists who reacted with what. A quote cut short with "…" still finds its message; a reaction that names
+  no message in the conversation stays an ordinary bubble. It works on old messages too, because it is read as the
+  conversation is drawn (`lib/reactions.dart`, tested by `test/reactions_test.dart`).
+- **Editing** (0.2.0): long press one of your messages, Edit. SMS can't change a text on the other person's phone, so
+  saving asks whether to send the change as a follow-up text ("Correction: …") or change it on this phone only. The
+  bubble says "Edited" (or "Edited · correction sent", with the correction's own bubble folded away), and a press on
+  that shows what it first said. Editing a message that failed sends it again with the new words. The first text is
+  kept in the app's own record (`Store.editMessage`, `lib/edits.dart`).
+- **Sending reactions** (0.3.0): long press a message and pick ❤️ 👍 👎 😂 ‼️ ❓ or more. It goes as the iPhone's
+  wording ("Loved “…”"), which Google Messages and Samsung Messages turn back into a reaction on the other phone and
+  this app folds too. A press on one that is already yours takes it off ("Removed a heart from “…”").
+- **Effects** (0.3.0; [docs/effects.md](docs/effects.md)): twenty screen effects set off by a phrase or by a message of
+  key emoji: the iPhone's eight (echo, spotlight, balloons, confetti, love, lasers, fireworks, celebration), the ones
+  Google Messages plays on a phrase (snow, kisses, wow, thank you, good night, good morning, get well soon, bye bye,
+  hungry, sorry, party time), and ghosts for "Boo". An iPhone's "(sent with Lasers)" is read, played and not shown,
+  and so are its bubble effects (slam, loud, gentle, invisible ink). One to three emoji alone are drawn large. Since
+  0.6.0 each effect moves pictures drawn for it (below). Settings › Effects turns
+  them off, and lists every one with what sets it off; a tap plays it there.
+- **Emoji sets** (0.3.0; `lib/emoji_sets.dart`, `assets/emoji/LICENSES.md`): the phone's own, Noto, Twemoji, OpenMoji
+  or Noto's outline face, chosen in Settings and drawn everywhere in the app. `test/emoji_sets_test.dart` holds each
+  set to drawing joined emoji (families, skin tones, flags, keycaps) as one glyph.
+- **Ticks** (0.3.0): one for sent, two for delivered, two in colour for read, on every message of yours. Delivered is
+  the carrier's delivery report (SMS and MMS). Read is an MMS read report, which is asked for on picture and group
+  messages (Settings › Receipts) and which only some phones send; a plain text has no way to say it was read.
+- **Pin, mute, block** (0.3.0): from a conversation's long press. Pinned ones stay on top; muted ones arrive without a
+  notification; a blocked number goes on Android's own blocked list, which stops its texts and calls for every app.
+- **Drafts** (0.3.0): what is typed and not sent is kept for its conversation and shown in the list.
+- **Sign-in codes** (0.3.0): a notification for a text with a code in it has a "Copy 482913" button.
+- **Updates** (0.3.0): the app looks at https://ghost-sms.com/apk.json as it opens (at most twice a day), downloads a
+  newer release, checks its size, hash and signing certificate, and installs it (`Updater.kt`, Ghost Keyboard's).
+  Settings › Updates has the switch, "Check for updates" and "Update now". It is the only connection the app opens.
+- **Your bubbles** (0.3.1): Ghost Keyboard's primary by default (its accent: #51FCFB under dark teal on the dark
+  page, #008B8A under white on the light), or the page's ink, or (0.4.0) the accent Android takes from the phone's
+  wallpaper, in Settings › Appearance.
+- **Encryption** (0.4.0; Matt, 2026-11-13: "enable an option for an additional level of E2E encryption by allowing
+  users to exchange keys somehow and then encrypt all messages so only others with the app can read them"). With one
+  person who also has Ghost Messaging, texts go sealed so only the two phones can read them. It is turned on from a
+  conversation's header (tap the name, Encryption): that sends one text with this phone's key, and the other person
+  gets a bar over their composer, "Maya wants to encrypt this conversation", with Turn on, which sends theirs back.
+  From then the header says "Encrypted" with a lock, the composer "Encrypted message", each sealed message has a small
+  lock by its time, the conversation has one after its name in the list, and the two key texts are drawn as lines
+  ("You sent your encryption key"), not bubbles. The header's Encryption also shows the safety number, thirty digits
+  that are the same on both phones when nobody swapped a key on the way, with "They match: mark as verified". A
+  DIFFERENT key from someone already exchanged with turns encryption off until it is looked at and accepted. A sealed
+  text whose key is gone (a reinstall, a new key) says "Encrypted message that can't be opened on this phone".
+  What it is and is not, as Settings › Encryption says it: one person at a time (groups and pictures are MMS and go
+  as they always have, and attaching a picture says so); the keys travel by SMS, so the safety number is what rules
+  out a swapped key; no forward secrecy (no ratchet: it is not Signal's protocol); a sealed text is longer, so the
+  composer counts the texts it will cost; to any other app a sealed text is a line of letters. The cryptography is
+  `E2eCrypto.kt` (P-256, ECDH, HKDF-SHA256, AES-256-GCM; `E2eCryptoTest`), what the phone keeps is `E2e.kt`, and the
+  screens are `lib/ui/thread.dart` and `lib/ui/encryption.dart`.
+- **Chat backgrounds** (0.4.0; Matt, 2026-11-13: "allow changing the backgrounds for chats, there should be a standard
+  way to have the backgrounds sync between apps as my google background syncs with samsung messenger"). One for every
+  chat (Settings › Chat background) and one a conversation may have of its own (its header › Chat background): none,
+  eight washes made for the app (pale in light, deep in dark), a colour (twelve offered, or mixed), a picture from
+  the phone (a copy the app keeps, drawn under a veil, with the small words on pills), or **Match my wallpaper**.
+  There is no standard by which texting apps share a background: Google Messages keeps its own on the phone that set
+  it, for RCS chats only, where no other app can read it. What every app can share is the palette Android takes from
+  the wallpaper (Material You, Android 12 on), and that is what Match my wallpaper wears, so it follows the phone as
+  Google's and Samsung's apps do (`lib/backgrounds.dart`, `MainActivity.systemPalette`).
+- **Synced backgrounds** (0.5.0; Matt, 2026-11-13: "I want the background to sync for everyone in a chat if they're
+  all using ghost messaging"). A conversation's own background (its header › Chat background) has a switch, "Sync
+  with Maya" ("with everyone here" in a group). On, what the conversation wears is sent to its people as the page is
+  left, once, and their Ghost Messaging wears it too; what they choose comes back the same way, so the newest choice
+  is everyone's. There is no server, so it goes as a text in the conversation (`BackgroundWire.kt`:
+  `ghost:bg1:preset:dusk`, `color:#RRGGBB`, `none`, a wash's four colours for Match my wallpaper, since the other
+  phone's wallpaper is its own, or `image` with the picture in the same message as an MMS, at the size the carrier
+  allows). Both phones draw that text as a line, "Maya changed the chat background", not a bubble. It is sealed with
+  the rest where encryption is on. The switch is on by itself only where everyone is known to have the app, which is
+  once a text only the app writes has come from them (a key, a sealed text, a background: `Backgrounds.kt`); to
+  anyone else it would arrive as a line of letters, and the page says so before it is switched on by hand. Settings ›
+  Chat background › Wear backgrounds shared with you turns the receiving off. Every chat's background (the one in
+  Settings) is this phone's alone.
+- **Sign-in codes for Ghost Keyboard** (0.5.0; Matt, 2026-11-13: "The messaging app should also work with ghost kbd to
+  proxy verification codes"). Ghost Keyboard shows a one-time code above its keys to tap in, but reading texts itself
+  needs a permission Android 15 refuses apps from outside a store, and Android 17 holds code texts back from every
+  app but the default SMS app. This app is the default SMS app, so it answers the keyboard instead (`Codes.kt`):
+  a content provider, `content://com.infamousvague.ghostmessaging.codes/latest`, which looks through the texts of
+  the last ten minutes with the finder the notification's Copy button uses and answers with the codes and when they
+  arrived: three at most, never the words or who sent them, and nothing is kept for it. It answers Ghost Keyboard
+  alone, known by its package and the SHA-256 of its release certificate; the keyboard pins this app's in turn (its
+  `GhostMessagingCodes.kt`, docs/ghost-messaging-codes.md there). When a text with a code arrives, a keyboard that is
+  watching is told to ask. Settings › Ghost Keyboard has the switch (on to start) and says whether the keyboard is on
+  the phone. Needs Ghost Keyboard 0.18.0 or later.
+- **Coming from Google Messages or Samsung Messages** (0.6.0; `Arriving.kt`; Matt, 2026-11-13, of a friend whose
+  chats "didn't load into ghost messaging" and whose texts stopped arriving: "can you detect this somehow and then
+  instruct the user how to fix it?"). Two things catch people, and neither is this app's doing. RCS chats are kept
+  inside the app that made them, where Android lets no other app read them: they do not appear here, and they are not
+  deleted (the app deletes only on Delete conversation, Delete message, and resending a failed one). And while RCS
+  chats are on, the number stays registered for RCS, so people whose phones use RCS go on sending chats that never
+  arrive as texts. Android tells no app whether RCS is on for a number, so that is never claimed; what is seen is the
+  default SMS app before this one, whether it is still on the phone, how many texts Android's store holds and how few
+  are recent, and whether this copy came from a file. The setup screen names the app being left and has "Open Google
+  Messages settings" (its General settings, RCS chats first) before the switch; after it, a dismissible notice heads
+  the list ("Texts from some people not arriving?") and Settings › Android has the two ways out: Google's page that
+  turns RCS off with a code it texts (`messages.google.com/disable-chat`; the text arrives here), or handing the role
+  back for a moment. The list's empty state says where RCS chats are, and Settings › Android says what Android's store
+  holds, so "nothing was read" can be told from "there was little to read". **This app does SMS and MMS only: no app
+  but Google's can do RCS on Android.**
+- **Allow restricted settings** (0.6.0; Matt: "until we get on the play store add a link to open the app in settings
+  to allow elevated access"). Android 13 and later may refuse a copy installed from a file the SMS role or a
+  permission. Where the switch is refused, the setup screen leads to Android's page for the app (⋮ › Allow restricted
+  settings), and Settings › Android has the same link while the copy is one from a file.
+- **Loading, and reading that fails** (0.6.0; Matt: "Show a loading indicator when messages are syncing"). The list
+  says "Loading your conversations…" under an arc the first time, shows a thin bar under the search when a later
+  read takes a moment, and a conversation says "Loading messages…". A read that fails is said, with Try again, never
+  shown as an empty list; a store that will not list its conversations is read from the texts themselves
+  (`Store.conversationsFromTexts`), and a conversation whose count the store says is nothing is checked before it is
+  left out.
+- **Several conversations at once** (0.6.0; Matt: "allow selecting multiple convos to delete them"). A conversation's
+  long press has Select; then a tap adds or takes away, the bar counts them, and they are deleted (asked first, with
+  how many) or archived together. Android's Back leaves choosing first.
+- **Finding each other, and the encryption banner** (0.6.0; `GhostMark.kt`; Matt: "detect if both users are using
+  ghost messaging", "it should show a banner that can be dismissed asking the user to enable encryption for better
+  security"). With no server to ask, a copy of the app says it is there in its texts: three invisible characters at
+  the end of one, at most once a day to a person, only while nothing has been exchanged with them, only where the
+  text stays the same number of SMS, and never on a reaction or one of the app's own `ghost:` texts. Every other app
+  draws them as nothing; another copy remembers the person has the app. Their conversation then shows a banner over
+  the composer, "Maya has Ghost Messaging too. Encrypt this conversation for better security?", with Turn on (which
+  sends this phone's key; the other person's bar then has Turn on too) and a cross that puts it away for that
+  conversation. Nothing is sent because of the hello. Settings › Encryption › Find people who have Ghost Messaging
+  turns the hello off.
+- **Bubble colours** (0.6.0; Matt: "a suite of colors to pick for the chat bubbles including white and gray"):
+  Ghost, Ink, Wallpaper, White, Silver, Gray, Graphite, Blue, Indigo, Purple, Pink, Red, Orange, Yellow, Green and
+  Mint, the words on each black or white, whichever reads, and a line round a bubble the page would swallow.
+  Settings › Appearance for every conversation, and a conversation's own in its settings.
+- **Each conversation's own settings** (0.6.0; `lib/ui/chat_settings.dart`; Matt: "each chat should get it's own
+  settings cog"): a cog at the conversation's top (and a tap on the name) opens its people, its background, your
+  bubbles in it, its encryption, and mute, pin and archive.
+- **The keyboard comes back** (0.6.0; Matt: "tabbing in and out of the app again makes it so the keyboard dissapears
+  but the input stays selected so there is no way to re open the keyboard"). A tap on a field that already has the
+  cursor where it was tapped changes nothing, so Flutter asked for no keyboard. Any tap on the message field asks
+  for it now, and coming back to the app with the cursor in the field brings the keys back.
+- **The icon** (0.6.0; Matt: "update the icon to use the one from the desktop"): the white ghost that is a speech
+  bubble, on black (`art/app-icon.png`; `python3 tool/app_icon.py` makes the adaptive icon, the themed layer, the
+  notification's icon, the setup screen's mark and the site's icons from it).
+- **Speed** (0.6.0; Matt: "work on improving speed and performance"). Who a number is is kept until Android says the
+  contacts changed, where it was asked again for every conversation on every text that came or went; Android's
+  blocked list is read once for the whole list; a conversation's picture messages are read in one question, and who
+  sent each is remembered; pictures are read apart from everything else and only the last forty are kept in memory;
+  typing no longer redraws the messages; the app's start asks for its stylesheets, choices and wallpaper colours
+  together. On an emulator with 161 conversations the list's first read took 697 ms and each one after 7 to 9 ms
+  (before, every read was a first read). `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts writes
+  each call's time and the frames' to Android's log.
+- **The effects' characters move** (0.6.2; Matt, 2026-11-13: "i'm going to include 6 frame animations for each
+  asset in a sprite sheet", then "Push an update and release after you've sliced all the animated pictures sprites
+  and the sticker pack from the desktop"). Seventy-eight of the eighty characters came drawn six times each, three
+  across and two down, in files named for the effect and the character's place on its sheet
+  (`bye_r1c2 · wave right hand.png`). `python3 tool/effect_anims.py ~/Desktop/Animated` finds each drawing by its
+  shape (`effect_sprites.cut_grid`) and lays the six side by side as they stood in their places, so what moves
+  between drawings moves and what keeps still keeps still: `assets/effects/<effect>-a<N>.webp`, 5.5 MB in all, with
+  a picture of each strip in `build/effect-anims/`. The app plays a character's strip at eight drawings a second
+  where it has one, each character starting on a drawing of its own, and shows the still where it has none
+  (`EffectSprite`; balloons' first and confetti's second character are not drawn yet). The drawings themselves, a
+  quarter of a gigabyte, are not in the repository: they are in the folder Matt keeps them in.
+- **Mischief, a fifth sticker pack** (0.6.2): the dark-cute one, drawn for itself: our ghost with little horns and a
+  heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
+  same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
+  sheet's tabs slide, and the pack it opens on is brought into view.
+- **Swiping a conversation** (0.7.3; Matt, 2026-11-14: "add swiping to archive, further drag to delete, drag the
+  other direction to pin, add haptic detents for each"). A row of the list dragged to the left uncovers Archive,
+  dragged further Delete, and dragged to the right Pin (`lib/ui/swipe_actions.dart`). Each is a detent: the phone
+  ticks as the row passes into Archive or Pin, knocks harder into Delete, and ticks lightly on the way back out, so
+  the hand knows what letting go will do. Letting go does it and the row slides back; deleting still asks first.
+  Archive, pin and delete change the list at once, before Android has answered.
+- **Deleting that says when it has not** (0.7.3; Matt: "deleting messages isn't working"). On an emulator a text, a
+  picture message and a whole conversation all delete, so what he met could not be made to happen here. What was
+  wrong either way: a delete Android refused left no word (the screen said "deleted"), and a deleted conversation
+  stayed in the list until every conversation had been read again. `Store.deleteMessage` and `deleteThread` now ask
+  a second way where the first deletes nothing, check that the thing is gone, and tell the screen if it is not
+  (with a line in Settings › Developer); the row or message goes from the screen at once and comes back with the
+  reason if Android would not delete it.
+- **The update banner, redone** (0.7.3; Matt: "Redo the update banner to show over the content but not over the
+  header, make it have an x button and be more colorful"). A card in indigo, violet and pink that hangs under the
+  page's header (`HeaderEnd` marks where each page's header ends; on the list that is under the search field) and
+  over its content, with Update now and a cross that is always there. It was a bar across the very top that pushed
+  every page down.
+- **White bubbles** (0.7.3; Matt: "change the default chat bubble to be white"): your own bubbles are white where
+  no colour has been chosen, with the line a white bubble needs on the light page. Anyone who chose a colour keeps
+  it; Settings › Appearance has the others, the old teal ("Ghost") among them.
+- **The logo where there is nothing** (0.7.2; Matt, 2026-11-14: "I also want the ghost image used when there are no
+  messages to use the logo"). The empty list, an empty archive and a search that finds nothing show the app's own
+  mark, the white ghost on black as it is on the home screen (`GhostLogo` in `lib/ui/common.dart`), where an
+  outline of a ghost stood.
+- **Reactions, plainer** (0.7.2; Matt, 2026-11-14: "The reactions should show up under the context menu not a second
+  row under emoji, don't shwo the border on the emoji reaction just show the emoji's with no background pinned under
+  it a bit larger"). Holding a message shows the reactions, then what can be done with the message, then the screen
+  effects in their row under that menu, where the effects sat between the two (`lib/ui/message_popover.dart`). A
+  message's reactions are the emoji alone, a little larger, pinned under the bubble: no chip, line or shadow round
+  them, and a count only where there are more reactions than emoji shown (`_ReactionChip`).
+- **Updates while the app is in front** (0.7.2; Matt, 2026-11-14: "it should auto check for updates when the app is
+  in focus"). The app looks at ghost-sms.com each time it comes forward and every ten minutes while it stays there
+  (`Updater.focusCheck`, from `MainActivity.onResume`; no oftener than once a minute), where it looked as it opened
+  at most twice a day and as a page opened. What it finds is on the banner over every page; with automatic updates
+  on it downloads, and installs by itself where Android allows that without asking.
+- **Mischief moves** (0.7.1; Matt, 2026-11-14: "Update the sticker pack to use the animated sprites from the
+  desktop"). `~/Desktop/AnimatedStickers` held each of the pack's sixteen stickers drawn six times;
+  `python3 tool/sticker_packs.py mischief=~/Desktop/AnimatedStickers` cuts each into its drawings, lays them in one
+  frame as they stood, gives each the white edge and writes an animated PNG (`assets/stickers/mischief/07.png`,
+  320 pixels, 130 ms a drawing, 157 to 217 KB): one file that is the sticker in the app and what is sent. An
+  animated PNG moves on an iPhone and in this app and is an ordinary still picture, its first drawing, to an app
+  that does not know the kind, with its clear edge kept either way; a GIF would move everywhere but has no soft edge
+  and few colours. The colours are chosen for it (`few_colours`: median cut and dithering for what is solid, a few
+  greys at a few strengths for the soft edge), since the first attempt banded. `Sender.sendSticker` sends one that
+  moves as it is (`Stickers.moves` looks for the animation's mark). The other four packs are stills as before; the
+  drawings themselves (44 MB) are not in the repository.
+- **Picture messages that keep trying** (0.7.0; Matt, 2026-11-14: "let's focus on reliability of sending pictures
+  and whatnot"). A picture message that fails for want of a connection, or because the carrier's server is in
+  trouble, is sent again by the app itself after twenty seconds and again after ninety (`MmsWhy.worthAnotherTry`,
+  an alarm to `MmsResultReceiver.RETRY`), standing as Sending meanwhile; the person is told only if the third try
+  fails too. Not where they have to do something first (mobile data off) or the carrier said no to the message. A
+  picture message that was fetched and could not be read used to be gone, since a carrier lets go of a message once
+  it is fetched: its bytes are now kept (`files/mms-kept/`) and read again each time the app comes forward, which
+  is after every update, when the reading may have been mended; the Developer log says why it could not be read and
+  how it begins. And a message left on Sending for a quarter of an hour (the phone switched off, the app stopped
+  before Android answered) is marked not sent, so it can be tried again (`Store.failStale`). Tried against the
+  stand-in carrier: with its server refusing the first four attempts, the first try failed, the app tried again
+  unasked and the sticker went; a message it could not read was put by and logged.
+- **Picture messages that say why** (0.6.2; Matt, 2026-11-13: "It seems like picture sending is also not working at
+  all almost like MMS isn't working"). Picture messages had never run anywhere, so they were run: on an emulator
+  with a stand-in for a carrier ([tool/mms/](tool/mms/README.md)) a sticker and a 4000×3000 photo went out, both
+  read back whole by Android's own parser (`PduParser`), and a picture message announced to the phone was fetched,
+  stored and shown. So what stops one on a real phone is the phone's or the carrier's, and the app now says which.
+  A picture message that fails says why under it ("Not sent: mobile data is off. Picture messages need it, even on
+  Wi-Fi."; `MmsWhy.kt`, from Android's result code and the carrier's HTTP answer). A carrier that takes a message and
+  refuses it in its answer (X-Mms-Response-Status), which Android reports as sent and the app used to show as Sent,
+  is shown as not sent with the carrier's own words. The message field says what would stop one before it is tried
+  (mobile data off, the carrier's settings disallowing it, no SIM). A picture message announced and not fetched used
+  to be lost; now it waits and is asked for again each time the app comes forward, for five days (`MmsDiag.kt`).
+  Settings › Android › Picture messages shows all of it, how the last one sent and the last one received went, and
+  copies a report with no messages, names or numbers in it.
+- **Photographs** (0.6.2; Matt: "Stickers seem to work fine its specifically media messages like pictures"). What a
+  photograph goes through and a sticker does not was read again and tried, and four things were wrong. Trying a
+  failed picture message again sent its words alone as a text and deleted it, so the picture was gone: it now goes
+  again with its own pictures, read back from Android's store (`Sender.resendMms`). On a message that was a picture
+  and no words, "Tap to try again" did nothing, because the picture's own tap (open it) won and the red line took
+  none: both send it again now. A picture that could not be read was left out without a word and the message went
+  with nothing in it: now nothing goes, and the screen says why, with the pictures put back in the field. And the
+  JPEG made from a phone's HDR photograph carried a second picture inside it (a gain map), which a carrier's server
+  is not known to take: a plain eight-bit JPEG is made (`shrink`). A message is never made larger than 1 MB whatever
+  the carrier's settings say, and one the carrier refused goes again with its pictures under 300 KB in all.
+- **Settings › Developer** (0.6.2; Matt: "Maybe it would be good to include a developer setting with copying errors
+  and reporting"): the app's own log (`DevLog.kt`, the last 300 lines, kept in the app's files): every call that
+  failed, every error on the screens' side, and each picture message as it went (what the picture was, what it was
+  made into, the carrier's limit, Android's result, the carrier's HTTP answer and status). Copy the report, Share
+  the report (Android's share sheet: an email, a note), Clear the log. No message's words go in it and what looks
+  like a phone number is struck out.
+- **A phone with a great many messages** (0.6.1; Matt, 2026-11-13: "Users with a ton of messages stored on their
+  phone are taking forever to load, see if we can load by most recent first so that things are faster"). Measured on
+  an emulator filled by `python3 tool/seed_store.py emulator-5586` with 3,000 conversations, 126,000 texts and 19,600
+  picture messages: 0.6.0 showed nothing for 21 seconds, read the whole list again for 5 seconds every time a text
+  came or went, and held a conversation's messages behind that read. Now the list is read the newest first
+  (`Store.conversationsPage`, `_load` in `lib/ui/conversations.dart`): the newest forty and the pinned ones at once,
+  which is the screen, in about a tenth of a second, then the rest 250 at a time behind them (4.6 seconds for all
+  3,000 the first time, under a tenth after), with "Loading older conversations…" at the list's foot. A text that
+  comes or goes reads only the newest again (13 ms). What made it slow was a question to Android for each
+  conversation where one does for all: every conversation's address (`readCanonical`), every contact's numbers
+  (`knownNumbers`, found by `ContactKey` and then compared whole as before), and the summary of a conversation whose
+  newest message is a picture, which is now read once and kept until the conversation changes (`latestSnippet`). The
+  list is read on a thread of its own, so nothing waits behind it. A conversation opens on its newest 120 messages
+  and reads 300 more each time the reader nears the oldest held; before, the newest 300 were all it could show.
+  Settings and a conversation's own settings no longer read the whole list to learn one thing.
+- **The effects' own pictures** (0.6.0; Matt: "the ghost messages assets are on the desktop, please wire them all and
+  slice them up"). Each of the twenty effects has a sheet of about twelve sprites drawn for it
+  ([docs/effect-sprites-prompt.md](docs/effect-sprites-prompt.md)): four ghost characters and eight props.
+  `python3 tool/effect_sprites.py <folder>` keeps the sheets in `art/effects/` (lossless, the background remover's
+  halo cleared) and cuts each into its sprites by shape, not by a grid, into `assets/effects/<effect>-h1.webp…` (the
+  characters) and `-p1.webp…` (the props), with a picture of every sheet's cuts in `build/effect-sprites/` to look
+  over. The app moves them (`EffectSprites` and `_spritePlans` in `lib/effects.dart`): props many and small,
+  characters few and large, rising, falling or bursting as the effect does. What only the app can draw stays under
+  them: the fireworks' and lasers' light, the spotlight, Echo's copies of the message's words. An effect with no
+  pictures is drawn as before. 240 sprites, 2.6 MB.
+- **Reactions under the message, and effects as reactions** (released by 0.7.4; Matt: "I want the message reactions to
+  pop up under the message like imessage does", "I'd like to be able to react with full screen effects by pressing
+  and holding on a message as well"). A long press on a bubble dims the page round it and brings up, beside it, the
+  reactions, then the twenty screen effects, then Copy, Edit and Delete (`lib/ui/message_popover.dart`). An effect
+  chosen there goes as a reaction with the effect's own emoji (`Reacted 🎈 to “…”`), which every phone can read; this
+  app hangs it on the message and plays the effect over the conversation, on both phones, once.
+- **A picture that could not be downloaded** (released by 0.7.4; Matt: "the message app said that a photo could not be
+  downloaded… when I tap it I'd like it to take me to the associated chat and show the failed image with a retry if
+  needed"). A picture message is announced by the carrier first and fetched after. The announcement is now kept in
+  the sender's conversation until the picture is here (`Store.insertMmsNotice`): "Downloading picture…" while it
+  comes, and where it cannot be fetched, "This picture couldn't be downloaded" with Try again, which asks the
+  carrier for it once more (`MmsPushReceiver.retry`). The notification opens that conversation. Before this the
+  notification led nowhere and nothing was kept to try again from.
+- **The update banner** (released by 0.7.4; Matt: "the app should auto check for updates on load of any page so it pops
+  the banner"). Every page that opens asks for a look for a newer version, made no oftener than every five minutes,
+  and while one is waiting a banner over every page says which, with Update now (`lib/ui/update_banner.dart`).
+- **Voice messages** (released by 0.7.4; `Voice.kt`, `lib/ui/voice.dart`; Matt: "I also want to have the ability to send
+  audio messages"). With nothing written, a microphone stands where Send would. Tap it and the composer becomes the
+  recording: a clock, how loud it hears you, how long one may run, a bin to throw it away, Send. It goes as a
+  picture message does, an MMS with one sound in it (AAC in an `.m4a`, about three kilobytes a second), so any phone
+  can play it and it is not encrypted, which an encrypted conversation says before it goes. How long one may run is
+  what the carrier lets a message weigh: about a minute and a half at 300 KB, about five minutes at 1 MB; the
+  recorder stops itself there. One that comes or goes is drawn as a player: play and pause, how far through, how
+  long. Android gives the default SMS app the microphone along with the role, so it is asked for only where that was
+  taken back; it is open only while a recording is under way with the app in front, and leaving the app throws the
+  recording away. One that did not go is sent again whole by 0.6.2's `Sender.resendMms`, as a picture is. On a Mac a
+  voice message is named and not played.
+- **Stickers** (0.6.0; Matt: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio
+  one"). Four packs of sixteen, made by `python3 tool/sticker_packs.py` from the ghost's poses on the effects' sheets,
+  each with a sticker's white edge: **Ghost** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and
+  **Sweet**, the pastel one: the ghost in soft pink, lilac, mint, butter and sky with little hearts, flowers and
+  sparkles. Sweet is our own ghost in that cute pastel manner; none of Sanrio's characters, names or drawings are in
+  it, since those are Sanrio's. The sticker button is in the message field while it is empty; the sheet
+  (`lib/ui/sticker_picker.dart`) has a tab for each pack and opens on the one last used, and a tap sends. A sticker
+  goes as a picture message (`Sender.sendSticker`: a PNG of 55 to 130 KB, so its clear background survives and any
+  phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
+  file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
+  no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **Their texts are coming without encryption** (0.7.4; `E2e.arrived`; Matt, 2026-11-14: "we need to be able
+  to detect if a user is sending us unencrypted messages and let us know so we can disable it"). Encryption on with
+  someone seals what goes to them; if they have turned it off, changed phones or left the app, they cannot read it,
+  and until now nothing said so. A text that comes from them plain while encryption is on is counted: the first one
+  raises a notification, and the conversation says "Sam's last 2 texts came without encryption…" over its message
+  field with Turn off beside it and a cross to put it away (it comes back with their next plain text). A text that
+  comes sealed again clears it. The app's own texts (a key, a chat background) count as neither. A conversation's
+  settings say the same under Encryption, and so does the Mac, where it is said and turned off from the phone.
+- **Videos** (0.7.4; `Video.kt`, `lib/ui/video.dart`, `macos/Runner/DeskVideo.swift`; Matt, 2026-11-14: "mp4
+  files are not loading it just shows up as a string of text for the filename"). A video in a message is drawn as a
+  picture of where it starts, with Play over it and how long it runs, where it was its file's name and no more. A
+  tap plays it: the whole screen on the phone (Android's own player and controls), a window of its own on the Mac
+  (the Mac's). The phone makes the picture from the message's own part; the Mac brings the video's bytes over the
+  link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
+  folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
+  the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
+- **What a computer may ask of the phone** (0.7.4; Matt, 2026-11-14: "the desktop app should get all featues
+  its missing from mobile", and of the Mac's message field "an emoji picker, file upload, voice memo and sticker
+  selector"). The link carries what the phone's screens do: deleting, editing, sending a picture message again,
+  blocking, encryption on and off, and pictures, a voice recording and a sticker sent from the Mac, handed to the
+  phone in pieces and sent by it once ([docs/desktop.md](docs/desktop.md), "What they say to each other"). The Mac
+  has its own panel for choosing pictures, its own emoji, a recorder and a player. A phone with an older app says
+  it does none of it, and the Mac offers none (`Sms.can`). The screens do not offer these yet: that is the shared
+  shell's to switch on.
+- **The Mac app updates itself** (built 2026-11-14; Matt: "install the app on my mac and make sure it has OTA
+  updates so we don't need to reinstall again"). It reads `https://ghost-sms.com/mac.json` as it opens and every six
+  hours, brings the newer app down, takes it only if it is whole and signed by its own team (Matt's Developer ID),
+  puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
+  over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
+  yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
+- **A link in a message opens** (0.7.6; `lib/links.dart`; Matt, 2026-11-14: "I can't click to open links in
+  the desktop app"). A link was underlined and nothing more, on the phone as on a computer. Now a press on one
+  opens it in the browser: the phone's (`Arriving.openLink`), or the computer's own (`open`, in
+  `lib/desktop/remote.dart`). `MessageLink.find` says what a link is (http, https or www up to the next space,
+  less the full stop, comma or stray bracket that ends the sentence), and only a web address is ever opened:
+  nothing in a text can start another app. A long press is still the message's menu. On a Mac the pointer turns to
+  a hand over one. The Mac has it from its first release (0.7.6, 2026-11-14); a press there has not been watched.
+- **Pictures that never arrived, on Verizon** (0.7.4; Matt, 2026-11-14, with his phone's report: "Im getting this
+  error on freshly sent photos": `not fetched: the carrier no longer has it … (result 4, HTTP 404)`). Verizon
+  announces a picture at an address that stops at "=" and serves it only with the announcement's transaction id
+  after it; its settings say so (`enabledTransID`), Android's own texting apps add it, and this app did not, so
+  every picture sent to a Verizon phone was "not found". Now the id is added where the carrier's settings ask
+  (`MmsWhy.fetchAddress`), and where they do not say and the bare address is answered "not found", it is asked for
+  once more with the id before anyone is told (`MmsWhy.worthAskingWithId`). Each fetch writes which server was
+  asked and how to the Developer log. Reproduced and mended on an emulator against a stand-in carrier that behaves
+  that way (`tool/mms/README.md`); not yet seen on Verizon itself. Pictures that failed before can be asked for
+  again with Try again, for as long as the carrier keeps them. An error of the app's own in the report
+  ("Null check operator used on a null value") said nothing of where: such a line now names where it was thrown.
+- **Routes: a relay system that can be swapped** (0.7.4; [docs/network.md](docs/network.md); Matt,
+  2026-11-14: "implement a full relay system for the app that's replacable and swappable ... The goal will be to
+  have multiple sources to feed data to eachother from wifi locally, p2p, internet, sms, etc"). `lib/net/`: a route
+  is one interface (`Carrier`), the switchboard chooses between routes, falls back and seals, and two routes exist:
+  the relay server's hub (`relay/lib/hub.dart`: names made from keys, packets held for someone away, who is here,
+  rooms to join and leave) and SMS data texts, which no texting app shows and which reach a closed app. The people
+  the routes reach are the people encryption is on with. Settings › Network shows each route with a switch, the
+  relay server's address, and a test to each person that says which route carried it. Nothing in the app is carried
+  by them yet but that test: calls, receipts and the local-network and peer-to-peer routes come next. The hub is
+  on our server since 2026-11-14 (`wss://ghost-sms.com/hub`; `tool/deploy-relay.mjs`, `relay/README.md`), tried
+  from outside with two made-up installs (`tool/net/live_hub_test.dart`); two real phones through it are not
+  yet seen.
+- **Invite someone by text** (0.7.4; Matt, 2026-11-14: "Id like to also be able to invite people to join
+  ghost messaging over text which would prompt them to install the app"). Settings › Network › Invite someone by
+  text opens a new chat with the invitation written (`inviteText` in `lib/ui/network.dart`: what the app is for and
+  ghost-sms.com, where it is downloaded); the person chooses who, may change the words, and sends it as any text.
+  Once the other has the app and the two text each other, the app's own finding of the other (`GhostMark.kt`)
+  offers to turn encryption on, which is what makes them someone the routes reach. Not done: an invitation that
+  carries this phone's key, so that the first text from the other phone is all it takes.
+- **One frame, phone and computer** (0.7.4; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
+  to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
+  app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from
+  it. In a window 640 wide or wider (a folding phone opened out, a tablet, a computer) the list is down the side,
+  as the Mac's first had it, with what is open beside it, its row marked, and no way back drawn; narrower (a phone,
+  a folding phone's cover) the list is the screen and what is opened slides over it. Both are kept in place as the
+  window changes, so a conversation open on the cover, and what is half written in it, is still open when the phone
+  is opened out. The way round is the Mac's pill floating at the list's foot (`lib/ui/nav_bar.dart`: a new chat, the
+  messages, the contacts, the archive with its number, Settings), where the phone had a round "New message" button,
+  Settings in the header and Archived as a row at the list's end. Android's back closes what is in the pane, then
+  leaves the archive, then leaves the app. What a notification
+  or another app's "text this number" asks for opens in the pane too. The Mac's window is this same frame
+  (`lib/desktop/ui/shell.dart` is a few lines now): `AppShell` takes what the Mac keeps
+  under its search field (`status`), what its pane says when empty (`nothing`) and its own Settings (`settings`).
+  What a screen offers on a computer is what the phone it is paired with says it does for one (`Sms.can`):
+  pictures, stickers, voice messages, editing, deleting, blocking, encryption's choices; a phone that is behind is
+  offered none of them.
+  A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
+  (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
+  to the effects not a row of effect icons").
+- **The list's tabs** (not released; Matt, 2026-11-14: "add a right click menu for the codes and messages tabs as
+  well as a button to mark all read and change the messages and codes to a segmented toggle"). Messages and each
+  section a plugin makes (Codes, Spam) are one segmented toggle under the search field (`SectionTabs` in
+  `lib/plugins/ui.dart`), where they were chips in a row. Beside it, Mark all read marks every unread conversation
+  of the tab shown (`MarkAllRead`; quiet while nothing there is unread, its picture alone where the tabs leave
+  little room, and standing alone where there is no section to make a tab of). A press with the other button on a
+  tab, or a long press, brings up that tab's menu: Mark all as read, and Select all, which chooses every
+  conversation of the tab for the bar at the top to archive or delete.
+- **Plugins** (0.7.4; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
+  placing UI elements and doing things like filtering out spam messages separating OTPs into their own section and
+  more"). A plugin is a name, a line saying what it does and a switch in Settings › Plugins, kept with the person's
+  other choices (`plugin_<id>`). Switched off it adds nothing and is never asked. Switched on it adds through four
+  kinds of extension point (`plugin.dart` is the contract, `registry.dart` is what the screens ask):
+  - **Classifiers** say which tags a conversation or a message deserves (`code`, `spam`) from who sent it, what it
+    says and whether the sender is a contact. The list has each conversation classified once and keeps the answer
+    until its last words change (`tag_store.dart`): the first 64 handed over, which is the first screen, at once;
+    after those for no longer than two milliseconds at a time, the rest between frames. So the list opens as fast
+    with thousands of conversations as it does with no plugin.
+  - **Sections** of the list: a chip under the search field, beside "Messages", for each section that has
+    conversations in it, and a list of its own when the chip is chosen, the newest first. A section takes the
+    conversations it wants out of the main list and says how its rows look in words the list draws: a value drawn
+    large, a quiet line, a button at the row's end, a word to press, what a tap does. A search from the main list
+    looks through the sections too. A conversation can be filed by hand, in a section or in the main list, and
+    stays there whatever the classifiers say of it afterwards (`plugins_filed`).
+  - **Slots** are named places on the screens for a plugin's buttons, menu lines or widgets (`Slots`). Drawn now:
+    the list's header, between the search field and the list, a conversation's long-press menu in the list, and a
+    plugin's own card on Settings › Plugins. Defined, and waiting for `lib/ui/thread.dart` to ask for them: a
+    conversation's header, the composer's row of buttons, a message's menu. `conversation.dart` answers all three
+    ready to put in place (`ConversationPlugins.header`, `.composer`, `.message`), a line each when it does.
+  - **Rules for a message that has just come**: mute the conversation, mark it as read, file it in a section. They
+    are decided in Dart, by the list, for each unread conversation as it is first seen: while the app is open, and
+    catching up the next time it is opened. Android's side has posted the notification by then (`Messaging.kt`
+    calls `Notifier.incoming` as the text is stored), so the text that lands a conversation in a rule still
+    notifies. For a rule to hold while the app is closed the receiver would have to decide before it notifies:
+    the classifier it needs written in Kotlin (the code finder already is, `Notifier.otp`) or run in a Dart
+    isolate the receiver starts, reading the same choices (they are in the `ui` preferences, under `plugin…`).
+
+  The plugins the app ships with are compiled in (`shippedPlugins` in `registry.dart`): Codes and the Spam filter, below. A screen asks the
+  registry what there is for a place and draws it; a plugin is handed facts and a host to ask things of (say
+  something, copy, open a conversation, mark it read, file it), never a screen. One that throws is left out and
+  said in Settings › Developer's log. All of the contract but the widget slots is data in and data out
+  (`MessageFacts.toJson` is what a plugin is shown), so a plugin from outside the app could meet it. What that
+  would still need: something to run it (an interpreter for a script; a package would have to be built in, since a
+  release build cannot load Dart that was not compiled with it), a way to install and list one, a time limit on a
+  classifier, a say for the person in what a plugin that reads their messages may ask of the host (none of the
+  host's verbs reaches the network, and that is the whole of what a plugin can do), and a way to describe widgets
+  in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
+  conversations are handed over in about 4 ms and sorted into sections in about 3) and
+  `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
+- **How large a video came** (not released; `lib/ui/video.dart`; Matt, 2026-11-14: "the videos sent from iphone are
+  extremely low quality", and, asked whether the app should say so, "Yes, add it"). Under a video in a conversation
+  is its own size and its file's ("320 × 240 · 913 KB"), and, where it came from someone else under 480 pixels the
+  short way, "Shrunk by the sender's phone to send as a picture message." The app does nothing to a video: it is
+  fetched by Android's own picture-message service with the carrier's settings, kept as it came and played from
+  there (no code here re-encodes one). A phone that sends a video as a picture message shrinks it to what its
+  carrier takes, about a megabyte, and what was taken out cannot be put back by the phone it reaches. The phone
+  reads the size from the video itself (`Video.preview`: `videoWidth`, `videoHeight`, `bytes`), the Mac from the
+  copy it fetched (`DeskVideo.preview`).
+- **Who a code is from** (0.7.9; `lib/plugins/companies.dart`; Matt, 2026-11-14: "have the codes section try
+  to parse the company that's sending the code and show their company logo as the code profile picture like
+  coinbase discover etc"). A code comes from a short number that says nothing; the company is in its words. A row
+  in Codes is called by it, and wears its face: for one of about 120 companies the app knows by name (or by another
+  it goes by, "BofA", "Amex", or by its web address in the text), a disc of the company's colour with its mark on
+  it; for any other, the name its text gives itself ("Acme: your code is…", "Your Acme verification code is…") and
+  that name's letters; for a text that names nobody, its number as before. All of it is read on the phone from the
+  text alone, and nothing is looked up for a name out of a text. **The marks** are built into the app from an open
+  pack of brand icons (Matt, asked where logos should come from: "download in the app look for brand icon packs
+  that might exist"): Simple Icons, CC0 1.0, each one path, made into `lib/plugins/company_marks.g.dart` by
+  `tool/company_marks.py` (its head says how to fetch the pack and run it). 86 companies have one. The 36 the pack
+  does not have (most banks and shops) get their letter on their colour. 14 of the 86 the pack has since taken out
+  at their owners' wish and still carries for old uses (Amazon, Microsoft, LinkedIn, Walmart, Slack, Yahoo,
+  Nintendo, Hulu, Grubhub, Adobe, Salesforce, OpenAI, Twilio, DocuSign): they were first left as letters, and are
+  drawn as the pack last had them since Matt, asked, said "Use older logos" (`OLDER` in the tool). The marks are
+  trademarks of their owners, drawn only to say who a text is from. A switch in
+  the plugin's settings, "Show who a code is from". Tests: `test/plugin_companies_test.dart`. Pictures:
+  `test/shots/12-plugins-codes-*`, and every face in `12-plugins-company-faces-*`. Found on the way and not
+  changed: "G-482913 is your Google verification code" is not taken for a code at all (the "-" before its digits),
+  by `signInCode` and `Notifier.otp` alike.
+- **Codes** (0.7.4; `lib/plugins/codes.dart`; Matt, 2026-11-14: "separating OTPs into their own section").
+  The first plugin, on until it is switched off in Settings › Plugins. A conversation whose newest text is a sign-in
+  code, from one number that is not in the phone's contacts, leaves the main list for a Codes section: a chip under
+  the search field that counts them, and in it the newest first, each code drawn large over the words it came in.
+  A tap on the row, or the button at its end, copies the code and marks the conversation as read (its own setting,
+  "Mark as read when copied"). Its long press opens the conversation, copies, or keeps it in Messages, which
+  sticks. A contact's "the door code is 4417" stays in the main list, where its long press has "Copy 4417" and
+  "Move to Codes". What reads as a code is what the notification's Copy button says is one: `signInCode` is
+  `Notifier.otp` written again in Dart, and the two are held to the same examples (`test/code_vectors.json`, read
+  by `test/plugin_codes_test.dart` and by `CodesTest.kt`), so they cannot drift apart. In both, the word that
+  speaks of a code is now a word of its own: "pin" is in "shipping", "shopping" and "opinion", so "Your order
+  482913 is shipping today" was taken for a code, which a Copy button could bear and a section cannot. The list knows a
+  conversation by its last words: it is in Codes while its newest text is a code and back in the main list once a
+  later text is not, and since the list does not know whose the last words are, a code the person texts to a
+  number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
+  which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
+- **Groups of friends** (0.7.6; [docs/groups.md](docs/groups.md); Matt, 2026-11-14: "expand on the ability
+  to create, name and manage groups like telegram"). New group, in the address book, makes one out of friends: a
+  name every member sees, members, and admins, who rename it, add a friend, take someone out and make another
+  admin; anyone can leave. What is written in it goes to each member over the internet by the app's routes, sealed,
+  never as an MMS, and its conversation is its own, with lines for what happened to the group ("Ann added Dan").
+  Members need not be friends of each other: the group gives each the others' keys. Words only for now, and written
+  from the phone. Like friends, nothing of it is offered until a relay server answers.
+- **A group's name** (0.7.5; Matt, 2026-11-14: "expand on the ability to create, name and manage groups like
+  telegram"). A group conversation's settings have a Group name field; named, the group goes by it in the list, in
+  its conversation and on a paired computer, and emptied it goes by its people's first names again. The name is the
+  phone's own (`Store.threadName`, sixty letters at most): a group text has nowhere to carry one, so the others in
+  the group do not see it. A computer sets it through the phone (`threadName` over the link). This is a group text's name; a group of
+  friends (above) has one every member sees.
+- **Me, and friends joining** (0.7.9; [docs/me.md](docs/me.md); Matt, 2026-11-14: "Add a 'me' section to settings
+  and allow linking popular social like telegram, discord, x, etc to be notified when one of your friends or
+  followers joins ghost messaging"). Settings › Me links an account by proving it is yours: Discord, X and Telegram
+  by signing in there, Bluesky, Mastodon and GitHub by a code in the public profile. Settings › Friends joining is a
+  watch list of handles (typed or pasted; brought in from who you follow on Bluesky, Mastodon and GitHub, the three
+  that publish it) and who of them is here, with the number of new ones on the Settings ring. Someone is told only
+  of a person who linked that account AND switched on "Tell friends I'm here". The relay server's keeper of handles
+  (`relay/lib/handles.dart`) holds hashes of handles, never a handle, name or number, and is told nothing until an
+  account is linked, a handle added or the page opened. Each network's sign-in is off until its app is registered
+  and its values put on the box (docs/me.md says how); the three proved by code need nothing. Held by
+  `relay/test/handles_test.dart` and `test/me_test.dart` (two installs through the real relay) with the networks
+  stood in for. **On the server since 2026-11-14 18:04 UTC** (the relay put up again with the keeper of handles in
+  it, and ghost-sms.com's block passing `/link/*` to it; Matt: "deploy both yes"), so the three proved by a code
+  can be tried; Discord's, X's and Telegram's sign-ins are still off, their apps not registered. **Not run against
+  a real network yet.**
+- **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
+  users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
+  chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation
+  offers Add friend; once each has said yes, words between the two go over the internet by the app's routes, sealed,
+  and are kept in the same conversation with a globe beside them. A friend is someone keys were exchanged with by
+  text, which is what proves the number: no account. With no relay server reached they go as the encrypted texts
+  they would have been; a friend whose app is closed is sent one silent data text and their phone says a message
+  is waiting. Nothing of it is offered until a relay server answers; ours does, at wss://ghost-sms.com/hub, since
+  2026-11-14.
+- **Spam filter** (0.7.4; `lib/plugins/spam.dart`; Matt, 2026-11-14: "filtering out spam messages"). The
+  second plugin, off until it is switched on in Settings › Plugins: a filter that takes messages out of the list is
+  chosen, not given. On, a conversation whose newest text looks like spam, with nobody in it a contact, leaves the
+  main list for a Spam section beside Codes. Its row says which signs the text showed ("Looks like spam: a link,
+  prize wording") and has "Not spam", which puts it back in the main list for good, whatever comes in it later. A
+  conversation the rules missed is moved there by hand from its long press ("Move to Spam"), unless it is a
+  contact's. The rules are six signs, each a line in the plugin's card in Settings: a link, sent from an email
+  address, prize wording, pressure to act, a money offer, a delivery problem. A text is spam when it shows two of
+  them, or three where it also holds a sign-in code (which often comes with a link and "if this wasn't you"); a
+  contact's text is never looked at. They are a list of plain values (`spamRules`: a pattern for the words, or for
+  the address a text came from), so another list can stand in for them (`SpamPlugin(rules: …)`). All of it is
+  decided on the phone: nothing is sent anywhere, deleted or blocked. "Mute conversations in Spam" (on) mutes a
+  conversation in Spam as its text is seen, so what comes in it next arrives without a notification; "Not spam", or
+  switching the filter off, takes that mute off again, and a mute the person made is left alone. The text that
+  first puts a conversation in Spam has already notified (Plugins, above, says what Android's side would have to
+  do). A text that is both a sign-in code and spam is in Codes, which is asked first. Tests:
+  `test/plugin_spam_test.dart`. Pictures: `test/shots/12-plugins-spam-*`, `12-plugins-settings-spam-*`.
+- **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
+  that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
+  "I'd like to support both a relay server and local networking, it should attempt to use local networking by
+  default and show the option for both in the setup wizard"). Ghost Messaging for the Mac shows the phone's
+  conversations beside the one open, shows a new text as it arrives, and sends what is typed there through the
+  phone, which stays the only thing that texts. The two are paired by a QR code the Mac shows: the phone's own
+  camera opens it in the app, which asks first ("Pair with Matt's MacBook Pro?"), or Settings › Computers › Pair a
+  computer scans it or takes it pasted; both then show six digits to compare. Everything
+  between them is sealed with a key made in the pairing (the phone-to-phone encryption's construction, with a key
+  for each connection and a counter on every frame, so nothing can be replayed). They reach each other on the local
+  network (the phone announces itself, the Mac finds it) or through a relay that passes the sealed frames and keeps
+  none: both wizards offer local network then relay (the default), local only, or relay only. Settings › Computers
+  lists the paired computers, how each is connected, and Unpair; the Mac unpairs too. While a computer is paired the
+  phone shows a quiet permanent notification, which is what lets Android keep it reachable. What is typed on the Mac
+  while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps what it has read (the
+  list and each conversation's messages) sealed on its disk with a key made from the pairing's, answers the
+  screens from that at once, and fetches only what is new from the phone behind them (not released; docs/desktop.md,
+  "What the Mac keeps"; Matt, 2026-11-14: "cache messages on the desktop app so that we don't need to fetch them
+  all from the phone every time, just fetching updates in the background"). A
+  computer can read, send text, mark read, pin, mute and archive; it cannot delete, block, change encryption or
+  send pictures. The relay is on our server since 2026-11-14 (`wss://ghost-sms.com/relay`).
+- **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
+  expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
+  own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
+  Appearance (theme, your bubbles, text size), Chat background, Emoji (the sets, large emoji), Effects; Messages
+  (Enter sends, attach reactions to messages), Receipts (delivery reports, read receipts, the ticks explained),
+  Notifications (Android's permission, message previews, the copy-code button, sound and vibration); Encryption (what
+  it is, the people, this phone's key, a new key), Blocked numbers (tap to unblock), Archived; Your number, Android
+  (default SMS app, contacts, phone number), Ghost Keyboard (0.5.0); Updates, About. Settings › Updates says "ghost-sms.com isn't serving
+  updates yet" where the site has no certificate, no such name, nothing answering or no release, and "This phone is
+  offline" where that is why, in place of Java's own error.
+
+Not yet: RCS and iMessage (no API exists for apps other than Google's and Apple's own, so no typing indicators and
+no read receipts for plain texts), sending video or audio, scheduled messages, search inside messages, dual-SIM
+choice (the phone's default SMS SIM is used), and a backup.
+
+## How it is built
+
+| Part | Where | What |
+| --- | --- | --- |
+| The screens | `lib/` | Flutter, drawn with Glacier (`packages/glacier`, copied from Ghost Keyboard's copy of Ghost.md's kit: `packages/glacier/VENDORED.md`), Ghost.md's stylesheets (`assets/css`), Ghost Keyboard's settings kit (`lib/kit`) and Lucide icons drawn as Ghost.md draws them (`lib/art`). |
+| The bridge | `lib/sms.dart` and `MainActivity.kt` | `ghost_messaging/sms` (calls) and `ghost_messaging/events` (a conversation changed; a notification asked for one). |
+| The messages | `Store.kt` | Android's SMS/MMS provider: conversations, messages, parts, contacts, and writing what arrives or is sent. |
+| Sending and receiving | `Messaging.kt` | `SmsManager` for SMS and MMS, and the receivers Android requires of a default SMS app (`SMS_DELIVER`, `WAP_PUSH_DELIVER`). |
+| MMS bytes | `Pdu.kt` | The MMS wire format, reading m-notification-ind and m-retrieve-conf and writing m-send-req and m-notifyresp-ind. Android does the radio and the carrier's HTTP but leaves the bytes to the app. Tests: `android/app/src/test/.../PduTest.kt`. |
+| Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
+| Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
+| The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `spam.dart`). |
+| The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
+
+## Building
+
+```sh
+flutter pub get
+flutter build apk --release --target-platform android-arm64   # build/app/outputs/flutter-apk/app-release.apk
+flutter test                                                  # reactions, edits, effects, emoji sets, settings and backgrounds; builds every screen;
+                                                              # the Mac's sealing and its link to a stand-in phone through the real relay
+flutter test --update-goldens test/screens_test.dart          # every screen, light and dark, written to test/shots/
+flutter test --update-goldens test/desk_screens_test.dart     # the Mac's screens, written to test/shots/mac-*
+cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, the encryption, a background as a text, the codes offered,
+                                                              # the sealing with a computer, a computer's connection, the WebSocket client, a QR code read
+flutter build macos                                           # the Mac app: build/macos/Build/Products/Release/Ghost Messaging.app
+(cd relay && dart test && dart run bin/relay.dart)            # the relay: its tests, then ws://127.0.0.1:8787
+flutter test integration_test/desk_live_test.dart -d macos    # the real Mac app against the phone app on an emulator (the file says how)
+```
+
+`flutter build apk` builds the phone app exactly as before: the Mac app is the same project's other platform, and
+nothing of it is in the APK but the Settings page and the phone's half (`Desk*.kt`).
+
+The emoji sets' picture (`test/shots/7-emoji-sets.png`) is compared on Linux only: a Mac's test engine draws fonts
+with Core Text, which leaves Twemoji's row blank, where Linux's and Android's draw it with FreeType.
+
+## Releasing (ghost-sms.com)
+
+Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the domain to the same server ghost kbd
+uses". Both scripts are Ghost Keyboard's, for this app, and use Ghost.md's box account (`tauri/.env`) through
+Ghost.md's own `box.mjs`, so they run where that file is: on the Mac, not in a cloud session.
+
+```sh
+node tool/deploy-site.mjs --caddy   # once: site/ into /opt/ghost-sms-site, and ghost-sms.com's block in the Caddyfile
+node tool/release.mjs               # each release: build, sign, check, upload to /opt/ghost-sms-release, verify it is served
+node tool/deploy-site.mjs           # when site/ changes
+python3 tool/app_icon.py            # every icon from art/app-icon.png, when the icon changes
+```
+
+Both ran for the first time on 2026-11-13 (one box login, 19:56:05 UTC, held for both: `--keep-connection` on each
+after Ghost.md's `build/diag/hold-box.mjs`): the Caddy block went in with every other site answering as before
+(backup `/etc/caddy/Caddyfile.bak-20261113-195607`), and 0.3.1 (code 6) was the first release. From a worktree of
+this repository the scripts need `--glyph ~/Development/Apps/glyph`: the box's `.env` is only in the main checkout.
+`www.ghost-sms.com` has no DNS record yet, so its redirect has no certificate (ghostkbd.com's www is the same).
+
+- **The release key** is made by the first `tool/release.mjs` in `~/.config/ghostmessaging/` (back it up) and its
+  certificate is pinned there; `android/app/build.gradle.kts` signs release builds with it when it is present.
+- **A build made without the key** (every APK so far: they were built in a cloud session and are signed with that
+  machine's debug key) can't be updated to the release, since Android wants the same certificate. Such a copy says so
+  in Settings › Updates. It is uninstalled and the release installed from ghost-sms.com once; no messages are lost,
+  because they are Android's. Its settings, archive, pins and drafts are the app's own and start again.
+- The domain must point at the box before `--caddy`, or Caddy can't get its certificate.
+
+## What hasn't been tried on a phone
+
+Every version so far was built in a cloud container with no phone and no emulator (no KVM). The screens and a frame
+of each effect are drawn in Flutter's test harness with made-up conversations (`test/shots/`), the MMS format, its
+reports and the sign-in code finder are checked by `PduTest`, reactions, effects and emoji sets by the Dart tests, and
+the manifest was checked for every component Android looks for before it offers an app as the default SMS app.
+Sending, receiving, MMS download and reports through a real carrier, notifications, blocking and the updater's
+install have not run on a device; nor has 0.4.0's encryption between two phones, a picture as a chat background, or
+Match my wallpaper, nor 0.5.0's synced background between two phones (a picture one above all: it is an MMS), nor a
+0.6.0 sticker through a carrier (it is an MMS too). Since 0.6.2 picture messages have run both ways on an emulator
+against a stand-in carrier (tool/mms/), which is not a carrier: a real one may still refuse what a stand-in takes. A
+voice message was recorded on an emulator (whose microphone hears nothing), kept, played back, sent again after it
+failed, and thrown away on leaving the app mid-recording; it has not gone through a carrier, been heard, or been
+played on another phone. The frame (`lib/ui/shell.dart`) was run on an emulator narrow and widened to a folding
+phone's opened size, with Android's back and another app's "text this number"; a real fold being opened and closed
+with a conversation open, and the keyboard beside the list, have not been seen. `docs/HANDOFF.md` section 3 is the
+list to go through on a phone.
+
+The Mac app and the phone's half of it were tried against each other on an emulator, by each way of connecting
+([docs/desktop.md](docs/desktop.md), "Trying it"). Not on the Fold: the two finding each other on a real network
+(Bonjour and NSD), the camera reading the Mac's QR code, the Keychain in a signed build, and the phone staying
+reachable through deep sleep.

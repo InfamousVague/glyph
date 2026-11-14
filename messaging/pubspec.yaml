@@ -1,0 +1,64 @@
+name: ghost_messaging
+description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
+publish_to: 'none'
+version: 0.7.10+22
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The Glacier UI kit in Flutter, vendored from Ghost.md by way of Ghost Keyboard (packages/glacier/VENDORED.md).
+  glacier:
+    path: packages/glacier
+  pointycastle: ^4.0.0
+  qr: ^4.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Starts the real Mac app and drives it against a phone on an emulator (integration_test/desk_live_test.dart).
+  integration_test:
+    sdk: flutter
+  # The relay itself, so the Mac's link is tested through the real one (test/desk_link_test.dart).
+  ghost_relay:
+    path: relay
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: false
+  assets:
+    # Ghost.md's stylesheets, read by the token engine over Glacier's own (lib/main.dart).
+    - assets/css/ink.css
+    - assets/css/app.css
+    # Overlays that play in place of a drawn effect, where one has been added (docs/effects.md).
+    - assets/effects/
+    # The sticker packs, made from the effects' ghost by tool/sticker_packs.py (lib/stickers.dart).
+    - assets/stickers/ghost/
+    - assets/stickers/love/
+    - assets/stickers/party/
+    - assets/stickers/sweet/
+    - assets/stickers/mischief/
+    # The app's own mark, cut from its icon (tool/app_icon.py).
+    - assets/art/
+  fonts:
+    - family: Inter Variable
+      fonts:
+        - asset: assets/fonts/InterVariable-latin.ttf
+    - family: JetBrains Mono Variable
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoVariable-latin.ttf
+    # The emoji sets the person chooses between (lib/emoji_sets.dart, assets/emoji/LICENSES.md).
+    - family: Ghost Emoji Noto
+      fonts:
+        - asset: assets/emoji/NotoColor.ttf
+    - family: Ghost Emoji Twemoji
+      fonts:
+        - asset: assets/emoji/Twemoji.ttf
+    - family: Ghost Emoji OpenMoji
+      fonts:
+        - asset: assets/emoji/OpenMoji.ttf
+    - family: Ghost Emoji Outline
+      fonts:
+        - asset: assets/emoji/NotoOutline.ttf

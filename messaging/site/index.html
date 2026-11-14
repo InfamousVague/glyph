@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghost Messaging</title>
+<meta name="description" content="Ghost Messaging: a texting app for Android. SMS and picture messages with reactions, effects, a choice of emoji, and nothing sent anywhere but to the people you text.">
+<link rel="canonical" href="https://ghost-sms.com/">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; --rule: #e3e3e6; --accent: #4f5bd5; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; --rule: #232326; --accent: #8c95ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 17px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  main { max-width: 44rem; margin: 0 auto; padding: 4rem 1.25rem 3rem; }
+  .mark { width: 4.5rem; height: 4.5rem; border-radius: 1.3rem; display: block; }
+  h1 { font-size: clamp(2.2rem, 7vw, 3.2rem); line-height: 1.05; letter-spacing: -0.03em; margin: 1.5rem 0 0.75rem; }
+  .lede { font-size: 1.15rem; color: var(--ink2); margin: 0 0 1.75rem; max-width: 34rem; }
+  .get { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem 1.1rem; }
+  a.button { display: inline-block; background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 650; padding: 0.85rem 1.5rem; border-radius: 999px; }
+  a.button:active { transform: scale(0.97); }
+  .version { color: var(--ink2); font-size: 0.95rem; }
+  ul.points { list-style: none; padding: 0; margin: 2.75rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+  ul.points li { background: var(--card); border-radius: 1.1rem; padding: 1rem 1.1rem; }
+  ul.points b { display: block; margin-bottom: 0.15rem; }
+  ul.points span { color: var(--ink2); font-size: 0.95rem; }
+  .how { margin-top: 2.75rem; border-top: 1px solid var(--rule); padding-top: 1.5rem; color: var(--ink2); font-size: 0.95rem; }
+  .how h2 { color: var(--ink); font-size: 1.05rem; margin: 0 0 0.5rem; }
+  .how ol { margin: 0; padding-left: 1.2rem; }
+  footer { margin-top: 2.5rem; color: var(--ink2); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <img class="mark" src="/icon.png" width="72" height="72" alt="">
+  <h1>Ghost Messaging</h1>
+  <p class="lede">A texting app for Android. Your SMS and picture messages, with reactions, effects and a choice of emoji, in the same quiet design as Ghost.md and Ghost Keyboard.</p>
+  <div class="get">
+    <a class="button" href="/ghost-messaging.apk" id="download">Download for Android</a>
+    <span class="version" id="version"></span>
+  </div>
+
+  <ul class="points">
+    <li><b>Replaces your texting app</b><span>Every conversation you already have is there the moment you switch, and still there if you switch back.</span></li>
+    <li><b>Reactions that land</b><span>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own. Send yours back.</span></li>
+    <li><b>Effects</b><span>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", and ghosts for "Boo".</span></li>
+    <li><b>Your emoji</b><span>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set.</span></li>
+    <li><b>Ticks</b><span>Sent, delivered, and read where the other phone says so.</span></li>
+    <li><b>Private by default</b><span>No account to make. What goes through our server between friends is sealed on your phone, so the server passes it along and can't read it. Linking a social account so friends can find you is yours to turn on.</span></li>
+  </ul>
+
+  <div class="how">
+    <h2>Installing</h2>
+    <ol>
+      <li>Download the APK on your Android phone and open it. Allow your browser to install apps if Android asks.</li>
+      <li>Open Ghost Messaging and choose "Set as default SMS app".</li>
+      <li>That's it. It keeps itself up to date from here.</li>
+    </ol>
+  </div>
+
+  <footer>Texts and picture messages go through your carrier as they always have. RCS and iMessage are not available to apps other than Google's and Apple's own.</footer>
+</main>
+<script>
+  // The release's own word for its version (tool/release.mjs writes apk.json beside the APK).
+  fetch('/apk.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((info) => {
+      if (!info) return;
+      document.getElementById('version').textContent = 'Version ' + info.version + ' · ' + (info.bytes / 1e6).toFixed(1) + ' MB';
+      if (/^[A-Za-z0-9._-]+$/.test(info.url)) document.getElementById('download').href = '/' + info.url;
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>
