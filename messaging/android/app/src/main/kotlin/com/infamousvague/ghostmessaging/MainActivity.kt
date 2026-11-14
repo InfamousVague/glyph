@@ -270,6 +270,28 @@ class MainActivity : FlutterActivity() {
                     try { startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", call.argument<String>("address")!!, null))) } catch (_: Exception) {}
                     result.success(null)
                 }
+                // Things to do with what a message says (lib/plugins/actions.dart): an event for the calendar, a place
+                // for the map. Each opens the app Android has for it, with the details filled in, for the person to save.
+                "addEvent" -> {
+                    val ok = try {
+                        val begin = (call.argument<Number>("begin") ?: 0).toLong()
+                        startActivity(Intent(Intent.ACTION_INSERT).setData(android.provider.CalendarContract.Events.CONTENT_URI)
+                            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, begin)
+                            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, begin + 60 * 60 * 1000L)
+                            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, call.argument<Boolean>("allDay") == true)
+                            .putExtra(android.provider.CalendarContract.Events.TITLE, call.argument<String>("title") ?: "")
+                            .putExtra(android.provider.CalendarContract.Events.DESCRIPTION, call.argument<String>("notes") ?: ""))
+                        true
+                    } catch (_: Exception) { false }
+                    result.success(ok)
+                }
+                "openMap" -> {
+                    val ok = try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(call.argument<String>("place") ?: ""))))
+                        true
+                    } catch (_: Exception) { false }
+                    result.success(ok)
+                }
                 "systemPalette" -> result.success(systemPalette())
                 // Coming from another texting app (Arriving.kt): what can be seen of it, and the ways out of its traps.
                 "arriving" -> bg { Arriving.state(applicationContext) }

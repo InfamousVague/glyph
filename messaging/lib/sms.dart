@@ -823,6 +823,35 @@ class Sms {
   Future<List<Person>> blockedNumbers() async => [for (final m in (await _calls.invokeMethod<List>('blockedNumbers')) ?? const []) Person.from(m as Map)];
   Future<void> notificationSettings() => _calls.invokeMethod('notificationSettings');
 
+  /// Opens the calendar's new event with [title] at [begin] filled in (lib/plugins/actions.dart); false where the
+  /// phone has no calendar to take it, or on a computer.
+  Future<bool> addEvent({required String title, required DateTime begin, bool allDay = false, String notes = ''}) async {
+    if (remote) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('addEvent', {'title': title, 'begin': begin.millisecondsSinceEpoch, 'allDay': allDay, 'notes': notes})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens the map at [place] (an address as written); false where nothing could, or on a computer.
+  Future<bool> openMap(String place) async {
+    if (remote) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('openMap', {'place': place})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The phone's dialler with [number] in it.
+  Future<void> dial(String number) async {
+    if (remote) return;
+    try {
+      await _calls.invokeMethod('dial', {'address': number});
+    } catch (_) {}
+  }
+
   /// Where the phone's own model for summaries stands (android/.../Summaries.kt): "available", "downloading",
   /// "downloadable" or "unavailable". A computer has none of its own.
   Future<String> summaryStatus() async {
