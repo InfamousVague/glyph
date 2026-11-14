@@ -155,6 +155,36 @@ void main() {
     }
   });
 
+  test('a paired computer verifies the number through the phone: the phone\'s install is the one linked', () async {
+    final phone = _Install(url());
+    await phone.open();
+    // The computer's Me asks the phone's (android DeskCalls "me" → Me.forComputer); the link itself is
+    // test/desk_link_test.dart's.
+    Future<Map<String, dynamic>> ask(Map<String, Object?> what) async => Map<String, dynamic>.from((await phone.me.forComputer({'what': what})) as Map);
+    final mac = Me.forTest();
+    await mac.followPhone(ask);
+    expect(mac.ready, isTrue, reason: 'the phone woke its own conversation with the server to answer');
+    expect(mac.texts, isTrue);
+
+    expect(await mac.textCode('443 653 7451'), '+14436537451');
+    await expectLater(mac.tryCode('+14436537451', '111111'), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('not the code'))));
+    await mac.tryCode('+14436537451', texted['+14436537451']!);
+    expect(mac.number, '+14436537451');
+    expect(phone.me.number, '+14436537451', reason: 'linked to the phone, not to the computer');
+    expect(relay.hub!.handles!.linked, 1);
+
+    // Opened again, the computer reads it from the phone; and what the phone will not do for it, it says.
+    final again = Me.forTest();
+    await again.followPhone(ask);
+    expect(again.number, '+14436537451');
+    await expectLater(again.forgetEverything(), throwsA(isA<MeError>()));
+    expect(relay.hub!.handles!.linked, 1);
+    await again.unlink('phone');
+    await _until(() => relay.hub!.handles!.linked == 0);
+    expect(phone.me.number, isNull);
+    await phone.hub.stop();
+  });
+
   test('nothing is said to the server about handles until an install uses them', () async {
     final a = _Install(url());
     await a.open();
