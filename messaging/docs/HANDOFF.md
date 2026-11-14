@@ -187,7 +187,9 @@ an effect arriving; block and unblock; the updater against the first real releas
 phones with the app; a sticker each way (it is a picture message: does its clear background arrive, on a phone
 with the app and on one without); and a voice message each way, with an iPhone and with a phone on Google Messages
 (it is an MMS with an `.m4a` in it: does it arrive, does it play there, does theirs play here, and how long does
-the Fold's carrier let one run).
+the Fold's carrier let one run); and the frame (`lib/ui/shell.dart`): the Fold opened out shows the list beside the
+conversation, closing it with a conversation open keeps that conversation and what is half written in it, back
+closes the conversation before it leaves the app, and a notification opens its conversation in either state.
 
 ## Ways of working that Matt has asked for
 

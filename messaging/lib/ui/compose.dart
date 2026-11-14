@@ -9,6 +9,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'shell.dart';
 import 'thread.dart';
 
 /// A new message: who it is to (contacts as they are typed, or a number), then the conversation with them.
@@ -72,6 +73,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
     final addresses = _to.map((p) => p.address).toList();
     final thread = await Sms.instance.threadFor(addresses);
     if (!mounted) return;
+    // In the app's frame the conversation takes this page's place in the pane, and the list marks it.
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) return shell.openThread(thread, List.of(_to), draft: widget.body);
     Navigator.of(context).pushReplacement(PageRouteBuilder<void>(
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, _, _) => ThreadScreen(thread: thread, people: List.of(_to), draft: widget.body),

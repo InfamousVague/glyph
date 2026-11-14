@@ -27,6 +27,8 @@ class GhostPage extends StatelessWidget {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
     final inset = MediaQuery.viewInsetsOf(context).bottom;
+    // Beside the list (lib/ui/shell.dart) there is nowhere to go back to: the list is there to be seen.
+    final back = this.back && !PaneRoot.beside(context);
     return ColoredBox(
       color: t.color('glacier-bg'),
       child: Column(
@@ -135,6 +137,31 @@ class _ArcPainter extends CustomPainter {
 }
 
 /// A round icon button, the kit's press and focus ring round it.
+/// Round the page a wide window shows beside the list of conversations (lib/ui/shell.dart): a conversation, a new
+/// message, Settings. [beside] is whether the list is there to be seen, in which case the page draws no way back
+/// (GhostPage). A page opened from that one is not under this, and keeps its way back.
+class PaneRoot extends InheritedWidget {
+  const PaneRoot({super.key, required this.isBeside, required super.child});
+  final bool isBeside;
+
+  static bool beside(BuildContext context) => context.dependOnInheritedWidgetOfExactType<PaneRoot>()?.isBeside ?? false;
+
+  @override
+  bool updateShouldNotify(PaneRoot old) => old.isBeside != isBeside;
+}
+
+/// Round a page that another has been laid over without leaving its place: the list of conversations under the
+/// one opened on a narrow screen (lib/ui/shell.dart). Its header no longer says where the update banner hangs.
+class HeaderCover extends InheritedWidget {
+  const HeaderCover({super.key, required this.covered, required super.child});
+  final bool covered;
+
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<HeaderCover>()?.covered ?? false;
+
+  @override
+  bool updateShouldNotify(HeaderCover old) => old.covered != covered;
+}
+
 /// Where a page's header ends: a mark of no size that a page puts under its header (GhostPage puts one under its
 /// title; the list of conversations puts another under its search field). The update banner hangs just below the
 /// lowest one on the page in front, so it is over the page's content and never over its header.
@@ -150,7 +177,7 @@ class HeaderEnd extends StatefulWidget {
   static double? lowest() {
     double? y;
     for (final mark in _marks) {
-      if (!mark.mounted || !(mark._route?.isCurrent ?? true)) continue;
+      if (!mark.mounted || mark._covered || !(mark._route?.isCurrent ?? true)) continue;
       final box = mark.context.findRenderObject();
       if (box is! RenderBox || !box.attached || !box.hasSize) continue;
       final at = box.localToGlobal(Offset.zero).dy;
@@ -165,6 +192,7 @@ class HeaderEnd extends StatefulWidget {
 
 class _HeaderEndState extends State<HeaderEnd> {
   ModalRoute<dynamic>? _route;
+  bool _covered = false;
 
   void _say() => WidgetsBinding.instance.addPostFrameCallback((_) => HeaderEnd.changed.value++);
 
@@ -179,6 +207,7 @@ class _HeaderEndState extends State<HeaderEnd> {
     super.didChangeDependencies();
     // The page coming to the front or leaving it is a change of this, and so is its arriving.
     _route = ModalRoute.of(context);
+    _covered = HeaderCover.of(context);
     _say();
   }
 
@@ -443,7 +472,8 @@ class _ChoiceSheet extends StatelessWidget {
       alignment: Alignment.bottomCenter,
       child: Padding(
         padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
-        child: ClipRRect(
+        // A sheet's width, where the window is wider than a phone: not a band across the whole of it.
+        child: ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('30rem')), child: ClipRRect(
           borderRadius: BorderRadius.circular(t.radius('xl')),
           child: ColoredBox(
             color: t.color('app-paper-2'),
@@ -483,7 +513,7 @@ class _ChoiceSheet extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        )),
       ),
     );
   }

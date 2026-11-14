@@ -337,6 +337,18 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **One frame, phone and computer** (not released; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
+  to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
+  app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from
+  it. In a window 640 wide or wider (a folding phone opened out, a tablet, a computer) the list is down the side,
+  as the Mac's first had it, with what is open beside it, its row marked, and no way back drawn; narrower (a phone,
+  a folding phone's cover) the list is the screen and what is opened slides over it. Both are kept in place as the
+  window changes, so a conversation open on the cover, and what is half written in it, is still open when the phone
+  is opened out. The list's header holds New message and Settings, where a round button floated over the list's
+  foot. Android's back closes what is in the pane, then leaves Archived, then leaves the app. What a notification
+  or another app's "text this number" asks for opens in the pane too. The Mac's window still has its own copy of
+  this (`lib/desktop/ui/shell.dart`) until the desktop session moves it over: `AppShell` takes what the Mac keeps
+  under its list (`foot`), what its pane says when empty (`nothing`) and its own Settings (`settings`).
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by
@@ -445,7 +457,10 @@ Match my wallpaper, nor 0.5.0's synced background between two phones (a picture 
 against a stand-in carrier (tool/mms/), which is not a carrier: a real one may still refuse what a stand-in takes. A
 voice message was recorded on an emulator (whose microphone hears nothing), kept, played back, sent again after it
 failed, and thrown away on leaving the app mid-recording; it has not gone through a carrier, been heard, or been
-played on another phone. `docs/HANDOFF.md` section 3 is the list to go through on a phone.
+played on another phone. The frame (`lib/ui/shell.dart`) was run on an emulator narrow and widened to a folding
+phone's opened size, with Android's back and another app's "text this number"; a real fold being opened and closed
+with a conversation open, and the keyboard beside the list, have not been seen. `docs/HANDOFF.md` section 3 is the
+list to go through on a phone.
 
 The Mac app and the phone's half of it were tried against each other on an emulator, by each way of connecting
 ([docs/desktop.md](docs/desktop.md), "Trying it"). Not on the Fold: the two finding each other on a real network

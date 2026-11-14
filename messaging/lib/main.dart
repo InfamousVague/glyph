@@ -12,12 +12,9 @@ import 'desktop/main.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'sms.dart';
-import 'ui/compose.dart';
 import 'ui/computers.dart';
-import 'ui/conversations.dart';
-import 'ui/settings.dart';
 import 'ui/setup.dart';
-import 'ui/thread.dart';
+import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
 /// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
@@ -151,6 +148,10 @@ class _Home extends StatefulWidget {
 }
 
 class _HomeState extends State<_Home> with WidgetsBindingObserver {
+  final _shell = GlobalKey<AppShellState>();
+
+  /// Each page that opens in the pane asks for a look for a newer version, as each page of the app does.
+  final _paneWatch = <NavigatorObserver>[UpdateWatch()];
   bool? _isDefault;
   StreamSubscription<OpenRequest>? _opens;
 
@@ -196,38 +197,36 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     final nav = _navigator.currentState;
     if (nav == null || _isDefault != true) return;
     nav.popUntil((r) => r.isFirst);
+    // What is asked for opens in the frame's pane (lib/ui/shell.dart): over the list on a narrow screen, beside it
+    // on a wide one. The frame is on the screen a frame after the app is found to be the default.
+    if (_shell.currentState == null) await WidgetsBinding.instance.endOfFrame;
+    final shell = _shell.currentState;
+    if (shell == null) return;
+    shell.home();
     if (req.pairing != null) {
       // A computer's pairing link, opened by the camera: the pairing page, which asks first.
-      nav.push(_route((_) => PairComputerScreen(offered: req.pairing)));
+      shell.show(PairComputerScreen(offered: req.pairing));
     } else if (req.computers) {
       // The "Paired with …" notification.
-      nav.push(_route((_) => const SettingsSectionScreen('computers')));
+      shell.settings('computers');
     } else if (req.thread != null) {
       final people = await Sms.instance.people(req.thread!);
-      nav.push(_route((_) => ThreadScreen(thread: req.thread!, people: people)));
+      shell.openThread(req.thread!, people);
     } else if (req.addresses.isNotEmpty) {
       final thread = await Sms.instance.threadFor(req.addresses);
       final people = <Person>[for (final a in req.addresses) await Sms.instance.contact(a)];
-      nav.push(_route((_) => ThreadScreen(thread: thread, people: people, draft: req.body)));
+      shell.openThread(thread, people, draft: req.body);
     } else {
-      nav.push(_route((_) => ComposeScreen(body: req.body)));
+      shell.compose(body: req.body);
     }
   }
-
-  PageRouteBuilder<void> _route(WidgetBuilder b) => PageRouteBuilder<void>(
-        transitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, _, _) => b(context),
-        transitionsBuilder: (context, a, _, child) => SlideTransition(
-          position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
-          child: child,
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
     if (_isDefault == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
     if (!_isDefault!) return SetupScreen(onDone: () => _check(first: true));
-    return const ConversationsScreen();
+    // The list, and what is opened from it beside it where the screen is wide enough (a folding phone opened out).
+    return AppShell(key: _shell, paneObservers: _paneWatch);
   }
 }
 

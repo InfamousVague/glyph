@@ -1230,7 +1230,10 @@ class _Bubble extends StatelessWidget {
       builder: (at) => GestureDetector(
         onLongPress: () {
           final box = at.findRenderObject();
-          if (box is RenderBox && box.hasSize) onLongPress(box.localToGlobal(Offset.zero) & box.size);
+          // Measured against the pane the conversation is in, which is where what it brings up is drawn: beside
+          // the list (lib/ui/shell.dart) that is not the whole window.
+          final pane = Navigator.of(at).context.findRenderObject();
+          if (box is RenderBox && box.hasSize) onLongPress(box.localToGlobal(Offset.zero, ancestor: pane) & box.size);
         },
         onTap: ink0 ? onReveal : onTapFailed,
         child: held,
