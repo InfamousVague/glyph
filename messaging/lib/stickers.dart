@@ -2,7 +2,8 @@ import 'package:flutter/services.dart';
 
 /// The app's stickers (Matt, 2026-11-13: "generate 4 sticker packs using our ghost mascot we've developed"): the
 /// ghost in the poses drawn for the message effects, made into stickers by tool/sticker_packs.py and kept in
-/// `assets/stickers/<pack>/`. A sticker is sent as a picture message.
+/// `assets/stickers/<pack>/`. A sticker is sent as a picture message. Mischief is a pack drawn for itself (the
+/// dark-cute one: horns, a heart-tipped tail), cut from its own sheet by the same tool.
 class StickerPack {
   const StickerPack(this.id, this.name, this.stickers);
   final String id;
@@ -13,7 +14,7 @@ class StickerPack {
 }
 
 /// The packs' names, in the order they are offered. A pack with no pictures is not offered.
-const _names = {'ghost': 'Ghost', 'love': 'Love', 'party': 'Party', 'sweet': 'Sweet'};
+const _names = {'ghost': 'Ghost', 'love': 'Love', 'party': 'Party', 'sweet': 'Sweet', 'mischief': 'Mischief'};
 
 Future<List<StickerPack>>? _packs;
 

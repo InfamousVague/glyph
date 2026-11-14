@@ -264,8 +264,8 @@ void main() {
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.
       final packs = (await tester.runAsync(stickerPacks))!;
-      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet']);
-      for (final (pack, encrypted) in [('ghost', false), ('sweet', true)]) {
+      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet', 'Mischief']);
+      for (final (pack, encrypted) in [('ghost', false), ('sweet', true), ('mischief', false)]) {
         await _shoot(
           tester,
           sheet,
@@ -312,6 +312,8 @@ void main() {
         expect(sprites, isNotNull, reason: '${effect.name} has no pictures in assets/effects/');
         expect(sprites!.heroes, isNotEmpty, reason: '${effect.name} has no characters');
         expect(sprites.props, isNotEmpty, reason: '${effect.name} has no props');
+        // Its characters move (tool/effect_anims.py): all four, but for the two Matt has not drawn yet.
+        expect(sprites.animated, effect == ScreenEffect.balloons || effect == ScreenEffect.confetti ? 3 : 4, reason: '${effect.name} has ${sprites.animated} moving characters');
         await _shoot(
           tester,
           sheet,

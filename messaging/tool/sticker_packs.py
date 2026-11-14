@@ -5,6 +5,7 @@ Makes the app's sticker packs (lib/stickers.dart) from the ghost drawn for the m
 Matt, 2026-11-13: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio one".
 
     python3 tool/sticker_packs.py
+    python3 tool/sticker_packs.py mischief="~/Desktop/Mischief sticker sheet.png"     keeps a pack's own sheet, then makes all
 
 The ghost's poses are the characters on the effects' sheets (art/effects/, cut by tool/effect_sprites.py, whose
 cutting this uses at the sheets' full size). A sticker is one pose with a sticker's white edge round it, on a clear
@@ -16,6 +17,11 @@ square. Four packs, sixteen each:
     sweet   the pastel one: the ghost in soft pink, lilac, mint, butter and sky, with little hearts, flowers and
             sparkles. It is our own ghost in the cute pastel manner Matt asked for by naming Sanrio; none of Sanrio's
             characters, names or drawings are in it, since those are Sanrio's and not ours to ship.
+
+A fifth pack is drawn for itself and not made from the effects (Matt, 2026-11-13: "sliced ... the sticker pack
+from the desktop"): **mischief**, the dark-cute one, our ghost with little horns and a heart-tipped tail in black,
+purple and hot pink. Its sheet is sixteen stickers, four across and four down, kept in art/stickers/mischief.webp
+(nothing drawn is lost, the background remover's halo cleared) and cut by shape (effect_sprites.cut_grid).
 
 Written to assets/stickers/<pack>/01.webp…, and to build/stickers/, one picture of each pack to look over.
 A pack's order here is its order in the app.
@@ -57,6 +63,12 @@ PACKS = {
         'goodNight-h4', 'getWell-h3', 'snow-h4', 'thanks-h2', 'balloons-h1', 'goodNight-h2', 'hungry-h4', 'wow-h3',
     ],
 }
+
+# Packs drawn for themselves: the sheet in art/stickers/<pack>.webp, and how many across and down it holds.
+SHEET_PACKS = {
+    'mischief': (4, 4),
+}
+SHEETS = os.path.join(ROOT, 'art', 'stickers')
 
 # The sweet pack's colours: what the ghost's white becomes, and what its grey line becomes.
 PASTELS = [
@@ -143,6 +155,22 @@ def sticker(name, number, sweet=False):
     else:
         pose = fitted(pose, big - 2 * edge - 4 * OVER)
         art.alpha_composite(pose, ((big - pose.width) // 2, (big - pose.height) // 2))
+    return edged(art)
+
+
+def from_sheet(pose):
+    """One sticker of a pack drawn for itself: its drawing, fitted to the square, with the edge."""
+    big = SIZE * OVER
+    edge = (EDGE + RIM) * OVER
+    art = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    pose = fitted(pose, big - 2 * edge - 4 * OVER)
+    art.alpha_composite(pose, ((big - pose.width) // 2, (big - pose.height) // 2))
+    return edged(art)
+
+
+def edged(art):
+    """[art], drawn large on a clear square, with a sticker's white edge round it, brought down to size."""
+    big = art.width
     shape = art.getchannel('A')
     out = Image.new('RGBA', (big, big), (0, 0, 0, 0))
     out.paste((52, 54, 64, 255), mask=grown(shape, (EDGE + RIM) * OVER).point(lambda v: v * 30 // 100))
@@ -164,25 +192,54 @@ def look(pack, made):
     page.save(os.path.join(LOOK, pack + '.png'))
 
 
+def keep_sheet(pack, source):
+    """Keeps a pack's own sheet in art/stickers/: every pixel as drawn, less the halo."""
+    os.makedirs(SHEETS, exist_ok=True)
+    px = np.array(Image.open(os.path.expanduser(source)).convert('RGBA'))
+    px[px[..., 3] < effect_sprites.CLEAR] = 0
+    Image.fromarray(px).save(os.path.join(SHEETS, pack + '.webp'), 'WEBP', lossless=True, quality=90, method=6)
+
+
+def write(pack, made):
+    folder = os.path.join(OUT, pack)
+    os.makedirs(folder, exist_ok=True)
+    # What was made before goes: a pack may have fewer than it had.
+    for f in os.listdir(folder):
+        if f.endswith('.webp'):
+            os.remove(os.path.join(folder, f))
+    size = 0
+    for i, piece in enumerate(made):
+        path = os.path.join(folder, '%02d.webp' % (i + 1))
+        piece.save(path, 'WEBP', quality=90, method=6)
+        size += os.path.getsize(path)
+    look(pack, made)
+    print('%-9s %d stickers' % (pack, len(made)))
+    return size
+
+
 def main():
     os.makedirs(LOOK, exist_ok=True)
+    for arg in sys.argv[1:]:
+        pack, _, source = arg.partition('=')
+        if pack not in SHEET_PACKS or not source:
+            sys.exit('%s: a pack with a sheet of its own is one of %s, given as pack=path' % (arg, ', '.join(SHEET_PACKS)))
+        keep_sheet(pack, source)
     total = 0
+    for pack, (cols, rows) in SHEET_PACKS.items():
+        sheet = os.path.join(SHEETS, pack + '.webp')
+        if not os.path.exists(sheet):
+            print('%-9s no sheet in art/stickers/: left as it is' % pack)
+            continue
+        found = effect_sprites.cut_grid(sheet, cols, rows)
+        missing = [i + 1 for i, f in enumerate(found) if f is None]
+        if missing:
+            sys.exit('%s: nothing was found in place %s of its sheet' % (pack, missing))
+        total += write(pack, [from_sheet(piece) for piece, _ in found])
+    if os.environ.get('ONLY_SHEETS'):
+        print('in all %.1f MB' % (total / 1e6))
+        return
     for pack, names in PACKS.items():
-        folder = os.path.join(OUT, pack)
-        os.makedirs(folder, exist_ok=True)
-        # What was made before goes: a pack may have fewer than it had.
-        for f in os.listdir(folder):
-            if f.endswith('.webp'):
-                os.remove(os.path.join(folder, f))
-        made = []
-        for i, name in enumerate(names):
-            piece = sticker(name, i, sweet=pack == 'sweet')
-            path = os.path.join(folder, '%02d.webp' % (i + 1))
-            piece.save(path, 'WEBP', quality=90, method=6)
-            total += os.path.getsize(path)
-            made.append(piece)
-        look(pack, made)
-        print('%-6s %d stickers' % (pack, len(made)))
+        total += write(pack, [sticker(name, i, sweet=pack == 'sweet') for i, name in enumerate(names)])
     print('in all %.1f MB, in %s; to look over: %s' % (total / 1e6, os.path.relpath(OUT, ROOT), os.path.relpath(LOOK, ROOT)))
 
 

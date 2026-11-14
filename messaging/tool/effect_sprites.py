@@ -182,6 +182,60 @@ def sprites_of(path):
     return name, len(heroes), len(props), out
 
 
+def cut_grid(path, cols, rows):
+    """A sheet drawn as [cols] by [rows] of one thing each (a pack of stickers, the frames of one animation), cut
+    into those: for each place, read as a page is, its picture cut to its own shape, and where that picture's
+    top-left corner stood in its place of the grid (so that frames keep how they stood to one another). A place
+    with nothing in it gives None.
+
+    What is in a place is found by shape and not by ruling lines: the pieces that touch are gathered, and each
+    piece goes to the place its middle is in, whole, even where it leans over the line into the next."""
+    sheet = Image.open(path).convert('RGBA')
+    px = np.array(sheet)
+    alpha = px[..., 3].astype(np.float32)
+    body = max(np.percentile(alpha[alpha >= SOLID], 50), 200.0) if (alpha >= SOLID).any() else 255.0
+    alpha = np.where(alpha < CLEAR, 0, np.minimum(255, alpha * 255.0 / body))
+    px[..., 3] = alpha.astype(np.uint8)
+    h, w = alpha.shape
+    solid = alpha >= SOLID
+    small = solid[: h - h % CELL, : w - w % CELL].reshape(h // CELL, CELL, w // CELL, CELL).any(axis=(1, 3))
+    found, owner = pieces(small)
+    gh, gw = small.shape
+    places = {}
+    for p in found:
+        if p['n'] < 3:      # a speck the background remover left
+            continue
+        cx, cy = (p['box'][0] + p['box'][2]) / 2, (p['box'][1] + p['box'][3]) / 2
+        place = (min(rows - 1, int(cy * rows / gh)), min(cols - 1, int(cx * cols / gw)))
+        if place in places:
+            join(places[place], p)
+        else:
+            places[place] = dict(p, labels=set(p['labels']))
+    out = []
+    for r in range(rows):
+        for c in range(cols):
+            s = places.get((r, c))
+            if s is None or s['n'] < SPECK:
+                out.append(None)
+                continue
+            x0, y0 = max(0, s['box'][0] - 2), max(0, s['box'][1] - 2)
+            x1, y1 = min(gw, s['box'][2] + 2), min(gh, s['box'][3] + 2)
+            near = owner[y0:y1, x0:x1]
+            mine = np.isin(near, list(s['labels']))
+            keep = spread(mine, 2) & ~((near > 0) & ~mine)
+            keep = np.repeat(np.repeat(keep, CELL, axis=0), CELL, axis=1)
+            own = px[y0 * CELL:y1 * CELL, x0 * CELL:x1 * CELL].copy()
+            own[..., 3] = np.where(keep, own[..., 3], 0)
+            piece = Image.fromarray(own)
+            box = piece.getchannel('A').point(lambda v: 255 if v >= CLEAR else 0).getbbox()
+            if box is None:
+                out.append(None)
+                continue
+            # Where it stood in its own place of the grid: from that place's corner.
+            out.append((piece.crop(box), (x0 * CELL + box[0] - c * w / cols, y0 * CELL + box[1] - r * h / rows)))
+    return out
+
+
 def cut(path):
     name, heroes, props, found = sprites_of(path)
     written = []

@@ -41,6 +41,10 @@ class _StickerSheetState extends State<StickerSheet> {
   List<StickerPack>? _packs;
   String? _pack;
 
+  /// Each pack's tab, to bring the chosen one into view where the row slides.
+  final _tabs = <String, GlobalKey>{};
+  bool _broughtIntoView = false;
+
   @override
   void initState() {
     super.initState();
@@ -75,15 +79,15 @@ class _StickerSheetState extends State<StickerSheet> {
               // Wide enough to read on an unfolded phone without being a wall of ghosts.
               constraints: BoxConstraints(maxWidth: t.lenOf('34rem'), maxHeight: (screen.height * 0.52).clamp(280.0, 460.0)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                // The packs: each a tab, named, with its first sticker for a face. They share the sheet's width, so
-                // all of them are in reach on the narrowest screen (a folded phone's cover).
+                // The packs: each a tab, named, with its first sticker for a face. Up to four share the sheet's width,
+                // so all are in reach on the narrowest screen; more than that and the row slides.
                 Padding(
                   padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
-                  child: Row(children: [
-                    for (final (i, p) in (packs ?? const <StickerPack>[]).indexed) ...[
-                      if (i > 0) SizedBox(width: t.lenOf('0.4rem')),
-                      Expanded(
-                        child: GlacierPressable(
+                  child: LayoutBuilder(builder: (context, box) {
+                    final all = packs ?? const <StickerPack>[];
+                    final gap = t.lenOf('0.4rem');
+                    final sliding = all.length > 4;
+                    Widget tab(StickerPack p) => GlacierPressable(
                           onPressed: () {
                             setState(() => _pack = p.id);
                             app.set('sticker_pack', p.id);
@@ -93,7 +97,7 @@ class _StickerSheetState extends State<StickerSheet> {
                             final on = p.id == pack?.id;
                             return Container(
                               height: t.lenOf('2.4rem'),
-                              padding: EdgeInsets.symmetric(horizontal: t.lenOf('0.4rem')),
+                              padding: EdgeInsets.symmetric(horizontal: t.lenOf(sliding ? '0.7rem' : '0.4rem')),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: on ? t.color('app-ink') : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),
@@ -110,10 +114,33 @@ class _StickerSheetState extends State<StickerSheet> {
                               ),
                             );
                           },
-                        ),
+                        );
+                    if (!sliding) {
+                      return Row(children: [
+                        for (final (i, p) in all.indexed) ...[if (i > 0) SizedBox(width: gap), Expanded(child: tab(p))],
+                      ]);
+                    }
+                    // The pack it opens on is brought into view, once: the last one used may be off to the right.
+                    if (!_broughtIntoView && pack != null) {
+                      _broughtIntoView = true;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        final there = _tabs[pack.id]?.currentContext;
+                        if (there != null) Scrollable.ensureVisible(there, alignment: 0.5);
+                      });
+                    }
+                    return SizedBox(
+                      width: box.maxWidth,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(children: [
+                          for (final (i, p) in all.indexed) ...[
+                            if (i > 0) SizedBox(width: gap),
+                            KeyedSubtree(key: _tabs.putIfAbsent(p.id, GlobalKey.new), child: tab(p)),
+                          ],
+                        ]),
                       ),
-                    ],
-                  ]),
+                    );
+                  }),
                 ),
                 if (widget.encrypted)
                   Padding(
