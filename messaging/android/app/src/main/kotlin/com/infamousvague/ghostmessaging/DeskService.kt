@@ -46,7 +46,15 @@ class DeskService : Service() {
     companion object {
         private const val TAG = "GhostDesk"
         const val SERVICE_TYPE = "_ghostmsg._tcp"
-        private const val CHANNEL = "desk"
+        // The quietest a notification can be (Matt, 2026-11-14: "don't show the notification for the phone app and
+        // desktop app being linked it's blocking notifications for text messages", and on 0.7.13 "it still says
+        // paired with matts macbook air"). Android has a foreground service show a notification, and a channel an
+        // app makes off is turned back on for one (0.7.13's "desk-quiet" was made off and Android raised it to
+        // low: shown, in the status bar). The least an app may ask is minimum: folded to one line at the foot of
+        // the shade under Silent, with no icon in the status bar, nothing on the lock screen and no sound. Only the
+        // person can turn it off, on Android's page for it (Settings › Computers leads there).
+        const val CHANNEL = "desk-min"
+        private val OLD_CHANNELS = listOf("desk", "desk-quiet")
         private const val NOTIFICATION = 7301
         private const val MAX_CONNECTIONS = 8
 
@@ -122,10 +130,14 @@ class DeskService : Service() {
 
     private fun notification(): Notification {
         val nm = getSystemService(NotificationManager::class.java)
+        for (old in OLD_CHANNELS) if (nm.getNotificationChannel(old) != null) try { nm.deleteNotificationChannel(old) } catch (_: Exception) {}
         if (nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Paired computers", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "Shown while a computer is paired, so Android keeps the phone reachable by it."
+                description = "Android asks for a notification while a computer is paired. This one is as quiet as Android allows; turn it off here if you like, and the computer still reaches the phone."
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                setSound(null, null)
+                enableVibration(false)
             })
         }
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).putExtra("desk", true), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -137,6 +149,12 @@ class DeskService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .setShowWhen(false)
+            // Never bundled with the texts' notifications, where it could fold them under itself.
+            .setGroup("desk")
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setLocalOnly(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(Notification.VISIBILITY_SECRET)
             .build()
     }
 

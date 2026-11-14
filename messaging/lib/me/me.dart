@@ -13,7 +13,7 @@ import '../plugins/codes.dart' show signInCode;
 /// etc"). Discord, Telegram and X are proved by signing in there; Bluesky, Mastodon and GitHub by a code put in the
 /// account's public profile, and those three say who an account follows, which the others do not let an app read.
 class Network {
-  const Network(this.id, this.name, this.hue, this.mark, {required this.signIn, this.example = 'username', this.where = ''});
+  const Network(this.id, this.name, this.hue, this.mark, {required this.signIn, this.example = 'username', this.where = '', this.soon = false});
   final String id;
   final String name;
 
@@ -28,8 +28,12 @@ class Network {
   /// Where in the account the code goes, for a network proved by code.
   final String where;
 
+  /// Shown as "Coming soon", and neither linked nor watched for yet (Matt, 2026-11-14: "remove mastadon and the
+  /// other options to link or mark them as 'coming soon'", once Discord, X and Telegram had their keys).
+  final bool soon;
+
   /// Who you follow there can be read, and so brought into the watch list.
-  bool get follows => !signIn;
+  bool get follows => !signIn && !soon;
 
   /// The page of [handle]'s account, or null where a username alone does not make an address (Discord).
   String? profile(String handle) => switch (id) {
@@ -46,10 +50,13 @@ const networks = [
   Network('discord', 'Discord', 'indigo', 'D', signIn: true),
   Network('telegram', 'Telegram', 'cyan', 'T', signIn: true),
   Network('x', 'X', 'graphite', 'X', signIn: true),
-  Network('bluesky', 'Bluesky', 'blue', 'B', signIn: false, example: 'you.bsky.social', where: 'your Bluesky bio (Edit profile › Description)'),
-  Network('mastodon', 'Mastodon', 'purple', 'M', signIn: false, example: 'you@mastodon.social', where: 'your Mastodon bio, or one of its profile fields (Edit profile)'),
-  Network('github', 'GitHub', 'slate', 'G', signIn: false, where: 'your GitHub bio (Edit profile › Bio)'),
+  Network('bluesky', 'Bluesky', 'blue', 'B', signIn: false, example: 'you.bsky.social', where: 'your Bluesky bio (Edit profile › Description)', soon: true),
+  Network('mastodon', 'Mastodon', 'purple', 'M', signIn: false, example: 'you@mastodon.social', where: 'your Mastodon bio, or one of its profile fields (Edit profile)', soon: true),
+  Network('github', 'GitHub', 'slate', 'G', signIn: false, where: 'your GitHub bio (Edit profile › Bio)', soon: true),
 ];
+
+/// The networks that can be linked and watched for now.
+List<Network> get openNetworks => [for (final n in networks) if (!n.soon) n];
 
 Network networkOf(String id) => networks.firstWhere((n) => n.id == id, orElse: () => networks.first);
 
@@ -189,6 +196,10 @@ class Me extends ChangeNotifier {
 
   MeStore? _app;
   HubCarrier? Function()? _hubNow;
+  void Function(bool yes)? _needHub;
+
+  /// Settings › Me has been opened since the app started: the server is said hello to as soon as it can be.
+  bool _woken = false;
   HubCarrier? _hub;
   StreamSubscription<Map<String, dynamic>>? _sub;
   VoidCallback? _stateListener;
@@ -257,10 +268,14 @@ class Me extends ChangeNotifier {
 
   /// Follows the app's routes: whichever relay server the app is connected to is the one spoken to. [routes] says
   /// when that may have changed, and [hub] which it is now (the app: its routes, lib/net/net.dart, and their hub).
-  Future<void> start(MeStore app, Listenable routes, HubCarrier? Function() hub) async {
+  /// [needHub] is told whether the relay server must be kept connected for this (the app: Net.want): from the
+  /// start where anything has ever been said to it, and from the moment Settings › Me is opened.
+  Future<void> start(MeStore app, Listenable routes, HubCarrier? Function() hub, {void Function(bool yes)? needHub}) async {
     _app = app;
     _hubNow = hub;
+    _needHub = needHub;
     _read();
+    if (_inUse) _needHub?.call(true);
     routes.addListener(_attach);
     _attach();
     notifyListeners();
@@ -277,7 +292,7 @@ class Me extends ChangeNotifier {
     _sub = hub.handles.listen(_heard);
     void changed() {
       if (hub.state.value == CarrierState.up) {
-        if (_inUse) _hello();
+        if (_inUse || _woken) _hello();
       } else if (ready) {
         ready = false;
         notifyListeners();
@@ -293,6 +308,9 @@ class Me extends ChangeNotifier {
 
   /// Speaks to the server for the first time, where nothing has been before (the Me page as it opens).
   void wake() {
+    _woken = true;
+    // The relay server is dialled from now on, where it was not (nothing else here needed it).
+    _needHub?.call(true);
     if (ready || _hub == null) return;
     _hello();
   }
@@ -357,10 +375,70 @@ class Me extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stands in for the server where a page is drawn with none (test/number_screen_test.dart): what is asked of
-  /// it, and its answer or its [MeError].
-  @visibleForTesting
+  /// Who is asked in place of the relay server: the phone, on a paired computer ([followPhone]); or a stand-in where a
+  /// page is drawn with no server (test/number_screen_test.dart). Its answer, or its [MeError].
   Future<Map<String, dynamic>> Function(Map<String, Object?> what)? asking;
+
+  /// On a paired computer: Settings › Me as the phone has it, and the number verified through the phone (Matt,
+  /// 2026-11-14: "on desktop the phone number reads as unknown and is not proxying the verification process"). The
+  /// computer has no conversation with the relay server of its own; the phone's install is the one a number belongs
+  /// to, so the code is texted to it and checked as its. [phone] is how the phone is asked (Sms.me).
+  /// Why the phone could not be asked, on a computer ([followPhone]); null once it answered.
+  String? phoneSaid;
+
+  Future<void> followPhone(Future<Map<String, dynamic>> Function(Map<String, Object?> what) phone) async {
+    asking = (what) async {
+      try {
+        return await phone(what);
+      } on MeError {
+        rethrow;
+      } catch (e) {
+        throw MeError(_words(e));
+      }
+    };
+    try {
+      final s = await phone({'dir': 'state'});
+      ways = (s['ways'] as Map? ?? const {}).cast<String, String>();
+      links = (s['links'] as Map? ?? const {}).cast<String, String>();
+      ready = s['ready'] == true;
+      phoneSaid = ready ? null : 'Your phone can\'t reach the relay server right now.';
+    } catch (e) {
+      ready = false;
+      phoneSaid = e is MeError ? e.message : _words(e);
+    }
+    notifyListeners();
+  }
+
+  /// An error's words as a person reads them: a phone's refusal comes as "PlatformException(failed, words, …)".
+  static String _words(Object e) {
+    final m = RegExp(r'^PlatformException\([^,]*, (.*?), .*\)$', dotAll: true).firstMatch('$e');
+    return m?.group(1) ?? '$e';
+  }
+
+  /// On the phone: what a paired computer asks of Settings › Me ([followPhone] there). How things stand, and the
+  /// number's verification; nothing else (a computer does not link accounts or change the watch list).
+  Future<Object?> forComputer(Map<String, Object?> args) async {
+    final what = (args['what'] as Map?)?.cast<String, Object?>() ?? args;
+    switch (what['dir']) {
+      case 'state':
+        if (!ready) {
+          wake();
+          for (var i = 0; i < 50 && !ready && reachable; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+        }
+        return {'ready': ready, 'ways': ways, 'links': links};
+      case 'text':
+        return {'dir': 'text', 'p': 'phone', 'handle': await textCode('${what['handle']}')};
+      case 'code':
+        await tryCode('${what['handle']}', '${what['code']}');
+        return {'dir': 'linked', 'p': 'phone', 'handle': tidyNumber('${what['handle']}')};
+      case 'unlink' when what['p'] == 'phone':
+        await unlink('phone');
+        return {'dir': 'unlinked', 'p': 'phone'};
+    }
+    throw MeError('The phone does not do that for a computer.');
+  }
 
   Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25)}) {
     final stand = asking;
@@ -392,8 +470,14 @@ class Me extends ChangeNotifier {
       (await _ask({'dir': 'text', 'p': 'phone', 'handle': tidyNumber(number)}, 'text', wait: const Duration(seconds: 30)))['handle'] as String;
 
   /// Says the code that reached [number]: it is linked where that is the one sent.
-  Future<void> tryCode(String number, String code) =>
-      _ask({'dir': 'code', 'p': 'phone', 'handle': tidyNumber(number), 'code': code}, 'linked', wait: const Duration(seconds: 30));
+  Future<void> tryCode(String number, String code) async {
+    final got = await _ask({'dir': 'code', 'p': 'phone', 'handle': tidyNumber(number), 'code': code}, 'linked', wait: const Duration(seconds: 30));
+    // Through the phone ([followPhone]) no "linked" is heard here: its answer says it.
+    if (asking != null && got['dir'] == 'linked' && got['handle'] is String) {
+      links = {...links, 'phone': got['handle'] as String};
+      _write();
+    }
+  }
 
   Future<void> unlink(String network) async {
     links.remove(network);

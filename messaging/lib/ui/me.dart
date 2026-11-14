@@ -48,7 +48,8 @@ class _WakeState extends State<_Wake> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => Me.instance.wake());
+    // On a computer, Settings › Me is the phone's: asked of it as the page opens (Me.followPhone).
+    WidgetsBinding.instance.addPostFrameCallback((_) => Sms.remote ? Me.instance.followPhone(Sms.instance.me) : Me.instance.wake());
   }
 
   @override
@@ -87,7 +88,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
       ],
     ),
     if (Sms.remote)
-      const SettingsCallout(child: Text('Accounts are linked on your phone. Open Settings › Me in Ghost Messaging there.'))
+      SettingsCallout(child: Text(me.ready ? 'Accounts are linked on your phone. Your number can be verified from here: the code is texted to your phone.' : me.phoneSaid ?? 'Asking your phone…'))
     else if (!me.ready)
       SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Network).')),
     PaneSection(
@@ -166,8 +167,7 @@ class _NumberRow extends StatelessWidget implements PaneRow {
     }
     final tidy = tidyNumber(own ?? '');
     final shown = Text(own == null || own!.isEmpty ? 'Not known' : (numberFits(tidy) ? showNumber(tidy) : own!));
-    // Verifying is the phone's to do: a computer shows the number and says nothing of it.
-    if (Sms.remote) return SettingRow(icon: icon, label: 'Number', value: shown);
+    // On a computer it is verified through the phone (Me.followPhone), as on the phone itself.
     // Short words here, beside the number; the page it opens has room for why and how.
     return SettingRow(icon: icon, label: 'Number', hint: const Text('Not verified'), value: shown, onPress: me.ready ? () => push<void>(context, (_) => NumberScreen(own: own)) : null);
   }
@@ -227,7 +227,9 @@ class _NumberScreenState extends State<NumberScreen> {
     final since = _askedAt;
     if (since == null || thread < 0) return;
     try {
-      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && !m.date.isBefore(since));
+      // On a computer a text's time is the phone's clock and [since] this computer's: two minutes either way allowed.
+      final from = Sms.remote ? since.subtract(const Duration(minutes: 2)) : since;
+      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && !m.date.isBefore(from));
       for (final m in newest) {
         final code = ownCodeIn(m.body);
         if (code == null || !mounted) continue;
@@ -410,6 +412,7 @@ class _LinkRow extends StatelessWidget implements PaneRow {
         ]),
       );
     }
+    if (n.soon) return SettingRow(icon: mark, label: n.name, hint: const Text('Coming soon'), disabled: true);
     if (Sms.remote || !me.ready) return SettingRow(icon: mark, label: n.name, hint: const Text('Not linked'), disabled: true);
     if (n.signIn && me.ways[n.id] != 'signin') {
       return SettingRow(icon: mark, label: n.name, hint: Text('Signing in with ${n.name} isn\'t set up on the relay server yet.'), disabled: true);
@@ -563,7 +566,7 @@ List<Widget> friendsPane(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: 'Watching for',
-      description: const Text('The handles you want to hear about. Discord, Telegram and X don\'t let an app read your friends or followers, so add those yourself. Bluesky, Mastodon and GitHub can bring in everyone you follow.'),
+      description: const Text('The handles you want to hear about. Discord, Telegram and X don\'t let an app read your friends or followers, so add those yourself.'),
       footer: Text(me.watch.isEmpty
           ? 'The relay server is given a scrambled form of each handle, never the handle itself.'
           : '${me.watch.length} ${me.watch.length == 1 ? 'handle' : 'handles'}. The relay server holds a scrambled form of each, never the handle itself.'),
@@ -650,7 +653,7 @@ class AddWatchScreen extends StatefulWidget {
 }
 
 class _AddWatchScreenState extends State<AddWatchScreen> {
-  String _network = networks.first.id;
+  String _network = openNetworks.first.id;
   final _text = TextEditingController();
   final _focus = FocusNode();
 
@@ -702,7 +705,7 @@ class _AddWatchScreenState extends State<AddWatchScreen> {
               PaneSection(
                 title: 'Where',
                 children: [
-                  for (final net in networks)
+                  for (final net in openNetworks)
                     SettingRow(
                       icon: NetworkMark(net),
                       label: net.name,

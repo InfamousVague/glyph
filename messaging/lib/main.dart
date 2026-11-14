@@ -201,7 +201,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start());
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
-      Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub);
+      Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+      // And the number's verification, done here for a paired computer that asks (Sms.me on the computer).
+      Sms.answer('me', Me.instance.forComputer);
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
       final req = await Sms.instance.openRequest();
       if (req != null) _open(req);

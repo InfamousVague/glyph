@@ -167,13 +167,31 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
-  /// Starts or stops the routes to match the person's choices. With nobody to reach, nothing dials out.
+  /// What else needs the relay server's hub besides the people encryption is on with: Settings › Me, which links
+  /// accounts and verifies the number through it ([want]).
+  final Set<String> _wanting = {};
+
+  /// Says whether [who] needs the relay server connected. While anything does, the hub is dialled even with nobody
+  /// to reach: it was dialled only for people encryption is on with, so a phone with none never reached the relay
+  /// and Settings › Me said it wasn't connected (Matt, 2026-11-14: "it's not conecting to the relay it seems it
+  /// says I can't verify my number until it connects to the relay which should be live").
+  Future<void> want(String who, bool yes) async {
+    final changed = yes ? _wanting.add(who) : _wanting.remove(who);
+    if (changed) await _apply();
+  }
+
+  /// Starts or stops the routes to match the person's choices. With nobody to reach and nothing that needs the
+  /// relay server, nothing dials out; with nobody to reach but something that needs it, the hub alone does.
   Future<void> _apply() async {
     final board = _board;
     if (board == null) return;
     if (on && _peers.isNotEmpty) {
       await board.start();
       _hub?.watch(_peers.keys);
+    } else if (_wanting.isNotEmpty && !board.off.contains('hub')) {
+      for (final c in board.carriers) {
+        await (c.id == 'hub' ? c.start() : c.stop()).catchError((_) {});
+      }
     } else {
       await board.stop();
     }
@@ -188,9 +206,18 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> setRoute(String id, bool value) async {
     final board = _board;
     if (board == null) return;
-    await board.setOn(id, value && on && _peers.isNotEmpty);
-    if (!value) board.off.add(id);
+    // The person's choice is kept whatever happens to be running; then the routes are started or stopped to suit.
+    // It was handed straight to the route as "on only if there is someone to reach", and with nobody encrypted that
+    // was "off", which the switchboard writes down as switched off: the switch flipped back and could never be
+    // turned on again (Matt, 2026-11-14: "I also can't toggle the relay server back on or SMS").
+    if (value) {
+      board.off.remove(id);
+    } else {
+      board.off.add(id);
+    }
     _app?.set('net_off', board.off.join(','));
+    if (!value) await board.setOn(id, false);
+    await _apply();
     notifyListeners();
   }
 

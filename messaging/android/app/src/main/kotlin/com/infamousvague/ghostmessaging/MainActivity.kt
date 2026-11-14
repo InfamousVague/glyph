@@ -80,7 +80,10 @@ class MainActivity : FlutterActivity() {
             override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; NetSms.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
-        MethodChannel(messenger, "ghost_messaging/sms").setMethodCallHandler { call, result ->
+        val calls = MethodChannel(messenger, "ghost_messaging/sms")
+        // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.
+        DartAsk.channel = calls
+        calls.setMethodCallHandler { call, result ->
             // How long each call takes is written to Android's log when asked for
             // (`adb shell setprop log.tag.GhostPerf VERBOSE`): the call's name and its milliseconds, never what it carried.
             val timed = android.util.Log.isLoggable("GhostPerf", android.util.Log.VERBOSE)
@@ -235,6 +238,17 @@ class MainActivity : FlutterActivity() {
                 "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
                 "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
                 "blockedNumbers" -> bg { store.blockedNumbers() }
+                // Android's page for the "Paired with…" notification alone, where it can be turned off.
+                "deskNotificationSettings" -> {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                            .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, DeskService.CHANNEL))
+                    } catch (_: Exception) {
+                        try { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)) } catch (_: Exception) {}
+                    }
+                    result.success(null)
+                }
                 "notificationSettings" -> {
                     try {
                         startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
@@ -355,6 +369,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        DartAsk.channel = null
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}
         super.onDestroy()
     }

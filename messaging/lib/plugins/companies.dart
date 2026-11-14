@@ -13,6 +13,10 @@
 library;
 
 /// A company that sends sign-in codes.
+/// The app's own address: the company whose face is the app's ghost (Matt, 2026-11-14: "it's not using the ghost
+/// logo for the icon in codes").
+const ghostDomain = 'ghost-sms.com';
+
 class Company {
   const Company(this.name, this.domain, this.color, [this.also = const []]);
 
@@ -33,6 +37,9 @@ class Company {
 /// The companies known by name. Not every company: the ones a phone in the United States is most often sent a code
 /// by. Anything else is named by [senderNameIn] where its text names it.
 const List<Company> companies = [
+  // Ourselves: the code that verifies a number in Settings › Me ("Your Ghost Messaging verification code is: …",
+  // sent by the relay's texting service). Its face is the app's own ghost (BrandFace), not a pack's mark.
+  Company('Ghost Messaging', ghostDomain, 0x000000, ['Ghost.md']),
   // Money.
   Company('Coinbase', 'coinbase.com', 0x0052FF),
   Company('Discover', 'discover.com', 0xFF6000, ['Discover Card', 'Discover Bank']),

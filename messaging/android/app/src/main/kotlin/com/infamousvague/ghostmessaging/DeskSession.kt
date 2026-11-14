@@ -253,6 +253,16 @@ interface DeskPhone {
 
     /** One of the app's stickers, which the computer has too: its picture under its travelling [name]. */
     fun sendSticker(addresses: List<String>, name: String, picture: ByteArray): Long
+
+    /** This phone's own number, as its screens show it; null where Android does not say and none was typed. */
+    fun ownNumber(): String?
+
+    /**
+     * Settings › Me's number, done by the phone for the computer (Matt, 2026-11-14: "on desktop the phone number reads
+     * as unknown and is not proxying the verification process"): [what] is one of the app's `{"dir": …}` asks, which
+     * Dart answers (lib/me/me.dart, Me.forComputer). The code is texted to the phone and checked as the phone's.
+     */
+    fun me(what: Map<String, Any?>): Any?
 }
 
 /** Something a computer handed over to be sent: its name, its kind, and what is in it. */
@@ -308,6 +318,8 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         "setDraft" -> { phone.setDraft(a.getLong("thread"), a.optString("text")); null }
         "e2e" -> phone.e2e(a.getString("address"))
         "caps" -> CAPS
+        "ownNumber" -> phone.ownNumber()
+        "me" -> phone.me(plain(a.getJSONObject("what")))
         "deleteMessage" -> { phone.deleteMessage(kind(a), a.getLong("id")); null }
         "deleteThread" -> phone.deleteThreads(listOf(a.getLong("thread")))
         "deleteThreads" -> phone.deleteThreads(longs(a.getJSONArray("threads")))
@@ -416,6 +428,17 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
 
     private fun longs(a: JSONArray): List<Long> = (0 until a.length()).map { a.getLong(it) }
 
+    /** What the computer sent, as Dart's channel carries it: maps, lists, strings, numbers, true and false. */
+    private fun plain(o: Any?): Any? = when (o) {
+        is JSONObject -> o.keys().asSequence().associateWith { plain(o.opt(it)) }
+        is JSONArray -> (0 until o.length()).map { plain(o.opt(it)) }
+        JSONObject.NULL -> null
+        else -> o
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun plain(o: JSONObject): Map<String, Any?> = plain(o as Any?) as Map<String, Any?>
+
     /** A picture crosses in pieces: [max] bytes from [offset], and how long the whole is. */
     @Synchronized
     private fun piece(id: Long, offset: Int, max: Int): Map<String, Any?>? {
@@ -448,7 +471,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         val CAPS = listOf(
             "threadName", "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
             "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
-            "put", "drop", "sendPictures", "sendVoice", "sendSticker",
+            "put", "drop", "sendPictures", "sendVoice", "sendSticker", "ownNumber", "me",
         )
     }
 }

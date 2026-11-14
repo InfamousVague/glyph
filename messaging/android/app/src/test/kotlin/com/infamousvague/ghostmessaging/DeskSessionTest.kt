@@ -38,6 +38,9 @@ class DeskSessionTest {
         override fun searchContacts(query: String) = emptyList<Map<String, Any?>>()
         override fun contact(address: String) = mapOf<String, Any?>("address" to address)
         override fun photo(uri: String): ByteArray? = byteArrayOf(1, 2, 3)
+        override fun ownNumber(): String? = "+14436537451"
+        val asked = ArrayList<Map<String, Any?>>()
+        override fun me(what: Map<String, Any?>): Any? { asked.add(what); return mapOf("dir" to "text", "handle" to what["handle"]) }
         override fun part(id: Long): ByteArray? = if (id == 5L) picture else null
         override fun send(addresses: List<String>, body: String): Long { sentTexts += addresses to body; return 7L }
         override fun markRead(thread: Long) { read += thread }
@@ -268,6 +271,18 @@ class DeskSessionTest {
     }
 
     /** What the phone's screens do, a computer may ask for too: each reaches the phone as it was asked. */
+    @Test
+    fun `the computer is told the phone's number, and its Me asks reach the phone's Dart side`() {
+        // Matt, 2026-11-14: "on desktop the phone number reads as unknown and is not proxying the verification process".
+        val phone = FakePhone()
+        val calls = DeskCalls(phone)
+        assertEquals("+14436537451", calls.call("ownNumber", JSONObject()))
+        val said = calls.call("me", JSONObject().put("what", JSONObject().put("dir", "text").put("p", "phone").put("handle", "+14436537451")))
+        assertEquals(mapOf("dir" to "text", "handle" to "+14436537451"), said)
+        assertEquals(listOf(mapOf<String, Any?>("dir" to "text", "p" to "phone", "handle" to "+14436537451")), phone.asked)
+        assertTrue("ownNumber" in DeskCalls.CAPS && "me" in DeskCalls.CAPS)
+    }
+
     @Test
     fun aComputerDoesWhatThePhonesScreensDo() {
         val phone = FakePhone()

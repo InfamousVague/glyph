@@ -76,7 +76,19 @@ class AppShell extends StatefulWidget {
 
   /// How much of its end a list in the list's place leaves clear for the pill: the pill's own height and room
   /// where it floats there, a step where it stands at the window's right instead.
-  static double pillRoom(BuildContext context) => railOf(context) ? context.tokens.space(4) : NavPill.clearance(context.tokens);
+  static double pillRoom(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_ShellScope>();
+    final t = context.tokens;
+    if (scope?.rail ?? false) return t.space(4);
+    // Stood up in the list's corner: the list's last rows scroll clear of the whole column, as Ghost.md's pages
+    // keep room for its dock.
+    if (scope?.docked ?? false) return NavPill.railHeight(t, AppShellState._rings);
+    return NavPill.clearance(t);
+  }
+
+  /// Whether the pill stands up in the corner of a phone's narrow screen (a folding phone folded), floating over
+  /// the list's end as Ghost.md's dock floats over its page. The page asking is built again when that changes.
+  static bool dockedOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ShellScope>()?.docked ?? false;
 
   /// The conversation open in the pane, or null. The page asking is built again when that changes.
   static int? threadOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ShellScope>()?.thread;
@@ -408,12 +420,16 @@ class AppShellState extends State<AppShell> {
       final edges = MediaQuery.paddingOf(context);
       final rail = wide && !Sms.remote && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings);
       final strip = rail ? NavPill.railWidth(t) + edges.right : 0.0;
+      // Folded, it stands up too (Matt, 2026-11-14: "Folded: make it vertical"), floating in the list's bottom right
+      // corner, with no strip: on a narrow screen every bit of width is the list's.
+      final docked = !wide && !Sms.remote && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
       // A page that has finished sliding over the list covers all of it.
       final covered = !wide && _open != null && _open!.animation?.status == AnimationStatus.completed;
       return _ShellScope(
         shell: this,
         wide: wide,
         rail: rail,
+        docked: docked,
         thread: _open == null ? null : _thread,
         child: PopScope(
           canPop: !(_paneBack || _sideBack),
@@ -460,15 +476,15 @@ class AppShellState extends State<AppShell> {
                         // On a phone Settings is a page over the list, with its own way back and no bar under it.
                         if (!rail)
                           Positioned(
-                            left: 0,
-                            right: 0,
+                            left: docked ? null : 0,
+                            right: docked ? edges.right : 0,
                             bottom: edges.bottom,
                             child: IgnorePointer(
                               ignoring: !wide && settingsOpen,
                               child: AnimatedOpacity(
                                 opacity: !wide && settingsOpen ? 0 : 1,
                                 duration: const Duration(milliseconds: 160),
-                                child: _pill(upright: false),
+                                child: _pill(upright: docked),
                               ),
                             ),
                           ),
@@ -531,14 +547,15 @@ class AppShellState extends State<AppShell> {
 }
 
 class _ShellScope extends InheritedWidget {
-  const _ShellScope({required this.shell, required this.wide, required this.rail, required this.thread, required super.child});
+  const _ShellScope({required this.shell, required this.wide, required this.rail, required this.docked, required this.thread, required super.child});
   final AppShellState shell;
   final bool wide;
   final bool rail;
+  final bool docked;
   final int? thread;
 
   @override
-  bool updateShouldNotify(_ShellScope old) => old.wide != wide || old.rail != rail || old.thread != thread;
+  bool updateShouldNotify(_ShellScope old) => old.wide != wide || old.rail != rail || old.docked != docked || old.thread != thread;
 }
 
 /// A page open in the pane: it draws its way back only while the list is not beside it.

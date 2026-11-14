@@ -424,10 +424,10 @@ class PhoneLink extends ChangeNotifier {
 
   /// Asks the paired phone for [method]. Throws [LinkDown] when it is not connected, [PhoneError] with its words
   /// when it would not.
-  Future<dynamic> request(String method, [Map<String, dynamic>? args]) {
+  Future<dynamic> request(String method, [Map<String, dynamic>? args, Duration timeout = const Duration(seconds: 20)]) {
     final session = _session;
     if (session == null || !session.live || _pairing || phone == null) return Future.error(const LinkDown());
-    return session.request(method, args);
+    return session.request(method, args, timeout);
   }
 
   // --- pairing ----------------------------------------------------------------------------------------------------------

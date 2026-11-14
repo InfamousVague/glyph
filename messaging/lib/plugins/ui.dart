@@ -16,6 +16,7 @@ import '../reactions.dart';
 import '../sms.dart';
 import '../ui/common.dart';
 import '../ui/nav_bar.dart';
+import 'companies.dart' show ghostDomain;
 import 'plugin.dart';
 import 'registry.dart';
 
@@ -306,7 +307,10 @@ class BrandFace extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: color, border: Border.all(color: t.color('app-rule'), width: 1)),
         alignment: Alignment.center,
-        child: face.mark != null
+        // Our own codes wear the app's ghost, white on black, as the icon on the home screen has it.
+        child: face.domain == ghostDomain
+            ? Image.asset('assets/art/ghost-mark.png', width: size * 0.62, height: size * 0.62, filterQuality: FilterQuality.medium)
+            : face.mark != null
             ? CustomPaint(size: Size.square(size * markShare(face.mark!)), painter: _MarkPainter(face.mark!, inkOn(face.color) ? const Color(0xFF111111) : const Color(0xFFFFFFFF)))
             : Text(
                 letterOf(face.name),

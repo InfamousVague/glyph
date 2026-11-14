@@ -155,4 +155,9 @@ void main() {
     expect(BrandFace.inkOn(0x0052FF), isFalse, reason: 'Coinbase\'s blue');
     expect(BrandFace.inkOn(0x000000), isFalse);
   });
+  test('our own verification code is Ghost Messaging\'s, with the app\'s ghost for a face', () {
+    final c = companyIn('Your Ghost Messaging verification code is: 240021')!;
+    expect(c.name, 'Ghost Messaging');
+    expect(c.domain, ghostDomain);
+  });
 }

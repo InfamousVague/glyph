@@ -712,7 +712,19 @@ class LinkCalls implements SmsCalls, CapableCalls {
         return const [];
       case 'deskState':
         return {'phase': 'none'};
-      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'setAutoUpdate':
+      case 'ownNumber':
+        // The phone's own (android DeskCalls), where it answers it; a phone before that has none to give.
+        if (!_caps.contains('ownNumber')) return null;
+        try {
+          return await link.request('ownNumber');
+        } on LinkDown {
+          return null;
+        }
+      case 'me':
+        // Settings › Me's number, verified through the phone (Me.followPhone); a code takes the phone a while.
+        if (!_caps.contains('me')) throw const PhoneError('Update Ghost Messaging on your phone to verify your number from here.');
+        return link.request('me', a, const Duration(seconds: 45));
+      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'e2eMine' || 'setAutoUpdate':
         return null;
       default:
         throw const PhoneError('That is done on the phone.');

@@ -660,13 +660,16 @@ void main() {
         ready: true,
         listed: true,
         ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof', 'phone': 'text'},
-        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social', 'phone': '+15550100199'},
+        links: {'discord': 'matt', 'telegram': 'mattsoftware', 'phone': '+15550100199'},
         watch: const [Watched('discord', 'maya'), Watched('discord', 'jordan.p'), Watched('telegram', 'samrivera'), Watched('x', 'alexkim'), Watched('bluesky', 'priya.bsky.social'), Watched('bluesky', 'noor.bsky.social')],
         joined: [Joined('discord', 'maya', DateTime.now().subtract(const Duration(minutes: 12))), Joined('bluesky', 'priya.bsky.social', DateTime.now().subtract(const Duration(days: 2)), seen: true)],
       );
       await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me', dark: dark);
       expect(find.text('@matt'), findsOneWidget);
       expect(find.textContaining('isn\'t set up on the relay server yet'), findsOneWidget);
+      // Bluesky, Mastodon and GitHub: not yet (Matt: "remove mastadon and the other options to link or mark them as
+      // 'coming soon'").
+      expect(find.text('Coming soon'), findsNWidgets(3));
       // The number, as a code texted to it showed it to be: said so under it, and not counted among what friends
       // are told.
       expect(find.text('+1 (555) 010-0199'), findsOneWidget);
@@ -1192,10 +1195,24 @@ void main() {
       expect(find.byType(ThreadScreen), findsNothing);
       expect(seen(find.text('Dad')), findsOneWidget);
       expect(find.text('Choose a conversation'), findsNothing);
-      // Folded, the pill is along the list's foot again, its rings across it.
-      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
-      expect(tester.getCenter(ring('new')).dy, tester.getCenter(ring('settings')).dy);
+      // Folded, the pill stands up too, floating in the list's bottom right corner as Ghost.md's dock does (Matt,
+      // 2026-11-14: "Folded: make it vertical"), with no strip: the list keeps the screen's whole width.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue);
+      expect(tester.getCenter(ring('new')).dx, tester.getCenter(ring('settings')).dx);
+      expect(tester.getCenter(ring('new')).dy, lessThan(tester.getCenter(ring('settings')).dy));
+      expect(tester.getRect(find.byType(NavPill)).right, 412);
+      expect(tester.getRect(find.byType(NavPill)).bottom, 892 - 16);
       expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, 412);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
+      expect(tester.getRect(find.byType(ConversationsScreen)).width, 412);
+      // Matt's Galaxy Z Fold 8 opened out (2448 by 1848 at 420 dpi: 932 by 704), its bars as One UI has them: the
+      // pill is stood up at the right there too.
+      tester.view.physicalSize = const Size(932 * 2.0, 704 * 2.0);
+      tester.view.padding = const FakeViewPadding(top: 40 * 2.0, bottom: 48 * 2.0);
+      await _settle(tester);
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue, reason: 'the Fold 8 opened out');
+      expect(tester.getRect(find.byType(NavPill)).right, 932);
+      tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
       // A small phone on its side is wide, and too short for five rings head to foot: the pill stays under the list.
       tester.view.physicalSize = const Size(800 * 2.0, 320 * 2.0);
       await _settle(tester);

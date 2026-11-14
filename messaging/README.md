@@ -590,7 +590,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   it, and ghost-sms.com's block passing `/link/*` to it; Matt: "deploy both yes"), so the three proved by a code
   can be tried; Discord's, X's and Telegram's sign-ins are still off, their apps not registered. **Not run against
   a real network yet.**
-- **Your number, verified by a text** (0.7.12, not released; [docs/me.md](docs/me.md); Matt, 2026-11-14: "I'd
+- **Your number, verified by a text** (0.7.12; on the Mac, through the phone, 0.7.13; [docs/me.md](docs/me.md); Matt, 2026-11-14: "I'd
   like to use a third party service that allows us to send the text code to a number to verify so it can't be
   spoofed"). Settings › Me › Number says Not verified and opens a page that has a code texted to the number; the
   page reads the code out of the text as it arrives and the row then says Verified. The code is made, sent and
@@ -602,7 +602,10 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   **Off until** a Twilio account and Verify service exist, their three values are on the box, and the relay is put
   up again (docs/me.md says how; all Matt's to do or say). Held by `relay/test/handles_test.dart` (nine, the
   service stood in for), `test/me_test.dart` (through the real relay) and `test/number_screen_test.dart` (which
-  text the page reads a code from). **Never run against the real service.**
+  text the page reads a code from). On the Mac the number is the phone's and is verified through the phone (Matt:
+  "on desktop the phone number reads as unknown and is not proxying the verification process"; `DartAsk.kt`,
+  `Me.followPhone`/`forComputer`; the phone's app must be open). **Verified against the real service on
+  2026-11-14** (relay deployed with the values at 20:06 UTC; a code to Matt's number checked at 20:14).
 - **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation

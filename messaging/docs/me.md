@@ -75,6 +75,13 @@ What holds it to that:
   day in all** (`GHOST_TEXTS_A_DAY`); and only numbers that start `+1` (`GHOST_TEXT_TO`, a list like `+1,+44`).
   The last two are what a mistake, or someone making the server text numbers that pay them for it, can cost.
 - A number verified on a new phone leaves the old one: one number, one install.
+- **From the Mac it is done through the phone** (Matt, 2026-11-14: "on desktop the phone number reads as unknown and
+  is not proxying the verification process"). The Mac shows the phone's number (`ownNumber` over the link) and its
+  Number row opens the same page; each step is asked of the phone (`me` over the link: android `DeskCalls` →
+  `DartAsk.kt` → the phone's `Me.forComputer`), so the code is texted to the phone and the number is linked to the
+  phone's install, never the Mac's. The page on the Mac reads the code from the text as the phone hands it over.
+  The phone's app must be open (Android keeps its Dart side only then; otherwise the Mac says so), and the phone
+  needs 0.7.12 or later.
 
 **A number is told to nobody.** It is not one of the accounts "Tell friends I'm here" speaks of: no app of ours
 watches for a number, and the server answers nobody who does (`Handles._quiet`). Today it is a mark on your own
