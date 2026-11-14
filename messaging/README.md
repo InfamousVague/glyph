@@ -431,11 +431,11 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   of the tab shown (`MarkAllRead`; quiet while nothing there is unread, and standing alone where there is no
   section to make a tab of). A press with the other button on a tab, or a long press, brings up that tab's menu:
   Mark all as read, and Select all, which chooses every conversation of the tab for the bar at the top to archive
-  or delete. Since 0.7.11 (not released; Matt, 2026-11-14: "change mark all as read to just be the icon in a
+  or delete. Since 0.7.11 (Matt, 2026-11-14: "change mark all as read to just be the icon in a
   circle button", "the segmented toggle for messages vs codes can be a size larger") the button is its picture
   alone in a circle as tall as the toggle, with its words in a tip under a resting pointer (`HoverTip` in
   `lib/ui/nav_bar.dart`, the pill's own tip made public), and the toggle is the kit's middle size.
-- **The Archive and Settings rings' menus** (not released; `lib/ui/nav_bar.dart` `NavItem.menu` / `NavPill.onMenu`,
+- **The Archive and Settings rings' menus** (0.7.11; `lib/ui/nav_bar.dart` `NavItem.menu` / `NavPill.onMenu`,
   `AppShellState.ringMenu` in `lib/ui/shell.dart`; Matt, 2026-11-14: "add a right click context menu to archive as
   well and settings to quick jump to settings sections"). A press with the other button on either ring, or a long
   press, brings up its menu, as on the list's tabs. Archive's: Mark all as read (every archived conversation that
