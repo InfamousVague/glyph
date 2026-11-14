@@ -16,9 +16,10 @@ import 'sha256.dart';
 ///   the public key, in hex. To connect they sign a number the hub has just made up, so only the holder of the
 ///   private key connects under that name. One connection per name: a newer one replaces the older.
 /// - **A packet to someone** is passed to them if they are connected. If not it is **held** (at most
-///   [mailboxFrames] and [mailboxBytes] for one person, for [holdFor]) and handed over when they next connect. The
-///   sender is told which happened. Held packets live in memory: a restart of the hub loses them, and the app's own
-///   routes are what a sender falls back on (lib/net/switchboard.dart).
+///   [mailboxFrames] and [mailboxBytes] for one person, [heldBytes] for everyone together, for [holdFor]) and
+///   handed over when they next connect. The sender is told which happened. Held packets live in memory: a restart
+///   of the hub loses them, and the app's own routes are what a sender falls back on (lib/net/switchboard.dart).
+///   No more than [maxConnections] are connected at once.
 /// - **Who is here.** A connection may ask to be told when some names come and go (`watch`).
 /// - **Rooms** (a voice room, a group): named by 32 hex digits with a token of 64, both made by its members from a
 ///   key only they hold; the first to name a room sets its token. Whoever holds the token may join and leave at any
@@ -29,7 +30,7 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure();
 
@@ -39,6 +40,12 @@ class Hub {
 
   /// What is signed to connect: these words, then the hub's number.
   static const greeting = 'ghost-hub v1 ';
+
+  /// How much is held for everyone together, in bytes, and how many may be connected: a server with a few hundred
+  /// megabytes to itself, open to anyone who can make a key, is not to be filled by them.
+  final int heldBytes;
+  final int maxConnections;
+  int _held = 0;
 
   static const maxPacket = 64 * 1024;
   static const mailboxFrames = 200;
@@ -59,7 +66,11 @@ class Hub {
   final Map<String, Set<_End>> _watching = {};
   Timer? _sweeper;
 
+  int _open = 0;
   int get connected => _here.length;
+
+  /// How much is held for people who are away, in bytes.
+  int get holding => _held;
   int get rooms => _rooms.length;
   int heldFor(String id) => _mail[id]?.length ?? 0;
 
@@ -94,6 +105,11 @@ class Hub {
 
   /// Takes a connection that asked for the hub (the relay hands over any address ending in `/hub`).
   Future<void> accept(HttpRequest request) async {
+    if (_open >= maxConnections) {
+      request.response.statusCode = HttpStatus.serviceUnavailable;
+      await request.response.close();
+      return;
+    }
     final WebSocket ws;
     try {
       ws = await WebSocketTransformer.upgrade(request);
@@ -101,6 +117,8 @@ class Hub {
       return;
     }
     ws.pingInterval = const Duration(seconds: 30);
+    _open++;
+    var counted = true;
     final nonce = [for (var i = 0; i < 32; i++) _random.nextInt(256)];
     _End? end;
     final waiting = Timer(authWait, () {
@@ -110,6 +128,10 @@ class Hub {
 
     void leave() {
       waiting.cancel();
+      if (counted) {
+        counted = false;
+        _open--;
+      }
       final e = end;
       if (e == null) return;
       end = null;
@@ -154,6 +176,7 @@ class Hub {
         _here[made.id] = made;
         end = made;
         final held = _mail.remove(made.id) ?? const <_Held>[];
+        _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
         _tell(ws, {'ok': true, 'held': fresh.length});
@@ -212,11 +235,13 @@ class Hub {
       }
       final box = _mail[to] ??= [];
       final size = box.fold<int>(0, (n, h) => n + h.frame.length);
-      if (box.length >= mailboxFrames || size + frame.length > mailboxBytes) {
+      if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + frame.length > heldBytes) {
+        if (box.isEmpty) _mail.remove(to);
         _tell(from.ws, {'nak': seq, 'err': 'full'});
         return;
       }
       box.add(_Held(frame, _now()));
+      _held += frame.length;
       _tell(from.ws, {'ack': seq, 'here': false});
     } else if (data[0] == toRoom && data.length > 17) {
       // [2][the room, 16 bytes][the packet]: to everyone else in it.
@@ -277,7 +302,11 @@ class Hub {
   void sweep() {
     final cutoff = _now().subtract(holdFor);
     for (final id in _mail.keys.toList()) {
-      final box = _mail[id]!..removeWhere((h) => !h.at.isAfter(cutoff));
+      final box = _mail[id]!;
+      for (final h in box.where((h) => !h.at.isAfter(cutoff)).toList()) {
+        box.remove(h);
+        _held -= h.frame.length;
+      }
       if (box.isEmpty) _mail.remove(id);
     }
   }

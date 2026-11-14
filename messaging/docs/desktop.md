@@ -131,8 +131,8 @@ happened (`ev`).
 - Unpairing from either side removes the channel. One unused for ninety days is removed.
 - Pairing through the relay uses a channel made from the QR code's secret in the same way, which goes as soon as
   both have left it and after ten minutes at most.
-- **It is not on any server.** It runs on the Mac (`dart run relay/bin/relay.dart`). The wizard starts with
-  `wss://ghost-sms.com/relay`, where it would live when Matt says, and says plainly that nothing answers there yet.
+- **It is on our server since 2026-11-14** (`relay/README.md`, "On our server"): the wizard's own address,
+  `wss://ghost-sms.com/relay`, answers. A phone and a Mac pairing through it there has not been tried yet.
 
 ## Which way a message goes
 

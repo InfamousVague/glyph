@@ -67,7 +67,7 @@ A call's ring, sealed, is 123 bytes: one data text. Longer ones cross a short ro
 ## The hub
 
 `relay/` serves it at any address ending `/hub`, beside the pairings' relay (`/relay/<channel>`): on our server
-that is `wss://ghost-sms.com/hub` once the relay is put there (it is not yet: see `relay/README.md`). Anyone can run
+that is `wss://ghost-sms.com/hub`, live since 2026-11-14 (`relay/README.md`, "On our server"). Anyone can run
 one; Settings › Network takes its address.
 
 1. The hub says `{"hello": <64 hex digits>}`. The app answers `{"id", "key", "sig"}`: its name, its public key

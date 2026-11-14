@@ -387,7 +387,9 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   the routes reach are the people encryption is on with. Settings › Network shows each route with a switch, the
   relay server's address, and a test to each person that says which route carried it. Nothing in the app is carried
   by them yet but that test: calls, receipts and the local-network and peer-to-peer routes come next. The hub is
-  not on our server yet, so on a phone the relay route says it cannot be reached.
+  on our server since 2026-11-14 (`wss://ghost-sms.com/hub`; `tool/deploy-relay.mjs`, `relay/README.md`), tried
+  from outside with two made-up installs (`tool/net/live_hub_test.dart`); two real phones through it are not
+  yet seen.
 - **Invite someone by text** (0.7.4; Matt, 2026-11-14: "Id like to also be able to invite people to join
   ghost messaging over text which would prompt them to install the app"). Settings › Network › Invite someone by
   text opens a new chat with the invitation written (`inviteText` in `lib/ui/network.dart`: what the app is for and
@@ -519,7 +521,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone shows a quiet permanent notification, which is what lets Android keep it reachable. What is typed on the Mac
   while the phone cannot be reached waits there, "Waiting for your phone". The Mac keeps no texts on its disk. A
   computer can read, send text, mark read, pin, mute and archive; it cannot delete, block, change encryption or
-  send pictures. The relay is not on any server yet: it runs on the Mac until Matt says.
+  send pictures. The relay is on our server since 2026-11-14 (`wss://ghost-sms.com/relay`).
 - **Settings** (0.4.0; Matt, 2026-11-13: "make the settings page more like ghost kbd where it's nested sections and
   expand on the settings available"): a home of sections in groups with a search over every setting, each opening its
   own page, as Ghost Keyboard's does (`lib/ui/settings.dart` is the frame, `lib/ui/settings_panes.dart` the pages).
