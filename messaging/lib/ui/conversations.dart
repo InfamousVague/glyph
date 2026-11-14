@@ -15,6 +15,7 @@ import '../reactions.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'compose.dart';
+import 'nav_bar.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
@@ -30,10 +31,11 @@ import 'thread.dart';
 /// multiple convos to delete them"): a conversation's long press has Select, then a tap adds or takes away, and the
 /// bar at the top counts them.
 ///
-/// It is the list of the app's frame (lib/ui/shell.dart), on a phone and on a computer: its header holds New message
-/// and Settings, as the Mac's list first had them (Matt, 2026-11-14: "the mobile app should gain the nav from
-/// desktop"), what a row opens goes to the pane beside the list where there is one, and the conversation open there
-/// is marked. Shown with no frame round it (a test of this screen alone) it opens pages over itself.
+/// It is the list of the app's frame (lib/ui/shell.dart), on a phone and on a computer. The way to a new chat, the
+/// contacts, the archive and Settings is the frame's pill at the list's foot, as the Mac's sidebar has it (Matt,
+/// 2026-11-14: "the mobile app should gain the nav from desktop"); what a row opens goes to the frame's pane, and
+/// the conversation open there is marked. Shown with no frame round it (a test of this screen alone) it has New
+/// message and Settings in its header and Archived as a row at its foot, and opens pages over itself.
 class ConversationsScreen extends StatefulWidget {
   const ConversationsScreen({super.key, this.archived = false});
 
@@ -147,10 +149,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           _error = null;
           _selected.removeWhere((id) => !page.items.any((c) => c.id == id));
         });
+        // The number on the pill's Archive follows what is taken back out here.
+        _shell?.archived.value = page.items.length;
         return;
       }
       Sms.instance.archivedCount().then((n) {
-        if (mounted && read == _reads) setState(() => _archived = n);
+        if (!mounted || read != _reads) return;
+        setState(() => _archived = n);
+        _shell?.archived.value = n;
       }).catchError((_) {});
       final seen = <int>{};
       int? at = 0;
@@ -407,14 +413,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
-    final foot = AppShell.footOf(context);
-    // The navigation pill's Archive ring wears how many are archived: the list is who counts them.
-    if (!widget.archived && _shell != null && _shell!.archived.value != archivedCount) {
-      final shell = _shell!;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) shell.archived.value = archivedCount;
-      });
-    }
+    final status = AppShell.statusOf(context);
+    final framed = _shell != null;
 
     Widget body;
     if (_all == null) {
@@ -442,14 +442,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? 'Conversations you archive wait here.'
                   : rcs
                       ? 'There are no texts in Android\'s store. Chats that were RCS in ${_arriving.app} stay in that app, where no other app can read them: they are not deleted.'
-                      : (_shell == null ? 'Start one with the new message button at the top.' : 'Start one with the first button below.')),
+                      : framed
+                          ? 'Start one with New chat, the first button below.'
+                          : 'Start one with the new message button at the top.'),
           action: rcs ? SettingsEmptyAction('What to do', () => _settings('android')) : null,
         ),
       ]);
     } else {
       final extras = (notice ? 1 : 0);
-      // The archive is the navigation pill's in the app's frame; with no frame a row at the list's end leads to it.
-      final tail = _shell == null && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting;
+      // In the frame the way to the archive is the pill's ring, with its number.
+      final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting;
       body = RefreshableList(
         onRefresh: _load,
         itemCount: extras + shown.length + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
@@ -505,8 +507,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
             );
           }
-          // Clear of the bar at the foot of the phone's screen, and of the navigation pill floating over the list.
-          return SizedBox(height: MediaQuery.paddingOf(context).bottom + t.space(4) + AppShell.navRoomOf(context));
+          // Clear of the bar at the foot of the phone's screen, and of the frame's pill floating over the list's end.
+          return SizedBox(height: MediaQuery.paddingOf(context).bottom + (framed ? NavPill.clearance(t) : t.space(4)));
         },
       );
     }
@@ -528,9 +530,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           IconTap(icon: Lucide.checkCheck, label: 'Select all', onPressed: () => setState(() => _selected.addAll(shown.map((c) => c.id)))),
           IconTap(icon: widget.archived ? Lucide.archiveRestore : Lucide.archive, label: widget.archived ? 'Unarchive' : 'Archive', onPressed: _archiveSelected),
           if (Sms.can('deleteThreads')) IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
-        ] else if (!widget.archived && _shell == null) ...[
-          // In the app's frame these are the navigation pill's, at the list's foot (lib/ui/nav_pill.dart). A list
-          // shown with no frame (a test of this screen alone) keeps them here.
+        ] else if (!widget.archived && !framed) ...[
+          // Shown alone, with no frame and so no pill: the two it would hold.
           IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
           IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
         ],
@@ -549,8 +550,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   onValueChange: (v) => setState(() => _query = v),
                 ),
               ),
-              // What the frame keeps with the list: on a computer, how the phone is connected.
-              if (foot != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: foot),
+              // What the frame keeps under the search: on a computer, how the phone is connected.
+              if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
               // The search is this page's header too: the update banner hangs under it, not over it.
               const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.

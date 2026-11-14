@@ -9,7 +9,7 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
-import 'package:ghost_messaging/ui/nav_pill.dart';
+import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';

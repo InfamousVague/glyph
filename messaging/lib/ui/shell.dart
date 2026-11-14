@@ -8,7 +8,7 @@ import 'common.dart';
 import 'compose.dart';
 import 'contacts.dart';
 import 'conversations.dart';
-import 'nav_pill.dart';
+import 'nav_bar.dart';
 import 'settings.dart';
 import 'thread.dart';
 
@@ -26,22 +26,18 @@ import 'thread.dart';
 /// open on a folding phone's cover, a message half written in it, is still open and half written when the phone is
 /// opened out, with the list now beside it.
 ///
-/// The navigation is a pill floating at the list's foot (lib/ui/nav_pill.dart), the same on both: a new chat, the
-/// messages, the address book, the archive, Settings. Matt chose it for the Mac's sidebar ("at the bottom of the
-/// desktop sidebar, add a navigation bar floating", "the same navigation pill that we use in ghost markdown but
-/// horizontal", "Evenly space the icons … and add an address book icon"), and it is "the nav from desktop" the
-/// phone gains. A new chat, the address book and Settings open in the pane; Messages and Archive are the list
-/// itself, and put those away.
-///
 /// Both are navigators. What a page in the pane opens (a contact's page, a picture, a sheet) opens over it in the
 /// pane; the Archived list opens over the list in the list's place. Android's back closes what is in the pane
 /// first, then goes back in the list, then leaves the app.
+///
+/// The way round is the pill floating at the list's foot (lib/ui/nav_bar.dart), the one the Mac's sidebar has: a
+/// new chat, the messages, the contacts, the archive with how many are in it, Settings. A new chat, the contacts
+/// and Settings open in the pane; Messages and Archive are the list itself, and put those away.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.foot, this.nothing, this.settings, this.paneObservers = const []});
+  const AppShell({super.key, this.status, this.nothing, this.settings, this.paneObservers = const []});
 
-  /// Kept with the list, under its search: on a computer, how the phone is connected. (The list's foot is the
-  /// navigation pill's.)
-  final Widget? foot;
+  /// Kept under the list's search field: on a computer, how the phone is connected.
+  final Widget? status;
 
   /// What the pane says while nothing is open in it and the window is wide. "Choose a conversation" where not given.
   final WidgetBuilder? nothing;
@@ -68,13 +64,8 @@ class AppShell extends StatefulWidget {
   /// The conversation open in the pane, or null. The page asking is built again when that changes.
   static int? threadOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ShellScope>()?.thread;
 
-  /// What is kept with the list ([foot]), or null.
-  static Widget? footOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell.widget.foot;
-
-  /// How much of a list's end the navigation pill stands over, for a list in this frame to leave clear; nothing for
-  /// a page shown with no frame.
-  static double navRoomOf(BuildContext context) =>
-      maybeOf(context) == null ? 0 : NavPill.clearance(context.tokens);
+  /// What is kept under the list's search field ([status]), or null.
+  static Widget? statusOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell.widget.status;
 
   @override
   State<AppShell> createState() => AppShellState();
@@ -88,11 +79,13 @@ class AppShellState extends State<AppShell> {
   PageRouteBuilder<void>? _open;
   int? _thread;
 
-  /// Which of the navigation pill's own pages is open in the pane: 'new', 'contacts' or 'settings'. Null for a
-  /// conversation or nothing, when the list itself (Messages, or Archive) is where the person is.
+  /// Which of the pill's rings the pane's page is, where it is one: 'new', 'contacts' or 'settings'.
   String? _showing;
 
-  /// How many conversations are archived, as the list last counted them: worn on the pill's Archive ring.
+  /// The Archived list is open in the list's place.
+  bool _archivedOpen = false;
+
+  /// How many conversations are archived, as the list last counted them: the number on the pill's Archive.
   final archived = ValueNotifier<int>(0);
 
   bool _wide = false;
@@ -118,32 +111,6 @@ class AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  /// The pill's ring for where the person is now.
-  String get place => _open != null && _showing != null ? _showing! : (_archive != null ? 'archive' : 'messages');
-
-  /// The archived list, while the list's place is taken by it.
-  PageRouteBuilder<void>? _archive;
-
-  /// The navigation pill: a new chat, the address book and Settings open in the pane; Messages and Archive are the
-  /// list, and close one of those three if it was open.
-  void go(String id) {
-    switch (id) {
-      case 'new':
-        compose();
-      case 'contacts':
-        contacts();
-      case 'settings':
-        settings();
-      default:
-        if (_open != null && _showing != null) close();
-        if (id == 'archive') {
-          archive();
-        } else {
-          home();
-        }
-    }
-  }
-
   PageRouteBuilder<void> _route(Widget page) => PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 220),
@@ -159,7 +126,7 @@ class AppShellState extends State<AppShell> {
       );
 
   /// Opens [page] in the pane, in place of whatever was there. [thread] is the conversation it is, for the list to
-  /// mark.
+  /// mark; [showing] is the pill's ring it is ('new', 'contacts', 'settings'), for the pill to fill.
   void show(Widget page, {int? thread, String? showing}) {
     final nav = _pane.currentState;
     if (nav == null) {
@@ -202,29 +169,43 @@ class AppShellState extends State<AppShell> {
   /// Opens the new-message page, [body] already written where another app sent some words to text.
   void compose({String? body}) => show(ComposeScreen(key: UniqueKey(), body: body), showing: 'new');
 
-  /// Opens the address book: the phone's contacts, and a press on one opens its conversation.
-  void contacts() => show(const ContactsScreen(key: ValueKey('contacts')), showing: 'contacts');
-
-  /// Takes the list to the archived conversations, if it is not there already.
-  void archive() {
-    final nav = _side.currentState;
-    if (_archive != null || nav == null) return;
-    final route = PageRouteBuilder<void>(
-      transitionDuration: const Duration(milliseconds: 160),
-      pageBuilder: (context, _, _) => const ConversationsScreen(archived: true),
-      transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
-    );
-    setState(() => _archive = route);
-    nav.push(route);
-    route.popped.then((_) {
-      if (mounted && _archive == route) setState(() => _archive = null);
-    });
-  }
-
   /// Opens Settings, or the one [section] of it.
   void settings([String? section]) {
     final own = widget.settings;
     show(own != null ? own(context, section) : (section == null ? const SettingsScreen() : SettingsSectionScreen(section)), showing: 'settings');
+  }
+
+  /// Opens the address book: a press on someone in it opens the conversation with them.
+  void contacts() => show(const ContactsScreen(key: ValueKey('contacts')), showing: 'contacts');
+
+  /// One of the pill's rings is pressed. A new chat, the contacts and Settings open in the pane; Messages and
+  /// Archive are the list itself, and put away whichever of those three was open.
+  void go(String id) {
+    switch (id) {
+      case 'new':
+        compose();
+      case 'contacts':
+        contacts();
+      case 'settings':
+        settings();
+      default:
+        if (_showing != null) close();
+        final side = _side.currentState;
+        if (side == null) return;
+        if (id != 'archive') return side.popUntil((r) => r.isFirst);
+        if (_archivedOpen) return;
+        final route = PageRouteBuilder<void>(
+          transitionDuration: const Duration(milliseconds: 160),
+          reverseTransitionDuration: const Duration(milliseconds: 120),
+          pageBuilder: (context, _, _) => const ConversationsScreen(archived: true),
+          transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
+        );
+        setState(() => _archivedOpen = true);
+        side.push(route);
+        route.popped.then((_) {
+          if (mounted) setState(() => _archivedOpen = false);
+        });
+    }
   }
 
   /// Closes what is open in the pane.
@@ -273,42 +254,41 @@ class AppShellState extends State<AppShell> {
                     enabled: !covered,
                     child: HeaderCover(
                       covered: !wide && _open != null,
-                      child: _sized(NotificationListener<NavigationNotification>(
-                        onNotification: (n) {
-                          if (n.canHandlePop != _sideBack) setState(() => _sideBack = n.canHandlePop);
-                          return false;
-                        },
-                        child: Navigator(
-                          key: _side,
-                          onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (context, _, _) => const ConversationsScreen()),
+                      child: _sized(Stack(children: [
+                        Positioned.fill(
+                          child: NotificationListener<NavigationNotification>(
+                            onNotification: (n) {
+                              if (n.canHandlePop != _sideBack) setState(() => _sideBack = n.canHandlePop);
+                              return false;
+                            },
+                            child: Navigator(
+                              key: _side,
+                              onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (context, _, _) => const ConversationsScreen()),
+                            ),
+                          ),
                         ),
-                      )),
-                    ),
-                  ),
-                ),
-              ),
-              // The navigation pill, floating over the list's foot: under the pane, so a page that slides over the
-              // list on a narrow screen covers it with the list.
-              Positioned(
-                key: const ValueKey('shell-nav'),
-                left: 0,
-                bottom: 0,
-                width: side,
-                child: Offstage(
-                  offstage: covered,
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: archived,
-                    builder: (context, count, _) => NavPill(
-                      active: place,
-                      onSelect: go,
-                      under: MediaQuery.paddingOf(context).bottom,
-                      items: [
-                        const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
-                        const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
-                        const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
-                        NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count),
-                        const NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
-                      ],
+                        // The way round floats over the list's end, clear of the bar at the foot of a phone's
+                        // screen; the list leaves it room (NavPill.clearance).
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: MediaQuery.paddingOf(context).bottom,
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: archived,
+                            builder: (context, count, _) => NavPill(
+                              active: _showing ?? (_archivedOpen ? 'archive' : 'messages'),
+                              onSelect: go,
+                              items: [
+                                const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
+                                const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+                                const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
+                                NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count),
+                                const NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ])),
                     ),
                   ),
                 ),
@@ -393,7 +373,7 @@ class _Nothing extends StatelessWidget {
             SizedBox(height: t.space(4)),
             Text('Choose a conversation', textAlign: TextAlign.center, style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink-2'))),
             SizedBox(height: t.space(1)),
-            Text('Or start a new one from the bar under the list.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            Text('Or start a new chat from the bar under the list.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           ]),
         ),
       ),

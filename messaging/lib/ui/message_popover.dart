@@ -12,7 +12,7 @@ import 'common.dart';
 /// What a long press on a message brings up, beside the message itself (Matt, 2026-11-13: "I want the message
 /// reactions to pop up under the message like imessage does", and "I'd like to be able to react with full screen
 /// effects by pressing and holding on a message as well"): the reactions in a row under the bubble, what else can be
-/// done with the message under those, and the screen effects in a row under that menu. The page dims round the
+/// done with the message under those, the screen effects behind that menu's "Effects". The page dims round the
 /// message, which stays lit. With no room under the bubble, it all sits above it.
 Future<void> showMessagePopover(
   BuildContext context, {
@@ -107,55 +107,12 @@ class _Popover extends StatelessWidget {
       crossAxisAlignment: outgoing ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         if (reactions.isNotEmpty && onReact != null) pill([for (final e in reactions) round(e, mine.contains(e) ? 'Remove $e' : 'React $e', mine.contains(e), () => onReact!(e))]),
-        if (choices.isNotEmpty) ...[
+        // What can be done with the message; the screen effects are one item of it, which opens them in its place
+        // (Matt, 2026-11-14: "Message effects should be under a literal effects item on thr message context that
+        // opens a sub context to the effects not a row of effect icons").
+        if (choices.isNotEmpty || (effects.isNotEmpty && onEffect != null)) ...[
           SizedBox(height: t.space(2)),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 260),
-            child: DecoratedBox(
-              decoration: surface.copyWith(borderRadius: BorderRadius.circular(t.radius('lg'))),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(t.radius('lg')),
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  for (final c in choices)
-                    GlacierPressable(
-                      onPressed: () {
-                        close();
-                        c.onPress();
-                      },
-                      builder: (context, state) {
-                        final ink = c.danger ? t.colorOf('#dd3a30') : t.color('app-ink');
-                        return ColoredBox(
-                          color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.lenOf('0.7rem')),
-                            child: Row(children: [
-                              Expanded(child: Text(c.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))),
-                              SizedBox(width: t.space(3)),
-                              AppIcon(c.icon, size: 18, color: ink),
-                            ]),
-                          ),
-                        );
-                      },
-                    ),
-                ]),
-              ),
-            ),
-          ),
-        ],
-        // The screen effects come last, under the menu (Matt, 2026-11-14: "The reactions should show up under the
-        // context menu not a second row under emoji"): the reactions and what can be done with the message stay together.
-        if (effects.isNotEmpty && onEffect != null) ...[
-          SizedBox(height: t.space(2)),
-          pill(
-            [
-              for (final e in effects)
-                round(effectReactionEmoji[e]!, mine.contains(effectReactionEmoji[e]) ? 'Take back ${effectLabel(e)}' : 'React with ${effectLabel(e)}, over the whole screen', mine.contains(effectReactionEmoji[e]), () => onEffect!(e)),
-            ],
-            lead: Padding(
-              padding: EdgeInsets.only(left: t.space(3), right: t.space(1)),
-              child: Semantics(label: 'Screen effects', child: AppIcon(Lucide.sparkles, size: 18, color: t.color('app-ink-3'))),
-            ),
-          ),
+          _Menu(choices: choices, effects: onEffect == null ? const [] : effects, mine: mine, onEffect: onEffect, close: close, surface: surface),
         ],
       ],
     );
@@ -230,4 +187,124 @@ class _Scrim extends CustomPainter {
 
   @override
   bool shouldRepaint(_Scrim old) => old.bubble != bubble;
+}
+
+/// What can be done with a held message, as a list. "Effects" among it opens the screen effects in the list's own
+/// place, each by its name, with the way back at the top: a menu inside the menu, where a row of the effects'
+/// pictures used to hang under it.
+class _Menu extends StatefulWidget {
+  const _Menu({required this.choices, required this.effects, required this.mine, required this.onEffect, required this.close, required this.surface});
+  final List<Choice> choices;
+  final List<ScreenEffect> effects;
+  final Set<String> mine;
+  final ValueChanged<ScreenEffect>? onEffect;
+  final VoidCallback close;
+  final BoxDecoration surface;
+
+  @override
+  State<_Menu> createState() => _MenuState();
+}
+
+class _MenuState extends State<_Menu> {
+  bool _effects = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+
+    Widget row(String label, {Widget? lead, Widget? trail, required VoidCallback onPress, bool danger = false, String? says}) => GlacierPressable(
+          onPressed: onPress,
+          semanticLabel: says,
+          builder: (context, state) {
+            final ink = danger ? t.colorOf('#dd3a30') : t.color('app-ink');
+            return ColoredBox(
+              color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.lenOf('0.7rem')),
+                child: Row(children: [
+                  if (lead != null) ...[lead, SizedBox(width: t.space(3))],
+                  Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))),
+                  if (trail != null) ...[SizedBox(width: t.space(3)), trail],
+                ]),
+              ),
+            );
+          },
+        );
+
+    Widget choice(Choice c) => row(
+          c.label,
+          trail: AppIcon(c.icon, size: 18, color: c.danger ? t.colorOf('#dd3a30') : t.color('app-ink')),
+          danger: c.danger,
+          onPress: () {
+            widget.close();
+            c.onPress();
+          },
+        );
+
+    final Widget page;
+    if (!_effects) {
+      page = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final c in widget.choices.where((c) => !c.danger)) choice(c),
+        // Above what deletes, under what does not.
+        if (widget.effects.isNotEmpty)
+          row(
+            'Effects',
+            says: 'Effects: react with one over the whole screen',
+            trail: Row(mainAxisSize: MainAxisSize.min, children: [
+              AppIcon(Lucide.sparkles, size: 18, color: t.color('app-ink')),
+              SizedBox(width: t.space(1)),
+              AppIcon(Lucide.chevronRight, size: 16, color: t.color('app-ink-3')),
+            ]),
+            onPress: () => setState(() => _effects = true),
+          ),
+        for (final c in widget.choices.where((c) => c.danger)) choice(c),
+      ]);
+    } else {
+      page = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        row(
+          'Effects',
+          says: 'Back to the menu',
+          lead: AppIcon(Lucide.chevronLeft, size: 18, color: t.color('app-ink-3')),
+          onPress: () => setState(() => _effects = false),
+        ),
+        Container(height: 1, color: t.color('app-rule')),
+        // Twenty of them: the list scrolls inside the menu, which stays a menu's size.
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: t.lenOf('15rem')),
+          child: ListView(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            children: [
+              for (final e in widget.effects)
+                row(
+                  effectLabel(e),
+                  says: widget.mine.contains(effectReactionEmoji[e]) ? 'Take back ${effectLabel(e)}' : 'React with ${effectLabel(e)}, over the whole screen',
+                  lead: SizedBox(width: t.lenOf('1.5rem'), child: Text(effectReactionEmoji[e]!, textAlign: TextAlign.center, style: pageText(t, t.lenOf('1.15rem'), height: 1.15))),
+                  trail: widget.mine.contains(effectReactionEmoji[e]) ? AppIcon(Lucide.check, size: 16, color: t.colorOf('#4f5bd5')) : null,
+                  onPress: () {
+                    widget.close();
+                    widget.onEffect?.call(e);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ]);
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: DecoratedBox(
+        decoration: widget.surface.copyWith(borderRadius: BorderRadius.circular(t.radius('lg'))),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(t.radius('lg')),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: KeyedSubtree(key: ValueKey(_effects), child: page),
+          ),
+        ),
+      ),
+    );
+  }
 }

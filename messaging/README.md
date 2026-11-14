@@ -367,23 +367,26 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
   over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
   yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
-- **One frame, phone and computer** (not released; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
+- **One frame, phone and computer** (0.7.4; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
   to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
   app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from
   it. In a window 640 wide or wider (a folding phone opened out, a tablet, a computer) the list is down the side,
   as the Mac's first had it, with what is open beside it, its row marked, and no way back drawn; narrower (a phone,
   a folding phone's cover) the list is the screen and what is opened slides over it. Both are kept in place as the
   window changes, so a conversation open on the cover, and what is half written in it, is still open when the phone
-  is opened out. At the list's foot is the navigation pill the Mac had first (`lib/ui/nav_pill.dart`; Ghost.md's
-  dock laid on its side, the rings spread across the list's width): a new chat, Messages, the address book
-  (`lib/ui/contacts.dart`), the archive with how many are in it, Settings. It took the place of New message and
-  Settings in the list's header and of the "Archived (n)" row at the list's end. Android's back closes what is in
-  the pane, then leaves Archived, then leaves the app. What a notification or another app's "text this number"
-  asks for opens in the pane too. The Mac's window is this same frame (`lib/desktop/ui/shell.dart` is a few lines
-  now): `AppShell` takes what the Mac keeps under its search (`foot`: how it is connected), what its pane says when
-  empty (`nothing`) and its own Settings (`settings`). What a screen offers on a computer is what the phone it is
-  paired with says it does for one (`Sms.can`): pictures, stickers, voice messages, editing, deleting, blocking,
-  encryption's choices; a phone that is behind is offered none of them.
+  is opened out. The way round is the Mac's pill floating at the list's foot (`lib/ui/nav_bar.dart`: a new chat, the
+  messages, the contacts, the archive with its number, Settings), where the phone had a round "New message" button,
+  Settings in the header and Archived as a row at the list's end. Android's back closes what is in the pane, then
+  leaves the archive, then leaves the app. What a notification
+  or another app's "text this number" asks for opens in the pane too. The Mac's window is this same frame
+  (`lib/desktop/ui/shell.dart` is a few lines now): `AppShell` takes what the Mac keeps
+  under its search field (`status`), what its pane says when empty (`nothing`) and its own Settings (`settings`).
+  What a screen offers on a computer is what the phone it is paired with says it does for one (`Sms.can`):
+  pictures, stickers, voice messages, editing, deleting, blocking, encryption's choices; a phone that is behind is
+  offered none of them.
+  A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
+  (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
+  to the effects not a row of effect icons").
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by

@@ -27,7 +27,7 @@ class DeskShell extends StatelessWidget {
     final scope = DeskScope.of(context);
     return AppShell(
       // How the phone is connected, and what is waiting for it.
-      foot: ListenableBuilder(listenable: scope.link, builder: (context, _) => LinkStatus(link: scope.link, waiting: scope.calls.waiting)),
+      status: ListenableBuilder(listenable: scope.link, builder: (context, _) => LinkStatus(link: scope.link, waiting: scope.calls.waiting)),
       nothing: (context) => const _Nothing(),
       settings: (context, section) => const DeskSettingsScreen(key: ValueKey('settings')),
       // Each page that opens in the pane asks for a look for a newer version, as on the phone.
