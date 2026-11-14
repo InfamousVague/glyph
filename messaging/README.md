@@ -590,7 +590,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   it, and ghost-sms.com's block passing `/link/*` to it; Matt: "deploy both yes"), so the three proved by a code
   can be tried; Discord's, X's and Telegram's sign-ins are still off, their apps not registered. **Not run against
   a real network yet.**
-- **Your number, verified by a text** (0.7.12, not released; [docs/me.md](docs/me.md); Matt, 2026-11-14: "I'd
+- **Your number, verified by a text** (0.7.12; on the Mac, through the phone, 0.7.13; [docs/me.md](docs/me.md); Matt, 2026-11-14: "I'd
   like to use a third party service that allows us to send the text code to a number to verify so it can't be
   spoofed"). Settings › Me › Number says Not verified and opens a page that has a code texted to the number; the
   page reads the code out of the text as it arrives and the row then says Verified. The code is made, sent and
