@@ -52,6 +52,24 @@ object MmsWhy {
     }
 
     /**
+     * Where an announced picture message is fetched from (Matt, 2026-11-14: "debugging why pictures are not being
+     * received"). It is the address the announcement gave; but some carriers' own settings ask for the
+     * announcement's transaction id on the end of it (Android's `enabledTransID`), and their server answers "not
+     * found" without. Android's own texting apps add it where the carrier's settings say so; this app did not, so
+     * on such a carrier no picture could be fetched. [append] is that setting. An address that already ends with
+     * the id is left as it is.
+     */
+    fun fetchAddress(location: String, transactionId: String?, append: Boolean): String {
+        val id = transactionId?.trim().orEmpty()
+        if (!append || id.isEmpty() || location.endsWith(id)) return location
+        return location + id
+    }
+
+    /** The server a picture message is fetched from, for the log: its name alone, never the rest of the address. */
+    fun hostOf(location: String): String =
+        Regex("^[a-zA-Z]+://([^/:?#]+)").find(location.trim())?.groupValues?.get(1) ?: "an address with no server in it"
+
+    /**
      * A carrier's refusal of a message it took delivery of: X-Mms-Response-Status in its answer (OMA MMS encapsulation
      * 7.3.48), with its own words where it gave any. Null where the answer says the message was accepted (or says
      * nothing). Android reports such a message as sent; it is not.

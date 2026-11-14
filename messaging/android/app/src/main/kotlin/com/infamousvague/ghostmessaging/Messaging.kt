@@ -446,7 +446,13 @@ class MmsPushReceiver : BroadcastReceiver() {
             // It waits from now until it has come: a fetch that fails is asked for again (retryWaiting).
             MmsDiag.fetching(context, location, transactionId, sub)
             try {
-                smsManager(context, sub).downloadMultimediaMessage(context, location, uri, null, done)
+                val sms = smsManager(context, sub)
+                // The carrier's own settings say whether its server wants the transaction id on the address
+                // (MmsWhy.fetchAddress): without it, on those carriers, every fetch is "not found".
+                val append = try { sms.carrierConfigValues?.getBoolean(SmsManager.MMS_CONFIG_APPEND_TRANSACTION_ID, false) ?: false } catch (_: Exception) { false }
+                val from = MmsWhy.fetchAddress(location, transactionId, append)
+                DevLog.add(context, "mms", "fetching from ${MmsWhy.hostOf(location)} on SIM $sub${if (from != location) ", the transaction id added as the carrier's settings ask" else ""}")
+                sms.downloadMultimediaMessage(context, from, uri, null, done)
             } catch (e: Exception) {
                 Log.e(TAG, "download", e)
                 MmsDiag.note(context, "download", false, "Android wouldn't fetch it (${e.message ?: e.javaClass.simpleName})")

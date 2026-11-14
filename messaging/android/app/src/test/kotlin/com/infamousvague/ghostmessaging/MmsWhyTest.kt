@@ -60,4 +60,20 @@ class MmsWhyTest {
         assertTrue(MmsWhy.refused(0xE2, null)!!.endsWith("(status 0xE2)"))
         assertTrue(MmsWhy.refused(0xC0, "")!!.startsWith("the carrier couldn't take it just now"))
     }
+
+    /** Some carriers want the announcement's transaction id on the end of the address a picture is fetched from. */
+    @Test
+    fun theFetchAddressFollowsTheCarriersSettings() {
+        val location = "http://mms.example-carrier.net/servlets/mms?message-id="
+        assertEquals(location, MmsWhy.fetchAddress(location, "T19a2f", append = false))
+        assertEquals(location + "T19a2f", MmsWhy.fetchAddress(location, "T19a2f", append = true))
+        // Already there, or nothing to add: as it is.
+        assertEquals(location + "T19a2f", MmsWhy.fetchAddress(location + "T19a2f", "T19a2f", append = true))
+        assertEquals(location, MmsWhy.fetchAddress(location, null, append = true))
+        assertEquals(location, MmsWhy.fetchAddress(location, "  ", append = true))
+        // The log names the server and nothing after it.
+        assertEquals("mms.example-carrier.net", MmsWhy.hostOf(location + "T19a2f"))
+        assertEquals("10.0.2.2", MmsWhy.hostOf("http://10.0.2.2:18765/mms/abc"))
+        assertEquals("an address with no server in it", MmsWhy.hostOf("nonsense"))
+    }
 }
