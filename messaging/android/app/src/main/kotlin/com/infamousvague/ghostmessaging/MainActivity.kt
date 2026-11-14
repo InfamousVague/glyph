@@ -103,6 +103,8 @@ class MainActivity : FlutterActivity() {
                         only = if (call.argument<Boolean>("archived") == true) store.archivedThreads() else null,
                     )
                 }
+                "mmsStatus" -> bg { MmsDiag.status(applicationContext) }
+                "mmsRetry" -> bg { MmsPushReceiver.retryWaiting(applicationContext) }
                 "conversation" -> bg { store.conversation(call.argument<Number>("thread")!!.toLong()) }
                 "archivedCount" -> on(lists) { (store.conversationsPage(only = store.archivedThreads())["items"] as List<*>).size }
                 "perfOn" -> result.success(timed)
@@ -270,7 +272,12 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    override fun onResume() { super.onResume(); inFront = true }
+    override fun onResume() {
+        super.onResume()
+        inFront = true
+        // Picture messages announced and never fetched are asked for again as the app comes forward.
+        io.execute { try { MmsPushReceiver.retryWaiting(applicationContext) } catch (_: Exception) {} }
+    }
 
     override fun onDestroy() {
         try { contentResolver.unregisterContentObserver(contactsWatcher) } catch (_: Exception) {}

@@ -53,6 +53,9 @@ class SettingsModel extends ChangeNotifier {
   /// Where this phone listens on the local network, for a computer that cannot find it by itself.
   List<String> phoneAddresses = const [];
 
+  /// Whether picture messages can go from this phone, and how the last ones went (Settings › Android).
+  MmsStatus mms = const MmsStatus();
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   StreamSubscription<void>? _computers;
@@ -97,6 +100,7 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => computers = await Sms.instance.computers()),
       ask(() async => unrestricted = await Sms.instance.unrestrictedBattery()),
       ask(() async => phoneAddresses = await Sms.instance.phoneAddresses()),
+      ask(() async => mms = await Sms.instance.mmsStatus()),
       ask(() async => archived = await Sms.instance.archivedCount()),
     ]);
     _say();

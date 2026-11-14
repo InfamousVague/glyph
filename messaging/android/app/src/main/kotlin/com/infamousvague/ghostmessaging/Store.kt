@@ -439,6 +439,8 @@ class Store(private val context: Context) {
                     },
                     "read" to ((row[3] as Int) != 0),
                     "parts" to (if (background != null) emptyList() else parts.filter { it["type"] != "text/plain" && it["type"] != "application/smil" }),
+                    // Why it did not go, where it did not (MmsWhy): said under it.
+                    "why" to (if (box == Telephony.Mms.MESSAGE_BOX_FAILED) MmsDiag.why(context, id) else null),
                 )
             }
         }
@@ -671,6 +673,14 @@ class Store(private val context: Context) {
     fun mmsNotice(id: Long): Triple<String, String?, Int>? {
         resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("ct_l", "tr_id", "sub_id"), "_id = ? AND m_type = ${Pdu.NOTIFICATION_IND}", arrayOf(id.toString()), null)?.use { c ->
             if (c.moveToFirst()) return Triple(c.getString(0) ?: return null, c.getString(1), c.getInt(2))
+        }
+        return null
+    }
+
+    /** The announcement kept for the picture message waiting at [location], if one is. */
+    fun mmsNoticeAt(location: String): Uri? {
+        resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("_id"), "m_type = ${Pdu.NOTIFICATION_IND} AND ct_l = ?", arrayOf(location), null)?.use { c ->
+            if (c.moveToFirst()) return Uri.withAppendedPath(Telephony.Mms.CONTENT_URI, c.getLong(0).toString())
         }
         return null
     }

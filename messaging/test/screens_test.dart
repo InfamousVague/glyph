@@ -86,6 +86,8 @@ List<Map<String, Object?>> _messages(int thread) {
   if (thread == 2) {
     return [
       // Two of the app's stickers (android Stickers.kt names them): one sent, one from someone else with the app.
+      // One that did not go, with why (android MmsWhy.kt).
+      {'id': 16, 'kind': 'mms', 'address': '', 'body': 'Trailhead at 9', 'date': _ago(minutes: 47), 'outgoing': true, 'state': 'failed', 'read': true, 'parts': [], 'why': 'mobile data is off. Picture messages need it, even on Wi-Fi'},
       {'id': 15, 'kind': 'mms', 'address': '', 'body': '', 'date': _ago(minutes: 48), 'outgoing': true, 'state': 'sent', 'read': true, 'parts': [{'id': 902, 'type': 'image/png', 'name': 'ghost-sticker-party-03.png'}]},
       {'id': 14, 'kind': 'mms', 'address': '+15551230002', 'body': '', 'date': _ago(minutes: 49), 'outgoing': false, 'state': 'received', 'read': true, 'parts': [{'id': 901, 'type': 'image/png', 'name': 'ghost-sticker-sweet-01.png'}]},
       {'id': 13, 'kind': 'mms', 'address': '+15551230004', 'body': '👍 to "Hike this weekend?"', 'date': _ago(minutes: 50), 'outgoing': false, 'state': 'received', 'read': true, 'parts': []},
@@ -211,6 +213,13 @@ void _answerChannel() {
       case 'voiceLevel':
         _voiceBeat++;
         return 0.04 + 0.5 * ((_voiceBeat * 37) % 17) / 17 * (_voiceBeat % 9 < 6 ? 1 : 0.15);
+      case 'mmsStatus':
+        // Picture messages as the phone reports them: nothing in the way, one sent, one that could not be fetched.
+        return {
+          'dataOn': true, 'carrier': 'T-Mobile', 'sim': true, 'allowed': true, 'maxBytes': 1048576, 'waiting': 1,
+          'lastSend': {'at': _ago(minutes: 12), 'ok': true, 'detail': 'sent, 294 KB'},
+          'lastDownload': {'at': _ago(hours: 3), 'ok': false, 'detail': 'the carrier\'s server couldn\'t be reached. Check mobile data'},
+        };
       case 'part':
         // The two stickers in the group conversation, as the phone would hand a picture message's part over.
         return switch ((args['id'] as num).toInt()) {
