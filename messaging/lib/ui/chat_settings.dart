@@ -11,6 +11,7 @@ import '../art/lucide.g.dart';
 import '../backgrounds.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../friends/friends.dart';
 import '../sms.dart';
 import 'background_picker.dart';
 import 'common.dart';
@@ -31,6 +32,29 @@ class ChatSettingsScreen extends StatefulWidget {
 class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   Conversation? _conversation;
   E2eState _e2e = const E2eState();
+
+  /// The Friend row was pressed: asks, accepts, or (asked first) takes a request back or stops being friends.
+  Future<void> _friend(Person who) async {
+    final friends = Friends.instance;
+    switch (_e2e.friend) {
+      case '':
+        await friends.add(who.address);
+        if (mounted) toast(context, 'Friend request sent to ${who.label}');
+      case 'invited':
+        await friends.accept(who.address);
+        if (mounted) toast(context, 'You and ${who.label} are friends');
+      default:
+        final friend = _e2e.isFriend;
+        showChoices(context, title: friend ? 'Stop being friends with ${who.label}? What you write to them goes as a text again.' : 'Take back the friend request to ${who.label}?', choices: [
+          Choice(friend ? 'Remove friend' : 'Take back', Lucide.userRound, () async {
+            await friends.remove(who.address);
+            _load();
+          }, danger: true),
+        ]);
+        return;
+    }
+    _load();
+  }
   StreamSubscription<int>? _changes;
 
   bool get _group => widget.people.length > 1;
@@ -94,7 +118,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     Row(mainAxisSize: MainAxisSize.min, children: [
                       AppIcon(Lucide.lock, size: 12, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3')),
                       const SizedBox(width: 4),
-                      Text(_e2e.verified ? 'Encrypted · verified' : 'Encrypted', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                      Text(_e2e.isFriend ? (_e2e.verified ? 'Friend · verified' : 'Friend · encrypted') : (_e2e.verified ? 'Encrypted · verified' : 'Encrypted'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                     ]),
                   ],
                 ]),
@@ -155,6 +179,21 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       // where it stands where its phone's app is from before it could.
                       onPress: Sms.can('e2eOffer') ? () => showEncryptionChoices(context, people.first, _e2e, _load) : null,
                     ),
+                    // Friends (lib/friends/friends.dart): offered where both have the app and a relay server
+                    // answers; where the two already stand somewhere it is always said. Asked and answered on the
+                    // phone, which holds the keys and the routes.
+                    if (!Sms.remote && (_e2e.friend.isNotEmpty || (Friends.instance.available && (_e2e.on || _e2e.offerable))))
+                      SettingRow(
+                        icon: AppIcon(_e2e.isFriend ? Lucide.userCheck : Lucide.userPlus, size: 18),
+                        label: switch (_e2e.friend) { 'yes' => 'Friends', 'invited' => 'Accept friend request', 'want' || 'asked' => 'Friend request sent', _ => 'Add friend' },
+                        hint: Text(switch (_e2e.friend) {
+                          'yes' => 'What you write to ${people.first.label} goes over the internet, encrypted, and as a text only where it can\'t. Tap to stop being friends.',
+                          'invited' => '${people.first.label} asked. Friends chat over the internet, encrypted, not by text.',
+                          'want' || 'asked' => 'Waiting for ${people.first.label} to accept. Tap to take it back.',
+                          _ => '${people.first.label} has Ghost Messaging too. Friends chat over the internet, encrypted, not by text.',
+                        }),
+                        onPress: () => _friend(people.first),
+                      ),
                   ]),
                 ],
                 SizedBox(height: t.space(5)),

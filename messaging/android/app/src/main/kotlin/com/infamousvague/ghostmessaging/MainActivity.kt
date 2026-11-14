@@ -200,6 +200,12 @@ class MainActivity : FlutterActivity() {
                 "netSmsAvailable" -> bg { NetSms.available(applicationContext) }
                 "netSmsSend" -> bg { NetSms.send(applicationContext, call.argument<String>("address")!!, call.argument<ByteArray>("bytes")!!); null }
                 "netSmsDrain" -> bg { NetSms.drain(applicationContext) }
+                // Friends (Friends.kt): where the two stand, and a friend's words kept with the phone's messages.
+                "friendSet" -> bg { E2e.setFriend(applicationContext, call.argument<String>("address")!!, call.argument<String>("state") ?: ""); Bus.prefsChanged(); Bus.changed(-1); null }
+                "netTextOut" -> bg { Friends.storeOut(applicationContext, call.argument<String>("address")!!, call.argument<String>("body")!!) }
+                "netTextState" -> bg { Friends.setRow(applicationContext, (call.argument<Number>("id")!!).toLong(), call.argument<String>("state")!!); null }
+                "netTextDrop" -> bg { Friends.dropRow(applicationContext, (call.argument<Number>("id")!!).toLong()); null }
+                "netTextIn" -> bg { Friends.storeIn(applicationContext, call.argument<String>("address")!!, call.argument<String>("body")!!, (call.argument<Number>("at") ?: 0).toLong()); null }
                 "e2eMine" -> bg { if (E2e.hasIdentity(applicationContext)) E2e.myFingerprint(applicationContext) else null }
                 "e2eOffer" -> bg {
                     // This phone's key goes to them as a plain text; where theirs is already here, encryption is on.

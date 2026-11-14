@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/effects.dart';
+import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/net/carrier.dart';
@@ -28,6 +29,8 @@ import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
 import 'package:ghost_messaging/ui/update_banner.dart';
 import 'package:glacier/glacier.dart';
+
+import 'support/fake_friends.dart';
 
 /// The screens drawn with made-up conversations, in light and dark, written to test/shots/ (run with
 /// `flutter test --update-goldens test/screens_test.dart`). Nothing here talks to Android: the channel is answered
@@ -65,6 +68,9 @@ final _conversations = [
 
 /// The warning that Sam's texts are coming without encryption: put away, or encryption turned off with him.
 bool _plainSeen = false;
+
+/// Where being friends with Maya stands (android E2e.friend), for the friends' test alone: '' everywhere else.
+String _mayaFriend = '';
 bool _plainOff = false;
 
 /// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers.
@@ -81,7 +87,8 @@ Map<String, Object?> _e2e(String address) => switch (address) {
       // Encryption is on with Sam, whose last two texts came without it (or it was turned off, or the warning put away).
       '+15551230013' => {'address': address, 'state': _plainOff ? 'none' : 'on', 'verified': false, 'changed': false, 'person': _p(address, 'Sam Rivera'), 'plain': _plainOff || _plainSeen ? 0 : 2, 'declined': _plainOff},
       // Maya has the app too (its hello came from her), and nothing has been exchanged: the conversation offers it.
-      '+15551230001' => {'address': address, 'state': 'none', 'verified': false, 'changed': false, 'hasGhost': true, 'declined': false},
+      // Adding her as a friend sends this phone's key ('want'), and being asked or being friends means keys are exchanged.
+      '+15551230001' => {'address': address, 'state': switch (_mayaFriend) { '' => 'none', 'want' => 'offered', _ => 'on' }, 'verified': false, 'changed': false, 'hasGhost': true, 'declined': false, 'friend': _mayaFriend, 'person': _p(address, 'Maya Chen')},
       _ => {'address': address, 'state': 'none', 'verified': false, 'changed': false},
     };
 
@@ -210,7 +217,13 @@ void _answerChannel() {
       case 'archivedCount':
         return _conversations.where((c) => c['archived'] == true).length;
       case 'messages':
-        return _messages((args['thread'] as num).toInt());
+        final thread = (args['thread'] as num).toInt();
+        // Between friends the last things said went by the internet, sealed.
+        if (thread == 1 && _mayaFriend == 'yes') {
+          final all = _messages(thread);
+          return [for (final m in all) (m['id'] as int) >= 6 ? {...m, 'via': 'net', 'encrypted': true} : m];
+        }
+        return _messages(thread);
       case 'people':
         return (_conversations.firstWhere((c) => c['id'] == args['thread'])['people']);
       case 'searchContacts':
@@ -703,6 +716,74 @@ void main() {
 
   // The app's frame (lib/ui/shell.dart): the list beside what is opened from it where the window is wide, under it
   // where it is narrow, and the same pages kept as the window changes. Pictures 11-frame-*.
+  testWidgets('friends: the offer, a request each way, friends', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    const maya = [Person(address: '+15551230001', name: 'Maya Chen')];
+    // The routes and the phone under Friends, standing in: what it is told about Maya is what the phone then says.
+    final port = _FriendsPort('+15550000000');
+    port.other = FakePort('+15551230001')..other = port;
+    addTearDown(() {
+      Friends.instance = null;
+      _mayaFriend = '';
+    });
+    for (final dark in [false, true]) {
+      // No relay server is known to answer (a phone that has never reached one: once one has answered, friends
+      // stay offered): the conversation offers encryption as it always did, and no friend.
+      Friends.instance = Friends(port);
+      _mayaFriend = '';
+      port.up = false;
+      await _shoot(tester, sheet, ThreadScreen(key: ValueKey('none-$dark'), thread: 1, people: maya), '13-friends-none', dark: dark);
+      expect(find.text('Add friend'), findsNothing);
+      expect(find.text('Turn on'), findsOneWidget);
+      // One answers (Matt: "If both users chatting are on ghost messenger show an 'add friend' button"): Add friend
+      // stands where the offer of encryption stood.
+      port.up = true;
+      await _shoot(tester, sheet, ThreadScreen(key: ValueKey('offer-$dark'), thread: 1, people: maya), '13-friends-offer', dark: dark);
+      expect(find.text('Add friend'), findsOneWidget);
+      expect(find.text('Turn on'), findsNothing);
+      // Pressed: this phone's key goes to her first, and the asking waits for hers.
+      port.keysSent.clear();
+      await tester.tap(find.text('Add friend'));
+      await _shootAgain(tester, '13-friends-asked', dark: dark);
+      expect(port.keysSent, ['+15551230001']);
+      expect(_mayaFriend, 'want');
+      expect(find.text('Friend request sent. Waiting for Maya Chen to accept.'), findsOneWidget);
+      expect(find.text('Add friend'), findsNothing);
+      // She asked: said until it is answered. Accepted, the two are friends and the conversation says so; what was
+      // last said went by the internet.
+      _mayaFriend = 'invited';
+      await _shoot(tester, sheet, ThreadScreen(key: ValueKey('invited-$dark'), thread: 1, people: maya), '13-friends-invited', dark: dark);
+      expect(find.textContaining('wants to add you as a friend'), findsOneWidget);
+      await tester.tap(find.text('Accept'));
+      await _shootAgain(tester, '13-friends', dark: dark);
+      expect(_mayaFriend, 'yes');
+      expect(find.text('Friend · encrypted'), findsOneWidget);
+      expect(find.textContaining('wants to add you as a friend'), findsNothing);
+      // The conversation's settings say it, with the way to stop. (The words that said they are friends have gone
+      // by then: they stand over the foot of the screen for a few seconds.)
+      await tester.pump(const Duration(seconds: 6));
+      await _settle(tester);
+      await _shoot(tester, sheet, const ChatSettingsScreen(thread: 1, people: maya), '13-friends-settings', dark: dark);
+      expect(find.text('Friend · encrypted'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Friends'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
+      await _shootAgain(tester, '13-friends-settings', dark: dark);
+      expect(find.text('Friends'), findsOneWidget);
+      await tester.tap(find.text('Friends'));
+      await _settle(tester);
+      await tester.tap(find.text('Remove friend'));
+      await _settle(tester);
+      expect(_mayaFriend, '');
+      expect(find.text('Add friend'), findsOneWidget);
+    }
+  });
+
   testWidgets('the frame, wide and narrow', (tester) async {
     // A folding phone opened out, then its cover.
     const open = Size(750 * 2.0, 832 * 2.0);
@@ -882,4 +963,19 @@ class _Route implements Carrier {
     carried++;
     return Handed.passed;
   }
+}
+
+/// The routes and the phone under Friends for the friends' pictures: what Friends tells the phone about Maya is
+/// what the phone's answers (`_e2e`) then say.
+class _FriendsPort extends FakePort {
+  _FriendsPort(super.me);
+
+  @override
+  Future<void> setFriend(String address, String state) async => _mayaFriend = state;
+
+  @override
+  Future<void> offerKeys(String address) async => keysSent.add(address);
+
+  @override
+  Future<List<E2eState>> states() async => [E2eState.from(_e2e('+15551230001'))];
 }

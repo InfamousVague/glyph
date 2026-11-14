@@ -7,6 +7,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../friends/friends.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'shell.dart';
@@ -152,6 +153,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                       Text([person.address, if (label != null && label.isNotEmpty) label].join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                                   ]),
                                 ),
+                                // A friend (lib/friends/friends.dart): what is written to them goes over the internet.
+                                if (Friends.instance.isFriend(person.address)) ...[
+                                  SizedBox(width: t.space(2)),
+                                  Semantics(label: 'Friend', child: AppIcon(Lucide.userCheck, size: 16, color: t.color('app-ink-3'))),
+                                ],
                               ]),
                             ),
                           ),

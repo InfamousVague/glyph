@@ -453,6 +453,14 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   later text is not, and since the list does not know whose the last words are, a code the person texts to a
   number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
   which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
+- **Friends** (not released; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
+  users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
+  chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation
+  offers Add friend; once each has said yes, words between the two go over the internet by the app's routes, sealed,
+  and are kept in the same conversation with a globe beside them. A friend is someone keys were exchanged with by
+  text, which is what proves the number: no account. With no relay server reached they go as the encrypted texts
+  they would have been; a friend whose app is closed is sent one silent data text and their phone says a message
+  is waiting. Nothing of it is offered until a relay server answers, and ours is not up yet.
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by

@@ -13,6 +13,7 @@ import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../effects.dart';
+import '../friends/friends.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../reactions.dart';
@@ -105,6 +106,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _changes = Sms.instance.changes.stream.listen((t) {
       if (t == widget.thread || t < 0) _load(markRead: true);
     });
+    // Friends (lib/friends/friends.dart): a request that came or was answered, or a relay server found to answer.
+    Friends.instance.addListener(_friendsChanged);
     _text.addListener(() {
       // The composer draws itself again as the words change (it listens to them): the messages above are not
       // redrawn for a keystroke.
@@ -124,6 +127,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     Sms.instance.setOpenThread(null);
+    Friends.instance.removeListener(_friendsChanged);
     _changes?.cancel();
     _voiceStopped?.cancel();
     _draftSave?.cancel();
@@ -163,7 +167,39 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     try {
       final s = await Sms.instance.e2e(_people.first.address);
       if (mounted) setState(() => _e2e = s);
+      // Both have the app: whether friends can be offered is looked for, where it is not known yet.
+      if (!Sms.remote && (s.on || s.offerable)) Friends.instance.look();
     } catch (_) {}
+  }
+
+  /// Whether Add friend is offered here: one person, who has the app, nothing said yet about being friends, a
+  /// relay server known to answer, and the offer not put away.
+  bool _offersFriend(BuildContext context) =>
+      !Sms.remote && !_group && _people.isNotEmpty && Friends.instance.offers(_e2e) && AppState.of(context).flag('friend_banner_${widget.thread}');
+
+  void _friendsChanged() {
+    if (mounted) _loadE2e();
+  }
+
+  /// Add friend (Matt, 2026-11-14: "If both users chatting are on ghost messenger show an 'add friend' button").
+  Future<void> _addFriend() async {
+    final who = _people.first;
+    try {
+      await Friends.instance.add(who.address);
+      if (mounted) toast(context, 'Friend request sent to ${who.label}');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t ask: ${_said(e)}', tone: GlacierToastTone.danger);
+    }
+    _e2eChanged();
+  }
+
+  Future<void> _answerFriend(bool yes) async {
+    final who = _people.first;
+    try {
+      await (yes ? Friends.instance.accept(who.address) : Friends.instance.decline(who.address));
+      if (mounted && yes) toast(context, 'You and ${who.label} are friends');
+    } catch (_) {}
+    _e2eChanged();
   }
 
   void _e2eChanged() {
@@ -291,7 +327,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     _draftSave?.cancel();
     Sms.instance.setDraft(widget.thread, '');
     try {
-      await Sms.instance.send(to, body, attachments: files);
+      // To a friend, words alone go by the app's routes where one that costs nothing is up, and are kept with the
+      // conversation as a text is (lib/friends/friends.dart); anything else, and anything the routes could not
+      // take, goes as a text.
+      final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.remote && await Friends.instance.sendText(to.first, body);
+      if (!byRoute) await Sms.instance.send(to, body, attachments: files);
     } catch (e) {
       if (mounted) {
         // What was to be sent is put back, pictures too: nothing went.
@@ -587,7 +627,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final subtitle = _group
         ? '${_people.length} people'
         : _e2e.on
-            ? (_e2e.verified ? 'Encrypted · verified' : 'Encrypted')
+            ? (_e2e.isFriend ? (_e2e.verified ? 'Friend · verified' : 'Friend · encrypted') : (_e2e.verified ? 'Encrypted · verified' : 'Encrypted'))
             : (_people.isNotEmpty && _people.first.name != null ? _people.first.address : null);
 
     // Beside the list the conversation draws no way back (PaneRoot, lib/ui/common.dart). On a computer what the
@@ -779,7 +819,36 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // Both phones have Ghost Messaging and nothing has been exchanged: encryption is offered, until it is
           // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
           // to enable encryption for better security").
-          if (Sms.can('e2eOffer') && !_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
+          // They asked to be friends: said here until it is answered.
+          if (!Sms.remote && !_group && _people.isNotEmpty && _e2e.on && _e2e.friend == 'invited')
+            _E2eBar(
+              icon: Lucide.userPlus,
+              text: '${_people.first.label} wants to add you as a friend. Friends chat over the internet, encrypted, not by text.',
+              action: 'Accept',
+              onAction: () => _answerFriend(true),
+              onPress: () {},
+              onDismiss: () => _answerFriend(false),
+            ),
+          // Both have Ghost Messaging and nothing has been said about being friends (Matt, 2026-11-14: "If both
+          // users chatting are on ghost messenger show an 'add friend' button"): offered where a relay server
+          // answers, until it is asked or put away. It stands in for the offer of encryption below, which adding a
+          // friend turns on.
+          if (_offersFriend(context))
+            _E2eBar(
+              icon: Lucide.userPlus,
+              text: '${_people.first.label} has Ghost Messaging too. Friends chat over the internet, encrypted, not by text.',
+              action: 'Add friend',
+              onAction: _addFriend,
+              onPress: () {},
+              onDismiss: () => AppState.of(context).setFlag('friend_banner_${widget.thread}', false),
+            ),
+          if (_e2e.friend == 'want' || _e2e.friend == 'asked')
+            _E2eBar(
+              icon: Lucide.userCheck,
+              text: 'Friend request sent. Waiting for ${_people.isEmpty ? 'them' : _people.first.label} to accept.',
+              onPress: () {},
+            ),
+          if (!_offersFriend(context) && Sms.can('e2eOffer') && !_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
             _E2eBar(
               text: '${_people.first.label} has Ghost Messaging too. Encrypt this conversation for better security?',
               action: 'Turn on',
@@ -802,7 +871,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onPress: Sms.can('e2eOff') ? () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged) : () {},
               onDismiss: Sms.can('e2ePlainSeen') ? () => Sms.instance.e2ePlainSeen(_people.first.address).then((_) => _e2eChanged()).catchError((_) {}) : null,
             ),
-          if (Sms.can('e2eOffer') && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
+          if (Sms.can('e2eOffer') && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || (_e2e.state == 'offered' && _e2e.friend.isEmpty)))
             _E2eBar(
               text: switch (_e2e.state) {
                 'pending' => _e2e.changed ? '${_people.first.label} sent a NEW encryption key' : '${_people.first.label} wants to encrypt this conversation',
@@ -1024,8 +1093,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 /// Over the composer while encryption waits on someone: their key is here and wants a yes, or yours went and theirs
 /// has not come. A press anywhere opens what can be done about it.
 class _E2eBar extends StatelessWidget {
-  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss, this.warning = false});
+  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss, this.warning = false, this.icon});
   final String text;
+
+  /// The mark at its start, where it is not the lock: a friend's.
+  final LucideIcon? icon;
 
   /// Something is wrong, not waiting: a warning's mark in place of the lock.
   final bool warning;
@@ -1047,7 +1119,7 @@ class _E2eBar extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
           decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg'))),
           child: Row(children: [
-            if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.colorOf('#c27c00'), wash: false) else AppIcon(Lucide.lock, size: 16, color: t.color('app-ink-2')),
+            if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.colorOf('#c27c00'), wash: false) else AppIcon(icon ?? Lucide.lock, size: 16, color: t.color('app-ink-2')),
             SizedBox(width: t.space(2)),
             Expanded(child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'), height: 1.3))),
             if (action != null) ...[
@@ -1371,6 +1443,8 @@ class _Bubble extends StatelessWidget {
                 if (failed) ...[Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30'))), const SizedBox(width: 4)],
                 // It travelled sealed, and was opened here.
                 if (m.encrypted) ...[Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))), const SizedBox(width: 4)],
+                // It came or went by the internet, between friends, not as a text.
+                if (m.via == 'net') ...[Semantics(label: 'Sent over the internet', child: AppIcon(Lucide.globe, size: 11, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))), const SizedBox(width: 4)],
                 // Why a message did not go can run to two lines: it wraps under the bubble, where a time never needs to.
                 Flexible(child: Text(status!, textAlign: out ? TextAlign.end : TextAlign.start, style: pageText(t, t.fontSize('xs'), color: failed ? t.colorOf('#dd3a30') : t.color('app-ink-3')))),
                 // Your messages' ticks: a clock while it goes, one for sent, two for delivered, two in colour for read.

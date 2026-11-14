@@ -374,6 +374,8 @@ class Store(private val context: Context) {
     fun messages(thread: Long, limit: Int = 300): List<Map<String, Any?>> {
         val out = ArrayList<Map<String, Any?>>()
         val receipts = receipts()
+        // The texts that came or went by the app's routes, between friends, not the phone network (Friends.kt).
+        val net = Friends.netIds(context)
         resolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf("_id", "address", "body", "date", "type", "status", "read", "date_sent"),
@@ -397,6 +399,7 @@ class Store(private val context: Context) {
                     "outgoing" to (type != Telephony.Sms.MESSAGE_TYPE_INBOX),
                     "state" to smsState(type, c.getInt(5)),
                     "read" to (c.getInt(6) != 0),
+                    "via" to (if (c.getLong(0) in net) "net" else null),
                 )
             }
         }

@@ -105,6 +105,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- The same data texts, looked at for one thing: the wake that says a friend's message is waiting at the
+             relay server while the app is closed (Friends.kt). -->
+        <receiver
+            android:name=".FriendWakeReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="998">
+                <action android:name="android.intent.action.DATA_SMS_RECEIVED" />
+                <data android:scheme="sms" android:host="*" android:port="16962" />
+            </intent-filter>
+        </receiver>
+
         <!-- Required of a default SMS app: incoming MMS notifications (WAP push). -->
         <receiver
             android:name=".MmsPushReceiver"

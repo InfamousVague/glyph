@@ -154,6 +154,7 @@ class Message {
     this.encrypted = false,
     this.notice,
     this.why,
+    this.via,
   });
   final int id;
   final String kind;
@@ -178,6 +179,9 @@ class Message {
   /// Why it was not sent, where it was not and the phone knows (a picture message: android/.../MmsWhy.kt).
   final String? why;
 
+  /// 'net' where it came or went by the app's routes, between friends, not as a text (lib/friends/friends.dart).
+  final String? via;
+
   String get key => '$kind:$id';
 
   factory Message.from(Map m) => Message(
@@ -197,6 +201,7 @@ class Message {
         encrypted: m['encrypted'] == true,
         notice: m['notice'] as String?,
         why: m['why'] as String?,
+        via: m['via'] as String?,
       );
 }
 
@@ -274,7 +279,7 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = ''});
   final String address;
   final String state;
   final bool verified;
@@ -302,6 +307,11 @@ class E2eState {
 
   bool get on => state == 'on';
 
+  /// Where being friends with them stands (lib/friends/friends.dart): '' (not), 'want' (this phone means to ask
+  /// once keys are exchanged), 'asked' (it asked), 'invited' (they asked), 'yes' (both said so).
+  final String friend;
+  bool get isFriend => on && friend == 'yes';
+
   /// Both phones have the app and nothing has been exchanged yet: the conversation offers encryption.
   bool get offerable => state == 'none' && hasGhost && !declined;
 
@@ -315,6 +325,7 @@ class E2eState {
         hasGhost: m['hasGhost'] == true,
         declined: m['declined'] == true,
         plain: (m['plain'] as num?)?.toInt() ?? 0,
+        friend: (m['friend'] as String?) ?? '',
       );
 }
 
@@ -605,6 +616,23 @@ class Sms {
 
   /// This phone's signature over [message], r then s.
   Future<Uint8List> netSign(List<int> message) async => (await _calls.invokeMethod('netSign', {'message': Uint8List.fromList(message)})) as Uint8List;
+
+  // --- friends (lib/friends/friends.dart, android Friends.kt) --------------------------------------------------------
+
+  /// Says where being friends with [address] stands, on their encryption record.
+  Future<void> friendSet(String address, String state) => _calls.invokeMethod('friendSet', {'address': address, 'state': state});
+
+  /// Keeps [body], on its way to [address] by the routes, with the phone's messages; its row, for [netTextState].
+  Future<int> netTextOut(String address, String body) async => ((await _calls.invokeMethod('netTextOut', {'address': address, 'body': body})) as num).toInt();
+
+  /// What became of a row from [netTextOut]: 'sent', 'delivered' or 'failed'.
+  Future<void> netTextState(int id, String state) => _calls.invokeMethod('netTextState', {'id': id, 'state': state});
+
+  /// Takes a row from [netTextOut] back: no route could take it, and it goes as a text instead.
+  Future<void> netTextDrop(int id) => _calls.invokeMethod('netTextDrop', {'id': id});
+
+  /// Keeps [body], which came from [address] by the routes, as a text that arrived is kept, and says so as one is.
+  Future<void> netTextIn(String address, String body, int at) => _calls.invokeMethod('netTextIn', {'address': address, 'body': body, 'at': at});
 
   Future<bool> netSmsAvailable() async => await _calls.invokeMethod<bool>('netSmsAvailable') ?? false;
   Future<void> netSmsSend(String address, Uint8List bytes) => _calls.invokeMethod('netSmsSend', {'address': address, 'bytes': bytes});

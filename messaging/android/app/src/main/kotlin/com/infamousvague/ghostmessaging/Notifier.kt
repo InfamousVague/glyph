@@ -133,6 +133,24 @@ object Notifier {
         return codeDigits.find(body)?.value?.filter { it.isDigit() }
     }
 
+    /**
+     * A friend's message is waiting at the relay server and the app is closed (Friends.woken): said in the
+     * conversation's own place among the notifications, so the message itself takes its place once it is fetched.
+     */
+    fun waiting(context: Context, thread: Long, who: String) {
+        if (thread < 0) return
+        val n = Notification.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_ghost)
+            .setContentTitle(who)
+            .setContentText("New message. Open Ghost Messaging to read it.")
+            .setContentIntent(open(context, thread))
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setColor(0xFF4F5BD5.toInt())
+            .build()
+        try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+    }
+
     fun cancel(context: Context, thread: Long) {
         context.getSystemService(NotificationManager::class.java).cancel(thread.toInt())
     }

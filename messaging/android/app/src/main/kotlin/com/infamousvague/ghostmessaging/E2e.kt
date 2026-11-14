@@ -104,6 +104,21 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    // --- friends (Friends.kt, lib/friends/friends.dart) -----------------------------------------------------------------
+
+    /**
+     * Where being friends with [address] stands: "" (not), "want" (this phone means to ask, once keys are exchanged),
+     * "asked" (it asked), "invited" (they asked), "yes" (both said so). Kept on their encryption record: it ends
+     * when encryption with them does, and with a key of theirs that is not the one it was made with.
+     */
+    fun friend(context: Context, address: String): String = peer(context, address)?.optString("friend", "") ?: ""
+
+    fun setFriend(context: Context, address: String, state: String) {
+        val o = peer(context, address) ?: return
+        if (state.isEmpty()) o.remove("friend") else o.put("friend", state)
+        save(context, address, o)
+    }
+
     // --- for the app's routes (Net.kt) ---------------------------------------------------------------------------------
 
     /** This phone's public key, 33 bytes: what the routes know it by. Made if there is none yet. */
@@ -166,6 +181,7 @@ object E2e {
             // encryption in a banner, unless the person turned it off with them.
             "hasGhost" to Backgrounds.allKnown(context, listOf(address)),
             "declined" to declined(context, address),
+            "friend" to (o?.optString("friend", "") ?: ""),
             // Texts that came from them plain while encryption is on, and have not been put away ([arrived]).
             "plain" to (if (state == "on") E2ePlain.unseen(o?.optInt("plain", 0) ?: 0, o?.optInt("plainSeen", 0) ?: 0) else 0),
         )
@@ -234,6 +250,8 @@ object E2e {
         } else if (before.isNotEmpty()) {
             // A different key from someone already exchanged with: back to asking, and no longer verified.
             o.put("pub", b64); o.put("state", "pending"); o.put("changed", true); o.put("verified", false); o.put("sent", false)
+            // Whoever holds the new key is not who was made a friend of.
+            o.remove("friend")
         } else {
             o.put("pub", b64)
             o.put("state", if (o.optBoolean("sent", false)) "on" else "pending")
