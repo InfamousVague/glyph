@@ -8,13 +8,15 @@ the person opts in.
 | Part | Where | What |
 | --- | --- | --- |
 | The server's keeper of handles | `relay/lib/handles.dart` (`relay/test/handles_test.dart`) | Links, listing, watch lists, the sign-in pages under `/link/`, reading public profiles |
+| The texting service | `relay/lib/texts.dart` | `TextCodes`: something that texts a number a code and says whether a code is the one it sent. Twilio Verify is the one behind it |
 | Its place in the relay | `relay/lib/hub.dart`, `relay.dart`, `bin/relay.dart` | A connection's `{"dir": …}` messages go to it; `/link/*` is its pages; its settings come from the environment |
 | The phone's half | `lib/me/me.dart` (`test/me_test.dart`: two installs and the real relay) | What is linked, watched and joined, kept on the phone; the conversation with the server |
-| The screens | `lib/ui/me.dart` | Settings › Me, Settings › Friends joining, linking by code, adding handles |
+| The screens | `lib/ui/me.dart` (`test/number_screen_test.dart` for the number's page) | Settings › Me, Settings › Friends joining, linking by code, verifying the number, adding handles |
 
 ## What it does
 
-- **Settings › Me**: your number and key; **Linked accounts** (Discord, Telegram, X, Bluesky, Mastodon, GitHub);
+- **Settings › Me**: your number, **Verified** once a code texted to it has come back (below), and your key;
+  **Linked accounts** (Discord, Telegram, X, Bluesky, Mastodon, GitHub);
   **Tell friends I'm here**, off until switched on; **Remove everything about me**.
 - **Settings › Friends joining**: who of the people you watch for is on Ghost Messaging, the newest first and marked
   New until the page is opened; **Add handles**; **Bring in who I follow** for a linked Bluesky, Mastodon or GitHub
@@ -43,6 +45,48 @@ A network whose values are not set is **off**: its row in Settings › Me says s
 server yet, and everything else works. So this can go out with none of the three set, and each is switched on by
 adding its values and restarting the relay.
 
+## A phone number
+
+Matt, 2026-11-14: "is there any free service we can setup to verify phone numbers with a text code that gets sent to
+the app to link the phone number in the 'me' section", and then, told there is no good free one: "I'd like to use a
+third party service that allows us to send the text code to a number to verify so it can't be spoofed".
+
+A number is the one thing here a phone could simply say of itself, and a phone can say anything. So it is proved the
+way a bank proves it: a code is texted **to the number**, and only a phone that receives that number's texts can
+say it back.
+
+1. Settings › Me › **Number** says "Not verified" and opens a page with the phone's own number filled in.
+   **Text me a code** asks the relay server (`{"dir": "text", "p": "phone", "handle": "+15550100199"}`).
+2. The relay asks the texting service to text that number. The service makes the code, sends it, and remembers it.
+   The relay never sees the code it did not get back from the app, and keeps none.
+3. The text arrives ("Your Ghost Messaging verification code is: 482913"). The page reads the code out of it and
+   sends it back (`{"dir": "code", …, "code": "482913"}`) with nothing pressed; it can be typed too.
+4. The relay asks the service whether that is the code. Where it is, the number is linked to this install like any
+   account (`{"dir": "linked", "p": "phone", …}`), and the row says **Verified**.
+
+What holds it to that:
+
+- **Only the install a code was sent for may try it**, and for ten minutes. Someone who knows your number and
+  guesses at a code while you verify is refused before the service is asked.
+- **The page reads only our own text**: one that names the app, reads as a sign-in code, and arrived after the
+  code was asked for. Another company's code that arrives meanwhile is not read, so never leaves the phone.
+- **Texts cost money and reach someone's phone**, so there are limits, all in `handles.dart`: three codes an hour
+  and six a day for one install; the same for one number, whoever asks; ten tries of a code an hour; **200 texts a
+  day in all** (`GHOST_TEXTS_A_DAY`); and only numbers that start `+1` (`GHOST_TEXT_TO`, a list like `+1,+44`).
+  The last two are what a mistake, or someone making the server text numbers that pay them for it, can cost.
+- A number verified on a new phone leaves the old one: one number, one install.
+
+**A number is told to nobody.** It is not one of the accounts "Tell friends I'm here" speaks of: no app of ours
+watches for a number, and the server answers nobody who does (`Handles._quiet`). Today it is a mark on your own
+Settings page and a fact the server can rely on later. Letting friends who have your number hear that you joined is
+the next step, and a decision of its own (see Not yet).
+
+**What this costs in privacy, plainly.** The texting service (Twilio) is given the number, as it must be to text it.
+The relay keeps the number's SHA-256, as it does a handle's, but a number is not a handle: there are only so many,
+and anyone holding `handles.json` could hash every number in a country in an afternoon and read it back. So **the
+server is to be thought of as knowing a verified number**, and which install it belongs to. It still holds no name
+and no key for it.
+
 ## What the server keeps, and what it can see
 
 `handles.json`, beside the pairings' `channels.json`:
@@ -58,8 +102,9 @@ only the install itself links, lists and watches for itself.
 
 What that lets the server see beyond what the hub already saw: that an install has some account on a network, and
 how many handles another is watching for. Someone who already knows a handle can hash it and find it in the file;
-nobody can read a handle out of it. It holds no number, key or name, so it cannot tell a watcher how to reach the
-person who joined: the watcher is told the handle is on Ghost Messaging and asks them for their number where they
+nobody can read a handle out of it. A verified phone number is the exception, kept the same way but few enough to
+be worked back (A phone number, above). It holds no key or name, and tells nobody a number, so it cannot tell a
+watcher how to reach the person who joined: the watcher is told the handle is on Ghost Messaging and asks them for their number where they
 already talk.
 
 **Nothing is said to the server about any of this until the person links an account, adds a handle, or opens
@@ -99,6 +144,37 @@ Then on the box, as root, a file only root reads, and the relay started again:
 The relay says which sign-ins it has as it starts (`journalctl -u ghost-relay -n 5`). These are secrets: they go in
 that file and nowhere in the repository.
 
+## Setting up the texting service (Matt's to do: an account in his name, and it is paid for)
+
+Twilio Verify, chosen because it needs no sender registered with the US carriers first (a plain texting number
+does, which takes weeks), and because it makes and checks the code itself. As read on 2026-11-14, to be checked
+against twilio.com/en-us/verify/pricing before relying on it: **$0.05 for each number verified, plus about $0.0083
+for each text in the US.** A hundred people verifying is about six dollars. Nothing is charged for a code nobody
+gets right.
+
+1. **An account.** twilio.com, signed up and upgraded from the trial (a trial account texts only numbers it has
+   itself verified).
+2. **A Verify service.** Console › Verify › Services › Create new. Friendly name **Ghost Messaging**, exactly: it
+   is the name in the text, and the app reads a code only from a text that says "ghost". SMS on; the code's length
+   left at six. Copy the **Service SID** (`VA…`).
+3. **Where it may text.** In Twilio's geo permissions for SMS and Verify, the United States and Canada only. This
+   is the second lock on the same door as `GHOST_TEXT_TO`.
+4. **A key.** Account › API keys & tokens › Create API key (standard). Copy its **SID** (`SK…`) and **secret**.
+   The account's own SID (`AC…`) and auth token work too, but a key can be taken back by itself.
+5. **On the box**, as root, added to the file the sign-ins' values are in (made as above if it is not there yet):
+
+       GHOST_TWILIO_SID=SK…
+       GHOST_TWILIO_TOKEN=…
+       GHOST_TWILIO_VERIFY=VA…
+
+   With any of the three missing, verifying is off and the page says so. `GHOST_TEXT_TO` and `GHOST_TEXTS_A_DAY`
+   need setting only to change `+1` and 200.
+6. **The relay put up again with this in it** (below; Matt's word each time), and an app release that has the
+   page (0.7.12 or later; 0.7.11 went out without it).
+
+To see it is on: Settings › Me › Number › **Text me a code** is a button, where before it said verifying is not set
+up on the relay server yet.
+
 ## Putting it on the server
 
 From `messaging/`, on the Mac (the box's account is Ghost.md's `tauri/.env`):
@@ -122,6 +198,14 @@ was holding in memory for people who were away at that moment was lost with the 
 
 ## Not yet
 
+- **The number's code has not been sent by the real service.** The tests stand in for Twilio Verify with what its
+  documentation says it answers (201 and `pending` for a text asked for; `approved` or `pending` for a code;
+  404 once a code has run out; 429 when it has texted a number too often). The first real verification is the
+  test of that, and of the text's wording being one the page reads. The server half is not deployed.
+- **A verified number does nothing for anyone else yet.** The step after it: someone who has your number in their
+  contacts hears you are on Ghost Messaging, as a watcher of a handle does. That means sending the server hashes
+  of people's contacts, which can be worked back as above, so it wants its own decision, its own limits, and its
+  own switch.
 - **Not run against the real networks.** `handles_test.dart` and `me_test.dart` stand in for Discord, X, Telegram,
   Bluesky, Mastodon and GitHub with what their documentation says they answer. The first real sign-in on each is
   the test of that, X's token exchange most of all (a public client and a confidential one differ).

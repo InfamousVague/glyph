@@ -654,24 +654,39 @@ void main() {
       for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'computers', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
-      // Settings › Me and Friends joining: two accounts linked, X's sign-in not set up on the server, a watch list,
-      // and one of them here and new.
+      // Settings › Me and Friends joining: the number verified by a code texted to it, two accounts linked, X's
+      // sign-in not set up on the server, a watch list, and one of them here and new.
       Me.instance.seed(
         ready: true,
         listed: true,
-        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'},
-        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social'},
+        ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof', 'phone': 'text'},
+        links: {'discord': 'matt', 'bluesky': 'matt.bsky.social', 'phone': '+15550100199'},
         watch: const [Watched('discord', 'maya'), Watched('discord', 'jordan.p'), Watched('telegram', 'samrivera'), Watched('x', 'alexkim'), Watched('bluesky', 'priya.bsky.social'), Watched('bluesky', 'noor.bsky.social')],
         joined: [Joined('discord', 'maya', DateTime.now().subtract(const Duration(minutes: 12))), Joined('bluesky', 'priya.bsky.social', DateTime.now().subtract(const Duration(days: 2)), seen: true)],
       );
       await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me', dark: dark);
       expect(find.text('@matt'), findsOneWidget);
       expect(find.textContaining('isn\'t set up on the relay server yet'), findsOneWidget);
+      // The number, as a code texted to it showed it to be: said so under it, and not counted among what friends
+      // are told.
+      expect(find.text('+1 (555) 010-0199'), findsOneWidget);
+      expect(find.text('Verified'), findsOneWidget);
+      expect(find.textContaining('People watching for one of your accounts'), findsOneWidget);
       await _shoot(tester, sheet, const SettingsSectionScreen('friends-joining'), '5-settings-friends-joining', dark: dark);
       // New beside her handle, in the label's own line.
       expect(find.textContaining('@maya', findRichText: true), findsOneWidget);
       expect(find.text('New'), findsOneWidget);
       await _shoot(tester, sheet, ProofScreen(network: networkOf('bluesky')), '5-settings-me-proof', dark: dark);
+      // Verifying a number: the phone's own, filled in, before a code is asked for.
+      await _shoot(tester, sheet, const NumberScreen(own: '5550100142'), '5-settings-me-number', dark: dark);
+      expect(find.text('Text me a code'), findsOneWidget);
+      // Not verified, on a server that has no texting service: the Me page says so in two words, and the page it
+      // opens says why nothing can be sent.
+      Me.instance.seed(links: {'discord': 'matt'}, ways: const {'discord': 'signin', 'telegram': 'signin', 'x': 'off', 'bluesky': 'proof', 'mastodon': 'proof', 'github': 'proof'});
+      await _shoot(tester, sheet, const SettingsSectionScreen('me'), '5-settings-me-unverified', dark: dark);
+      expect(find.text('Not verified'), findsOneWidget);
+      await _shoot(tester, sheet, const NumberScreen(own: '5550100142'), '5-settings-me-number-off', dark: dark);
+      expect(find.textContaining('Verifying a number by text isn\'t set up'), findsOneWidget);
       await _shoot(tester, sheet, const AddWatchScreen(), '5-settings-me-add', dark: dark);
       Me.instance.seed(ready: false, listed: false, links: {}, watch: [], joined: [], ways: {});
       // Settings › Network: the app's routes, with two people to reach, the relay server ready and SMS not allowed,

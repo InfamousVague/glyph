@@ -43,6 +43,9 @@ void main() {
   final bios = <String, String>{};
   final follows = <String, List<String>>{};
 
+  /// The text service: the code it "sent" each number, waiting to hear it back.
+  final texted = <String, String>{};
+
   Future<Fetched> fetch(String method, Uri url, {Map<String, String> headers = const {}, String? body, bool outside = false}) async {
     if (url.host == 'api.github.com' && url.path.endsWith('/following')) {
       return Fetched(200, jsonEncode([for (final h in follows[url.pathSegments[1]] ?? const <String>[]) {'login': h}]));
@@ -53,14 +56,25 @@ void main() {
     }
     if (url.host == 'discord.com' && url.path == '/api/oauth2/token') return Fetched(200, jsonEncode({'access_token': 't'}));
     if (url.host == 'discord.com') return Fetched(200, jsonEncode({'id': '9001', 'username': 'Maya.D'}));
+    if (url.host == 'verify.twilio.com') {
+      final form = Uri.splitQueryString(body ?? '');
+      if (url.path.endsWith('/Verifications')) {
+        texted[form['To']!] = '482913';
+        return Fetched(201, jsonEncode({'status': 'pending'}));
+      }
+      final right = texted[form['To']] == form['Code'];
+      if (right) texted.remove(form['To']);
+      return Fetched(200, jsonEncode({'status': right ? 'approved' : 'pending'}));
+    }
     return const Fetched(404, '');
   }
 
   setUp(() async {
     bios.clear();
     follows.clear();
+    texted.clear();
     dir = Directory.systemTemp.createTempSync('me');
-    relay = Relay(hub: Hub(handles: Handles(dataDir: dir, fetch: fetch, config: const HandlesConfig(publicUrl: 'http://127.0.0.1', discordId: 'id', discordSecret: 'secret'))));
+    relay = Relay(hub: Hub(handles: Handles(dataDir: dir, fetch: fetch, config: const HandlesConfig(publicUrl: 'http://127.0.0.1', discordId: 'id', discordSecret: 'secret', twilioSid: 'ACsid', twilioToken: 'secret', twilioVerify: 'VAservice'))));
     port = await relay.start(port: 0);
   });
   tearDown(() async {
@@ -80,6 +94,67 @@ void main() {
     expect(networkOf('discord').profile('maya'), isNull);
   });
 
+  test('the phone and the server read a number the same way, and only our own text is read for its code', () {
+    for (final written in ['(555) 010-0199', '+1 555 010 0199', '15550100199', '555.010.0199', '+44 20 7946 0958', '5550199', 'call me', '+1 055 010 0199', '']) {
+      expect(tidyNumber(written), Handles.tidyNumber(written), reason: written);
+      expect(numberFits(tidyNumber(written)), Handles.wellFormed('phone', Handles.tidyNumber(written)), reason: written);
+      if (numberFits(tidyNumber(written))) expect(handleKey('phone', tidyNumber(written)), Handles.keyOf('phone', written));
+    }
+    expect(showNumber('+15550100199'), '+1 (555) 010-0199');
+    expect(showNumber('+442079460958'), '+442079460958');
+    // What is typed back in the field is read as the same number.
+    expect(tidyNumber(showNumber('+15550100199')), '+15550100199');
+    expect(ownCodeIn('Your Ghost Messaging verification code is: 482913'), '482913');
+    expect(ownCodeIn('Your Coinbase verification code is 771204. Do not share it.'), isNull);
+    expect(ownCodeIn('Ghost Messaging is out: 0.7.11'), isNull);
+  });
+
+  test('Maya\'s number is verified by the code texted to it; nobody is told it, and it is hers after a restart', () async {
+    final maya = _Install(url()), bob = _Install(url());
+    await maya.open();
+    await bob.open();
+    maya.me.wake();
+    await _until(() => maya.me.ready);
+    expect(maya.me.texts, isTrue);
+    expect(maya.me.number, isNull);
+
+    // Bob, who has her number, watches for it (no app of ours does: one made to could).
+    bob.hub.sayHandles({'dir': 'hello'});
+    bob.hub.sayHandles({'dir': 'watch', 'add': [handleKey('phone', '+15550100199')]});
+    final told = <Map<String, dynamic>>[];
+    final sub = bob.hub.handles.listen(told.add);
+
+    await expectLater(maya.me.textCode('555 0199'), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('does not look like a phone number'))));
+    expect(await maya.me.textCode('(555) 010-0199'), '+15550100199');
+    await expectLater(maya.me.tryCode('+15550100199', '000000'), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('not the code'))));
+    expect(maya.me.number, isNull);
+    await maya.me.tryCode('(555) 010-0199', texted['+15550100199']!);
+    expect(maya.me.number, '+15550100199');
+    expect(maya.me.accounts, isEmpty, reason: 'a number is not an account friends are told about');
+
+    maya.me.setListed(true);
+    await _tick(120);
+    expect(told.where((m) => m['dir'] == 'joined'), isEmpty);
+    await sub.cancel();
+
+    // The server kept its hash, not the number.
+    relay.hub!.handles!.save();
+    expect(File('${dir.path}/handles.json').readAsStringSync(), isNot(contains('5550100199')));
+
+    // The app restarted: still hers, by the phone's word on the number and the server's on the link.
+    final again = Me.forTest();
+    await again.start(maya.store, maya.routes, () => maya.hub);
+    await _until(() => again.ready);
+    expect(again.number, '+15550100199');
+
+    await again.unlink('phone');
+    expect(again.number, isNull);
+    await _until(() => relay.hub!.handles!.linked == 0);
+    for (final i in [maya, bob]) {
+      await i.hub.stop();
+    }
+  });
+
   test('nothing is said to the server about handles until an install uses them', () async {
     final a = _Install(url());
     await a.open();
@@ -90,6 +165,7 @@ void main() {
     expect(a.me.ways['github'], 'proof');
     expect(a.me.ways['discord'], 'signin');
     expect(a.me.ways['x'], 'off');
+    expect(a.me.ways['phone'], 'text');
     await a.hub.stop();
   });
 
