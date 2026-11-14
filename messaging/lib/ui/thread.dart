@@ -631,7 +631,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       showChoices(
         context,
         title: m.body.isEmpty ? null : (m.body.length > 80 ? '${m.body.substring(0, 80)}…' : m.body),
-        header: canReact ? _ReactionRow(mine: mine, onPick: (emoji) { Navigator.of(context).pop(); _react(m, emoji); }) : null,
+        header: canReact ? _ReactionRow(mine: mine, onPick: (emoji) { Navigator.of(context, rootNavigator: true).pop(); _react(m, emoji); }) : null,
         choices: choices,
       );
       return;
