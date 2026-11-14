@@ -337,6 +337,36 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
+- **Their texts are coming without encryption** (not released; `E2e.arrived`; Matt, 2026-11-14: "we need to be able
+  to detect if a user is sending us unencrypted messages and let us know so we can disable it"). Encryption on with
+  someone seals what goes to them; if they have turned it off, changed phones or left the app, they cannot read it,
+  and until now nothing said so. A text that comes from them plain while encryption is on is counted: the first one
+  raises a notification, and the conversation says "Sam's last 2 texts came without encryption…" over its message
+  field with Turn off beside it and a cross to put it away (it comes back with their next plain text). A text that
+  comes sealed again clears it. The app's own texts (a key, a chat background) count as neither. A conversation's
+  settings say the same under Encryption, and so does the Mac, where it is said and turned off from the phone.
+- **Videos** (not released; `Video.kt`, `lib/ui/video.dart`, `macos/Runner/DeskVideo.swift`; Matt, 2026-11-14: "mp4
+  files are not loading it just shows up as a string of text for the filename"). A video in a message is drawn as a
+  picture of where it starts, with Play over it and how long it runs, where it was its file's name and no more. A
+  tap plays it: the whole screen on the phone (Android's own player and controls), a window of its own on the Mac
+  (the Mac's). The phone makes the picture from the message's own part; the Mac brings the video's bytes over the
+  link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
+  folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
+  the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
+- **What a computer may ask of the phone** (not released; Matt, 2026-11-14: "the desktop app should get all featues
+  its missing from mobile", and of the Mac's message field "an emoji picker, file upload, voice memo and sticker
+  selector"). The link carries what the phone's screens do: deleting, editing, sending a picture message again,
+  blocking, encryption on and off, and pictures, a voice recording and a sticker sent from the Mac, handed to the
+  phone in pieces and sent by it once ([docs/desktop.md](docs/desktop.md), "What they say to each other"). The Mac
+  has its own panel for choosing pictures, its own emoji, a recorder and a player. A phone with an older app says
+  it does none of it, and the Mac offers none (`Sms.can`). The screens do not offer these yet: that is the shared
+  shell's to switch on.
+- **The Mac app updates itself** (built 2026-11-14; Matt: "install the app on my mac and make sure it has OTA
+  updates so we don't need to reinstall again"). It reads `https://ghost-sms.com/mac.json` as it opens and every six
+  hours, brings the newer app down, takes it only if it is whole and signed by its own team (Matt's Developer ID),
+  puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
+  over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
+  yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
 - **One frame, phone and computer** (not released; `lib/ui/shell.dart`; Matt, 2026-11-14: "Unify the UI experience
   to match on desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile
   app should gain the nav from desktop"). `AppShell` is the list of conversations and a pane for what is opened from

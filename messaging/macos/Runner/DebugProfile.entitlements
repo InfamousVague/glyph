@@ -2,14 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<!-- The Mac dials out: to the phone on the local network, and to the relay. It opens no port of its own. -->
-	<key>com.apple.security.network.client</key>
-	<true/>
+	<!-- Not sandboxed, as the release is not (Release.entitlements says why): the two keep what they keep in the
+	     same places, and a debug build can be walked through an update of itself. -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
-	<key>com.apple.security.network.server</key>
+	<!-- A voice message is recorded with the Mac's microphone (Runner/DeskSound.swift), only while one is being
+	     recorded: the hardened runtime wants this said, and macOS asks the person the first time. -->
+	<key>com.apple.security.device.audio-input</key>
 	<true/>
 </dict>
 </plist>

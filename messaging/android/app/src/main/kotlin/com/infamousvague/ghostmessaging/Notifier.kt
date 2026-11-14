@@ -131,6 +131,28 @@ object Notifier {
         context.getSystemService(NotificationManager::class.java).cancel(thread.toInt())
     }
 
+    /**
+     * Encryption is on with the person in [thread], and a text of theirs came without it (E2e.arrived; Matt,
+     * 2026-11-14: "detect if a user is sending us unencrypted messages and let us know so we can disable it").
+     * Opens the conversation, which says the same over its message field with a way to turn encryption off.
+     */
+    fun plainWhileEncrypted(context: Context, thread: Long) {
+        if (thread < 0) return
+        // The conversation is open in front: it says so itself, over its message field.
+        if (MainActivity.openThread == thread && MainActivity.inFront) return
+        val people = Store(context).threadPeople(thread)
+        val who = people.joinToString(", ") { (it["name"] as String?) ?: (it["address"] as String) }.ifEmpty { "Someone" }
+        val n = Notification.Builder(context, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_stat_ghost)
+            .setContentTitle("$who sent a text that isn't encrypted")
+            .setContentText("Encryption is on with them. They may not be able to read what you send. Tap to decide.")
+            .setStyle(Notification.BigTextStyle().bigText("Encryption is on with them, and their text came without it. They may have turned it off or changed phones, and then can't read what you send encrypted. Tap to open the conversation and decide."))
+            .setContentIntent(open(context, thread))
+            .setAutoCancel(true)
+            .build()
+        try { manager(context).notify(5200 + (thread % 1000).toInt(), n) } catch (_: SecurityException) {}
+    }
+
     fun failed(context: Context, thread: Long) {
         if (thread < 0) return
         val people = Store(context).threadPeople(thread)

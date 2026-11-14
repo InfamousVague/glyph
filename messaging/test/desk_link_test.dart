@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/desktop/link/link.dart';
@@ -122,7 +123,7 @@ void main() {
     expect(sent['thread'], 7);
     expect(phone.sent.single.body, 'No rush');
     // What the phone will not do for a computer comes back as its words.
-    await expectLater(link.request('deleteThread', {'thread': 7}), throwsA(isA<PhoneError>()));
+    await expectLater(link.request('e2eReset', {'thread': 7}), throwsA(isA<PhoneError>()));
   });
 
   test('pairs through the relay, and the same works there', () async {
@@ -179,6 +180,81 @@ void main() {
     await until(() => phone.modes[id] == 'both', what: 'the phone never heard the change');
     phone.setMode(id, 'relay');
     await until(() => link.phone!.mode == 'relay' && store.kept!.mode == 'relay', what: 'the Mac never heard the change');
+  });
+
+  test('a sticker, pictures and what the phone\'s screens do go through the phone, in pieces where they are large', () async {
+    final store = MemoryStore();
+    final link = mac(store);
+    await pair(link, 'local');
+    final dir = Directory.systemTemp.createTempSync('ghost-desk-test');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final bridge = LinkCalls(link, DeskStore(dir, keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    // The phone says what it does for a computer, and the screens offer that.
+    await until(() => bridge.caps.isNotEmpty, what: 'the phone was never asked what it does');
+    expect(Sms.can('sendPictures') && Sms.can('sendVoice') && Sms.can('sendSticker') && Sms.can('deleteMessage') && Sms.can('editMessage'), isTrue);
+    expect(Sms.can('e2eReset'), isFalse);
+
+    // A sticker larger than a frame carries: handed over in pieces, sent once, whole.
+    final sticker = Uint8List.fromList(List.generate(900 * 1024, (i) => i % 251));
+    expect(await Sms.instance.sendSticker(['+15550100'], sticker, 'ghost-sticker-mischief-04.png'), 7);
+    expect(phone.handed.single.what, 'sticker');
+    expect(phone.handed.single.name, 'ghost-sticker-mischief-04.png');
+    expect(phone.handed.single.bytes.single, sticker);
+    expect(phone.uploads, isEmpty);
+
+    // Two pictures chosen on the Mac, with words: read from where they are, handed over, sent by the phone.
+    final one = File('${dir.path}/IMG 0001.JPG')..writeAsBytesSync(List.generate(500 * 1024, (i) => i % 7));
+    final two = File('${dir.path}/shot.png')..writeAsBytesSync(List.generate(70 * 1024, (i) => i % 11));
+    expect(await Sms.instance.send(['+15550100'], 'look', attachments: [one.path, two.path]), 7);
+    final pictures = phone.handed.last;
+    expect(pictures.what, 'pictures');
+    expect(pictures.name, 'IMG 0001.JPG,shot.png');
+    expect(pictures.body, 'look');
+    expect(pictures.bytes[0], one.readAsBytesSync());
+    expect(pictures.bytes[1], two.readAsBytesSync());
+    // What is not a picture is not sent, and says so; nor is a file that is not there.
+    final notes = File('${dir.path}/notes.pdf')..writeAsBytesSync([1, 2, 3]);
+    await expectLater(Sms.instance.send(['+15550100'], '', attachments: [notes.path]), throwsA(isA<PhoneError>()));
+    await expectLater(Sms.instance.send(['+15550100'], '', attachments: ['${dir.path}/gone.jpg']), throwsA(isA<PhoneError>()));
+    expect(phone.handed, hasLength(2));
+    expect(LinkCalls.pictureType('a.HEIC'), 'image/heic');
+    expect(LinkCalls.pictureType('a.tiff'), isNull);
+
+    // What the phone's screens do to what is kept: asked of the phone, and what was read is read again.
+    final changes = <int>[];
+    final sub = Sms.instance.changes.stream.listen(changes.add);
+    addTearDown(sub.cancel);
+    final first = (await Sms.instance.messages(7)).first;
+    await Sms.instance.deleteMessage(first);
+    await Sms.instance.e2eOff('+15550100');
+    await Sms.instance.deleteThreads([9]);
+    expect(phone.did, ['deleteMessage ${first.id}', 'e2eOff +15550100', 'deleteThreads [9]']);
+    await until(() => changes.where((c) => c == -1).length >= 3, what: 'the screens were never told to read again');
+    expect((await Sms.instance.conversations()).map((c) => c.id), [7]);
+    // How long a voice message may run is asked of the phone, whose carrier decides.
+    expect(((await link.request('voiceLimit')) as Map)['seconds'], 91);
+  });
+
+  test('a phone whose app is older does none of the newer things, and the screens offer none', () async {
+    phone.old = true;
+    final store = MemoryStore();
+    final link = mac(store);
+    await pair(link, 'local');
+    final dir = Directory.systemTemp.createTempSync('ghost-desk-test');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final bridge = LinkCalls(link, DeskStore(dir, keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(bridge.caps, isEmpty);
+    expect(Sms.can('sendPictures') || Sms.can('deleteMessage') || Sms.can('sendSticker'), isFalse);
+    // Asked anyway, the phone's own words come back, and nothing is left half handed over.
+    await expectLater(Sms.instance.sendSticker(['+15550100'], Uint8List.fromList([1, 2, 3]), 'ghost-sticker-ghost-01.png'), throwsA(isA<PhoneError>()));
+    expect(await Sms.instance.e2eList(), isEmpty);
+    // What it always did, it still does.
+    expect(await Sms.instance.send(['+15550100'], 'still texts'), 7);
   });
 
   test('what is typed while the phone is away waits, is shown as waiting, and is sent once when it is back', () async {

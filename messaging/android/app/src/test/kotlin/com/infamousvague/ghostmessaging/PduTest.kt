@@ -46,6 +46,23 @@ class PduTest {
         assertArrayEquals(sound, m.parts[1].data)
     }
 
+    /** A video in a message: the picture made of it for the conversation is never larger than it need be. */
+    @Test
+    fun aVideosPictureIsFittedToTheBubble() {
+        assertEquals(720 to 405, Video.fitted(1920, 1080))
+        assertEquals(405 to 720, Video.fitted(1080, 1920))
+        assertEquals(320 to 240, Video.fitted(320, 240)) // never enlarged
+        assertEquals(720 to 720, Video.fitted(2000, 2000))
+        assertEquals(720 to 1, Video.fitted(4000, 2)) // never nothing
+        assertEquals(0 to 0, Video.fitted(0, 0))
+        // A video goes as its own part, named as one in the message's layout, and reads back whole.
+        val clip = ByteArray(30_000) { (it * 31).toByte() }
+        val m = Pdu.parse(Pdu.sendReq(listOf("+15551234567"), listOf(Pdu.Part("video/mp4", clip, name = "clip.mp4", contentLocation = "clip.mp4", contentId = "clip"))))
+        assertEquals(true, String(m.parts[0].data).contains("<video src=\"clip.mp4\""))
+        assertEquals("video/mp4", m.parts[1].contentType)
+        assertArrayEquals(clip, m.parts[1].data)
+    }
+
     /** How long a voice message may run is what the carrier's limit on a message leaves room for. */
     @Test
     fun aVoiceMessagesLengthIsWhatFitsInAMessage() {

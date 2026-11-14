@@ -386,6 +386,8 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         } catch (e: Exception) { Log.e(TAG, "shared background", e) }
         store.setArchived(thread, false)
         Notifier.incoming(context, thread)
+        // Encryption is on with them and this came without it: said once, as the first one comes (E2e.arrived).
+        try { if (E2e.arrived(context, address, body)) Notifier.plainWhileEncrypted(context, thread) } catch (e: Exception) { Log.e(TAG, "e2e plain", e) }
         // A paired computer hears of it through the service, which Android may have stopped since: a text arriving is
         // one of the few moments it lets a stopped app start one again.
         DeskService.sync(context)

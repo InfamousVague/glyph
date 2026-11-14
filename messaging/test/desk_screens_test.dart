@@ -9,6 +9,8 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
+import 'package:ghost_messaging/desktop/ui/nav_bar.dart';
+import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/common.dart';
@@ -75,6 +77,23 @@ class _Calls extends LinkCalls {
   int get waiting => 1;
 }
 
+/// The Mac's half of an update, standing in: it counts the restarts asked for.
+class _Mac implements UpdateHost {
+  int restarts = 0;
+  @override
+  Future<InstalledMac?> installed() async => null;
+  @override
+  Future<String> install(String path, {required String sha256, required int bytes}) async => 'ready';
+  @override
+  Future<String> restart() async {
+    restarts++;
+    return 'restarting';
+  }
+}
+
+/// An item of the navigation bar at the sidebar's foot, by its label.
+Finder _nav(String label) => find.byWidgetPredicate((w) => w is GlacierPressable && w.semanticLabel == label);
+
 Finder _button(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
 
 class _Store implements LinkStore {
@@ -109,14 +128,16 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('ghost-desk-shots');
     addTearDown(() => dir.deleteSync(recursive: true));
 
-    Future<void> shoot(String name, PhoneLink link, {required bool dark, Future<void> Function()? then}) async {
+    Future<void> shoot(String name, PhoneLink link, {required bool dark, Future<void> Function()? then, MacUpdates? updates}) async {
       final store = DeskStore(dir, keychain: false);
       final calls = _Calls(link, store);
       Sms.calls = calls;
+      // The app's own updates are told to the phone's screens, as the app itself does it (desktop/main.dart).
+      if (updates != null) calls.attachUpdates(updates);
       final state = AppState()
         ..setTheme(dark ? 'dark' : 'light')
         ..set('emoji', 'noto');
-      await tester.pumpWidget(KeyedSubtree(key: ValueKey('$name$dark'), child: DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store)));
+      await tester.pumpWidget(KeyedSubtree(key: ValueKey('$name$dark'), child: DesktopApp(sheet: sheet, state: state, link: link, calls: calls, store: store, updates: updates)));
       for (var i = 0; i < 16; i++) {
         await tester.pump(const Duration(milliseconds: 60));
       }
@@ -161,17 +182,103 @@ void main() {
       expect(_button('Call'), findsNothing);
       expect(_button('Stickers'), findsNothing);
       expect(_button('Add an attachment'), findsNothing);
-      expect(_button('Conversation settings'), findsNothing);
+      expect(_button('Conversation settings'), findsOneWidget, reason: 'a conversation has its own settings on a computer too');
       expect(_button('Back'), findsNothing);
+      // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
+      // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
+      for (final label in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
+        expect(_nav(label), findsOneWidget, reason: label);
+      }
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      // Archive shows the archived ones, and Messages the others again.
+      await tester.tap(_nav('Archive'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'archive');
+      expect(find.text('Archived'), findsOneWidget);
+      await tester.tap(_nav('Messages'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      // The address book: the phone's contacts beside the list, and a press on one opens its conversation.
+      await tester.tap(_nav('Contacts'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'contacts');
+      expect(find.text('Search contacts'), findsOneWidget);
+      expect(find.text('Mom'), findsOneWidget);
+      if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
+      // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
+      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx, middle = tester.getCenter(_nav('Contacts')).dx;
+      expect(first, lessThan(60));
+      expect(last, greaterThan(280));
+      expect(middle, closeTo((first + last) / 2, 0.6));
+      await tester.tap(_nav('Messages'));
+      await tester.pump(const Duration(milliseconds: 400));
+      // A new chat opens beside the list and is the one shown; Messages puts it away.
+      await tester.tap(_nav('New chat'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'new');
+      await tester.tap(_nav('Messages'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+
+      // A conversation's own settings, on a computer too (Matt: "There needs to be chat settings on desktop as
+      // well"): who is in it, how it looks here, where its encryption stands, mute, pin and archive.
+      await shoot('9-chat-settings', paired('local'), dark: dark, then: () async {
+        await tester.tap(find.text('Maya Chen'));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await tester.tap(_button('Conversation settings'));
+      });
+      expect(find.text('Conversation settings'), findsOneWidget);
+      expect(find.text('Chat background'), findsOneWidget);
+      expect(find.text('Your bubbles here'), findsOneWidget);
+      expect(find.textContaining('on this computer'), findsOneWidget, reason: 'its look is this computer\'s own');
+      await tester.scrollUntilVisible(find.text('Encryption'), 200, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Encryption'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Pin to top'), 200, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Mute notifications'), findsOneWidget);
+      expect(find.textContaining('On the phone'), findsOneWidget);
 
       await shoot('5-settings', paired('relay'), dark: dark, then: () async {
-        await tester.tap(_button('Settings'));
+        await tester.tap(_nav('Settings'));
       });
       expect(find.text('Unpair this phone'), findsOneWidget);
       expect(find.textContaining('Connected through the relay'), findsWidgets);
 
       await shoot('6-waiting', paired(null), dark: dark);
       expect(find.textContaining('Waiting for your phone'), findsOneWidget);
+      expect(find.textContaining('is ready to install'), findsNothing);
+
+      // A newer version is in place beside this one: the banner the phone has says so over the page, and Update now
+      // swaps it in and opens it (Matt: "bring the same update banner we have on mobile to the desktop app").
+      final mac = _Mac();
+      final ready = MacUpdates.standing(
+        installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'),
+        phase: MacUpdatePhase.ready,
+        release: MacRelease(version: '0.7.0', build: 470000, sha256: 'ab' * 32, bytes: 35000000, url: Uri.parse('https://ghost-sms.com/ghost-messaging-mac.zip')),
+        host: mac,
+      );
+      await shoot('7-update-ready', paired('local'), dark: dark, updates: ready);
+      expect(find.text('Ghost Messaging 0.7.0 is ready to install'), findsOneWidget);
+      await tester.tap(find.text('Update now'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(mac.restarts, 1);
+      expect(find.text('Installing Ghost Messaging 0.7.0…'), findsOneWidget);
+      expect(find.text('Update now'), findsNothing);
+      // And in Settings: where the updates stand, and a look for one when asked.
+      final idle = MacUpdates.standing(installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'), phase: MacUpdatePhase.idle, host: mac);
+      await shoot('8-settings-updates', paired('local'), dark: dark, updates: idle, then: () async {
+        await tester.tap(_nav('Settings'));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await tester.scrollUntilVisible(find.text('Look for an update'), 200, scrollable: find.byType(Scrollable).last);
+      });
+      expect(find.text('Look for an update'), findsOneWidget);
+      expect(find.textContaining('Up to date. This is 0.6.2 (456601)'), findsOneWidget);
     }
     // Leave nothing running: the wizard's question to the relay, a toast.
     await tester.pumpWidget(const SizedBox());

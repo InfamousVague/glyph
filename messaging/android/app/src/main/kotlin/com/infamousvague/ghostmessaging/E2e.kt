@@ -147,7 +147,36 @@ object E2e {
             // encryption in a banner, unless the person turned it off with them.
             "hasGhost" to Backgrounds.allKnown(context, listOf(address)),
             "declined" to declined(context, address),
+            // Texts that came from them plain while encryption is on, and have not been put away ([arrived]).
+            "plain" to (if (state == "on") E2ePlain.unseen(o?.optInt("plain", 0) ?: 0, o?.optInt("plainSeen", 0) ?: 0) else 0),
         )
+    }
+
+    /**
+     * A text came from [address]. Where encryption is on with them and it came plain, it is counted on their record
+     * (Matt, 2026-11-14: "we need to be able to detect if a user is sending us unencrypted messages and let us know
+     * so we can disable it"): they may have turned it off, changed phones or left the app, and then cannot read what
+     * goes to them sealed. One that comes sealed again clears the count. True when this is the first plain one since
+     * the last sealed one, which is the moment to say so.
+     */
+    fun arrived(context: Context, address: String, body: String): Boolean {
+        val o = peer(context, address) ?: return false
+        if (o.optString("state") != "on") return false
+        val count = o.optInt("plain", 0)
+        val seen = o.optInt("plainSeen", 0)
+        val (nextCount, nextSeen) = E2ePlain.next(count, seen, E2ePlain.kindOf(body))
+        if (nextCount == count && nextSeen == seen) return false
+        o.put("plain", nextCount)
+        o.put("plainSeen", nextSeen)
+        save(context, address, o)
+        return count == 0 && nextCount == 1
+    }
+
+    /** The warning that their texts are coming plain was put away: it comes back with the next plain one. */
+    fun plainSeen(context: Context, address: String) {
+        val o = peer(context, address) ?: return
+        o.put("plainSeen", o.optInt("plain", 0))
+        save(context, address, o)
     }
 
     fun list(context: Context): List<Map<String, Any?>> =
@@ -258,4 +287,28 @@ object E2e {
             else -> words
         }
     }
+}
+
+/**
+ * The count of texts that came plain from someone encryption is on with ([E2e.arrived]), apart from Android so it is
+ * tested: how a text is told, and how the count moves.
+ */
+object E2ePlain {
+    /** `sealed`, `plain`, or `ours`: a key or a chat background, which the app writes itself and says nothing either way. */
+    fun kindOf(body: String): String = when {
+        E2eCrypto.isSealed(body) -> "sealed"
+        E2eCrypto.keyIn(body) != null || BackgroundWire.valueIn(body) != null -> "ours"
+        else -> "plain"
+    }
+
+    /** The count and how much of it has been put away, after a text of [kind] comes. */
+    fun next(count: Int, seen: Int, kind: String): Pair<Int, Int> = when (kind) {
+        // They are sealing again: there is nothing to warn of.
+        "sealed" -> 0 to 0
+        "plain" -> (count + 1) to seen
+        else -> count to seen
+    }
+
+    /** How many have come that the person has not put away: more than none is a warning to show. */
+    fun unseen(count: Int, seen: Int): Int = (count - seen).coerceAtLeast(0)
 }

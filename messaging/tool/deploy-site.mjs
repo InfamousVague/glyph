@@ -33,6 +33,8 @@ const SITE_DIR = join(ROOT, 'site');
 const SITE = '/opt/ghost-sms-site';
 const RELEASE = '/opt/ghost-sms-release';
 const APK = 'ghost-messaging.apk';
+// The Mac app's (tool/release-mac.mjs): what an installed copy reads, and the zip it updates itself from.
+const MAC_ZIP = 'ghost-messaging-mac.zip';
 const DOMAIN = 'ghost-sms.com';
 const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
@@ -51,9 +53,10 @@ if (!glyph && !printOnly) fail('No Ghost.md checkout found for its box code (--g
 const BLOCK = `
 ${DOMAIN} {
 	encode zstd gzip
-	# The release's own files (tool/release.mjs), so a release updates this site's download and version. Installed
-	# copies update from these two addresses (Updater.BASE): they must never stop answering.
-	@release path /${APK} /apk.json
+	# The release's own files (tool/release.mjs, tool/release-mac.mjs), so a release updates this site's download
+	# and version. Installed copies update from these addresses (the phone's Updater.BASE, the Mac's macFeed): they
+	# must never stop answering.
+	@release path /${APK} /apk.json /${MAC_ZIP} /mac.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"

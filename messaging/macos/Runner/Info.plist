@@ -29,6 +29,8 @@
 	<array>
 		<string>_ghostmsg._tcp</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ghost Messaging records a voice message when you press the microphone, for your phone to send. It listens at no other time.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Ghost Messaging finds your phone on the network you share, to show its texts and send through it without a server in between.</string>
 	<key>LSApplicationCategoryType</key>

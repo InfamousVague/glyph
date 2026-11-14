@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../sms.dart';
 import 'link/crypto.dart';
 import 'link/link.dart';
 import 'link/session.dart';
+import 'platform.dart';
 import 'store.dart';
+import 'updates.dart';
 
 /// The phone's screens, on the Mac: every call they make of Android (lib/sms.dart) is answered here, by the phone
 /// over the link where it is the phone's to answer, and by the Mac itself where it is the Mac's own (its theme, its
@@ -15,13 +19,74 @@ import 'store.dart';
 /// The Mac keeps conversations in memory only. While the phone cannot be reached, what was read last is still shown,
 /// and what is typed waits here, drawn as "Waiting for your phone", and goes when the phone is back. Each text has a
 /// name the phone remembers, so one sent twice (its answer lost with the connection) is sent once.
-class LinkCalls implements SmsCalls {
+class LinkCalls implements SmsCalls, CapableCalls {
   LinkCalls(this.link, this.store);
 
   final PhoneLink link;
   final DeskStore store;
 
   Map<String, String> _prefs = {};
+
+  /// What the phone does for a computer beyond the first few (android DeskCalls.CAPS): asked each time it is reached,
+  /// since it may have been updated since. A phone from before there were any does none of them, and the screens
+  /// offer none ([Sms.can]).
+  @override
+  Set<String> get caps => _caps;
+  Set<String> _caps = const {};
+
+  Future<void> _askCaps() async {
+    Set<String> next;
+    try {
+      next = {for (final c in ((await link.request('caps')) as List? ?? const [])) '$c'};
+    } on LinkDown {
+      return;
+    } catch (_) {
+      next = const {};
+    }
+    if (next.length != _caps.length || !next.containsAll(_caps)) {
+      _caps = next;
+      Sms.instance.changes.add(-1);
+    }
+  }
+
+  /// The app's own updates, once the app has handed them over ([attachUpdates]); none in a test that has none.
+  MacUpdates? _updates;
+  DateTime _looked = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Hands over the app's own updates: where they stand is told to the phone's screens (`Sms.instance.updates`), in
+  /// the words the phone's own updater uses, each time it moves.
+  void attachUpdates(MacUpdates updates) {
+    _updates = updates;
+    updates.addListener(() => Sms.instance.updates.add(UpdateState.from(updateState())));
+  }
+
+  /// Where the app's own update stands, as the phone's updater says it (android/.../Updater.kt): `ready` is the new
+  /// version in place beside this one, and installing it is a restart.
+  Map<String, Object?> updateState() {
+    final u = _updates;
+    final here = u?.installed;
+    if (u == null || here == null) return {'phase': 'disabled', 'current': link.app};
+    return {
+      'phase': switch (u.phase) {
+        MacUpdatePhase.idle => 'idle',
+        MacUpdatePhase.checking => 'checking',
+        MacUpdatePhase.downloading => 'downloading',
+        MacUpdatePhase.ready => 'ready',
+        MacUpdatePhase.restarting => 'installing',
+        // There is a newer one this copy cannot put in place itself.
+        MacUpdatePhase.manual => 'available',
+        MacUpdatePhase.failed => 'failed',
+      },
+      'current': here.version,
+      'available': u.release?.version,
+      'progress': u.phase == MacUpdatePhase.downloading ? u.progress : null,
+      'error': u.problem,
+      'auto': true,
+      'canInstall': u.phase != MacUpdatePhase.manual,
+      'source': u.feed.host,
+    };
+  }
+
   List<dynamic>? _conversations;
   final Map<int, List<dynamic>> _messages = {};
   final Map<int, String> _drafts = {};
@@ -41,7 +106,9 @@ class LinkCalls implements SmsCalls {
     _events = link.events.stream.listen((e) {
       if (e.name == 'changed') Sms.instance.changes.add((e.args['thread'] as num?)?.toInt() ?? -1);
     });
+    if (link.online) unawaited(_askCaps());
     _connected = link.connected.stream.listen((_) async {
+      await _askCaps();
       await _flush();
       // Whatever changed while the phone was away is read again.
       Sms.instance.changes.add(-1);
@@ -59,6 +126,7 @@ class LinkCalls implements SmsCalls {
     _messages.clear();
     _drafts.clear();
     _waiting.clear();
+    _videos.clear();
   }
 
   @override
@@ -122,7 +190,83 @@ class LinkCalls implements SmsCalls {
           return _cached((a['thread'] as num).toInt())?['people'] ?? const [];
         }
       case 'send':
-        return _send(a);
+        return ((a['attachments'] as List?)?.isNotEmpty ?? false) ? _sendPictures(a) : _send(a);
+
+      // --- what the message field has (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and sticker
+      // selector to the desktop app as well"): the Mac chooses, records and holds; the phone sends. What is sent is
+      // handed over in pieces first ([_handOver]).
+      case 'pickImages':
+        return MacPlatform.pickPictures();
+      case 'emoji':
+        await MacPlatform.emoji();
+        return null;
+      case 'sendSticker':
+        final sticker = a['picture'] as Uint8List;
+        final sent = (await link.request('sendSticker', {'key': _name(), 'addresses': a['addresses'], 'name': a['name'], 'upload': await _handOver(sticker)})) as Map;
+        return _went(sent);
+      case 'voiceStart':
+        // How long one may run is the phone's carrier's to say; the Mac's recorder stops itself there.
+        final limit = (await link.request('voiceLimit')) as Map;
+        final began = await MacPlatform.voiceStart((limit['bytes'] as num).toInt());
+        if (began['ok'] == true) return {'ok': true, 'seconds': (limit['seconds'] as num).toInt()};
+        if (began['denied'] == true) return {'ok': false, 'denied': true};
+        throw PhoneError('${began['error'] ?? 'The microphone could not be started'}');
+      case 'voiceLevel':
+        final heard = await MacPlatform.voiceLevel();
+        if (heard['full'] == true) Sms.instance.voiceFull.add(null);
+        return (heard['level'] as num?)?.toDouble() ?? 0.0;
+      case 'voiceCancel':
+        await MacPlatform.voiceCancel();
+        return null;
+      case 'voiceSend':
+        final sound = await MacPlatform.voiceStop();
+        if (sound == null) throw const PhoneError('That was too short to send');
+        final sent = (await link.request('sendVoice', {'key': _name(), 'addresses': a['addresses'], 'name': 'voice.m4a', 'upload': await _handOver(sound)})) as Map;
+        return {'thread': _went(sent), 'millis': 0};
+      case 'voicePlay':
+        final part = (a['part'] as num).toInt();
+        final sound = await _video(part);
+        if (sound == null) throw const LinkDown('Your phone isn\'t reachable, and the voice message is on it. Try again when it is back.');
+        final why = await MacPlatform.voicePlay(part, sound);
+        if (why != null) throw PhoneError('Couldn\'t play it: $why.');
+        return null;
+      case 'voicePause':
+        await MacPlatform.voicePause();
+        return null;
+      case 'voiceStop':
+        await MacPlatform.voiceHalt();
+        return null;
+      case 'voiceLength':
+        final sound = await _video((a['part'] as num).toInt());
+        return sound == null ? 0 : await MacPlatform.voiceLength(sound);
+
+      // --- what the phone's screens do to what is kept, done through the phone (android DeskCalls) ----------------
+      case 'deleteMessage' || 'editMessage' || 'setBlocked' || 'e2eOff' || 'e2eVerify' || 'e2ePlainSeen':
+        await link.request(method, a);
+        _reread();
+        return null;
+      case 'deleteThread':
+        await link.request('deleteThreads', {'threads': [a['thread']]});
+        _reread();
+        return null;
+      case 'deleteThreads' || 'resendMms' || 'e2eOffer':
+        final done = await link.request(method, a);
+        _reread();
+        return done;
+      case 'e2eList' || 'blockedNumbers':
+        if (!_caps.contains(method)) return const [];
+        try {
+          return await link.request(method, a);
+        } on LinkDown {
+          return const [];
+        }
+      case 'mmsStatus':
+        if (!_caps.contains(method)) return const <String, dynamic>{};
+        try {
+          return await link.request(method, a);
+        } on LinkDown {
+          return const <String, dynamic>{};
+        }
       case 'markRead':
         final thread = (a['thread'] as num).toInt();
         try {
@@ -154,6 +298,19 @@ class LinkCalls implements SmsCalls {
         }
       case 'part':
         return _part((a['id'] as num).toInt());
+      // A video (lib/ui/video.dart): its bytes are the phone's, brought over as a picture's are; the Mac makes the
+      // picture of where it starts, and plays it in a window of its own (macos/Runner/DeskVideo.swift).
+      case 'videoPreview':
+        final id = (a['part'] as num).toInt();
+        final bytes = await _video(id);
+        return bytes == null ? null : await MacPlatform.videoPreview(id, bytes, '${a['ending'] ?? 'mp4'}');
+      case 'videoPlay':
+        final id = (a['part'] as num).toInt();
+        final bytes = await _video(id);
+        if (bytes == null) throw const LinkDown('Your phone isn\'t reachable, and the video is on it. Try again when it is back.');
+        final why = await MacPlatform.videoPlay(id, bytes, '${a['ending'] ?? 'mp4'}', 'Video');
+        if (why != null) throw PhoneError('Couldn\'t play it: $why.');
+        return null;
       case 'threadFlag':
       case 'archive':
         await link.request(method, a);
@@ -188,17 +345,41 @@ class LinkCalls implements SmsCalls {
         return null;
       case 'status':
         return {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true};
+      // The app's own updates (updates.dart), told to the phone's screens in the phone's words, so the banner and
+      // the Settings a phone has are the ones a computer has (Matt, 2026-11-14: "bring the same update banner we
+      // have on mobile to the desktop app").
       case 'update':
-        return {'phase': 'disabled', 'current': link.app};
+        return updateState();
+      case 'updateCheck':
+        final u = _updates;
+        if (u == null) return null;
+        if (a['install'] == true && u.phase == MacUpdatePhase.ready) {
+          await u.restart();
+        } else {
+          _looked = DateTime.now();
+          unawaited(u.check());
+        }
+        return null;
+      case 'updateInstall':
+        await _updates?.restart();
+        return null;
+      case 'updatePage' || 'updateBackground':
+        // As a page opens: a look, no oftener than every five minutes (the phone's Updater.pageCheck).
+        final u = _updates;
+        if (u != null && DateTime.now().difference(_looked) >= const Duration(minutes: 5)) {
+          _looked = DateTime.now();
+          unawaited(u.check());
+        }
+        return null;
       case 'arriving':
         return <String, dynamic>{};
       case 'perfOn' || 'keyboardHere' || 'ghostPeers' || 'deskUnrestricted':
         return false;
-      case 'e2eList' || 'blockedNumbers' || 'deskList':
+      case 'deskList':
         return const [];
       case 'deskState':
         return {'phase': 'none'};
-      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'updateBackground' || 'updatePage' || 'updateCheck' || 'setAutoUpdate':
+      case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'ownNumber' || 'e2eMine' || 'setAutoUpdate':
         return null;
       default:
         throw const PhoneError('That is done on the phone.');
@@ -222,6 +403,20 @@ class LinkCalls implements SmsCalls {
   }
 
   /// A picture, fetched in pieces (the phone hands over at most a frame's worth at a time).
+  /// The last few videos brought over, so the one a picture was just made of is not fetched again to be played.
+  final _videos = <int, Uint8List>{};
+
+  Future<Uint8List?> _video(int id) async {
+    final had = _videos.remove(id);
+    final bytes = had ?? await _part(id);
+    if (bytes == null || bytes.isEmpty) return null;
+    _videos[id] = bytes;
+    while (_videos.length > 4) {
+      _videos.remove(_videos.keys.first);
+    }
+    return bytes;
+  }
+
   Future<Uint8List?> _part(int id) async {
     try {
       final whole = BytesBuilder(copy: false);
@@ -255,11 +450,78 @@ class LinkCalls implements SmsCalls {
     return -1;
   }
 
+  /// A name for something sent, so the phone sends it once however many times it is asked.
+  String _name() => DeskCrypto.hex(DeskCrypto.randomBytes(12));
+
+  /// Hands [bytes] over to the phone a piece at a time under a name of their own, which the call that sends them
+  /// gives: a frame carries less than a megabyte, and a picture is more.
+  Future<String> _handOver(Uint8List bytes) async {
+    if (bytes.isEmpty) throw const PhoneError('There is nothing in that to send');
+    if (bytes.length > mostBytes) throw PhoneError('That is too large to send (${mostBytes ~/ (1024 * 1024)} MB at most)');
+    final id = DeskCrypto.hex(DeskCrypto.randomBytes(8));
+    for (var at = 0; at < bytes.length; at += piece) {
+      final end = math.min(bytes.length, at + piece);
+      await link.request('put', {'upload': id, 'offset': at, 'total': bytes.length, 'data': base64.encode(Uint8List.sublistView(bytes, at, end))});
+    }
+    return id;
+  }
+
+  /// As much as one frame carries, and the most the phone takes (android DeskCalls.PIECE, MOST_BYTES).
+  static const piece = 384 * 1024;
+  static const mostBytes = 12 * 1024 * 1024;
+
+  /// Where what was sent went: read again, since it is in the conversation now.
+  int _went(Map sent) {
+    final thread = (sent['thread'] as num).toInt();
+    _messages.remove(thread);
+    Sms.instance.changes.add(thread);
+    return thread;
+  }
+
+  /// Something the phone keeps was changed from here: what was read is read again.
+  void _reread() {
+    _messages.clear();
+    Sms.instance.changes.add(-1);
+  }
+
+  /// What a picture's file is, by its name's ending; null for what is not one the phone can make ready.
+  static String? pictureType(String name) {
+    final dot = name.lastIndexOf('.');
+    return switch (dot < 0 ? '' : name.substring(dot + 1).toLowerCase()) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'heic' || 'heif' => 'image/heic',
+      'bmp' => 'image/bmp',
+      _ => null,
+    };
+  }
+
+  /// Pictures chosen on the Mac ([a]'s `attachments` are their paths), handed to the phone and sent as it sends its
+  /// own: made to fit the carrier there, with the words beside them.
+  Future<int> _sendPictures(Map<String, dynamic> a) async {
+    final files = <Map<String, String>>[];
+    for (final path in (a['attachments'] as List)) {
+      final name = '$path'.split('/').last;
+      final type = pictureType(name);
+      if (type == null) throw PhoneError('$name isn\'t a picture. Only pictures can be sent from here for now.');
+      final Uint8List bytes;
+      try {
+        bytes = await File('$path').readAsBytes();
+      } catch (_) {
+        throw PhoneError('$name couldn\'t be read.');
+      }
+      files.add({'upload': await _handOver(bytes), 'name': name, 'type': type});
+    }
+    final sent = (await link.request('sendPictures', {'key': _name(), 'addresses': a['addresses'], 'body': '${a['body'] ?? ''}', 'files': files})) as Map;
+    return _went(sent);
+  }
+
   Future<int> _send(Map<String, dynamic> a) async {
     final addresses = [for (final x in (a['addresses'] as List? ?? const [])) '$x'];
     final body = '${a['body'] ?? ''}';
-    if ((a['attachments'] as List?)?.isNotEmpty ?? false) throw const PhoneError('Pictures are sent from the phone.');
-    final key = DeskCrypto.hex(DeskCrypto.randomBytes(12));
+    final key = _name();
     try {
       final r = (await link.request('send', {'key': key, 'addresses': addresses, 'body': body})) as Map;
       return (r['thread'] as num).toInt();

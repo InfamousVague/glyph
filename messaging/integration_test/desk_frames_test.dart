@@ -23,7 +23,7 @@ void main() {
 
   testWidgets('frames while the arc turns ($_policy)', (tester) async {
     final dir = Directory.systemTemp.createTempSync('ghost-desk-frames');
-    await desktopMain(peers: const [], folder: dir.path, bonjour: false);
+    await desktopMain(peers: const [], folder: dir.path, bonjour: false, updates: false);
     for (var i = 0; i < 20 && find.text('Your texts, on your Mac').evaluate().isEmpty; i++) {
       await tester.pump(const Duration(milliseconds: 150));
     }

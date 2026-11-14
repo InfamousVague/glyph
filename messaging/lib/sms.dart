@@ -95,6 +95,24 @@ class Attachment {
   /// Sound: a voice message (android Voice.kt records them), drawn with a player.
   bool get isAudio => type.startsWith('audio/') || type == 'application/ogg';
 
+  /// A video: drawn as a picture of where it starts, with a button that plays it (lib/ui/video.dart).
+  bool get isVideo => type.startsWith('video/');
+
+  /// The ending a file of this kind goes by, for a player that tells the kind by it: the name's own where it has a
+  /// plain one, else the kind's.
+  String get ending {
+    final dot = (name ?? '').lastIndexOf('.');
+    final named = dot < 0 ? '' : name!.substring(dot + 1).toLowerCase();
+    if (RegExp(r'^[a-z0-9]{2,4}$').hasMatch(named)) return named;
+    return switch (type) {
+      'video/3gpp' || 'audio/3gpp' => '3gp',
+      'video/quicktime' => 'mov',
+      'video/webm' => 'webm',
+      'audio/amr' => 'amr',
+      _ => type.startsWith('audio/') ? 'm4a' : 'mp4',
+    };
+  }
+
   /// One of Ghost Messaging's stickers (android Sender.sendSticker names them so): drawn small, on the page.
   bool get isSticker => isImage && (name ?? '').split('/').last.startsWith('ghost-sticker');
 }
@@ -255,7 +273,7 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0});
   final String address;
   final String state;
   final bool verified;
@@ -274,6 +292,13 @@ class E2eState {
   /// The person here turned encryption off with them: it is not offered again.
   final bool declined;
 
+  /// How many texts have come from them without encryption while it is on, and not been put away (android
+  /// E2e.arrived): they may have turned it off or changed phones, and then cannot read what goes to them sealed.
+  final int plain;
+
+  /// Their texts are coming plain though encryption is on: the conversation says so, with a way to turn it off.
+  bool get plainWarning => on && plain > 0;
+
   bool get on => state == 'on';
 
   /// Both phones have the app and nothing has been exchanged yet: the conversation offers encryption.
@@ -288,6 +313,7 @@ class E2eState {
         person: m['person'] == null ? null : Person.from(m['person'] as Map),
         hasGhost: m['hasGhost'] == true,
         declined: m['declined'] == true,
+        plain: (m['plain'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -448,12 +474,39 @@ abstract class SmsCalls {
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]);
 }
 
+/// Calls that reach the phone from somewhere else (a computer's link), where what can be asked depends on the phone
+/// at the other end: an older Ghost Messaging there does less. [caps] names what it does beyond the first few
+/// (android DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
+abstract class CapableCalls {
+  Set<String> get caps;
+}
+
 class _ChannelCalls implements SmsCalls {
   const _ChannelCalls();
   static const _channel = MethodChannel('ghost_messaging/sms');
 
   @override
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]) => _channel.invokeMethod<T>(method, arguments);
+}
+
+/// A video in a message, as the conversation draws it before it is played: a picture of where it starts (null where
+/// none can be made of it) and how long it runs.
+class VideoPreview {
+  const VideoPreview({this.picture, this.length = Duration.zero, this.width = 0, this.height = 0});
+  final Uint8List? picture;
+  final Duration length;
+  final int width;
+  final int height;
+
+  /// Nothing is known of it: not a picture, not its length.
+  bool get empty => picture == null && length == Duration.zero;
+
+  factory VideoPreview.from(Map? m) => VideoPreview(
+        picture: m?['picture'] as Uint8List?,
+        length: Duration(milliseconds: (m?['millis'] as num?)?.toInt() ?? 0),
+        width: (m?['width'] as num?)?.toInt() ?? 0,
+        height: (m?['height'] as num?)?.toInt() ?? 0,
+      );
 }
 
 /// Where the voice message being played has got to (android/.../Voice.kt): its part, and whether it is playing now.
@@ -485,6 +538,14 @@ class Sms {
 
   /// These screens are on a computer, not the phone: what only the phone can do is not offered.
   static bool get remote => _calls is! _ChannelCalls;
+
+  /// Whether [what] can be done from here: anything on the phone itself; on a computer, what the phone it is paired
+  /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
+  static bool can(String what) {
+    final calls = _calls;
+    if (calls is _ChannelCalls) return true;
+    return calls is CapableCalls && (calls as CapableCalls).caps.contains(what);
+  }
 
   /// The conversation that changed, each time one does (-1: some conversation, which is not known).
   final changes = StreamController<int>.broadcast();
@@ -623,6 +684,9 @@ class Sms {
   Future<E2eState> e2e(String address) async => E2eState.from((await _calls.invokeMethod('e2e', {'address': address})) as Map);
   Future<E2eState> e2eOffer(String address) async => E2eState.from((await _calls.invokeMethod('e2eOffer', {'address': address})) as Map);
   Future<void> e2eOff(String address) => _calls.invokeMethod('e2eOff', {'address': address});
+
+  /// Puts away the warning that [address]'s texts are coming without encryption; the next plain one brings it back.
+  Future<void> e2ePlainSeen(String address) => _calls.invokeMethod('e2ePlainSeen', {'address': address});
   Future<void> e2eVerify(String address, bool verified) => _calls.invokeMethod('e2eVerify', {'address': address, 'verified': verified});
   Future<void> e2eReset() => _calls.invokeMethod('e2eReset');
   Future<String?> e2eMine() => _calls.invokeMethod<String>('e2eMine');
@@ -702,6 +766,40 @@ class Sms {
           return Duration.zero;
         }
       }();
+
+  // --- videos (android/.../Video.kt; on a Mac macos/Runner/DeskVideo.swift) -------------------------------------
+
+  final _videoPreviews = <int, Future<VideoPreview>>{};
+  static const _videoPreviewsKept = 40;
+
+  /// A picture of where the video [a] starts and how long it runs, kept while it is among the last few asked for.
+  /// One that could not be had (the phone out of a computer's reach) is asked for again the next time.
+  Future<VideoPreview> videoPreview(Attachment a) {
+    final had = _videoPreviews.remove(a.id);
+    final preview = had ??
+        () async {
+          try {
+            return VideoPreview.from(await _calls.invokeMethod<Map>('videoPreview', {'part': a.id, 'type': a.type, 'ending': a.ending}));
+          } catch (_) {
+            return const VideoPreview();
+          }
+        }();
+    _videoPreviews[a.id] = preview;
+    preview.then((p) {
+      if (p.empty && identical(_videoPreviews[a.id], preview)) _videoPreviews.remove(a.id);
+    });
+    while (_videoPreviews.length > _videoPreviewsKept) {
+      _videoPreviews.remove(_videoPreviews.keys.first);
+    }
+    return preview;
+  }
+
+  /// Plays the video [a]: the whole screen on the phone, a window of its own on a computer.
+  Future<void> playVideo(Attachment a) => _calls.invokeMethod('videoPlay', {'part': a.id, 'type': a.type, 'ending': a.ending, 'name': a.name});
+
+  /// Opens the computer's own panel of emoji, which types what is chosen where the cursor is. A phone's keyboard has
+  /// its own, so this is a computer's alone ([remote]).
+  Future<void> emojiPanel() => _calls.invokeMethod('emoji');
 
   Future<List<String>> pickImages() async => [for (final u in (await _calls.invokeMethod<List>('pickImages')) ?? const []) u as String];
 

@@ -23,6 +23,7 @@ import 'common.dart';
 import 'encryption.dart';
 import 'message_popover.dart';
 import 'sticker_picker.dart';
+import 'video.dart';
 import 'voice.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
@@ -168,6 +169,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   void _e2eChanged() {
     _loadE2e();
     _load();
+  }
+
+  /// The warning's Turn off: their texts are coming plain, so this conversation goes plain too and they can read it.
+  Future<void> _e2eStop() async {
+    final person = _people.first;
+    try {
+      await Sms.instance.e2eOff(person.address);
+      if (mounted) toast(context, 'Encryption is off with ${person.label}. Texts go as ordinary texts again.');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t turn it off: $e', tone: GlacierToastTone.danger);
+    }
+    _e2eChanged();
   }
 
   /// The banner's Turn on: this phone's key goes to them, and encryption starts when they accept.
@@ -585,7 +598,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       title: title,
       back: !remote,
       titleWidget: GlacierPressable(
-        onPressed: remote ? null : _openSettings,
+        onPressed: _openSettings,
         builder: (context, state) => Row(children: [
           Avatar(people: _people, size: t.lenOf('2.1rem')),
           SizedBox(width: t.space(2)),
@@ -605,7 +618,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         if (!remote && !_group && _people.isNotEmpty)
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
-        if (!remote) IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
+        // On a computer too (Matt, 2026-11-14: "There needs to be chat settings on desktop as well"): what a computer
+        // can change of a conversation, and what it can only show (lib/ui/chat_settings.dart).
+        IconTap(icon: Lucide.settings, label: 'Conversation settings', onPressed: _openSettings),
       ],
       body: Stack(children: [
         if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),
@@ -768,6 +783,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onAction: _e2eStart,
               onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
               onDismiss: () => AppState.of(context).setFlag('e2e_banner_${widget.thread}', false),
+            ),
+          // Encryption is on and their texts are coming without it (Matt, 2026-11-14: "we need to be able to detect
+          // if a user is sending us unencrypted messages and let us know so we can disable it"): said here, with Turn
+          // off beside it. Put away, it comes back with their next plain text; it goes by itself when one comes sealed.
+          // On a computer it is said and not offered: encryption is turned off from the phone.
+          if (!_group && _people.isNotEmpty && _e2e.plainWarning)
+            _E2eBar(
+              warning: true,
+              text: '${_people.first.label}\'s ${_e2e.plain == 1 ? 'last text' : 'last ${_e2e.plain} texts'} came without encryption. '
+                  'They may have turned it off or changed phones, and then can\'t read what you send.${Sms.remote ? ' Turn it off from the phone.' : ''}',
+              action: Sms.remote ? null : 'Turn off',
+              onAction: _e2eStop,
+              onPress: Sms.remote ? () {} : () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
+              onDismiss: Sms.remote ? null : () => Sms.instance.e2ePlainSeen(_people.first.address).then((_) => _e2eChanged()).catchError((_) {}),
             ),
           if (!Sms.remote && !_group && _people.isNotEmpty && (_e2e.state == 'pending' || _e2e.state == 'offered'))
             _E2eBar(
@@ -975,8 +1004,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 /// Over the composer while encryption waits on someone: their key is here and wants a yes, or yours went and theirs
 /// has not come. A press anywhere opens what can be done about it.
 class _E2eBar extends StatelessWidget {
-  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss});
+  const _E2eBar({required this.text, required this.onPress, this.action, this.onAction, this.onDismiss, this.warning = false});
   final String text;
+
+  /// Something is wrong, not waiting: a warning's mark in place of the lock.
+  final bool warning;
   final VoidCallback onPress;
   final String? action;
   final VoidCallback? onAction;
@@ -995,7 +1027,7 @@ class _E2eBar extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
           decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg'))),
           child: Row(children: [
-            AppIcon(Lucide.lock, size: 16, color: t.color('app-ink-2')),
+            if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.colorOf('#c27c00'), wash: false) else AppIcon(Lucide.lock, size: 16, color: t.color('app-ink-2')),
             SizedBox(width: t.space(2)),
             Expanded(child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'), height: 1.3))),
             if (action != null) ...[
@@ -1142,7 +1174,12 @@ class _Bubble extends StatelessWidget {
     final app = AppState.of(context);
     final out = m.outgoing;
     final failed = m.state == 'failed';
-    final big = t.lenOf('1.15rem');
+    // On a computer a bubble is a size smaller than on the phone: its words, the room round them and its corners
+    // (Matt, 2026-11-14: "the chat bubbles are a bit too large on mac"). A window is read from further off than a
+    // phone is held, but it is also far wider, and the phone's bubbles filled it.
+    final desk = Sms.remote;
+    final size = desk ? 0.88 : 1.0;
+    final big = t.lenOf(desk ? '1rem' : '1.15rem');
     final small = t.lenOf('0.3rem');
     final radius = BorderRadius.only(
       topLeft: Radius.circular(!out && !top ? small : big),
@@ -1154,7 +1191,7 @@ class _Bubble extends StatelessWidget {
     final (mine, onMine) = myBubble(t, app, thread);
     final ground = out ? (failed ? t.colorOf('color-mix(in srgb, #dd3a30 18%, var(--app-paper-2))') : mine) : theirBubble(t, onBackground: onBackground);
     final ink = out && !failed ? onMine : t.color('app-ink');
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
+    final maxWidth = MediaQuery.sizeOf(context).width * (desk ? 0.62 : 0.76);
     final faceSize = t.lenOf('1.75rem');
     final emojis = m.attachments.isEmpty && !unopened && app.bigEmoji ? emojiOnly(body) : 0;
     final jumbo = emojis >= 1 && emojis <= 3;
@@ -1170,6 +1207,12 @@ class _Bubble extends StatelessWidget {
             // A picture that did not go: a tap sends it again, where it would have opened the picture. Its own tap
             // used to win, so "Tap to try again" did nothing on a message that was a picture and no words.
             child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth, onTap: failed ? onTapFailed : null),
+          )
+        else if (a.isVideo)
+          // A video: a picture of where it starts, and a button that plays it (it was drawn as its file's name).
+          Padding(
+            padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
+            child: VideoBubble(video: a, radius: radius, maxWidth: maxWidth, ground: ground, ink: ink),
           )
         else if (a.isAudio)
           // A voice message: a player (on a computer, its name: the sound stays on the phone).
@@ -1193,24 +1236,24 @@ class _Bubble extends StatelessWidget {
         // One to three emoji and nothing else: large, on the page, with no bubble.
         Padding(
           padding: EdgeInsets.symmetric(horizontal: t.space(1)),
-          child: Text(body.trim(), style: pageText(t, t.lenOf(emojis == 1 ? '3.2rem' : '2.5rem'), color: t.color('app-ink'), height: 1.2)),
+          child: Text(body.trim(), style: pageText(t, t.lenOf(emojis == 1 ? '3.2rem' : '2.5rem') * size, color: t.color('app-ink'), height: 1.2)),
         )
       else if (body.isNotEmpty)
         Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
-          padding: EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
+          padding: desk ? EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2) - 2) : EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),
           // A bubble the page would swallow (white on the light page) wears a line round it.
           decoration: BoxDecoration(color: ground, borderRadius: radius, border: !onBackground && bubbleNeedsRim(ground, t.color('glacier-bg')) ? Border.all(color: t.color('app-rule')) : null),
           child: unopened
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   AppIcon(Lucide.lock, size: 14, strokeWidth: 2.2, wash: false, color: ink),
                   SizedBox(width: t.space(2)),
-                  Flexible(child: Text(body, style: pageText(t, t.fontSize('sm') * app.textScale, color: ink, height: 1.35).copyWith(fontStyle: FontStyle.italic))),
+                  Flexible(child: Text(body, style: pageText(t, t.fontSize('sm') * app.textScale * size, color: ink, height: 1.35).copyWith(fontStyle: FontStyle.italic))),
                 ])
               : Text.rich(
                   _linked(body, ink),
                   // Settings › Appearance › Text size.
-                  style: pageText(t, t.fontSize('md') * app.textScale, color: ink, height: 1.35),
+                  style: pageText(t, t.fontSize('md') * app.textScale * size, color: ink, height: 1.35),
                 ),
         ),
     ];

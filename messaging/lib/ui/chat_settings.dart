@@ -102,16 +102,24 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 PaneSection(title: _group ? '${people.length} people' : 'Person', children: [
                   for (final p in people)
                     SettingRow(
-                      icon: const AppIcon(Lucide.phone, size: 18),
+                      icon: AppIcon(Sms.remote ? Lucide.copy : Lucide.phone, size: 18),
                       label: p.label,
                       hint: p.name != null && p.name!.isNotEmpty ? Text(p.address) : null,
-                      onPress: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': p.address}),
+                      // The phone calls; a computer copies the number.
+                      onPress: Sms.remote
+                          ? () async {
+                              await Clipboard.setData(ClipboardData(text: p.address));
+                              if (context.mounted) toast(context, 'Number copied');
+                            }
+                          : () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': p.address}),
                     ),
                 ]),
                 SizedBox(height: t.space(5)),
                 PaneSection(
                   title: 'Look',
-                  footer: const Text('For this conversation alone. Every other conversation keeps what it wears.'),
+                  footer: Text(Sms.remote
+                      ? 'For this conversation alone, on this computer. The phone keeps what it wears there.'
+                      : 'For this conversation alone. Every other conversation keeps what it wears.'),
                   children: [
                     SettingRow(
                       icon: const AppIcon(Lucide.image, size: 18),
@@ -135,12 +143,16 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       icon: AppIcon(_e2e.on ? (_e2e.verified ? Lucide.shieldCheck : Lucide.lock) : Lucide.keyRound, size: 18),
                       label: 'Encryption',
                       hint: Text(switch (_e2e.state) {
+                        'on' when _e2e.plainWarning => 'On, but ${people.first.label}\'s last ${_e2e.plain == 1 ? 'text' : '${_e2e.plain} texts'} came without it. They may not be able to read what you send.${Sms.remote ? ' It is turned off from the phone.' : ''}',
+                        'on' when Sms.remote => _e2e.verified ? 'On, and the safety number is verified. It is turned off from the phone.' : 'On. It is turned off, and its safety number compared, from the phone.',
                         'on' => _e2e.verified ? 'On, and the safety number is verified.' : 'On. Compare the safety number to be sure nobody is in the middle.',
                         'pending' => _e2e.changed ? '${people.first.label} sent a NEW key. Review it before accepting.' : '${people.first.label} sent their key and waits for your yes.',
                         'offered' => 'Your key was sent. It starts when ${people.first.label} accepts.',
+                        _ when Sms.remote => 'Off. It is turned on from the phone.',
                         _ => _e2e.hasGhost ? '${people.first.label} has Ghost Messaging too: your texts can go sealed so only your two phones read them.' : 'Off. It needs ${people.first.label} to have Ghost Messaging too.',
                       }),
-                      onPress: () => showEncryptionChoices(context, people.first, _e2e, _load),
+                      // Keys are made, sent and agreed to on the phone that holds them: a computer shows where it stands.
+                      onPress: Sms.remote ? null : () => showEncryptionChoices(context, people.first, _e2e, _load),
                     ),
                   ]),
                 ],
@@ -149,7 +161,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   SettingRow(
                     icon: const AppIcon(GhostIcons.bellOff, size: 18),
                     label: 'Mute notifications',
-                    hint: const Text('Messages still arrive, quietly.'),
+                    hint: Text(Sms.remote ? 'On the phone: messages still arrive, quietly.' : 'Messages still arrive, quietly.'),
                     control: GlacierSwitch(checked: c?.muted ?? false, onCheckedChange: (on) => _flag('muted', on), ariaLabel: 'Mute notifications'),
                   ),
                   SettingRow(

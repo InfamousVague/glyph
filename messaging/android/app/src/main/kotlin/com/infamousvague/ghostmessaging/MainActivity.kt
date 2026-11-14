@@ -151,6 +151,12 @@ class MainActivity : FlutterActivity() {
                 "voicePause" -> { Voice.pause(); result.success(null) }
                 "voiceStop" -> { Voice.halt(); result.success(null) }
                 "voiceLength" -> on(pictures) { Voice.length(applicationContext, call.argument<Number>("part")!!.toLong()) }
+                // A video in a message (Video.kt): a picture of where it starts and how long it runs, and playing it.
+                "videoPreview" -> on(pictures) { Video.preview(applicationContext, call.argument<Number>("part")!!.toLong()) }
+                "videoPlay" -> {
+                    startActivity(Intent(this, VideoActivity::class.java).putExtra(VideoActivity.PART, call.argument<Number>("part")!!.toLong()))
+                    result.success(null)
+                }
                 // Try again, on a picture message that could not be brought down (Store.insertMmsNotice).
                 "retryDownload" -> bg { MmsPushReceiver.retry(applicationContext, call.argument<Number>("id")!!.toLong()); null }
                 "markRead" -> bg {
@@ -194,6 +200,8 @@ class MainActivity : FlutterActivity() {
                     E2e.state(applicationContext, address)
                 }
                 "e2eOff" -> bg { E2e.off(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
+                // The warning that their texts are coming without encryption was put away (E2e.arrived).
+                "e2ePlainSeen" -> bg { E2e.plainSeen(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
                 "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
                 "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
                 "blockedNumbers" -> bg { store.blockedNumbers() }

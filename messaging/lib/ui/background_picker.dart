@@ -47,7 +47,8 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
   AppState? _app;
   GlacierToastController? _toasts;
 
-  bool get _canSync => widget.thread != null && widget.people.isNotEmpty;
+  /// Sharing what a conversation wears is the phone's to do: a computer's choice is its own.
+  bool get _canSync => widget.thread != null && widget.people.isNotEmpty && !Sms.remote;
   String get _syncKey => 'chat_bg_sync_${widget.thread}';
   String get _syncedKey => 'chat_bg_synced_${widget.thread}';
 
@@ -105,7 +106,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
     app.set(_key, next?.raw ?? '');
     _dirty = true;
     // A picture no longer worn is not kept.
-    if (before.kind == 'image' && next?.kind != 'image') Sms.instance.deleteBackground(_file);
+    if (before.kind == 'image' && next?.kind != 'image' && !Sms.remote) Sms.instance.deleteBackground(_file);
   }
 
   Future<void> _pickPicture() async {
@@ -190,6 +191,8 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                       hint: const Text('The plain page.'),
                       control: Pick(checked: chosen(ChatBackground.none), label: 'No background', onPress: () => _set(ChatBackground.none)),
                     ),
+                    // The phone's wallpaper is the phone's: a computer has none of Android's to match.
+                    if (!Sms.remote)
                     SettingRow(
                       label: 'Match my wallpaper',
                       hint: const Text('The colours Android takes from this phone\'s wallpaper, which the phone\'s own apps wear too. It changes when the wallpaper does.'),
@@ -241,6 +244,8 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                       ),
                     ),
                 ]),
+                // A picture is chosen from the phone's photos and kept by the app there: not from a computer.
+                if (!Sms.remote) ...[
                 SizedBox(height: t.space(5)),
                 PaneSection(
                   title: 'A picture',
@@ -254,6 +259,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                     ),
                   ],
                 ),
+                ],
                 if (thread == null) ...[
                   SizedBox(height: t.space(5)),
                   PaneSection(

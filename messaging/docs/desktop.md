@@ -65,8 +65,36 @@ happened (`ev`).
 | `markRead`, `threadFlag` (pinned, muted), `archive`, `draft`, `setDraft` | does it on the phone |
 | | `changed` (a conversation), whenever a text arrives, is sent or changes state |
 
-- Anything else is refused: a computer cannot delete, block, change encryption, read the phone's settings or send a
-  picture. The Mac's screens do not offer those.
+- **Since 2026-11-14 the computer does what the phone's screens do** (Matt: "Unify the UI experience … the desktop
+  app should get all featues its missing from mobile"; "Add an emoji picker, file upload, voice memo and sticker
+  selector to the desktop app as well"). The first design had a computer read, send text, mark read, pin, mute,
+  archive and keep a draft, and refused the rest. It now also asks, and the phone does:
+
+  | The Mac asks | The phone |
+  | --- | --- |
+  | `deleteMessage`, `deleteThread`, `deleteThreads`, `editMessage`, `resendMms` | as its own screens do |
+  | `setBlocked`, `blockedNumbers` | Android's blocked numbers |
+  | `e2eOffer`, `e2eOff`, `e2eVerify`, `e2ePlainSeen`, `e2eList` | encryption with someone: its key goes, it is turned off, a safety number marked |
+  | `mmsStatus`, `voiceLimit` | what would stop a picture message; how long a voice message may run on its carrier |
+  | `put` (a piece), `drop` | keeps what the computer is handing over, by the name the computer gave it |
+  | `sendPictures`, `sendVoice`, `sendSticker` (a name for it, the numbers, what was handed over) | sends it as it sends its own, once for each name |
+  | `caps` | the names above: what this phone does for a computer |
+
+  Still refused, since they are the phone's alone: its encryption key (`e2eReset`, `e2eMine`), its settings, its
+  other paired computers, its log, its own update.
+- **Handing over.** A frame holds less than a megabyte and a picture is more, so what the computer sends crosses in
+  pieces of 384 KB (`put`: a name the computer makes, where the piece starts, how long the whole is), in order; a
+  piece come twice is answered and kept once. The phone holds up to eight at a time, 12 MB each, 36 MB in all, for
+  five minutes, in memory; the call that sends takes them and they are gone. A picture is then written to the
+  app's cache for as long as `Sender.send` takes to make it fit the carrier, and removed.
+- **An older phone.** A phone whose app is from before this answers that it does not do `caps`, and the computer's
+  screens offer none of it (`Sms.can`, `LinkCalls.caps`): they are asked each time the phone is reached, since it
+  may have been updated since.
+- **What the Mac does itself** (`macos/Runner/DeskChannels.swift`, `DeskSound.swift`): the Mac's own panel to
+  choose pictures; its own "Emoji & Symbols", which types into the field the cursor is in; a voice message
+  recorded with its microphone (AAC in an `.m4a` at 24 kbit/s, as the phone records its own, stopped at what the
+  phone says a message may weigh; macOS asks for the microphone the first time) and played from the bytes the
+  phone hands over. A recording is in the temporary directory only until it is stopped.
 - Conversations cross a lot at a time, newest first, as 0.6.1's own list reads them: the newest forty and the
   pinned at once, the rest behind them, never more than 250 in one answer. An answer too long for one frame is
   refused in words ("Too much to send at once") and the connection stands.
@@ -78,7 +106,7 @@ happened (`ev`).
 - A conversation encrypted phone to phone works as it does on the phone: the phone opens and seals those texts, and
   they cross to the Mac under the pairing's seal.
 - Either side says `mode` when how to connect is changed, and `unpaired`.
-- Later: sending pictures and stickers, editing and deleting from the Mac, Mac notifications, Windows and Linux.
+- Later: files that are not pictures (the phone sends only pictures today), Mac notifications, Windows and Linux.
 
 ## Local network
 
@@ -133,6 +161,64 @@ The choice can be changed later from either side, and the change is sent to the 
 - A side that was away: through the relay, the Mac hears from the phone that the pairing is gone and says so. On the
   local network alone the Mac goes on waiting, and is unpaired there by hand.
 
+## Updating itself
+
+Matt, 2026-11-13: "install the app on my mac and make sure it has OTA updates so we don't need to reinstall again".
+The Mac app updates itself as Ghost.md's Mac app does (the same steps, carried over from `macos/Runner/
+UpdatesChannel.swift` in the repository's root, where they have run since 2026-10-24).
+
+- **What it reads** is `https://ghost-sms.com/mac.json`, beside the phone app's `apk.json`: `{ version, versionCode,
+  sha256, bytes, url }`, the url being `ghost-messaging-mac.zip`, the signed app zipped by `ditto`. Newer is a
+  `versionCode` (the app's `CFBundleVersion`) above its own. It looks as it opens and every six hours, and from
+  Settings › Look for an update (`lib/desktop/updates.dart`).
+- **What it believes.** The download is held to the size and SHA-256 the description gives. Then what came out of
+  the zip has to be this app (its bundle id), newer (never a step back), and whole and signed by this app's own
+  team: `anchor apple generic and certificate leaf[subject.OU] = "F6ZAL7ANAD"`, every architecture and every nested
+  library, strictly (`macos/Runner/UpdatesChannel.swift`). Only Matt's Developer ID signs as that team, so nothing
+  the server or the network says can stand in for it, and there is no second key to keep or lose.
+- **How it is put in place.** Unpacked beside the running app in a hidden folder
+  (`/Applications/.Ghost Messaging.app-update`), then the two trade places in one step, the app quits, and a small
+  helper opens the new one and removes the old only once the new one has said it opened; if it has not in two
+  minutes the old one is put back. A bar over every page offers Restart to update; quitting swaps it in as well, so
+  the next launch is the new version either way.
+- **Not sandboxed**, since a sandboxed app cannot replace itself (`Runner/Release.entitlements` says so). It is
+  signed with the Developer ID under the hardened runtime and asks for no entitlement.
+- **Making a release**: `node tool/release-mac.mjs` builds, signs inside out, checks what an installed copy will
+  ask, zips, and writes `mac.json` into `build/release-mac`. `--install` puts the app in /Applications (once),
+  `--notarize` has Apple notarise it (for a copy downloaded with a browser; a copy that updates itself is not asked
+  for it), `--publish` puts the two files on the box as `tool/release.mjs` does the phone's. The number is the
+  minutes since 2026 began, so it rises by itself.
+- **Before the first release answers**, ghost-sms.com's Caddy block has to name the two files: it serves the
+  release folder's files by name, and `tool/deploy-site.mjs` now names `/mac.json` and `/ghost-messaging-mac.zip`
+  beside the phone's two. `node tool/deploy-site.mjs --caddy` once, then `node tool/release-mac.mjs --publish`.
+  Until then `mac.json` answers 404, which an installed copy reads as nothing newer.
+
+**Tried on this Mac, 2026-11-14**, with two builds signed as a release is (456590, then 456591) and a local server
+standing in for ghost-sms.com (`GHOST_DESK_UPDATES=http://127.0.0.1:8793/mac.json`, `GHOST_DESK_UPDATE_RESTART=now`
+so no hand is needed): the older read the description, brought the zip down, checked it, swapped itself, quit, and
+was opened again as the newer in six seconds, the old one removed (`~/Library/Caches/com.infamousvague.
+ghostmessaging.mac/update-install/install.log` has each step). An update changed after it was signed was refused
+("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Ghost
+Messaging's developer"); the running app was left as it was both times. The copy in /Applications then took
+itself from 456600 to 456601 the same way. **Not tried**: an update from ghost-sms.com itself (nothing is
+published there), `--publish`, `--notarize`, and quitting with an update waiting (the swap is the same code as
+Restart; what differs is that nothing reopens the app).
+
+**The old version put back, seen for real** (2026-11-14 02:08 UTC, and a mistake in how it was tried). A second
+walk-through was started on the copy in /Applications while Matt had that app open and paired. With one copy of
+the app already open, `open` only brings that one forward, so the new version (456605) never said it opened, and
+after two minutes the helper put the old one (456601) back and opened it: the safety net working as written. But
+the walk-through's script had by then closed Matt's own open app, taking it for the one the helper opens, and the
+copy the helper opened carried the walk-through's settings (`GHOST_DESK_DIR`, a folder with no pairing in it), so
+it showed the pairing wizard, which read to him as the pairing being lost ("I keep having to re pair every time
+the app opens"). It was not: opened again with no such settings, the app showed his conversations and connected
+to the phone with the pairing made at 02:05, its key read from the Keychain. Two things to keep: never walk an
+update through a copy somebody has open (look for a running copy first, and close only what was started), and an
+app the helper opens has the environment of the app that asked for the restart.
+
+What is in /Applications is 0.6.2 (456601). The newer build made since (0.7.1, 456605, in `build/release-mac`) is
+what a first published release would be; the installed copy would take it by itself.
+
 ## What changed in the phone app
 
 - The camera permission (asked for when scanning), a foreground service, starting at boot.
@@ -184,8 +270,14 @@ the Mac's as sent) and unpairing, over the local network three times, through th
 And once more with both allowed after 0.6.2 was merged in: paired through the relay, then the local network taken.
 
 **Not tried**, since they need the Fold or a signed build: the two finding each other by Bonjour and NSD on a real
-network; reading the QR code with a real camera; the Keychain (the builds here kept the key in a file); the service
+network (Matt's own pairing on 2026-11-14 went over it, the Mac dialling the phone's address on the Wi-Fi; nobody
+watched how the two found each other); reading the QR code with a real camera (he paired, by the camera or the
+pasted code, which is not known here); the service
 through a night of deep sleep, and whether a text arriving brings it back; anything on a carrier.
+
+No longer on that list: the Keychain in a signed build. The copy in /Applications (Developer ID) kept the pairing's
+key there when Matt paired on 2026-11-14 (`pairing.json` holds no key; the Keychain item is dated the same second)
+and read it back on two later starts, each of which showed his conversations and reached the phone.
 
 ## Matt has not said
 
