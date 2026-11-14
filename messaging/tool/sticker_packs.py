@@ -6,6 +6,7 @@ Matt, 2026-11-13: "generate 4 sticker packs using our ghost mascot we've develop
 
     python3 tool/sticker_packs.py
     python3 tool/sticker_packs.py mischief="~/Desktop/Mischief sticker sheet.png"     keeps a pack's own sheet, then makes all
+    python3 tool/sticker_packs.py mischief=~/Desktop/AnimatedStickers                 makes that pack's stickers move
 
 The ghost's poses are the characters on the effects' sheets (art/effects/, cut by tool/effect_sprites.py, whose
 cutting this uses at the sheets' full size). A sticker is one pose with a sticker's white edge round it, on a clear
@@ -23,12 +24,24 @@ from the desktop"): **mischief**, the dark-cute one, our ghost with little horns
 purple and hot pink. Its sheet is sixteen stickers, four across and four down, kept in art/stickers/mischief.webp
 (nothing drawn is lost, the background remover's halo cleared) and cut by shape (effect_sprites.cut_grid).
 
+Mischief moves (Matt, 2026-11-14: "Update the sticker pack to use the animated sprites from the desktop"): given a
+folder in place of a sheet, with one file for each sticker ("Sticker 07 cherry bomb - sprite sheet.png", the sticker
+drawn six times, three across and two down), each is cut into its six drawings, laid in one frame as they stood,
+given the white edge, and written as an animated PNG, assets/stickers/mischief/07.png: one file that is the sticker
+in the app and what is sent. An animated PNG moves on an iPhone and in this app, and is an ordinary still picture
+(its first drawing) to anything that does not know the kind, with its clear edge kept either way; a GIF would move
+everywhere but has no soft edge and 256 colours a frame. A pack that has been made to move is left as it is when
+the tool is run without its folder: the drawings (44 MB) are Matt's and are not in the repository.
+
 Written to assets/stickers/<pack>/01.webp…, and to build/stickers/, one picture of each pack to look over.
 A pack's order here is its order in the app.
 """
 
 import os
+import re
+import struct
 import sys
+import zlib
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -168,15 +181,15 @@ def from_sheet(pose):
     return edged(art)
 
 
-def edged(art):
-    """[art], drawn large on a clear square, with a sticker's white edge round it, brought down to size."""
+def edged(art, size=SIZE):
+    """[art], drawn large on a clear square, with a sticker's white edge round it, brought down to [size]."""
     big = art.width
     shape = art.getchannel('A')
     out = Image.new('RGBA', (big, big), (0, 0, 0, 0))
     out.paste((52, 54, 64, 255), mask=grown(shape, (EDGE + RIM) * OVER).point(lambda v: v * 30 // 100))
     out.paste((255, 255, 255, 255), mask=grown(shape, EDGE * OVER))
     out.alpha_composite(art)
-    return out.resize((SIZE, SIZE), LANCZOS)
+    return out.resize((size, size), LANCZOS)
 
 
 def look(pack, made):
@@ -190,6 +203,123 @@ def look(pack, made):
         for top in (0, rows * cell):
             page.paste(thumb, ((i % cols) * cell + 5, top + (i // cols) * cell + 5), thumb)
     page.save(os.path.join(LOOK, pack + '.png'))
+
+
+MOVING = 320        # pixels: a moving sticker's square
+PER_FRAME = 130     # milliseconds a drawing is shown
+NUMBER = re.compile(r'(\d+)')
+
+
+# The colours kept for a sticker's soft edge: four greys from the faint line outside the white edge to the white
+# itself, each at seven strengths, and one for clear.
+EDGE_GREYS = ((52, 54, 64), (120, 122, 130), (190, 191, 196), (255, 255, 255))
+EDGE_STRENGTHS = (36, 72, 108, 144, 180, 216, 240)
+SOLID_COLOURS = 255 - len(EDGE_GREYS) * len(EDGE_STRENGTHS)
+
+
+def few_colours(picture):
+    """[picture] in 256 colours with its soft edge kept: the picture as numbers into a palette, and the palette
+    (red, green, blue, clearness for each). What is solid gets the colours that suit it best (median cut) and is
+    dithered, so soft shading does not band; what is half clear, which is only ever the sticker's edge, takes the
+    nearest of a few greys at a few strengths. One set of colours for a whole row of frames."""
+    px = np.asarray(picture.convert('RGBA'))
+    alpha = px[..., 3].astype(np.int32)
+    solid = alpha >= 250
+    rgb = px[..., :3].copy()
+    rgb[~solid] = 255       # the edge is not what the solid colours are chosen for
+    flat = Image.fromarray(rgb)
+    chosen = flat.quantize(colors=SOLID_COLOURS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    index = np.asarray(flat.quantize(palette=chosen, dither=Image.Dither.FLOYDSTEINBERG)).astype(np.int32)
+    palette = []
+    solids = chosen.getpalette()[:SOLID_COLOURS * 3]
+    for i in range(SOLID_COLOURS):
+        palette += solids[i * 3:i * 3 + 3] + [255]
+    for grey in EDGE_GREYS:
+        for strength in EDGE_STRENGTHS:
+            palette += list(grey) + [strength]
+    palette += [0, 0, 0, 0]
+    clear = SOLID_COLOURS + len(EDGE_GREYS) * len(EDGE_STRENGTHS)
+    light = px[..., :3].astype(np.float32) @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    lights = np.array([g[0] * 0.299 + g[1] * 0.587 + g[2] * 0.114 for g in EDGE_GREYS], dtype=np.float32)
+    grey = np.abs(light[..., None] - lights).argmin(-1)
+    strength = np.abs(alpha[..., None] - np.array(EDGE_STRENGTHS)).argmin(-1)
+    edge = SOLID_COLOURS + grey * len(EDGE_STRENGTHS) + strength
+    out = np.where(solid, index, np.where(alpha < 18, clear, edge)).astype(np.uint8)
+    return Image.fromarray(out, 'P'), palette
+
+
+def write_apng(path, frames, palette, ms):
+    """Writes [frames] (pictures of one size, each pixel a number into [palette], which is red, green, blue and
+    clearness for each of up to 256 colours) as an animated PNG that plays for ever, [ms] a frame. Written here
+    chunk by chunk: the picture library's own writer does not take frames of this kind."""
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+
+    width, height = frames[0].size
+    colours = len(palette) // 4
+    out = [b'\x89PNG\r\n\x1a\n', chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 3, 0, 0, 0)),
+           chunk(b'acTL', struct.pack('>II', len(frames), 0)),
+           chunk(b'PLTE', bytes(v for i in range(colours) for v in palette[i * 4:i * 4 + 3])),
+           chunk(b'tRNS', bytes(palette[i * 4 + 3] for i in range(colours)))]
+    sequence = 0
+    for i, frame in enumerate(frames):
+        rows = frame.tobytes()
+        data = zlib.compress(b''.join(b'\x00' + rows[y * width:(y + 1) * width] for y in range(height)), 9)
+        # The whole frame, cleared before the next is drawn, drawn as it is (not over what was there).
+        out.append(chunk(b'fcTL', struct.pack('>IIIIIHHBB', sequence, width, height, 0, 0, ms, 1000, 1, 0)))
+        sequence += 1
+        if i == 0:
+            out.append(chunk(b'IDAT', data))
+        else:
+            out.append(chunk(b'fdAT', struct.pack('>I', sequence) + data))
+            sequence += 1
+    out.append(chunk(b'IEND', b''))
+    open(path, 'wb').write(b''.join(out))
+
+
+def moving(pack, folder):
+    """Makes [pack]'s stickers move: each file in [folder] is one sticker drawn six times."""
+    folder = os.path.expanduser(folder)
+    files = sorted((int(NUMBER.search(f).group(1)), f) for f in os.listdir(folder) if f.lower().endswith('.png') and NUMBER.search(f))
+    out = os.path.join(OUT, pack)
+    os.makedirs(out, exist_ok=True)
+    for f in os.listdir(out):
+        if f.endswith(('.webp', '.png')):
+            os.remove(os.path.join(out, f))
+    big = MOVING * OVER
+    edge = (EDGE + RIM) * OVER
+    firsts, size = [], 0
+    for number, name in files:
+        found = effect_sprites.cut_grid(os.path.join(folder, name), 3, 2)
+        if any(f is None for f in found):
+            sys.exit('%s: six drawings were not found' % name)
+        # One frame holds every drawing where it stood in its own place, so what keeps still keeps still.
+        left = min(at[0] for _, at in found)
+        top = min(at[1] for _, at in found)
+        width = round(max(at[0] + piece.width for piece, at in found) - left)
+        height = round(max(at[1] + piece.height for piece, at in found) - top)
+        scale = (big - 2 * edge - 4 * OVER) / max(width, height)
+        frames = []
+        for piece, at in found:
+            whole = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            whole.paste(piece, (round(at[0] - left), round(at[1] - top)))
+            whole = whole.resize((max(1, round(width * scale)), max(1, round(height * scale))), LANCZOS)
+            art = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+            art.alpha_composite(whole, ((big - whole.width) // 2, (big - whole.height) // 2))
+            frames.append(edged(art, MOVING))
+        # One set of 256 colours for all six, clear and half-clear among them: a sixth of the weight of full colour.
+        row = Image.new('RGBA', (MOVING * len(frames), MOVING), (0, 0, 0, 0))
+        for i, frame in enumerate(frames):
+            row.paste(frame, (i * MOVING, 0))
+        few, palette = few_colours(row)
+        cut = [few.crop((i * MOVING, 0, (i + 1) * MOVING, MOVING)) for i in range(len(frames))]
+        path = os.path.join(out, '%02d.png' % number)
+        write_apng(path, cut, palette, PER_FRAME)
+        size += os.path.getsize(path)
+        firsts.append(frames[0])
+    look(pack, firsts)
+    print('%-9s %d stickers that move, %.1f MB' % (pack, len(files), size / 1e6))
+    return size
 
 
 def keep_sheet(pack, source):
@@ -219,13 +349,24 @@ def write(pack, made):
 
 def main():
     os.makedirs(LOOK, exist_ok=True)
+    total = 0
+    made_to_move = set()
     for arg in sys.argv[1:]:
         pack, _, source = arg.partition('=')
         if pack not in SHEET_PACKS or not source:
             sys.exit('%s: a pack with a sheet of its own is one of %s, given as pack=path' % (arg, ', '.join(SHEET_PACKS)))
-        keep_sheet(pack, source)
-    total = 0
+        if os.path.isdir(os.path.expanduser(source)):
+            total += moving(pack, source)
+            made_to_move.add(pack)
+        else:
+            keep_sheet(pack, source)
     for pack, (cols, rows) in SHEET_PACKS.items():
+        folder = os.path.join(OUT, pack)
+        # A pack made to move stays as it was made: its drawings are not here to make it again.
+        if pack in made_to_move or (os.path.isdir(folder) and any(f.endswith('.png') for f in os.listdir(folder))):
+            if pack not in made_to_move:
+                print('%-9s moves: left as it is' % pack)
+            continue
         sheet = os.path.join(SHEETS, pack + '.webp')
         if not os.path.exists(sheet):
             print('%-9s no sheet in art/stickers/: left as it is' % pack)

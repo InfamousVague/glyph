@@ -186,6 +186,17 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
   same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
   sheet's tabs slide, and the pack it opens on is brought into view.
+- **Mischief moves** (0.7.1; Matt, 2026-11-14: "Update the sticker pack to use the animated sprites from the
+  desktop"). `~/Desktop/AnimatedStickers` held each of the pack's sixteen stickers drawn six times;
+  `python3 tool/sticker_packs.py mischief=~/Desktop/AnimatedStickers` cuts each into its drawings, lays them in one
+  frame as they stood, gives each the white edge and writes an animated PNG (`assets/stickers/mischief/07.png`,
+  320 pixels, 130 ms a drawing, 157 to 217 KB): one file that is the sticker in the app and what is sent. An
+  animated PNG moves on an iPhone and in this app and is an ordinary still picture, its first drawing, to an app
+  that does not know the kind, with its clear edge kept either way; a GIF would move everywhere but has no soft edge
+  and few colours. The colours are chosen for it (`few_colours`: median cut and dithering for what is solid, a few
+  greys at a few strengths for the soft edge), since the first attempt banded. `Sender.sendSticker` sends one that
+  moves as it is (`Stickers.moves` looks for the animation's mark). The other four packs are stills as before; the
+  drawings themselves (44 MB) are not in the repository.
 - **Picture messages that keep trying** (0.7.0; Matt, 2026-11-14: "let's focus on reliability of sending pictures
   and whatnot"). A picture message that fails for want of a connection, or because the carrier's server is in
   trouble, is sent again by the app itself after twenty seconds and again after ninety (`MmsWhy.worthAnotherTry`,

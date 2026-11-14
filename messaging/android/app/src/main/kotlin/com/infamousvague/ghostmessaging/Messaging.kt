@@ -68,14 +68,19 @@ object Sender {
         val sub = defaultSub()
         val config = try { smsManager(context, sub).carrierConfigValues } catch (_: Exception) { Bundle() }
         val budget = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, 300 * 1024).coerceAtLeast(100 * 1024) - 8 * 1024
-        var bitmap = BitmapFactory.decodeByteArray(picture, 0, picture.size) ?: throw IllegalStateException("That sticker could not be read")
-        var png: ByteArray
-        while (true) {
-            val out = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            png = out.toByteArray()
-            if (png.size <= budget || bitmap.width < 160) break
-            bitmap = Bitmap.createScaledBitmap(bitmap, (bitmap.width * 0.8).toInt(), (bitmap.height * 0.8).toInt(), true)
+        // A sticker that moves (an animated PNG, tool/sticker_packs.py) goes as it is: made over, it would be its
+        // first drawing alone. It is a still picture to any phone that does not know the kind.
+        val png: ByteArray = if (Stickers.moves(picture) && picture.size <= budget) picture else {
+            var bitmap = BitmapFactory.decodeByteArray(picture, 0, picture.size) ?: throw IllegalStateException("That sticker could not be read")
+            var made: ByteArray
+            while (true) {
+                val out = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                made = out.toByteArray()
+                if (made.size <= budget || bitmap.width < 160) break
+                bitmap = Bitmap.createScaledBitmap(bitmap, (bitmap.width * 0.8).toInt(), (bitmap.height * 0.8).toInt(), true)
+            }
+            made
         }
         val file = Stickers.file(name)
         sendMms(context, store, thread, clean, "", emptyList(), listOf(Pdu.Part("image/png", png, name = file, contentLocation = file, contentId = "sticker")))
