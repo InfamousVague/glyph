@@ -166,7 +166,7 @@ class _FilterButtonState extends State<FilterButton> {
       onOpenChange: (open) => setState(() => _open = open),
       placement: Placement.bottomEnd,
       ariaLabel: 'Filter',
-      style: GlacierMenuStyle(minWidth: t.lenOf('14rem'), maxWidth: t.lenOf('17rem'), maxHeight: math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height * 0.6)),
+      style: GlacierMenuStyle(minWidth: t.lenOf('16rem'), maxWidth: t.lenOf('19rem'), maxHeight: math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height * 0.6)),
       trigger: (context, trigger) => HoverTip(
         message: widget.hidden == 0 ? 'Filter' : 'Filter · ${widget.hidden} hidden',
         below: true,

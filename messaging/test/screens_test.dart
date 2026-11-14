@@ -818,11 +818,14 @@ void main() {
       for (final kind in ['Spam', 'Political', 'Debt collectors', 'Sales & solicitors', 'Payment reminders', 'Deliveries & tracking', 'Appointments']) {
         expect(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text(kind)), findsWidgets, reason: kind);
       }
-      // Everything hidden, from Show only: each saying what it is, with the way to put it back.
-      final everything = find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Everything hidden'));
-      await tester.ensureVisible(everything);
+      expect(find.descendant(of: find.byType(GlacierMenuItem).first, matching: find.text('All')), findsOneWidget);
+      // Everything hidden, from the list's foot: each saying what it is, with the way to put it back.
+      // Closed by its own button, as it was opened.
+      await tester.tap(find.byType(FilterButton));
       await _settle(tester);
-      await tester.tap(everything);
+      expect(find.byType(GlacierMenuItem), findsNothing);
+      await tester.scrollUntilVisible(find.text('5 hidden · Show'), 300, scrollable: find.ancestor(of: find.byType(ConversationRow).first, matching: find.byType(Scrollable)).first);
+      await tester.tap(find.text('5 hidden · Show'));
       await _shootAgain(tester, '12-plugins-hidden', dark: dark);
       expect(find.byType(PluginRow), findsNWidgets(5));
       expect(find.text('Not political'), findsOneWidget);

@@ -328,39 +328,46 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   /// The filter's menu (Matt, 2026-11-14: "a filter dropdown where showing spam, political messages, and debt
-  /// collectors are filtered out by default"): each kind of text to show in Messages or hide, with how many there
-  /// are, and below, each to show alone.
+  /// collectors are filtered out by default"; then "Remove the show only toggle and just habe all at the top and each
+  /// of these filters get ticked on or off With the icons"): All at the top, and under it each kind of text with its
+  /// icon, how many there are, and a tick while it is shown in Messages. A press ticks or unticks it; All ticks every
+  /// kind, or, with all ticked, unticks them.
   List<Widget> _filterRows(List<PluginSection> kinds) {
     final app = AppState.of(context);
-    final hidden = _plugins.hiddenCount;
-    final some = [for (final k in kinds) if (_plugins.countOf(k.id) > 0) k];
-    Widget count(String label, int n) => Row(children: [
-          Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
-          if (n > 0) Opacity(opacity: 0.55, child: Text('$n')),
-        ]);
+    final t = context.tokens;
+    bool on(PluginSection k) => ListPlugins.kindShown(app, k);
+    final all = kinds.every(on);
+    Widget tick(bool shown) => shown ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16, height: 16);
+    Widget row(String label, int n, bool shown) => Opacity(
+          opacity: shown ? 1 : 0.5,
+          child: Row(children: [
+            Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (n > 0) ...[SizedBox(width: t.space(3)), Opacity(opacity: 0.6, child: Text('$n')), SizedBox(width: t.space(2))],
+          ]),
+        );
     return [
-      const GlacierMenuLabel(child: Text('Show in Messages')),
+      GlacierMenuItem(
+        icon: const AppIcon(Lucide.listFilter, size: 16),
+        shortcut: tick(all),
+        closes: false,
+        ariaLabel: all ? 'All, shown' : 'All',
+        onSelect: () {
+          for (final k in kinds) {
+            app.setFlag('filter_${k.id}', !all);
+          }
+        },
+        child: row('All', 0, true),
+      ),
+      const GlacierMenuSeparator(),
       for (final k in kinds)
         GlacierMenuItem(
-          // A tick where it is shown, and nothing where it is hidden.
-          icon: ListPlugins.kindShown(app, k) ? const AppIcon(Lucide.check, size: 16) : const SizedBox(width: 16, height: 16),
+          icon: AppIcon(k.section.icon, size: 16),
+          shortcut: tick(on(k)),
           closes: false,
-          ariaLabel: '${k.section.label}, ${ListPlugins.kindShown(app, k) ? 'shown' : 'hidden'}',
-          onSelect: () => app.setFlag('filter_${k.id}', !ListPlugins.kindShown(app, k)),
-          child: Opacity(opacity: ListPlugins.kindShown(app, k) ? 1 : 0.55, child: count(k.section.label, _plugins.countOf(k.id))),
+          ariaLabel: '${k.section.label}, ${on(k) ? 'shown' : 'hidden'}',
+          onSelect: () => app.setFlag('filter_${k.id}', !on(k)),
+          child: row(k.section.label, _plugins.countOf(k.id), on(k)),
         ),
-      if (some.isNotEmpty || hidden > 0) ...[
-        const GlacierMenuSeparator(),
-        const GlacierMenuLabel(child: Text('Show only')),
-        for (final k in some)
-          GlacierMenuItem(icon: AppIcon(k.section.icon, size: 16), onSelect: () => setState(() => _section = k.id), child: count(k.section.label, _plugins.countOf(k.id))),
-        if (hidden > 0)
-          GlacierMenuItem(icon: const AppIcon(LucideMore.funnel, size: 16), onSelect: () => setState(() => _section = ListPlugins.hiddenView), child: count('Everything hidden', hidden)),
-      ],
-      if (_section != null) ...[
-        const GlacierMenuSeparator(),
-        GlacierMenuItem(icon: const AppIcon(Lucide.messageSquare, size: 16), onSelect: () => setState(() => _section = null), child: const Text('Show all')),
-      ],
     ];
   }
 

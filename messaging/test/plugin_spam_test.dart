@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
 import 'package:ghost_messaging/plugins/codes.dart';
 import 'package:ghost_messaging/plugins/list.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
@@ -246,7 +247,7 @@ void main() {
       expect(find.text('Move to Spam'), findsNothing);
     });
 
-    testWidgets('the filter shows Spam in Messages, or Spam alone', (tester) async {
+    testWidgets('the filter: All at the top, then each kind with its icon, ticked while shown', (tester) async {
       PluginRegistry.instance = PluginRegistry(const [SpamPlugin()]);
       ListPhone(phone()).install();
       final sheet = await loadSheet(tester);
@@ -254,7 +255,13 @@ void main() {
       await pumpScreen(tester, sheet, const ConversationsScreen(), state);
       await tester.tap(find.byType(FilterButton));
       await settle(tester);
-      expect(find.text('Show in Messages'.toUpperCase()), findsOneWidget);
+      // Matt, 2026-11-14: "Remove the show only toggle and just habe all at the top and each of these filters get
+      // ticked on or off With the icons".
+      expect(find.text('Show only'.toUpperCase()), findsNothing);
+      final rows = find.byType(GlacierMenuItem);
+      expect(find.descendant(of: rows.first, matching: find.text('All')), findsOneWidget);
+      expect(find.descendant(of: rows.at(1), matching: find.text('Spam')), findsOneWidget);
+      expect(find.descendant(of: rows.at(1), matching: find.byType(AppIcon)), findsOneWidget, reason: 'its icon, and no tick: it is hidden');
       // Ticked: shown in Messages, the menu staying open; the choice is kept.
       await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Spam')).first);
       await settle(tester);
@@ -264,14 +271,13 @@ void main() {
       await settle(tester);
       expect(find.byType(ConversationRow), findsNWidgets(6));
       expect(find.textContaining('hidden · Show'), findsNothing);
-      // Spam alone, from Show only.
+      // All, with everything ticked, unticks everything.
       await tester.tap(find.byType(FilterButton));
       await settle(tester);
-      await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Spam')).last);
+      expect(find.descendant(of: find.byType(GlacierMenuItem).at(1), matching: find.byType(AppIcon)), findsNWidgets(2), reason: 'its icon and its tick');
+      await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('All')));
       await settle(tester);
-      expect(find.byType(PluginRow), findsNWidgets(2));
-      expect(find.text('Only Spam'), findsOneWidget);
-      expect(tester.widget<FilterButton>(find.byType(FilterButton)).only, isTrue);
+      expect(state.flag('filter_spam', fallback: true), isFalse);
     });
 
     testWidgets('what was marked "Not spam" is still not spam when the app is opened again', (tester) async {
