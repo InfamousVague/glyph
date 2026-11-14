@@ -299,23 +299,23 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   characters few and large, rising, falling or bursting as the effect does. What only the app can draw stays under
   them: the fireworks' and lasers' light, the spotlight, Echo's copies of the message's words. An effect with no
   pictures is drawn as before. 240 sprites, 2.6 MB.
-- **Reactions under the message, and effects as reactions** (not released; Matt: "I want the message reactions to
+- **Reactions under the message, and effects as reactions** (released by 0.7.4; Matt: "I want the message reactions to
   pop up under the message like imessage does", "I'd like to be able to react with full screen effects by pressing
   and holding on a message as well"). A long press on a bubble dims the page round it and brings up, beside it, the
   reactions, then the twenty screen effects, then Copy, Edit and Delete (`lib/ui/message_popover.dart`). An effect
   chosen there goes as a reaction with the effect's own emoji (`Reacted 🎈 to “…”`), which every phone can read; this
   app hangs it on the message and plays the effect over the conversation, on both phones, once.
-- **A picture that could not be downloaded** (not released; Matt: "the message app said that a photo could not be
+- **A picture that could not be downloaded** (released by 0.7.4; Matt: "the message app said that a photo could not be
   downloaded… when I tap it I'd like it to take me to the associated chat and show the failed image with a retry if
   needed"). A picture message is announced by the carrier first and fetched after. The announcement is now kept in
   the sender's conversation until the picture is here (`Store.insertMmsNotice`): "Downloading picture…" while it
   comes, and where it cannot be fetched, "This picture couldn't be downloaded" with Try again, which asks the
   carrier for it once more (`MmsPushReceiver.retry`). The notification opens that conversation. Before this the
   notification led nowhere and nothing was kept to try again from.
-- **The update banner** (not released; Matt: "the app should auto check for updates on load of any page so it pops
+- **The update banner** (released by 0.7.4; Matt: "the app should auto check for updates on load of any page so it pops
   the banner"). Every page that opens asks for a look for a newer version, made no oftener than every five minutes,
   and while one is waiting a banner over every page says which, with Update now (`lib/ui/update_banner.dart`).
-- **Voice messages** (not released; `Voice.kt`, `lib/ui/voice.dart`; Matt: "I also want to have the ability to send
+- **Voice messages** (released by 0.7.4; `Voice.kt`, `lib/ui/voice.dart`; Matt: "I also want to have the ability to send
   audio messages"). With nothing written, a microphone stands where Send would. Tap it and the composer becomes the
   recording: a clock, how loud it hears you, how long one may run, a bin to throw it away, Send. It goes as a
   picture message does, an MMS with one sound in it (AAC in an `.m4a`, about three kilobytes a second), so any phone
@@ -337,7 +337,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   phone can show it), which means it is never encrypted, and the sheet says so in an encrypted conversation. Its
   file's name (`ghost-sticker-love-03.png`, `Stickers.kt`) is all that makes this app draw it small on the page with
   no bubble, and call it "Sticker" in the list; any other app shows a picture. 64 stickers, 1.3 MB.
-- **Their texts are coming without encryption** (not released; `E2e.arrived`; Matt, 2026-11-14: "we need to be able
+- **Their texts are coming without encryption** (0.7.4; `E2e.arrived`; Matt, 2026-11-14: "we need to be able
   to detect if a user is sending us unencrypted messages and let us know so we can disable it"). Encryption on with
   someone seals what goes to them; if they have turned it off, changed phones or left the app, they cannot read it,
   and until now nothing said so. A text that comes from them plain while encryption is on is counted: the first one
@@ -345,7 +345,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   field with Turn off beside it and a cross to put it away (it comes back with their next plain text). A text that
   comes sealed again clears it. The app's own texts (a key, a chat background) count as neither. A conversation's
   settings say the same under Encryption, and so does the Mac, where it is said and turned off from the phone.
-- **Videos** (not released; `Video.kt`, `lib/ui/video.dart`, `macos/Runner/DeskVideo.swift`; Matt, 2026-11-14: "mp4
+- **Videos** (0.7.4; `Video.kt`, `lib/ui/video.dart`, `macos/Runner/DeskVideo.swift`; Matt, 2026-11-14: "mp4
   files are not loading it just shows up as a string of text for the filename"). A video in a message is drawn as a
   picture of where it starts, with Play over it and how long it runs, where it was its file's name and no more. A
   tap plays it: the whole screen on the phone (Android's own player and controls), a window of its own on the Mac
@@ -353,7 +353,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
   folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
   the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
-- **What a computer may ask of the phone** (not released; Matt, 2026-11-14: "the desktop app should get all featues
+- **What a computer may ask of the phone** (0.7.4; Matt, 2026-11-14: "the desktop app should get all featues
   its missing from mobile", and of the Mac's message field "an emoji picker, file upload, voice memo and sticker
   selector"). The link carries what the phone's screens do: deleting, editing, sending a picture message again,
   blocking, encryption on and off, and pictures, a voice recording and a sticker sent from the Mac, handed to the
@@ -378,7 +378,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   that way (`tool/mms/README.md`); not yet seen on Verizon itself. Pictures that failed before can be asked for
   again with Try again, for as long as the carrier keeps them. An error of the app's own in the report
   ("Null check operator used on a null value") said nothing of where: such a line now names where it was thrown.
-- **Routes: a relay system that can be swapped** (not released; [docs/network.md](docs/network.md); Matt,
+- **Routes: a relay system that can be swapped** (0.7.4; [docs/network.md](docs/network.md); Matt,
   2026-11-14: "implement a full relay system for the app that's replacable and swappable ... The goal will be to
   have multiple sources to feed data to eachother from wifi locally, p2p, internet, sms, etc"). `lib/net/`: a route
   is one interface (`Carrier`), the switchboard chooses between routes, falls back and seals, and two routes exist:
@@ -388,7 +388,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   relay server's address, and a test to each person that says which route carried it. Nothing in the app is carried
   by them yet but that test: calls, receipts and the local-network and peer-to-peer routes come next. The hub is
   not on our server yet, so on a phone the relay route says it cannot be reached.
-- **Invite someone by text** (not released; Matt, 2026-11-14: "Id like to also be able to invite people to join
+- **Invite someone by text** (0.7.4; Matt, 2026-11-14: "Id like to also be able to invite people to join
   ghost messaging over text which would prompt them to install the app"). Settings › Network › Invite someone by
   text opens a new chat with the invitation written (`inviteText` in `lib/ui/network.dart`: what the app is for and
   ghost-sms.com, where it is downloaded); the person chooses who, may change the words, and sends it as any text.
@@ -415,7 +415,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   A held message's effects are behind an item of its menu, Effects, which opens them by name in the menu's place
   (Matt: "Message effects should be under a literal effects item on thr message context that opens a sub context
   to the effects not a row of effect icons").
-- **Plugins** (not released; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
+- **Plugins** (0.7.4; `lib/plugins/`; Matt, 2026-11-14: "prime the whole app to have plugin support for
   placing UI elements and doing things like filtering out spam messages separating OTPs into their own section and
   more"). A plugin is a name, a line saying what it does and a switch in Settings › Plugins, kept with the person's
   other choices (`plugin_<id>`). Switched off it adds nothing and is never asked. Switched on it adds through four
@@ -456,7 +456,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
-- **Codes** (not released; `lib/plugins/codes.dart`; Matt, 2026-11-14: "separating OTPs into their own section").
+- **Codes** (0.7.4; `lib/plugins/codes.dart`; Matt, 2026-11-14: "separating OTPs into their own section").
   The first plugin, on until it is switched off in Settings › Plugins. A conversation whose newest text is a sign-in
   code, from one number that is not in the phone's contacts, leaves the main list for a Codes section: a chip under
   the search field that counts them, and in it the newest first, each code drawn large over the words it came in.
@@ -486,7 +486,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   text, which is what proves the number: no account. With no relay server reached they go as the encrypted texts
   they would have been; a friend whose app is closed is sent one silent data text and their phone says a message
   is waiting. Nothing of it is offered until a relay server answers, and ours is not up yet.
-- **Spam filter** (not released; `lib/plugins/spam.dart`; Matt, 2026-11-14: "filtering out spam messages"). The
+- **Spam filter** (0.7.4; `lib/plugins/spam.dart`; Matt, 2026-11-14: "filtering out spam messages"). The
   second plugin, off until it is switched on in Settings › Plugins: a filter that takes messages out of the list is
   chosen, not given. On, a conversation whose newest text looks like spam, with nobody in it a contact, leaves the
   main list for a Spam section beside Codes. Its row says which signs the text showed ("Looks like spam: a link,
