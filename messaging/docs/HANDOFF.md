@@ -34,9 +34,9 @@ of it: how it works, how to run each part, what was tried on the emulator and wh
 - The Mac app is installed on Matt's Mac (/Applications/Ghost Messaging.app, 0.6.2 (456601), signed with the
   Developer ID, not sandboxed), paired with his phone since 2026-11-14 02:05 UTC, and updates itself
   (docs/desktop.md, "Updating itself"). Never drive or close that copy while he may be using it. To publish a Mac release, on Matt's word:
-  `node tool/deploy-site.mjs --caddy` once (the block now names `/mac.json` and `/ghost-messaging-mac.zip`), then
-  `node tool/release-mac.mjs --publish`. Neither has been run: `mac.json` answers 404 and installed copies read
-  that as nothing newer. Not done: notarising (`--notarize`, for a download from a browser) and a download page.
+  `node tool/release-mac.mjs --publish`, and nothing before it: the site's block on the box has named `/mac.json`
+  and `/ghost-messaging-mac.zip` since 2026-11-14 04:35 UTC (it went up again with the relay). It has not been
+  run: `mac.json` answers 404 and installed copies read that as nothing newer. Not done: notarising (`--notarize`, for a download from a browser) and a download page.
 - Three things the design asked Matt and he has not answered by name (docs/desktop.md, its last section).
 - Android 16's local network permission is not asked for (targetSdk 36 does not need it); a later target will.
 

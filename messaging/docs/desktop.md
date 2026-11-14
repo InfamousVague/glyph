@@ -188,10 +188,11 @@ UpdatesChannel.swift` in the repository's root, where they have run since 2026-1
   `--notarize` has Apple notarise it (for a copy downloaded with a browser; a copy that updates itself is not asked
   for it), `--publish` puts the two files on the box as `tool/release.mjs` does the phone's. The number is the
   minutes since 2026 began, so it rises by itself.
-- **Before the first release answers**, ghost-sms.com's Caddy block has to name the two files: it serves the
-  release folder's files by name, and `tool/deploy-site.mjs` now names `/mac.json` and `/ghost-messaging-mac.zip`
-  beside the phone's two. `node tool/deploy-site.mjs --caddy` once, then `node tool/release-mac.mjs --publish`.
-  Until then `mac.json` answers 404, which an installed copy reads as nothing newer.
+- **The first release** is `node tool/release-mac.mjs --publish`, on Matt's word, and nothing before it.
+  ghost-sms.com's Caddy block serves the release folder's files by name, and it has named `/mac.json` and
+  `/ghost-messaging-mac.zip` beside the phone's two since 2026-11-14 04:35 UTC, when the phone session put the
+  block up again with the relay (`tool/deploy-site.mjs`). Until a release is published `mac.json` answers 404, which
+  an installed copy reads as nothing newer.
 
 **Tried on this Mac, 2026-11-14**, with two builds signed as a release is (456590, then 456591) and a local server
 standing in for ghost-sms.com (`GHOST_DESK_UPDATES=http://127.0.0.1:8793/mac.json`, `GHOST_DESK_UPDATE_RESTART=now`
