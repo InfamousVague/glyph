@@ -184,7 +184,7 @@ void main() {
       expect(_button('Back'), findsNothing);
       // The navigation pill at the sidebar's foot (Ghost.md's dock, laid along): a new chat, the messages, the
       // archive with how many are in it, Settings. Messages is the one shown; a ring has no words but its tip.
-      for (final label in ['New chat', 'Messages', 'Archive', 'Settings']) {
+      for (final label in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
       }
       expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
@@ -196,6 +196,22 @@ void main() {
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      // The address book: the phone's contacts beside the list, and a press on one opens its conversation.
+      await tester.tap(_nav('Contacts'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'contacts');
+      expect(find.text('Search contacts'), findsOneWidget);
+      expect(find.text('Mom'), findsOneWidget);
+      if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
+      // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
+      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx, middle = tester.getCenter(_nav('Contacts')).dx;
+      expect(first, lessThan(60));
+      expect(last, greaterThan(280));
+      expect(middle, closeTo((first + last) / 2, 0.6));
+      await tester.tap(_nav('Messages'));
+      await tester.pump(const Duration(milliseconds: 400));
       // A new chat opens beside the list and is the one shown; Messages puts it away.
       await tester.tap(_nav('New chat'));
       await tester.pump(const Duration(milliseconds: 400));

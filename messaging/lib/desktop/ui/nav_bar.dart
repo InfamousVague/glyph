@@ -24,7 +24,7 @@ class DeskNavItem {
 /// navigation pill that we use in ghost markdown but horizontal instead of vertical").
 ///
 /// It is Ghost.md's dock (lib/shell/page_dock.dart at the repository's root: `PageDock`, `DockRing`, `DockTip`),
-/// laid along where that one stands up: a pill of glass, a step of space round its rings and between them, a
+/// laid along where that one stands up, and as wide as the sidebar with its rings evenly along it: a pill of glass, a step of space round its rings and between them, a
 /// hairline round it; each ring `--app-ring` across, the page's colour with a line round it and its mark in the
 /// page's ink; the one shown now filled with ink, its mark in paper, as the dock's one filled ring is; a number on a
 /// ring's corner as the dock wears one; and a ring's words over it while the pointer rests there, where the dock's
@@ -48,9 +48,13 @@ class DeskNavBar extends StatelessWidget {
     final t = context.tokens;
     final gap = t.space(2);
     final radius = BorderRadius.circular(t.radius('full'));
+    // The pill runs the sidebar's width and its rings stand evenly along it, the first and the last at its ends
+    // (Matt, 2026-11-14: "Evenly space the icons across the bottom of the sidebar instead of condensing them to the
+    // center").
     return Padding(
-      padding: EdgeInsets.only(bottom: inset(t)),
-      child: Center(
+      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), inset(t)),
+      child: SizedBox(
+        width: double.infinity,
         child: Semantics(
           container: true,
           label: 'Navigation',
@@ -64,12 +68,9 @@ class DeskNavBar extends StatelessWidget {
                 foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
                 decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    for (var i = 0; i < items.length; i += 1) ...[
-                      if (i > 0) SizedBox(width: gap),
-                      _Ring(item: items[i], shown: items[i].id == active, onPressed: () => onSelect(items[i].id)),
-                    ],
+                    for (final item in items) _Ring(item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
                   ],
                 ),
               ),

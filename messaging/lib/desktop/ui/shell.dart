@@ -16,6 +16,7 @@ import '../../ui/conversations.dart';
 import '../../ui/thread.dart';
 import '../desk.dart';
 import 'desk_settings.dart';
+import '../../ui/contacts.dart';
 import 'nav_bar.dart';
 import 'wizard.dart';
 
@@ -38,7 +39,8 @@ class _DeskShellState extends State<DeskShell> {
   int _archivedCount = 0;
   int? _current;
 
-  /// What the pane beside the list shows when it is not a conversation: 'new' (a new message) or 'settings'. It is
+  /// What the pane beside the list shows when it is not a conversation: 'new' (a new message), 'contacts' (the
+  /// address book) or 'settings'. It is
   /// the navigation bar's item then; with a conversation or nothing there, the list's own (Messages or Archive) is.
   String? _showing;
   StreamSubscription<int>? _changes;
@@ -174,6 +176,8 @@ class _DeskShellState extends State<DeskShell> {
         _show(const ComposeScreen(key: ValueKey('compose')), showing: 'new');
       case 'settings':
         _show(const DeskSettingsScreen(key: ValueKey('settings')), showing: 'settings');
+      case 'contacts':
+        _show(const ContactsScreen(key: ValueKey('contacts')), showing: 'contacts');
       default:
         final wasBeside = _showing != null;
         setState(() {
@@ -297,6 +301,8 @@ class _DeskShellState extends State<DeskShell> {
                 items: [
                   const DeskNavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
                   const DeskNavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+                  // The address book: the phone's contacts, and a press on one opens its conversation.
+                  const DeskNavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
                   DeskNavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount),
                   const DeskNavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
                 ],
