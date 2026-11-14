@@ -247,6 +247,8 @@ class MainActivity : FlutterActivity() {
                 "systemPalette" -> result.success(systemPalette())
                 // Coming from another texting app (Arriving.kt): what can be seen of it, and the ways out of its traps.
                 "arriving" -> bg { Arriving.state(applicationContext) }
+// A link pressed in a message (lib/links.dart): the phone's browser, and only for a web address.
+                "openLink" -> result.success(Arriving.openLink(this, call.argument<String>("url") ?: ""))
                 "openOldApp" -> result.success(Arriving.openOld(this))
                 "openAppInfo" -> result.success(Arriving.openAppInfo(this))
                 "openDefaultApps" -> result.success(Arriving.openDefaultApps(this))

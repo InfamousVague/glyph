@@ -113,4 +113,19 @@ object Arriving {
     fun openDefaultApps(context: Context) = start(context, Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
 
     fun openRcsOff(context: Context) = start(context, Intent(Intent.ACTION_VIEW, Uri.parse(RCS_OFF_URL)))
+
+    /** Whether [url] is a web address: the only kind a message's link may open. */
+    fun isWebAddress(url: String): Boolean {
+        val lower = url.trim().lowercase()
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false
+        val host = lower.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@').substringBefore(':')
+        // A name of two parts or more, none of them empty: "www." and "localhost" are not addresses to open.
+        val parts = host.split('.')
+        return parts.size >= 2 && parts.none { it.isEmpty() } && host.none { it.isWhitespace() }
+    }
+
+    /** Opens a link pressed in a message in the phone's browser. False where it is no web address or nothing takes it. */
+    fun openLink(context: Context, url: String): Boolean =
+        isWebAddress(url) && start(context, Intent(Intent.ACTION_VIEW, Uri.parse(url.trim())).addCategory(Intent.CATEGORY_BROWSABLE))
+
 }

@@ -739,6 +739,10 @@ class Sms {
 
   /// The old app's settings (RCS chats is in them), Android's page for this app (⋮ › Allow restricted settings),
   /// Android's Default apps, and Google's page that turns RCS off for a number with a code it texts.
+  /// Opens a web address in the browser: a link pressed in a message (lib/links.dart). On a computer, its own
+  /// browser. True where something took it.
+  Future<bool> openLink(String address) async => await _calls.invokeMethod<bool>('openLink', {'url': address}) ?? false;
+
   Future<void> openOldApp() => _calls.invokeMethod('openOldApp');
   Future<void> openAppInfo() => _calls.invokeMethod('openAppInfo');
   Future<void> openDefaultApps() => _calls.invokeMethod('openDefaultApps');

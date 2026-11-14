@@ -367,6 +367,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   puts it beside itself and swaps the two on Restart to update or on quitting. Ghost.md's Mac updater, carried
   over. `node tool/release-mac.mjs` makes a release (`--install`, `--notarize`, `--publish`). Nothing is published
   yet ([docs/desktop.md](docs/desktop.md), "Updating itself").
+- **A link in a message opens** (not released; `lib/links.dart`; Matt, 2026-11-14: "I can't click to open links in
+  the desktop app"). A link was underlined and nothing more, on the phone as on a computer. Now a press on one
+  opens it in the browser: the phone's (`Arriving.openLink`), or the computer's own (`open`, in
+  `lib/desktop/remote.dart`). `MessageLink.find` says what a link is (http, https or www up to the next space,
+  less the full stop, comma or stray bracket that ends the sentence), and only a web address is ever opened:
+  nothing in a text can start another app. A long press is still the message's menu. On a Mac the pointer turns to
+  a hand over one. Not tried on the Mac itself, which needs a Mac release to have it.
 - **Pictures that never arrived, on Verizon** (0.7.4; Matt, 2026-11-14, with his phone's report: "Im getting this
   error on freshly sent photos": `not fetched: the carrier no longer has it … (result 4, HTTP 404)`). Verizon
   announces a picture at an address that stops at "=" and serves it only with the announcement's transaction id
@@ -474,13 +481,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   later text is not, and since the list does not know whose the last words are, a code the person texts to a
   number themselves is sorted too. The plugin also has "Copy 482913" for a message's menu inside a conversation,
   which waits for that slot to be drawn. Pictures: `test/shots/12-plugins-*`.
-- **A group's name** (not released; Matt, 2026-11-14: "expand on the ability to create, name and manage groups like
+- **A group's name** (0.7.5; Matt, 2026-11-14: "expand on the ability to create, name and manage groups like
   telegram"). A group conversation's settings have a Group name field; named, the group goes by it in the list, in
   its conversation and on a paired computer, and emptied it goes by its people's first names again. The name is the
   phone's own (`Store.threadName`, sixty letters at most): a group text has nowhere to carry one, so the others in
   the group do not see it. A computer sets it through the phone (`threadName` over the link). The first piece of
   groups; groups of friends over the routes, with members added and removed, are not built.
-- **Friends** (not released; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
+- **Friends** (0.7.5; [docs/friends.md](docs/friends.md); Matt, 2026-11-14: "Add a friend system that allows
   users to talk without using SMS or MMS but still validate accounts by telephone numbers for now. If both users
   chatting are on ghost messenger show an 'add friend' button"). Where both phones have the app the conversation
   offers Add friend; once each has said yes, words between the two go over the internet by the app's routes, sealed,

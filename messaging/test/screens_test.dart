@@ -203,7 +203,7 @@ void _answerChannel() {
   });
   messenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
     final args = (call.arguments as Map?) ?? const {};
-    if (call.method == 'archive' || call.method == 'threadFlag' || call.method == 'deleteThread') _asked.add('${call.method} $args');
+    if (call.method == 'archive' || call.method == 'threadFlag' || call.method == 'deleteThread' || call.method == 'openLink') _asked.add('${call.method} $args');
     switch (call.method) {
       case 'status':
         return {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
@@ -250,6 +250,9 @@ void _answerChannel() {
         return {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
+      // A link pressed in a message: the browser took it.
+      case 'openLink':
+        return true;
       // The app's routes (lib/net): who this phone is, and the two people encryption is on with or waiting.
       case 'netIdentity':
         return {'id': '0f' * 16, 'key': 'AlFcPW655Ja5BNP+yn9U/c0MwemXvzddylFa0KbDtANf'};
@@ -464,6 +467,13 @@ void main() {
       await tester.tap(find.text('Priya Natarajan'));
       await _shootAgain(tester, '1-conversations-selecting', dark: dark);
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '2-thread', dark: dark);
+      // A link in a message opens in the browser when pressed (lib/links.dart): the address, and nothing else of
+      // the message's words.
+      _asked.clear();
+      await tester.tapOnText(find.textRange.ofSubstring('https://example.com/tickets'));
+      await _settle(tester);
+      expect(_asked, ['openLink {url: https://example.com/tickets}']);
+      _asked.clear();
       // A message held: its reactions under it, then what else can be done, the screen effects one item of that.
       await tester.longPress(find.text('Movie night is still on for tonight right?'));
       await _shootAgain(tester, '2-thread-held', dark: dark);

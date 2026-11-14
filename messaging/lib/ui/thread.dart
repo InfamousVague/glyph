@@ -3,6 +3,7 @@ import 'dart:convert' show utf8;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -16,6 +17,7 @@ import '../effects.dart';
 import '../friends/friends.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
+import '../links.dart';
 import '../reactions.dart';
 import '../sms.dart';
 import '../stickers.dart';
@@ -1355,8 +1357,9 @@ class _Bubble extends StatelessWidget {
                   SizedBox(width: t.space(2)),
                   Flexible(child: Text(body, style: pageText(t, t.fontSize('sm') * app.textScale * size, color: ink, height: 1.35).copyWith(fontStyle: FontStyle.italic))),
                 ])
-              : Text.rich(
-                  _linked(body, ink),
+              : LinkedText(
+                  body,
+                  ink: ink,
                   // Settings › Appearance › Text size.
                   style: pageText(t, t.fontSize('md') * app.textScale * size, color: ink, height: 1.35),
                 ),
@@ -1480,20 +1483,6 @@ class _Bubble extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// Links underlined (they are tappable through the long press's Copy; a browser opening is for a later version).
-  TextSpan _linked(String text, Color ink) {
-    final re = RegExp(r'(https?://[^\s]+|www\.[^\s]+)');
-    final spans = <TextSpan>[];
-    var at = 0;
-    for (final match in re.allMatches(text)) {
-      if (match.start > at) spans.add(TextSpan(text: text.substring(at, match.start)));
-      spans.add(TextSpan(text: match.group(0), style: TextStyle(decoration: TextDecoration.underline, decorationColor: ink)));
-      at = match.end;
-    }
-    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
-    return TextSpan(children: spans);
   }
 }
 
@@ -1730,5 +1719,82 @@ class _ReactionRow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A message's words with its links underlined, and a press on one opening it in the browser (lib/links.dart).
+/// A long press is still the message's own, wherever it lands.
+class LinkedText extends StatefulWidget {
+  const LinkedText(this.text, {super.key, required this.ink, required this.style});
+  final String text;
+  final Color ink;
+  final TextStyle style;
+
+  @override
+  State<LinkedText> createState() => _LinkedTextState();
+}
+
+class _LinkedTextState extends State<LinkedText> {
+  List<MessageLink> _links = const [];
+  final List<TapGestureRecognizer> _taps = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _read();
+  }
+
+  @override
+  void didUpdateWidget(LinkedText old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) _read();
+  }
+
+  void _read() {
+    for (final t in _taps) {
+      t.dispose();
+    }
+    _taps.clear();
+    _links = MessageLink.find(widget.text);
+    for (final link in _links) {
+      _taps.add(TapGestureRecognizer()..onTap = () => _open(link.address));
+    }
+  }
+
+  Future<void> _open(String address) async {
+    var opened = false;
+    try {
+      opened = await Sms.instance.openLink(address);
+    } catch (_) {}
+    if (!opened && mounted) toast(context, 'Couldn\'t open that link', tone: GlacierToastTone.danger);
+  }
+
+  @override
+  void dispose() {
+    for (final t in _taps) {
+      t.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.text;
+    final spans = <InlineSpan>[];
+    var at = 0;
+    for (var i = 0; i < _links.length; i++) {
+      final link = _links[i];
+      if (link.start > at) spans.add(TextSpan(text: text.substring(at, link.start)));
+      spans.add(TextSpan(
+        text: text.substring(link.start, link.end),
+        style: TextStyle(decoration: TextDecoration.underline, decorationColor: widget.ink),
+        recognizer: _taps[i],
+        mouseCursor: SystemMouseCursors.click,
+        semanticsLabel: 'Link: ${text.substring(link.start, link.end)}',
+      ));
+      at = link.end;
+    }
+    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+    return Text.rich(TextSpan(children: spans), style: widget.style);
   }
 }

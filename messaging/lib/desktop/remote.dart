@@ -348,6 +348,18 @@ class LinkCalls implements SmsCalls, CapableCalls {
         }
 
       // --- the Mac's own -----------------------------------------------------------------------------------------------
+      case 'openLink':
+        // A link pressed in a message opens in this computer's own browser (Matt, 2026-11-14: "I can't click to
+        // open links in the desktop app"): `open` on a Mac, handed the address alone, and only a web address.
+        final url = '${a['url'] ?? ''}';
+        final uri = Uri.tryParse(url);
+        if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return false;
+        final opener = Platform.isMacOS ? 'open' : Platform.isWindows ? 'explorer' : 'xdg-open';
+        try {
+          return (await Process.run(opener, [url])).exitCode == 0 || Platform.isWindows;
+        } catch (_) {
+          return false;
+        }
       case 'prefs':
         return Map<String, String>.of(_prefs);
       case 'setPref':
