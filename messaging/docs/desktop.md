@@ -165,6 +165,14 @@ is all grey; `python3 tool/app_icon.py --check "build/macos/Build/Products/Relea
 the built app's catalog stored it. macOS keeps the picture it made for an app at a path: `touch` the app after a
 rebuild (or move it) and the Dock draws it again. Seen whole on the app as built, by `NSWorkspace`'s icon for it.
 
+The Mac app's top bar (Matt: "make the top bar on the mac app black"): the window's title bar is black in the light
+theme and the dark (`macos/Runner/MainFlutterWindow.swift`). The title bar is given no material of its own, so the
+window's colour, black, shows there, and the window's own chrome is drawn as on a dark window, so the title is
+white and the three buttons read on it. Only the window is told so: the pages still follow the Mac's light or dark
+setting, which Flutter reads from the system and not from the window. Seen on the app as built, by a picture of its
+window with the pages dark (bar 0,0,0 over a page of 5,4,4) and with them light (bar 0,0,0 over 254,253,254; the
+light pages were had by starting the app with `-AppleInterfaceStyle Light`, the Mac itself being in dark).
+
 **Tried on 2026-11-13**, the Mac app and the phone app on the spare emulator: paired over the local network, through
 the relay, and with both allowed (where the local network was taken first); the six digits the same on both each
 time; the conversations listed; a text arriving on the phone shown on the Mac within a second or two; a text typed

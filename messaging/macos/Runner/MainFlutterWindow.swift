@@ -12,6 +12,14 @@ class MainFlutterWindow: NSWindow {
     // Two panes side by side need room: the list and a conversation.
     self.minSize = NSSize(width: 760, height: 520)
     self.title = "Ghost Messaging"
+    // The top bar is black, in the light theme and the dark (Matt, 2026-11-13: "make the top bar on the mac app
+    // black"), as the app's icon and its dark pages are. A title bar with no material of its own shows the window's
+    // colour, which is black; and the window's own chrome is drawn as on a dark window, so the title is white and
+    // the three buttons read on it. This is the window's appearance only: the pages follow the Mac's light or dark
+    // setting as before (Flutter reads the app's, not this window's).
+    self.titlebarAppearsTransparent = true
+    self.backgroundColor = .black
+    self.appearance = NSAppearance(named: .darkAqua)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     desk = DeskChannels(messenger: flutterViewController.engine.binaryMessenger)
