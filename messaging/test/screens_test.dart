@@ -20,7 +20,7 @@ import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
-import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, PluginRow, SectionTabs;
+import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, FilterButton, PluginRow, SectionTabs;
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
@@ -98,6 +98,13 @@ final _sortable = <Map<String, Object>>[
   // A code from a company the app does not know by name: named as its text names it.
   {'id': 105, 'date': _ago(hours: 5), 'people': [_p('39200')], 'snippet': 'Brightwater Credit Union: your verification code is 330918.', 'unread': false, 'error': false, 'archived': false},
   {'id': 104, 'date': _ago(days: 2), 'people': [_p('+15559870004')], 'snippet': 'Your package could not be delivered. Reschedule here: bit.ly/3xYz', 'unread': false, 'error': false, 'archived': false},
+  // Kinds of text (lib/plugins/kinds.dart): three hidden from Messages as the app ships, three shown.
+  {'id': 106, 'date': _ago(hours: 1), 'people': [_p('+15559870006')], 'snippet': 'Election day is Tuesday! Chip in \$5 before midnight. Paid for by Friends of Pat Rivera', 'unread': true, 'error': false, 'archived': false},
+  {'id': 107, 'date': _ago(hours: 2), 'people': [_p('+15559870007')], 'snippet': 'This is an attempt to collect a debt. Call us today to settle your balance.', 'unread': false, 'error': false, 'archived': false},
+  {'id': 108, 'date': _ago(hours: 4), 'people': [_p('+15559870008')], 'snippet': 'Hi! Our crew is in your neighborhood this week. Tree trimming and gutter cleaning, free estimates!', 'unread': false, 'error': false, 'archived': false},
+  {'id': 109, 'date': _ago(hours: 6), 'people': [_p('+15559870009')], 'snippet': 'Your package is out for delivery and will arrive by 8pm. Tracking number 1Z999AA10123456784', 'unread': false, 'error': false, 'archived': false},
+  {'id': 110, 'date': _ago(hours: 7), 'people': [_p('+15559870010')], 'snippet': 'Reminder: your electric bill of \$84.12 is due on Nov 20. Autopay is off.', 'unread': false, 'error': false, 'archived': false},
+  {'id': 111, 'date': _ago(hours: 8), 'people': [_p('+15559870011')], 'snippet': 'Appointment reminder: Dr. Lee tomorrow at 9:30am. Reply C to confirm.', 'unread': false, 'error': false, 'archived': false},
 ];
 
 /// Where encryption stands with each person (android/.../E2e.kt): on and verified with Riley, Noor's key waiting
@@ -789,11 +796,40 @@ void main() {
     installSettingsStyles(sheet);
     Finder chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
     for (final dark in [false, true]) {
-      // The list as it opens: the codes have left it for their chip, which counts them.
+      // The list as it opens: the codes have left it for their chip, which counts them. Spam, the political text,
+      // the debt collector and the sales pitch are hidden by the filter beside the tabs, which says how many, as
+      // the list's foot does; the delivery, the bill and the appointment stay (Matt, 2026-11-14: "a filter dropdown
+      // where showing spam, political messages, and debt collectors are filtered out by default", "also add in
+      // blocking of door to door sales").
       await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-list', dark: dark);
       expect(chip('Messages'), findsOneWidget);
       expect(chip('Codes'), findsOneWidget);
+      expect(chip('Spam'), findsNothing, reason: 'the kinds are the filter\'s, not tabs');
       expect(find.textContaining('482913'), findsNothing);
+      expect(find.textContaining('Paid for by'), findsNothing);
+      expect(find.textContaining('collect a debt'), findsNothing);
+      expect(find.textContaining('Tree trimming'), findsNothing);
+      expect(find.textContaining('You\'ve won'), findsNothing);
+      expect(tester.widget<FilterButton>(find.byType(FilterButton)).hidden, 5);
+      // The filter's menu: each kind to show or hide, with how many, and each to show alone.
+      await tester.tap(find.byType(FilterButton));
+      await _shootAgain(tester, '12-plugins-filter', dark: dark);
+      for (final kind in ['Spam', 'Political', 'Debt collectors', 'Sales & solicitors', 'Payment reminders', 'Deliveries & tracking', 'Appointments']) {
+        expect(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text(kind)), findsWidgets, reason: kind);
+      }
+      // Everything hidden, from Show only: each saying what it is, with the way to put it back.
+      final everything = find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Everything hidden'));
+      await tester.ensureVisible(everything);
+      await _settle(tester);
+      await tester.tap(everything);
+      await _shootAgain(tester, '12-plugins-hidden', dark: dark);
+      expect(find.byType(PluginRow), findsNWidgets(5));
+      expect(find.text('Not political'), findsOneWidget);
+      expect(find.text('Not a debt collector'), findsOneWidget);
+      expect(find.text('Not sales'), findsOneWidget);
+      expect(find.text('Not spam'), findsNWidgets(2));
+      await tester.tap(find.text('Show all'));
+      await _settle(tester);
       // Codes: the newest first, each code large over the words it came in, with Copy at the row's end.
       await tester.tap(chip('Codes'));
       await _shootAgain(tester, '12-plugins-codes', dark: dark);
@@ -815,34 +851,32 @@ void main() {
       expect(find.text('Copied 771204'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
       await _settle(tester);
-      // Settings › Plugins: each plugin with its switch. The spam filter is off. Each of the two has a section of
-      // its own in Settings while it is on (Matt, 2026-11-14: "the plugins and all being able to make their own
-      // setting sections"), so its settings are there and not on this page.
+      // Settings › Plugins: each plugin with its switch. Each has a section of its own in Settings while it is on
+      // (Matt, 2026-11-14: "the plugins and all being able to make their own setting sections"), so its settings
+      // are there and not on this page.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugins'), '12-plugins-settings', dark: dark);
       expect(find.text('Codes'), findsOneWidget);
       expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.text('Kinds of text'), findsOneWidget);
       expect(find.text('Mark as read when copied'), findsNothing);
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-codes'), '12-plugins-settings-codes', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
-      // Settings' list: Codes under Plugins, and no Spam filter while that is off.
+      // Settings' list: Codes, Kinds of text and the Spam filter under Plugins; the Spam filter's row goes while it
+      // is switched off.
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list', dark: dark);
-      // Twice: Plugins says which are on, and under it is the row for Codes' own section.
-      expect(find.text('Codes'), findsNWidgets(2));
+      expect(find.text('Spam filter'), findsOneWidget);
+      expect(find.text('Kinds of text'), findsOneWidget);
+      await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
       expect(find.text('Spam filter'), findsNothing);
       // A section whose plugin is off is not there to open: Settings itself is.
-      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark);
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
       expect(find.byType(GlacierSearchField), findsOneWidget);
       expect(find.text('Mute conversations in Spam'), findsNothing);
-      // The spam filter switched on: Spam beside Codes, and in it each conversation with why it is there.
-      await _shoot(tester, sheet, const ConversationsScreen(), '12-plugins-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
-      expect(find.textContaining('You\'ve won'), findsNothing, reason: 'spam has left the main list');
-      await tester.tap(chip('Spam'));
-      await _shootAgain(tester, '12-plugins-spam', dark: dark);
-      expect(find.byType(PluginRow), findsNWidgets(2));
-      expect(find.text('Looks like spam: a link, prize wording'), findsOneWidget);
-      expect(find.text('Not spam'), findsNWidgets(2));
-      // And its own settings, with what counts as spam said rule by rule.
-      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-spam', dark: dark, prefs: const {'plugin_spam': 'on'});
+      // Kinds of text's own page: each kind, said in a line.
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-kinds'), '12-plugins-settings-kinds', dark: dark);
+      expect(find.text('Sales & solicitors'), findsOneWidget);
+      // And the Spam filter's, with what counts as spam said rule by rule.
+      await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-spam', dark: dark);
       expect(find.text('Mute conversations in Spam'), findsOneWidget);
       await tester.drag(find.text('Mute conversations in Spam'), const Offset(0, -520));
       await _shootAgain(tester, '12-plugins-settings-spam-rules', dark: dark);

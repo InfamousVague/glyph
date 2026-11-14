@@ -145,9 +145,10 @@ class SpamPlugin extends GhostPlugin {
   @override
   LucideIcon get icon => Lucide.triangleAlert;
 
-  /// It hides messages: it is chosen, not given.
+  /// On from the start, its kind hidden until shown (Matt, 2026-11-14: "a filter dropdown where showing spam, political
+  /// messages, and debt collectors are filtered out by default"): it was off until chosen, and a tab of its own.
   @override
-  bool get onByDefault => false;
+  bool get onByDefault => true;
 
   static PluginAction _notSpam(int thread) => PluginAction(
         label: 'Not spam',
@@ -174,6 +175,9 @@ class SpamPlugin extends GhostPlugin {
           id: section,
           label: 'Spam',
           icon: Lucide.triangleAlert,
+          // A kind for the list's filter, hidden until shown (lib/plugins/kinds.dart says how kinds work).
+          filter: true,
+          hidden: true,
           takes: (facts, tags, prefs) => tags.has(tag),
           row: (facts, tags, prefs) {
             final why = tags.detail(tag);

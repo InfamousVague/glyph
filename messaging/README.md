@@ -448,6 +448,20 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Kinds of text and the list's filter** (not released; `lib/plugins/kinds.dart`, `FilterButton` in
+  `lib/plugins/ui.dart`; Matt, 2026-11-14: "I'd like to have tabs for messages with a intelligent spam filter, debt
+  collectors, political messages, payment reminders, tracking information, etc ... I'm thinking a filter dropdown
+  where showing spam, political messages, and debt collectors are filtered out by default", and "also add in
+  blocking of door to door sales and other sales messages like tree trimming, gutter cleaning, buying the house,
+  etc"). Texts from numbers that are not contacts are sorted on the phone into kinds: Debt collectors, Political,
+  Sales & solicitors and Spam (hidden from Messages as the app ships), Payment reminders, Deliveries & tracking and
+  Appointments (shown). A kind is a filter, not a tab (`ListSection.filter`, `hidden`): a round funnel button
+  beside Mark all read, wearing how many it hides, opens a small menu to tick each kind shown or hidden (kept as
+  `filter_<id>`) and to show one alone, or everything hidden; "N hidden · Show" at the list's foot does the same.
+  Each kind is a few patterns, said in Settings › Kinds of text: one strong sign or two weaker ones. Contacts and
+  your own words are never sorted; a shown kind leaves a text that looks like spam to Spam, so a fake delivery fee
+  is not shown as a delivery. "Not political" (and the like) on a conversation puts it back in Messages for good.
+  The Spam filter is on from the start now, its section one of the kinds rather than a tab.
 - **The bubble colour is the app's accent** (not released; `lib/accent.dart`; Matt, 2026-11-14: "make the bubble
   color the accent color for the app so the send button, segmented toggles, etc all get the same color as the
   bubbles if set globally and only settings inside a chat soley change the bubble color"). Two app tokens,

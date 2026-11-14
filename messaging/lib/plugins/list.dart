@@ -127,29 +127,62 @@ class ListPlugins {
     return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread);
   }
 
-  /// The conversations of [all] that the chosen tab shows: a section's own, or the main list without the ones a
-  /// section has taken out of it. A search from the main list looks through all of them.
+  /// What the list shows in place of a section: every conversation of a kind the filter hides ("N hidden · Show").
+  static const hiddenView = '*hidden';
+
+  /// The filter: which kinds Messages shows. Set by the list from the person's choices ([kindShown]).
+  bool Function(PluginSection kind) shown = (k) => !k.section.hidden;
+
+  /// Whether the person shows [kind] in Messages: their choice, else the kind's own default.
+  static bool kindShown(AppState app, PluginSection kind) => app.flag('filter_${kind.id}', fallback: !kind.section.hidden);
+
+  bool _hidden(PluginSection? s) => s != null && s.section.filter && !shown(s);
+
+  bool _leaves(PluginSection s) => s.section.filter ? !shown(s) : s.section.leavesMain;
+
+  /// The conversations of [all] that the chosen tab shows: a section's own, the conversations of hidden kinds
+  /// ([hiddenView]), or the main list without the ones a section has taken out of it and the kinds the filter hides.
+  /// A search from the main list looks through all of them.
   List<Conversation> pick(List<Conversation> all, String? section, {required bool searching}) {
     final at = _sorted.at;
-    if (at.isEmpty) return all;
+    if (at.isEmpty) return section == null ? all : const [];
+    if (section == hiddenView) return [for (final c in all) if (_hidden(at[c.id])) c];
     if (section != null) return [for (final c in all) if (at[c.id]?.id == section) c];
     if (searching) return all;
-    return [for (final c in all) if (at[c.id]?.section.leavesMain != true) c];
+    return [for (final c in all) if (at[c.id] == null || !_leaves(at[c.id]!)) c];
   }
+
+  /// The kinds the filter can show or hide (each plugin's [ListSection.filter] sections that are on), and how many
+  /// conversations each has.
+  List<PluginSection> get kinds {
+    final store = _store;
+    if (store == null) return const [];
+    // Those hidden as the app ships first (Spam with them), then those shown, each in its plugin's order.
+    final all = [for (final s in registry.sections(store)) if (s.section.filter) s];
+    return [...all.where((s) => s.section.hidden), ...all.where((s) => !s.section.hidden)];
+  }
+
+  int countOf(String kind) => _sorted.counts[kind] ?? 0;
+
+  /// How many conversations the filter is hiding from Messages now.
+  int get hiddenCount => [for (final s in _sorted.sections) if (s.section.filter && !shown(s)) countOf(s.id)].fold(0, (a, b) => a + b);
 
   // --- what the screen draws ----------------------------------------------------------------------------------------
 
   /// The tabs under the search field, or null while no section has a conversation in it. [onMenu] is asked for a
   /// tab's menu (a press with the other button, or a long one).
   Widget? tabs(String? chosen, ValueChanged<String?> onPick, {ValueChanged<String?>? onMenu}) {
+    // The kinds are the filter's, not tabs.
     final s = _sorted;
-    if (s.sections.isEmpty) return null;
-    return SectionTabs(sections: s.sections, counts: s.counts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
+    final tabs = [for (final t in s.sections) if (!t.section.filter) t];
+    if (tabs.isEmpty) return null;
+    return SectionTabs(sections: tabs, counts: s.counts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
   }
 
   /// What a tab is called: "Messages" for the main list, else its section's own name.
   String tabName(String? section) {
     if (section == null) return 'Messages';
+    if (section == hiddenView) return 'Hidden';
     for (final s in _sorted.sections) {
       if (s.id == section) return s.section.label;
     }

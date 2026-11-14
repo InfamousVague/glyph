@@ -6,8 +6,8 @@ import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/spam.dart';
 import 'package:ghost_messaging/plugins/ui.dart';
-import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:glacier/glacier.dart';
 
 import 'support/list_harness.dart';
 
@@ -17,8 +17,6 @@ import 'support/list_harness.dart';
 MessageFacts _facts(String text, {List<String> from = const ['+15550001111'], bool contact = false, int thread = 7, bool? outgoing}) => MessageFacts(thread: thread, senders: from, text: text, contact: contact, outgoing: outgoing);
 
 List<String> _signs(String text, {List<String> from = const ['+15550001111']}) => [for (final s in judgeSpam(_facts(text, from: from)).signs) s.id];
-
-Finder _chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
 
 const _prize = 'Congratulations! You\'ve won a \$1,000 gift card. Claim now: http://prize.example/win';
 const _locked = 'Your account has been locked. Verify your identity at https://secure-login.example';
@@ -89,11 +87,18 @@ void main() {
     final registry = PluginRegistry(const [plugin]);
     MemoryStore on() => MemoryStore({'plugin_spam': 'on'});
 
-    test('is off until it is chosen, and is one of the plugins the app ships with', () {
-      expect(plugin.onByDefault, isFalse);
-      expect(registry.isOn(plugin, MemoryStore()), isFalse);
-      expect(registry.classify(_facts(_prize), MemoryStore()).isEmpty, isTrue);
-      expect(registry.sections(MemoryStore()), isEmpty);
+    test('is on as the app ships, a kind for the list\'s filter hidden until shown, and can be switched off', () {
+      // Matt, 2026-11-14: "a filter dropdown where showing spam, political messages, and debt collectors are
+      // filtered out by default". It was off until chosen, and a tab of its own.
+      expect(plugin.onByDefault, isTrue);
+      expect(registry.isOn(plugin, MemoryStore()), isTrue);
+      expect(registry.classify(_facts(_prize), MemoryStore()).detail('spam'), 'a link, prize wording');
+      final spam = registry.sections(MemoryStore()).single.section;
+      expect(spam.filter, isTrue);
+      expect(spam.hidden, isTrue);
+      final off = MemoryStore({'plugin_spam': 'off'});
+      expect(registry.isOn(plugin, off), isFalse);
+      expect(registry.classify(_facts(_prize), off).isEmpty, isTrue);
       expect(shippedPlugins.whereType<SpamPlugin>(), hasLength(1));
     });
 
@@ -163,6 +168,10 @@ void main() {
   });
 
   group('in the list', () {
+    late PluginRegistry shipped;
+    setUp(() => shipped = PluginRegistry.instance);
+    tearDown(() => PluginRegistry.instance = shipped);
+
     List<Map<String, Object?>> phone() => [
           ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4),
           ListPhone.conversation(2, '+15559870002', _prize, minutes: 9, unread: true),
@@ -172,38 +181,44 @@ void main() {
           ListPhone.conversation(6, '+15551230006', _locked, name: 'Priya Natarajan', minutes: 400),
         ];
 
-    testWidgets('off, as the app ships: nothing is hidden and nothing is asked of the phone', (tester) async {
+    testWidgets('switched off: nothing is hidden and nothing is asked of the phone', (tester) async {
+      PluginRegistry.instance = PluginRegistry(const [SpamPlugin()]);
       final listed = ListPhone(phone())..install();
       final sheet = await loadSheet(tester);
-      await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
+      await pumpScreen(tester, sheet, const ConversationsScreen(), AppState()..setFlag('plugin_spam', false));
       expect(find.byType(SectionTabs), findsNothing);
+      expect(find.byType(FilterButton), findsNothing);
       expect(find.byType(ConversationRow), findsNWidgets(6));
       expect(listed.asked, isEmpty);
     });
 
-    testWidgets('on: spam leaves the main list for its section, which says why, and "Not spam" puts one back for good', (tester) async {
+    testWidgets('as the app ships: spam is hidden from Messages, said at the list\'s foot, and "Not spam" puts one back for good', (tester) async {
+      PluginRegistry.instance = PluginRegistry(const [SpamPlugin()]);
       final listed = ListPhone(phone())..install();
       final sheet = await loadSheet(tester);
-      final state = AppState()..setFlag('plugin_spam', true);
+      final state = AppState();
       await pumpScreen(tester, sheet, const ConversationsScreen(), state);
 
-      // Two look like spam and are from numbers; Priya's, a contact's, stays where it is.
-      expect(_chip('Spam'), findsOneWidget);
-      expect(_chip('2'), findsOneWidget);
+      // Two look like spam and are from numbers: hidden, and said. Priya's, a contact's, stays. Spam is no tab.
+      expect(find.byType(SectionTabs), findsNothing);
+      expect(find.byType(FilterButton), findsOneWidget);
+      expect(tester.widget<FilterButton>(find.byType(FilterButton)).hidden, 2);
       expect(find.byType(ConversationRow), findsNWidgets(4));
       expect(find.text(_prize), findsNothing);
       expect(find.text(_locked), findsOneWidget);
+      expect(find.text('2 hidden · Show'), findsOneWidget);
       // The unread one was muted as it was seen.
       expect(listed.asked, ['muted 2 true']);
 
-      await tester.tap(_chip('Spam'));
+      // From the foot: what is hidden, each saying why, and the way back.
+      await tester.tap(find.text('2 hidden · Show'));
       await settle(tester);
       expect(find.byType(PluginRow), findsNWidgets(2));
       expect(find.text('Looks like spam: a link, prize wording'), findsOneWidget);
       expect(find.text('Looks like spam: a link, a delivery problem'), findsOneWidget);
-      expect(find.textContaining('Nothing here is deleted or blocked'), findsOneWidget);
+      expect(find.text('Show all'), findsOneWidget);
 
-      // "Not spam" on the row: back in the main list, said, kept, and its notifications back on.
+      // "Not spam" on the row: back in Messages, said, kept, and its notifications back on.
       await tester.tap(find.text('Not spam').first);
       await settle(tester);
       expect(find.text('Moved to Messages'), findsOneWidget);
@@ -211,49 +226,64 @@ void main() {
       expect(listed.prefs[Filing.key], '2:');
       expect(listed.asked, ['muted 2 true', 'muted 2 false']);
       expect(listed.prefs[ListPlugins.mutedKey], '');
-
-      // Another spam text comes in that conversation: it stays in the main list, and is not muted again.
-      listed.conversations[1]['snippet'] = 'FINAL NOTICE: claim your prize now at http://prize.example/last';
-      listed.conversations[1]['date'] = DateTime.now().millisecondsSinceEpoch;
-      listed.conversations[1]['unread'] = true;
-      Sms.instance.changes.add(2);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Show all'));
       await settle(tester);
-      expect(_chip('1'), findsOneWidget);
-      expect(listed.asked, ['muted 2 true', 'muted 2 false']);
-      await tester.tap(_chip('Messages'));
-      await settle(tester);
-      expect(find.textContaining('FINAL NOTICE'), findsOneWidget);
+      expect(find.text(_prize), findsOneWidget);
+      expect(find.text('1 hidden · Show'), findsOneWidget);
 
-      // One the rules missed is moved to Spam from its long press.
+      // One the rules missed is moved to Spam from its long press, and hidden with it.
       await tester.longPress(find.text('Hi, is this Anna?'));
       await settle(tester);
       await tester.tap(find.text('Move to Spam'));
       await settle(tester);
       expect(find.text('Moved to Spam'), findsOneWidget);
       expect(find.text('Hi, is this Anna?'), findsNothing);
-      expect(_chip('2'), findsOneWidget);
+      expect(find.text('2 hidden · Show'), findsOneWidget);
       expect(listed.prefs[Filing.key], '2:,5:spam');
-      await tester.tap(_chip('Spam'));
-      await settle(tester);
-      expect(find.text('Moved here by you'), findsOneWidget);
       // A contact's conversation is not offered it.
-      await tester.tap(_chip('Messages'));
-      await settle(tester);
       await tester.longPress(find.text('Call me when you land'));
       await settle(tester);
       expect(find.text('Move to Spam'), findsNothing);
     });
 
+    testWidgets('the filter shows Spam in Messages, or Spam alone', (tester) async {
+      PluginRegistry.instance = PluginRegistry(const [SpamPlugin()]);
+      ListPhone(phone()).install();
+      final sheet = await loadSheet(tester);
+      final state = AppState();
+      await pumpScreen(tester, sheet, const ConversationsScreen(), state);
+      await tester.tap(find.byType(FilterButton));
+      await settle(tester);
+      expect(find.text('Show in Messages'.toUpperCase()), findsOneWidget);
+      // Ticked: shown in Messages, the menu staying open; the choice is kept.
+      await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Spam')).first);
+      await settle(tester);
+      expect(state.flag('filter_spam', fallback: false), isTrue);
+      expect(find.byType(GlacierMenuItem), findsWidgets, reason: 'the menu stays open to tick another');
+      await tester.tapAt(const Offset(5, 5));
+      await settle(tester);
+      expect(find.byType(ConversationRow), findsNWidgets(6));
+      expect(find.textContaining('hidden · Show'), findsNothing);
+      // Spam alone, from Show only.
+      await tester.tap(find.byType(FilterButton));
+      await settle(tester);
+      await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Spam')).last);
+      await settle(tester);
+      expect(find.byType(PluginRow), findsNWidgets(2));
+      expect(find.text('Only Spam'), findsOneWidget);
+      expect(tester.widget<FilterButton>(find.byType(FilterButton)).only, isTrue);
+    });
+
     testWidgets('what was marked "Not spam" is still not spam when the app is opened again', (tester) async {
+      PluginRegistry.instance = PluginRegistry(const [SpamPlugin()]);
       final listed = ListPhone(phone())..install();
-      listed.prefs.addAll({'plugin_spam': 'on', Filing.key: '2:'});
+      listed.prefs.addAll({Filing.key: '2:'});
       final sheet = await loadSheet(tester);
       // The person's choices as Android kept them.
       final state = AppState();
       await tester.runAsync(state.load);
       await pumpScreen(tester, sheet, const ConversationsScreen(), state);
-      expect(_chip('1'), findsOneWidget);
+      expect(find.text('1 hidden · Show'), findsOneWidget);
       expect(find.text(_prize), findsOneWidget);
       expect(listed.asked, isEmpty, reason: 'it is in the main list: nothing mutes it');
     });
