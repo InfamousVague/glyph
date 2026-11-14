@@ -210,7 +210,14 @@ class PluginAction {
 /// the list (ui.dart, PluginRow).
 @immutable
 class RowLook {
-  const RowLook({this.value, this.caption, this.end, this.word, this.tap});
+  const RowLook({this.value, this.caption, this.end, this.word, this.tap, this.title, this.face});
+
+  /// What the row is called, in place of who the conversation is with: the company a code is from, where its
+  /// number says nothing.
+  final String? title;
+
+  /// What stands where the person's picture would: a company's own face.
+  final RowFace? face;
 
   /// Drawn large where the last words would be, with the words small under it: a sign-in code.
   final String? value;
@@ -226,6 +233,22 @@ class RowLook {
 
   /// What a tap on the row does, in place of opening the conversation (which its long press then offers).
   final PluginAction? tap;
+}
+
+/// A face for a row that is not a person's (ui.dart, BrandFace): a company's, by its name, its own colour and the
+/// web address its logo is found by. Said in words, as the rest of a row's look is, and drawn by the list.
+@immutable
+class RowFace {
+  const RowFace({required this.name, required this.color, this.domain});
+
+  /// The company's name: its first letter stands in the face where there is no logo to draw.
+  final String name;
+
+  /// Its own colour, as 0xRRGGBB.
+  final int color;
+
+  /// Its web address, where it is a company the app knows; null for anything else.
+  final String? domain;
 }
 
 /// A section of the list of conversations: a chip under the search field beside "Messages", and a list of its own

@@ -12,7 +12,7 @@ import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
-import 'package:ghost_messaging/plugins/ui.dart' show PluginRow, SectionChips;
+import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, PluginRow, SectionChips;
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/stickers.dart';
 import 'package:ghost_messaging/ui/background_picker.dart';
@@ -83,9 +83,11 @@ bool _plainOff = false;
 /// What the plugins sort (lib/plugins), added to the list for their own pictures: sign-in codes from short numbers,
 /// and two texts that look like spam.
 final _sortable = <Map<String, Object>>[
-  {'id': 101, 'date': _ago(minutes: 2), 'people': [_p('70220')], 'snippet': '771-204 is your login code. It expires in 10 minutes.', 'unread': true, 'error': false, 'archived': false},
-  {'id': 102, 'date': _ago(hours: 3), 'people': [_p('+18005550142')], 'snippet': 'Use PIN 9041 to sign in to your account', 'unread': false, 'error': false, 'archived': false},
+  {'id': 101, 'date': _ago(minutes: 2), 'people': [_p('70220')], 'snippet': 'Coinbase: 771-204 is your login code. It expires in 10 minutes.', 'unread': true, 'error': false, 'archived': false},
+  {'id': 102, 'date': _ago(hours: 3), 'people': [_p('+18005550142')], 'snippet': 'Use PIN 9041 to sign in to your Discover account', 'unread': false, 'error': false, 'archived': false},
   {'id': 103, 'date': _ago(minutes: 20), 'people': [_p('+15559870002')], 'snippet': 'Congratulations! You\'ve won a \$1,000 gift card. Claim now: http://prize.example/win', 'unread': true, 'error': false, 'archived': false},
+  // A code from a company the app does not know by name: named as its text names it.
+  {'id': 105, 'date': _ago(hours: 5), 'people': [_p('39200')], 'snippet': 'Brightwater Credit Union: your verification code is 330918.', 'unread': false, 'error': false, 'archived': false},
   {'id': 104, 'date': _ago(days: 2), 'people': [_p('+15559870004')], 'snippet': 'Your package could not be delivered. Reschedule here: bit.ly/3xYz', 'unread': false, 'error': false, 'archived': false},
 ];
 
@@ -743,8 +745,18 @@ void main() {
       // Codes: the newest first, each code large over the words it came in, with Copy at the row's end.
       await tester.tap(chip('Codes'));
       await _shootAgain(tester, '12-plugins-codes', dark: dark);
-      expect(find.byType(PluginRow), findsNWidgets(3));
+      expect(find.byType(PluginRow), findsNWidgets(4));
       expect(find.text('482913'), findsOneWidget);
+      // Each is named by the company its words are from, where they say (Matt: "have the codes section try to
+      // parse the company that's sending the code and show their company logo as the code profile picture like
+      // coinbase discover etc"): two the app knows, with a face of their own; one it does not, by the name its
+      // text gives; and one whose text names nobody, left with its number.
+      expect(find.text('Coinbase'), findsOneWidget);
+      expect(find.text('Discover'), findsOneWidget);
+      expect(find.text('Brightwater Credit Union'), findsOneWidget);
+      expect(find.text('28849'), findsOneWidget);
+      expect(find.text('70220'), findsNothing);
+      expect(find.byType(BrandFace), findsNWidgets(2));
       // A tap copies, and says so.
       await tester.tap(find.text('771204'));
       await _shootAgain(tester, '12-plugins-codes-copied', dark: dark);

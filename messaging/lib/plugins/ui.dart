@@ -3,6 +3,8 @@
 /// plugin says what, in words (plugin.dart).
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -132,7 +134,7 @@ class PluginRow extends StatelessWidget {
       child: GlacierPressable(
         // While several are being chosen a tap chooses, as in the main list.
         onPressed: selecting || tap == null ? onPress : () => tap.run(host),
-        semanticLabel: selecting ? '${c.title}, ${selected ? 'selected' : 'not selected'}' : (tap == null ? null : '${c.title}, ${value ?? words}. ${tap.label}'),
+        semanticLabel: selecting ? '${look.title ?? c.title}, ${selected ? 'selected' : 'not selected'}' : (tap == null ? null : '${look.title ?? c.title}, ${value ?? words}. ${tap.label}'),
         // A card, as the main list's rows are (ConversationRow), with the same line round the one chosen.
         builder: (context, state) => Padding(
           padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
@@ -157,15 +159,19 @@ class PluginRow extends StatelessWidget {
                     alignment: Alignment.center,
                     child: selected ? const AppIcon(Lucide.check, size: 22, strokeWidth: 2.6, wash: false, color: Color(0xFFFFFFFF)) : null,
                   )
+                else if (look.face != null)
+                  BrandFace(face: look.face!, size: face)
                 else
-                  Avatar(people: c.people, size: face),
+                  // Named by its section (a company a code is from, read out of its words): the name's letters
+                  // stand in its picture, where its number's would have said nothing.
+                  Avatar(people: look.title != null && c.people.length == 1 ? [Person(address: c.people.first.address, name: look.title)] : c.people, size: face),
                 SizedBox(width: t.space(3)),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        Expanded(child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize(value == null ? 'md' : 'sm'), weight: unread ? 'bold' : 'semibold', color: t.color(value == null ? 'app-ink' : 'app-ink-2')))),
+                        Expanded(child: Text(look.title ?? c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize(value == null ? 'md' : 'sm'), weight: unread ? 'bold' : 'semibold', color: t.color(value == null ? 'app-ink' : 'app-ink-2')))),
                         if (unread) ...[
                           SizedBox(width: t.space(2)),
                           Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5'))),
@@ -223,6 +229,50 @@ class PluginNote extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
       child: Text(words, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
+    );
+  }
+}
+
+/// A company's face on a row (plugin.dart, RowFace): a disc of its own colour with its name's first letter in it,
+/// in white or in ink, whichever reads on that colour.
+class BrandFace extends StatelessWidget {
+  const BrandFace({super.key, required this.face, required this.size});
+  final RowFace face;
+  final double size;
+
+  /// Whether ink reads better than white on [color] (0xRRGGBB): by how light the colour is to the eye.
+  static bool inkOn(int color) {
+    double part(int c) {
+      final v = c / 255;
+      return v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+    }
+
+    final light = 0.2126 * part((color >> 16) & 0xff) + 0.7152 * part((color >> 8) & 0xff) + 0.0722 * part(color & 0xff);
+    return light > 0.5;
+  }
+
+  /// The letter that stands for [name]: its first letter or figure.
+  static String letterOf(String name) {
+    final m = RegExp('[A-Za-z0-9]').firstMatch(name);
+    return m == null ? '?' : m.group(0)!.toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final color = Color(0xFF000000 | face.color);
+    return Semantics(
+      label: face.name,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color, border: Border.all(color: t.color('app-rule'), width: 1)),
+        alignment: Alignment.center,
+        child: Text(
+          letterOf(face.name),
+          style: pageText(t, size * 0.44, weight: 'bold', color: inkOn(face.color) ? const Color(0xFF111111) : const Color(0xFFFFFFFF), height: 1),
+        ),
+      ),
     );
   }
 }

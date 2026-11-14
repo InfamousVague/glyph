@@ -11,6 +11,7 @@ library;
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import 'companies.dart';
 import 'plugin.dart';
 
 // A word of its own: "pin" is in "shipping", "shopping" and "opinion", and "code" in "barcode".
@@ -78,7 +79,19 @@ class CodesPlugin extends GhostPlugin {
             // Filed here by hand, and its last words are not a code: drawn as the main list draws it.
             if (code == null) return null;
             final copy = _copy(code, facts.thread);
-            return RowLook(value: code, end: copy, tap: copy);
+            // Who it is from is in its words, not its number (companies.dart; Matt: "have the codes section try
+            // to parse the company that's sending the code and show their company logo as the code profile
+            // picture"): a company the app knows gets its name and its own face, and any other the name its text
+            // gives itself.
+            final company = prefs.flag('company') ? companyIn(facts.text) : null;
+            final named = company?.name ?? (prefs.flag('company') ? senderNameIn(facts.text) : null);
+            return RowLook(
+              value: code,
+              end: copy,
+              tap: copy,
+              title: named,
+              face: company == null ? null : RowFace(name: company.name, color: company.color, domain: company.domain),
+            );
           },
         ),
       ];
@@ -107,6 +120,7 @@ class CodesPlugin extends GhostPlugin {
   @override
   List<PluginSetting> get settings => const [
         PluginSetting.toggle(key: 'read', label: 'Mark as read when copied', hint: 'Copying a code from the list also marks its conversation as read.', icon: Lucide.checkCheck),
+        PluginSetting.toggle(key: 'company', label: 'Show who a code is from', hint: 'A code is named by the company its text is from (Coinbase, Discover) where the text says, in place of its number.', icon: Lucide.store),
         PluginSetting.note(
           label: 'What counts as a code',
           hint: 'Four to eight digits in a text that speaks of a code, a PIN, a password or signing in, from a number that is not in your contacts. The same texts get a Copy button on their notification.',
