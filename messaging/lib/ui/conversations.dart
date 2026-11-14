@@ -796,7 +796,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 child: _slow && _all != null ? const GlacierProgressBar(indeterminate: true, ariaLabel: 'Loading your conversations') : null,
               ),
               // Plugins: what they put between the search field and the list.
-              if (!widget.archived) ..._plugins.above(context, ListPlace(section: _section, shown: shown.length)),
+              if (!widget.archived)
+                ..._plugins.above(
+                  context,
+                  ListPlace(section: _section, shown: shown.length, counts: _plugins.counts, unread: _plugins.unreadSections, show: (section) => setState(() => _section = section)),
+                ),
               Expanded(child: body),
             ],
           ),

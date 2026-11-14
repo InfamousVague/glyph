@@ -23,6 +23,7 @@ import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
+import 'package:ghost_messaging/plugins/embeds.dart' show Embeds, Fetched;
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, FilterButton, PluginRow, SectionTabs;
 import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/summaries.dart';
@@ -453,7 +454,18 @@ Future<void> _shootAgain(WidgetTester tester, String name, {required bool dark})
   if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
 }
 
+/// The sites the link previews ask (lib/plugins/embeds.dart), standing in: a YouTube video, and a page of tickets.
+Future<Fetched> _fakeSites(Uri url) async {
+  if (url.host == 'www.youtube.com') return (status: 200, body: '{"title": "Interstellar (2014) Official Trailer", "author_name": "Warner Bros.", "thumbnail_url": "https://i.ytimg.com/vi/x/hq.jpg"}');
+  if (url.host == 'example.com') return (status: 200, body: '<meta property="og:site_name" content="Hickory Premier"><meta property="og:title" content="Movie night: 7:00 PM, Theatre 2">');
+  return (status: 404, body: '');
+}
+
 void main() {
+  setUp(() {
+    Embeds.forget();
+    Embeds.fetch = _fakeSites;
+  });
   setUpAll(_fonts);
   testWidgets('screens', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);

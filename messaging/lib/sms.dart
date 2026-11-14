@@ -845,6 +845,16 @@ class Sms {
     }
   }
 
+  /// Android's new contact with [address] filled in; false where nothing could take it, or on a computer.
+  Future<bool> addContact(String address) async {
+    if (remote) return false;
+    try {
+      return (await _calls.invokeMethod<bool>('addContact', {'address': address})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Opens the map at [place] (an address as written); false where nothing could, or on a computer.
   Future<bool> openMap(String place) async {
     if (remote) return false;

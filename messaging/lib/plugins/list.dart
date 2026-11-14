@@ -164,6 +164,11 @@ class ListPlugins {
 
   int countOf(String kind) => _sorted.counts[kind] ?? 0;
 
+  /// How many conversations each section has, and which have something unread: for what the plugins put over the
+  /// list (Your day).
+  Map<String, int> get counts => _sorted.counts;
+  Set<String> get unreadSections => _sorted.unread;
+
   /// How many conversations the filter is hiding from Messages now.
   int get hiddenCount => [for (final s in _sorted.sections) if (s.section.filter && !shown(s)) countOf(s.id)].fold(0, (a, b) => a + b);
 

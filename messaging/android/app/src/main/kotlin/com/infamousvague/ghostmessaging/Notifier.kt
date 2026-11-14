@@ -169,7 +169,10 @@ object Notifier {
         // A sign-in code in the newest message gets a button that copies it.
         val code = if (previews && ui.getString("notif_code", "on") != "off") otp(unread.last()["body"] as String) else null
 
-        val builder = Notification.Builder(context, CHANNEL)
+        // Quiet hours (lib/plugins/quiet.dart): from ten at night to seven in the morning a text from someone who is not a
+        // contact, or from anyone where the person chose so, arrives without a sound; a contact's urgent words still do.
+        val quiet = quietNow(context, ui, people.all { store.contact(it["address"] as String)["name"] == null }, unread.last()["body"] as String)
+        val builder = Notification.Builder(context, if (quiet) quietChannel(context) else CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setStyle(style)
             .setContentIntent(open(context, thread))
@@ -192,6 +195,31 @@ object Notifier {
         builder.addAction(reply).addAction(read)
         val n = builder.build()
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+    }
+
+    private const val CHANNEL_QUIET = "quiet"
+
+    /// The channel a quiet hour's texts arrive on: shown, with no sound or vibration.
+    private fun quietChannel(context: Context): String {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel(CHANNEL_QUIET) == null) {
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_QUIET, "Quiet hours", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Texts that arrive in quiet hours (Settings › Quiet hours): shown, without a sound."
+            })
+        }
+        return CHANNEL_QUIET
+    }
+
+    private val urgent = Regex("(?i)(?<![a-z])(?:urgent|emergency|asap|911|call me|hospital|help)(?![a-z])")
+
+    /// Whether a text arriving now is quiet: the Quiet hours plugin on, its hours chosen, the time between ten at night
+    /// and seven in the morning, and the text from a stranger (or from anyone, where everyone was chosen and the words
+    /// are not urgent).
+    fun quietNow(context: Context, ui: android.content.SharedPreferences, stranger: Boolean, words: String, hour: Int = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)): Boolean {
+        if (ui.getString("plugin_quiet", "on") == "off" || ui.getString("plugin_quiet_hours", "off") != "on") return false
+        if (hour in 7..21) return false
+        if (stranger) return true
+        return ui.getString("plugin_quiet_everyone", "off") == "on" && !urgent.containsMatchIn(words)
     }
 
     // A word of its own: "pin" is in "shipping", "shopping" and "opinion", and "code" in "barcode", and a text with one

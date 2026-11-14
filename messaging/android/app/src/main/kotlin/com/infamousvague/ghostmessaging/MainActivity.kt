@@ -286,6 +286,15 @@ class MainActivity : FlutterActivity() {
                     result.success(ok)
                 }
                 "remind" -> result.success(Reminders.schedule(this, (call.argument<Number>("thread") ?: -1).toLong(), call.argument<String>("title") ?: "Reminder", call.argument<String>("body") ?: "", (call.argument<Number>("at") ?: 0).toLong()))
+                // Android's new contact with a number filled in (lib/plugins/strangers.dart), for the person to name.
+                "addContact" -> {
+                    val ok = try {
+                        startActivity(Intent(android.provider.ContactsContract.Intents.Insert.ACTION).setType(android.provider.ContactsContract.RawContacts.CONTENT_TYPE)
+                            .putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, call.argument<String>("address") ?: ""))
+                        true
+                    } catch (_: Exception) { false }
+                    result.success(ok)
+                }
                 "openMap" -> {
                     val ok = try {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(call.argument<String>("place") ?: ""))))
