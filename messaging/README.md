@@ -435,7 +435,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   circle button", "the segmented toggle for messages vs codes can be a size larger") the button is its picture
   alone in a circle as tall as the toggle, with its words in a tip under a resting pointer (`HoverTip` in
   `lib/ui/nav_bar.dart`, the pill's own tip made public), and the toggle is the kit's middle size.
-- **The Archive and Settings rings' menus** (0.7.11, small since 0.7.12 which is not released; `lib/ui/nav_bar.dart`
+- **The Archive and Settings rings' menus** (0.7.11, small since 0.7.12; `lib/ui/nav_bar.dart`
   `NavItem.menu`, `_archiveRows` / `_settingsRows` in `lib/ui/shell.dart`; Matt, 2026-11-14: "add a right click
   context menu to archive as well and settings to quick jump to settings sections", then of the sheet across the
   window's foot it first was: "too large and way too wide", with a picture of a small list hung by its button).
