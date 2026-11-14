@@ -11,8 +11,8 @@ import 'common.dart';
 
 /// What a long press on a message brings up, beside the message itself (Matt, 2026-11-13: "I want the message
 /// reactions to pop up under the message like imessage does", and "I'd like to be able to react with full screen
-/// effects by pressing and holding on a message as well"): the reactions in a row under the bubble, the screen
-/// effects in a row under those, and what else can be done with the message under them. The page dims round the
+/// effects by pressing and holding on a message as well"): the reactions in a row under the bubble, what else can be
+/// done with the message under those, and the screen effects in a row under that menu. The page dims round the
 /// message, which stays lit. With no room under the bubble, it all sits above it.
 Future<void> showMessagePopover(
   BuildContext context, {
@@ -107,19 +107,6 @@ class _Popover extends StatelessWidget {
       crossAxisAlignment: outgoing ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         if (reactions.isNotEmpty && onReact != null) pill([for (final e in reactions) round(e, mine.contains(e) ? 'Remove $e' : 'React $e', mine.contains(e), () => onReact!(e))]),
-        if (effects.isNotEmpty && onEffect != null) ...[
-          SizedBox(height: t.space(2)),
-          pill(
-            [
-              for (final e in effects)
-                round(effectReactionEmoji[e]!, mine.contains(effectReactionEmoji[e]) ? 'Take back ${effectLabel(e)}' : 'React with ${effectLabel(e)}, over the whole screen', mine.contains(effectReactionEmoji[e]), () => onEffect!(e)),
-            ],
-            lead: Padding(
-              padding: EdgeInsets.only(left: t.space(3), right: t.space(1)),
-              child: Semantics(label: 'Screen effects', child: AppIcon(Lucide.sparkles, size: 18, color: t.color('app-ink-3'))),
-            ),
-          ),
-        ],
         if (choices.isNotEmpty) ...[
           SizedBox(height: t.space(2)),
           ConstrainedBox(
@@ -152,6 +139,21 @@ class _Popover extends StatelessWidget {
                     ),
                 ]),
               ),
+            ),
+          ),
+        ],
+        // The screen effects come last, under the menu (Matt, 2026-11-14: "The reactions should show up under the
+        // context menu not a second row under emoji"): the reactions and what can be done with the message stay together.
+        if (effects.isNotEmpty && onEffect != null) ...[
+          SizedBox(height: t.space(2)),
+          pill(
+            [
+              for (final e in effects)
+                round(effectReactionEmoji[e]!, mine.contains(effectReactionEmoji[e]) ? 'Take back ${effectLabel(e)}' : 'React with ${effectLabel(e)}, over the whole screen', mine.contains(effectReactionEmoji[e]), () => onEffect!(e)),
+            ],
+            lead: Padding(
+              padding: EdgeInsets.only(left: t.space(3), right: t.space(1)),
+              child: Semantics(label: 'Screen effects', child: AppIcon(Lucide.sparkles, size: 18, color: t.color('app-ink-3'))),
             ),
           ),
         ],

@@ -186,6 +186,12 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
   same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
   sheet's tabs slide, and the pack it opens on is brought into view.
+- **Reactions, plainer** (0.7.2; Matt, 2026-11-14: "The reactions should show up under the context menu not a second
+  row under emoji, don't shwo the border on the emoji reaction just show the emoji's with no background pinned under
+  it a bit larger"). Holding a message shows the reactions, then what can be done with the message, then the screen
+  effects in their row under that menu, where the effects sat between the two (`lib/ui/message_popover.dart`). A
+  message's reactions are the emoji alone, a little larger, pinned under the bubble: no chip, line or shadow round
+  them, and a count only where there are more reactions than emoji shown (`_ReactionChip`).
 - **Updates while the app is in front** (0.7.2; Matt, 2026-11-14: "it should auto check for updates when the app is
   in focus"). The app looks at ghost-sms.com each time it comes forward and every ten minutes while it stays there
   (`Updater.focusCheck`, from `MainActivity.onResume`; no oftener than once a minute), where it looked as it opened

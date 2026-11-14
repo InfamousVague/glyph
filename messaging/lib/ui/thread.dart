@@ -1234,11 +1234,13 @@ class _Bubble extends StatelessWidget {
       );
     }
     if (reactions.isNotEmpty) {
-      // The chip sits on the bubble's lower edge, on the side away from the screen's edge, as both phones draw it.
+      // The reactions are pinned under the bubble, on the side away from the screen's edge: the emoji alone, a
+      // little larger, with no chip round them (Matt, 2026-11-14: "don't show the border on the emoji reaction just
+      // show the emoji's with no background pinned under it a bit larger").
       bubble = Stack(
         clipBehavior: Clip.none,
         children: [
-          Padding(padding: EdgeInsets.only(bottom: t.lenOf('1rem')), child: bubble),
+          Padding(padding: EdgeInsets.only(bottom: t.lenOf('1.45rem')), child: bubble),
           Positioned(
             bottom: 0,
             left: out ? t.space(2) : null,
@@ -1498,21 +1500,17 @@ class _ReactionChip extends StatelessWidget {
     for (final r in reactions) {
       if (!kinds.contains(r.emoji)) kinds.add(r.emoji);
     }
-    final mine = reactions.any((r) => r.by.isEmpty);
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: '${reactions.length} reaction${reactions.length == 1 ? '' : 's'}: ${kinds.join(' ')}',
-      builder: (context, state) => Container(
-        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 3),
-        decoration: BoxDecoration(
-          color: t.color(state.pressed ? 'app-paper-3' : (t.isDark ? 'app-paper-2' : 'app-paper')),
-          borderRadius: BorderRadius.circular(t.lenOf('1rem')),
-          border: Border.all(color: mine ? t.colorOf('#4f5bd5') : t.color('glacier-bg'), width: 2),
-          boxShadow: t.shadowOf('0 1px 4px rgba(0,0,0,0.12)'),
-        ),
+      // The emoji themselves, nothing behind them and no line round them: they grow a touch while pressed.
+      builder: (context, state) => AnimatedScale(
+        scale: state.pressed ? 1.15 : 1,
+        duration: const Duration(milliseconds: 120),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(kinds.take(4).join(), style: pageText(t, t.fontSize('sm'), height: 1.2)),
-          if (reactions.length > 1) ...[
+          Text(kinds.take(4).join(' '), style: pageText(t, t.lenOf('1.2rem'), height: 1.15)),
+          // How many, only where it is more than the emoji shown say.
+          if (reactions.length > kinds.length) ...[
             SizedBox(width: t.space(1)),
             Text('${reactions.length}', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
           ],
