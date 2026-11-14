@@ -19,6 +19,7 @@ import '../friends/groups.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../links.dart';
+import '../plugins/conversation.dart';
 import '../reactions.dart';
 import '../sms.dart';
 import '../stickers.dart';
@@ -48,6 +49,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   StreamSubscription<int>? _changes;
   late final TextEditingController _text = TextEditingController(text: widget.draft ?? '');
   final _focus = FocusNode();
+
+  /// What the plugins put in a conversation (lib/plugins/conversation.dart): buttons in the header and the
+  /// composer's row, lines in a message's menu, a card under a message, replies over the composer (Matt, 2026-11-14:
+  /// "let's add all of the additional ones to a plugins ... I also want smart embeds added").
+  late final ConversationPlugins _plugins = ConversationPlugins(thread: widget.thread, people: () => _people, write: _writeIn);
+
+  /// A plugin writes into the composer: in place of what is there, the cursor after it.
+  void _writeIn(String text) {
+    _text.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    _focus.requestFocus();
+  }
 
   /// The message field itself, to ask it for the keyboard. A tap on a field that already has the cursor where it was
   /// tapped changes nothing, so Flutter asks for no keyboard: after leaving the app and coming back, or after the
@@ -608,6 +620,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (m.edited && m.original != null) Choice('Show original', Lucide.clock, () => _showOriginal(m)),
       if (m.state == 'failed' && _canRetry(m)) Choice('Send again', Lucide.rotateCcw, () => _retry(m)),
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
+      // The plugins' own lines (remind me about this, and the like).
+      if (m.notice == null) ..._plugins.message(context, m),
       if (Sms.can('deleteMessage'))
         Choice('Delete message', Lucide.trash2, () async {
           // Gone from the screen at once; put back, with why, if Android would not delete it.
@@ -698,7 +712,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // Beside the list the conversation draws no way back (PaneRoot, lib/ui/common.dart). On a computer what the
     // phone at the other end does for one is offered (Sms.can); calling is the phone's alone.
     final remote = Sms.remote;
-    return GhostPage(
+    // What a plugin's widget in the conversation may do: write into the composer.
+    return PluginThread(write: _writeIn, child: GhostPage(
       title: title,
       back: true,
       titleWidget: GlacierPressable(
@@ -719,6 +734,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         ]),
       ),
       actions: [
+        ..._plugins.header(context, newest: _messages?.firstOrNull),
         if (!remote && !_group && _people.isNotEmpty)
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
@@ -737,8 +753,19 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(4) + MediaQuery.paddingOf(context).bottom),
               child: Text(_closed!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             )
-          : ListenableBuilder(listenable: _text, builder: (context, _) => _composer(t)),
-    );
+          : ListenableBuilder(
+              listenable: _text,
+              builder: (context, _) {
+                // Over the composer, what the plugins put there: replies to choose from, a word about who wrote.
+                final newest = _folded.messages.where((m) => !_isLine(m)).firstOrNull;
+                final above = _messages == null || _editing != null
+                    ? const <Widget>[]
+                    : _plugins.aboveComposer(context, text: _text.text, lastIn: newest != null && !newest.outgoing ? newest.body : null, count: _folded.messages.length);
+                if (above.isEmpty) return _composer(t);
+                return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [...above, _composer(t)]);
+              },
+            ),
+    ));
   }
 
   Widget _list(Tokens t, ChatBackground background) {
@@ -773,6 +800,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final lastOfRun = !joins(newer, m) || !_sameDay(newer!.date, m.date);
       final failed = m.state == 'failed';
       final showStatus = m.outgoing && (m.key == lastOutgoingKey || failed || m.state == 'sending' || m.state == 'waiting');
+      // Under the bubble (drawn first: the list is drawn bottom up), what the plugins put there: a link's card, things
+      // to do with what it says.
+      final under = m.state == 'sending' || m.state == 'waiting' ? const <Widget>[] : _plugins.under(context, m);
+      if (under.isNotEmpty) {
+        items.add(Padding(
+          padding: EdgeInsets.only(left: m.outgoing ? t.lenOf('3rem') : t.space(3) + (_group ? t.lenOf('2.1rem') : 0), right: m.outgoing ? t.space(3) : t.lenOf('3rem'), top: t.space(1), bottom: t.space(1)),
+          child: Align(
+            alignment: m.outgoing ? Alignment.centerRight : Alignment.centerLeft,
+            child: OnBackground(busy: busy, child: Column(crossAxisAlignment: m.outgoing ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: under)),
+          ),
+        ));
+      }
       items.add(_Bubble(
         message: m,
         sender: _group && !m.outgoing && firstOfRun ? (_senders[m.address]?.label ?? m.address) : null,

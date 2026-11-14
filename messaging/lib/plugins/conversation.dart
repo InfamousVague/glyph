@@ -21,6 +21,18 @@ import 'list.dart' show PluginEffects, SmsEffects;
 import 'plugin.dart';
 import 'registry.dart';
 
+/// What a plugin's widget in a conversation can do there: write into the composer, and open another conversation.
+class PluginThread extends InheritedWidget {
+  const PluginThread({super.key, required this.write, this.open, required super.child});
+  final void Function(String text) write;
+  final void Function(int thread)? open;
+
+  static PluginThread? of(BuildContext context) => context.getInheritedWidgetOfExactType<PluginThread>();
+
+  @override
+  bool updateShouldNotify(PluginThread old) => false;
+}
+
 class ConversationPlugins {
   ConversationPlugins({required this.thread, required this.people, this.write, this.open, PluginRegistry? registry, this.effects = const SmsEffects()}) : registry = registry ?? PluginRegistry.instance;
 
@@ -70,6 +82,30 @@ class ConversationPlugins {
       for (final b in registry.actions(Slots.composer, ComposerPlace(thread: thread, senders: facts.senders, text: text), store))
         IconTap(icon: b.action.icon, label: b.action.label, size: 19, box: t.lenOf('2.25rem'), color: t.color('app-ink-2'), onPressed: () => b.action.run(_Host(this, b.plugin, context, facts, TagSet.none))),
     ];
+  }
+
+  /// What the plugins put under [m]'s bubble: a link's card, things to do with what it says.
+  List<Widget> under(BuildContext context, Message m) {
+    final store = AppStore(AppState.of(context));
+    final facts = MessageFacts.message(m, thread: thread, people: people());
+    final tags = registry.classify(facts, store);
+    return registry.widgets(Slots.underMessage, context, MessagePlace(facts, tags), store);
+  }
+
+  /// What the plugins put over the composer. [lastIn] is the newest message where it is from them (no reply yet).
+  List<Widget> aboveComposer(BuildContext context, {String text = '', String? lastIn, int count = 0}) {
+    final store = AppStore(AppState.of(context));
+    final all = people();
+    final place = ComposerPlace(
+      thread: thread,
+      senders: [for (final p in all) p.address],
+      text: text,
+      lastIn: lastIn,
+      contact: all.any((p) => p.name != null && p.name!.isNotEmpty),
+      group: all.length > 1,
+      count: count,
+    );
+    return registry.widgets(Slots.aboveComposer, context, place, store);
   }
 
   /// The plugins' lines for the menu a message's long press brings up.
