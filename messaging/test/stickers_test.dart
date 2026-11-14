@@ -6,9 +6,9 @@ import 'package:ghost_messaging/stickers.dart';
 /// The sticker packs (tool/sticker_packs.py makes them; Matt, 2026-11-13: "generate 4 sticker packs using our ghost
 /// mascot"): what is bundled, how a sticker is named as it travels, and what counts as one when it arrives.
 void main() {
-  testWidgets('four packs of sixteen are bundled, each sticker a picture that opens', (tester) async {
+  testWidgets('five packs of sixteen are bundled, each sticker a picture that opens', (tester) async {
     final packs = (await tester.runAsync(stickerPacks))!;
-    expect(packs.map((p) => p.id), ['ghost', 'love', 'party', 'sweet']);
+    expect(packs.map((p) => p.id), ['ghost', 'love', 'party', 'sweet', 'mischief']);
     for (final pack in packs) {
       expect(pack.stickers, hasLength(16), reason: pack.id);
       expect(pack.stickers.first, 'assets/stickers/${pack.id}/01.webp');

@@ -47,6 +47,10 @@ first real exchange between two copies of the app: the hello, both keys, a seale
 They will not text each other, and their modems take no PDUs, so a small script carried each text across with
 `adb emu sms send`.
 
+0.6.2 also carries the effects' characters animated (78 strips of six drawings, `tool/effect_anims.py`, from
+`~/Desktop/Animated`, which is not in the repository) and a fifth sticker pack, Mischief, cut from its own sheet.
+There is a second sticker prompt on Matt's Desktop (a bunny pack) with no sheet made from it yet.
+
 0.6.2, later that night: Matt reported picture messages not working. They had never run, so `tool/mms/` stands in
 for a carrier on an emulator: sending (sticker, photo) and receiving both work there, and Android's own parser reads
 what the app sends. The app now says why one fails, catches a carrier's refusal that Android calls sent, and asks

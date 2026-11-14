@@ -39,6 +39,7 @@ flutter:
     - assets/stickers/love/
     - assets/stickers/party/
     - assets/stickers/sweet/
+    - assets/stickers/mischief/
     # The app's own mark, cut from its icon (tool/app_icon.py).
     - assets/art/
   fonts:

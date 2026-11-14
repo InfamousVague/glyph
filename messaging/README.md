@@ -171,6 +171,21 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   together. On an emulator with 161 conversations the list's first read took 697 ms and each one after 7 to 9 ms
   (before, every read was a first read). `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts writes
   each call's time and the frames' to Android's log.
+- **The effects' characters move** (0.6.2; Matt, 2026-11-13: "i'm going to include 6 frame animations for each
+  asset in a sprite sheet", then "Push an update and release after you've sliced all the animated pictures sprites
+  and the sticker pack from the desktop"). Seventy-eight of the eighty characters came drawn six times each, three
+  across and two down, in files named for the effect and the character's place on its sheet
+  (`bye_r1c2 · wave right hand.png`). `python3 tool/effect_anims.py ~/Desktop/Animated` finds each drawing by its
+  shape (`effect_sprites.cut_grid`) and lays the six side by side as they stood in their places, so what moves
+  between drawings moves and what keeps still keeps still: `assets/effects/<effect>-a<N>.webp`, 5.5 MB in all, with
+  a picture of each strip in `build/effect-anims/`. The app plays a character's strip at eight drawings a second
+  where it has one, each character starting on a drawing of its own, and shows the still where it has none
+  (`EffectSprite`; balloons' first and confetti's second character are not drawn yet). The drawings themselves, a
+  quarter of a gigabyte, are not in the repository: they are in the folder Matt keeps them in.
+- **Mischief, a fifth sticker pack** (0.6.2): the dark-cute one, drawn for itself: our ghost with little horns and a
+  heart-tipped tail in black, purple and hot pink. Its sheet of sixteen (`art/stickers/mischief.webp`) is cut by the
+  same tool as the other packs (`python3 tool/sticker_packs.py mischief="<the sheet>"`). With five packs the
+  sheet's tabs slide, and the pack it opens on is brought into view.
 - **Picture messages that say why** (0.6.2; Matt, 2026-11-13: "It seems like picture sending is also not working at
   all almost like MMS isn't working"). Picture messages had never run anywhere, so they were run: on an emulator
   with a stand-in for a carrier ([tool/mms/](tool/mms/README.md)) a sticker and a 4000×3000 photo went out, both
@@ -225,11 +240,6 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   characters few and large, rising, falling or bursting as the effect does. What only the app can draw stays under
   them: the fireworks' and lasers' light, the spotlight, Echo's copies of the message's words. An effect with no
   pictures is drawn as before. 240 sprites, 2.6 MB.
-- **The effects' characters move** (not released; Matt: "Wire up the animated pack from the desktop"). Each ghost
-  character of each effect has six frames of a motion of its own (a wave, a sip, a wobble), cut from Matt's sheets by
-  `python3 tool/effect_frames.py ~/Desktop/Animated` into a strip, `assets/effects/<effect>-h<n>-f6.webp`. As a
-  character flies the app steps through its strip, eight frames a second. Two of the eighty had no sheet and keep
-  their still picture. 78 strips, 4.8 MB more in the app ([docs/effects.md](docs/effects.md)).
 - **Reactions under the message, and effects as reactions** (not released; Matt: "I want the message reactions to
   pop up under the message like imessage does", "I'd like to be able to react with full screen effects by pressing
   and holding on a message as well"). A long press on a bubble dims the page round it and brings up, beside it, the

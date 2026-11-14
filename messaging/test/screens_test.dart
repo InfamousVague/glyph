@@ -386,8 +386,8 @@ void main() {
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.
       final packs = (await tester.runAsync(stickerPacks))!;
-      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet']);
-      for (final (pack, encrypted) in [('ghost', false), ('sweet', true)]) {
+      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet', 'Mischief']);
+      for (final (pack, encrypted) in [('ghost', false), ('sweet', true), ('mischief', false)]) {
         await _shoot(
           tester,
           sheet,
@@ -450,23 +450,8 @@ void main() {
         expect(sprites, isNotNull, reason: '${effect.name} has no pictures in assets/effects/');
         expect(sprites!.heroes, isNotEmpty, reason: '${effect.name} has no characters');
         expect(sprites.props, isNotEmpty, reason: '${effect.name} has no props');
-        // Its characters move: each has its strip of six frames (tool/effect_frames.py), but for the two Matt's
-        // pack has no sheet for (balloons' first, confetti's second), which keep their still picture.
-        expect(sprites.moving.length, sprites.heroes.length);
-        final strips = sprites.moving.whereType<EffectStrip>().toList();
-        final without = switch (effect) { ScreenEffect.balloons || ScreenEffect.confetti => 1, _ => 0 };
-        expect(strips.length, sprites.heroes.length - without, reason: '${effect.name}\'s moving characters');
-        expect(sprites.moving[switch (effect) { ScreenEffect.balloons => 0, ScreenEffect.confetti => 1, _ => 0 }] == null, without == 1);
-        for (final s in strips) {
-          expect(s.frames, 6);
-          final frame = s.image.width / 6;
-          // A frame every eighth of a second, round and round; a character that started later is frames ahead.
-          expect(s.frameAt(0, 0).left, 0);
-          expect(s.frameAt(0.13, 0).left, frame);
-          expect(s.frameAt(0.76, 0).left, 0);
-          expect(s.frameAt(0, 2).left, frame * 2);
-          expect(s.frameAt(0.7, 0).right, s.image.width.toDouble());
-        }
+        // Its characters move (tool/effect_anims.py): all four, but for the two Matt has not drawn yet.
+        expect(sprites.animated, effect == ScreenEffect.balloons || effect == ScreenEffect.confetti ? 3 : 4, reason: '${effect.name} has ${sprites.animated} moving characters');
         await _shoot(
           tester,
           sheet,

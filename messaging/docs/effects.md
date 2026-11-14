@@ -40,20 +40,19 @@ With no folder named, the sheets already in `art/effects/` are cut again.
 
 ### The characters, moving
 
-Matt, 2026-11-13: "6 frame animations for each asset in a sprite sheet", then "Wire up the animated pack from the
-desktop". Each character has a sheet of its own, `<effect>_r1c<n> · <what it does>.png`: six frames of one motion
-(a wave, a sip, a wobble) in three columns and two rows on a clear background. `r1c<n>` is the character's place on
-the effect's still sheet, which is `<effect>-h<n>.webp`.
+Matt, 2026-11-13: "6 frame animations for each asset in a sprite sheet". Each character has a sheet of its own,
+`<effect>_r1c<n> · <what it does>.png`: one motion (a wave, a sip, a wobble) drawn six times, three across and two
+down, on a clear background. `r1c<n>` is the character's place on the effect's still sheet, which is cut as
+`<effect>-h<n>.webp`.
 
-    python3 tool/effect_frames.py ~/Desktop/Animated
+    python3 tool/effect_anims.py ~/Desktop/Animated
 
-makes each a strip, `assets/effects/<effect>-h<n>-f6.webp`: the six frames side by side, each cut to the one box
-that holds all six (so what moves is the drawing, not the cut), 256 px on the longer side.
-`build/effect-frames/<effect>.png` shows an effect's strips to look over. As a character flies, the app steps
-through its strip eight frames a second (`EffectStrip`, `EffectSprites.moving`), each character starting on a
-different frame, and rocks it less than a still one. A character with no sheet keeps its still picture: of the
-eighty, balloons' first and confetti's second had none in the pack. 78 strips, 4.8 MB. The sheets themselves (227
-MB) are not kept in the repository.
+finds each drawing by its shape (`effect_sprites.cut_grid`) and lays the six side by side as they stood in their
+places: `assets/effects/<effect>-a<n>.webp`, with a picture of each strip in `build/effect-anims/` to look over. As
+a character flies, the app shows the drawing its time has come to, eight a second (`EffectSprite`, `lib/effects.dart`),
+each character starting on a drawing of its own. A character with no sheet keeps its still: of the eighty, balloons'
+first and confetti's second are not drawn yet. 78 strips, 5.5 MB. The sheets themselves (a quarter of a gigabyte)
+are not kept in the repository.
 
 The app finds an effect's pictures by name (`EffectSprites.of`, `lib/effects.dart`), decodes them the first time the
 effect plays and keeps the last three effects' decoded. `_spritePlans` says how each effect's move: how many props
