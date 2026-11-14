@@ -3,6 +3,8 @@
 /// messaging"). What they show is lib/me/me.dart's; docs/me.md says what the relay server keeps of it.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -62,8 +64,8 @@ class _WakeState extends State<_Wake> {
 
 String meSummary(SettingsModel m) {
   final me = Me.instance;
-  if (me.links.isEmpty) return 'Link your accounts';
-  return [for (final n in networks) if (me.links.containsKey(n.id)) n.name].join(', ');
+  final have = [if (me.number != null) 'Number verified', for (final n in networks) if (me.links.containsKey(n.id)) n.name];
+  return have.isEmpty ? 'Link your accounts' : have.join(', ');
 }
 
 String friendsSummary(SettingsModel m) {
@@ -80,7 +82,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
     PaneSection(
       title: 'You',
       children: [
-        SettingRow(icon: _icon(Lucide.phone), label: 'Number', value: Text(m.ownNumber == null || m.ownNumber!.isEmpty ? 'Not known' : m.ownNumber!)),
+        _NumberRow(own: m.ownNumber),
         SettingRow(icon: _icon(Lucide.keyRound), label: 'Encryption key', value: Text(m.myKey ?? 'Made when first used')),
       ],
     ),
@@ -96,12 +98,12 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
     PaneSection(
       title: 'Being found',
       footer: const Text(
-          'Off, nobody is told anything. On, someone who already knows one of your linked handles, and asked to hear about it, is told that it is on Ghost Messaging. They are not given your number, your name or your other accounts. The relay server keeps a scrambled form of each linked handle, never the handle itself.'),
+          'Off, nobody is told anything. On, someone who already knows one of your linked handles, and asked to hear about it, is told that it is on Ghost Messaging. They are not given your number, your name or your other accounts, and nobody is told about your number, verified or not. The relay server keeps a scrambled form of each linked handle, never the handle itself.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.megaphone),
           label: 'Tell friends I\'m here',
-          hint: Text(me.links.isEmpty ? 'Link an account first.' : 'People watching for ${me.links.length == 1 ? 'your account' : 'one of your accounts'} hear that you joined.'),
+          hint: Text(me.accounts.isEmpty ? 'Link an account first.' : 'People watching for ${me.accounts.length == 1 ? 'your account' : 'one of your accounts'} hear that you joined.'),
           control: GlacierSwitch(checked: me.listed, onCheckedChange: me.setListed, ariaLabel: 'Tell friends I\'m here', disabled: Sms.remote),
         ),
       ],
@@ -112,7 +114,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.trash2),
           label: 'Remove everything about me',
-          hint: const Text('Unlinks every account and clears the people you watch for, on this phone and on the relay server.'),
+          hint: const Text('Unlinks every account and your number, and clears the people you watch for, on this phone and on the relay server.'),
           disabled: !me.ready || (me.links.isEmpty && me.watch.isEmpty && !me.listed),
           onPress: () => showChoices(context, title: 'Unlink every account and clear your watch list? Friends will no longer be told you\'re here.', choices: [
             Choice('Remove everything', Lucide.trash2, () async {
@@ -128,6 +130,223 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
       ],
     ),
   ];
+}
+
+/// This phone's number on the Me page: what the phone says it is, and whether a code texted to it has shown it to
+/// be (Matt, 2026-11-14: "send the text code to a number to verify so it can't be spoofed").
+class _NumberRow extends StatelessWidget implements PaneRow {
+  const _NumberRow({required this.own});
+
+  /// What Android, or the person, says this phone's number is.
+  final String? own;
+
+  @override
+  Widget build(BuildContext context) {
+    final me = Me.instance;
+    final icon = _icon(Lucide.phone);
+    final verified = me.number;
+    if (verified != null) {
+      final shown = showNumber(verified);
+      return SettingRow(
+        icon: icon,
+        label: 'Number',
+        labelAfter: const Padding(padding: EdgeInsets.only(left: 8), child: GlacierPill(size: GlacierPillSize.sm, child: Text('Verified'))),
+        value: Text(shown),
+        onPress: () => showChoices(context, title: '$shown is verified: a code texted to it reached this phone.', choices: [
+          Choice('Copy number', Lucide.copy, () {
+            Clipboard.setData(ClipboardData(text: verified));
+            toast(context, 'Copied');
+          }),
+          Choice('Remove verification', Lucide.unlink, () async {
+            await me.unlink('phone');
+            if (context.mounted) toast(context, 'Number no longer verified');
+          }, danger: true),
+        ]),
+      );
+    }
+    final shown = Text(own == null || own!.isEmpty ? 'Not known' : own!);
+    if (Sms.remote || !me.ready) return SettingRow(icon: icon, label: 'Number', value: shown);
+    if (!me.texts) return SettingRow(icon: icon, label: 'Number', value: shown, hint: const Text('Verifying a number by text isn\'t set up on the relay server yet.'));
+    return SettingRow(icon: icon, label: 'Number', value: shown, hint: const Text('Verify it with a code sent by text'), onPress: () => push<void>(context, (_) => NumberScreen(own: own)));
+  }
+}
+
+/// Showing a number is this phone's: the number, a code texted to it by the relay server's texting service, and
+/// the code back. The code is read from the text as it arrives, so most of the time nothing is typed.
+class NumberScreen extends StatefulWidget {
+  const NumberScreen({super.key, this.own});
+  final String? own;
+
+  @override
+  State<NumberScreen> createState() => _NumberScreenState();
+}
+
+class _NumberScreenState extends State<NumberScreen> {
+  late final TextEditingController _number;
+  final _code = TextEditingController();
+  StreamSubscription<int>? _arrivals;
+
+  /// The number a code was texted to, and when it was asked for.
+  String? _sentTo;
+  DateTime? _askedAt;
+
+  /// A code that arrived before the server said it was sent: a text can be the quicker of the two.
+  String? _early;
+  String? _problem;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final own = tidyNumber(widget.own ?? '');
+    _number = TextEditingController(text: numberFits(own) ? showNumber(own) : '');
+    _arrivals = Sms.instance.changes.stream.listen(_arrived);
+  }
+
+  @override
+  void dispose() {
+    _arrivals?.cancel();
+    _number.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  /// A conversation changed: where its newest text is the code asked for, the code is put in and checked.
+  Future<void> _arrived(int thread) async {
+    final since = _askedAt;
+    if (since == null || thread < 0) return;
+    try {
+      final newest = (await Sms.instance.messages(thread, limit: 3)).where((m) => !m.outgoing && m.date.isAfter(since.subtract(const Duration(seconds: 30))));
+      for (final m in newest) {
+        final code = ownCodeIn(m.body);
+        if (code == null || !mounted) continue;
+        if (_sentTo == null || _busy) {
+          _early = code;
+        } else {
+          _code.text = code;
+          await _check();
+        }
+        return;
+      }
+    } catch (_) {
+      // Not read: the code can still be typed.
+    }
+  }
+
+  Future<void> _send() async {
+    final number = tidyNumber(_number.text);
+    if (!numberFits(number)) {
+      setState(() => _problem = 'That doesn\'t look like a whole phone number. Write it with its country code, like +1 555 010 0199.');
+      return;
+    }
+    setState(() { _busy = true; _problem = null; });
+    _askedAt = DateTime.now();
+    _early = null;
+    try {
+      final to = await Me.instance.textCode(number);
+      if (mounted) setState(() { _sentTo = to; _code.clear(); });
+    } catch (e) {
+      if (mounted) setState(() => _problem = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    final early = _early;
+    _early = null;
+    if (early != null && mounted && _sentTo != null) {
+      _code.text = early;
+      await _check();
+    }
+  }
+
+  Future<void> _check() async {
+    final number = _sentTo;
+    final code = _code.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (number == null) return;
+    if (code.length < 4) {
+      setState(() => _problem = 'Type the code from the text.');
+      return;
+    }
+    setState(() { _busy = true; _problem = null; });
+    try {
+      await Me.instance.tryCode(number, code);
+      if (!mounted) return;
+      toast(context, '${showNumber(number)} is verified');
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (mounted) setState(() => _problem = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sent = _sentTo;
+    final problem = _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30')));
+    return GlacierScope(
+      attrs: const {'hue': 'green'},
+      child: GhostPage(
+        title: 'Verify your number',
+        body: SettingsPaneScope(
+          finder: SettingsFinder(),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              PaneSection(
+                title: 'Your number',
+                description: const Text('A code is texted to this number, and coming back it shows the number is this phone\'s. The relay server and the texting service it uses see the number. Nobody else is told it.'),
+                footer: sent == null ? problem : null,
+                children: [
+                  SettingRowBox(
+                    child: GlacierInput(
+                      controller: _number,
+                      type: GlacierInputType.tel,
+                      placeholder: '+1 555 010 0199',
+                      ariaLabel: 'Your phone number',
+                      autoFocus: _number.text.isEmpty,
+                      autoCorrect: false,
+                      size: GlacierFieldSize.md,
+                      onChange: (_) {
+                        if (_sentTo != null) setState(() { _sentTo = null; _askedAt = null; _problem = null; });
+                      },
+                      onSubmitted: (_) => _send(),
+                    ),
+                  ),
+                  if (sent == null) SettingRow(icon: _icon(Lucide.messageSquare), label: _busy ? 'Sending…' : 'Text me a code', disabled: _busy, onPress: _send),
+                ],
+              ),
+              if (sent != null) ...[
+                SizedBox(height: t.space(6)),
+                PaneSection(
+                  title: 'The code',
+                  description: Text('Texted to ${showNumber(sent)}. It is read from the text as it arrives; you can type it too. It lasts ten minutes.'),
+                  footer: problem,
+                  children: [
+                    SettingRowBox(
+                      child: GlacierInput(
+                        controller: _code,
+                        type: GlacierInputType.number,
+                        placeholder: '482913',
+                        ariaLabel: 'The code from the text',
+                        autoCorrect: false,
+                        maxLength: 10,
+                        size: GlacierFieldSize.md,
+                        onSubmitted: (_) => _check(),
+                      ),
+                    ),
+                    SettingRow(icon: _icon(Lucide.check), label: _busy ? 'Checking…' : 'Check the code', disabled: _busy, onPress: _check),
+                    SettingRow(icon: _icon(Lucide.refreshCw), label: 'Send it again', disabled: _busy, onPress: _send),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// One network on the Me page: linked with its handle, or how it is linked.
