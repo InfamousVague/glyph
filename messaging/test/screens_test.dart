@@ -17,6 +17,7 @@ import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/setup.dart';
+import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
 import 'package:ghost_messaging/ui/update_banner.dart';
@@ -606,6 +607,127 @@ void main() {
           dark: dark,
         );
       }
+    }
+  });
+
+  // The app's frame (lib/ui/shell.dart): the list beside what is opened from it where the window is wide, under it
+  // where it is narrow, and the same pages kept as the window changes. Pictures 11-frame-*.
+  testWidgets('the frame, wide and narrow', (tester) async {
+    // A folding phone opened out, then its cover.
+    const open = Size(750 * 2.0, 832 * 2.0);
+    const cover = Size(412 * 2.0, 892 * 2.0);
+    tester.view.physicalSize = open;
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    Finder seen(Finder f) => f.hitTestable();
+    Finder icon(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
+    for (final dark in [false, true]) {
+      tester.view.physicalSize = open;
+      await _shoot(tester, sheet, const AppShell(), '11-frame-wide', dark: dark);
+      final side = AppShell.sideWidth(750);
+      // Wide: the list down the side with New message and Settings in its header, and the pane saying to choose.
+      expect(find.text('Choose a conversation'), findsOneWidget);
+      expect(icon('New message'), findsWidgets);
+      expect(icon('Settings'), findsWidgets);
+      expect(tester.getTopRight(find.byType(ConversationsScreen)).dx, side);
+      // A conversation opens beside the list, which stays, with no way back drawn: there is nowhere to go back to.
+      await tester.tap(find.text('Maya Chen'));
+      await _settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await _shootAgain(tester, '11-frame-wide-thread', dark: dark);
+      expect(find.byType(ThreadScreen), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(ThreadScreen)).dx, side + 1);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      expect(icon('Back'), findsNothing);
+      expect(find.text('Choose a conversation'), findsNothing);
+      // A message held: what it brings up is beside its bubble, in the pane, not the list's width further over.
+      final held = find.text('Movie night is still on for tonight right?');
+      await tester.longPress(held);
+      await _shootAgain(tester, '11-frame-wide-held', dark: dark);
+      final copy = find.text('Copy text');
+      expect(copy, findsOneWidget);
+      final words = tester.getRect(held.first);
+      expect(tester.getTopLeft(copy).dx, inInclusiveRange(words.left, words.right), reason: 'the menu is under the bubble it is for');
+      await tester.tapAt(Offset(side + 20, 400));
+      await _settle(tester);
+      // Something half written in it.
+      await tester.enterText(find.byType(EditableText).last, 'On my way');
+      await _settle(tester);
+      // The phone is folded: the conversation is still open, with what was written, and now covers the list and
+      // has its way back.
+      tester.view.physicalSize = cover;
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-narrow-thread', dark: dark);
+      expect(find.text('On my way'), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(ThreadScreen)).dx, 0);
+      expect(seen(find.text('Dad')), findsNothing);
+      expect(icon('Back'), findsWidgets);
+      // And opened out again: beside the list once more, still with what was written.
+      tester.view.physicalSize = open;
+      await _settle(tester);
+      expect(find.text('On my way'), findsOneWidget);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      expect(icon('Back'), findsNothing);
+      tester.view.physicalSize = cover;
+      await _settle(tester);
+      // Its way back closes it: the list alone.
+      await tester.tap(icon('Back').first);
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-narrow', dark: dark);
+      expect(find.byType(ThreadScreen), findsNothing);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      expect(find.text('Choose a conversation'), findsNothing);
+      // New message, from the list's header, slides over the list; Android's back closes it.
+      await tester.tap(icon('New message').first);
+      await _settle(tester);
+      expect(find.byType(ComposeScreen), findsOneWidget);
+      expect(seen(find.text('Dad')), findsNothing);
+      await tester.binding.handlePopRoute();
+      await _settle(tester);
+      expect(find.byType(ComposeScreen), findsNothing);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      // Archived opens in the list's place; a conversation from it opens over it; back closes the conversation
+      // first, then leaves Archived.
+      await tester.drag(find.text('Riley Fox'), const Offset(0, -700));
+      await _settle(tester);
+      await tester.tap(find.textContaining('Archived ('));
+      await _settle(tester);
+      expect(seen(find.text('Old Thread')), findsOneWidget);
+      await tester.tap(find.text('Old Thread'));
+      await _settle(tester);
+      expect(find.byType(ThreadScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await _settle(tester);
+      expect(find.byType(ThreadScreen), findsNothing);
+      expect(seen(find.text('Old Thread')), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await _settle(tester);
+      expect(seen(find.text('Old Thread')), findsNothing);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      // Wide again: Settings opens beside the list with no way back, and a section of it opens over it with one.
+      tester.view.physicalSize = open;
+      await _settle(tester);
+      await tester.tap(icon('Settings').first);
+      await _settle(tester);
+      await _shootAgain(tester, '11-frame-wide-settings', dark: dark);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      expect(icon('Back'), findsNothing);
+      await tester.tap(find.text('Appearance').first);
+      await _settle(tester);
+      expect(seen(icon('Back')), findsWidgets);
+      expect(seen(find.text('Dad')), findsOneWidget);
+      // Choosing a conversation puts it in Settings' place.
+      await tester.tap(find.text('Dad'));
+      await _settle(tester);
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.byType(ThreadScreen), findsOneWidget);
+      // The next round starts with a frame of its own.
+      await tester.pumpWidget(const SizedBox());
     }
   });
 }

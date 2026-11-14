@@ -40,13 +40,14 @@ class Conversation {
   final bool pinned;
   final bool muted;
 
-  /// This conversation with its archive or its pin changed: what the list shows at once, before Android answers.
-  Conversation copyWith({bool? archived, bool? pinned}) => Conversation(
+  /// This conversation with its archive or its pin changed, or read: what the list shows at once, before Android
+  /// answers.
+  Conversation copyWith({bool? archived, bool? pinned, bool? unread}) => Conversation(
         id: id,
         date: date,
         people: people,
         snippet: snippet,
-        unread: unread,
+        unread: unread ?? this.unread,
         error: error,
         archived: archived ?? this.archived,
         pinned: pinned ?? this.pinned,

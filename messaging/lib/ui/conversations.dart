@@ -16,6 +16,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'compose.dart';
 import 'settings.dart';
+import 'shell.dart';
 import 'swipe_actions.dart';
 import 'thread.dart';
 
@@ -28,6 +29,11 @@ import 'thread.dart';
 /// Several conversations can be chosen at once and deleted or archived together (Matt, the same day: "allow selecting
 /// multiple convos to delete them"): a conversation's long press has Select, then a tap adds or takes away, and the
 /// bar at the top counts them.
+///
+/// It is the list of the app's frame (lib/ui/shell.dart), on a phone and on a computer: its header holds New message
+/// and Settings, as the Mac's list first had them (Matt, 2026-11-14: "the mobile app should gain the nav from
+/// desktop"), what a row opens goes to the pane beside the list where there is one, and the conversation open there
+/// is marked. Shown with no frame round it (a test of this screen alone) it opens pages over itself.
 class ConversationsScreen extends StatefulWidget {
   const ConversationsScreen({super.key, this.archived = false});
 
@@ -74,9 +80,21 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   bool get _selecting => _selected.isNotEmpty;
 
+  /// The frame this list is in (lib/ui/shell.dart), which opens what the list asks for in its pane; null where the
+  /// list is shown alone.
+  AppShellState? _shell;
+
+  void _back() {
+    _look();
+    _load();
+  }
+
   @override
   void initState() {
     super.initState();
+    // What was open in the pane has closed, or given way to something else: read again, as on coming back to the
+    // list from a page.
+    _shell = AppShell.maybeOf(context)?..closed.addListener(_back);
     _load();
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
@@ -88,6 +106,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   void dispose() {
+    _shell?.closed.removeListener(_back);
     _changes?.cancel();
     _debounce?.cancel();
     _slowTimer?.cancel();
@@ -209,7 +228,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   Future<void> _open(Conversation c) async {
+    final shell = _shell;
+    if (shell != null) {
+      shell.openThread(c.id, c.people);
+      return;
+    }
     await push<void>(context, (_) => ThreadScreen(thread: c.id, people: c.people));
+    _load();
+  }
+
+  Future<void> _compose() async {
+    final shell = _shell;
+    if (shell != null) return shell.compose();
+    await push<void>(context, (_) => const ComposeScreen());
     _load();
   }
 
@@ -348,6 +379,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   void _settings([String? section]) async {
+    final shell = _shell;
+    if (shell != null) return shell.settings(section);
     await push<void>(context, (_) => section == null ? const SettingsScreen() : SettingsSectionScreen(section));
     _look();
     _load();
@@ -365,6 +398,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final app = AppState.of(context);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
     final notice = !widget.archived && _query.isEmpty && !_selecting && _arriving.rcsLikely && app.flag('rcs_notice');
+    // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
+    final open = AppShell.threadOf(context);
+    final beside = AppShell.wideOf(context) ? open : null;
+    final foot = AppShell.footOf(context);
 
     Widget body;
     if (_all == null) {
@@ -392,7 +429,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ? 'Conversations you archive wait here.'
                   : rcs
                       ? 'There are no texts in Android\'s store. Chats that were RCS in ${_arriving.app} stay in that app, where no other app can read them: they are not deleted.'
-                      : 'Start one with the button below.'),
+                      : 'Start one with the new message button at the top.'),
           action: rcs ? SettingsEmptyAction('What to do', () => _settings('android')) : null,
         ),
       ]);
@@ -408,7 +445,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           }
           final at = i - extras;
           if (at < shown.length) {
-            final c = shown[at];
+            // The one that is open is being read: its row does not say unread, however it came to be opened (a
+            // tap here, a notification, another app's "text this number").
+            final held = shown[at];
+            final c = held.id == open && held.unread ? held.copyWith(unread: false) : held;
             // Dragged left it archives, further it deletes (asked first), right it pins: lib/ui/swipe_actions.dart.
             return SwipeActions(
               key: ValueKey('swipe-${c.id}'),
@@ -423,7 +463,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               child: ConversationRow(
                 conversation: c,
                 selecting: _selecting,
-                selected: _selected.contains(c.id),
+                selected: _selecting ? _selected.contains(c.id) : c.id == beside,
                 onPress: () => _selecting ? _toggle(c) : _open(c),
                 onLongPress: () => _selecting ? _toggle(c) : _menu(c),
               ),
@@ -451,7 +491,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
             );
           }
-          return SizedBox(height: t.lenOf('6rem'));
+          // Clear of the bar at the foot of the phone's screen.
+          return SizedBox(height: MediaQuery.paddingOf(context).bottom + t.space(4));
         },
       );
     }
@@ -473,8 +514,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           IconTap(icon: Lucide.checkCheck, label: 'Select all', onPressed: () => setState(() => _selected.addAll(shown.map((c) => c.id)))),
           IconTap(icon: widget.archived ? Lucide.archiveRestore : Lucide.archive, label: widget.archived ? 'Unarchive' : 'Archive', onPressed: _archiveSelected),
           IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
-        ] else if (!widget.archived)
+        ] else if (!widget.archived) ...[
+          // In the header, as the Mac's list has them, where a round button used to float over the list's foot.
+          IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
           IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
+        ],
       ],
       body: Stack(
         children: [
@@ -498,17 +542,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 child: _slow && _all != null ? const GlacierProgressBar(indeterminate: true, ariaLabel: 'Loading your conversations') : null,
               ),
               Expanded(child: body),
+              // What the frame keeps under the list: on a computer, how the phone is connected.
+              if (foot != null)
+                DecoratedBox(
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule')))),
+                  child: Padding(padding: EdgeInsets.symmetric(horizontal: gutter, vertical: t.space(3)), child: foot),
+                ),
             ],
           ),
-          if (!widget.archived && !_selecting)
-            Positioned(
-              right: gutter,
-              bottom: MediaQuery.paddingOf(context).bottom + gutter,
-              child: _ComposeButton(onPressed: () async {
-                await push<void>(context, (_) => const ComposeScreen());
-                _load();
-              }),
-            ),
         ],
       ),
     );
@@ -620,6 +661,8 @@ class ConversationRow extends StatelessWidget {
     final face = t.lenOf('3rem');
     return GestureDetector(
       onLongPress: onLongPress,
+      // A press with the other button, as a computer's lists have it, where a phone has a long press.
+      onSecondaryTap: onLongPress,
       child: GlacierPressable(
         onPressed: onPress,
         semanticLabel: selecting ? '${c.title}, ${selected ? 'selected' : 'not selected'}' : null,
@@ -702,39 +745,6 @@ class ConversationRow extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The round button that starts a new message.
-class _ComposeButton extends StatelessWidget {
-  const _ComposeButton({required this.onPressed});
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return GlacierPressable(
-      onPressed: onPressed,
-      semanticLabel: 'New message',
-      builder: (context, state) => AnimatedScale(
-        scale: state.pressed ? 0.94 : 1,
-        duration: const Duration(milliseconds: 120),
-        child: Container(
-          height: t.lenOf('3.5rem'),
-          padding: EdgeInsets.symmetric(horizontal: t.space(5)),
-          decoration: BoxDecoration(
-            color: t.color('app-ink'),
-            borderRadius: BorderRadius.circular(t.lenOf('1.75rem')),
-            boxShadow: t.shadowOf('0 4px 14px rgba(0,0,0,0.12)'),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            AppIcon(Lucide.messageSquarePlus, size: 20, color: t.color('app-paper')),
-            SizedBox(width: t.space(2)),
-            Text('New message', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-paper'))),
-          ]),
         ),
       ),
     );
