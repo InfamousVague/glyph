@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/ui/me.dart';
+import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/friends/friends.dart';
@@ -1100,6 +1101,33 @@ void main() {
       await _settle(tester);
       expect(_mayaFriend, '');
       expect(find.text('Add friend'), findsOneWidget);
+    }
+  });
+
+  testWidgets('the bubble colour chosen everywhere is the app\'s accent', (tester) async {
+    // Matt, 2026-11-14: "make the bubble color the accent color for the app so the send button, segmented toggles,
+    // etc all get the same color as the bubbles if set globally and only settings inside a chat soley change the
+    // bubble color". Blue bubbles: Send, the list's chosen tab and the page shown in the pill are blue too.
+    tester.view.physicalSize = const Size(750 * 2.0, 832 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final accents = (await tester.runAsync(AccentSheets.load))!;
+    installSettingsStyles(accents.base);
+    for (final dark in [false, true]) {
+      final sheet = accents.of(AppState()..setBubble('blue'));
+      await _shoot(tester, sheet, const AppShell(), '16-accent-blue', dark: dark, prefs: const {'bubble': 'blue'});
+      await tester.tap(find.text('Maya Chen').first);
+      await _settle(tester);
+      await tester.enterText(find.byType(EditableText).last, 'On my way');
+      await _shootAgain(tester, '16-accent-blue', dark: dark);
+      final send = find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send');
+      expect(send, findsOneWidget);
+      final disc = find.descendant(of: send, matching: find.byType(Container)).evaluate().map((e) => (e.widget as Container).decoration).whereType<BoxDecoration>().map((d) => d.color?.toARGB32()).toList();
+      expect(disc, contains(0xFF0A84FF), reason: 'Send wears the bubble colour');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 6));
     }
   });
 

@@ -187,7 +187,8 @@ class _RingState extends State<_Ring> {
     final ring = t.len('app-ring');
     final size = shown ? 18.0 : t.lenOf('1.15rem');
     final stroke = shown ? 2.2 : 2.0;
-    final ink = shown ? t.color('app-paper') : t.color('glacier-text');
+    // The page shown wears the app's accent (lib/accent.dart).
+    final ink = shown ? t.color('app-on-accent') : t.color('glacier-text');
     return HoverTip(
       message: item.label,
       end: widget.upright,
@@ -213,7 +214,7 @@ class _RingState extends State<_Ring> {
                       width: ring,
                       height: ring,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: t.color('app-ink'), shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: t.color('app-accent'), shape: BoxShape.circle),
                       child: mark,
                     ),
                   ),
