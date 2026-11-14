@@ -19,8 +19,8 @@
  *   https://ghost-sms.com/ghost-messaging-mac.zip  the signed app, zipped by ditto
  *
  * beside the phone app's apk.json, in /opt/ghost-sms-release. ghost-sms.com's Caddy block serves that folder's
- * files by name (tool/deploy-site.mjs): the two above were added to it with this tool, so
- * `node tool/deploy-site.mjs --caddy` has to run once more before the first Mac release answers.
+ * files by name (tool/deploy-site.mjs): the two above were added to it with this tool, and the block on the box
+ * has named them since 2026-11-14 (it went up again with the relay), so the first Mac release needs nothing first.
  *
  * THE NUMBER (`CFBundleVersion`, `versionCode`) is what newer is asked of, and an installed copy never steps back.
  * It is the minutes since 2026 began, so it rises by itself and needs nothing kept; one above the live release's
@@ -298,7 +298,7 @@ const said = res.ok ? await res.json().catch(() => null) : null;
 if (!keepConnection) box.close();
 if (said?.sha256 !== info.sha256) {
   say(`x ${HOST_URL}/${FEED} answered ${res.status}, not this release. The release is in ${RELEASE} on the box.`);
-  say(`  ghost-sms.com's Caddy block has to name /${FEED} and /${ZIP}: node tool/deploy-site.mjs --caddy`);
+  say(`  ghost-sms.com's Caddy block should name /${FEED} and /${ZIP} (it has since 2026-11-14). If it no longer does: node tool/deploy-site.mjs --caddy`);
   process.exit(1);
 }
 const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' });
