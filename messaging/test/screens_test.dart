@@ -1343,8 +1343,13 @@ void main() {
       final first = tester.getRect(find.byType(GlacierMenuItem).first), settingsRing = tester.getRect(ring('settings'));
       expect(first.width, lessThan(250));
       expect(first.right, lessThanOrEqualTo(settingsRing.left));
-      expect(first.right, greaterThan(settingsRing.left - 24));
+      // Beside its ring, a step past the pill's own edge: near, not across the pane.
+      expect(first.right, greaterThan(settingsRing.left - 36));
       expect(tester.getRect(find.byType(GlacierMenuLabel).first).top, lessThan(settingsRing.top));
+      // It stands clear of the pill, a gap between the two: nothing of it lies on the bar or under it (Matt,
+      // 2026-11-14: "the context menu is rendering behind the navbar", of a menu whose edge lay on the pill's).
+      final pillLeft = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first).left;
+      expect(first.right, lessThanOrEqualTo(pillLeft - 4), reason: 'the menu ends short of the pill');
       await choose('Blocked numbers');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');
