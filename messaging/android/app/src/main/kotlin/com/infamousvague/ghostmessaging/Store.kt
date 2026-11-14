@@ -487,6 +487,21 @@ class Store(private val context: Context) {
         return out
     }
 
+    /** The parts of the picture message [id] with what is in them, as they would be sent: for sending it again. */
+    fun mmsParts(id: Long): List<Pdu.Part> {
+        val out = ArrayList<Pdu.Part>()
+        resolver.query(Uri.parse("content://mms/part"), arrayOf("_id", "ct", "text", "name", "cl", "cid", "_data"), "mid = ?", arrayOf(id.toString()), "seq ASC")?.use { c ->
+            while (c.moveToNext()) {
+                val type = (c.getString(1) ?: "").lowercase()
+                if (type.isEmpty()) continue
+                val data = if (type == "text/plain" && c.getString(2) != null) c.getString(2).toByteArray(Charsets.UTF_8) else (readPart(c.getLong(0)) ?: continue)
+                val place = c.getString(4) ?: c.getString(3)
+                out += Pdu.Part(type, data, name = c.getString(3) ?: place, contentLocation = place, contentId = c.getString(5)?.trim('<', '>'))
+            }
+        }
+        return out
+    }
+
     fun readPart(partId: Long): ByteArray? = try {
         resolver.openInputStream(Uri.parse("content://mms/part/$partId"))?.use { it.readBytes() }
     } catch (_: Exception) { null }

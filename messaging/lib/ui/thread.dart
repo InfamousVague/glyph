@@ -265,8 +265,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       await Sms.instance.send(to, body, attachments: files);
     } catch (e) {
       if (mounted) {
+        // What was to be sent is put back, pictures too: nothing went.
         _text.text = body;
-        toast(context, 'Couldn\'t send: $e', tone: GlacierToastTone.danger);
+        setState(() => _attachments.addAll(files));
+        toast(context, 'Couldn\'t send: ${_said(e)}', tone: GlacierToastTone.danger);
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -416,14 +418,23 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   Future<void> _retry(Message m, {String? body}) async {
-    await Sms.instance.deleteMessage(m);
     try {
-      await Sms.instance.send(_people.map((p) => p.address).toList(), body ?? m.body);
+      if (m.kind == 'mms') {
+        // A picture message goes again with its own pictures, read back from Android's store. Sending its words
+        // alone, as this did, lost the picture of every picture message that was tried again.
+        await Sms.instance.resendMms(m.id, body: body);
+      } else {
+        await Sms.instance.deleteMessage(m);
+        await Sms.instance.send(_people.map((p) => p.address).toList(), body ?? m.body);
+      }
     } catch (e) {
-      if (mounted) toast(context, 'Couldn\'t send: $e', tone: GlacierToastTone.danger);
+      if (mounted) toast(context, 'Couldn\'t send: ${_said(e)}', tone: GlacierToastTone.danger);
     }
     _load();
   }
+
+  /// What went wrong, as the phone put it, without the wrapping a channel's error comes in.
+  static String _said(Object e) => e is PlatformException ? (e.message ?? e.code) : '$e';
 
   /// The conversation's own settings (lib/ui/chat_settings.dart): its people, its background and bubbles, its
   /// encryption, whether it is muted or pinned. From the cog at the top, and from a tap on the name.
@@ -991,7 +1002,9 @@ class _Bubble extends StatelessWidget {
         else if (a.isImage)
           Padding(
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
-            child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth),
+            // A picture that did not go: a tap sends it again, where it would have opened the picture. Its own tap
+            // used to win, so "Tap to try again" did nothing on a message that was a picture and no words.
+            child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth, onTap: failed ? onTapFailed : null),
           )
         else
           _Pill(text: a.name ?? a.type, ground: ground, ink: ink),
@@ -1089,8 +1102,12 @@ class _Bubble extends StatelessWidget {
               ),
             ),
           if (status != null)
-            Padding(
-              padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2)),
+            GestureDetector(
+              // "Tap to try again" is said here, so here is where a tap is taken.
+              behavior: HitTestBehavior.opaque,
+              onTap: failed ? onTapFailed : null,
+              child: Padding(
+              padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2), bottom: failed ? 6 : 0),
               child: OnBackground(busy: busy, child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: failed ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
                 if (failed) ...[Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.circleAlert, size: 12, color: t.colorOf('#dd3a30'))), const SizedBox(width: 4)],
                 // It travelled sealed, and was opened here.
@@ -1112,6 +1129,7 @@ class _Bubble extends StatelessWidget {
                   ),
                 ],
               ])),
+            ),
             ),
         ],
       ),
@@ -1156,10 +1174,13 @@ class _Pill extends StatelessWidget {
 }
 
 class _Picture extends StatelessWidget {
-  const _Picture({required this.id, required this.radius, required this.maxWidth});
+  const _Picture({required this.id, required this.radius, required this.maxWidth, this.onTap});
   final int id;
   final BorderRadius radius;
   final double maxWidth;
+
+  /// What a tap does in place of opening the picture: sending a message that failed again.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1172,7 +1193,7 @@ class _Picture extends StatelessWidget {
           return Container(width: maxWidth * 0.7, height: maxWidth * 0.7, decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: radius));
         }
         return GestureDetector(
-          onTap: () => Navigator.of(context).push(PageRouteBuilder<void>(
+          onTap: onTap ?? () => Navigator.of(context).push(PageRouteBuilder<void>(
             opaque: false,
             barrierColor: const Color(0xF2000000),
             pageBuilder: (context, _, _) => _Viewer(bytes: bytes),

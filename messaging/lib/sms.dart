@@ -430,6 +430,26 @@ class Sms {
   Future<int> sendSticker(List<String> addresses, Uint8List picture, String name) async =>
       ((await _calls.invokeMethod('sendSticker', {'addresses': addresses, 'picture': picture, 'name': name})) as num).toInt();
 
+  /// Sends a picture message that did not go again, with its own pictures (android Sender.resendMms). [body]: other
+  /// words for it, where it was edited first.
+  Future<void> resendMms(int id, {String? body}) => _calls.invokeMethod('resendMms', {'id': id, 'body': body});
+
+  /// A line for the app's own log (Settings › Developer; android DevLog.kt). Never a message's words.
+  void devLog(String tag, String line) {
+    _calls.invokeMethod('devLog', {'tag': tag, 'line': line}).catchError((_) {});
+  }
+
+  /// The log's lines, the newest last, and the whole report as text.
+  Future<(List<String>, String)> devLogRead(String version) async {
+    final m = (await _calls.invokeMethod<Map>('devLogRead', {'version': version})) ?? const {};
+    return ([for (final l in (m['lines'] as List?) ?? const []) l as String], (m['report'] as String?) ?? '');
+  }
+
+  Future<void> devLogClear() => _calls.invokeMethod('devLogClear');
+
+  /// Hands [text] to Android's share sheet: an email, a note, another app.
+  Future<void> shareText(String subject, String text) => _calls.invokeMethod('shareText', {'subject': subject, 'text': text});
+
   /// Whether picture messages can go from this phone, and how the last ones went.
   Future<MmsStatus> mmsStatus() async => MmsStatus.from((await _calls.invokeMethod<Map>('mmsStatus')) ?? const {});
 

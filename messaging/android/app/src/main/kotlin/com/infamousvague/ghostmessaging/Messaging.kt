@@ -132,19 +132,73 @@ object Sender {
         }
     }
 
-    private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>, ready: List<Pdu.Part> = emptyList()) {
+    /**
+     * Sends a picture message that did not go, again (Matt, 2026-11-13: "its specifically media messages like
+     * pictures"): its own pictures and words, read back from where Android keeps them. Trying again used to send
+     * the words alone as a text and delete the message, so a picture that failed once was gone.
+     *
+     * Where the carrier refused it (not where the phone had no connection), its pictures go smaller this time: under
+     * 300 KB in all, which every carrier takes. [newBody]: other words, where it was edited before being sent again.
+     */
+    fun resendMms(context: Context, id: Long, newBody: String? = null): Long {
+        val store = Store(context)
+        val row = Uri.parse("content://mms/$id")
+        val thread = store.threadOfMms(row)
+        val to = store.threadPeople(thread).mapNotNull { it["address"] as String? }.filter { it.isNotBlank() }
+        require(to.isNotEmpty()) { "No one to send to" }
+        val stored = store.mmsParts(id)
+        val words = newBody ?: stored.filter { it.isText }.joinToString("\n") { String(it.data, Charsets.UTF_8) }
+        var pictures = stored.filter { !it.isText && it.contentType != "application/smil" }
+        val smaller = MmsDiag.wantsSmaller(context, id)
+        if (smaller) {
+            val photos = pictures.count { it.contentType.startsWith("image/") && !Stickers.isSticker(it.name) }.coerceAtLeast(1)
+            pictures = pictures.map { part ->
+                if (!part.contentType.startsWith("image/") || Stickers.isSticker(part.name)) part
+                else try {
+                    val bitmap = BitmapFactory.decodeByteArray(part.data, 0, part.data.size) ?: throw IllegalStateException("it couldn't be decoded")
+                    val (bytes, how) = shrink(bitmap, SMALL / photos)
+                    DevLog.add(context, "mms", "a picture made smaller to send again: ${part.data.size / 1024} KB -> $how")
+                    Pdu.Part("image/jpeg", bytes, name = part.name, contentLocation = part.contentLocation, contentId = part.contentId)
+                } catch (e: Throwable) { part }
+            }
+        }
+        store.deleteMessage("mms", id)
+        MmsDiag.cleared(context, row)
+        sendMms(context, store, thread, to, words, emptyList(), pictures, again = if (smaller) "again, smaller" else "again")
+        Bus.changed(thread)
+        return thread
+    }
+
+    /** What every carrier takes for a whole picture message, less room for its wrapping. */
+    private const val SMALL = 280 * 1024
+
+    /** The most a picture message is made, whatever a carrier's settings say: larger ones often do not cross to another carrier. */
+    private const val LARGEST = 1024 * 1024
+
+    private fun sendMms(context: Context, store: Store, thread: Long, to: List<String>, body: String, attachments: List<String>, ready: List<Pdu.Part> = emptyList(), again: String? = null) {
         val sub = defaultSub()
         val sms = smsManager(context, sub)
         val config = try { sms.carrierConfigValues } catch (_: Exception) { Bundle() }
-        val maxBytes = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, 300 * 1024).coerceAtLeast(100 * 1024)
-        // [ready]: parts that go as they are (a sticker, already a PNG that fits).
+        val maxBytes = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, 300 * 1024).coerceIn(100 * 1024, LARGEST)
+        // [ready]: parts that go as they are (a sticker, already a PNG that fits; a message's own, sent again).
         val parts = ArrayList<Pdu.Part>(ready)
-        val budget = (maxBytes - 8 * 1024 - body.toByteArray().size) / attachments.size.coerceAtLeast(1)
+        val notes = ArrayList<String>()
+        val budget = (maxBytes - 8 * 1024 - body.toByteArray().size - ready.sumOf { it.data.size }) / attachments.size.coerceAtLeast(1)
         attachments.forEachIndexed { i, a ->
-            val bytes = compressImage(context, Uri.parse(a), budget) ?: return@forEachIndexed
-            parts += Pdu.Part("image/jpeg", bytes, name = "image$i.jpg", contentLocation = "image$i.jpg", contentId = "image$i")
+            // A picture that cannot be made ready stops the message, and says so: it used to be left out without a
+            // word, and the message went with nothing in it.
+            val made = try { compressImage(context, Uri.parse(a), budget.coerceAtLeast(40 * 1024)) } catch (e: Throwable) {
+                val why = e.message ?: e.javaClass.simpleName
+                DevLog.add(context, "mms", "picture ${i + 1} of ${attachments.size} couldn't be made ready: $why")
+                throw IllegalStateException("that picture couldn't be read ($why)")
+            }
+            notes += made.second
+            parts += Pdu.Part("image/jpeg", made.first, name = "image$i.jpg", contentLocation = "image$i.jpg", contentId = "image$i")
         }
         if (body.isNotEmpty()) parts += Pdu.Part("text/plain", body.toByteArray(), contentLocation = "text0.txt", contentId = "text0")
+        DevLog.add(context, "mms", "send${again?.let { " ($it)" } ?: ""} to ${to.size}: " +
+            (notes + ready.map { "${it.contentType} ${it.data.size / 1024} KB" }).ifEmpty { listOf("no pictures") }.joinToString("; ") +
+            ", words ${body.length}, carrier's limit ${maxBytes / 1024} KB")
         val row = store.insertMms(Telephony.Mms.MESSAGE_BOX_OUTBOX, thread, null, to, emptyList(), parts, System.currentTimeMillis() / 1000, null, null, null, sub)
             ?: throw IllegalStateException("Could not save the message")
         // Delivery reports are asked for always; read reports unless switched off in Settings (few phones answer).
@@ -166,35 +220,64 @@ object Sender {
             Log.e(TAG, "mms send failed", e)
             store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED)
             val why = "Android wouldn't take it (${e.message ?: e.javaClass.simpleName})"
+            DevLog.add(context, "mms", "not sent: $why")
             MmsDiag.failed(context, row, why)
             MmsDiag.note(context, "send", false, "$why, ${pdu.size / 1024} KB")
             file.delete()
         }
     }
 
-    /** A picture as a JPEG that fits in [budget] bytes: scaled down and squeezed until it does. */
-    private fun compressImage(context: Context, uri: Uri, budget: Int): ByteArray? {
-        return try {
+    /**
+     * A picture as a JPEG that fits in [budget] bytes, scaled down and squeezed until it does, with what was done to
+     * it for the log. Throws, saying why, where the picture cannot be read: nothing is sent in its place.
+     */
+    private fun compressImage(context: Context, uri: Uri, budget: Int): Pair<ByteArray, String> {
+        val resolver = context.contentResolver
+        val kind = try { resolver.getType(uri) } catch (_: Exception) { null } ?: "a kind Android didn't name"
+        val weight = try { resolver.openAssetFileDescriptor(uri, "r")?.use { it.length }?.takeIf { it > 0 } } catch (_: Exception) { null }
+        try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            (resolver.openInputStream(uri) ?: throw IllegalStateException("Android wouldn't open it")).use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IllegalStateException("this phone can't read it as a picture: $kind")
             var sample = 1
             while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 2048) sample *= 2
-            var bmp = context.contentResolver.openInputStream(uri)?.use {
-                BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-            } ?: return null
-            bmp = rotated(context, uri, bmp)
-            var side = 1600
-            var quality = 85
-            while (true) {
-                val scale = side.toFloat() / maxOf(bmp.width, bmp.height)
-                val b = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
-                val out = ByteArrayOutputStream()
-                b.compress(Bitmap.CompressFormat.JPEG, quality, out)
-                if (out.size() <= budget || side < 320) return out.toByteArray()
-                if (quality > 55) quality -= 10 else side = (side * 0.75).toInt()
-            }
-            @Suppress("UNREACHABLE_CODE") null
-        } catch (e: Exception) { Log.e(TAG, "image", e); null }
+            val bmp = resolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            } ?: throw IllegalStateException("it couldn't be decoded: $kind")
+            val (bytes, how) = shrink(rotated(context, uri, bmp), budget)
+            return bytes to "${bounds.outWidth}x${bounds.outHeight} ${weight?.let { "${it / 1024} KB " } ?: ""}$kind -> $how"
+        } catch (e: OutOfMemoryError) {
+            throw IllegalStateException("it is too large for this phone to shrink")
+        } catch (e: SecurityException) {
+            throw IllegalStateException("Android no longer lets this app read it; choose it again")
+        }
+    }
+
+    /**
+     * [picture] as a JPEG of at most [budget] bytes, and its size and quality as sent. A plain JPEG: eight bits a
+     * colour and one picture. A phone's HDR photograph carries a second picture inside it (a gain map), which
+     * Android writes into the JPEG it makes too; a carrier's server remakes pictures for the phone they are going
+     * to, and a file with two pictures in it is not one it is known to take, so it is left off.
+     */
+    private fun shrink(picture: Bitmap, budget: Int): Pair<ByteArray, String> {
+        var bmp = picture
+        if (bmp.config != Bitmap.Config.ARGB_8888) bmp = bmp.copy(Bitmap.Config.ARGB_8888, false) ?: bmp
+        var hdr = ""
+        if (android.os.Build.VERSION.SDK_INT >= 34 && bmp.hasGainmap()) {
+            if (!bmp.isMutable) bmp = bmp.copy(Bitmap.Config.ARGB_8888, true) ?: bmp
+            bmp.gainmap = null
+            hdr = " (HDR left off)"
+        }
+        var side = 1600
+        var quality = 85
+        while (true) {
+            val scale = side.toFloat() / maxOf(bmp.width, bmp.height)
+            val b = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt().coerceAtLeast(1), (bmp.height * scale).toInt().coerceAtLeast(1), true) else bmp
+            val out = ByteArrayOutputStream()
+            b.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            if (out.size() <= budget || side < 320) return out.toByteArray() to "${b.width}x${b.height} q$quality ${out.size() / 1024} KB$hdr"
+            if (quality > 55) quality -= 10 else side = (side * 0.75).toInt()
+        }
     }
 
     private fun rotated(context: Context, uri: Uri, bmp: Bitmap): Bitmap = try {
@@ -350,11 +433,15 @@ class MmsResultReceiver : BroadcastReceiver() {
                     if (!conf?.messageId.isNullOrBlank()) store.setMmsMessageId(row, conf!!.messageId!!)
                     MmsDiag.cleared(context, row)
                     MmsDiag.note(context, "send", true, "sent$size")
+                    DevLog.add(context, "mms", "sent$size${conf?.messageId?.let { ", the carrier's id for it ${it.take(24)}" } ?: ", no answer from the carrier to read"}")
                 } else {
-                    val why = refused ?: MmsWhy.send(resultCode, intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0))
+                    val http = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
+                    val why = refused ?: MmsWhy.send(resultCode, http)
                     Log.w(TAG, "mms send result $resultCode: $why")
+                    DevLog.add(context, "mms", "not sent$size: $why (result $resultCode, HTTP $http${conf?.responseStatus?.let { ", carrier status 0x%02X".format(it) } ?: ""})")
                     store.setMmsBox(row, Telephony.Mms.MESSAGE_BOX_FAILED)
-                    MmsDiag.failed(context, row, why)
+                    // Refused by the carrier, not for want of a connection: its pictures go smaller the next time.
+                    MmsDiag.failed(context, row, why, smaller = refused != null || resultCode == 13 || (resultCode == 4 && http >= 400))
                     MmsDiag.note(context, "send", false, "$why$size")
                     Notifier.failed(context, store.threadOfMms(row))
                 }
@@ -370,6 +457,7 @@ class MmsResultReceiver : BroadcastReceiver() {
                     val http = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
                     val why = if (resultCode == Activity.RESULT_OK) "the carrier sent nothing" else MmsWhy.download(resultCode, http)
                     Log.w(TAG, "mms download result $resultCode: $why")
+                    DevLog.add(context, "mms", "not fetched: $why (result $resultCode, HTTP $http)")
                     MmsDiag.note(context, "download", false, why)
                     // One the carrier no longer has will never come; any other waits and is asked for again.
                     if (http == 404 || http == 410) MmsDiag.fetched(context, location)
@@ -378,6 +466,7 @@ class MmsResultReceiver : BroadcastReceiver() {
                 }
                 MmsDiag.fetched(context, location)
                 MmsDiag.note(context, "download", true, "fetched, ${bytes.size / 1024} KB")
+                DevLog.add(context, "mms", "fetched ${bytes.size / 1024} KB")
                 val pending = goAsync()
                 Thread {
                     try { keep(context, store, bytes, intent.getStringExtra("tid"), sub) } catch (e: Exception) { Log.e(TAG, "keep", e) }

@@ -23,8 +23,11 @@ They will not text each other, and their modems take no PDUs, so a small script 
 0.6.2, later that night: Matt reported picture messages not working. They had never run, so `tool/mms/` stands in
 for a carrier on an emulator: sending (sticker, photo) and receiving both work there, and Android's own parser reads
 what the app sends. The app now says why one fails, catches a carrier's refusal that Android calls sent, and asks
-again for ones it could not fetch. What fails on his phone is still unknown: the reason under a failed message, or
-Settings › Android › Picture messages › Copy a report, will say.
+again for ones it could not fetch. Matt then said stickers work and photographs do not, and four faults were found
+in the photograph's own path (trying again dropped the picture; the tap to try again did nothing on a picture; an
+unreadable picture was left out silently; HDR photographs went as JPEGs with a gain map). Whether one of them is
+what he met is not known until he tries it: Settings › Developer has the app's log to copy or share, which says
+what each picture was made into and what the carrier answered.
 
 0.6.1, that night: phones with a great many messages (README has the measurements). The list is read the newest
 first and the rest behind, the lookups that were one question to Android per conversation are one for all, and a

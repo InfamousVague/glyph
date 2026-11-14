@@ -48,6 +48,10 @@ class SettingsModel extends ChangeNotifier {
   /// Whether picture messages can go from this phone, and how the last ones went (Settings › Android).
   MmsStatus mms = const MmsStatus();
 
+  /// The app's own log of what went wrong (Settings › Developer): its lines, the newest last, and the report whole.
+  List<String> devLines = const [];
+  String devReport = '';
+
   StreamSubscription<UpdateState>? _updates;
   StreamSubscription<int>? _changes;
   bool _gone = false;
@@ -83,6 +87,11 @@ class SettingsModel extends ChangeNotifier {
       ask(() async => keyboardHere = await Sms.instance.keyboardHere()),
       ask(() async => arriving = await Sms.instance.arriving()),
       ask(() async => mms = await Sms.instance.mmsStatus()),
+      ask(() async {
+        final (lines, report) = await Sms.instance.devLogRead(appVersion);
+        devLines = lines;
+        devReport = report;
+      }),
       ask(() async => archived = await Sms.instance.archivedCount()),
     ]);
     _say();

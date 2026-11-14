@@ -165,6 +165,16 @@ void _answerChannel() {
         return (args['addresses'] as List).every((a) => a == '+15551230011');
       case 'prefs':
         return <String, String>{};
+      case 'devLogRead':
+        // The app's own log, as Settings › Developer reads it: a photo that went, and one the carrier refused.
+        const lines = [
+          '11-13 19:05:02 mms   send to 1: 4000x3000 2143 KB image/jpeg -> 1200x1600 q85 302 KB (HDR left off), words 0, carrier\'s limit 1024 KB',
+          '11-13 19:05:04 mms   sent, 310 KB, the carrier\'s id for it fake-1@mmsc',
+          '11-13 19:12:40 mms   send to 3: 8160x6120 5210 KB image/heic -> 1600x1200 q85 412 KB, words 14, carrier\'s limit 1024 KB',
+          '11-13 19:12:43 mms   not sent, 420 KB: the carrier\'s server refused it (HTTP 413) (result 4, HTTP 413)',
+          '11-13 19:13:10 call  send: IllegalStateException: that picture couldn\'t be read (Android no longer lets this app read it; choose it again)',
+        ];
+        return {'lines': lines, 'report': 'Ghost Messaging 0.6.2\nsamsung SM-F966U, Android 16 (API 36)\n\n${lines.join('\n')}'};
       case 'mmsStatus':
         // Picture messages as the phone reports them: nothing in the way, one sent, one that could not be fetched.
         return {
@@ -276,7 +286,7 @@ void main() {
       await _shoot(tester, sheet, const SettingsScreen(), '5-settings', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'read');
       await _shootAgain(tester, '5-settings-search', dark: dark);
-      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates']) {
+      for (final id in ['appearance', 'encryption', 'notifications', 'effects', 'keyboard', 'android', 'updates', 'developer']) {
         await _shoot(tester, sheet, SettingsSectionScreen(id), '5-settings-$id', dark: dark);
       }
       // Encryption in a conversation: on and verified, and a key waiting for a yes.
