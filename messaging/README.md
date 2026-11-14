@@ -465,7 +465,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   in words for the widget slots. Tests: `test/plugins_test.dart` (the contract, the registry, the tags; 5,000
   conversations are handed over in about 4 ms and sorted into sections in about 3) and
   `test/plugins_list_test.dart` (the list and Settings › Plugins, with a plugin made up for the tests).
-- **Who a code is from** (not released; `lib/plugins/companies.dart`; Matt, 2026-11-14: "have the codes section try
+- **Who a code is from** (0.7.9; `lib/plugins/companies.dart`; Matt, 2026-11-14: "have the codes section try
   to parse the company that's sending the code and show their company logo as the code profile picture like
   coinbase discover etc"). A code comes from a short number that says nothing; the company is in its words. A row
   in Codes is called by it, and wears its face: for one of about 120 companies the app knows by name (or by another
