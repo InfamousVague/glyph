@@ -491,7 +491,10 @@ void toast(BuildContext context, String message, {GlacierToastTone tone = Glacie
 
 /// A sheet rising from the foot of the screen with a list of choices: a long press's menu.
 Future<void> showChoices(BuildContext context, {String? title, Widget? header, required List<Choice> choices}) {
-  return Navigator.of(context).push(PageRouteBuilder<void>(
+  // On the app's outermost navigator, over everything: asked for from the list, whose own navigator stands under the
+  // navigation pill, the sheet's last choices were behind the pill and could not be pressed (Matt, 2026-11-14: "the
+  // context menu ... opens behind the navbar so you can't click delete").
+  return Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     opaque: false,
     barrierDismissible: true,
     barrierColor: const Color(0x66000000),
@@ -528,11 +531,12 @@ class _ChoiceSheet extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
         // A sheet's width, where the window is wider than a phone: not a band across the whole of it.
-        child: ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('30rem')), child: ClipRRect(
+        // And no taller than the screen: a long list of choices scrolls inside the sheet.
+        child: ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)), child: ClipRRect(
           borderRadius: BorderRadius.circular(t.radius('xl')),
           child: ColoredBox(
             color: t.color('app-paper-2'),
-            child: Column(
+            child: SingleChildScrollView(child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -566,7 +570,7 @@ class _ChoiceSheet extends StatelessWidget {
                   ),
                 SizedBox(height: t.space(2)),
               ],
-            ),
+            )),
           ),
         )),
       ),
