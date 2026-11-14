@@ -171,9 +171,25 @@ so no hand is needed): the older read the description, brought the zip down, che
 was opened again as the newer in six seconds, the old one removed (`~/Library/Caches/com.infamousvague.
 ghostmessaging.mac/update-install/install.log` has each step). An update changed after it was signed was refused
 ("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Ghost
-Messaging's developer"); the running app was left as it was both times. **Not tried**: an update from
-ghost-sms.com itself (nothing is published there), `--publish`, `--notarize`, and quitting with an update waiting
-(the swap is the same code as Restart; what differs is that nothing reopens the app).
+Messaging's developer"); the running app was left as it was both times. The copy in /Applications then took
+itself from 456600 to 456601 the same way. **Not tried**: an update from ghost-sms.com itself (nothing is
+published there), `--publish`, `--notarize`, and quitting with an update waiting (the swap is the same code as
+Restart; what differs is that nothing reopens the app).
+
+**The old version put back, seen for real** (2026-11-14 02:08 UTC, and a mistake in how it was tried). A second
+walk-through was started on the copy in /Applications while Matt had that app open and paired. With one copy of
+the app already open, `open` only brings that one forward, so the new version (456605) never said it opened, and
+after two minutes the helper put the old one (456601) back and opened it: the safety net working as written. But
+the walk-through's script had by then closed Matt's own open app, taking it for the one the helper opens, and the
+copy the helper opened carried the walk-through's settings (`GHOST_DESK_DIR`, a folder with no pairing in it), so
+it showed the pairing wizard, which read to him as the pairing being lost ("I keep having to re pair every time
+the app opens"). It was not: opened again with no such settings, the app showed his conversations and connected
+to the phone with the pairing made at 02:05, its key read from the Keychain. Two things to keep: never walk an
+update through a copy somebody has open (look for a running copy first, and close only what was started), and an
+app the helper opens has the environment of the app that asked for the restart.
+
+What is in /Applications is 0.6.2 (456601). The newer build made since (0.7.1, 456605, in `build/release-mac`) is
+what a first published release would be; the installed copy would take it by itself.
 
 ## What changed in the phone app
 
@@ -226,9 +242,14 @@ the Mac's as sent) and unpairing, over the local network three times, through th
 And once more with both allowed after 0.6.2 was merged in: paired through the relay, then the local network taken.
 
 **Not tried**, since they need the Fold or a signed build: the two finding each other by Bonjour and NSD on a real
-network; reading the QR code with a real camera; the Keychain (the builds paired here kept the key in a file; the
-copy now in /Applications is signed and keeps it in the Keychain, and has not been paired yet); the service
+network (Matt's own pairing on 2026-11-14 went over it, the Mac dialling the phone's address on the Wi-Fi; nobody
+watched how the two found each other); reading the QR code with a real camera (he paired, by the camera or the
+pasted code, which is not known here); the service
 through a night of deep sleep, and whether a text arriving brings it back; anything on a carrier.
+
+No longer on that list: the Keychain in a signed build. The copy in /Applications (Developer ID) kept the pairing's
+key there when Matt paired on 2026-11-14 (`pairing.json` holds no key; the Keychain item is dated the same second)
+and read it back on two later starts, each of which showed his conversations and reached the phone.
 
 ## Matt has not said
 
