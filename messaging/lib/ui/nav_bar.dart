@@ -4,11 +4,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../art/app_icon.dart';
+import '../art/app_icon.dart';
 
-/// One place the Mac's navigation pill goes to: one ring.
-class DeskNavItem {
-  const DeskNavItem({required this.id, required this.icon, required this.label, this.count = 0});
+/// One place the navigation pill goes to: one ring.
+class NavItem {
+  const NavItem({required this.id, required this.icon, required this.label, this.count = 0});
   final String id;
   final LucideIcon icon;
 
@@ -19,9 +19,11 @@ class DeskNavItem {
   final int count;
 }
 
-/// The navigation pill that floats at the foot of the Mac's sidebar: a new chat, the messages, the archive, Settings
-/// (Matt, 2026-11-14: "at the bottom of the desktop sidebar, add a navigation bar floating", then "use the same
-/// navigation pill that we use in ghost markdown but horizontal instead of vertical").
+/// The navigation pill that floats at the foot of the list of conversations: a new chat, the messages, the
+/// contacts, the archive, Settings. It was made for the Mac's sidebar (Matt, 2026-11-14: "at the bottom of the
+/// desktop sidebar, add a navigation bar floating", then "use the same navigation pill that we use in ghost markdown
+/// but horizontal instead of vertical") and is the phone's too since the two share a frame (lib/ui/shell.dart;
+/// Matt, the same day: "the mobile app should gain the nav from desktop").
 ///
 /// It is Ghost.md's dock (lib/shell/page_dock.dart at the repository's root: `PageDock`, `DockRing`, `DockTip`),
 /// laid along where that one stands up, and as wide as the sidebar with its rings evenly along it: a pill of glass, a step of space round its rings and between them, a
@@ -29,9 +31,9 @@ class DeskNavItem {
 /// page's ink; the one shown now filled with ink, its mark in paper, as the dock's one filled ring is; a number on a
 /// ring's corner as the dock wears one; and a ring's words over it while the pointer rests there, where the dock's
 /// come up beside it.
-class DeskNavBar extends StatelessWidget {
-  const DeskNavBar({super.key, required this.items, required this.active, required this.onSelect});
-  final List<DeskNavItem> items;
+class NavPill extends StatelessWidget {
+  const NavPill({super.key, required this.items, required this.active, required this.onSelect});
+  final List<NavItem> items;
 
   /// The id of the item shown now.
   final String active;
@@ -70,7 +72,7 @@ class DeskNavBar extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    for (final item in items) _Ring(item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
+                    for (final item in items) _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
                   ],
                 ),
               ),
@@ -84,8 +86,8 @@ class DeskNavBar extends StatelessWidget {
 
 /// One ring of the pill (the dock's `DockRing`): quiet, or filled with ink when it is the one shown.
 class _Ring extends StatelessWidget {
-  const _Ring({required this.item, required this.shown, required this.onPressed});
-  final DeskNavItem item;
+  const _Ring({super.key, required this.item, required this.shown, required this.onPressed});
+  final NavItem item;
   final bool shown;
   final VoidCallback onPressed;
 

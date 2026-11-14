@@ -13,12 +13,12 @@ import '../../sms.dart';
 import '../../ui/common.dart';
 import '../../ui/compose.dart';
 import '../../ui/conversations.dart';
+import '../../ui/nav_bar.dart';
 import '../../ui/thread.dart';
 import '../desk.dart';
 import 'desk_settings.dart';
 import '../../ui/contacts.dart';
 import '../../ui/update_banner.dart';
-import 'nav_bar.dart';
 import 'wizard.dart';
 
 /// The Mac's window once paired: the conversations down the side, the one chosen beside them. The conversation, the
@@ -251,7 +251,7 @@ class _DeskShellState extends State<DeskShell> {
     } else {
       list = ListView.builder(
         // Its last card clears the navigation bar floating over its end.
-        padding: EdgeInsets.only(bottom: DeskNavBar.clearance(t)),
+        padding: EdgeInsets.only(bottom: NavPill.clearance(t)),
         itemCount: shown.length,
         itemBuilder: (context, i) {
           final c = shown[i];
@@ -296,16 +296,16 @@ class _DeskShellState extends State<DeskShell> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: DeskNavBar(
+              child: NavPill(
                 active: _showing ?? (_archived ? 'archive' : 'messages'),
                 onSelect: _go,
                 items: [
-                  const DeskNavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
-                  const DeskNavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+                  const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
+                  const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
                   // The address book: the phone's contacts, and a press on one opens its conversation.
-                  const DeskNavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
-                  DeskNavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount),
-                  const DeskNavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
+                  const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
+                  NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount),
+                  const NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings'),
                 ],
               ),
             ),

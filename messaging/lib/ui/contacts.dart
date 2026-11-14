@@ -9,6 +9,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'shell.dart';
 import 'thread.dart';
 
 /// The address book (Matt, 2026-11-14: "add an address book icon"): the phone's contacts, searched by name or
@@ -69,6 +70,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
     try {
       final thread = await Sms.instance.threadFor([person.address]);
       if (!mounted) return;
+      // In the app's frame the conversation takes this page's place in the pane, and the list marks it.
+      final shell = AppShell.maybeOf(context);
+      if (shell != null) return shell.openThread(thread, [person]);
       Navigator.of(context).pushReplacement(PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 140),
         pageBuilder: (context, _, _) => ThreadScreen(thread: thread, people: [person]),

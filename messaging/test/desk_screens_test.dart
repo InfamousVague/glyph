@@ -9,7 +9,7 @@ import 'package:ghost_messaging/desktop/link/link.dart';
 import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
-import 'package:ghost_messaging/desktop/ui/nav_bar.dart';
+import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/sms.dart';
@@ -189,21 +189,21 @@ void main() {
       for (final label in ['New chat', 'Messages', 'Contacts', 'Archive', 'Settings']) {
         expect(_nav(label), findsOneWidget, reason: label);
       }
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
       // Archive shows the archived ones, and Messages the others again.
       await tester.tap(_nav('Archive'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'archive');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'archive');
       expect(find.text('Archived'), findsOneWidget);
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
       // The address book: the phone's contacts beside the list, and a press on one opens its conversation.
       await tester.tap(_nav('Contacts'));
       for (var i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 60));
       }
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'contacts');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'contacts');
       expect(find.text('Search contacts'), findsOneWidget);
       expect(find.text('Mom'), findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
@@ -217,10 +217,10 @@ void main() {
       // A new chat opens beside the list and is the one shown; Messages puts it away.
       await tester.tap(_nav('New chat'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'new');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'new');
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<DeskNavBar>(find.byType(DeskNavBar)).active, 'messages');
+      expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'messages');
 
       // A conversation's own settings, on a computer too (Matt: "There needs to be chat settings on desktop as
       // well"): who is in it, how it looks here, where its encryption stands, mute, pin and archive.
