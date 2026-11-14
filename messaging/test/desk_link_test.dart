@@ -358,6 +358,27 @@ void main() {
     expect((await again.request('conversations') as List).length, 2);
   });
 
+  test('a pressed link that is not a web address is not handed to the computer to open', () async {
+    // What the Mac does with `openLink` (lib/desktop/remote.dart): only an http or https address with a host goes
+    // to `open`. Each of these is refused before anything is run, so nothing opens on the machine the test is on.
+    // One that would open is not tried here for the same reason.
+    final bridge = LinkCalls(mac(MemoryStore()), DeskStore(Directory.systemTemp.createTempSync('ghost-desk-test'), keychain: false));
+    for (final url in [
+      'file:///etc/passwd',
+      'javascript:alert(1)',
+      'tel:+15551230001',
+      'ghost://anything',
+      '-a Calculator',
+      ' https://example.com',
+      'https://',
+      'example.com/tickets',
+      '',
+    ]) {
+      expect(await bridge.invokeMethod('openLink', {'url': url}), isFalse, reason: url);
+    }
+    expect(await bridge.invokeMethod('openLink', const <String, dynamic>{}), isFalse);
+  });
+
   test('unpairing from the Mac tells the phone and the relay; unpairing from the phone tells the Mac', () async {
     final store = MemoryStore();
     final link = mac(store);
