@@ -44,13 +44,17 @@ class SmsEffects implements PluginEffects {
 /// (in the order they are asked), how many each has, and which have something unread.
 @immutable
 class Sorted {
-  const Sorted(this.at, this.sections, this.counts, this.unread, {this.others = 0});
+  const Sorted(this.at, this.sections, this.counts, this.unread, {this.others = 0, this.unreadCounts = const {}});
   static const none = Sorted({}, [], {}, {});
 
   final Map<int, PluginSection> at;
   final List<PluginSection> sections;
   final Map<String, int> counts;
   final Set<String> unread;
+
+  /// How many unread conversations each section has: what its tab counts (Matt, 2026-11-14: "remove ... the badge
+  /// count for codes that are already read").
+  final Map<String, int> unreadCounts;
 
   /// How many conversations no section has: personal texts and everything else the filter's kinds leave alone.
   final int others;
@@ -119,6 +123,7 @@ class ListPlugins {
     final at = <int, PluginSection>{};
     final counts = <String, int>{};
     final unread = <String>{};
+    final unreadCounts = <String, int>{};
     final listed = <int>{};
     for (final c in all) {
       if (c.archived) continue;
@@ -129,11 +134,14 @@ class ListPlugins {
       if (s == null) continue;
       at[c.id] = s;
       counts[s.id] = (counts[s.id] ?? 0) + 1;
-      if (c.unread) unread.add(s.id);
+      if (c.unread) {
+        unread.add(s.id);
+        unreadCounts[s.id] = (unreadCounts[s.id] ?? 0) + 1;
+      }
     }
     _settle(at, listed);
     final others = all.where((c) => !c.archived && at[c.id] == null).length;
-    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread, others: others);
+    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread, others: others, unreadCounts: unreadCounts);
   }
 
   /// What the list shows in place of a section: every conversation of a kind the filter hides ("N hidden · Show").
@@ -222,7 +230,7 @@ class ListPlugins {
     final s = _sorted;
     final tabs = [for (final t in s.sections) if (!t.section.filter) t];
     if (tabs.isEmpty) return null;
-    return SectionTabs(sections: tabs, counts: s.counts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
+    return SectionTabs(sections: tabs, counts: s.unreadCounts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
   }
 
   /// What a tab is called: "Messages" for the main list, else its section's own name.

@@ -61,9 +61,6 @@ class SectionTabs extends StatelessWidget {
         ]);
 
     return LayoutBuilder(builder: (context, box) {
-      // Where each tab has less room than its icon, its words and its count need (a list's column beside a pane), the
-      // icons are left out: the words are what say which tab it is.
-      final icons = box.maxWidth / values.length >= t.lenOf('7rem');
       // The tabs share the toggle's width equally, so where a press landed says which tab it was on.
       void menu(double x) {
         final at = (x / (box.maxWidth / values.length)).floor().clamp(0, values.length - 1);
@@ -82,8 +79,11 @@ class SectionTabs extends StatelessWidget {
           onValueChange: (v) => onPick(v == _main ? null : v),
           options: [
             // Matt, 2026-11-14: "add an icon for messages on the segmented toggle".
-            GlacierSegmentedOption(value: _main, label: label('Messages', icon: LucideMore.messageCircle, icons: icons)),
-            for (final s in sections) GlacierSegmentedOption(value: s.id, label: label(s.section.label, icon: s.section.icon, count: counts[s.id] ?? 0, dot: unread.contains(s.id), icons: icons)),
+            // Words alone (Matt, 2026-11-14: "remove the icons from messages and codes"), and a tab's count is of its
+            // unread conversations, none where all are read ("and the badge count for codes that are already read").
+            GlacierSegmentedOption(value: _main, label: label('Messages')),
+            for (final s in sections)
+              GlacierSegmentedOption(value: s.id, label: label(s.section.label, count: (counts[s.id] ?? 0) > 0 ? counts[s.id] : null)),
           ],
         ),
       );

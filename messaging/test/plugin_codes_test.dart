@@ -127,7 +127,8 @@ void main() {
       // The app's own plugins, as it ships: Codes is on. The two codes from numbers have left the main list; Dad's
       // has not.
       expect(_chip('Codes'), findsOneWidget);
-      expect(_chip('2'), findsOneWidget);
+      // Both read: no count on the tab (Matt, 2026-11-14: "remove ... the badge count for codes that are already read").
+      expect(_chip('2'), findsNothing);
       expect(find.byType(ConversationRow), findsNWidgets(3));
       expect(find.textContaining('482913'), findsNothing);
       expect(find.text('The door code is 4417'), findsOneWidget);
@@ -155,7 +156,7 @@ void main() {
       expect(find.text('Copy 4417'), findsOneWidget);
       await tester.tap(find.text('Move to Codes'));
       await settle(tester);
-      expect(_chip('3'), findsOneWidget);
+      expect(find.text('The door code is 4417'), findsNothing, reason: 'filed in Codes, out of the main list');
       expect(listed.prefs[Filing.key], '3:codes');
     });
 

@@ -58,7 +58,9 @@ void main() {
     // archived one is nobody's.
     expect(_chip('Messages'), findsOneWidget);
     expect(_chip('Tickets'), findsOneWidget);
-    expect(_chip('2'), findsOneWidget);
+    // Both read: a tab counts only what is unread (Matt, 2026-11-14: "remove ... the badge count for codes that are
+    // already read").
+    expect(_chip('2'), findsNothing);
     expect(find.byType(ConversationRow), findsNWidgets(3));
     expect(find.text('Your ticket 4411 is ready'), findsNothing);
     expect(find.text('I have ticket 77 for you'), findsOneWidget);
@@ -111,7 +113,7 @@ void main() {
     expect(find.text('Open conversation'), findsNothing);
     await tester.tap(find.text('Move to Tickets'));
     await settle(tester);
-    expect(_chip('1'), findsOneWidget);
+    expect(find.text('ticket 5522 was closed'), findsNothing, reason: 'filed in Tickets, out of the main list');
     expect(phone.prefs[Filing.key], '2:', reason: 'it is where its words put it anyway: nothing is kept for it');
   });
 
@@ -258,7 +260,7 @@ void main() {
 
     state.setFlag(PluginRegistry.switchKey(plugin), true);
     await settle(tester);
-    expect(_chip('2'), findsOneWidget);
+    expect(_chip('Tickets'), findsOneWidget);
     expect(find.byType(ConversationRow), findsNWidgets(3));
   });
 

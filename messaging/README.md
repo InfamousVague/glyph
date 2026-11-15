@@ -457,6 +457,8 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Each plugin's page has its switch at the top** ("Plugins should be able to be toggled on and off from the top
     of each plugin setting page"). Its row in Settings stays while it is off, saying Off, and its page then holds the
     switch alone.
+  - **The list's toggle is words alone**, and a tab counts only its unread conversations, nothing where all are read
+    ("remove the icons from messages and codes and the badge count for codes that are already read").
   - **Your day is not shipped** for now ("remove the plugin that gives you the digest for now"); `day.dart` stays.
   - **Notifications & receipts** (shown) and **Likely scams** (hidden), from a second sample of the phone ("there is
     still a lot of messages that are unsorted that are spam or confirmation based things that land in personal
