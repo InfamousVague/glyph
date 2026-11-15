@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaDeviceInfo;
 import 'package:glacier/glacier.dart';
@@ -7,9 +9,12 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
+import '../kit/settings_type.dart';
 import '../voice/channels.dart';
 import '../voice/rtc.dart';
+import '../voice/voice_fx.dart';
 import '../voice/voice_settings.dart';
+import 'voice_screen.dart' show VolumeSlider;
 import 'common.dart';
 
 /// Settings › Voice and video (Matt, 2026-11-15: "voice settings to change all kinds of things like bitrates and sound
@@ -33,6 +38,8 @@ class _VoicePaneState extends State<VoicePane> {
   }
 
   Future<void> _devices() async {
+    await VoiceFx.modes();
+    _asked = true;
     final inputs = await RtcMedia.devices('audioinput'), outputs = await RtcMedia.devices('audiooutput');
     if (!mounted) return;
     setState(() {
@@ -49,6 +56,16 @@ class _VoicePaneState extends State<VoicePane> {
     return 'Not connected now';
   }
 
+  /// DeepFilterNet is offered where this device runs it; RNNoise always (WebRTC's own stands in where it cannot run).
+  bool _offered(NoiseMode m) => m != NoiseMode.deepfilter || VoiceFx.available.contains(m);
+
+  String _noiseName(VoiceSettings v) {
+    final used = v.noiseOn(VoiceFx.available);
+    return used == v.noise || !_asked ? v.noise.label : '${v.noise.label} (Standard here)';
+  }
+
+  bool _asked = false;
+
   void _pick(String title, List<MediaDeviceInfo> list, String current, Future<void> Function(String id) use) {
     showChoices(context, title: title, choices: [
       Choice(current.isEmpty ? '✓  The system\'s own' : 'The system\'s own', Lucide.laptop, () => use('').then((_) => setState(() {}))),
@@ -63,6 +80,17 @@ class _VoicePaneState extends State<VoicePane> {
     final v = VoiceSettings.of(app);
     final voice = Voice.instance;
     Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+    // Each change is kept, and what can change in a call there is changes now (Voice.settingsChanged).
+    void set(String key, String value) {
+      app.set(key, value);
+      unawaited(voice.settingsChanged());
+    }
+
+    void flag(String key, bool on) {
+      app.setFlag(key, on);
+      unawaited(voice.settingsChanged());
+    }
+
     final gap = SizedBox(height: context.tokens.space(6));
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       PaneSection(
@@ -75,40 +103,100 @@ class _VoicePaneState extends State<VoicePane> {
       ),
       gap,
       PaneSection(
-        title: 'Sound',
-        description: const Text('Opus, the codec calls use. 510 kb/s stereo is the most it carries, and as close to the microphone as a live call gets.'),
+        title: 'Volume',
+        description: const Text('Over 100% is boosted: your microphone louder than it picks up, or everyone louder than the device plays.'),
         children: [
+          _Level(icon: icon(Lucide.mic), label: 'Microphone', value: v.inputVolume, onChanged: (p) => set('voice_in_volume', '$p')),
+          _Level(icon: icon(Lucide.volume2), label: 'Output', value: v.outputVolume, onChanged: (p) => set('voice_out_volume', '$p')),
+        ],
+      ),
+      gap,
+      PaneSection(
+        title: 'Sound',
+        description: const Text('Opus, the codec calls use. 510 kb/s stereo is the most it carries: past what an ear can tell from the microphone itself. FLAC is not something a live call can carry.'),
+        children: [
+          SettingRow(
+            icon: icon(LucideMore.music),
+            label: 'Music mode',
+            hint: const Text('The microphone as it is, for music: no echo cancellation, noise suppression or gain, 510 kb/s stereo at a constant rate. Use headphones.'),
+            control: GlacierSwitch(checked: v.music, onCheckedChange: (on) => flag('voice_music', on), ariaLabel: 'Music mode'),
+          ),
+          SettingRow(
+            icon: icon(Lucide.waves),
+            label: 'Noise suppression',
+            value: Text(v.music ? 'Off in Music mode' : _noiseName(v)),
+            disabled: v.music,
+            onPress: () => showChoices(context, title: 'Noise suppression', choices: [
+              for (final m in NoiseMode.values)
+                if (_offered(m))
+                  Choice('${m == v.noise ? '✓  ' : ''}${m.label} · ${m.hint}', Lucide.waves, () => set('voice_noise_mode', m.name)),
+            ]),
+          ),
           SettingRow(
             icon: icon(Lucide.audioLines),
             label: 'Bit rate',
-            value: Text('${v.audioKbps} kb/s'),
+            value: Text(v.music ? '510 kb/s in Music mode' : '${v.audioKbps} kb/s'),
+            disabled: v.music,
             onPress: () => showChoices(context, title: 'Bit rate', choices: [
-              for (final k in VoiceSettings.kbpsChoices) Choice('${k == v.audioKbps ? '✓  ' : ''}${VoiceSettings.kbpsLabel(k)}', Lucide.audioLines, () => app.set('voice_kbps', '$k')),
+              for (final k in VoiceSettings.kbpsChoices) Choice('${k == v.audioKbps ? '✓  ' : ''}${VoiceSettings.kbpsLabel(k)}', Lucide.audioLines, () => set('voice_kbps', '$k')),
             ]),
           ),
-          SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Text('Two channels; off sends one.'), control: GlacierSwitch(checked: v.stereo, onCheckedChange: (on) => app.setFlag('voice_stereo', on), ariaLabel: 'Stereo')),
-          SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Text('Keeps your speaker out of your microphone. Off for headphones only.'), control: GlacierSwitch(checked: v.echo, onCheckedChange: (on) => app.setFlag('voice_echo', on), ariaLabel: 'Echo cancellation')),
-          SettingRow(icon: icon(Lucide.waves), label: 'Noise suppression', hint: const Text('Quiets steady noise: fans, traffic. Off sends the room as it is.'), control: GlacierSwitch(checked: v.noise, onCheckedChange: (on) => app.setFlag('voice_noise', on), ariaLabel: 'Noise suppression')),
-          SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Text('Evens out how loud you are. Off keeps your own level.'), control: GlacierSwitch(checked: v.gain, onCheckedChange: (on) => app.setFlag('voice_gain', on), ariaLabel: 'Automatic gain')),
+          SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Text('Two channels; off sends one.'), disabled: v.music, control: GlacierSwitch(checked: v.sendStereo, disabled: v.music, onCheckedChange: (on) => flag('voice_stereo', on), ariaLabel: 'Stereo')),
+          SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Text('Keeps your speaker out of your microphone. Off for headphones only.'), disabled: v.music, control: GlacierSwitch(checked: v.useEcho, disabled: v.music, onCheckedChange: (on) => flag('voice_echo', on), ariaLabel: 'Echo cancellation')),
+          SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Text('Evens out how loud you are. Off keeps your own level.'), disabled: v.music, control: GlacierSwitch(checked: v.useGain, disabled: v.music, onCheckedChange: (on) => flag('voice_gain', on), ariaLabel: 'Automatic gain')),
         ],
       ),
       gap,
       PaneSection(
         title: 'Video',
-        description: const Text('The most a picture is sent at. With more people in a call each copy is smaller, so it keeps moving.'),
+        description: const Text('The most a picture is sent at. With more people in a call each copy is smaller, so it keeps moving. 4K needs a camera that films it, and a fast connection.'),
         children: [
           SettingRow(
             icon: icon(Lucide.video),
             label: 'Quality',
-            value: Text('${v.video}p'),
+            value: Text(VoiceSettings.videoLabel(v.video)),
             onPress: () => showChoices(context, title: 'Video quality', choices: [
               for (final q in VoiceSettings.videoChoices)
-                Choice('${q == v.video ? '✓  ' : ''}${q}p · up to ${switch (q) { 480 => '1.5', 720 => '4', _ => '12' }} Mb/s', Lucide.video, () => app.set('voice_video', '$q')),
+                Choice('${q == v.video ? '✓  ' : ''}${VoiceSettings.videoLabel(q)} · up to ${switch (q) { 480 => '1.5', 720 => '4', 1080 => '12', _ => '25' }} Mb/s', Lucide.video, () => set('voice_video', '$q')),
             ]),
           ),
         ],
       ),
-      if (voice.session != null) ...[gap, SettingsCallout(child: const Text('Sound and video changes apply from the next call you join. Devices change now.'))],
+      if (voice.session != null) ...[gap, SettingsCallout(child: const Text('Volume, noise suppression and devices change now; the rest from the next call you join.'))],
     ]);
+  }
+}
+
+/// A volume, 0 to 200%, with its number: over 100 is boosted.
+class _Level extends StatelessWidget {
+  const _Level({required this.icon, required this.label, required this.value, required this.onChanged});
+  final Widget icon;
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return SettingRowBox(
+      child: Row(children: [
+        // The same chip as every other row's (SettingRow).
+        Container(
+          width: t.lenOf('1.85rem'),
+          height: t.lenOf('1.85rem'),
+          decoration: BoxDecoration(color: settingsHueWash(t), borderRadius: BorderRadius.circular(t.lenOf('0.55rem'))),
+          alignment: Alignment.center,
+          child: SizedBox.square(dimension: t.lenOf('1.05rem'), child: FittedBox(child: IconTheme.merge(data: IconThemeData(color: settingsHue(t)), child: icon))),
+        ),
+        SizedBox(width: t.space(3)),
+        SizedBox(width: t.lenOf('6.5rem'), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
+        Expanded(child: VolumeSlider(value: value / 100, max: VoiceSettings.maxVolume / 100, label: label, onChanged: (x) => onChanged((x * 100).round()))),
+        SizedBox(width: t.space(3)),
+        SizedBox(
+          width: t.lenOf('3.5rem'),
+          child: Text('$value%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), weight: value > 100 ? 'bold' : 'regular', color: value > 100 ? t.colorOf('#e08a1e') : t.color('app-ink-3'))),
+        ),
+      ]),
+    );
   }
 }

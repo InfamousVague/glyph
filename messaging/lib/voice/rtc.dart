@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'voice.dart';
+import 'voice_fx.dart';
 import 'voice_settings.dart';
 
 /// The microphone, the camera and a WebRTC connection to each other member (lib/voice/voice.dart says what goes
@@ -45,8 +46,9 @@ class RtcMedia implements VoiceMedia {
   void _apply(String id, MediaStream stream) {
     for (final t in stream.getAudioTracks()) {
       t.enabled = !_deaf && !_silenced.contains(id);
-      final v = _volume[id];
-      if (v != null) unawaited(Helper.setVolume(v, t).catchError((_) {}));
+      // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most.
+      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100).clamp(0.0, 4.0);
+      unawaited(Helper.setVolume(v, t).catchError((_) {}));
     }
   }
 
@@ -121,7 +123,7 @@ class RtcMedia implements VoiceMedia {
 
   static double _ease(double from, double to) => to > from ? from + (to - from) * 0.6 : from + (to - from) * 0.25;
 
-  int get audioBitrate => settings.audioKbps * 1000;
+  int get audioBitrate => settings.sendKbps * 1000;
 
   /// Stands in for the system's list of devices (a test, with no WebRTC underneath).
   @visibleForTesting
@@ -129,10 +131,13 @@ class RtcMedia implements VoiceMedia {
 
   Map<String, Object> get _audioAsked => {
         if (settings.input.isNotEmpty) 'deviceId': settings.input,
-        'echoCancellation': settings.echo,
-        'noiseSuppression': settings.noise,
-        'autoGainControl': settings.gain,
-        'channelCount': settings.stereo ? 2 : 1,
+        'echoCancellation': settings.useEcho,
+        // WebRTC's own only where it is the one used: RNNoise and DeepFilterNet run after capture (VoiceFx).
+        'noiseSuppression': settings.noiseOn(VoiceFx.available) == NoiseMode.webrtc,
+        'autoGainControl': settings.useGain,
+        // Music mode keeps the high-pass filter off too: the microphone as it is.
+        if (settings.music) 'googHighpassFilter': false,
+        'channelCount': settings.sendStereo ? 2 : 1,
         'sampleRate': 48000,
       };
 
@@ -148,7 +153,7 @@ class RtcMedia implements VoiceMedia {
 
   /// Takes sound from another microphone, in the call as it goes: the new one's track in every connection's place.
   Future<void> setInput(String deviceId) async {
-    settings = VoiceSettings(input: deviceId, output: settings.output, audioKbps: settings.audioKbps, stereo: settings.stereo, echo: settings.echo, noise: settings.noise, gain: settings.gain, video: settings.video);
+    settings = settings.copyWith(input: deviceId);
     final old = _mic;
     if (old == null) return;
     final fresh = await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
@@ -176,13 +181,17 @@ class RtcMedia implements VoiceMedia {
 
   /// Plays the call through another speaker or headset.
   Future<void> setOutput(String deviceId) async {
-    settings = VoiceSettings(input: settings.input, output: deviceId, audioKbps: settings.audioKbps, stereo: settings.stereo, echo: settings.echo, noise: settings.noise, gain: settings.gain, video: settings.video);
+    settings = settings.copyWith(output: deviceId);
     if (deviceId.isNotEmpty) await Helper.selectAudioOutput(deviceId).catchError((_) {});
   }
 
   @override
   Future<void> start() async {
+    // The native processing first: what it can run decides whether WebRTC's own noise suppression is asked for.
+    await VoiceFx.apply(settings);
     _mic ??= await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
+    // And again with the microphone open: the native hook is there only once WebRTC is (android VoiceFx.kt).
+    unawaited(VoiceFx.apply(settings));
     if (settings.output.isNotEmpty) {
       await Helper.selectAudioOutput(settings.output).catchError((_) {});
     } else if (!kIsWeb && Platform.isAndroid) {
@@ -235,6 +244,16 @@ class RtcMedia implements VoiceMedia {
     for (final e in remote.value.entries) {
       _apply(e.key, e.value);
     }
+  }
+
+  /// Settings changed while in the call: how loud others are and the microphone's processing at once; the rest
+  /// from the next call.
+  Future<void> applyLive(VoiceSettings fresh) async {
+    settings = fresh.copyWith(input: settings.input, output: settings.output);
+    for (final e in remote.value.entries) {
+      _apply(e.key, e.value);
+    }
+    await VoiceFx.apply(settings);
   }
 
   MediaStreamTrack? get _camTrack => _cam?.getVideoTracks().firstOrNull;
@@ -333,7 +352,7 @@ class _RtcPeer implements VoicePeer {
     await pc.addTransceiver(track: mic, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, streams: [media._mic!]));
     await pc.addTransceiver(
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
-      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: math.min(videoFor(media._peers.length).bitrate, media.settings.videoCap), maxFramerate: 30, scaleResolutionDownBy: videoFor(media._peers.length).scale)]),
+      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: media.settings.sendTo(media._peers.length, videoFor(media._peers.length)).bitrate, maxFramerate: 30, scaleResolutionDownBy: media.settings.sendTo(media._peers.length, videoFor(media._peers.length)).scale)]),
     );
     if (media._camTrack != null) await showCamera(media._camTrack);
   }
@@ -354,14 +373,14 @@ class _RtcPeer implements VoicePeer {
 
   /// Sound at 510 kb/s; the picture as big as the number of others allows ([videoFor]).
   Future<void> _highest(RTCPeerConnection pc) async {
-    final v = videoFor(media._peers.length);
+    final v = media.settings.sendTo(media._peers.length, videoFor(media._peers.length));
     for (final s in await pc.getSenders()) {
       final kind = s.track?.kind;
       final p = s.parameters;
       final encodings = p.encodings;
       if (encodings == null || encodings.isEmpty) continue;
       for (final e in encodings) {
-        e.maxBitrate = kind == 'audio' ? media.audioBitrate : math.min(v.bitrate, media.settings.videoCap);
+        e.maxBitrate = kind == 'audio' ? media.audioBitrate : v.bitrate;
         if (kind == 'video') e.scaleResolutionDownBy = v.scale;
       }
       if (kind == 'video') p.degradationPreference = RTCDegradationPreference.BALANCED;
@@ -384,7 +403,7 @@ class _RtcPeer implements VoicePeer {
     final c = await pc;
     await _addOwn(c);
     final offer = await c.createOffer();
-    final sdp = highestOpus(offer.sdp ?? '', kbps: media.settings.audioKbps, stereo: media.settings.stereo);
+    final sdp = highestOpus(offer.sdp ?? '', kbps: media.settings.sendKbps, stereo: media.settings.sendStereo);
     await c.setLocalDescription(RTCSessionDescription(sdp, 'offer'));
     await _highest(c);
     return sdp;
@@ -397,7 +416,7 @@ class _RtcPeer implements VoicePeer {
     await _settled(c);
     await _fillOwn(c);
     final answer = await c.createAnswer();
-    final mine = highestOpus(answer.sdp ?? '', kbps: media.settings.audioKbps, stereo: media.settings.stereo);
+    final mine = highestOpus(answer.sdp ?? '', kbps: media.settings.sendKbps, stereo: media.settings.sendStereo);
     await c.setLocalDescription(RTCSessionDescription(mine, 'answer'));
     await _highest(c);
     return mine;

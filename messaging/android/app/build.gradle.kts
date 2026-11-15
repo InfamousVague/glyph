@@ -41,6 +41,11 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    // voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (VoiceFx.kt).
+    externalNativeBuild {
+        cmake { path = file("src/main/cpp/CMakeLists.txt") }
+    }
+
     signingConfigs {
         if (signing.getProperty("storeFile") != null) {
             create("release") {
@@ -72,6 +77,9 @@ flutter {
 }
 
 dependencies {
+    // WebRTC's classes, for VoiceFx.kt's hook into flutter_webrtc's capture processing: compiled against only, since
+    // flutter_webrtc brings the library itself. The same version flutter_webrtc 1.6.3 uses.
+    compileOnly("io.github.webrtc-sdk:android:150.7871.04")
     // Reads the QR code a computer shows to pair with (ScanActivity.kt): on the phone, with nothing from Google Play.
     implementation("com.google.zxing:core:3.5.3")
     // Summaries of unread conversations on the phone itself (Summaries.kt; Matt, 2026-11-14: "Use a local AI to

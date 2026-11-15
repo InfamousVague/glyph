@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(runner LANGUAGES CXX)
+project(runner LANGUAGES C CXX)
 
 # Define the application target. To change its name, change BINARY_NAME in the
 # top-level CMakeLists.txt, not the value here, or `flutter run` will no longer
@@ -11,6 +11,7 @@ add_executable(${BINARY_NAME} WIN32
   "main.cpp"
   "utils.cpp"
   "win32_window.cpp"
+  "voice_fx.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -35,6 +36,14 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
+set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")
+file(GLOB VOICEFX_RNNOISE "${VOICEFX}/rnnoise/src/*.c")
+add_library(voicefx STATIC "${VOICEFX}/voicefx.c" ${VOICEFX_RNNOISE})
+target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
+target_compile_definitions(voicefx PRIVATE _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
+target_link_libraries(${BINARY_NAME} PRIVATE voicefx)
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

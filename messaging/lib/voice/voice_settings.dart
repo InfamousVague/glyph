@@ -3,10 +3,11 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 
 /// How calls sound and look on this device (Matt, 2026-11-15: "voice settings to change all kinds of things like
-/// bitrates and sound input devices etc etc"): the microphone and speaker, Opus's bit rate and stereo, the
-/// microphone's processing, and the picture's quality. Kept with the device's choices (`voice_*`); each is what the
-/// app did before where it has not been changed: 510 kb/s stereo, echo cancellation on, noise suppression and gain
-/// control off, 1080p.
+/// bitrates and sound input devices etc etc"; then "can we support 4k? and flac audio? also build in like krisp noise
+/// supression or other fancy noise suppression tools, add a volume slider for input and output volume with
+/// overboosting", and RNNoise with DeepFilterNet chosen for the noise): the microphone and speaker and how loud each
+/// is, Opus's bit rate and stereo, Music mode, the microphone's processing, and the picture's quality. Kept with the
+/// device's choices (`voice_*`).
 @immutable
 class VoiceSettings {
   const VoiceSettings({
@@ -15,8 +16,11 @@ class VoiceSettings {
     this.audioKbps = 510,
     this.stereo = true,
     this.echo = true,
-    this.noise = false,
+    this.noise = NoiseMode.rnnoise,
     this.gain = false,
+    this.music = false,
+    this.inputVolume = 100,
+    this.outputVolume = 100,
     this.video = 1080,
   });
 
@@ -26,14 +30,25 @@ class VoiceSettings {
   final int audioKbps;
   final bool stereo;
   final bool echo;
-  final bool noise;
+
+  /// What quiets the room: nothing, WebRTC's own, RNNoise, or DeepFilterNet (computers).
+  final NoiseMode noise;
   final bool gain;
 
-  /// The tallest picture sent: 1080, 720 or 480.
+  /// Music mode: the microphone as it is (no echo cancellation, noise suppression or gain control), 510 kb/s
+  /// stereo at a constant rate. What a lossless-sounding voice app sends; FLAC is not something WebRTC can carry.
+  final bool music;
+
+  /// How loud the microphone is sent and how loud others are heard, in percent: 0 to [maxVolume], over 100 boosted.
+  final int inputVolume;
+  final int outputVolume;
+
+  /// The tallest picture sent: 2160 (4K), 1080, 720 or 480.
   final int video;
 
   static const kbpsChoices = [510, 256, 128, 64, 32];
-  static const videoChoices = [1080, 720, 480];
+  static const videoChoices = [2160, 1080, 720, 480];
+  static const maxVolume = 200;
 
   factory VoiceSettings.of(AppState app) => VoiceSettings(
         input: app.choice('voice_input', ''),
@@ -41,16 +56,82 @@ class VoiceSettings {
         audioKbps: int.tryParse(app.choice('voice_kbps', '510')) ?? 510,
         stereo: app.flag('voice_stereo', fallback: true),
         echo: app.flag('voice_echo', fallback: true),
-        noise: app.flag('voice_noise', fallback: false),
+        // Before there was a choice of how, noise suppression was a switch for WebRTC's own.
+        noise: NoiseMode.named(app.choice('voice_noise_mode', '')) ?? (app.flag('voice_noise', fallback: false) ? NoiseMode.webrtc : NoiseMode.rnnoise),
         gain: app.flag('voice_gain', fallback: false),
+        music: app.flag('voice_music', fallback: false),
+        inputVolume: (int.tryParse(app.choice('voice_in_volume', '100')) ?? 100).clamp(0, maxVolume),
+        outputVolume: (int.tryParse(app.choice('voice_out_volume', '100')) ?? 100).clamp(0, maxVolume),
         video: int.tryParse(app.choice('voice_video', '1080')) ?? 1080,
       );
 
+  VoiceSettings copyWith({String? input, String? output, int? inputVolume, int? outputVolume}) => VoiceSettings(
+        input: input ?? this.input,
+        output: output ?? this.output,
+        audioKbps: audioKbps,
+        stereo: stereo,
+        echo: echo,
+        noise: noise,
+        gain: gain,
+        music: music,
+        inputVolume: inputVolume ?? this.inputVolume,
+        outputVolume: outputVolume ?? this.outputVolume,
+        video: video,
+      );
+
+  // What is used, Music mode taken into account.
+  int get sendKbps => music ? 510 : audioKbps;
+  bool get sendStereo => music || stereo;
+  bool get useEcho => echo && !music;
+  bool get useGain => gain && !music;
+
+  /// The noise suppression used, given what this device can run ([available], VoiceFx.modes): one it cannot run
+  /// falls back to WebRTC's own, and Music mode uses none.
+  NoiseMode noiseOn(Set<NoiseMode> available) {
+    if (music || noise == NoiseMode.off) return NoiseMode.off;
+    if (noise == NoiseMode.webrtc || available.contains(noise)) return noise;
+    return NoiseMode.webrtc;
+  }
+
   /// The most a copy of the picture is sent at, by the quality chosen.
-  int get videoCap => switch (video) { <= 480 => 1500000, <= 720 => 4000000, _ => 12000000 };
+  int get videoCap => switch (video) { <= 480 => 1500000, <= 720 => 4000000, <= 1080 => 12000000, _ => 25000000 };
 
   /// The camera asked for: [video] tall at 16:9.
-  ({int width, int height}) get videoSize => switch (video) { <= 480 => (width: 854, height: 480), <= 720 => (width: 1280, height: 720), _ => (width: 1920, height: 1080) };
+  ({int width, int height}) get videoSize => switch (video) {
+        <= 480 => (width: 854, height: 480),
+        <= 720 => (width: 1280, height: 720),
+        <= 1080 => (width: 1920, height: 1080),
+        _ => (width: 3840, height: 2160),
+      };
+
+  /// How a picture is sent to [others] people: one other gets the whole picture at up to [videoCap]; with more, each
+  /// copy is the size it would be from 1080p (videoFor), so a 4K camera is scaled down that much further.
+  ({double scale, int bitrate}) sendTo(int others, ({double scale, int bitrate, String preference}) base) {
+    final tall = videoSize.height;
+    if (others <= 1) return (scale: 1.0, bitrate: tall > 1080 ? videoCap : (base.bitrate < videoCap ? base.bitrate : videoCap));
+    final extra = tall > 1080 ? tall / 1080 : 1.0;
+    return (scale: base.scale * extra, bitrate: base.bitrate < videoCap ? base.bitrate : videoCap);
+  }
 
   static String kbpsLabel(int k) => k >= 510 ? '510 kb/s · the most Opus carries' : '$k kb/s';
+  static String videoLabel(int q) => q >= 2160 ? '4K' : '${q}p';
+}
+
+/// Ways to quiet the room around the microphone.
+enum NoiseMode {
+  off('Off', 'The room as it is'),
+  webrtc('Standard', 'WebRTC\'s own: steady noise like fans'),
+  rnnoise('RNNoise', 'A small neural network: fans, keyboards, traffic'),
+  deepfilter('DeepFilterNet', 'A larger network, near studio quality; computers');
+
+  const NoiseMode(this.label, this.hint);
+  final String label;
+  final String hint;
+
+  static NoiseMode? named(String name) {
+    for (final m in values) {
+      if (m.name == name) return m;
+    }
+    return null;
+  }
 }
