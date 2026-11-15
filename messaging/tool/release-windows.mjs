@@ -20,7 +20,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const HOST_URL = 'https://ghost-sms.com';
+// The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
+const HOST_URL = 'https://gogho.st';
 const RELEASE = '/opt/ghost-sms-release';
 const BACKUPS = '/opt/ghost-sms-releases';
 const EXE = 'ghost-messaging-setup.exe';
@@ -140,3 +141,11 @@ if (said?.sha256 !== info.sha256) {
 }
 const head = await fetch(`${HOST_URL}/${EXE}`, { method: 'HEAD' });
 say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for Windows ${info.version} (${info.versionCode}), installer served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
+
+// The source, published as this release has it (tool/publish-source.mjs; Matt, 2026-11-15: "update the notes on claude
+// so that each release runs this automatically"). The release is live either way: a failure here is said, not fatal.
+if (!process.argv.includes('--no-source')) {
+  say('> Publishing the source (github.com/InfamousVague/ghost-messaging)');
+  const published = spawnSync('node', [join(ROOT, 'tool/publish-source.mjs')], { stdio: 'inherit' });
+  if (published.status !== 0) say('x The source was not published; run node tool/publish-source.mjs');
+}

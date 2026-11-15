@@ -8,7 +8,7 @@ import 'store.dart';
 import 'updates.dart';
 
 /// Where the relay would be once it is on a server (docs/desktop.md): the address the wizard starts with.
-const defaultRelay = 'wss://ghost-sms.com/relay';
+const defaultRelay = 'wss://gogho.st/relay';
 
 /// The Mac app's own parts, handed down to its screens: the link to the phone, what answers the phone's screens,
 /// and what is kept on this Mac.

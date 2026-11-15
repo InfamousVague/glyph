@@ -13,9 +13,11 @@ import '../../ui/common.dart';
 import '../../ui/computers.dart';
 import '../../ui/settings.dart';
 import '../../ui/settings_panes.dart' show aboutLicences;
+import '../gm_web.dart';
 import '../link/link.dart';
 import '../remote.dart';
 import '../updates.dart';
+import 'qr.dart';
 import 'update_bar.dart';
 import 'wizard.dart';
 
@@ -67,6 +69,18 @@ class DeskSettings extends ChangeNotifier {
           group: 'computer',
           summary: (m) => link.phone == null ? 'Not paired' : '${link.phone!.name} · ${_linkShort(link)}',
           page: (context, m) => _phonePage(context, this),
+        ),
+        // Google Messages on this computer (lib/desktop/gm_web.dart), where this copy carries its helper.
+        SettingsSection(
+          id: 'gmessages',
+          where: SettingsWhere.computer,
+          label: 'Google Messages',
+          icon: const AppIcon(Lucide.link, size: 18),
+          hue: 'green',
+          group: 'computer',
+          when: (m) => GmWeb.instance.available,
+          summary: (m) => GmWeb.instance.paired ? (GmWeb.instance.connected ? 'Connected' : 'Paired') : 'Not paired',
+          page: (context, m) => [const _GmPage()],
         ),
       ];
 
@@ -142,6 +156,76 @@ String _updateShort(MacUpdates u) {
     MacUpdatePhase.manual => '$version is out',
     MacUpdatePhase.failed => 'Couldn\'t update',
   };
+}
+
+// --- Google Messages --------------------------------------------------------------------------------------------------
+
+/// Pairing with Google Messages, as messages.google.com is paired (Matt, 2026-11-15: "Yes, mautrix sidecar"): a QR
+/// code to scan in Google Messages on the phone, and how it stands once paired.
+class _GmPage extends StatelessWidget {
+  const _GmPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final gm = GmWeb.instance;
+    return ListenableBuilder(
+      listenable: gm,
+      builder: (context, _) {
+        final t = context.tokens;
+        final qr = gm.qr;
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (qr != null)
+            PaneSection(
+              title: 'Scan this in Google Messages',
+              description: const Text('On your phone, open Google Messages, tap your profile picture, then Device pairing, then QR code scanner, and point it at this code.'),
+              children: [
+                SettingRowBox(child: Center(child: Padding(padding: EdgeInsets.all(t.space(3)), child: QrView(data: qr, size: 240)))),
+              ],
+            )
+          else if (gm.paired)
+            PaneSection(
+              title: 'Paired with Google Messages',
+              footer: const Text('Every conversation in Google Messages shows here, RCS and texts, with their history and pictures. Your phone needs to be on and online: the messages go through it.'),
+              children: [
+                SettingRow(
+                  icon: _icon(gm.connected ? Lucide.circleCheck : Lucide.triangleAlert),
+                  label: gm.connected ? 'Connected' : 'Connecting…',
+                  hint: Text([if (gm.phone.isNotEmpty) gm.phone, ?gm.problem].join(' · ').ifEmpty('Google Messages answers this computer directly')),
+                ),
+                SettingRow(
+                  icon: _icon(Lucide.unlink),
+                  label: 'Unpair Google Messages',
+                  hint: const Text('This computer stops showing Google Messages\' conversations. Google Messages lists it under Device pairing until then.'),
+                  onPress: () => showChoices(context, title: 'Unpair Google Messages from this computer?', choices: [
+                    Choice('Unpair', Lucide.unlink, () => gm.unpair(), danger: true),
+                  ]),
+                ),
+              ],
+            )
+          else
+            PaneSection(
+              title: 'Google Messages on this computer',
+              description: const Text('Pair this computer with Google Messages on your phone, the way messages.google.com is paired, and every conversation there shows here: RCS chats and texts, their history, pictures and reactions.'),
+              footer: const Text('The connection is this computer\'s alone: messages go between it and Google, as they do for messages.google.com, never through Ghost\'s servers. It is done by a small open-source helper built on mautrix-gmessages (GNU AGPL).'),
+              children: [
+                if (gm.problem != null) SettingRow(icon: _icon(Lucide.triangleAlert), label: 'Not paired', hint: Text(gm.problem!)),
+                SettingRow(icon: _icon(LucideMore.qrCode), label: 'Pair with Google Messages', hint: const Text('Shows a QR code to scan in Google Messages on your phone.'), onPress: () async {
+                  try {
+                    await gm.pair();
+                  } catch (e) {
+                    if (context.mounted) toast(context, '$e');
+                  }
+                }),
+              ],
+            ),
+        ]);
+      },
+    );
+  }
+}
+
+extension on String {
+  String ifEmpty(String other) => isEmpty ? other : this;
 }
 
 // --- Your phone -------------------------------------------------------------------------------------------------------
@@ -292,7 +376,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
   return [
     PaneSection(
       title: 'Ghost Messaging for $desktopName',
-      footer: const Text('It updates itself from ghost-sms.com: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
+      footer: const Text('It updates itself from gogho.st: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'This version', value: Text('${here.version} (${here.build})')),
         SettingRow(

@@ -75,7 +75,7 @@ class VoiceChannel {
   /// meeting link.
   ///
   /// The owner's key follows the name, so the browser knows whose roles to believe.
-  String get link => 'https://ghost-sms.com/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}';
+  String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}';
 
   static VoiceChannel? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || (j['s'] as String).length != 64 || j['n'] is! String) return null;

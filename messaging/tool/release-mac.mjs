@@ -15,8 +15,8 @@
  *
  * WHAT AN INSTALLED COPY READS (lib/desktop/updates.dart, macos/Runner/UpdatesChannel.swift):
  *
- *   https://ghost-sms.com/mac.json                 { version, versionCode, sha256, bytes, url, build, minimumSystemVersion }
- *   https://ghost-sms.com/ghost-messaging-mac.zip  the signed app, zipped by ditto
+ *   https://gogho.st/mac.json                 { version, versionCode, sha256, bytes, url, build, minimumSystemVersion }
+ *   https://gogho.st/ghost-messaging-mac.zip  the signed app, zipped by ditto
  *
  * beside the phone app's apk.json, in /opt/ghost-sms-release. ghost-sms.com's Caddy block serves that folder's
  * files by name (tool/deploy-site.mjs): the two above were added to it with this tool, and the block on the box
@@ -49,7 +49,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const HOST_URL = 'https://ghost-sms.com';
+// The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
+const HOST_URL = 'https://gogho.st';
 const RELEASE = '/opt/ghost-sms-release';
 const BACKUPS = '/opt/ghost-sms-releases';
 const ZIP = 'ghost-messaging-mac.zip';
@@ -139,6 +140,21 @@ mkdirSync(OUT, { recursive: true });
 const app = join(OUT, APP);
 run('ditto', [built, app]);
 
+// The Google Messages sidecar (sidecar/gmessages, AGPL-3.0), in Contents/Helpers: only once its source is public
+// (sidecar/gmessages/SOURCE_URL names where), since the AGPL asks that of every copy given out.
+const sidecarSource = join(ROOT, 'sidecar/gmessages/SOURCE_URL');
+const helper = join(app, 'Contents/Helpers/gmsidecar');
+if (existsSync(sidecarSource)) {
+  say('> Building the Google Messages sidecar');
+  run('sh', [join(ROOT, 'tool/build-gmsidecar.sh'), 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  run('ditto', [join(ROOT, 'build/gmsidecar/mac/gmsidecar'), helper]);
+  run('ditto', [join(ROOT, 'sidecar/gmessages/LICENSE'), join(app, 'Contents/Resources/gmsidecar-LICENSE.txt')]);
+  run('ditto', [sidecarSource, join(app, 'Contents/Resources/gmsidecar-SOURCE.txt')]);
+} else {
+  say('  (no Google Messages sidecar: its source is not published yet, sidecar/gmessages/SOURCE_URL)');
+}
+
 const plist = JSON.parse(read('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')]) || '{}');
 if (plist.CFBundleIdentifier !== BUNDLE_ID) fail(`The app's id is ${plist.CFBundleIdentifier}, not ${BUNDLE_ID}.`);
 if (plist.CFBundleShortVersionString !== versionName || String(plist.CFBundleVersion) !== String(versionCode)) {
@@ -173,6 +189,7 @@ if (existsSync(frameworks)) {
     if (isBundle || isCode) sign(at);
   }
 }
+if (existsSync(helper)) sign(helper);
 sign(app, ['--entitlements', entitlements]);
 
 const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });
@@ -310,14 +327,22 @@ $SUDO chmod 755 ${RELEASE}
 rm -rf ${STAGE}
 echo "ok placed in ${RELEASE}"`);
 
-// Is it served? ghost-sms.com's block names the files it serves from that folder (tool/deploy-site.mjs).
+// Is it served? gogho.st's block names the files it serves from that folder (tool/deploy-site.mjs).
 const res = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' }).catch((e) => ({ ok: false, status: e.message }));
 const said = res.ok ? await res.json().catch(() => null) : null;
 if (!keepConnection) box.close();
 if (said?.sha256 !== info.sha256) {
   say(`x ${HOST_URL}/${FEED} answered ${res.status}, not this release. The release is in ${RELEASE} on the box.`);
-  say(`  ghost-sms.com's Caddy block should name /${FEED} and /${ZIP} (it has since 2026-11-14). If it no longer does: node tool/deploy-site.mjs --caddy`);
+  say(`  gogho.st's Caddy block should name /${FEED} and /${ZIP} (it has since 2026-11-14). If it no longer does: node tool/deploy-site.mjs --caddy`);
   process.exit(1);
 }
 const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' });
 say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for the Mac ${info.version} (${info.versionCode}), zip served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
+
+// The source, published as this release has it (tool/publish-source.mjs; Matt, 2026-11-15: "update the notes on claude
+// so that each release runs this automatically"). The release is live either way: a failure here is said, not fatal.
+if (!process.argv.includes('--no-source')) {
+  say('> Publishing the source (github.com/InfamousVague/ghost-messaging)');
+  const published = spawnSync('node', [join(ROOT, 'tool/publish-source.mjs')], { stdio: 'inherit' });
+  if (published.status !== 0) say('x The source was not published; run node tool/publish-source.mjs');
+}

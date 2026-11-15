@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import '../sms.dart';
 import 'cache.dart';
+import 'gm_web.dart';
 import 'link/crypto.dart';
 import 'link/link.dart';
 import 'link/session.dart';
@@ -409,7 +410,58 @@ class LinkCalls implements SmsCalls, CapableCalls {
   @override
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async => (await _call(method, (arguments as Map?)?.cast<String, dynamic>() ?? const {})) as T?;
 
+  /// Google Messages on this computer (lib/desktop/gm_web.dart), where it is paired: its conversations are folded
+  /// into the list, and what is asked of one of them is answered by it, not the phone.
   Future<dynamic> _call(String method, Map<String, dynamic> a) async {
+    final gm = GmWeb.instance;
+    if (!gm.paired) return _phoneCall(method, a);
+    final thread = (a['thread'] as num?)?.toInt();
+    final ours = thread != null && gm.owns(thread);
+    switch (method) {
+      case 'conversations':
+        return gm.fold(await _orNone(() async => (await _phoneCall(method, a)) as List));
+      case 'conversationsPage':
+        if (((a['offset'] as num?)?.toInt() ?? 0) > 0) return {'items': const [], 'next': null};
+        final page = await _orNone(() async => (((await _phoneCall(method, {...a, 'limit': 0})) as Map)['items'] as List));
+        return {'items': gm.fold(page, archived: a['archived'] == true), 'next': null};
+      case 'conversation' when ours:
+        final c = gm.conversations[gm.convOf(thread)];
+        return c == null ? null : gm.row(c);
+      case 'messages' when ours:
+        return gm.messages(thread, limit: (a['limit'] as num?)?.toInt() ?? 50);
+      case 'people' when ours:
+        final c = gm.conversations[gm.convOf(thread)];
+        return c == null ? const [] : gm.row(c)['people'];
+      case 'markRead' when ours:
+        await gm.markRead(thread);
+        return null;
+      case 'part' when gm.ownsPart((a['id'] as num).toInt()):
+        return gm.part((a['id'] as num).toInt());
+      case 'send':
+        final addresses = [for (final x in (a['addresses'] as List? ?? const [])) '$x'];
+        final conv = gm.convFor(addresses);
+        if (conv != null) {
+          if ((a['attachments'] as List?)?.isNotEmpty ?? false) {
+            throw const PhoneError('Pictures to Google Messages conversations can\'t be sent from the computer yet. Send them from your phone.');
+          }
+          return gm.send(conv, '${a['body'] ?? ''}');
+        }
+      case 'threadFlag' || 'threadName' || 'archive' || 'draft' || 'setDraft' || 'deleteThread' when ours:
+        return null;
+    }
+    return _phoneCall(method, a);
+  }
+
+  /// The phone's answer, or nothing where it is away: Google Messages' conversations are shown either way.
+  Future<List<dynamic>> _orNone(Future<List<dynamic>> Function() ask) async {
+    try {
+      return await ask();
+    } on LinkDown {
+      return const [];
+    }
+  }
+
+  Future<dynamic> _phoneCall(String method, Map<String, dynamic> a) async {
     switch (method) {
       // --- the phone's -------------------------------------------------------------------------------------------------
       case 'conversations':

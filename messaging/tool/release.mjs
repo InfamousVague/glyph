@@ -9,8 +9,8 @@
  *
  * Put in /opt/ghost-sms-release, which ghost-sms.com's Caddy block (tool/deploy-site.mjs --caddy) serves at:
  *
- *   https://ghost-sms.com/apk.json             { version, versionCode, sha256, bytes, url, build }: what an installed app reads
- *   https://ghost-sms.com/ghost-messaging.apk  the release, signed with the release key; the site's download
+ *   https://gogho.st/apk.json             { version, versionCode, sha256, bytes, url, build }: what an installed app reads
+ *   https://gogho.st/ghost-messaging.apk  the release, signed with the release key; the site's download
  *
  * RUN tool/deploy-site.mjs --caddy ONCE FIRST, so the domain has its block; a release before that is placed but
  * not served, and this says so.
@@ -38,7 +38,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const HOST_URL = 'https://ghost-sms.com';
+// The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
+const HOST_URL = 'https://gogho.st';
 const RELEASE = '/opt/ghost-sms-release';
 const BACKUPS = '/opt/ghost-sms-releases';
 const APK = 'ghost-messaging.apk';
@@ -247,17 +248,25 @@ $SUDO chmod 755 ${RELEASE}
 rm -rf ${STAGE}
 echo "ok placed in ${RELEASE}"`);
 
-// Is it served? ghost-sms.com's block reads the folder it was put in. Where it answers otherwise, the block is shown:
+// Is it served? gogho.st's block reads the folder it was put in. Where it answers otherwise, the block is shown:
 // before tool/deploy-site.mjs --caddy has run once there is none, and the release waits in its folder.
 const res = await fetch(`${HOST_URL}/apk.json?t=${Date.now()}`, { cache: 'no-store' }).catch((e) => ({ ok: false, status: e.message }));
 const said = res.ok ? await res.json().catch(() => null) : null;
 if (said?.sha256 !== info.sha256) {
   say(`x ${HOST_URL}/apk.json answered ${res.status}, not this release. The release is in ${RELEASE} on the box.`);
-  say('  If ghost-sms.com has no Caddy block yet: node tool/deploy-site.mjs --caddy. Its block, for a look:');
-  box.ssh(`grep -n -A25 '^ghost-sms.com' /etc/caddy/Caddyfile || echo "(none)"`);
+  say('  If gogho.st has no Caddy block yet: node tool/deploy-site.mjs --caddy. Its block, for a look:');
+  box.ssh(`grep -n -A25 '^gogho.st' /etc/caddy/Caddyfile || echo "(none)"`);
   if (!keepConnection) box.close();
   process.exit(1);
 }
 if (!keepConnection) box.close();
 const head = await fetch(`${HOST_URL}/${APK}`, { method: 'HEAD' });
 say(`ok live: ${HOST_URL}/ — Ghost Messaging ${info.version}, APK served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
+
+// The source, published as this release has it (tool/publish-source.mjs; Matt, 2026-11-15: "update the notes on claude
+// so that each release runs this automatically"). The release is live either way: a failure here is said, not fatal.
+if (!process.argv.includes('--no-source')) {
+  say('> Publishing the source (github.com/InfamousVague/ghost-messaging)');
+  const published = spawnSync('node', [join(ROOT, 'tool/publish-source.mjs')], { stdio: 'inherit' });
+  if (published.status !== 0) say('x The source was not published; run node tool/publish-source.mjs');
+}

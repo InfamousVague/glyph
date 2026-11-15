@@ -14,6 +14,7 @@ import '../effects.dart';
 import '../emoji_sets.dart';
 import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
+import '../onboarding/onboarding.dart';
 import '../sms.dart';
 import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
@@ -290,7 +291,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.25';
+const appVersion = '0.7.26';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -939,7 +940,7 @@ List<Widget> _keyboard(BuildContext context, SettingsModel m) {
 
 // --- Updates ----------------------------------------------------------------------------------------------------------
 
-String _host(UpdateState u) => u.source.isEmpty ? 'ghost-sms.com' : u.source.replaceFirst('https://', '');
+String _host(UpdateState u) => u.source.isEmpty ? 'gogho.st' : u.source.replaceFirst('https://', '');
 
 /// Whether the look for an update failed because the site is not there to ask: no certificate, no such name, nothing
 /// answering, or no release published (Updater.kt says `notServing`; the words are what a copy before 0.4.0's
@@ -1083,6 +1084,8 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
       footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(m.update.current.isEmpty ? appVersion : m.update.current)),
+        // The first-run walkthrough again (lib/onboarding), on the phone, whose setup it is.
+        if (!Sms.remote) SettingRow(icon: _icon(LucideMore.rocket), label: 'Watch the walkthrough again', onPress: () => openOnboarding(context)),
         SettingRow(
           icon: _icon(Lucide.info),
           label: 'Texts and picture messages',
@@ -1091,7 +1094,7 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.lock),
           label: 'Nothing leaves the phone',
-          hint: const Text('No account and no server of ours. The app connects to ghost-sms.com for its own updates and to nothing else.'),
+          hint: const Text('No account and no server of ours. The app connects to gogho.st for its own updates and to nothing else.'),
         ),
       ],
     ),

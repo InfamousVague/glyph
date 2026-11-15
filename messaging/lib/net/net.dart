@@ -34,7 +34,7 @@ class Net extends ChangeNotifier implements PeerBook {
   static final Net instance = Net._();
 
   /// The relay server the app is given: ours. Anyone can run their own (relay/README.md) and put its address here.
-  static const defaultHub = 'wss://ghost-sms.com/hub';
+  static const defaultHub = 'wss://gogho.st/hub';
 
   AppState? _app;
   Switchboard? _board;

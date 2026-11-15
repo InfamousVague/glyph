@@ -24,7 +24,7 @@ import 'net/net.dart';
 import 'voice/channels.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
-import 'ui/setup.dart';
+import 'onboarding/onboarding.dart';
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
@@ -180,6 +180,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   /// Each page that opens in the pane asks for a look for a newer version, as each page of the app does.
   final _paneWatch = <NavigatorObserver>[UpdateWatch()];
+  /// The walkthrough is open (it opened because Ghost could not send texts), until it is finished.
+  bool _walking = false;
+
   /// The default SMS app, or beside Google Messages (SmsStatus.usable); null until asked.
   bool? _isDefault;
   StreamSubscription<OpenRequest>? _opens;
@@ -271,8 +274,17 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_isDefault == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
-    if (!_isDefault!) return SetupScreen(onDone: () => _check(first: true));
-    // An iPhone of its own starts with a username (lib/standalone/welcome.dart).
+    // The walkthrough (lib/onboarding): from first launch, while Ghost cannot send texts, and on until it is
+    // finished, though the texts page makes it able to part way through.
+    if (!_isDefault! || _walking) {
+      _walking = true;
+      return Onboarding(onDone: () {
+        setState(() => _walking = false);
+        _check(first: true);
+      });
+    }
+    // An iPhone of its own starts with a username (lib/standalone/welcome.dart); it is never asked to be the
+    // default for texts, so the walkthrough above is not shown on one.
     if (Sms.standalone && Me.instance.username == null) return StandaloneWelcome(onDone: () => setState(() {}));
     // The list, and what is opened from it beside it where the screen is wide enough (a folding phone opened out).
     return AppShell(key: _shell, paneObservers: _paneWatch);

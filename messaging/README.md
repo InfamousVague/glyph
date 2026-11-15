@@ -5,14 +5,42 @@ UI kit Ghost.md and Ghost Keyboard use.
 
 Started 2026-11-13 at Matt's ask: "Sketch out a project and load it on my phone, use the same glacier UI we use for
 other projects like ghost MARKDOWN and ghost KBD include basic functionality so i can replace my current sms today".
-It lives in Ghost.md's repository for now, in its own folder, and can be moved to a repository of its own whole.
+It is developed in Ghost.md's repository, in its own folder, and published whole as its own repository
+(github.com/InfamousVague/ghost-messaging) with each release (tool/publish-source.mjs).
+
+## Open source, for privacy
+
+Ghost Messaging is open source so anyone can check what it does with their messages (Matt, 2026-11-15: "I want to
+open source it for the privacy focused nature"). All of it is here: the phone app, the Mac and Windows apps, the
+relay server (`relay/`) that carries messages between your own devices and between friends, the call processing
+(`native/voicefx`) and the Google Messages helper (`sidecar/gmessages`, also at
+github.com/InfamousVague/ghost-gmessages-sidecar).
+
+- **Licence:** the GNU Affero General Public License v3 (`LICENSE`). Anyone who runs a changed copy, the relay
+  included, for others to use owes those people its source.
+- **What is not here:** the keys releases are signed with (Android's and Apple's), and the server's own credentials
+  (Twilio and the like, read from its environment). Builds made from this source are not signed as the releases are,
+  so they install as a separate app.
+- **Third-party parts** keep their own licences: the emoji fonts (`assets/emoji/LICENSES.md`), Inter and JetBrains
+  Mono (`assets/fonts/OFL.txt`), RNNoise (`native/voicefx/rnnoise/COPYING`, BSD), DeepFilterNet (MIT or Apache-2.0)
+  and mautrix-gmessages' libgm (AGPL-3.0).
 
 ## What it does
 
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
-- **Or works beside Google Messages, keeping RCS** (0.7.25, not released; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
+- **Google Messages on the computer** (0.7.25, not released; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
+  2026-11-15: "Yes, mautrix sidecar"). Settings › Google Messages on the Mac or Windows pairs the computer with Google
+  Messages by a QR code, as messages.google.com is, and every conversation there joins the desktop's list: RCS and
+  texts, history, pictures, reactions (shown under the words). A phone conversation with the same people is shown
+  once, from Google Messages. Sending text and marking read go to Google Messages; pictures to its conversations are
+  sent from the phone for now. It is done by a separate program, the sidecar (Go, built on mautrix-gmessages' libgm,
+  AGPL-3.0, `tool/build-gmsidecar.sh`), which the app starts and talks to over its standard input and output; nothing
+  of it is linked into Ghost. Its session is kept in the app's folder. Releases carry it only once its source is
+  public: `sidecar/gmessages/SOURCE_URL` names where, and release-mac.mjs and messaging-windows.yml leave it out until
+  that file exists. Checked: the sidecar asks Google for a pairing code; pairing with a phone not yet.
+- **Or works beside Google Messages, keeping RCS** (0.7.25; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
   to see if there is a way we can proxy messages from google messages to ghost so we can support RCS and other
   features ... I'd like to have a way that people can reliably get text in and out of ghost without needing to switch
   the default messaging app"; then "Both, notifications first"). Google Messages stays the default. Ghost reads texts
@@ -507,7 +535,16 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
-- **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25, not released; Matt, 2026-11-15:
+- **gogho.st** (0.7.26, not released; site live 2026-11-15; Matt: "I got the domain gogho.st hooked up the box,
+  please update all the links in app and everything to point through that domain instead of the ghost-sms one also
+  point that domain to the website"). The site is at gogho.st (www redirects to it), and the app's updates (phone,
+  Mac, Windows), the hub, the computer link's relay, hangout links and the invite all point there.
+  ghost-sms.com still serves what copies installed before the move ask of it (their update feeds, /hub, /relay)
+  and the sign-in pages at /link/*; every other address there redirects to gogho.st (tool/deploy-site.mjs).
+  Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
+  relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
+  Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
+- **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25; Matt, 2026-11-15:
   "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the whole group can
   send messages to the hangout as well as voice and video, make default roles such as admin, moderator, member").
   - **Owner.** A hangout made now carries its maker's public key (`VoiceChannel.owner`, in its link as a third part
@@ -562,6 +599,21 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
     (sealed), a message sent, delivered and shown unread on the other. Not yet: groups and pictures from an iPhone, a
     friend by username on Android (Android has no username chats yet), push notifications, TestFlight.
 - **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25, not released; Matt, 2026-11-15:
+- **The walkthrough, as Ghost Keyboard's and Ghost.md's** (0.7.26, not released; Matt, 2026-11-15: "Look at how we
+  do onboarding on Ghost KBD and Ghost Markdown with the optional voice guide through the elevenlabs key and the
+  vibrant colors and iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`:
+  nine pages (welcome, your texts, names and notifications, private, sorted, calls, your computer, a look, ready),
+  each a band of vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of
+  Ghost Keyboard), a title, its words, and its step. Dots and the Next button take the page's colour.
+  - **Your texts** is the old setup screen as a step (`TextsStep`, lib/ui/setup.dart): the default SMS app, or beside
+    Google Messages, and RCS first where it is coming from another app. Next waits there, and Skip appears, only once
+    Ghost can send texts.
+  - **The voice** is ElevenLabs' (Jessica, Eleven v4), made once at build time with the key in ~/.elevenlabs-key by
+    `tool/onboarding_voice.py` from narration.dart, kept as assets/onboarding/*.mp3 (700 KB); only a page whose words
+    changed is spoken again. Played on the phone by GuideVoice.kt; Voice on and off at the top, and kept.
+  - Shown on first launch until finished; Settings › About › Watch the walkthrough again. Tests: onboarding_test
+    (the voice per page, Skip, words matching their voice), screens_test's `0-guide-*` pictures.
+- **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25; Matt, 2026-11-15:
   "can we support 4k? and flac audio? also build in like krisp noise supression or other fancy noise suppression
   tools, add a volume slider for input and output volume with overboosting", then "RNNoise + DeepFilterNet").
   - Settings › Voice and video (`lib/ui/voice_pane.dart`, `VoiceSettings`): microphone and output volume, 0 to 200%;
@@ -578,8 +630,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Output volume** multiplies each person's own volume (`RtcMedia._apply`).
   - Volume and noise suppression change in a call at once (`Voice.settingsChanged`); the rest from the next call.
   - Not yet heard in a real call on a phone or a computer: the hooks are built and the engine is tested on its own.
-- **The active call is a banner again, just above the dock; the call controls are the dock's size** (0.7.25, not
-  released; Matt, 2026-11-15: "switch the active call to be a banner again in the sidebar just above the navigation
+- **The active call is a banner again, just above the dock; the call controls are the dock's size** (0.7.25; Matt, 2026-11-15: "switch the active call to be a banner again in the sidebar just above the navigation
   bar"; "the call controls are also too large they should match the size of the sidebar control dock").
   `CallBanner`; `CallDock` uses the dock's ring size, frosted pill and gap, at 0.8 on a computer as the dock is.
 - **"Tell friends I'm here" works from a computer** (0.7.24; Matt, 2026-11-15: "tell friends i'm here
@@ -976,6 +1027,11 @@ The emoji sets' picture (`test/shots/7-emoji-sets.png`) is compared on Linux onl
 with Core Text, which leaves Twemoji's row blank, where Linux's and Android's draw it with FreeType.
 
 ## Releasing (ghost-sms.com)
+
+Each release publishes the source by itself: tool/release.mjs, release-mac.mjs and release-windows.mjs end by running
+`node tool/publish-source.mjs` (github.com/InfamousVague/ghost-messaging, one commit a release, messaging/ as
+committed at HEAD; and the sidecar's own repository where it changed). `--no-source` skips it; a failure there is said
+and leaves the release live. A release that carries the Google Messages sidecar must have its source public.
 
 Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the domain to the same server ghost kbd
 uses". Both scripts are Ghost Keyboard's, for this app, and use Ghost.md's box account (`tauri/.env`) through

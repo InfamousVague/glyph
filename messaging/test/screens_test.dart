@@ -54,7 +54,7 @@ import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/new_group.dart';
 import 'package:ghost_messaging/ui/network.dart' show inviteText;
-import 'package:ghost_messaging/ui/setup.dart';
+import 'package:ghost_messaging/onboarding/onboarding.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -314,8 +314,8 @@ void _answerChannel() {
         ];
       case 'update':
         return _updateWaiting
-            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'}
-            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'}
+            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'};
       case 'ownNumber':
         return '+15551239999';
       // A link pressed in a message: the browser took it.
@@ -370,13 +370,13 @@ void _answerChannel() {
       // Paired computers: one connected over the local network, one last seen yesterday through the relay.
       case 'deskList':
         return [
-          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
-          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
+          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://gogho.st/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
+          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://gogho.st/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
         ];
       case 'deskState':
         return _pairing;
       case 'deskPeek':
-        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://gogho.st/relay'};
       case 'deskUnrestricted':
         return false;
       case 'deskAddresses':
@@ -780,13 +780,13 @@ void main() {
       expect(find.textContaining('cannot send data texts'), findsOneWidget);
       expect(find.textContaining('A test was sent to Riley Fox'), findsOneWidget);
       expect(find.text('Invite someone by text'), findsOneWidget);
-      expect(inviteText, contains('https://ghost-sms.com'));
+      expect(inviteText, contains('https://gogho.st'));
       expect(hub.carried, 1, reason: 'the test went by the route that is up');
       expect(sms.carried, 0);
       await tester.runAsync(Net.instance.shutdown);
       // Pairing with a computer, step by step: before a code is scanned, while the computer is looked for, the six
       // digits to compare, and paired.
-      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://gogho.st/relay'};
       for (final (name, state) in <(String, Map<String, Object?>)>[
         ('start', {'phase': 'none'}),
         ('waiting', {...mac, 'phase': 'waiting'}),
@@ -812,14 +812,41 @@ void main() {
       // A conversation's own, synced with someone who has the app: the shared one worn, and the switch on.
       await _shoot(tester, sheet, const BackgroundPicker(thread: 8, who: 'Riley Fox', people: [Person(address: '+15551230011', name: 'Riley Fox')]), '9-background-sync', dark: dark, prefs: const {'chat_bg_8': 'preset:rose', 'chat_bg_synced_8': 'preset:rose'});
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-background-dusk', dark: dark, prefs: const {'chat_bg': 'preset:dusk'});
-      await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup', dark: dark);
+      // The walkthrough (Matt, 2026-11-15: "Look at how we do onboarding on Ghost KBD and Ghost Markdown with the
+      // optional voice guide through the elevenlabs key and the vibrant colors and iconography for each step, mimick
+      // this on the setup of Ghost Messaging"): the welcome, then the texts page, which holds Next until Ghost can send.
+      _statusSaid = const {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
+      await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
+      expect(find.text('Hi, I\'m Ghost Messaging'), findsOneWidget);
+      expect(find.byKey(const ValueKey('guide-skip')), findsNothing, reason: 'nothing to skip to before Ghost can send texts');
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _shootAgain(tester, '0-guide-2-texts', dark: dark);
+      expect(find.text('Set as default SMS app'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _settle(tester);
+      expect(find.text('Your texts, here'), findsOneWidget, reason: 'Next waits until Ghost can send texts');
       // Google Messages on the phone and texts allowed, notification access not yet: the way to keep it, and RCS
       // (Matt, 2026-11-15: "I'd like to have a way that people can reliably get text in and out of ghost without
       // needing to switch the default messaging app").
       _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false};
-      await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup-beside', dark: dark);
+      await _shoot(tester, sheet, const Onboarding(), '0-guide-2-texts-beside', dark: dark);
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _shootAgain(tester, '0-guide-2-texts-beside', dark: dark);
       expect(find.text('Or keep Google Messages, and RCS'), findsOneWidget);
       expect(find.text('Use beside Google Messages'), findsOneWidget);
+      // Ghost is the texting app: each page after, in turn.
+      _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
+      await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
+      expect(find.byKey(const ValueKey('guide-skip')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _settle(tester);
+      expect(find.text('Ghost is your texting app.'), findsOneWidget);
+      for (final (i, page) in [(3, 'people'), (4, 'private'), (5, 'sorted'), (6, 'calls'), (7, 'computer'), (8, 'look'), (9, 'start')]) {
+        await tester.tap(find.byKey(const ValueKey('guide-next')));
+        await _shootAgain(tester, '0-guide-$i-$page', dark: dark);
+      }
+      expect(find.text('You\'re ready'), findsOneWidget);
+      expect(find.text('Start texting'), findsOneWidget);
       _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
       // Each effect at a moment of its run, over the conversation.
       const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};

@@ -8,7 +8,7 @@ import Security
 /// again"). This is Ghost.md's Mac updater (macos/Runner/UpdatesChannel.swift at the repository's root, proven there
 /// since 2026-10-24) with this app's names and places; the steps are the same.
 ///
-/// WHAT IT IS HANDED is the zip `https://ghost-sms.com/mac.json` describes (tool/release-mac.mjs), which Dart
+/// WHAT IT IS HANDED is the zip `https://gogho.st/mac.json` describes (tool/release-mac.mjs), which Dart
 /// downloaded, with the size and SHA-256 that description gives. Here it is first held to both. Then what only the
 /// Mac can answer is asked of what came out of the zip, before the running app is touched at all:
 /// - that it is one app, with this app's bundle id, and a `CFBundleVersion` above this one's (never a step back);

@@ -4,100 +4,404 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ghost Messaging</title>
-<meta name="description" content="Ghost Messaging: a texting app for Android. SMS and picture messages with reactions, effects, a choice of emoji, and nothing sent anywhere but to the people you text.">
-<link rel="canonical" href="https://ghost-sms.com/">
+<meta name="description" content="Ghost Messaging: texts, voice and video hangouts, and friends, on your Android phone and your Mac or PC. Reactions, effects, 4K calls with noise suppression, and nothing sent anywhere but to the people you talk to.">
+<link rel="canonical" href="https://gogho.st/">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#6d4dff">
+<meta property="og:title" content="Ghost Messaging">
+<meta property="og:description" content="Texts, voice and video hangouts, and friends, on Android, Mac and Windows.">
+<meta property="og:url" content="https://gogho.st/">
+<meta property="og:image" content="https://gogho.st/art/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<!--
+  The site (Matt, 2026-11-15: "redo the website with vivid colors and iconography inspired by the competition like
+  discord and telegram"). Loud where the apps are quiet: a gradient hero, a colour per feature, heavy type. Icons are
+  Lucide's (ISC licence), inline. The pictures under /art/ are Matt's to make (Desktop/ghost-messaging-art-prompts.md
+  names each file); until one is there, its spot shows the drawn ghost instead. No fonts or scripts from anywhere else:
+  a page for a private messenger asks nothing of third parties.
+-->
 <style>
-  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; --rule: #e3e3e6; --accent: #4f5bd5; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; --rule: #232326; --accent: #8c95ff; } }
+  :root {
+    color-scheme: light dark;
+    --violet: #6d4dff; --violet-2: #8f6bff; --pink: #ff3d9a; --sky: #1fb4ff; --mint: #19d3a0; --sun: #ffbe2e; --coral: #ff5e45;
+    --bg: #f7f5ff; --paper: #ffffff; --ink: #0d0b1f; --ink-2: #4c4866; --ink-3: #7a7694; --rule: #e6e2f5;
+    --hero-1: #5b3df5; --hero-2: #a23cf5; --hero-3: #ff3d9a;
+    --radius: 1.5rem;
+    --shadow: 0 1px 2px rgba(20, 10, 60, .06), 0 12px 32px rgba(40, 20, 120, .10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b0a17; --paper: #15132a; --ink: #f4f2ff; --ink-2: #b9b4d6; --ink-3: #8a85a8; --rule: #26233f; --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 16px 40px rgba(0, 0, 0, .45); }
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 17px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
-  main { max-width: 44rem; margin: 0 auto; padding: 4rem 1.25rem 3rem; }
-  .mark { width: 4.5rem; height: 4.5rem; border-radius: 1.3rem; display: block; }
-  h1 { font-size: clamp(2.2rem, 7vw, 3.2rem); line-height: 1.05; letter-spacing: -0.03em; margin: 1.5rem 0 0.75rem; }
-  .lede { font-size: 1.15rem; color: var(--ink2); margin: 0 0 1.75rem; max-width: 34rem; }
-  .get { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem 1.1rem; }
-  a.button { display: inline-block; background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 650; padding: 0.85rem 1.5rem; border-radius: 999px; }
-  a.button:active { transform: scale(0.97); }
-  .version { color: var(--ink2); font-size: 0.95rem; }
-  .desktop { margin-top: 1.1rem; display: flex; flex-wrap: wrap; gap: 0.7rem; }
-  a.button.quiet { background: transparent; color: var(--ink); border: 1.5px solid var(--ink2); padding: 0.7rem 1.2rem; font-weight: 600; }
-  .desktop small { display: block; color: var(--ink2); font-size: 0.8rem; font-weight: 400; margin-top: 0.15rem; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; font: 17px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; }
+  img { max-width: 100%; }
   [hidden] { display: none !important; }
-  ul.points { list-style: none; padding: 0; margin: 2.75rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
-  ul.points li { background: var(--card); border-radius: 1.1rem; padding: 1rem 1.1rem; }
-  ul.points b { display: block; margin-bottom: 0.15rem; }
-  ul.points span { color: var(--ink2); font-size: 0.95rem; }
-  .how { margin-top: 2.75rem; border-top: 1px solid var(--rule); padding-top: 1.5rem; color: var(--ink2); font-size: 0.95rem; }
-  .how h2 { color: var(--ink); font-size: 1.05rem; margin: 0 0 0.5rem; }
-  .how ol { margin: 0; padding-left: 1.2rem; }
-  footer { margin-top: 2.5rem; color: var(--ink2); font-size: 0.85rem; }
+  .wrap { max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+  svg.i { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* --- top bar --- */
+  header.bar { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: color-mix(in srgb, var(--hero-1) 82%, transparent); color: #fff; }
+  header.bar .wrap { display: flex; align-items: center; gap: 1rem; height: 4rem; }
+  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; letter-spacing: -.02em; text-decoration: none; font-size: 1.1rem; }
+  .brand img { width: 2.1rem; height: 2.1rem; border-radius: .65rem; }
+  nav.links { display: flex; gap: 1.4rem; margin-left: auto; font-weight: 600; font-size: .95rem; }
+  nav.links a { text-decoration: none; opacity: .85; }
+  nav.links a:hover { opacity: 1; }
+  header.bar .cta { margin-left: 1rem; background: #fff; color: var(--hero-1); text-decoration: none; font-weight: 750; padding: .55rem 1.05rem; border-radius: 999px; font-size: .95rem; white-space: nowrap; }
+  @media (max-width: 760px) { nav.links { display: none; } header.bar .cta { margin-left: auto; } }
+
+  /* --- hero --- */
+  .hero { position: relative; color: #fff; background: radial-gradient(60rem 40rem at 85% 10%, rgba(255, 61, 154, .55), transparent 60%), radial-gradient(50rem 40rem at 0% 100%, rgba(31, 180, 255, .45), transparent 60%), linear-gradient(135deg, var(--hero-1), var(--hero-2) 55%, #c53fd8); overflow: hidden; }
+  .hero::after { /* the wave into the page */ content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 5rem; background: var(--bg); clip-path: ellipse(75% 100% at 50% 100%); }
+  .hero .wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.1fr .9fr; gap: 2rem; align-items: center; padding-top: 4rem; padding-bottom: 7rem; }
+  @media (max-width: 900px) { .hero .wrap { grid-template-columns: 1fr; padding-top: 2.5rem; padding-bottom: 6rem; } }
+  .pill { display: inline-flex; align-items: center; gap: .45rem; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .28); padding: .35rem .8rem; border-radius: 999px; font-size: .85rem; font-weight: 650; }
+  .pill .dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 4px rgba(25, 211, 160, .25); }
+  .hero h1 { font-size: clamp(2.6rem, 7.5vw, 4.6rem); line-height: .98; letter-spacing: -.045em; font-weight: 850; margin: 1.1rem 0 1rem; }
+  .hero h1 em { font-style: normal; background: linear-gradient(90deg, #fff 0%, #ffe27a 45%, #ff9ccc 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .lede { font-size: clamp(1.05rem, 2.2vw, 1.25rem); max-width: 34rem; margin: 0 0 2rem; color: rgba(255, 255, 255, .88); }
+  .get { display: flex; flex-wrap: wrap; gap: .75rem; }
+  a.dl { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; border-radius: 1.1rem; padding: .8rem 1.2rem .8rem 1rem; font-weight: 750; line-height: 1.15; transition: transform .15s ease, box-shadow .15s ease; }
+  a.dl small { display: block; font-weight: 500; font-size: .78rem; opacity: .75; }
+  a.dl:hover { transform: translateY(-2px); }
+  a.dl:active { transform: scale(.97); }
+  a.dl.main { background: #fff; color: var(--hero-1); box-shadow: 0 10px 30px rgba(20, 0, 80, .35); }
+  a.dl.alt { background: rgba(255, 255, 255, .14); color: #fff; border: 1.5px solid rgba(255, 255, 255, .35); }
+  .hero .note { margin-top: 1rem; font-size: .85rem; color: rgba(255, 255, 255, .7); }
+
+  /* the phone */
+  .stage { position: relative; display: flex; justify-content: center; min-height: 32rem; }
+  .phone { position: relative; width: 17.5rem; height: 32rem; border-radius: 2.6rem; background: #0d0b1f; padding: .7rem; box-shadow: 0 40px 80px rgba(20, 0, 70, .55), inset 0 0 0 2px rgba(255, 255, 255, .08); transform: rotate(-4deg); }
+  .screen { height: 100%; border-radius: 2rem; background: #f6f4ff; overflow: hidden; display: flex; flex-direction: column; color: #0d0b1f; }
+  .screen .top { display: flex; align-items: center; gap: .6rem; padding: 1.4rem .9rem .7rem; background: #fff; border-bottom: 1px solid #ece8fb; }
+  .face { width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .8rem; color: #fff; flex: none; }
+  .screen .top b { font-size: .9rem; display: block; }
+  .screen .top span { font-size: .7rem; color: #19a77f; font-weight: 600; }
+  .msgs { flex: 1; padding: .9rem .8rem; display: flex; flex-direction: column; gap: .5rem; font-size: .82rem; }
+  .b { max-width: 78%; padding: .5rem .75rem; border-radius: 1.1rem; position: relative; line-height: 1.35; }
+  .b.in { background: #fff; align-self: flex-start; border-bottom-left-radius: .35rem; box-shadow: 0 1px 2px rgba(0, 0, 0, .06); }
+  .b.out { background: linear-gradient(135deg, var(--violet), var(--violet-2)); color: #fff; align-self: flex-end; border-bottom-right-radius: .35rem; }
+  .b .react { position: absolute; right: -.4rem; bottom: -.75rem; background: #fff; border-radius: 999px; padding: .05rem .35rem; font-size: .75rem; box-shadow: 0 2px 6px rgba(0, 0, 0, .15); }
+  .ticks { align-self: flex-end; font-size: .65rem; color: #7a7694; display: flex; align-items: center; gap: .2rem; margin-top: -.2rem; }
+  .ticks svg { width: .85rem; height: .85rem; stroke: var(--sky); stroke-width: 2.5; fill: none; }
+  .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: 2rem; }
+  .confetti i { position: absolute; width: .45rem; height: .7rem; border-radius: .1rem; top: -1rem; animation: fall 3.6s linear infinite; }
+  @keyframes fall { to { transform: translateY(34rem) rotate(540deg); } }
+  .compose { margin: .6rem; background: #fff; border-radius: 999px; padding: .55rem .9rem; font-size: .78rem; color: #8a85a8; display: flex; justify-content: space-between; box-shadow: 0 1px 2px rgba(0, 0, 0, .06); }
+  .float { position: absolute; display: flex; align-items: center; gap: .5rem; background: #fff; color: #0d0b1f; border-radius: 1rem; padding: .6rem .85rem; font-weight: 700; font-size: .85rem; box-shadow: 0 16px 40px rgba(20, 0, 70, .35); animation: bob 5s ease-in-out infinite; }
+  .float .t { width: 1.9rem; height: 1.9rem; border-radius: .6rem; display: grid; place-items: center; color: #fff; }
+  .float small { display: block; font-weight: 500; color: #7a7694; font-size: .72rem; }
+  .f1 { left: 0; top: 12%; }
+  .f2 { right: 0; top: 46%; animation-delay: -1.6s; }
+  .f3 { left: 6%; bottom: 6%; animation-delay: -3.2s; }
+  @keyframes bob { 50% { transform: translateY(-10px); } }
+  @media (max-width: 520px) { .f1 { left: -.25rem; } .f2 { right: -.25rem; } .phone { transform: none; } }
+  .mascot { position: absolute; width: 8rem; right: 4%; top: -1.5rem; filter: drop-shadow(0 20px 30px rgba(20, 0, 70, .4)); animation: bob 6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .float, .mascot, .confetti i, .ripple { animation: none !important; } }
+
+  /* --- sections --- */
+  section { padding: 5rem 0; }
+  .kicker { display: inline-block; font-weight: 800; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: var(--violet); margin-bottom: .6rem; }
+  @media (prefers-color-scheme: dark) { .kicker { color: var(--violet-2); } }
+  h2 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.02; letter-spacing: -.04em; font-weight: 850; margin: 0 0 1rem; }
+  .sub { color: var(--ink-2); font-size: 1.1rem; max-width: 40rem; margin: 0; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); margin-top: 2.5rem; }
+  .card { background: var(--paper); border-radius: var(--radius); padding: 1.4rem; box-shadow: var(--shadow); border: 1px solid var(--rule); transition: transform .2s ease; }
+  .card:hover { transform: translateY(-3px); }
+  .tile { width: 3rem; height: 3rem; border-radius: 1rem; display: grid; place-items: center; color: #fff; margin-bottom: 1rem; box-shadow: 0 8px 18px -6px var(--c); background: var(--c); }
+  .card h3 { margin: 0 0 .35rem; font-size: 1.15rem; letter-spacing: -.02em; }
+  .card p { margin: 0; color: var(--ink-2); font-size: .97rem; }
+
+  /* calls: a dark band */
+  .calls { background: radial-gradient(40rem 30rem at 90% 0%, rgba(255, 61, 154, .28), transparent 60%), radial-gradient(40rem 30rem at 0% 100%, rgba(31, 180, 255, .25), transparent 60%), #120f2b; color: #fff; border-radius: 2.5rem; margin: 0 .75rem; }
+  @media (prefers-color-scheme: dark) { .calls { background: radial-gradient(40rem 30rem at 90% 0%, rgba(255, 61, 154, .35), transparent 60%), radial-gradient(40rem 30rem at 0% 100%, rgba(31, 180, 255, .3), transparent 60%), linear-gradient(135deg, #2a1a6e, #1c1450); } }
+  .calls .sub { color: rgba(255, 255, 255, .78); }
+  .calls .kicker { color: #ffd166; }
+  .calls .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+  @media (max-width: 900px) { .calls .wrap { grid-template-columns: 1fr; } }
+  .chips { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.6rem; }
+  .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .85rem; border-radius: 999px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .16); font-weight: 650; font-size: .9rem; }
+  .chip svg.i { width: 1.05rem; height: 1.05rem; color: var(--c); }
+  .room { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); border-radius: 2rem; padding: 1.4rem; }
+  .room .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .room .head b { font-size: 1.05rem; }
+  .live { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 700; color: var(--mint); }
+  .live::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--mint); }
+  .who { display: flex; align-items: center; gap: .9rem; padding: .55rem .2rem; }
+  .who .av { position: relative; width: 2.8rem; height: 2.8rem; border-radius: 50%; display: grid; place-items: center; font-weight: 800; flex: none; }
+  .ripple { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--mint); animation: ring 1.6s ease-out infinite; }
+  .ripple.r2 { animation-delay: .5s; }
+  @keyframes ring { from { transform: scale(.9); opacity: .9; } to { transform: scale(1.45); opacity: 0; } }
+  .who .name { font-weight: 700; }
+  .who .what { font-size: .8rem; color: rgba(255, 255, 255, .6); }
+  .who svg.i { margin-left: auto; width: 1.1rem; height: 1.1rem; color: rgba(255, 255, 255, .55); }
+  .dock { display: flex; justify-content: center; gap: .6rem; margin-top: 1rem; }
+  .dock span { width: 2.9rem; height: 2.9rem; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .1); }
+  .dock span.end { background: var(--coral); }
+
+  /* desktop */
+  .split { display: grid; grid-template-columns: .95fr 1.05fr; gap: 3rem; align-items: center; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+  .laptop { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.4rem; box-shadow: var(--shadow); overflow: hidden; }
+  .laptop .chrome { display: flex; gap: .4rem; padding: .7rem .9rem; border-bottom: 1px solid var(--rule); }
+  .laptop .chrome i { width: .7rem; height: .7rem; border-radius: 50%; background: var(--rule); }
+  .laptop .chrome i:nth-child(1) { background: #ff5f57; } .laptop .chrome i:nth-child(2) { background: #febc2e; } .laptop .chrome i:nth-child(3) { background: #28c840; }
+  .laptop .panes { display: grid; grid-template-columns: 9rem 1fr; min-height: 15rem; }
+  .laptop .list { border-right: 1px solid var(--rule); padding: .6rem; display: flex; flex-direction: column; gap: .35rem; }
+  .row { display: flex; align-items: center; gap: .5rem; padding: .4rem; border-radius: .7rem; font-size: .78rem; font-weight: 650; }
+  .row.on { background: color-mix(in srgb, var(--violet) 14%, transparent); }
+  .row .face { width: 1.6rem; height: 1.6rem; font-size: .65rem; }
+  .laptop .chat { padding: .9rem; display: flex; flex-direction: column; gap: .45rem; font-size: .8rem; justify-content: flex-end; }
+  .laptop .b.in { background: var(--bg); color: var(--ink); box-shadow: none; }
+  .steps { list-style: none; padding: 0; margin: 1.8rem 0 0; display: grid; gap: .9rem; counter-reset: s; }
+  .steps li { display: flex; gap: .9rem; align-items: flex-start; color: var(--ink-2); }
+  .steps li::before { counter-increment: s; content: counter(s); flex: none; width: 2rem; height: 2rem; border-radius: .7rem; display: grid; place-items: center; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--violet), var(--pink)); }
+  .steps b { color: var(--ink); }
+
+  /* privacy */
+  .privacy { text-align: center; }
+  .privacy .sub { margin: 0 auto; }
+  .seal { width: 5.5rem; height: 5.5rem; margin: 0 auto 1.4rem; border-radius: 1.8rem; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--mint), var(--sky)); box-shadow: 0 18px 40px -12px var(--sky); }
+  .seal svg.i { width: 2.4rem; height: 2.4rem; }
+  .privacy .grid { text-align: left; }
+
+  /* get it */
+  .final { margin: 0 .75rem 3rem; border-radius: 2.5rem; color: #fff; text-align: center; padding: 4.5rem 1rem; background: radial-gradient(40rem 25rem at 50% 0%, rgba(255, 255, 255, .18), transparent 70%), linear-gradient(135deg, var(--hero-1), var(--hero-2) 50%, var(--hero-3)); position: relative; overflow: hidden; }
+  .final h2 { margin-bottom: .6rem; }
+  .final .sub { color: rgba(255, 255, 255, .85); margin: 0 auto 2rem; }
+  .final .get { justify-content: center; }
+  .final .mascot-end { width: 7rem; margin: 0 auto 1rem; display: block; filter: drop-shadow(0 16px 24px rgba(20, 0, 70, .35)); }
+  .install { max-width: 46rem; margin: 2.5rem auto 0; text-align: left; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+  .install div { background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .2); border-radius: 1.3rem; padding: 1.1rem 1.2rem; font-size: .93rem; }
+  .install b { display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem; font-size: 1rem; }
+  .install ol { margin: 0; padding-left: 1.1rem; color: rgba(255, 255, 255, .88); }
+  footer { color: var(--ink-3); font-size: .85rem; padding: 0 0 3rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between; }
 </style>
 </head>
 <body>
-<main>
-  <img class="mark" src="/icon.png" width="72" height="72" alt="">
-  <h1>Ghost Messaging</h1>
-  <p class="lede">A texting app for Android, with your texts on your Mac or PC too. Your SMS and picture messages, with reactions, effects and a choice of emoji, in the same quiet design as Ghost.md and Ghost Keyboard.</p>
+<!-- Lucide icons (ISC licence), drawn once and used by id. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></symbol>
+    <symbol id="i-phones" viewBox="0 0 24 24"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5"/></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></symbol>
+    <symbol id="i-check2" viewBox="0 0 24 24"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+    <symbol id="i-phoneoff" viewBox="0 0 24 24"><path d="M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2C10.06 22 2 13.94 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 .244.473"/><path d="m2 2 20 20"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+    <!-- The drawn ghost: what a picture's spot shows until Matt's picture is there. -->
+    <symbol id="ghost" viewBox="0 0 120 130"><path fill="#fff" d="M60 4C30 4 10 27 10 58v62c0 3 3.5 4.6 5.8 2.6l9-8 9.4 8.6a4 4 0 0 0 5.4 0l9.6-8.6 9.6 8.6a4 4 0 0 0 5.4 0l9.6-8.6 9.6 8.6a4 4 0 0 0 5.4 0l9.4-8.6 9 8c2.3 2 5.8.4 5.8-2.6V58C110 27 90 4 60 4Z"/><ellipse cx="44" cy="56" rx="7.5" ry="10" fill="#0d0b1f"/><ellipse cx="76" cy="56" rx="7.5" ry="10" fill="#0d0b1f"/><circle cx="46.5" cy="52" r="2.6" fill="#fff"/><circle cx="78.5" cy="52" r="2.6" fill="#fff"/><ellipse cx="34" cy="74" rx="7" ry="4" fill="#ff9ccc" opacity=".8"/><ellipse cx="86" cy="74" rx="7" ry="4" fill="#ff9ccc" opacity=".8"/><path d="M52 74c4 4 12 4 16 0" stroke="#0d0b1f" stroke-width="3.5" fill="none" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="/icon.png" width="34" height="34" alt="">Ghost Messaging</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#calls">Calls</a>
+      <a href="#desktop">Desktop</a>
+      <a href="#privacy">Privacy</a>
+    </nav>
+    <a class="cta" href="#get">Download</a>
+  </div>
+</header>
+
+<div class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="pill"><span class="dot"></span><span id="now">Free · Android, Mac and Windows</span></span>
+      <h1>Texts, calls and friends, <em>all in one ghost.</em></h1>
+      <p class="lede">Your SMS and picture messages with reactions that land and effects that pop. Hangouts anyone can drop into, in up to 4K with noise suppression. And your texts on your Mac or PC, sealed end to end.</p>
+      <div class="get" id="hero-get">
+        <a class="dl main" href="/ghost-messaging.apk" data-feed="apk"><svg class="i"><use href="#i-phone"/></svg><span>Download for Android<small data-version="apk">The APK, straight from us</small></span></a>
+        <a class="dl alt" href="/ghost-messaging-mac.zip" data-feed="mac" hidden><svg class="i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></a>
+        <a class="dl alt" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Windows<small data-version="windows"></small></span></a>
+      </div>
+      <p class="note">No account to make. It keeps itself up to date.</p>
+    </div>
+
+    <div class="stage" aria-hidden="true">
+      <img class="mascot" src="/art/mascot-hero.webp" alt="" onerror="this.outerHTML='<svg class=&quot;mascot&quot; viewBox=&quot;0 0 120 130&quot;><use href=&quot;#ghost&quot;/></svg>'">
+      <div class="phone">
+        <div class="screen">
+          <div class="top"><span class="face" style="background:linear-gradient(135deg,var(--pink),var(--coral))">MC</span><div><b>Maya Chen</b><span>typing…</span></div></div>
+          <div class="msgs">
+            <div class="b in">Did you get the job?? 👀</div>
+            <div class="b out">I got the job!!! 🎉</div>
+            <div class="ticks">Read 9:41 <svg viewBox="0 0 24 24"><use href="#i-check2"/></svg></div>
+            <div class="b in">CONGRATS 🥳 drinks tonight?<span class="react">❤️</span></div>
+            <div class="b out" style="margin-top:.4rem">Hangout at 8, link's in the group 👻</div>
+          </div>
+          <div class="compose"><span>Text message</span><span>🎤</span></div>
+        </div>
+        <div class="confetti" id="confetti"></div>
+      </div>
+      <div class="float f1"><span class="t" style="background:var(--pink)"><svg class="i"><use href="#i-heart"/></svg></span><span>Reactions<small>that land</small></span></div>
+      <div class="float f2"><span class="t" style="background:var(--sky)"><svg class="i"><use href="#i-video"/></svg></span><span>4K calls<small>noise gone</small></span></div>
+      <div class="float f3"><span class="t" style="background:var(--sun)"><svg class="i"><use href="#i-spark"/></svg></span><span>Effects<small>🎈 🎉 👻</small></span></div>
+    </div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <span class="kicker">Everything you text with</span>
+    <h2>Your texting app, turned up.</h2>
+    <p class="sub">It replaces the app you use now. Every conversation you already have is there the moment you switch, and still there if you ever switch back.</p>
+    <div class="grid">
+      <div class="card"><div class="tile" style="--c:var(--pink)"><svg class="i"><use href="#i-heart"/></svg></div><h3>Reactions that land</h3><p>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own. Send yours back.</p></div>
+      <div class="card"><div class="tile" style="--c:var(--sun)"><svg class="i"><use href="#i-spark"/></svg></div><h3>Effects</h3><p>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", and ghosts for "Boo".</p></div>
+      <div class="card"><div class="tile" style="--c:var(--violet)"><svg class="i"><use href="#i-users"/></svg></div><h3>Friends and groups</h3><p>Pick a username, add friends by it, make groups with names and faces, and call the whole group at once.</p></div>
+      <div class="card"><div class="tile" style="--c:var(--sky)"><svg class="i"><use href="#i-phones"/></svg></div><h3>Voice and video</h3><p>Drop into a group's channel any time, see who's there, turn video on when you want it. Up to 4K.</p></div>
+      <div class="card"><div class="tile" style="--c:var(--mint)"><svg class="i"><use href="#i-key"/></svg></div><h3>Codes, sorted</h3><p>One-time codes get their own tab with the company's logo, ready to copy, and stop nagging once you've read them.</p></div>
+      <div class="card"><div class="tile" style="--c:var(--coral)"><svg class="i"><use href="#i-smile"/></svg></div><h3>Your emoji</h3><p>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set. Stickers too.</p></div>
+      <div class="card"><div class="tile" style="--c:#3d7bff"><svg class="i"><use href="#i-check2"/></svg></div><h3>Ticks</h3><p>Sent, delivered, and read where the other phone says so. Pictures retry by themselves and tell you why.</p></div>
+      <div class="card"><div class="tile" style="--c:#b04dff"><svg class="i"><use href="#i-msg"/></svg></div><h3>Sorted for you</h3><p>Needs a reply, sales and spam each find their own tab, so what matters is what you see first.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="calls" id="calls">
+  <div class="wrap">
+    <div>
+      <span class="kicker">Hangouts</span>
+      <h2>Talk like you're in the same room.</h2>
+      <p class="sub">Every group has a voice channel that's always open: jump in and out whenever. Share a hangout by link and anyone can join from a browser, no app or account needed.</p>
+      <div class="chips">
+        <span class="chip" style="--c:var(--sky)"><svg class="i"><use href="#i-video"/></svg>Up to 4K video</span>
+        <span class="chip" style="--c:var(--mint)"><svg class="i"><use href="#i-wave"/></svg>RNNoise and DeepFilterNet noise suppression</span>
+        <span class="chip" style="--c:var(--sun)"><svg class="i"><use href="#i-mic"/></svg>510 kb/s stereo sound</span>
+        <span class="chip" style="--c:var(--pink)"><svg class="i"><use href="#i-music"/></svg>Music mode</span>
+        <span class="chip" style="--c:#b9a8ff"><svg class="i"><use href="#i-link"/></svg>Join by link</span>
+      </div>
+    </div>
+    <div class="room" aria-hidden="true">
+      <div class="head"><b>🎮 Friday hang</b><span class="live">4 here · 12:05</span></div>
+      <div class="who"><span class="av" style="background:var(--pink)"><span class="ripple"></span><span class="ripple r2"></span>M</span><div><div class="name">Maya Chen</div><div class="what">talking</div></div><svg class="i"><use href="#i-mic"/></svg></div>
+      <div class="who"><span class="av" style="background:var(--sky)">S</span><div><div class="name">Sam</div><div class="what">listening</div></div><svg class="i"><use href="#i-mic"/></svg></div>
+      <div class="who"><span class="av" style="background:var(--sun);color:#0d0b1f"><span class="ripple"></span>J</span><div><div class="name">Jordan</div><div class="what">talking</div></div><svg class="i"><use href="#i-video"/></svg></div>
+      <div class="who"><span class="av" style="background:var(--violet-2)">R</span><div><div class="name">Riley <span style="opacity:.55;font-weight:500">· guest</span></div><div class="what">joined from a browser</div></div><svg class="i"><use href="#i-link"/></svg></div>
+      <div class="dock"><span><svg class="i"><use href="#i-mic"/></svg></span><span><svg class="i"><use href="#i-phones"/></svg></span><span><svg class="i"><use href="#i-video"/></svg></span><span class="end"><svg class="i"><use href="#i-phoneoff"/></svg></span></div>
+    </div>
+  </div>
+</section>
+
+<section id="desktop">
+  <div class="wrap split">
+    <div class="laptop" aria-hidden="true">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="panes">
+        <div class="list">
+          <div class="row on"><span class="face" style="background:var(--pink)">MC</span>Maya Chen</div>
+          <div class="row"><span class="face" style="background:var(--sky)">D</span>Dad</div>
+          <div class="row"><span class="face" style="background:var(--mint)">FH</span>Friday hang</div>
+          <div class="row"><span class="face" style="background:var(--sun);color:#0d0b1f">RF</span>Riley Fox</div>
+        </div>
+        <div class="chat">
+          <div class="b in">Typing on a real keyboard now?</div>
+          <div class="b out">From my Mac, through my phone 💻📱</div>
+          <div class="b in">Show-off 😂<span class="react">😂</span></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <span class="kicker">On your computer</span>
+      <h2>Your texts, on the big screen.</h2>
+      <p class="sub">Ghost Messaging for Mac and Windows shows your phone's conversations and sends through your phone, sealed between the two. Calls and hangouts work there too.</p>
+      <ol class="steps">
+        <li><span><b>Download for Mac or Windows.</b> On a Mac, open the zip and drag it to Applications. On Windows, run the installer (Windows asks once, as it does for any new app).</span></li>
+        <li><span><b>Pair with your phone.</b> On your phone open Settings › Computers and scan the code the computer shows.</span></li>
+        <li><span><b>That's it.</b> Both keep themselves up to date.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="privacy" id="privacy">
+  <div class="wrap">
+    <div class="seal"><svg class="i"><use href="#i-shield"/></svg></div>
+    <span class="kicker">Private by default</span>
+    <h2>Nothing goes anywhere it shouldn't.</h2>
+    <p class="sub">No account to make. What travels through our server between friends is sealed on your phone first, so the server passes it along and can't read it.</p>
+    <div class="grid">
+      <div class="card"><div class="tile" style="--c:var(--mint)"><svg class="i"><use href="#i-lock"/></svg></div><h3>Sealed end to end</h3><p>Messages between Ghost users, your computer's link to your phone, and calls are encrypted on the devices themselves.</p></div>
+      <div class="card"><div class="tile" style="--c:var(--violet)"><svg class="i"><use href="#i-user"/></svg></div><h3>No account</h3><p>Your number stays on your phone. A username and linked accounts are yours to turn on, and to remove.</p></div>
+      <div class="card"><div class="tile" style="--c:var(--sky)"><svg class="i"><use href="#i-msg"/></svg></div><h3>Texts stay texts</h3><p>SMS and picture messages go through your carrier as they always have. Nothing is copied to us.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="final" id="get">
+  <img class="mascot-end" src="/art/mascot-wave.webp" alt="" onerror="this.outerHTML='<svg class=&quot;mascot-end&quot; viewBox=&quot;0 0 120 130&quot;><use href=&quot;#ghost&quot;/></svg>'">
+  <h2>Get Ghost Messaging</h2>
+  <p class="sub">Free, on your Android phone and your Mac or PC.</p>
   <div class="get">
-    <a class="button" href="/ghost-messaging.apk" id="download">Download for Android</a>
-    <span class="version" id="version"></span>
+    <a class="dl main" href="/ghost-messaging.apk" data-feed="apk"><svg class="i"><use href="#i-down"/></svg><span>Download for Android<small data-version="apk">The APK, straight from us</small></span></a>
+    <a class="dl alt" href="/ghost-messaging-mac.zip" data-feed="mac" hidden><svg class="i"><use href="#i-laptop"/></svg><span>Download for Mac<small data-version="mac"></small></span></a>
+    <a class="dl alt" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><svg class="i"><use href="#i-monitor"/></svg><span>Download for Windows<small data-version="windows"></small></span></a>
   </div>
-  <!-- The computer apps (Matt, 2026-11-14: "Add a mac and windows build to ghost-sms.com"): your phone's texts on a
-       Mac or a PC, paired with the phone. Each button shows once its release is here (mac.json, windows.json). -->
-  <div class="desktop">
-    <a class="button quiet" href="/ghost-messaging-mac.zip" id="mac" hidden>Download for Mac<small id="mac-version"></small></a>
-    <a class="button quiet" href="/ghost-messaging-setup.exe" id="windows" hidden>Download for Windows<small id="windows-version"></small></a>
+  <div class="install">
+    <div><b><svg class="i"><use href="#i-phone"/></svg>On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Ghost Messaging and choose "Set as default SMS app".</li></ol></div>
+    <div><b><svg class="i"><use href="#i-laptop"/></svg>On a computer</b><ol><li>Download for Mac or Windows and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
   </div>
+</div>
 
-  <ul class="points">
-    <li><b>Replaces your texting app</b><span>Every conversation you already have is there the moment you switch, and still there if you switch back.</span></li>
-    <li><b>Reactions that land</b><span>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own. Send yours back.</span></li>
-    <li><b>Effects</b><span>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", and ghosts for "Boo".</span></li>
-    <li><b>Your emoji</b><span>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set.</span></li>
-    <li><b>Ticks</b><span>Sent, delivered, and read where the other phone says so.</span></li>
-    <li><b>Private by default</b><span>No account to make. What goes through our server between friends is sealed on your phone, so the server passes it along and can't read it. Linking a social account so friends can find you is yours to turn on.</span></li>
-  </ul>
-
-  <div class="how">
-    <h2>Installing</h2>
-    <ol>
-      <li>Download the APK on your Android phone and open it. Allow your browser to install apps if Android asks.</li>
-      <li>Open Ghost Messaging and choose "Set as default SMS app".</li>
-      <li>That's it. It keeps itself up to date from here.</li>
-    </ol>
-    <h2>On a computer</h2>
-    <ol>
-      <li>Download for Mac or Windows. On a Mac, open the zip and drag Ghost Messaging to Applications; on Windows, run the installer (Windows asks once, as it does for any app it doesn't know yet).</li>
-      <li>On your phone, open Settings › Computers and pair: the computer shows your texts and sends through your phone, sealed between the two.</li>
-    </ol>
+<footer>
+  <div class="wrap">
+    <span>Ghost Messaging, by the makers of Ghost.md and Ghost Keyboard.</span>
+    <span>RCS and iMessage are not available to apps other than Google's and Apple's own.</span>
   </div>
+</footer>
 
-  <footer>Texts and picture messages go through your carrier as they always have. RCS and iMessage are not available to apps other than Google's and Apple's own.</footer>
-</main>
 <script>
-  // The release's own word for its version (tool/release.mjs writes apk.json beside the APK).
-  fetch('/apk.json', { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((info) => {
-      if (!info) return;
-      document.getElementById('version').textContent = 'Version ' + info.version + ' · ' + (info.bytes / 1e6).toFixed(1) + ' MB';
-      if (/^[A-Za-z0-9._-]+$/.test(info.url)) document.getElementById('download').href = '/' + info.url;
-    })
-    .catch(() => {});
-  // The Mac's and Windows' releases (tool/release-mac.mjs, tool/release-windows.mjs).
-  for (const [id, feed] of [['mac', '/mac.json'], ['windows', '/windows.json']]) {
+  // Each release's own word for its version: apk.json (tool/release.mjs), mac.json (tool/release-mac.mjs) and
+  // windows.json (tool/release-windows.mjs), beside the downloads. A computer's button shows once its release is here.
+  const mb = (b) => (b / 1e6).toFixed(1) + ' MB';
+  for (const [id, feed] of [['apk', '/apk.json'], ['mac', '/mac.json'], ['windows', '/windows.json']]) {
     fetch(feed, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((info) => {
         if (!info) return;
-        const a = document.getElementById(id);
-        if (/^[A-Za-z0-9._-]+$/.test(info.url)) a.href = '/' + info.url;
-        document.getElementById(id + '-version').textContent = 'Version ' + info.version + ' · ' + (info.bytes / 1e6).toFixed(1) + ' MB';
-        a.hidden = false;
+        for (const a of document.querySelectorAll('[data-feed="' + id + '"]')) {
+          if (/^[A-Za-z0-9._-]+$/.test(info.url)) a.href = '/' + info.url;
+          a.hidden = false;
+        }
+        for (const s of document.querySelectorAll('[data-version="' + id + '"]')) s.textContent = 'Version ' + info.version + ' · ' + mb(info.bytes);
+        if (id === 'apk') document.getElementById('now').textContent = 'Version ' + info.version + ' · Android, Mac and Windows';
       })
       .catch(() => {});
+  }
+  // Confetti on the phone, as the app throws for "Congrats".
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const box = document.getElementById('confetti');
+    const colours = ['#ff3d9a', '#ffbe2e', '#1fb4ff', '#19d3a0', '#8f6bff', '#ff5e45'];
+    for (let i = 0; i < 26; i++) {
+      const c = document.createElement('i');
+      c.style.left = Math.random() * 100 + '%';
+      c.style.background = colours[i % colours.length];
+      c.style.animationDelay = -Math.random() * 3.6 + 's';
+      c.style.animationDuration = 2.8 + Math.random() * 1.8 + 's';
+      box.appendChild(c);
+    }
   }
 </script>
 </body>

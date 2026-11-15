@@ -20,6 +20,7 @@ import 'store.dart';
 import 'ui/shell.dart';
 import '../ui/update_banner.dart';
 import 'ui/wizard.dart';
+import 'gm_web.dart';
 import 'updates.dart';
 
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
@@ -56,6 +57,10 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Where a voice message the Mac is playing has got to, told to the screens as the phone tells its own.
   MacPlatform.listenToVoice((m) => Sms.instance.voice.add(VoicePlayback.from(m)));
   Sms.calls = calls;
+  // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
+  // there told to the screens as the phone's changes are.
+  GmWeb.instance.changed.stream.listen(Sms.instance.changes.add);
+  unawaited(GmWeb.instance.start(store.dir));
   final state = AppState();
   final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
   final accents = loaded[0]! as AccentSheets;
@@ -66,7 +71,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   unawaited(Voice.instance.start(state));
   // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
   // opens whether or not the site answers.
-  // A Mac swaps in the Mac's zip; Windows runs the new installer from ghost-sms.com, silently, on Restart to update.
+  // A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently, on Restart to update.
   final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
   if (macUpdates != null) {
     // Told to the phone's screens too, so its banner and its words are the computer's (remote.dart).
