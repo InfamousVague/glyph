@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.7.25+37
+version: 0.7.26+38
 
 environment:
   sdk: ^3.11.0
@@ -43,6 +43,8 @@ flutter:
     - assets/stickers/party/
     - assets/stickers/sweet/
     - assets/stickers/mischief/
+    # The walkthrough's voice, ElevenLabs' at build time (tool/onboarding_voice.py, lib/onboarding/narration.dart).
+    - assets/onboarding/
     # The app's own mark, cut from its icon (tool/app_icon.py).
     - assets/art/
   fonts:

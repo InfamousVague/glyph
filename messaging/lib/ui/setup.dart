@@ -6,7 +6,8 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 
-/// First launch: Android lets only the default SMS app send and keep texts, so the one thing to do is choose Ghost.
+/// The walkthrough's "your texts" step (lib/onboarding/onboarding.dart): Android lets only the default SMS app send
+/// and keep texts, so the one thing to do is choose Ghost, or use it beside Google Messages.
 ///
 /// Before that, what catches people coming from Google Messages or Samsung Messages (android/.../Arriving.kt; Matt,
 /// 2026-11-13, of a friend whose chats "didn't load" and whose texts stopped arriving: "can you detect this somehow
@@ -14,15 +15,20 @@ import '../sms.dart';
 /// who use it go on sending chats that never arrive as texts. The screen names the app being left and leads to its
 /// settings to turn RCS chats off first. And where Android refuses the switch to a copy from outside a store, it
 /// leads to Android's page for the app, where "Allow restricted settings" is.
-class SetupScreen extends StatefulWidget {
-  const SetupScreen({super.key, required this.onDone});
+class TextsStep extends StatefulWidget {
+  const TextsStep({super.key, required this.hue, required this.onDone});
+
+  /// The page's colour, which its one filled button wears.
+  final Color hue;
+
+  /// Ghost can send and receive texts now: the default, or beside Google Messages.
   final VoidCallback onDone;
 
   @override
-  State<SetupScreen> createState() => _SetupScreenState();
+  State<TextsStep> createState() => _TextsStepState();
 }
 
-class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
+class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
   bool _asking = false;
   bool _declined = false;
   Arriving _arriving = const Arriving();
@@ -75,6 +81,7 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
       return; // Back here when Android's page is left (_look).
     }
     await Sms.instance.requestPermissions();
+    await _look();
     widget.onDone();
   }
 
@@ -82,7 +89,8 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
     setState(() => _asking = true);
     final ok = await Sms.instance.requestDefault();
     if (ok) {
-      await Sms.instance.requestPermissions();
+      await _look();
+      if (mounted) setState(() => _asking = false);
       widget.onDone();
     } else if (mounted) {
       setState(() { _asking = false; _declined = true; });
@@ -92,129 +100,108 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final pad = MediaQuery.paddingOf(context);
     final a = _arriving;
-    return ColoredBox(
-      color: t.color('glacier-bg'),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // The status bar's room stays clear: what scrolls goes under the page's edge, not under the clock.
-        SizedBox(height: pad.top),
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(6), t.space(10), t.space(6), t.space(4)),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  width: t.lenOf('4.5rem'),
-                  height: t.lenOf('4.5rem'),
-                  // The app's icon as it is on the home screen: the white ghost on black, in either theme.
-                  decoration: BoxDecoration(color: const Color(0xFF000000), borderRadius: BorderRadius.circular(t.lenOf('1.3rem')), border: Border.all(color: t.color('app-rule'))),
-                  alignment: Alignment.center,
-                  child: Image.asset('assets/art/ghost-mark.png', width: t.lenOf('2.9rem'), height: t.lenOf('2.9rem')),
-                ),
-              ),
-              SizedBox(height: t.space(6)),
-              Text('Ghost Messaging', style: pageText(t, t.fontSize('3xl'), weight: 'bold')),
-              SizedBox(height: t.space(3)),
-              Text(
-                _status?.gmInstalled == true
-                    ? 'Your texts and picture messages, in Glacier. Make Ghost your default SMS app, or keep Google Messages and use Ghost beside it.'
-                    : 'Your texts and picture messages, in Glacier. To send and receive them, Android needs Ghost to be your default SMS app.',
-                style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
-              ),
-              SizedBox(height: t.space(5)),
-              if (a.rcsLikely) ...[
-                _Card(
-                  icon: Lucide.triangleAlert,
-                  title: 'Coming from ${a.app}? Do this first',
-                  children: [
-                    _Step(number: '1', text: 'Turn off RCS chats in ${a.app}. In its settings, open RCS chats and switch it off. Leave it on, and texts from people who use RCS keep going there and won\'t reach you here.'),
-                    _Step(number: '2', text: 'Your RCS chats stay in ${a.app}. Android keeps them where no other app can read them, so they won\'t appear here. They are not deleted: they are there again if you switch back. Texts and picture messages (SMS and MMS) all appear here.'),
-                    SizedBox(height: t.space(2)),
-                    _Button(label: 'Open ${a.app} settings', onPressed: () => Sms.instance.openOldApp()),
-                  ],
-                ),
-                SizedBox(height: t.space(5)),
-              ],
-              // Or keep Google Messages, and its RCS (Matt, 2026-11-15: "I'd like to have a way that people can reliably
-              // get text in and out of ghost without needing to switch the default messaging app").
-              if (_status?.gmInstalled == true) ...[
-                _Card(
-                  icon: Lucide.link,
-                  title: 'Or keep Google Messages, and RCS',
-                  children: [
-                    Text(
-                      'Ghost can work beside Google Messages instead. Your texts are read from Android, RCS chats come in through Google Messages\' notifications, and replies go back through it, as RCS where the chat is RCS.',
-                      style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
-                    ),
-                    SizedBox(height: t.space(3)),
-                    _Step(number: _status?.sms == true ? '✓' : '1', text: 'Allow Ghost to read and send texts.'),
-                    _Step(number: _status?.bridge == true ? '✓' : '2', text: 'Allow notification access, so Ghost can read Google Messages\' notifications. Only Google Messages\' are read; every other app\'s are ignored.'),
-                    Text(
-                      'What it can\'t do: chats muted in Google Messages, or open there when a message comes, aren\'t seen. RCS chats from before aren\'t brought over, and pictures in RCS chats stay in Google Messages.',
-                      style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
-                    ),
-                    // A copy from outside a store: Android greys out notification access until it is allowed.
-                    if (a.sideloaded && _status?.bridge != true) ...[
-                      SizedBox(height: t.space(2)),
-                      Text(
-                        'If Android says notification access is a restricted setting, open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.',
-                        style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
-                      ),
-                      SizedBox(height: t.space(2)),
-                      _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
-                    ],
-                    SizedBox(height: t.space(3)),
-                    _Button(label: 'Use beside Google Messages', onPressed: _beside),
-                  ],
-                ),
-                SizedBox(height: t.space(5)),
-              ],
-              _Point(icon: Lucide.messageSquare, text: 'Every text conversation you already have is here: texts live in Android, not in an app.'),
-              _Point(icon: Lucide.users, text: 'Contacts give names and photos; notifications let you reply without opening the app.'),
-              _Point(icon: Lucide.rotateCcw, text: 'Change your mind any time in Android\'s Settings › Apps › Default apps. Nothing is deleted either way.'),
-              if (_declined) ...[
-                SizedBox(height: t.space(3)),
-                _Card(
-                  icon: Lucide.circleAlert,
-                  danger: true,
-                  title: 'Ghost isn\'t the default yet',
-                  children: [
-                    Text(
-                      a.sideloaded
-                          ? 'If Android said the setting is restricted or unavailable, that is because this copy didn\'t come from the Play Store. Open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.'
-                          : 'Android only lets the default app send and receive texts. Try again, and choose Ghost Messaging when Android asks.',
-                      style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
-                    ),
-                    if (a.sideloaded) ...[
-                      SizedBox(height: t.space(3)),
-                      _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
-                    ],
-                  ],
-                ),
-              ],
-            ],
+    final s = _status;
+    // Done: what it is now, in the page's colour.
+    if (s != null && s.usable) {
+      return Row(children: [
+        AppIcon(Lucide.circleCheck, size: 20, color: widget.hue),
+        SizedBox(width: t.space(2)),
+        Expanded(child: Text(s.isDefault ? 'Ghost is your texting app.' : 'Ghost is working beside Google Messages.', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
+      ]);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      if (a.rcsLikely) ...[
+        _Card(
+          icon: Lucide.triangleAlert,
+          title: 'Coming from ${a.app}? Do this first',
+          children: [
+            _Step(number: '1', text: 'Turn off RCS chats in ${a.app}. In its settings, open RCS chats and switch it off. Leave it on, and texts from people who use RCS keep going there and won\'t reach you here.'),
+            _Step(number: '2', text: 'Your RCS chats stay in ${a.app}. Android keeps them where no other app can read them, so they won\'t appear here. They are not deleted: they are there again if you switch back. Texts and picture messages (SMS and MMS) all appear here.'),
+            SizedBox(height: t.space(2)),
+            _Button(label: 'Open ${a.app} settings', onPressed: () => Sms.instance.openOldApp()),
+          ],
+        ),
+        SizedBox(height: t.space(5)),
+      ],
+      // The one filled button: the switch itself, in the page's colour.
+      GlacierPressable(
+        onPressed: _asking ? null : _go,
+        semanticLabel: 'Set as default SMS app',
+        builder: (context, state) => AnimatedScale(
+          scale: state.pressed ? 0.97 : 1,
+          duration: const Duration(milliseconds: 120),
+          child: Container(
+            height: t.lenOf('2.9rem'),
+            decoration: ShapeDecoration(color: widget.hue, shape: const StadiumBorder()),
+            alignment: Alignment.center,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const AppIcon(Lucide.messageSquare, size: 16, strokeWidth: 2.3, color: Color(0xFFFFFFFF), wash: false),
+              SizedBox(width: t.space(2)),
+              Text(_asking ? 'Waiting for Android…' : (_declined ? 'Try again' : 'Set as default SMS app'), style: pageText(t, t.fontSize('md'), weight: 'semibold', color: const Color(0xFFFFFFFF))),
+            ]),
           ),
         ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(t.space(6), t.space(2), t.space(6), pad.bottom + t.space(6)),
-          child: GlacierPressable(
-            onPressed: _asking ? null : _go,
-            builder: (context, state) => AnimatedScale(
-              scale: state.pressed ? 0.97 : 1,
-              duration: const Duration(milliseconds: 120),
-              child: Container(
-                height: t.lenOf('3.25rem'),
-                decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('lg'))),
-                alignment: Alignment.center,
-                child: Text(_asking ? 'Waiting for Android…' : (_declined ? 'Try again' : 'Set as default SMS app'), style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-paper'))),
-              ),
+      ),
+      SizedBox(height: t.space(3)),
+      _Point(icon: Lucide.rotateCcw, text: 'Change your mind any time in Android\'s Settings › Apps › Default apps. Nothing is deleted either way.'),
+      SizedBox(height: t.space(3)),
+      // Or keep Google Messages, and its RCS (Matt, 2026-11-15: "I'd like to have a way that people can reliably
+      // get text in and out of ghost without needing to switch the default messaging app").
+      if (_status?.gmInstalled == true) ...[
+        _Card(
+          icon: Lucide.link,
+          title: 'Or keep Google Messages, and RCS',
+          children: [
+            Text(
+              'Ghost can work beside Google Messages instead. Your texts are read from Android, RCS chats come in through Google Messages\' notifications, and replies go back through it, as RCS where the chat is RCS.',
+              style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
             ),
-          ),
+            SizedBox(height: t.space(3)),
+            _Step(number: _status?.sms == true ? '✓' : '1', text: 'Allow Ghost to read and send texts.'),
+            _Step(number: _status?.bridge == true ? '✓' : '2', text: 'Allow notification access, so Ghost can read Google Messages\' notifications. Only Google Messages\' are read; every other app\'s are ignored.'),
+            Text(
+              'What it can\'t do: chats muted in Google Messages, or open there when a message comes, aren\'t seen. RCS chats from before aren\'t brought over, and pictures in RCS chats stay in Google Messages.',
+              style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
+            ),
+            // A copy from outside a store: Android greys out notification access until it is allowed.
+            if (a.sideloaded && _status?.bridge != true) ...[
+              SizedBox(height: t.space(2)),
+              Text(
+                'If Android says notification access is a restricted setting, open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.',
+                style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
+              ),
+              SizedBox(height: t.space(2)),
+              _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
+            ],
+            SizedBox(height: t.space(3)),
+            _Button(label: 'Use beside Google Messages', onPressed: _beside),
+          ],
         ),
-      ]),
-    );
+        SizedBox(height: t.space(5)),
+      ],
+      _Point(icon: Lucide.rotateCcw, text: 'Change your mind any time in Android\'s Settings › Apps › Default apps. Nothing is deleted either way.'),
+      if (_declined) ...[
+        SizedBox(height: t.space(3)),
+        _Card(
+          icon: Lucide.circleAlert,
+          danger: true,
+          title: 'Ghost isn\'t the default yet',
+          children: [
+            Text(
+              a.sideloaded
+                  ? 'If Android said the setting is restricted or unavailable, that is because this copy didn\'t come from the Play Store. Open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.'
+                  : 'Android only lets the default app send and receive texts. Try again, and choose Ghost Messaging when Android asks.',
+              style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
+            ),
+            if (a.sideloaded) ...[
+              SizedBox(height: t.space(3)),
+              _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
+            ],
+          ],
+        ),
+      ],
+    ]);
   }
 }
 

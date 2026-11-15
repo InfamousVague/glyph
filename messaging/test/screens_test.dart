@@ -54,7 +54,7 @@ import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/new_group.dart';
 import 'package:ghost_messaging/ui/network.dart' show inviteText;
-import 'package:ghost_messaging/ui/setup.dart';
+import 'package:ghost_messaging/onboarding/onboarding.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
@@ -812,14 +812,41 @@ void main() {
       // A conversation's own, synced with someone who has the app: the shared one worn, and the switch on.
       await _shoot(tester, sheet, const BackgroundPicker(thread: 8, who: 'Riley Fox', people: [Person(address: '+15551230011', name: 'Riley Fox')]), '9-background-sync', dark: dark, prefs: const {'chat_bg_8': 'preset:rose', 'chat_bg_synced_8': 'preset:rose'});
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-background-dusk', dark: dark, prefs: const {'chat_bg': 'preset:dusk'});
-      await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup', dark: dark);
+      // The walkthrough (Matt, 2026-11-15: "Look at how we do onboarding on Ghost KBD and Ghost Markdown with the
+      // optional voice guide through the elevenlabs key and the vibrant colors and iconography for each step, mimick
+      // this on the setup of Ghost Messaging"): the welcome, then the texts page, which holds Next until Ghost can send.
+      _statusSaid = const {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
+      await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
+      expect(find.text('Hi, I\'m Ghost Messaging'), findsOneWidget);
+      expect(find.byKey(const ValueKey('guide-skip')), findsNothing, reason: 'nothing to skip to before Ghost can send texts');
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _shootAgain(tester, '0-guide-2-texts', dark: dark);
+      expect(find.text('Set as default SMS app'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _settle(tester);
+      expect(find.text('Your texts, here'), findsOneWidget, reason: 'Next waits until Ghost can send texts');
       // Google Messages on the phone and texts allowed, notification access not yet: the way to keep it, and RCS
       // (Matt, 2026-11-15: "I'd like to have a way that people can reliably get text in and out of ghost without
       // needing to switch the default messaging app").
       _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false};
-      await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup-beside', dark: dark);
+      await _shoot(tester, sheet, const Onboarding(), '0-guide-2-texts-beside', dark: dark);
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _shootAgain(tester, '0-guide-2-texts-beside', dark: dark);
       expect(find.text('Or keep Google Messages, and RCS'), findsOneWidget);
       expect(find.text('Use beside Google Messages'), findsOneWidget);
+      // Ghost is the texting app: each page after, in turn.
+      _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
+      await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
+      expect(find.byKey(const ValueKey('guide-skip')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('guide-next')));
+      await _settle(tester);
+      expect(find.text('Ghost is your texting app.'), findsOneWidget);
+      for (final (i, page) in [(3, 'people'), (4, 'private'), (5, 'sorted'), (6, 'calls'), (7, 'computer'), (8, 'look'), (9, 'start')]) {
+        await tester.tap(find.byKey(const ValueKey('guide-next')));
+        await _shootAgain(tester, '0-guide-$i-$page', dark: dark);
+      }
+      expect(find.text('You\'re ready'), findsOneWidget);
+      expect(find.text('Start texting'), findsOneWidget);
       _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
       // Each effect at a moment of its run, over the conversation.
       const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};
