@@ -96,6 +96,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// What can be seen of the texting app this one replaced (android/.../Arriving.kt), for the note about RCS.
   Arriving _arriving = const Arriving();
 
+  /// Beside Google Messages (SmsStatus.beside): RCS stays on there on purpose, so the notice about it is not shown.
+  bool _beside = false;
+
   bool get _selecting => _selected.isNotEmpty;
 
   /// The frame this list is in (lib/ui/shell.dart), which opens what the list asks for in its pane; null where the
@@ -162,6 +165,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     try {
       final a = await Sms.instance.arriving();
       if (mounted) setState(() => _arriving = a);
+    } catch (_) {}
+    if (Sms.remote) return;
+    try {
+      final s = await Sms.instance.status();
+      if (mounted) setState(() => _beside = s.beside);
     } catch (_) {}
   }
 
@@ -676,7 +684,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final more = _more && !widget.archived;
     final gutter = t.space(4);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
-    final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && app.flag('rcs_notice');
+    final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && !_beside && app.flag('rcs_notice');
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;

@@ -21,7 +21,7 @@
 
 #include "rnnoise.h"
 
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
 /* libDF's C API (DeepFilterNet, MIT/Apache-2.0), linked in where built (native/voicefx/deepfilter). */
 typedef struct DFState DFState;
 extern DFState *df_create(const char *path, float atten_lim, const char *log_level);
@@ -37,7 +37,7 @@ struct VoiceFx {
   VFX_ATOMIC int mode;
   VFX_ATOMIC float gain;
   DenoiseState *rnnoise;
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
   DFState *VFX_ATOMIC df;
 #endif
   float at48[BLOCK];
@@ -56,7 +56,7 @@ VoiceFx *voicefx_create(void) {
 void voicefx_destroy(VoiceFx *fx) {
   if (!fx) return;
   if (fx->rnnoise) rnnoise_destroy(fx->rnnoise);
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
   DFState *df = vfx_load(&fx->df);
   vfx_store(&fx->df, NULL);
   if (df) df_free(df);
@@ -67,14 +67,14 @@ void voicefx_destroy(VoiceFx *fx) {
 int voicefx_modes(VoiceFx *fx) {
   int bits = 0;
   if (fx && fx->rnnoise) bits |= 1 << VOICEFX_RNNOISE;
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
   if (fx && vfx_load(&fx->df)) bits |= 1 << VOICEFX_DEEPFILTER;
 #endif
   return bits;
 }
 
 int voicefx_deepfilter_model(VoiceFx *fx, const char *path) {
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
   if (!fx || !path) return 0;
   if (vfx_load(&fx->df)) return 1;
   /* No limit on how far noise is brought down (100 dB); its frame is 480 at 48 kHz or it is not used. */
@@ -132,7 +132,7 @@ void voicefx_process(VoiceFx *fx, float *samples, int frames, int rate) {
   float gain = vfx_load(&fx->gain);
   /* A block that is not 10 ms is not denoised (neither network could take it); the gain still applies. */
   int tenMs = rate > 0 && frames * 100 == rate;
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
   DFState *df = vfx_load(&fx->df);
 #endif
   if (tenMs && mode == VOICEFX_RNNOISE && fx->rnnoise) {
@@ -140,7 +140,7 @@ void voicefx_process(VoiceFx *fx, float *samples, int frames, int rate) {
     rnnoise_process_frame(fx->rnnoise, fx->out48, fx->at48); /* On the 16-bit scale, as it is given. */
     resample(fx->out48, BLOCK, samples, frames);
   }
-#ifdef VOICEFX_DEEPFILTER
+#ifdef VOICEFX_WITH_DEEPFILTER
   else if (tenMs && mode == VOICEFX_DEEPFILTER && df) {
     resample(samples, frames, fx->at48, BLOCK);
     for (int i = 0; i < BLOCK; i++) fx->at48[i] /= 32768.0f; /* DeepFilterNet takes -1 to 1. */

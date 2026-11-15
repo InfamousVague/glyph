@@ -27,6 +27,9 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
   bool _declined = false;
   Arriving _arriving = const Arriving();
 
+  /// Beside Google Messages (android GmBridge.kt): what has been allowed so far.
+  SmsStatus? _status;
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +54,28 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
       final a = await Sms.instance.arriving();
       if (mounted) setState(() => _arriving = a);
     } catch (_) {}
+    try {
+      final s = await Sms.instance.status();
+      if (!mounted) return;
+      setState(() => _status = s);
+      // Both allowed (back from Android's notification access page): the app opens beside Google Messages.
+      if (s.beside) widget.onDone();
+    } catch (_) {}
+  }
+
+  /// Beside Google Messages, step by step: texts first, then notification access, which Android's own page grants.
+  Future<void> _beside() async {
+    var s = _status ?? await Sms.instance.status();
+    if (!s.sms) s = await Sms.instance.requestSms();
+    if (!mounted) return;
+    setState(() => _status = s);
+    if (!s.sms) return;
+    if (!s.bridge) {
+      await Sms.instance.openBridgeAccess();
+      return; // Back here when Android's page is left (_look).
+    }
+    await Sms.instance.requestPermissions();
+    widget.onDone();
   }
 
   Future<void> _go() async {
@@ -93,7 +118,9 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
               Text('Ghost Messaging', style: pageText(t, t.fontSize('3xl'), weight: 'bold')),
               SizedBox(height: t.space(3)),
               Text(
-                'Your texts and picture messages, in Glacier. To send and receive them, Android needs Ghost to be your default SMS app.',
+                _status?.gmInstalled == true
+                    ? 'Your texts and picture messages, in Glacier. Make Ghost your default SMS app, or keep Google Messages and use Ghost beside it.'
+                    : 'Your texts and picture messages, in Glacier. To send and receive them, Android needs Ghost to be your default SMS app.',
                 style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
               ),
               SizedBox(height: t.space(5)),
@@ -106,6 +133,40 @@ class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
                     _Step(number: '2', text: 'Your RCS chats stay in ${a.app}. Android keeps them where no other app can read them, so they won\'t appear here. They are not deleted: they are there again if you switch back. Texts and picture messages (SMS and MMS) all appear here.'),
                     SizedBox(height: t.space(2)),
                     _Button(label: 'Open ${a.app} settings', onPressed: () => Sms.instance.openOldApp()),
+                  ],
+                ),
+                SizedBox(height: t.space(5)),
+              ],
+              // Or keep Google Messages, and its RCS (Matt, 2026-11-15: "I'd like to have a way that people can reliably
+              // get text in and out of ghost without needing to switch the default messaging app").
+              if (_status?.gmInstalled == true) ...[
+                _Card(
+                  icon: Lucide.link,
+                  title: 'Or keep Google Messages, and RCS',
+                  children: [
+                    Text(
+                      'Ghost can work beside Google Messages instead. Your texts are read from Android, RCS chats come in through Google Messages\' notifications, and replies go back through it, as RCS where the chat is RCS.',
+                      style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
+                    ),
+                    SizedBox(height: t.space(3)),
+                    _Step(number: _status?.sms == true ? '✓' : '1', text: 'Allow Ghost to read and send texts.'),
+                    _Step(number: _status?.bridge == true ? '✓' : '2', text: 'Allow notification access, so Ghost can read Google Messages\' notifications. Only Google Messages\' are read; every other app\'s are ignored.'),
+                    Text(
+                      'What it can\'t do: chats muted in Google Messages, or open there when a message comes, aren\'t seen. RCS chats from before aren\'t brought over, and pictures in RCS chats stay in Google Messages.',
+                      style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
+                    ),
+                    // A copy from outside a store: Android greys out notification access until it is allowed.
+                    if (a.sideloaded && _status?.bridge != true) ...[
+                      SizedBox(height: t.space(2)),
+                      Text(
+                        'If Android says notification access is a restricted setting, open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.',
+                        style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
+                      ),
+                      SizedBox(height: t.space(2)),
+                      _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
+                    ],
+                    SizedBox(height: t.space(3)),
+                    _Button(label: 'Use beside Google Messages', onPressed: _beside),
                   ],
                 ),
                 SizedBox(height: t.space(5)),

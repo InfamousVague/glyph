@@ -256,7 +256,7 @@ void _answerChannel() {
     if (call.method == 'archive' || call.method == 'threadFlag' || call.method == 'deleteThread' || call.method == 'openLink') _asked.add('${call.method} $args');
     switch (call.method) {
       case 'status':
-        return {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
+        return _statusSaid;
       case 'conversations':
         return _conversations;
       case 'conversationsPage':
@@ -480,6 +480,9 @@ Future<Fetched> _fakeSites(Uri url) async {
   if (url.host == 'example.com') return (status: 200, body: '<meta property="og:site_name" content="Hickory Premier"><meta property="og:title" content="Movie night: 7:00 PM, Theatre 2">');
   return (status: 404, body: '');
 }
+
+/// What the phone says of itself (SmsStatus): the default SMS app, unless a test says otherwise.
+Map<String, Object> _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
 
 void main() {
   setUp(() {
@@ -810,6 +813,14 @@ void main() {
       await _shoot(tester, sheet, const BackgroundPicker(thread: 8, who: 'Riley Fox', people: [Person(address: '+15551230011', name: 'Riley Fox')]), '9-background-sync', dark: dark, prefs: const {'chat_bg_8': 'preset:rose', 'chat_bg_synced_8': 'preset:rose'});
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-background-dusk', dark: dark, prefs: const {'chat_bg': 'preset:dusk'});
       await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup', dark: dark);
+      // Google Messages on the phone and texts allowed, notification access not yet: the way to keep it, and RCS
+      // (Matt, 2026-11-15: "I'd like to have a way that people can reliably get text in and out of ghost without
+      // needing to switch the default messaging app").
+      _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false};
+      await _shoot(tester, sheet, SetupScreen(onDone: () {}), '0-setup-beside', dark: dark);
+      expect(find.text('Or keep Google Messages, and RCS'), findsOneWidget);
+      expect(find.text('Use beside Google Messages'), findsOneWidget);
+      _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
       // Each effect at a moment of its run, over the conversation.
       const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};
       for (final effect in ScreenEffect.values) {
@@ -1071,6 +1082,10 @@ void main() {
       // The address book offers New group where there is a friend to put in one.
       await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-$dark')), '15-groups-contacts', dark: dark);
       expect(find.text('New group'), findsOneWidget);
+      // The people added on Ghost Messaging come first, under their own heading, and the phone's contacts after.
+      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Alex Kim')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));
+      expect(tester.getTopLeft(find.text('Sam Rivera')).dy, lessThan(tester.getTopLeft(find.text('Maya Chen')).dy));
       // Its name, and who is in it; Create waits for someone to be chosen.
       await _shoot(tester, sheet, NewGroupScreen(key: ValueKey('new-$dark')), '15-groups-new', dark: dark);
       await tester.tap(find.text('Create'));
