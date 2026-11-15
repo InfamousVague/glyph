@@ -114,6 +114,34 @@ try {
   await b.waitForTimeout(800);
   await b.screenshot({ path: join(here, 'join-call.png') });
 
+  // The hangout's chat (lib/voice/hangout.dart): the app's chat room for this seed, what one writes the other sees,
+  // and someone coming in later gets what they missed.
+  const chatRoom = await a.evaluate(() => ({ room: window.ghostChat().room, token: window.ghostChat().token }));
+  assert.equal(chatRoom.room, '1585bb6a5d338a56973e14f9853332a1');
+  assert.equal(chatRoom.token, 'da99e3a9b14ef7f100d300ae545faafd6c269a4804e2eb301d816ca7e4acc21a');
+  await a.fill('#said', 'Hello from Alex');
+  await a.press('#said', 'Enter');
+  await b.waitForFunction(() => [...document.querySelectorAll('#messages li')].some((li) => li.textContent.includes('Hello from Alex')), null, { timeout: 10000 });
+  await b.fill('#said', 'Hi Alex!');
+  await b.click('#say button');
+  await a.waitForFunction(() => [...document.querySelectorAll('#messages li')].some((li) => li.textContent.includes('Hi Alex!')), null, { timeout: 10000 });
+  // Each deletes only their own: Alex's page offers Delete on his message alone.
+  const deletable = await a.evaluate(() => [...document.querySelectorAll('#messages li')].filter((li) => li.querySelector('.del')).map((li) => li.textContent));
+  assert.equal(deletable.length, 1);
+  assert.ok(deletable[0].includes('Hello from Alex'));
+  console.log('ok the chat: the app\'s room, messages both ways, each may delete only their own');
+  const late = await (await browser.newContext({ permissions: ['microphone', 'camera'] })).newPage();
+  late.on('pageerror', (e) => { console.log('page error:', e.message); failed = true; });
+  await late.goto(url);
+  await late.waitForFunction(() => window.ghostChat?.()?.room);
+  await late.fill('#name', 'Sam');
+  await late.click('#join');
+  await late.waitForFunction(() => document.querySelectorAll('#messages li').length >= 2, null, { timeout: 10000 });
+  console.log('ok someone joining later gets the chat they missed');
+  await late.click('#leave');
+  await b.setViewportSize({ width: 400, height: 860 });
+  await b.screenshot({ path: join(here, 'join-chat.png'), fullPage: true });
+
   // Leaving: the other sees them go.
   await a.click('#leave');
   await b.waitForFunction(() => document.querySelectorAll('#people li').length === 1 && !document.querySelector('.tile'), null, { timeout: 10000 });
