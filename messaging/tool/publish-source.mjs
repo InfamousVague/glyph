@@ -6,7 +6,9 @@
  *   node tool/publish-source.mjs [--dry-run]
  *
  * The app is developed in Ghost.md's repository (messaging/); github.com/InfamousVague/ghost-messaging is its public
- * copy. This copies exactly what git tracks under messaging/ into a checkout of the public repository and commits it
+ * copy. Each release script runs this at its end (tool/release.mjs, release-mac.mjs, release-windows.mjs; Matt,
+ * 2026-11-15: "update the notes on claude so that each release runs this automatically"). This copies messaging/
+ * as committed at HEAD (never uncommitted work) into a checkout of the public repository and commits it
  * as one snapshot named for the version in pubspec.yaml: the public history is one commit a release, never the
  * private repository's own history (whose old commits were never written to be public).
  *
@@ -68,12 +70,23 @@ function publish(repo, from, files, message) {
   say(`ok ${repo}: ${message}`);
 }
 
-// The whole app, as git tracks it here.
-const tracked = run('git', ['ls-files', '-z'], { cwd: ROOT }).split('\0').filter(Boolean);
+// What is committed, not what the folder holds now: a release runs in a checkout that may have work in it not yet
+// meant for anyone. messaging/ at HEAD, written out whole beside the checkouts.
+const snapshot = join(ROOT, 'build/public/.snapshot');
+rmSync(snapshot, { recursive: true, force: true });
+mkdirSync(snapshot, { recursive: true });
+const tar = spawnSync('git', ['archive', '--format=tar', 'HEAD', '.'], { cwd: ROOT, maxBuffer: 1 << 30 });
+if (tar.status !== 0) fail(`git archive failed: ${tar.stderr}`);
+const untar = spawnSync('tar', ['-x', '-C', snapshot], { input: tar.stdout });
+if (untar.status !== 0) fail(`tar failed: ${untar.stderr}`);
+const listed = (dir) => run('git', ['ls-tree', '-r', '--name-only', '-z', 'HEAD', '.'], { cwd: dir }).split('\0').filter(Boolean);
+
+// The whole app, as committed.
+const tracked = listed(ROOT);
 if (!tracked.includes('LICENSE')) fail('No LICENSE in messaging/: nothing is published without one.');
-publish('InfamousVague/ghost-messaging', ROOT, tracked, `Ghost Messaging ${version}`);
+publish('InfamousVague/ghost-messaging', snapshot, tracked, `Ghost Messaging ${version}`);
 
 // The sidecar on its own, for those who look for it there.
-const sidecar = join(ROOT, 'sidecar/gmessages');
-const sidecarFiles = run('git', ['ls-files', '-z'], { cwd: sidecar }).split('\0').filter(Boolean).filter((f) => f !== 'SOURCE_URL');
+const sidecar = join(snapshot, 'sidecar/gmessages');
+const sidecarFiles = listed(join(ROOT, 'sidecar/gmessages')).filter((f) => f !== 'SOURCE_URL');
 publish('InfamousVague/ghost-gmessages-sidecar', sidecar, sidecarFiles, `As in Ghost Messaging ${version}`);
