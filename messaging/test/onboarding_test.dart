@@ -71,7 +71,7 @@ void main() {
     expect(played, ['stop'], reason: 'nothing said with the voice off');
     await tester.tap(find.byKey(const ValueKey('guide-voice')));
     await settle(tester);
-    expect(played.last, 'assets/onboarding/people.mp3', reason: 'switched back on, the page is said');
+    expect(played.last, 'assets/onboarding/together.mp3', reason: 'switched back on, the page is said');
   });
 
   testWidgets('before Ghost can send texts there is no Skip and Next stops at the texts page', (tester) async {
@@ -83,8 +83,8 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('guide-next')));
     await settle(tester);
-    expect(find.text('Your texts, here'), findsOneWidget);
-    expect(find.text('Names and notifications'), findsNothing);
+    expect(find.text('Start with your texts'), findsOneWidget);
+    expect(find.text('Texts and chats, side by side'), findsNothing);
   });
 
   testWidgets('Skip finishes it, says so, and stops the voice', (tester) async {
