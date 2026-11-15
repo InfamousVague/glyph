@@ -58,7 +58,9 @@ void main() {
     // archived one is nobody's.
     expect(_chip('Messages'), findsOneWidget);
     expect(_chip('Tickets'), findsOneWidget);
-    expect(_chip('2'), findsOneWidget);
+    // Both read: a tab counts only what is unread (Matt, 2026-11-14: "remove ... the badge count for codes that are
+    // already read").
+    expect(_chip('2'), findsNothing);
     expect(find.byType(ConversationRow), findsNWidgets(3));
     expect(find.text('Your ticket 4411 is ready'), findsNothing);
     expect(find.text('I have ticket 77 for you'), findsOneWidget);
@@ -111,7 +113,7 @@ void main() {
     expect(find.text('Open conversation'), findsNothing);
     await tester.tap(find.text('Move to Tickets'));
     await settle(tester);
-    expect(_chip('1'), findsOneWidget);
+    expect(find.text('ticket 5522 was closed'), findsNothing, reason: 'filed in Tickets, out of the main list');
     expect(phone.prefs[Filing.key], '2:', reason: 'it is where its words put it anyway: nothing is kept for it');
   });
 
@@ -142,7 +144,8 @@ void main() {
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
     await settle(tester);
-    // One segmented toggle holds the tabs, and Mark all read stands beside it with the main list's two unread.
+    // One segmented toggle holds the tabs, and Mark all read is at the title row's end with the main list's two
+    // unread (Matt, 2026-11-14: "make the mark all read aligned to the right of the messages title row").
     expect(find.descendant(of: find.byType(SectionTabs), matching: find.byType(GlacierSegmentedControl)), findsOneWidget);
     expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
     // The button is its picture alone, in a circle as tall as the toggle beside it (Matt, 2026-11-14: "change mark
@@ -152,7 +155,8 @@ void main() {
     final button = tester.getSize(find.byType(MarkAllRead)), toggle = tester.getRect(find.byType(GlacierSegmentedControl));
     expect(button.width, button.height);
     expect(button.height, closeTo(toggle.height, 0.5));
-    expect(tester.getRect(find.byType(MarkAllRead)).center.dy, closeTo(toggle.center.dy, 0.5));
+    expect(tester.getRect(find.byType(MarkAllRead)).center.dy, closeTo(tester.getRect(find.text('Messages').first).center.dy, 4));
+    expect(tester.getRect(find.byType(MarkAllRead)).bottom, lessThan(toggle.top));
     expect(tester.widget<GlacierSegmentedControl>(find.byType(GlacierSegmentedControl)).size, GlacierSegmentedSize.md);
 
     // The button marks the tab shown: Maya's and Dad's, and not the ticket, which is in its own tab.
@@ -196,7 +200,7 @@ void main() {
     await settle(tester);
   });
 
-  testWidgets('with no section to make a tab of, Mark all read stands alone while something is unread', (tester) async {
+  testWidgets('with no section to make a tab of, Mark all read is still in the title row, quiet when nothing is unread', (tester) async {
     PluginRegistry.instance = PluginRegistry(const []);
     final all = _phone();
     all[0] = ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4, unread: true);
@@ -211,10 +215,10 @@ void main() {
     await tester.tap(find.byType(MarkAllRead));
     await settle(tester);
     expect(phone.asked.toSet(), {'markRead 1', 'markRead 2'});
-    // Nothing unread, no tabs: no row.
+    // Nothing unread: the button stays, quiet.
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
-    expect(find.byType(MarkAllRead), findsNothing);
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 0);
   });
 
   testWidgets('several can be chosen in a section, where a tap then chooses', (tester) async {
@@ -256,7 +260,7 @@ void main() {
 
     state.setFlag(PluginRegistry.switchKey(plugin), true);
     await settle(tester);
-    expect(_chip('2'), findsOneWidget);
+    expect(_chip('Tickets'), findsOneWidget);
     expect(find.byType(ConversationRow), findsNWidgets(3));
   });
 
@@ -342,7 +346,7 @@ void main() {
     expect(found, containsAll(['Tickets', 'Mark tickets as read', 'What a ticket is']));
   });
 
-  testWidgets('a plugin that asks for one has a section of its own in Settings while it is on', (tester) async {
+  testWidgets('a plugin that asks for one has a section of its own in Settings, its switch at the top', (tester) async {
     // Matt, 2026-11-14: "the plugins and all being able to make their own setting sections".
     final plugin = _PagedTickets();
     final registry = PluginRegistry([plugin]);
@@ -358,7 +362,7 @@ void main() {
     final own = pages.single;
     expect(own.label, 'Paged tickets');
     expect(own.group, pluginsSection(registry).group, reason: 'its row is under Plugins, on the same card');
-    expect(own.when!(model), isTrue);
+    expect(own.when, isNull, reason: 'listed on or off, so it can be switched back on from its page');
     expect(own.summary!(model), 'Left unread');
 
     // Its page: what it says of itself, the rows it describes in words, and what it put in the settings slot.
@@ -367,7 +371,11 @@ void main() {
     expect(find.text('Mark tickets as read'), findsOneWidget);
     expect(find.text('What a ticket is'), findsOneWidget);
     expect(find.text('A row of its own'), findsOneWidget);
-    await tester.tap(find.byType(GlacierSwitch).first);
+    // At the top, its own switch (Matt, 2026-11-14: "Plugins should be able to be toggled on and off from the top of
+    // each plugin setting page"); then its settings.
+    expect(tester.getRect(find.byType(GlacierSwitch).first).top, lessThan(tester.getRect(find.text('Mark tickets as read')).top));
+    expect(tester.widget<GlacierSwitch>(find.byType(GlacierSwitch).first).checked, isTrue);
+    await tester.tap(find.byType(GlacierSwitch).at(1));
     await settle(tester);
     expect(phone.prefs['plugin_paged_read'], 'on');
     expect(own.summary!(model), 'Read as they arrive');
@@ -382,10 +390,19 @@ void main() {
     expect(find.text('Mark tickets as read'), findsNothing);
     expect(find.textContaining('has a section of its own in Settings'), findsOneWidget);
 
-    // Switched off, its section is gone.
-    state.setFlag(PluginRegistry.switchKey(plugin), false);
+    // Switched off from the top of its own page: its settings go, its switch stays to turn it back on, and its row
+    // says Off.
+    await pumpScreen(tester, sheet, SectionPage(section: own, model: model), state);
+    await tester.tap(find.byType(GlacierSwitch).first);
     await settle(tester);
-    expect(own.when!(model), isFalse);
+    expect(state.flag(PluginRegistry.switchKey(plugin)), isFalse);
+    expect(find.text('Mark tickets as read'), findsNothing);
+    expect(find.byType(GlacierSwitch), findsOneWidget);
+    expect(own.summary!(model), 'Off');
+    await tester.tap(find.byType(GlacierSwitch));
+    await settle(tester);
+    expect(state.flag(PluginRegistry.switchKey(plugin)), isTrue);
+    expect(find.text('Mark tickets as read'), findsOneWidget);
   });
 
   test('sorting five thousand conversations into sections takes a few milliseconds, and is not done again for the same list', () async {

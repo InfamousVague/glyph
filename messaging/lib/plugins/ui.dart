@@ -53,8 +53,8 @@ class SectionTabs extends StatelessWidget {
     final values = [_main, for (final s in sections) s.id];
 
     // In the toggle's own type and colour, which are the chosen tab's or a quiet one's by turns.
-    Widget label(String words, {LucideIcon? icon, int? count, bool dot = false}) => Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (icon != null) ...[AppIcon(icon, size: 15, strokeWidth: 2.2, wash: false), SizedBox(width: t.space(1))],
+    Widget label(String words, {LucideIcon? icon, int? count, bool dot = false, bool icons = true}) => Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (icon != null && icons) ...[AppIcon(icon, size: 15, strokeWidth: 2.2, wash: false), SizedBox(width: t.space(1))],
           Flexible(child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false)),
           if (count != null) ...[SizedBox(width: t.space(1)), Opacity(opacity: 0.6, child: Text('$count'))],
           if (dot) ...[SizedBox(width: t.space(1)), Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5')))],
@@ -79,8 +79,11 @@ class SectionTabs extends StatelessWidget {
           onValueChange: (v) => onPick(v == _main ? null : v),
           options: [
             // Matt, 2026-11-14: "add an icon for messages on the segmented toggle".
-            GlacierSegmentedOption(value: _main, label: label('Messages', icon: LucideMore.messageCircle)),
-            for (final s in sections) GlacierSegmentedOption(value: s.id, label: label(s.section.label, icon: s.section.icon, count: counts[s.id] ?? 0, dot: unread.contains(s.id))),
+            // Words alone (Matt, 2026-11-14: "remove the icons from messages and codes"), and a tab's count is of its
+            // unread conversations, none where all are read ("and the badge count for codes that are already read").
+            GlacierSegmentedOption(value: _main, label: label('Messages')),
+            for (final s in sections)
+              GlacierSegmentedOption(value: s.id, label: label(s.section.label, count: (counts[s.id] ?? 0) > 0 ? counts[s.id] : null)),
           ],
         ),
       );

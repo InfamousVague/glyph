@@ -448,6 +448,29 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Cleaner, two more kinds, and a calmer frame** (0.7.19; Matt, 2026-11-14).
+  - **Cleaner** (`cleaner.dart`, on): "add a "Cleaner" plugin that allows us to bulk delete messages by category and
+    shows deletion progress in real time". The brush in the list's header opens a sheet of the list's groups (Codes,
+    Spam, each kind, Personal & other) with their counts; nothing is ticked to begin with. Delete asks again, then
+    deletes one conversation at a time with a moving bar, "Deleting 3 of 10", and a Stop that leaves the rest. The
+    list's host can now `present` a page, `deleteThread` and `reload`; `ListPlace.groups` carries the groups.
+  - **Each plugin's page has its switch at the top** ("Plugins should be able to be toggled on and off from the top
+    of each plugin setting page"). Its row in Settings stays while it is off, saying Off, and its page then holds the
+    switch alone.
+  - **The list's toggle is words alone**, and a tab counts only its unread conversations, nothing where all are read
+    ("remove the icons from messages and codes and the badge count for codes that are already read").
+  - **Your day is not shipped** for now ("remove the plugin that gives you the digest for now"); `day.dart` stays.
+  - **Notifications & receipts** (shown) and **Likely scams** (hidden), from a second sample of the phone ("there is
+    still a lot of messages that are unsorted that are spam or confirmation based things that land in personal
+    messages"): unsubscribed and opt-in confirmations, receipts, surveys, sign-in and security alerts, balances and
+    documents; wrong-number openers, single strangers, job offers out of nowhere. Sales takes health plans, loans,
+    PR, websites and brands' pushes; Debt takes debt relief. Of 283 unknown conversations, those left in Personal went
+    from 113 to 25, nearly all people.
+  - **The update card is at the top of the list**, above its title ("move the update banner on desktop and mobile to
+    show at the top of the sidebar above where it says messages"), not over every page.
+  - **Beside a pane the pill floats over the list**, the list is 320 to 380 wide, and **Mark all read is at the end
+    of the title row** ("there is a reserved spot for the navbar instead of the nav floating over the left sidebar
+    ... make the mark all read aligned to the right of the messages title row").
 - **Personal & other in the filter** (0.7.18; Matt, 2026-11-14: "when only selecting political
   messages I still see personal messages"). The filter's menu has a row for every conversation no kind has
   (`filter_other`, `ListPlugins.othersShown`), so ticking one kind alone shows that kind alone; All ticks it too.
@@ -464,7 +487,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Replies** (`replies.dart`, on): suggested replies above the composer when the last text asks something, a
     "Needs a reply" section, and Remind me (in an hour, tonight, tomorrow) in a message's menu and for a promise
     you made ("I'll call you later"); android `Reminders.kt`.
-  - **Your day** (`day.dart`, on): a card at the top of the list: greeting, date, and what needs a reply, deliveries,
+  - **Your day** (`day.dart`, not shipped since 0.7.19): a card at the top of the list: greeting, date, and what needs a reply, deliveries,
     reminders and appointments; × puts it away until something changes.
   - **Quiet hours** (`quiet.dart`, off): sales, political and reminder texts arrive silently; optionally everything
     from 10 PM to 7 AM, contacts' urgent words still sounding (android `Notifier.quietNow`).

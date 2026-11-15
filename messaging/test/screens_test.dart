@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -22,7 +23,8 @@ import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
-import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
+import 'package:ghost_messaging/plugins/cleaner.dart';
+import 'package:ghost_messaging/plugins/plugin.dart' show ListGroup, RowFace;
 import 'package:ghost_messaging/plugins/embeds.dart' show Embeds, Fetched;
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, FilterButton, PluginRow, SectionTabs;
 import 'package:ghost_messaging/sms.dart';
@@ -43,7 +45,6 @@ import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
-import 'package:ghost_messaging/ui/update_banner.dart';
 import 'package:ghost_messaging/ui/video.dart' show shrunkNote;
 import 'package:glacier/glacier.dart';
 
@@ -127,6 +128,10 @@ Map<String, Object?> _e2e(String address) => switch (address) {
 
 /// For the picture of a summary (17-summary): the text waiting for the phone in Maya's conversation is left out.
 bool _summaryPicture = false;
+
+/// A newer version is waiting: only for the update card's pictures, since the card is part of the list and would
+/// be in every picture of it.
+bool _updateWaiting = false;
 
 List<Map<String, Object?>> _messages(int thread) {
   if (thread == 6) {
@@ -295,7 +300,9 @@ void _answerChannel() {
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
       case 'update':
-        return {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+        return _updateWaiting
+            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'}
+            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
       // A link pressed in a message: the browser took it.
@@ -479,10 +486,15 @@ void main() {
       // The list as the app shows it: in its frame (lib/ui/shell.dart), the pill at its foot.
       await _shoot(tester, sheet, const AppShell(), '1-conversations', dark: dark);
       expect(find.byType(NavPill), findsOneWidget);
-      // A newer version is waiting: the banner over the page, on every page.
-      await _shoot(tester, sheet, const UpdateBanner(child: AppShell()), '1-update-banner', dark: dark);
+      // A newer version is waiting: the card at the top of the list, above its title and search (Matt, 2026-11-14:
+      // "move the update banner on desktop and mobile to show at the top of the sidebar above where it says messages
+      // and has the search bar").
+      _updateWaiting = true;
+      await _shoot(tester, sheet, const AppShell(), '1-update-banner', dark: dark);
       expect(find.textContaining('is out'), findsOneWidget);
       expect(find.text('Update now'), findsOneWidget);
+      expect(tester.getRect(find.textContaining('is out')).bottom, lessThan(tester.getRect(find.text('Messages').first).top));
+      _updateWaiting = false;
       // A row dragged sideways (lib/ui/swipe_actions.dart): to the left past Archive, on past Delete, back to
       // Archive and let go; then to the right past Pin. The phone ticks at each detent it passes into.
       _asked.clear();
@@ -660,9 +672,11 @@ void main() {
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
-      // The banner over a conversation: under its header, over its messages, with its cross.
-      await _shoot(tester, sheet, const UpdateBanner(child: ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')])), '1-update-banner-thread', dark: dark);
-      expect(find.bySemanticsLabel('Not now'), findsWidgets);
+      // A conversation keeps all its room: the card is the list's alone.
+      _updateWaiting = true;
+      await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '1-update-banner-thread', dark: dark);
+      expect(find.text('Update now'), findsNothing);
+      _updateWaiting = false;
       // Nothing to show (here, nothing a search finds): the app's logo stands where the list would be.
       await _shoot(tester, sheet, const ConversationsScreen(), '1-conversations-none', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'zzzz');
@@ -900,16 +914,18 @@ void main() {
       expect(find.text('Mark as read when copied'), findsNothing);
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-codes'), '12-plugins-settings-codes', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
-      // Settings' list: Codes, Kinds of text and the Spam filter under Plugins; the Spam filter's row goes while it
-      // is switched off.
+      // Settings' list: Codes, Kinds of text and the Spam filter under Plugins; the Spam filter's row stays while it
+      // is switched off, saying so, so it can be switched back on from its page.
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list', dark: dark);
       expect(find.text('Spam filter'), findsOneWidget);
       expect(find.text('Kinds of text'), findsOneWidget);
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.text('Spam filter'), findsNothing);
-      // A section whose plugin is off is not there to open: Settings itself is.
+      expect(find.text('Spam filter'), findsOneWidget);
+      // A plugin's page has its switch at the top (Matt, 2026-11-14: "Plugins should be able to be toggled on and
+      // off from the top of each plugin setting page"); off, that is all it has.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.byType(GlacierSearchField), findsOneWidget);
+      expect(find.byType(GlacierSwitch), findsOneWidget);
+      expect(tester.widget<GlacierSwitch>(find.byType(GlacierSwitch)).checked, isFalse);
       expect(find.text('Mute conversations in Spam'), findsNothing);
       // Kinds of text's own page: each kind, said in a line.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-kinds'), '12-plugins-settings-kinds', dark: dark);
@@ -1216,6 +1232,39 @@ void main() {
     }
   });
 
+  // The Cleaner (lib/plugins/cleaner.dart; Matt, 2026-11-14: "add a "Cleaner" plugin that allows us to bulk delete
+  // messages by category and shows deletion progress in real time"): kinds ticked, and part way through.
+  testWidgets('the Cleaner: choosing, and deleting', (tester) async {
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    const groups = [
+      ListGroup(id: 'codes', label: 'Codes', icon: Lucide.keyRound, threads: [1, 2, 3, 4]),
+      ListGroup(id: 'spam', label: 'Spam', icon: Lucide.triangleAlert, threads: [5, 6, 7, 8, 9, 10, 11]),
+      ListGroup(id: 'sales', label: 'Sales & solicitors', icon: Lucide.megaphone, threads: [12, 13, 14]),
+      ListGroup(id: ListGroup.othersId, label: 'Personal & other', icon: Lucide.messageSquare, threads: [15, 16]),
+    ];
+    for (final dark in [false, true]) {
+      final hold = Completer<void>();
+      await _shoot(tester, sheet, CleanerSheet(groups: groups, delete: (t) => t < 7 ? Future.value() : hold.future, reload: () async {}), '18-cleaner', dark: dark);
+      await tester.tap(find.text('Spam'));
+      await tester.tap(find.text('Sales & solicitors'));
+      await _settle(tester);
+      await _shootAgain(tester, '18-cleaner', dark: dark);
+      await tester.tap(find.text('Delete 10 conversations'));
+      await _settle(tester);
+      await tester.tap(find.text('Delete'));
+      await _settle(tester);
+      await _shootAgain(tester, '18-cleaner-deleting', dark: dark);
+      expect(find.text('Deleting 3 of 10'), findsOneWidget);
+      hold.complete();
+      await _settle(tester);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   testWidgets('an unread conversation summed up in its row', (tester) async {
     // Matt, 2026-11-14: "Use a local AI to summarize unread message conversations like apple does".
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
@@ -1263,23 +1312,23 @@ void main() {
       await _shoot(tester, sheet, const AppShell(), '11-frame-wide', dark: dark);
       final side = AppShell.sideWidth(750);
       // Wide: the list down the side, the pane saying to choose, and the pill (a new chat, the messages, the
-      // contacts, the archive with its number, Settings) stood up at the foot of a strip down the screen's right,
-      // as Ghost.md's dock is (Matt, 2026-11-14: "on wider phones like my fold 8 make the navbar render vertically
-      // condensed on the right of the screen like we do in ghost markdown").
+      // contacts, the archive with its number, Settings) floating along the list's foot, as on the Mac (Matt,
+      // 2026-11-14: "there is a reserved spot for the navbar instead of the nav floating over the left sidebar"). It
+      // had stood up in a strip of its own at the window's right.
       expect(find.text('Choose a conversation'), findsOneWidget);
-      expect(find.text('Or start a new chat from the bar on the right.'), findsOneWidget);
-      final strip = NavPill.railWidth(tester.element(find.byType(NavPill)).tokens);
+      expect(find.text('Or start a new chat from the bar under the list.'), findsOneWidget);
       final pill = tester.getRect(find.byType(NavPill));
-      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue);
-      expect(pill.right, 750);
-      expect(pill.left, closeTo(750 - strip, 0.01));
-      expect(pill.bottom, 832 - 16, reason: 'clear of the bar at the foot of the screen');
-      // Head to foot, a step apart: no wider than a ring and its room, and nothing of the pane under it.
-      expect(tester.getCenter(ring('new')).dx, tester.getCenter(ring('settings')).dx);
-      expect(tester.getCenter(ring('new')).dy, lessThan(tester.getCenter(ring('messages')).dy));
-      expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, closeTo(750 - strip - 1, 0.01));
-      // The list keeps no room at its foot for a pill that is not there.
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse);
+      expect(pill.right, lessThanOrEqualTo(side));
+      expect(pill.bottom, lessThanOrEqualTo(832 - 16), reason: 'clear of the bar at the foot of the screen');
+      expect(tester.getCenter(ring('new')).dy, tester.getCenter(ring('settings')).dy);
+      expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
+      // The pane runs to the window's edge: nothing is kept for the pill there.
+      expect(tester.getRect(find.byKey(const ValueKey('shell-pane'))).right, 750);
       expect(tester.getRect(find.byKey(const ValueKey('shell-side'))).right, side);
+      // The sidebar is at least wide enough for the toggle and the filter ("the sidebar needs to be at least wide
+      // enough to show the segmented toggles and the filter").
+      expect(side, greaterThanOrEqualTo(320));
       for (final id in ['new', 'messages', 'contacts', 'archive', 'settings']) {
         expect(ring(id), findsOneWidget, reason: 'the pill has $id');
       }
@@ -1345,12 +1394,12 @@ void main() {
       expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
       expect(tester.getRect(find.byType(ConversationsScreen)).width, 412);
       // Matt's Galaxy Z Fold 8 opened out (2448 by 1848 at 420 dpi: 932 by 704), its bars as One UI has them: the
-      // pill is stood up at the right there too.
+      // pill floats over the list there too.
       tester.view.physicalSize = const Size(932 * 2.0, 704 * 2.0);
       tester.view.padding = const FakeViewPadding(top: 40 * 2.0, bottom: 48 * 2.0);
       await _settle(tester);
-      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isTrue, reason: 'the Fold 8 opened out');
-      expect(tester.getRect(find.byType(NavPill)).right, 932);
+      expect(tester.widget<NavPill>(find.byType(NavPill)).upright, isFalse, reason: 'the Fold 8 opened out');
+      expect(tester.getRect(find.byType(NavPill)).right, lessThanOrEqualTo(AppShell.sideWidth(932)));
       tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
       // A small phone on its side is wide, and too short for five rings head to foot: the pill stays under the list.
       tester.view.physicalSize = const Size(800 * 2.0, 320 * 2.0);
@@ -1493,19 +1542,14 @@ void main() {
       for (final group in ['YOU', 'LOOK', 'CONVERSATIONS', 'PRIVACY', 'THIS PHONE', 'APP']) {
         expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text(group)), findsOneWidget, reason: group);
       }
-      // Small, and by its ring: no wider than fifteen rems. On a folding phone opened out the pill is stood up at
-      // the window's right, where over a ring is another ring: the list hangs beside its ring, towards the pane,
-      // and reaches up from the ring's foot. (Over the ring, on a computer: test/desk_screens_test.dart.)
-      final first = tester.getRect(find.byType(GlacierMenuItem).first), settingsRing = tester.getRect(ring('settings'));
-      expect(first.width, lessThan(250));
-      expect(first.right, lessThanOrEqualTo(settingsRing.left));
-      // Beside its ring, a step past the pill's own edge: near, not across the pane.
-      expect(first.right, greaterThan(settingsRing.left - 36));
-      expect(tester.getRect(find.byType(GlacierMenuLabel).first).top, lessThan(settingsRing.top));
-      // It stands clear of the pill, a gap between the two: nothing of it lies on the bar or under it (Matt,
+      // Small, and by its ring: no wider than fifteen rems, hung over the pill as on a computer, in the list's
+      // column. It stands clear of the pill, a gap between the two: nothing of it lies on the bar or under it (Matt,
       // 2026-11-14: "the context menu is rendering behind the navbar", of a menu whose edge lay on the pill's).
-      final pillLeft = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first).left;
-      expect(first.right, lessThanOrEqualTo(pillLeft - 4), reason: 'the menu ends short of the pill');
+      final first = tester.getRect(find.byType(GlacierMenuItem).first);
+      final pillTop = tester.getRect(find.descendant(of: find.byType(NavPill), matching: find.byType(ClipRRect)).first).top;
+      expect(first.width, lessThan(250));
+      expect(first.right, lessThanOrEqualTo(AppShell.sideWidth(750)));
+      expect(first.bottom, lessThanOrEqualTo(pillTop - 4), reason: 'the menu is over the pill, not on it');
       await choose('Blocked numbers');
       expect(shown(), 'settings');
       expect(frame.settingsSection.value, 'blocked');
@@ -1570,20 +1614,22 @@ void main() {
       await _shootAgain(tester, '11-frame-wide-invite', dark: dark);
       expect(find.byType(ThreadScreen), findsOneWidget);
       expect(find.textContaining('Join me on Ghost Messaging'), findsOneWidget);
-      // A newer version waiting: beside a pane the banner is in the list's column, under its search field, with
+      // A newer version waiting: beside a pane the card is in the list's column, above its title and search, with
       // the app's name left out so its words and its button fit; on a narrow screen it runs the screen's width and
       // says the name.
       tester.view.physicalSize = open;
-      await _shoot(tester, sheet, const UpdateBanner(child: AppShell()), '11-frame-wide-banner', dark: dark);
+      _updateWaiting = true;
+      await _shoot(tester, sheet, const AppShell(), '11-frame-wide-banner', dark: dark);
       final button = tester.getRect(find.text('Update now'));
       expect(button.right, lessThan(side), reason: 'the banner is in the list\'s column, not across the window');
       expect(tester.getRect(find.textContaining('is out')).left, greaterThan(0));
       expect(find.text('0.6.2 is out'), findsOneWidget);
-      expect(tester.getRect(find.text('0.6.2 is out')).top, greaterThan(tester.getRect(find.byType(GlacierSearchField).first).bottom - 1));
+      expect(tester.getRect(find.text('0.6.2 is out')).bottom, lessThan(tester.getRect(find.byType(GlacierSearchField).first).top));
       tester.view.physicalSize = cover;
       await _settle(tester);
       expect(find.text('Ghost Messaging 0.6.2 is out'), findsOneWidget);
       expect(tester.getRect(find.text('Update now')).right, greaterThan(300));
+      _updateWaiting = false;
       // The next round starts with a frame of its own.
       await tester.pumpWidget(const SizedBox());
     }

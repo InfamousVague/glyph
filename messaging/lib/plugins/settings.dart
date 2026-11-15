@@ -36,7 +36,9 @@ SettingsSection pluginsSection([PluginRegistry? registry]) => SettingsSection(
     );
 
 /// A section of Settings for each plugin that asks for one (Matt, 2026-11-14: "the plugins and all being able to
-/// make their own setting sections"): its row is under Plugins while it is on, and its page is its own settings.
+/// make their own setting sections"): its row is under Plugins, on or off, and its page is its own switch, at the top
+/// (Matt, the same day: "Plugins should be able to be toggled on and off from the top of each plugin setting page"),
+/// then its own settings while it is on.
 List<SettingsSection> pluginPages([PluginRegistry? registry]) {
   final r = registry ?? PluginRegistry.instance;
   return [
@@ -48,12 +50,28 @@ List<SettingsSection> pluginPages([PluginRegistry? registry]) {
           icon: AppIcon(p.icon, size: 18),
           hue: p.settingsPage!.hue,
           group: 'plugins',
-          when: (m) => r.isOn(p, AppStore(m.app)),
-          summary: (m) => p.settingsPage!.summary?.call(r.prefsOf(p, AppStore(m.app))) ?? p.description,
+          summary: (m) {
+            final store = AppStore(m.app);
+            if (!r.isOn(p, store)) return 'Off';
+            return p.settingsPage!.summary?.call(r.prefsOf(p, store)) ?? p.description;
+          },
           page: (context, m) {
             final store = AppStore(m.app);
-            final intro = p.settingsPage!.intro;
-            return _own(context, p, r, store, title: null, description: intro);
+            final on = r.isOn(p, store);
+            return [
+              PaneSection(
+                description: p.settingsPage!.intro == null ? null : Text(p.settingsPage!.intro!),
+                children: [
+                  SettingRow(
+                    icon: AppIcon(p.icon, size: 18),
+                    label: p.name,
+                    hint: Text(on ? p.description : 'Off. ${p.description}'),
+                    control: GlacierSwitch(checked: on, onCheckedChange: (yes) => r.setOn(p, store, yes), ariaLabel: p.name),
+                  ),
+                ],
+              ),
+              if (on) ..._own(context, p, r, store, title: null),
+            ];
           },
         ),
   ];
@@ -65,7 +83,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
     PaneSection(
       title: 'Plugins',
       description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? 'computer' : 'phone'} alone, and does nothing while it is off.'),
-      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('A plugin with settings of its own has a section of its own in Settings while it is on.') : null,
+      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('A plugin with settings of its own has a section of its own in Settings, with its switch at the top.') : null,
       children: [
         for (final p in registry.plugins)
           SettingRow(

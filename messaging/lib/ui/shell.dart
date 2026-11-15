@@ -62,7 +62,9 @@ class AppShell extends StatefulWidget {
   static const wideAt = 640.0;
 
   /// How much of a wide window the list takes: as the Mac's has it, less where the window is only just wide.
-  static double sideWidth(double width) => (width * 0.4).clamp(280.0, 340.0);
+  /// At least wide enough for the list's toggle and its filter side by side (Matt, 2026-11-14: "the sidebar needs to
+  /// be at least wide enough to show the segmented toggles and the filter").
+  static double sideWidth(double width) => (width * 0.4).clamp(320.0, 380.0);
 
   /// The shell this page is in, to open things with; null on a page shown with none (a test of one screen).
   static AppShellState? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell;
@@ -418,8 +420,10 @@ class AppShellState extends State<AppShell> {
       // A wide phone has the pill stood up at its right, where the window is tall enough for it (not a small phone
       // on its side). The strip is as wide as the pill and its room, and clear of anything cut into the screen's edge.
       final edges = MediaQuery.paddingOf(context);
-      final rail = wide && !Sms.remote && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings);
-      final strip = rail ? NavPill.railWidth(t) + edges.right : 0.0;
+      // No longer: beside a pane the pill floats over the list's foot, as on the Mac (Matt, 2026-11-14: "there is a
+      // reserved spot for the navbar instead of the nav floating over the left sidebar"). It had a strip of its own
+      // at the window's right.
+      const rail = false;
       // Folded, it stands up too (Matt, 2026-11-14: "Folded: make it vertical"), floating in the list's bottom right
       // corner, with no strip: on a narrow screen every bit of width is the list's.
       final docked = !wide && !Sms.remote && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
@@ -474,8 +478,7 @@ class AppShellState extends State<AppShell> {
                         // screen; the list leaves it room (AppShell.pillRoom). Not on a wide phone, where it
                         // stands at the window's right.
                         // On a phone Settings is a page over the list, with its own way back and no bar under it.
-                        if (!rail)
-                          Positioned(
+                        Positioned(
                             left: docked ? null : 0,
                             right: docked ? edges.right : 0,
                             bottom: edges.bottom,
@@ -499,16 +502,11 @@ class AppShellState extends State<AppShell> {
                 left: wide ? side + 1 : 0,
                 top: 0,
                 bottom: 0,
-                right: rail ? strip + 1 : 0,
+                right: 0,
                 // With nothing open on a narrow screen the pane is empty air over the list: touches go through.
                 child: IgnorePointer(
                   ignoring: !wide && _open == null,
-                  // Beside the strip the pane does not reach the screen's right edge: what is cut into that edge
-                  // is the strip's to stand clear of.
-                  child: MediaQuery.removePadding(
-                   context: context,
-                   removeRight: rail,
-                   child: _sized(NotificationListener<NavigationNotification>(
+                  child: _sized(NotificationListener<NavigationNotification>(
                     onNotification: (n) {
                       if (n.canHandlePop != _paneBack) setState(() => _paneBack = n.canHandlePop);
                       return false;
@@ -518,26 +516,9 @@ class AppShellState extends State<AppShell> {
                       observers: widget.paneObservers,
                       onGenerateRoute: (_) => PageRouteBuilder<void>(opaque: false, pageBuilder: (context, _, _) => const _Base()),
                     ),
-                   )),
-                  ),
+                  )),
                 ),
               ),
-              // A wide phone's way round: the pill stood up at the foot of its own strip, ruled off from the pane as
-              // the pane is from the list.
-              if (rail) ...[
-                Positioned(key: const ValueKey('shell-rail-rule'), right: strip, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
-                Positioned(
-                  key: const ValueKey('shell-rail'),
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: strip,
-                  child: Padding(
-                    padding: EdgeInsets.only(top: edges.top, right: edges.right, bottom: edges.bottom),
-                    child: Align(alignment: Alignment.bottomCenter, child: _pill(upright: true)),
-                  ),
-                ),
-              ],
             ]),
           ),
         ),
@@ -597,7 +578,7 @@ class _Nothing extends StatelessWidget {
             SizedBox(height: t.space(4)),
             Text('Choose a conversation', textAlign: TextAlign.center, style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink-2'))),
             SizedBox(height: t.space(1)),
-            Text(AppShell.railOf(context) ? 'Or start a new chat from the bar on the right.' : 'Or start a new chat from the bar under the list.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            Text('Or start a new chat from the bar under the list.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           ]),
         ),
       ),

@@ -161,4 +161,14 @@ class _Host implements PluginHost {
 
   @override
   void write(String text) => owner.write?.call(text);
+
+  /// A conversation shows no plugin pages, deletes nothing for a plugin, and is read again as it goes.
+  @override
+  void present(WidgetBuilder page) {}
+
+  @override
+  Future<void> deleteThread(int thread) async {}
+
+  @override
+  Future<void> reload() async {}
 }

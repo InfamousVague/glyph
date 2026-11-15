@@ -189,6 +189,17 @@ abstract interface class PluginHost {
 
   /// Writes [text] into the message being written. Only a conversation's composer does anything with it.
   void write(String text);
+
+  /// Shows [page] over everything, on the app's outermost navigator: a sheet of the plugin's own (the Cleaner's).
+  /// Only a screen with a context to show it from does anything with it.
+  void present(WidgetBuilder page);
+
+  /// Deletes the conversation [thread] from the phone, for every app. It cannot be taken back: a plugin asks the
+  /// person first. Only the list does anything with it.
+  Future<void> deleteThread(int thread);
+
+  /// Reads the list again, after a plugin changed what is in it.
+  Future<void> reload();
 }
 
 /// Something a plugin offers to do: a button in a header or a composer, a line in a menu, a row's own button. The
@@ -338,7 +349,7 @@ final class WidgetFill<P> extends SlotFill {
 /// are in each section and how many of them are unread, and a way to show one section.
 @immutable
 class ListPlace {
-  const ListPlace({this.section, this.shown = 0, this.counts = const {}, this.unread = const {}, this.show, this.conversations = const []});
+  const ListPlace({this.section, this.shown = 0, this.counts = const {}, this.unread = const {}, this.show, this.conversations = const [], this.groups = const []});
   final String? section;
   final int shown;
 
@@ -353,6 +364,22 @@ class ListPlace {
 
   /// The conversations the list shows now, newest first, as facts and their tags.
   final List<ConversationPlace> conversations;
+
+  /// Every conversation that is not archived, by what the list sorted it as: each section (Codes, Spam, each kind
+  /// of text) and, last, Personal & other. Given to the header's buttons, for the Cleaner.
+  final List<ListGroup> groups;
+}
+
+/// The conversations of one section of the list, or of none ([ListGroup.othersId]: Personal & other).
+@immutable
+class ListGroup {
+  const ListGroup({required this.id, required this.label, required this.icon, required this.threads});
+  final String id;
+  final String label;
+  final LucideIcon icon;
+  final List<int> threads;
+
+  static const othersId = '*other';
 }
 
 /// One conversation: its facts, its tags, and the section it is in (null: the main list).
