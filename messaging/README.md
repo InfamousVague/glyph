@@ -1005,9 +1005,10 @@ with Core Text, which leaves Twemoji's row blank, where Linux's and Android's dr
 
 ## Releasing (ghost-sms.com)
 
-After each release, publish the source: `node tool/publish-source.mjs` (github.com/InfamousVague/ghost-messaging, one
-commit a release; and the sidecar's own repository where it changed). A release that carries the Google Messages
-sidecar must have its source public.
+Each release publishes the source by itself: tool/release.mjs, release-mac.mjs and release-windows.mjs end by running
+`node tool/publish-source.mjs` (github.com/InfamousVague/ghost-messaging, one commit a release, messaging/ as
+committed at HEAD; and the sidecar's own repository where it changed). `--no-source` skips it; a failure there is said
+and leaves the release live. A release that carries the Google Messages sidecar must have its source public.
 
 Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the domain to the same server ghost kbd
 uses". Both scripts are Ghost Keyboard's, for this app, and use Ghost.md's box account (`tauri/.env`) through
