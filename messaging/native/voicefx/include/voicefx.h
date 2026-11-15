@@ -7,7 +7,7 @@
  * macos VoiceFx.swift, and the patched flutter_webrtc on Windows. One 10 ms block at a time, mono, in place, as
  * WebRTC holds it: floats on the 16-bit scale (-32768 to 32767), at the rate WebRTC processes at (usually 48 kHz).
  *
- *   - Noise: RNNoise (Xiph, BSD; native/voicefx/rnnoise) or DeepFilterNet (where built with VOICEFX_DEEPFILTER and
+ *   - Noise: RNNoise (Xiph, BSD; native/voicefx/rnnoise) or DeepFilterNet (where built with VOICEFX_WITH_DEEPFILTER and
  *     given its model), else none.
  *   - Gain: 0 to 2 (200%); over 1 the loudest parts are rounded off rather than clipped (a soft limiter).
  */

@@ -44,6 +44,16 @@ add_library(voicefx STATIC "${VOICEFX}/voicefx.c" ${VOICEFX_RNNOISE})
 target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
 target_compile_definitions(voicefx PRIVATE _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(${BINARY_NAME} PRIVATE voicefx)
+# DeepFilterNet, where the build made it (the workflow's "Build DeepFilterNet"): Rust's static library and what Rust's
+# standard library asks of Windows.
+set(VOICEFX_DF "${VOICEFX}/deepfilter/target/release/voicefx_deepfilter.lib")
+if(EXISTS "${VOICEFX_DF}")
+  target_compile_definitions(voicefx PRIVATE VOICEFX_WITH_DEEPFILTER)
+  target_link_libraries(voicefx PUBLIC "${VOICEFX_DF}" advapi32 bcrypt kernel32 ntdll userenv ws2_32 synchronization)
+  message(STATUS "voicefx: with DeepFilterNet")
+else()
+  message(STATUS "voicefx: RNNoise alone (no ${VOICEFX_DF})")
+endif()
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

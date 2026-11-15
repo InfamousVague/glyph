@@ -1,6 +1,6 @@
 // What is done to the microphone before Opus, on Windows (lib/voice/voice_fx.dart; Matt, 2026-11-15: "build in like
 // krisp noise supression or other fancy noise suppression tools, add a volume slider for input ... with
-// overboosting"): RNNoise, DeepFilterNet where its model is beside the app, and the gain, from native/voicefx, set as
+// overboosting"): RNNoise, DeepFilterNet where the build made it, and the gain, from native/voicefx, set as
 // the capture post-processing of flutter_webrtc's own WebRTC. flutter_webrtc's DLL hands out its instance
 // (FlutterWebRTCPluginSharedInstance), and its audio_processing() is libwebrtc's RTCAudioProcessing, whose
 // CustomProcessing gets each 10 ms block: floats on the 16-bit scale, as on Android and the Mac.
@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "flutter_webrtc.h"
 #include "flutter_webrtc/flutter_web_r_t_c_plugin.h"
@@ -47,20 +48,6 @@ Processor* g_processor = nullptr;
 bool g_attached = false;
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 
-// DeepFilterNet's model, beside the app's exe where the build put it.
-std::string ModelPath() {
-  wchar_t exe[MAX_PATH];
-  DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);
-  if (n == 0 || n == MAX_PATH) return "";
-  std::wstring dir(exe, n);
-  dir = dir.substr(0, dir.find_last_of(L"\\/") + 1) + L"data\\DeepFilterNet3_onnx.tar.gz";
-  if (GetFileAttributesW(dir.c_str()) == INVALID_FILE_ATTRIBUTES) return "";
-  int bytes = WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, nullptr, 0, nullptr, nullptr);
-  std::string out(bytes > 0 ? bytes - 1 : 0, '\0');
-  if (bytes > 0) WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, out.data(), bytes, nullptr, nullptr);
-  return out;
-}
-
 bool Attach() {
   if (g_attached) return true;
   auto* webrtc = FlutterWebRTCPluginSharedInstance();
@@ -78,8 +65,9 @@ bool Attach() {
 void RegisterVoiceFx(flutter::BinaryMessenger* messenger) {
   if (!g_processor) {
     g_processor = new Processor();
-    std::string model = ModelPath();
-    if (!model.empty()) voicefx_deepfilter_model(g_processor->fx(), model.c_str());
+    // DeepFilterNet, where this build has it: its model is built in, made ready once, off this thread. A build
+    // without it answers 0 and offers RNNoise alone.
+    std::thread([fx = g_processor->fx()] { voicefx_deepfilter_model(fx, ""); }).detach();
   }
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(messenger, "ghost/voicefx", &flutter::StandardMethodCodec::GetInstance());
   g_channel->SetMethodCallHandler([](const flutter::MethodCall<flutter::EncodableValue>& call, std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {

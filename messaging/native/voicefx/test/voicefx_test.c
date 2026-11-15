@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "voicefx.h"
 
@@ -67,7 +68,25 @@ int main(void) {
   voicefx_process(fx, odd, 256, 48000);
   CHECK(fabsf(odd[10] - 150.0f) < 0.01f, "a 256-sample block passes with gain alone (%.1f)", odd[10]);
 
-  CHECK(voicefx_deepfilter_model(fx, "/nonexistent") == 0 || (voicefx_modes(fx) & (1 << VOICEFX_DEEPFILTER)), "no model, no DeepFilterNet");
+#ifdef VOICEFX_WITH_DEEPFILTER
+  CHECK(voicefx_deepfilter_model(fx, ""), "DeepFilterNet's built-in model loads");
+  CHECK(voicefx_modes(fx) & (1 << VOICEFX_DEEPFILTER), "runs DeepFilterNet");
+  voicefx_configure(fx, VOICEFX_DEEPFILTER, 1.0f);
+  double dfn = noiseLeft(fx, 48000, 300);
+  CHECK(dfn < 0.1, "DeepFilterNet takes steady noise down by more than 10 dB (%.1f dB)", 10 * log10(dfn));
+  /* Fast enough to keep up: ten seconds of sound in well under ten seconds of one core. */
+  clock_t began = clock();
+  noiseLeft(fx, 48000, 1000);
+  double took = (double)(clock() - began) / CLOCKS_PER_SEC;
+  CHECK(took < 3.0, "DeepFilterNet does 10 s of sound in %.2f s of CPU (%.0f%% of one core)", took, took * 10);
+  voicefx_configure(fx, VOICEFX_RNNOISE, 1.0f);
+  began = clock();
+  noiseLeft(fx, 48000, 1000);
+  took = (double)(clock() - began) / CLOCKS_PER_SEC;
+  CHECK(took < 1.0, "RNNoise does 10 s in %.2f s (%.0f%% of one core)", took, took * 10);
+#else
+  CHECK(voicefx_deepfilter_model(fx, "") == 0 && !(voicefx_modes(fx) & (1 << VOICEFX_DEEPFILTER)), "built without DeepFilterNet, it says so");
+#endif
   voicefx_destroy(fx);
   printf(failed ? "%d FAILED\n" : "all passed\n", failed);
   return failed ? 1 : 0;

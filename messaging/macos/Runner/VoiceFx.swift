@@ -16,10 +16,9 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
 
   private override init() {
     super.init()
-    // DeepFilterNet's model, where this build carries it (tool/build-deepfilter.sh): loaded once, off the main thread.
-    if let model = Bundle.main.path(forResource: "DeepFilterNet3_onnx", ofType: "tar.gz") {
-      DispatchQueue.global(qos: .utility).async { [fx] in _ = voicefx_deepfilter_model(fx, model) }
-    }
+    // DeepFilterNet, where this build has it (native/voicefx/deepfilter): its model is built in, made ready once, off
+    // the main thread. A build without it answers 0 and offers RNNoise alone.
+    DispatchQueue.global(qos: .utility).async { [fx] in _ = voicefx_deepfilter_model(fx, "") }
   }
 
   func register(messenger: FlutterBinaryMessenger) {
