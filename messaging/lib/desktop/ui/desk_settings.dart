@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
+
+import '../platform.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../app_state.dart';
@@ -73,7 +75,7 @@ class DeskSettings extends ChangeNotifier {
         SettingsSection(
           id: 'kept',
           where: SettingsWhere.computer,
-          label: 'Kept on this Mac',
+          label: 'Kept on this $computerWord',
           icon: const AppIcon(Lucide.hardDrive, size: 18),
           hue: 'slate',
           group: 'app',
@@ -103,7 +105,7 @@ class DeskSettings extends ChangeNotifier {
           icon: const AppIcon(Lucide.info, size: 18),
           hue: 'graphite',
           group: 'app',
-          summary: (m) => 'Ghost Messaging for the Mac ${link.app}',
+          summary: (m) => 'Ghost Messaging for $desktopName ${link.app}',
           page: (context, m) => _aboutPage(context, this),
         ),
       ];
@@ -161,15 +163,15 @@ List<Widget> _phonePage(BuildContext context, DeskSettings d) {
     ConnectionChoice(value: phone.mode, relay: phone.relay, onChanged: (m) => link.setMode(m)),
     PaneSection(
       title: 'If the phone isn\'t found',
-      footer: const Text('The phone announces itself on the network and this Mac looks for it. Where a network keeps the two from finding each other, give the phone\'s address: it is on the phone under Settings › Computers.'),
+      footer: Text('The phone announces itself on the network and this $computerWord looks for it. Where a network keeps the two from finding each other, give the phone\'s address: it is on the phone under Settings › Computers.'),
       children: [SettingRowBox(child: _AddressField(settings: d))],
     ),
     PaneSection(children: [
       SettingRow(
         icon: _icon(Lucide.unlink),
         label: 'Unpair this phone',
-        hint: const Text('This Mac stops showing the phone\'s texts, and the key is deleted from both.'),
-        onPress: () => showChoices(context, title: 'Unpair ${phone.name}? Its conversations leave this Mac, and the key the two share is deleted.', choices: [
+        hint: Text('This $computerWord stops showing the phone\'s texts, and the key is deleted from both.'),
+        onPress: () => showChoices(context, title: 'Unpair ${phone.name}? Its conversations leave this $computerWord, and the key the two share is deleted.', choices: [
           Choice('Unpair', Lucide.unlink, () async {
             d.calls.forget();
             await link.unpair();
@@ -250,7 +252,7 @@ List<Widget> _keptPage(BuildContext context, DeskSettings d) {
   return [
     PaneSection(
       title: 'Conversations and messages',
-      description: const Text('The list and the conversations you open are kept on this Mac, sealed with your pairing\'s key, so they open at once and are there while your phone is away. Only what is new is fetched from your phone.'),
+      description: Text('The list and the conversations you open are kept on this $computerWord, sealed with your pairing\'s key, so they open at once and are there while your phone is away. Only what is new is fetched from your phone.'),
       children: [
         SettingRow(icon: _icon(Lucide.messageSquare), label: 'Conversations kept', value: Text(k == null ? '' : '${k.conversations}')),
         SettingRow(icon: _icon(Lucide.hardDrive), label: 'Space used', value: Text(k == null ? '' : (k.bytes == 0 ? 'None' : keptSize(k.bytes)))),
@@ -265,7 +267,7 @@ List<Widget> _keptPage(BuildContext context, DeskSettings d) {
           disabled: nothing,
           onPress: nothing
               ? null
-              : () => showChoices(context, title: 'Clear the conversations and messages kept on this Mac? They are read from your phone again as you open them.', choices: [
+              : () => showChoices(context, title: 'Clear the conversations and messages kept on this $computerWord? They are read from your phone again as you open them.', choices: [
                     Choice('Clear what is kept', Lucide.trash2, () async {
                       await d.calls.clearKept();
                       d.countKept(now: true);
@@ -289,7 +291,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
   final busy = u.phase == MacUpdatePhase.checking || u.phase == MacUpdatePhase.downloading || u.phase == MacUpdatePhase.restarting;
   return [
     PaneSection(
-      title: 'Ghost Messaging for the Mac',
+      title: 'Ghost Messaging for $desktopName',
       footer: const Text('It updates itself from ghost-sms.com: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'This version', value: Text('${here.version} (${here.build})')),
@@ -310,17 +312,17 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
 
 List<Widget> _aboutPage(BuildContext context, DeskSettings d) {
   return [
-    PaneSection(title: 'Ghost Messaging for the Mac', children: [
+    PaneSection(title: 'Ghost Messaging for $desktopName', children: [
       SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app)),
       SettingRow(
         icon: _icon(LucideMore.smartphone),
         label: 'Your phone sends and receives',
-        hint: const Text('This Mac shows what your phone has and sends through it, sealed between the two. A relay, where one is used, only ever carries sealed data.'),
+        hint: Text('This $computerWord shows what your phone has and sends through it, sealed between the two. A relay, where one is used, only ever carries sealed data.'),
       ),
       SettingRow(
         icon: _icon(Lucide.lock),
-        label: 'What this Mac keeps',
-        hint: const Text('The pairing, your choices here, and the conversations you have read, sealed with the pairing\'s key so nothing else on it can read them. Settings › Kept on this Mac clears them.'),
+        label: 'What this $computerWord keeps',
+        hint: Text('The pairing, your choices here, and the conversations you have read, sealed with the pairing\'s key so nothing else on it can read them. Settings › Kept on this $computerWord clears them.'),
       ),
     ]),
     aboutLicences(),

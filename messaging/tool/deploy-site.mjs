@@ -56,7 +56,7 @@ ${DOMAIN} {
 	# The release's own files (tool/release.mjs, tool/release-mac.mjs), so a release updates this site's download
 	# and version. Installed copies update from these addresses (the phone's Updater.BASE, the Mac's macFeed): they
 	# must never stop answering.
-	@release path /${APK} /apk.json /${MAC_ZIP} /mac.json
+	@release path /${APK} /apk.json /${MAC_ZIP} /mac.json /ghost-messaging-setup.exe /windows.json
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"

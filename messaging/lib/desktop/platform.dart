@@ -6,6 +6,12 @@ import 'package:flutter/services.dart';
 import 'link/link.dart';
 
 /// What the Mac app asks of macOS (macos/Runner/DeskChannels.swift): the Mac's name, the Keychain, and Bonjour.
+/// What the computer is called in the app's words: "Mac", or "PC" on Windows.
+String get computerWord => Platform.isWindows ? 'PC' : 'Mac';
+
+/// What the desktop app is for, in its name: "the Mac", or "Windows".
+String get desktopName => Platform.isWindows ? 'Windows' : 'the Mac';
+
 class MacPlatform {
   MacPlatform._();
   static const _system = MethodChannel('ghost_desktop/system');

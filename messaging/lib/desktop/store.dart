@@ -19,8 +19,10 @@ class DeskStore implements LinkStore {
 
   static const _account = 'pairing-key';
 
-  /// The app's own folder: inside its sandbox container on a Mac.
+  /// The app's own folder: inside its sandbox container on a Mac, the person's AppData on Windows.
   static Directory defaultDir() {
+    final appData = Platform.environment['APPDATA'];
+    if (Platform.isWindows && appData != null) return Directory('$appData\\Ghost Messaging');
     final home = Platform.environment['HOME'] ?? Directory.systemTemp.path;
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }

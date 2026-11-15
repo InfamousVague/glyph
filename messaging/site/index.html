@@ -21,6 +21,10 @@
   a.button { display: inline-block; background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 650; padding: 0.85rem 1.5rem; border-radius: 999px; }
   a.button:active { transform: scale(0.97); }
   .version { color: var(--ink2); font-size: 0.95rem; }
+  .desktop { margin-top: 1.1rem; display: flex; flex-wrap: wrap; gap: 0.7rem; }
+  a.button.quiet { background: transparent; color: var(--ink); border: 1.5px solid var(--ink2); padding: 0.7rem 1.2rem; font-weight: 600; }
+  .desktop small { display: block; color: var(--ink2); font-size: 0.8rem; font-weight: 400; margin-top: 0.15rem; }
+  [hidden] { display: none !important; }
   ul.points { list-style: none; padding: 0; margin: 2.75rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
   ul.points li { background: var(--card); border-radius: 1.1rem; padding: 1rem 1.1rem; }
   ul.points b { display: block; margin-bottom: 0.15rem; }
@@ -35,10 +39,16 @@
 <main>
   <img class="mark" src="/icon.png" width="72" height="72" alt="">
   <h1>Ghost Messaging</h1>
-  <p class="lede">A texting app for Android. Your SMS and picture messages, with reactions, effects and a choice of emoji, in the same quiet design as Ghost.md and Ghost Keyboard.</p>
+  <p class="lede">A texting app for Android, with your texts on your Mac or PC too. Your SMS and picture messages, with reactions, effects and a choice of emoji, in the same quiet design as Ghost.md and Ghost Keyboard.</p>
   <div class="get">
     <a class="button" href="/ghost-messaging.apk" id="download">Download for Android</a>
     <span class="version" id="version"></span>
+  </div>
+  <!-- The computer apps (Matt, 2026-11-14: "Add a mac and windows build to ghost-sms.com"): your phone's texts on a
+       Mac or a PC, paired with the phone. Each button shows once its release is here (mac.json, windows.json). -->
+  <div class="desktop">
+    <a class="button quiet" href="/ghost-messaging-mac.zip" id="mac" hidden>Download for Mac<small id="mac-version"></small></a>
+    <a class="button quiet" href="/ghost-messaging-setup.exe" id="windows" hidden>Download for Windows<small id="windows-version"></small></a>
   </div>
 
   <ul class="points">
@@ -57,6 +67,11 @@
       <li>Open Ghost Messaging and choose "Set as default SMS app".</li>
       <li>That's it. It keeps itself up to date from here.</li>
     </ol>
+    <h2>On a computer</h2>
+    <ol>
+      <li>Download for Mac or Windows. On a Mac, open the zip and drag Ghost Messaging to Applications; on Windows, run the installer (Windows asks once, as it does for any app it doesn't know yet).</li>
+      <li>On your phone, open Settings › Computers and pair: the computer shows your texts and sends through your phone, sealed between the two.</li>
+    </ol>
   </div>
 
   <footer>Texts and picture messages go through your carrier as they always have. RCS and iMessage are not available to apps other than Google's and Apple's own.</footer>
@@ -71,6 +86,19 @@
       if (/^[A-Za-z0-9._-]+$/.test(info.url)) document.getElementById('download').href = '/' + info.url;
     })
     .catch(() => {});
+  // The Mac's and Windows' releases (tool/release-mac.mjs, tool/release-windows.mjs).
+  for (const [id, feed] of [['mac', '/mac.json'], ['windows', '/windows.json']]) {
+    fetch(feed, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((info) => {
+        if (!info) return;
+        const a = document.getElementById(id);
+        if (/^[A-Za-z0-9._-]+$/.test(info.url)) a.href = '/' + info.url;
+        document.getElementById(id + '-version').textContent = 'Version ' + info.version + ' · ' + (info.bytes / 1e6).toFixed(1) + ' MB';
+        a.hidden = false;
+      })
+      .catch(() => {});
+  }
 </script>
 </body>
 </html>
