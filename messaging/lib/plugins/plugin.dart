@@ -208,13 +208,16 @@ abstract interface class PluginHost {
 /// app draws it as the place it is in draws such things, and calls [run] when it is chosen.
 @immutable
 class PluginAction {
-  const PluginAction({required this.label, required this.icon, required this.run, this.danger = false});
+  const PluginAction({required this.label, required this.icon, required this.run, this.danger = false, this.quiet = false});
   final String label;
   final LucideIcon icon;
   final FutureOr<void> Function(PluginHost host) run;
 
   /// Drawn in red: it deletes, or cannot be taken back.
   final bool danger;
+
+  /// Drawn small and faint: there when wanted, not asking to be pressed (the Cleaner's brush).
+  final bool quiet;
 }
 
 // --- (b) sections of the list ----------------------------------------------------------------------------------------

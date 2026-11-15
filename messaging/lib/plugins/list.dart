@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
 import '../art/lucide_more.dart';
@@ -271,7 +272,13 @@ class ListPlugins {
     if (store == null) return const [];
     return [
       for (final b in registry.actions(Slots.listHeader, place, store))
-        IconTap(icon: b.action.icon, label: b.action.label, onPressed: () => b.action.run(_Host(this, b.plugin, context))),
+        IconTap(
+          icon: b.action.icon,
+          label: b.action.label,
+          size: b.action.quiet ? 17 : 20,
+          color: b.action.quiet ? context.tokens.color('app-ink-4') : null,
+          onPressed: () => b.action.run(_Host(this, b.plugin, context)),
+        ),
     ];
   }
 
