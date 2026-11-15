@@ -35,7 +35,6 @@ class RtcMedia implements VoiceMedia {
   bool _deaf = false;
 
   static const audioBitrate = 510000;
-  static const videoBitrate = 12000000;
 
   @override
   Future<void> start() async {
@@ -116,8 +115,21 @@ class RtcMedia implements VoiceMedia {
   }
 
   @override
-  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) =>
-      _peers[id] ??= _RtcPeer(this, id, onCandidate);
+  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) {
+    final had = _peers[id];
+    if (had != null) return had;
+    final made = _peers[id] = _RtcPeer(this, id, onCandidate);
+    _retune();
+    return made;
+  }
+
+  /// Someone came or went: every copy of the picture is sized again for how many there are now.
+  void _retune() {
+    for (final p in _peers.values) {
+      final made = p._pc;
+      if (made != null) unawaited(made.then(p._highest).catchError((_) {}));
+    }
+  }
 
   void _heard(String id, MediaStream stream) {
     for (final t in stream.getAudioTracks()) {
@@ -127,7 +139,7 @@ class RtcMedia implements VoiceMedia {
   }
 
   void _gone(String id) {
-    _peers.remove(id);
+    if (_peers.remove(id) != null) _retune();
     remote.value = {...remote.value}..remove(id);
   }
 }
@@ -172,7 +184,7 @@ class _RtcPeer implements VoicePeer {
     await pc.addTransceiver(track: mic, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, streams: [media._mic!]));
     await pc.addTransceiver(
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
-      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: RtcMedia.videoBitrate, maxFramerate: 30)]),
+      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: videoFor(media._peers.length).bitrate, maxFramerate: 30, scaleResolutionDownBy: videoFor(media._peers.length).scale)]),
     );
     if (media._camTrack != null) await showCamera(media._camTrack);
   }
@@ -191,16 +203,19 @@ class _RtcPeer implements VoicePeer {
     }
   }
 
+  /// Sound at 510 kb/s; the picture as big as the number of others allows ([videoFor]).
   Future<void> _highest(RTCPeerConnection pc) async {
+    final v = videoFor(media._peers.length);
     for (final s in await pc.getSenders()) {
       final kind = s.track?.kind;
       final p = s.parameters;
       final encodings = p.encodings;
       if (encodings == null || encodings.isEmpty) continue;
       for (final e in encodings) {
-        e.maxBitrate = kind == 'audio' ? RtcMedia.audioBitrate : RtcMedia.videoBitrate;
+        e.maxBitrate = kind == 'audio' ? RtcMedia.audioBitrate : v.bitrate;
+        if (kind == 'video') e.scaleResolutionDownBy = v.scale;
       }
-      if (kind == 'video') p.degradationPreference = RTCDegradationPreference.MAINTAIN_RESOLUTION;
+      if (kind == 'video') p.degradationPreference = RTCDegradationPreference.BALANCED;
       try {
         await s.setParameters(p);
       } catch (_) {}

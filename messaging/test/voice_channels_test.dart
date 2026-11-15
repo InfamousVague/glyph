@@ -203,4 +203,17 @@ void main() {
     await a.leave();
     await b.leave();
   });
+
+  // tool/voicebench, 2026-11-15: at 1080p and 12 Mb/s for everyone, three members fell to a frame a second.
+  test('the picture is sized by how many others are in the call: full 1080p one to one, smaller as it grows', () {
+    expect(videoFor(1), (scale: 1.0, bitrate: 12000000, preference: 'balanced'));
+    expect(videoFor(2).scale, 1.5);
+    expect(videoFor(3).bitrate, 2000000);
+    expect(videoFor(4).scale, 2.0);
+    expect(videoFor(7).scale, 3.0);
+    // What a member sends at most, all copies together, stays under 12 Mb/s however many there are.
+    for (var others = 1; others <= 10; others++) {
+      expect(videoFor(others).bitrate * others, lessThanOrEqualTo(12000000), reason: '$others others');
+    }
+  });
 }

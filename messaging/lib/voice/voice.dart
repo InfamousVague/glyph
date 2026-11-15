@@ -267,6 +267,17 @@ class VoiceSession extends ChangeNotifier {
   }
 }
 
+/// How each copy of this device's picture is sent, by how many others are in the call (tool/voicebench, 2026-11-15:
+/// each connection encodes its own copy, so at 1080p for everyone three or more people fell to a frame a second).
+/// Alone with one other it is the camera's full 1080p at up to 12 Mb/s; with more, a smaller copy to each, and under
+/// load a little resolution goes before the frame rate does. Sound is always Opus at 510 kb/s.
+({double scale, int bitrate, String preference}) videoFor(int others) => switch (others) {
+      <= 1 => (scale: 1.0, bitrate: 12000000, preference: 'balanced'),
+      2 => (scale: 1.5, bitrate: 4000000, preference: 'balanced'),
+      3 || 4 => (scale: 2.0, bitrate: 2000000, preference: 'balanced'),
+      _ => (scale: 3.0, bitrate: 1000000, preference: 'balanced'),
+    };
+
 /// [sdp] with Opus asked for at its highest: full band at 48 kHz, stereo both ways, 510 kb/s, constant bit rate,
 /// no discontinuous transmission, with forward error correction kept for lost packets.
 String highestOpus(String sdp) {
