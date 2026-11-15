@@ -187,7 +187,8 @@ void main() {
       final listed = ListPhone(phone())..install();
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, const ConversationsScreen(), AppState()..setFlag('plugin_spam', false));
-      expect(find.byType(SectionTabs), findsNothing);
+      // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
       expect(find.byType(FilterButton), findsNothing);
       expect(find.byType(ConversationRow), findsNWidgets(6));
       expect(listed.asked, isEmpty);
@@ -201,7 +202,8 @@ void main() {
       await pumpScreen(tester, sheet, const ConversationsScreen(), state);
 
       // Two look like spam and are from numbers: hidden, and said. Priya's, a contact's, stays. Spam is no tab.
-      expect(find.byType(SectionTabs), findsNothing);
+      // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
       expect(find.byType(FilterButton), findsOneWidget);
       expect(tester.widget<FilterButton>(find.byType(FilterButton)).hidden, 2);
       expect(find.byType(ConversationRow), findsNWidgets(4));

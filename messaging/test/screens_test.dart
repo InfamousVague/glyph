@@ -1288,7 +1288,7 @@ void main() {
   // Matt, 2026-11-15: "use an icon only segmented toggle for the messages codes and add voice chats to the list as well,
   // try a few different layouts for switching between the few including a mixed view that shows them all intertwined
   // sorted by recency, also id like you to rework the active call indicator".
-  testWidgets('the list\'s layouts with voice channels, and the call capsule', (tester) async {
+  testWidgets('the list\'s three tabs with voice, and the call as a floating face', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;
     tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
@@ -1299,7 +1299,7 @@ void main() {
     final hangout = VoiceChannel.make('Friday hang'), study = VoiceChannel.make('Study room');
     final v = Voice.instance;
     v.own = [hangout, study];
-    v.session = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia({'a': 0.4}), name: 'Me')
+    v.session = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia({'a': 0.4, 'me': 0.3}), name: 'Me')
       ..members['a'] = const VoiceMember('a', name: 'Maya Chen')
       ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
       ..since = DateTime.now().subtract(const Duration(minutes: 12, seconds: 5));
@@ -1313,22 +1313,16 @@ void main() {
       expect(find.byType(SectionTabs), findsOneWidget);
       final voiceTab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphones));
       expect(voiceTab, findsOneWidget);
-      expect(find.byType(CallBanner), findsOneWidget);
-      // A banner at the top of the list that takes its room, above the title, not floating over the list (Matt,
-      // 2026-11-15: "Make sure the active call runs as a banner that expands space from the top of thr sidebar").
-      expect(tester.getRect(find.byType(CallBanner)).bottom, lessThan(tester.getRect(find.text('Messages').first).top));
-      expect(find.textContaining('Maya Chen talking'), findsOneWidget);
+      // The call: your face, floating, rippling as you talk (Matt, 2026-11-15: "I like the idea of the active call
+      // floating in a single avatar with our speech wobbles coming out").
+      expect(find.byType(CallBubble), findsOneWidget);
+      expect(find.descendant(of: find.byType(CallBubble), matching: find.byType(RippleAvatar)), findsOneWidget);
+      // No Voice ring: calls are the Voice tab.
+      expect(find.byKey(const ValueKey('nav-voice')), findsNothing);
       await tester.tap(voiceTab);
       await _settle(tester);
       await _shootAgain(tester, '20-layout-tabs-voice', dark: dark);
       expect(find.byType(VoiceRow), findsNWidgets(2));
-      // All together: one list, the voice channel you're in among the newest.
-      await _shoot(tester, sheet, const AppShell(), '20-layout-mixed', dark: dark, prefs: const {'list_layout': 'mixed'});
-      expect(find.byType(SectionTabs), findsNothing);
-      expect(find.byType(VoiceRow), findsWidgets);
-      // Voice above: a strip of channels over the list.
-      await _shoot(tester, sheet, const AppShell(), '20-layout-strip', dark: dark, prefs: const {'list_layout': 'strip'});
-      expect(find.byType(VoiceStrip), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1510,8 +1504,12 @@ void main() {
       expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
       tester.view.physicalSize = cover;
       await _settle(tester);
-      // A new chat, from the pill, slides over the list; Android's back closes it.
+      // A new chat, from the pill (which asks: a chat, a group or a voice call), slides over the list; Android's back
+      // closes it.
       await tester.tap(ring('new'));
+      await _settle(tester);
+      expect(find.text('Voice call'), findsOneWidget);
+      await tester.tap(find.text('New chat').hitTestable().last);
       await _settle(tester);
       expect(find.byType(ComposeScreen), findsOneWidget);
       expect(seen(find.text('Dad')), findsNothing);

@@ -415,26 +415,6 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
         control: GlacierSwitch(checked: app.enterSends, onCheckedChange: (v) => app.setFlag('enter_sends', v), ariaLabel: 'Enter sends'),
       ),
     ]),
-    // How the list switches between messages, codes and voice channels (Matt, 2026-11-15: "try a few different layouts
-    // for switching between the few including a mixed view that shows them all intertwined sorted by recency").
-    PaneSection(
-      title: 'The list',
-      description: const Text('How messages, codes and voice channels share the list.'),
-      children: [
-        for (final (id, label, hint, icon) in const [
-          ('tabs', 'Tabs', 'Icons along the top for messages, codes and voice.', Lucide.layoutList),
-          ('mixed', 'All together', 'One list: conversations, codes and voice channels, the newest first.', Lucide.list),
-          ('strip', 'Voice above', 'Messages and codes as tabs, voice channels as cards along the top.', LucideMore.headphones),
-        ])
-          SettingRow(
-            icon: _icon(icon),
-            label: label,
-            hint: Text(hint),
-            control: app.choice('list_layout', 'tabs') == id ? AppIcon(Lucide.check, size: 18, color: context.tokens.color('app-ink')) : null,
-            onPress: () => app.set('list_layout', id),
-          ),
-      ],
-    ),
     // Summaries of unread conversations by the phone's own model (lib/summaries.dart; Matt, 2026-11-14: "Use a local
     // AI to summarize unread message conversations like apple does").
     PaneSection(

@@ -456,15 +456,17 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - A call is everyone as a list (`CallPanel`), a picture only for whoever has video on, and the buttons in a dock
     at the foot (`CallDock`). Faces ripple with wobbly rings while their owner talks (`lib/ui/ripple_avatar.dart`),
     from WebRTC's audio levels read several times a second (`RtcMedia.levels`). The browser page does the same.
-  - The list's toggle is icons alone, with a Voice tab of the channels (`VoiceRow`, live in green). Settings ›
-    Messages › The list chooses Tabs, All together (conversations, codes and channels in one list, newest first,
-    the filter in the title row) or Voice above (channels as cards over the list, `VoiceStrip`).
-  - While in a call, a banner at the top of the sidebar, above the title, takes its own room and pushes the list
-    down (`CallBanner`; "Make sure the active call runs as a banner that expands space from the top of thr sidebar
-    not a floating banner"): a beating dot, the channel, the time in it, whoever is talking (rippling), mute and
-    leave; a press opens the call. The Voice ring no longer counts.
-  - In a call the Voice page is the call alone: who is in it and the dock ("I want the call screen to be super simple
-    too just a list of chatters and the call controls"); a picture only appears for someone who turns video on.
+  - The list's toggle is three icons: Messages, Codes and Voice, the channels (`VoiceRow`, live in green), always
+    there ("use the segmented toggle with the three icons instead of intertwining them remove the other options for
+    now"). The pill has five rings again: calls are the Voice tab ("lets remove the calls icon in the dock").
+  - While in a call your face floats over the list's corner, rippling as you talk, ringed green, marked red when
+    muted (`CallBubble`; "the active call floating in a single avatar with our speech wobbles coming out"); a press
+    opens the call.
+  - The new ring asks: a new chat, a new group, or a voice call, which names the channel, shares it with friends you
+    pick and puts you in it ("The new button should also ask for new chat, group or voice call").
+  - In a call the Voice page is the call alone: who is in it as plain rows, not in a card, and the dock ("I want the
+    call screen to be super simple too just a list of chatters and the call controls", "Make the lists of people not
+    in a card"); a picture only appears for someone who turns video on.
 - **Hangouts by link, in a browser** (0.7.22, not released; site/join; Matt, 2026-11-14: "Make the voice hangouts
   possible to share via a link so people can join to talk anonymously or sign up through the browser similar to a
   zoom meeting"). A hangout's options (and the call, for one that is not a group's) copy

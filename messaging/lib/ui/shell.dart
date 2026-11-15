@@ -8,6 +8,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'new_group.dart';
 import '../art/lucide_more.dart';
 import 'voice_screen.dart';
 import '../voice/channels.dart';
@@ -276,7 +277,13 @@ class AppShellState extends State<AppShell> {
   void go(String id, {bool selectAll = false}) {
     switch (id) {
       case 'new':
-        compose();
+        // A new chat, a group, or a voice call (Matt, 2026-11-15: "The new button should also ask for new chat, group
+        // or voice call").
+        showChoices(context, title: 'Start something new', choices: [
+          Choice('New chat', Lucide.messageSquarePlus, () => compose()),
+          Choice('New group', Lucide.users, () => show(const NewGroupScreen(key: ValueKey('new-group')), showing: 'new')),
+          Choice('Voice call', LucideMore.headphones, () => show(const NewChannelScreen(key: ValueKey('new-voice')), showing: 'new')),
+        ]);
       case 'contacts':
         contacts();
       case 'voice':
@@ -402,8 +409,6 @@ class AppShellState extends State<AppShell> {
               const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
               const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
               // Voice channels, lit while you're in one (Matt, 2026-11-14: "always open voice channels").
-              // The call you're in is shown by its capsule over the list (CallCapsule), not a number on this ring.
-              NavItem(id: 'voice', icon: LucideMore.headphones, label: Voice.instance.session == null ? 'Voice' : 'Voice, connected'),
               NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
               NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
             ],
@@ -412,7 +417,7 @@ class AppShellState extends State<AppShell> {
       );
 
   /// How many rings the pill has: what a window must be tall enough for, to have it stood up.
-  static const _rings = 6;
+  static const _rings = 5;
 
   Widget _sized(Widget child) => LayoutBuilder(
         // The screens measure themselves against the screen they are on: here that is their share of the window.
@@ -499,6 +504,15 @@ class AppShellState extends State<AppShell> {
                                 child: _pill(upright: docked),
                               ),
                             ),
+                          ),
+                        // The call you're in: your face, floating over the list's corner, rippling as you talk (Matt,
+                        // 2026-11-15: "I like the idea of the active call floating in a single avatar"); not while the
+                        // call itself is open, nor under a page on a phone.
+                        if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)))
+                          Positioned(
+                            left: t.space(4),
+                            bottom: edges.bottom + (docked ? t.space(4) : NavPill.clearance(t)),
+                            child: CallBubble(onOpen: () => go('voice')),
                           ),
                       ]))),
                     ),

@@ -169,7 +169,8 @@ void main() {
       ListPhone(phone()).install();
       final sheet = await loadSheet(tester);
       await pumpScreen(tester, sheet, const ConversationsScreen(), AppState()..setFlag('plugin_codes', false));
-      expect(find.byType(SectionTabs), findsNothing);
+      // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
       expect(find.byType(ConversationRow), findsNWidgets(5));
     });
   });
