@@ -12,6 +12,7 @@ import 'package:ghost_messaging/desktop/main.dart';
 import 'package:ghost_messaging/desktop/remote.dart';
 import 'package:ghost_messaging/desktop/store.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
+import 'package:ghost_messaging/desktop/gm_web.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/ui/settings.dart';
@@ -410,6 +411,22 @@ void main() {
       expect(find.text('Look for an update'), findsOneWidget);
       expect(find.text('0.6.2 (456601)'), findsOneWidget);
       expect(find.text('Up to date'), findsWidgets);
+      // Google Messages on the computer (lib/desktop/gm_web.dart; Matt, 2026-11-15: "Yes, mautrix sidecar"): its
+      // QR code to scan, while pairing.
+      final gm = GmWeb.instance
+        ..carried = true
+        ..qr = 'https://support.google.com/messages/?p=web_computer#?c=CjQKIGV4YW1wbGUtcGFpcmluZy1rZXktZm9yLWEtcGljdHVyZQ';
+      await shoot('8-settings-gmessages', paired('local'), dark: dark, then: () async {
+        await tester.tap(_nav('Settings'));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await section('Google Messages');
+      });
+      expect(find.textContaining('then Device pairing, then QR code scanner'), findsOneWidget);
+      gm
+        ..carried = false
+        ..qr = null;
     }
     // Leave nothing running: the wizard's question to the relay, a toast.
     await tester.pumpWidget(const SizedBox());

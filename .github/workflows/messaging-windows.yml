@@ -48,6 +48,25 @@ jobs:
       - name: Build the app
         run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }} --dart-define=GHOST_BUILD=${{ inputs.build }} --dart-define=GHOST_VERSION=${{ inputs.version }}
 
+      # The Google Messages sidecar (messaging/sidecar/gmessages, AGPL-3.0): beside the app, and so in the installer,
+      # only once its source is public (sidecar/gmessages/SOURCE_URL).
+      - uses: actions/setup-go@v5
+        if: hashFiles('messaging/sidecar/gmessages/SOURCE_URL') != ''
+        with:
+          go-version: '1.26'
+          cache-dependency-path: messaging/sidecar/gmessages/go.sum
+
+      - name: Build the Google Messages sidecar
+        if: hashFiles('messaging/sidecar/gmessages/SOURCE_URL') != ''
+        shell: pwsh
+        run: |
+          Push-Location sidecar/gmessages
+          $env:CGO_ENABLED = '0'
+          go build -trimpath -ldflags=-s -o ..\..\build\windows\x64\runner\Release\gmsidecar.exe .
+          Pop-Location
+          Copy-Item sidecar\gmessages\LICENSE build\windows\x64\runner\Release\gmsidecar-LICENSE.txt
+          Copy-Item sidecar\gmessages\SOURCE_URL build\windows\x64\runner\Release\gmsidecar-SOURCE.txt
+
       - name: Build the installer
         shell: pwsh
         run: |
