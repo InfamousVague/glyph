@@ -26,6 +26,8 @@ import 'voice/channels.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
 import 'onboarding/onboarding.dart';
+import 'inbox/inbox.dart';
+import 'ui/inbox_ui.dart';
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
@@ -228,6 +230,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // And friends, who are reached by them (lib/friends/friends.dart).
       final app = AppState.of(context);
       Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app));
+      // Telegram's and Bluesky's chats (lib/inbox), each started where it was signed in before, and their Settings.
+      addInboxSettings();
+      Inbox.instance.start(app);
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
       Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));

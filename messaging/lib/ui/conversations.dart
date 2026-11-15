@@ -28,6 +28,8 @@ import 'compose.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
+import 'inbox_ui.dart';
+import '../inbox/inbox.dart';
 import 'thread.dart';
 
 /// Home: every conversation, the newest first, with a search over names, numbers and the last message.
@@ -136,6 +138,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
+    // Telegram's and Bluesky's chats (lib/inbox): each signed-in network is a tab, and its chats come into it.
+    _inbox.addListener(_summed);
     _load();
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
@@ -145,6 +149,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     });
   }
 
+  final Listenable _inbox = Inbox.instance.changes;
+
   void _summed() {
     if (mounted) setState(() {});
   }
@@ -153,6 +159,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   void dispose() {
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
+    _inbox.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
     _changes?.cancel();
@@ -354,6 +361,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final voices = Voice.instance.channels;
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
       (id: voiceTab, icon: LucideMore.headphones, label: 'Voice', count: voices.where(Voice.instance.live).length),
+      // Each network signed in (lib/inbox): Telegram's paper plane, Bluesky's sky.
+      for (final n in Inbox.instance.ready) (id: inboxTab(n), icon: n.id == 'telegram' ? Lucide.send : LucideMore.cloud, label: n.name, count: n.unreadChats),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -480,7 +489,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
-    if (section == voiceTab) return;
+    if (section == voiceTab || inboxOfTab(section) != null) return;
     final all = _of(section);
     final unread = all.where((c) => c.unread).length;
     final name = _plugins.tabName(section);
@@ -682,10 +691,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
     final sorted = _plugins.sort(widget.archived ? null : _all);
     final voices = widget.archived ? const <VoiceChannel>[] : _voices();
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived)) _section = null;
+    final inbox = widget.archived ? null : inboxOfTab(_section);
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived) && inbox?.state != InboxState.ready) _section = null;
     final shown = _shown;
-    // What the list holds: conversations, or the voice channels in their tab.
-    final List<Object> rows = _section == voiceTab ? voices : shown;
+    // What the list holds: conversations, the voice channels in their tab, or a network's chats in its.
+    final List<Object> rows = inbox != null && inbox.state == InboxState.ready
+        ? [for (final c in inbox.chats) if (_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) c]
+        : _section == voiceTab
+            ? voices
+            : shown;
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
@@ -711,6 +725,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           action: SettingsEmptyAction('Try again', _load),
         ),
       ]);
+    } else if (rows.isEmpty && inbox != null) {
+      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [inboxEmpty(context, inbox)]);
     } else if (rows.isEmpty && _section == voiceTab) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
@@ -754,6 +770,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
           }
           final at = i - extras;
+          if (at < rows.length && rows[at] is InboxChat) {
+            final chat = rows[at] as InboxChat;
+            return InboxChatRow(key: ValueKey('inbox-${chat.network}-${chat.id}'), chat: chat, onPress: () => openInboxChat(context, inbox!, chat));
+          }
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
             return VoiceRow(key: ValueKey('voice-${v.room}'), channel: v, onPress: () => _openVoice(v));

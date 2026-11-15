@@ -17,6 +17,8 @@ dependencies:
   # Voice and video channels and group calls (lib/voice; Matt, 2026-11-14: "jump in audio chats like discord has
   # always open voice channels"): WebRTC, the sound and picture going between the phones directly.
   flutter_webrtc: 1.6.3
+  # TDLib's C functions for the Telegram inbox (lib/inbox/td_json.dart): Dart's own FFI helpers, already in the lock.
+  ffi: ^2.1.0
 
 dev_dependencies:
   flutter_test:
