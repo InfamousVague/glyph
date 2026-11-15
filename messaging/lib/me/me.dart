@@ -344,6 +344,9 @@ class Me extends ChangeNotifier {
       case 'follows':
       case 'unlinked':
       case 'forgotten':
+      case 'claim':
+      case 'whois':
+      case 'released':
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':
         if (network != null && m['handle'] is String) {
@@ -459,6 +462,53 @@ class Me extends ChangeNotifier {
       _waiting.remove(key);
       throw MeError('The relay server did not answer.');
     });
+  }
+
+  // --- a username (Matt, 2026-11-14: "create a profile and username under "me" to register a username and add
+  // friends on the platform") ---------------------------------------------------------------------------------------
+
+  /// This install's username on the relay server, as the person typed it; null where none is claimed.
+  String? get username {
+    final u = _app?.choice('me_username', '') ?? '';
+    return u.isEmpty ? null : u;
+  }
+
+  /// What friends see: a name to show and a line about you, kept on the phone and sent to friends, never to the
+  /// server.
+  String get displayName => _app?.choice('me_display', '') ?? '';
+  String get bio => _app?.choice('me_bio', '') ?? '';
+
+  void setProfile({String? displayName, String? bio}) {
+    if (displayName != null) _app?.set('me_display', displayName.trim());
+    if (bio != null) _app?.set('me_bio', bio.trim());
+    notifyListeners();
+  }
+
+  /// Three to twenty letters, numbers, dots or underscores (the server's `Handles.goodName`).
+  static bool goodUsername(String name) {
+    final n = tidyHandle(name);
+    return RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$').hasMatch(n) && !n.contains('..');
+  }
+
+  /// Claims [name] for this install. Throws [MeError] where it is taken or the server cannot be reached.
+  Future<void> claimUsername(String name) async {
+    final got = await _ask({'dir': 'claim', 'name': tidyHandle(name)}, 'claim');
+    if (got['ok'] != true) throw MeError(got['err'] == 'taken' ? '@${tidyHandle(name)} is taken.' : 'That username can\'t be used.');
+    _app?.set('me_username', tidyHandle(name));
+    notifyListeners();
+  }
+
+  Future<void> releaseUsername() async {
+    await _ask({'dir': 'release'}, 'released');
+    _app?.set('me_username', '');
+    notifyListeners();
+  }
+
+  /// Who has the username [name]: their install and its public key, or null where nobody does.
+  Future<({String id, String key})?> whois(String name) async {
+    final got = await _ask({'dir': 'whois', 'name': tidyHandle(name)}, 'whois');
+    if (got['none'] == true || got['id'] is! String || got['key'] is! String) return null;
+    return (id: got['id'] as String, key: got['key'] as String);
   }
 
   /// The address to open in a browser to sign in on [network] and prove the account. The link itself arrives

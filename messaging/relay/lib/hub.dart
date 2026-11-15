@@ -188,7 +188,7 @@ class Hub {
         _here[made.id]?.ws.close(4409, 'replaced');
         _here[made.id] = made;
         end = made;
-        handles?.came(made.id, made.tell);
+        handles?.came(made.id, made.tell, key: key);
         final held = _mail.remove(made.id) ?? const <_Held>[];
         _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);

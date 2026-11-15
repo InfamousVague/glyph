@@ -651,6 +651,18 @@ class Sms {
     return [for (final p in list.cast<Map>()) (id: p['id'] as String, address: p['address'] as String, key: p['key'] as Uint8List)];
   }
 
+  /// Friends by username (lib/friends/buddies.dart): the list, kept where the phone works out each one's sealing key
+  /// (android Buddies.kt). Nothing on a computer, which speaks through its phone.
+  Future<void> buddiesKeep(String json) async {
+    if (remote) return;
+    await _calls.invokeMethod('buddiesKeep', {'json': json});
+  }
+
+  Future<String> buddiesKept() async {
+    if (remote) return '[]';
+    return await _calls.invokeMethod<String>('buddiesKept') ?? '[]';
+  }
+
   /// This phone's signature over [message], r then s.
   Future<Uint8List> netSign(List<int> message) async => (await _calls.invokeMethod('netSign', {'message': Uint8List.fromList(message)})) as Uint8List;
 

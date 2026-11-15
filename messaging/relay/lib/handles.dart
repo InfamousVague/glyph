@@ -84,6 +84,19 @@ class Handles {
   final Map<String, Set<String>> _watch = {};
   final Map<String, List<String>> _pending = {};
 
+  /// Usernames (Matt, 2026-11-14: "create a profile and username under "me" to register a username and add friends
+  /// on the platform"): the SHA-256 of a username ([nameKey]) -> {id: the install, key: its public key in base64,
+  /// at: the day}. The username itself is never kept: looking one up hashes what was typed. An install has one.
+  final Map<String, Map<String, String>> _names = {};
+  final Map<String, String> _nameOf = {};
+
+  /// The public key each connected install proved itself with (hub.dart), for the username it claims.
+  final Map<String, String> _keys = {};
+
+  /// When each install looked someone up, so the usernames cannot be walked through.
+  final Map<String, List<DateTime>> _lookups = {};
+  static const lookupsAnHour = 120;
+
   /// What a sign-in that finished while its install was away has to tell it: install -> [{p, handle, k}].
   final Map<String, List<Map<String, String>>> _done = {};
   String _secret = '';
@@ -105,6 +118,27 @@ class Handles {
   Timer? _saver;
 
   int get linked => _links.values.fold(0, (n, m) => n + m.length);
+  int get names => _names.length;
+
+  /// The hash a username is kept and looked up by: the same in the app (lib/me/profile.dart).
+  static String nameKey(String name) => hexOf(sha256(utf8.encode('ghost-name v1|${tidyName(name)}')));
+
+  /// A username as it is compared: lower case, no "@" in front, no spaces around.
+  static String tidyName(String name) {
+    var n = name.trim().toLowerCase();
+    while (n.startsWith('@')) {
+      n = n.substring(1);
+    }
+    return n;
+  }
+
+  /// Three to twenty letters, digits, dots and underscores, starting with a letter or digit; not one of [reserved].
+  static bool goodName(String name) {
+    final n = tidyName(name);
+    return RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$').hasMatch(n) && !n.contains('..') && !reserved.contains(n);
+  }
+
+  static const reserved = {'admin', 'administrator', 'ghost', 'ghostmessaging', 'ghost_messaging', 'support', 'help', 'official', 'staff', 'moderator', 'mod', 'system', 'root', 'security', 'team', 'everyone', 'here', 'null', 'undefined'};
   int get listed => _listed.length;
   int get watched => _watch.values.fold(0, (n, s) => n + s.length);
 
@@ -175,6 +209,7 @@ class Handles {
         _listed.addAll((all['listed'] as List? ?? const []).cast<String>());
         (all['watch'] as Map? ?? const {}).forEach((id, keys) => _watch[id as String] = (keys as List).cast<String>().toSet());
         (all['pending'] as Map? ?? const {}).forEach((id, keys) => _pending[id as String] = (keys as List).cast<String>().toList());
+        (all['names'] as Map? ?? const {}).forEach((k, v) => _names[k as String] = (v as Map).cast<String, String>());
       }
     } catch (_) {
       // A file that cannot be read is started again from nothing rather than stopping the relay.
@@ -190,6 +225,10 @@ class Handles {
       for (final k in e.value) {
         (_watchers[k] ??= {}).add(e.key);
       }
+    }
+    for (final e in _names.entries) {
+      final id = e.value['id'];
+      if (id != null) _nameOf[id] = e.key;
     }
   }
 
@@ -207,6 +246,7 @@ class Handles {
         'listed': _listed.toList(),
         'watch': {for (final e in _watch.entries) e.key: e.value.toList()},
         'pending': _pending,
+        'names': _names,
       }));
       tmp.renameSync(file.path);
     } catch (_) {}
@@ -230,7 +270,10 @@ class Handles {
 
   // --- an install comes, speaks, and goes ---------------------------------------------------------------------------
 
-  void came(String id, void Function(Map<String, Object?>) tell) => _here[id] = tell;
+  void came(String id, void Function(Map<String, Object?>) tell, {List<int>? key}) {
+    _here[id] = tell;
+    if (key != null) _keys[id] = base64Encode(key);
+  }
 
   void went(String id, void Function(Map<String, Object?>) tell) {
     if (identical(_here[id], tell)) _here.remove(id);
@@ -294,6 +337,40 @@ class Handles {
             tell({'dir': 'joined', 'list': waiting});
             _changed();
           }
+        case 'name':
+          // Whether this install has a username here; the app keeps the words, this server only their hash.
+          final mine = _nameOf[id];
+          tell({'dir': 'name', 'k': mine});
+        case 'claim':
+          final name = said['name'];
+          if (name is! String || !goodName(name)) return err('A username is 3 to 20 letters, numbers, dots or underscores.');
+          final key = _keys[id];
+          if (key == null) return err('Connect again, then try.');
+          final k = nameKey(name);
+          final held = _names[k];
+          if (held != null && held['id'] != id) return tell({'dir': 'claim', 'name': tidyName(name), 'ok': false, 'err': 'taken'});
+          final before = _nameOf[id];
+          if (before != null && before != k) _names.remove(before);
+          _names[k] = {'id': id, 'key': key, 'at': _now().toUtc().toIso8601String().substring(0, 10)};
+          _nameOf[id] = k;
+          _changed();
+          tell({'dir': 'claim', 'name': tidyName(name), 'ok': true, 'k': k});
+        case 'release':
+          final k = _nameOf.remove(id);
+          if (k != null) _names.remove(k);
+          _changed();
+          tell({'dir': 'released'});
+        case 'whois':
+          final name = said['name'];
+          if (name is! String || !goodName(name)) return tell({'dir': 'whois', 'name': name, 'none': true});
+          final now = _now();
+          final list = _lookups[id] ??= [];
+          list.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
+          if (list.length >= lookupsAnHour) return err('Too many lookups. Try again in a while.');
+          list.add(now);
+          final found = _names[nameKey(name)];
+          if (found == null) return tell({'dir': 'whois', 'name': tidyName(name), 'none': true});
+          tell({'dir': 'whois', 'name': tidyName(name), 'id': found['id'], 'key': found['key']});
         case 'link':
           if (!known || !_signIn.contains(network)) return err('That network is not linked by signing in.');
           if (ways[network] != 'signin') return err('Signing in with that network is not set up on this server yet.');

@@ -1,0 +1,268 @@
+import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
+import '../friends/buddies.dart';
+import '../kit/settings_kit.dart';
+import '../me/me.dart';
+import 'common.dart';
+
+/// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
+/// username and add friends on the platform"): a username people find you by, held on the relay server's directory
+/// (only its scrambled form is kept there), and a name and a line about you, which go to your friends alone.
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late final _username = TextEditingController(text: Me.instance.username ?? '');
+  late final _name = TextEditingController(text: Me.instance.displayName);
+  late final _bio = TextEditingController(text: Me.instance.bio);
+  String? _problem;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _name.dispose();
+    _bio.dispose();
+    super.dispose();
+  }
+
+  Future<void> _claim() async {
+    final want = tidyHandle(_username.text);
+    if (!Me.goodUsername(want)) {
+      setState(() => _problem = 'A username is 3 to 20 letters, numbers, dots or underscores.');
+      return;
+    }
+    if (want == Me.instance.username) return;
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      await Me.instance.claimUsername(want);
+      if (mounted) toast(context, 'You\'re @$want');
+    } catch (e) {
+      if (mounted) setState(() => _problem = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _saveProfile() {
+    final me = Me.instance;
+    if (_name.text.trim() == me.displayName && _bio.text.trim() == me.bio) return;
+    me.setProfile(displayName: _name.text, bio: _bio.text);
+    Buddies.instance.shareProfile();
+    toast(context, 'Saved. Your friends will see it.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final me = Me.instance;
+    Widget field(TextEditingController c, String placeholder, String label, {ValueChanged<String>? onSubmitted, TextCapitalization caps = TextCapitalization.sentences}) => SettingRowBox(
+          child: GlacierInput(
+            controller: c,
+            placeholder: placeholder,
+            ariaLabel: label,
+            autoCorrect: false,
+            autoCapitalize: caps,
+            size: GlacierFieldSize.md,
+            onSubmitted: onSubmitted,
+          ),
+        );
+    return GhostPage(
+      title: 'Profile',
+      body: SettingsPaneScope(
+        finder: SettingsFinder(),
+        child: ListenableBuilder(
+          listenable: me,
+          builder: (context, _) => ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              PaneSection(
+                title: 'Username',
+                description: Text(me.username == null ? 'How people find you to add you as a friend. Nobody sees your number.' : 'People add you as @${me.username}.'),
+                footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                children: [
+                  field(_username, 'username', 'Username', onSubmitted: (_) => _claim(), caps: TextCapitalization.none),
+                  SettingRow(
+                    icon: AppIcon(Lucide.atSign, size: 18),
+                    label: _busy ? 'Checking…' : me.username == null ? 'Claim this username' : 'Change my username',
+                    disabled: _busy || !me.ready,
+                    onPress: _claim,
+                  ),
+                  if (!me.ready) SettingRow(label: 'The relay server isn\'t connected (Settings › Network).', disabled: true),
+                ],
+              ),
+              SizedBox(height: t.space(6)),
+              PaneSection(
+                title: 'What friends see',
+                description: const Text('Sent to your friends only, never to the relay server.'),
+                children: [
+                  field(_name, 'Your name', 'Name'),
+                  field(_bio, 'A line about you', 'About'),
+                  SettingRow(icon: AppIcon(Lucide.check, size: 18), label: 'Save', onPress: _saveProfile),
+                ],
+              ),
+              if (me.username != null) ...[
+                SizedBox(height: t.space(6)),
+                PaneSection(children: [
+                  SettingRow(
+                    icon: AppIcon(Lucide.trash2, size: 18),
+                    label: 'Give up @${me.username}',
+                    hint: const Text('Anyone can take it after. Your friends stay your friends.'),
+                    onPress: () => showChoices(context, title: 'Give up @${me.username}?', choices: [
+                      Choice('Give it up', Lucide.trash2, () async {
+                        try {
+                          await me.releaseUsername();
+                          _username.clear();
+                        } catch (e) {
+                          if (context.mounted) toast(context, '$e', tone: GlacierToastTone.danger);
+                        }
+                      }, danger: true),
+                    ]),
+                  ),
+                ]),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Friends by username: add someone, answer who asked, and the friends you have.
+class BuddiesScreen extends StatefulWidget {
+  const BuddiesScreen({super.key});
+
+  @override
+  State<BuddiesScreen> createState() => _BuddiesScreenState();
+}
+
+class _BuddiesScreenState extends State<BuddiesScreen> {
+  final _who = TextEditingController();
+  String? _problem;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _who.dispose();
+    super.dispose();
+  }
+
+  Future<void> _add() async {
+    final name = tidyHandle(_who.text);
+    if (!Me.goodUsername(name)) {
+      setState(() => _problem = 'Type their username, like @maya.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      final b = await Buddies.instance.add(name);
+      _who.clear();
+      if (mounted) toast(context, b.state == 'yes' ? 'You and @$name are friends' : 'Asked @$name');
+    } catch (e) {
+      if (mounted) setState(() => _problem = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final b = Buddies.instance;
+    return GhostPage(
+      title: 'Friends',
+      body: SettingsPaneScope(
+        finder: SettingsFinder(),
+        child: ListenableBuilder(
+          listenable: Listenable.merge([b, Me.instance]),
+          builder: (context, _) => ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              if (Me.instance.username == null)
+                SettingsCallout(child: const Text('Choose a username first (Settings › Me › Profile), so friends know it\'s you.'))
+              else
+                PaneSection(
+                  title: 'Add a friend',
+                  footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.colorOf('#dd3a30'))),
+                  children: [
+                    SettingRowBox(
+                      child: GlacierInput(
+                        controller: _who,
+                        placeholder: '@username',
+                        ariaLabel: 'Their username',
+                        autoCorrect: false,
+                        autoCapitalize: TextCapitalization.none,
+                        size: GlacierFieldSize.md,
+                        onSubmitted: (_) => _add(),
+                      ),
+                    ),
+                    SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: _busy ? 'Asking…' : 'Send a friend request', disabled: _busy, onPress: _add),
+                  ],
+                ),
+              if (b.requests.isNotEmpty) ...[
+                SizedBox(height: t.space(6)),
+                PaneSection(title: 'Asked you', children: [
+                  for (final r in b.requests)
+                    SettingRow(
+                      icon: AppIcon(Lucide.userPlus, size: 18),
+                      label: r.shown,
+                      hint: Text(r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}'),
+                      onPress: () => showChoices(context, title: '${r.shown} wants to be friends.', choices: [
+                        Choice('Accept', Lucide.check, () => b.accept(r)),
+                        Choice('Decline', Lucide.x, () => b.decline(r), danger: true),
+                      ]),
+                    ),
+                ]),
+              ],
+              if (b.friends.isNotEmpty) ...[
+                SizedBox(height: t.space(6)),
+                PaneSection(title: 'Friends', children: [
+                  for (final f in b.friends)
+                    SettingRow(
+                      icon: AppIcon(Lucide.userRound, size: 18),
+                      label: f.shown,
+                      hint: Text(f.name.isEmpty ? (f.bio.isEmpty ? 'Friends' : f.bio) : '@${f.username}${f.bio.isEmpty ? '' : ' · ${f.bio}'}'),
+                      onPress: () => showChoices(context, title: f.shown, choices: [
+                        Choice('Remove friend', Lucide.userX, () => b.remove(f), danger: true),
+                      ]),
+                    ),
+                ]),
+              ],
+              if (b.asked.isNotEmpty) ...[
+                SizedBox(height: t.space(6)),
+                PaneSection(title: 'Waiting for them', children: [
+                  for (final a in b.asked)
+                    SettingRow(
+                      icon: AppIcon(Lucide.clock, size: 18),
+                      label: '@${a.username}',
+                      hint: const Text('Asked'),
+                      onPress: () => showChoices(context, title: 'Take back your request to @${a.username}?', choices: [
+                        Choice('Take it back', Lucide.x, () => b.remove(a), danger: true),
+                      ]),
+                    ),
+                ]),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
