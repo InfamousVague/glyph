@@ -13,6 +13,7 @@ import 'app_state.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
+import 'standalone/overlay.dart';
 import 'standalone/standalone.dart';
 import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
@@ -64,6 +65,10 @@ Future<void> main() async {
   if (Platform.isIOS) {
     if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
     await standaloneSetup();
+  } else {
+    // The phone's friends by username are kept in Dart, beside its texts (lib/standalone/overlay.dart): an iPhone
+    // writes to them by username (Matt, 2026-11-15: "Yes, Android next").
+    await overlaySetup();
   }
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
