@@ -108,6 +108,8 @@ class MainActivity : FlutterActivity() {
                 "requestDefault" -> requestDefault(result)
                 // Beside Google Messages (GmBridge): Android's page for notification access, and the SMS permissions.
                 "bridgeAccess" -> { startActivity(GmBridge.accessIntent(this)); result.success(true) }
+                "openGm" -> result.success(GmBridge.open(this))
+                "openGmNotifications" -> result.success(GmBridge.openNotificationSettings(this))
                 "requestSms" -> requestSms(result)
                 "requestPermissions" -> requestPermissions(result)
                 "openRequest" -> { result.success(pendingOpen); pendingOpen = null }
@@ -551,6 +553,7 @@ class MainActivity : FlutterActivity() {
             // whether the SMS database may be read and texts sent (granted by asking, when Ghost is not the default).
             "gmInstalled" to GmBridge.isInstalled(this),
             "bridge" to GmBridge.hasAccess(this),
+            "gmDefault" to GmBridge.isGmDefault(this),
             "sms" to (granted(Manifest.permission.READ_SMS) && granted(Manifest.permission.SEND_SMS)),
         )
     }

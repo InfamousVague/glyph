@@ -115,7 +115,16 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _status = widget.initialStatus;
     if (widget.initialStatus == null) _look();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _say());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Part way through setting up RCS from Settings (lib/ui/rcs_setup.dart), Google Messages just made the default:
+      // straight to the texts page, where those steps carry on.
+      final texts = guidePages.indexWhere((p) => p.$1 == 'texts');
+      if (mounted && !widget.replay && texts > 0 && AppState.of(context).flag('rcs_setup', fallback: false) && _pager.hasClients) {
+        _pager.jumpToPage(texts);
+        setState(() => _page = texts);
+      }
+      _say();
+    });
   }
 
   @override
