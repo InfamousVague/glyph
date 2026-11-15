@@ -118,6 +118,11 @@ class MainActivity : FlutterActivity() {
                 "gmWebState" -> { if (GmWeb.available(this)) GmWeb.start(applicationContext); result.success(GmWeb.state(this)) }
                 "gmWebPair" -> bg { GmWeb.start(applicationContext); GmWeb.pair(); GmWeb.state(applicationContext) }
                 "gmWebUnpair" -> bg { GmWeb.unpair(); GmWeb.state(applicationContext) }
+                "gmWebPairGoogle" -> bg {
+                    GmWeb.start(applicationContext)
+                    val why = GmWeb.pairGoogle(call.argument<Map<String, String>>("cookies") ?: emptyMap())
+                    GmWeb.state(applicationContext) + mapOf("error" to why)
+                }
                 "openGmChannel" -> result.success(GmBridge.openChannel(this, call.argument<String>("id")!!, call.argument<String>("conversation")))
                 "requestSms" -> requestSms(result)
                 "requestPermissions" -> requestPermissions(result)

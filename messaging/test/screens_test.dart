@@ -876,7 +876,14 @@ void main() {
       // phone google messages connection too?"): not paired, then paired and connected.
       _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
       await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web', dark: dark);
-      expect(find.text('Pair with Google Messages'), findsOneWidget);
+      // Google-account pairing, all in one place (Matt, 2026-11-15: "Please make setting up google messages a
+      // onboarding flow that is all in one place"): the steps, the paste box, and the QR way kept below.
+      expect(find.text('Sign in to Google in a private window'), findsOneWidget);
+      expect(find.text('Copy the link'), findsOneWidget);
+      // The emoji, once Google has it: the last step alone.
+      _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false, 'emoji': '🦊'};
+      await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web-emoji', dark: dark);
+      expect(find.text('🦊'), findsOneWidget);
       _gmWeb = const {'available': true, 'running': true, 'paired': true, 'connected': true, 'phone': '+1 555-123-0000'};
       await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web-paired', dark: dark);
       expect(find.text('Connected'), findsOneWidget);

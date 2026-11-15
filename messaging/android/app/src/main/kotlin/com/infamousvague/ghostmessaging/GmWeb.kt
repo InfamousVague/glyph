@@ -39,6 +39,8 @@ object GmWeb {
     @Volatile var phone = ""
     /** While pairing: the address to show as a QR code on another screen. */
     @Volatile var qr: String? = null
+    /** While pairing by Google account: the emoji to tap in Google Messages. */
+    @Volatile var emoji: String? = null
     @Volatile var problem: String? = null
 
     fun binary(context: Context) = File(context.applicationInfo.nativeLibraryDir, "libgmsidecar.so")
@@ -105,8 +107,9 @@ object GmWeb {
             "ready" -> { restarts = 0; Thread { status(); if (paired) sync() }.start() }
             "connected" -> { connected = true; problem = null; Thread { status(); sync() }.start() }
             "qr" -> qr = o.optString("url")
-            "paired" -> { qr = null; paired = true; problem = null }
-            "pair_failed" -> { qr = null; problem = o.optString("why") }
+            "emoji" -> emoji = o.optString("emoji")
+            "paired" -> { qr = null; emoji = null; paired = true; problem = null }
+            "pair_failed" -> { qr = null; emoji = null; problem = o.optString("why") }
             "unpaired" -> { paired = false; connected = false; problem = o.optString("why"); Bus.changed(-1) }
             "inactive" -> inactive = true
             "active" -> { inactive = false; Thread { sync() }.start() }
@@ -234,11 +237,18 @@ object GmWeb {
 
     fun pair(): Boolean = try { problem = null; ask("pair"); true } catch (e: Exception) { problem = e.message; false }
 
+    /** Pairs by Google account from a signed-in browser's cookies (lib/gm/google_signin.dart); an emoji follows. */
+    fun pairGoogle(cookies: Map<String, String>): String? = try {
+        problem = null; emoji = null
+        ask("pair_google", mapOf("cookies" to JSONObject(cookies as Map<*, *>)))
+        null
+    } catch (e: Exception) { e.message }
+
     fun unpair(): Boolean = try { ask("unpair"); paired = false; connected = false; true } catch (e: Exception) { problem = e.message; false }
 
     /** How it stands, for Settings. */
     fun state(context: Context): Map<String, Any?> = mapOf(
         "available" to available(context), "running" to (process?.isAlive == true), "paired" to paired, "connected" to connected,
-        "inactive" to inactive, "phone" to phone, "qr" to qr, "problem" to problem,
+        "inactive" to inactive, "phone" to phone, "qr" to qr, "emoji" to emoji, "problem" to problem,
     )
 }

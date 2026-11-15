@@ -43,6 +43,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
   Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
   Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
+- **Google Messages set up by Google account, in one place** (not released; `lib/gm/google_signin.dart`,
+  `lib/gm/google_signin_flow.dart`, sidecar `pair_google`; Matt, 2026-11-15: "it seems they removed the ability to do
+  it with the QR code"; "Please make setting up google messages a onboarding flow that is all in one place. It should
+  also needs to if possible prompt to open the link incognito"). Google has replaced Device pairing's QR scanner with
+  Google-account pairing where Google Messages is signed in to an account (mautrix-gmessages: "it appears Google has
+  killed it"). Settings › Google Messages on a computer, and Settings › Messages › Google Messages connection on the
+  phone, walk through it: sign in at Google's account chooser (coming back to messages.google.com/web/config) in a
+  private window (the computer opens one: Firefox first, since Chrome may bind the sign-in to itself, then Chrome,
+  Edge, Brave, Vivaldi; Safari has no switch, so the link is copied), copy the "config" request as cURL from the
+  developer tools, paste it, tap the emoji Ghost shows when Google Messages on the phone asks. The helper keeps the
+  cookies in its session (saved every few minutes, as Google changes them); the private window is closed after, not
+  signed out. The QR way stays as Pair with a QR code instead. The phone's browser has no developer tools, so on the
+  phone steps 1 and 2 are done on a computer. Checked: Google refuses fake cookies with a readable reason, a paste
+  missing cookies is caught first; real pairing not yet.
 - **A guide to the Google Messages helper on a Mac or PC** (0.7.30; `lib/ui/gm_guide_screen.dart`; Matt,
   2026-11-15: "Tell me how to setup the sidecar on mac and PC in a guide found in settings I'll habe it run on my PC
   always"). Settings › Messages › On a Mac or PC on the phone, and Settings › Google Messages on a computer: get the

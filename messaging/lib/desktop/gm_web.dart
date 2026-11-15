@@ -45,6 +45,9 @@ class GmWeb extends ChangeNotifier {
   /// While pairing: the QR code to show, a fresh one every half minute; null otherwise.
   String? qr;
 
+  /// While pairing by Google account: the emoji to tap in Google Messages on the phone.
+  String? emoji;
+
   /// Why pairing or the session ended, where it did.
   String? problem;
 
@@ -186,13 +189,18 @@ class GmWeb extends ChangeNotifier {
       case 'qr':
         qr = '${said['url']}';
         notifyListeners();
+      case 'emoji':
+        emoji = '${said['emoji']}';
+        notifyListeners();
       case 'paired':
         qr = null;
+        emoji = null;
         paired = true;
         problem = null;
         notifyListeners();
       case 'pair_failed':
         qr = null;
+        emoji = null;
         problem = '${said['why']}';
         notifyListeners();
       case 'unpaired':
@@ -247,6 +255,20 @@ class GmWeb extends ChangeNotifier {
     problem = null;
     notifyListeners();
     await ask('pair');
+  }
+
+  /// Pairs by Google account, from a signed-in browser's cookies (lib/gm/google_signin.dart): an "emoji" to tap on
+  /// the phone follows, then "paired". The words of why not, or null once asked.
+  Future<String?> pairGoogle(Map<String, String> cookies) async {
+    problem = null;
+    emoji = null;
+    notifyListeners();
+    try {
+      await ask('pair_google', {'cookies': cookies});
+      return null;
+    } catch (e) {
+      return '$e';
+    }
   }
 
   Future<void> unpair() async {
