@@ -769,6 +769,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               onArchive: () => _archive(c),
               onDelete: () => _confirmDelete(c),
               onPin: () => _pin(c),
+              // The cards' shape, as ConversationRow and PluginRow draw it: the actions show inside it.
+              card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
               child: look != null
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(
