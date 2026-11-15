@@ -382,7 +382,7 @@ class MacUpdates extends ChangeNotifier {
 }
 
 /// Windows' half, in Dart alone: the installer is held to the size and SHA-256 its description gives, and Restart to
-/// update runs it silently (windows/installer.iss reopens the app after a silent install) and quits this copy.
+/// update runs it silently with /RELAUNCH (windows/installer.iss reopens the app then) and quits this copy.
 ///
 /// The installer is not signed yet, so what makes it believed is weaker than the Mac's Developer ID check: it came
 /// over HTTPS from ghost-sms.com, beside a description from the same server, and matches that description.
@@ -407,7 +407,7 @@ class WindowsUpdateHost implements UpdateHost {
   String? _installer;
 
   static Future<void> _launch(String path) async {
-    await Process.start(path, const ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS'], mode: ProcessStartMode.detached);
+    await Process.start(path, const ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RELAUNCH'], mode: ProcessStartMode.detached);
   }
 
   static void _quit() => exit(0);
