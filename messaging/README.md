@@ -43,6 +43,16 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
   Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
   Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
+- **Which of Google Messages' notifications still make a sound** (not released; GmBridge.kt `noteChannel`; Matt,
+  2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through ghost
+  instead"; "Let's do our best given these options and push out an update"). Android lets no ordinary app change
+  another's notification settings, and a notification is heard before Ghost can take it away, so the person silences
+  Google Messages. Ghost records the channel each of its message notifications comes on (a listener is shown each
+  one's settings): its "Incoming messages", and any conversation given a sound of its own, which overrides that one.
+  The RCS guide's last step lists the ones still loud, each with a button to its own page in Android's settings, and
+  ticks itself once all are quiet (as of each channel's last message). Your read receipts already go out through
+  Google Messages' Mark as read; their delivered and read marks are not in notifications, so they need the on-phone
+  Google Messages connection (not built).
 - **Google Messages on the computer** (0.7.25, not released; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
   2026-11-15: "Yes, mautrix sidecar"). Settings › Google Messages on the Mac or Windows pairs the computer with Google
   Messages by a QR code, as messages.google.com is, and every conversation there joins the desktop's list: RCS and

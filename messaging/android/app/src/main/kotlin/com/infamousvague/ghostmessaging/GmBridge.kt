@@ -72,6 +72,61 @@ object GmBridge {
         context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, PACKAGE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
     } catch (_: Exception) { false }
 
+    // --- how loud Google Messages is (Matt, 2026-11-15: "investigate silencing google messages notifications so we only
+    // see thr ones coming through ghost instead"; then "Let's do our best given these options and push out an update").
+    //
+    // No app but the system's own, or a companion device's, may change another app's notification settings, and a
+    // notification is heard before Ghost can take it away. So the person makes Google Messages silent; Ghost watches
+    // the channel each of its message notifications comes on (a listener is shown each one's settings) and says which
+    // still make a sound or pop up: its "Incoming messages" and any conversation given a channel of its own, which
+    // overrides that one. As of the last notification on each: a change is seen when the next one comes.
+
+    private fun channels(context: Context) = context.getSharedPreferences("gm_channels", Context.MODE_PRIVATE)
+
+    /** What [sbn]'s channel is set to, kept by the channel's id. */
+    fun noteChannel(context: Context, channel: android.app.NotificationChannel?, title: String?) {
+        channel ?: return
+        val o = org.json.JSONObject()
+            .put("id", channel.id)
+            .put("name", channel.name?.toString() ?: channel.id)
+            .put("importance", channel.importance)
+            .put("sound", channel.sound != null)
+            .put("vibrate", channel.shouldVibrate())
+            .put("conversation", channel.conversationId ?: org.json.JSONObject.NULL)
+            .put("title", title ?: org.json.JSONObject.NULL)
+            .put("seen", System.currentTimeMillis())
+        channels(context).edit().putString(channel.id, o.toString()).apply()
+    }
+
+    /**
+     * The channels seen, loudest first: each with whether it still alerts. Alerting is importance Default or more
+     * (a sound, or a pop-up at High); Low and below come in silently.
+     */
+    fun channelList(context: Context): List<Map<String, Any?>> = channels(context).all.values.mapNotNull { v ->
+        try {
+            val o = org.json.JSONObject(v as String)
+            val importance = o.getInt("importance")
+            mapOf(
+                "id" to o.getString("id"), "name" to o.getString("name"), "importance" to importance,
+                "loud" to (importance >= android.app.NotificationManager.IMPORTANCE_DEFAULT),
+                "popup" to (importance >= android.app.NotificationManager.IMPORTANCE_HIGH),
+                "conversation" to o.optString("conversation").takeIf { it.isNotEmpty() && it != "null" },
+                "title" to o.optString("title").takeIf { it.isNotEmpty() && it != "null" },
+                "seen" to o.getLong("seen"),
+            )
+        } catch (_: Exception) { null }
+    }.sortedWith(compareByDescending<Map<String, Any?>> { it["importance"] as Int }.thenBy { it["name"] as String })
+
+    /** Android's settings for one of Google Messages' channels (a conversation's own, or "Incoming messages"). */
+    fun openChannel(context: Context, id: String, conversation: String?): Boolean {
+        val exact = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, PACKAGE)
+            .putExtra(Settings.EXTRA_CHANNEL_ID, id)
+            .apply { if (conversation != null) putExtra(Settings.EXTRA_CONVERSATION_ID, conversation) }
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try { context.startActivity(exact); true } catch (_: Exception) { openNotificationSettings(context) }
+    }
+
     /** Whether Google Messages is the default SMS app now. */
     fun isGmDefault(context: Context): Boolean = Telephony.Sms.getDefaultSmsPackage(context) == PACKAGE
 
@@ -371,6 +426,8 @@ class GmListener : NotificationListenerService() {
         try {
             val kept = GmBridge.heard(context, sbn)
             if (kept?.fresh == true) Bus.changed(-1)
+            // How loud the channel it came on is (the guide's last step, Settings › Notifications).
+            if (sbn.notification.category == Notification.CATEGORY_MESSAGE) noteRanking(sbn)
             if (!GmBridge.proxying(context)) return
             // Its message notifications, the group's summary among them, are taken away; anything else it shows (a
             // failed send, a prompt of its own) is left.
@@ -412,8 +469,18 @@ class GmListener : NotificationListenerService() {
         watcher = null
     }
 
+    private fun noteRanking(sbn: StatusBarNotification) {
+        try {
+            val r = Ranking()
+            if (!currentRanking.getRanking(sbn.key, r)) return
+            val title = sbn.notification.extras?.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE) ?: sbn.notification.extras?.getCharSequence(Notification.EXTRA_TITLE)
+            GmBridge.noteChannel(applicationContext, r.channel, title?.toString())
+        } catch (_: Exception) {}
+    }
+
     override fun onListenerConnected() {
         watch()
+        for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && sbn.notification.category == Notification.CATEGORY_MESSAGE) noteRanking(sbn)
         // What Google Messages shows now, read as the bridge starts (after a restart, or access just given).
         try {
             var fresh = false
