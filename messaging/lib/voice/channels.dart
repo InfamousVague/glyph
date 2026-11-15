@@ -15,6 +15,7 @@ import '../net/switchboard.dart';
 import '../sms.dart';
 import 'rtc.dart';
 import 'voice.dart';
+import 'voice_settings.dart';
 
 /// Someone calling a group: its channel, and who.
 @immutable
@@ -340,7 +341,8 @@ class Voice extends ChangeNotifier {
     if (session?.channel.room == c.room) return;
     await leave();
     if (ringing?.channel.room == c.room) ringing = null;
-    final m = media = RtcMedia();
+    final settings = _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
+    final m = media = RtcMedia(settings: settings);
     for (final e in _volumes.entries) {
       m.setPeerVolume(e.key, e.value);
     }
@@ -348,7 +350,7 @@ class Voice extends ChangeNotifier {
       m.setPeerMuted(id, true);
     }
     final name = _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
-    final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername);
+    final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.audioKbps, stereo: settings.stereo);
     _saw(c.room);
     s.addListener(notifyListeners);
     notifyListeners();
@@ -358,6 +360,21 @@ class Voice extends ChangeNotifier {
       await leave();
       rethrow;
     }
+  }
+
+  /// The settings as they stand (Settings › Voice), and a device chosen: kept, and used in the call there is.
+  VoiceSettings get settings => _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
+
+  Future<void> useInput(String deviceId) async {
+    _app?.set('voice_input', deviceId);
+    await media?.setInput(deviceId);
+    notifyListeners();
+  }
+
+  Future<void> useOutput(String deviceId) async {
+    _app?.set('voice_output', deviceId);
+    await media?.setOutput(deviceId);
+    notifyListeners();
   }
 
   Future<void> leave() async {

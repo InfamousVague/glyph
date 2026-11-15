@@ -156,7 +156,11 @@ class VoiceMember {
 /// never offer each other at once. What is said (offers, answers, ways to connect, and each member's name, muted
 /// and video) is sealed with the channel's key and sent to the room, naming who it is for where it is for one.
 class VoiceSession extends ChangeNotifier {
-  VoiceSession({required this.channel, required this.route, required this.media, required this.name, this.username});
+  VoiceSession({required this.channel, required this.route, required this.media, required this.name, this.username, this.kbps = 510, this.stereo = true});
+
+  /// Opus as the settings ask (lib/voice/voice_settings.dart).
+  final int kbps;
+  final bool stereo;
 
   /// This device's username, said to the others so they can add it as a friend.
   final String? username;
@@ -249,7 +253,7 @@ class VoiceSession extends ChangeNotifier {
 
   Future<void> _offer(String id) async {
     final sdp = await _peerFor(id).makeOffer();
-    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp)});
+    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo)});
   }
 
   void _sayState() => _say({'t': 'me', 'n': name, 'm': muted || deafened, 'v': video, if (username != null) 'u': username});
@@ -280,7 +284,7 @@ class VoiceSession extends ChangeNotifier {
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));
         final answer = await _peerFor(from).takeOffer('${m['sdp']}');
-        _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer)});
+        _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer, kbps: kbps, stereo: stereo)});
         // Said again for the newcomer, who may have joined after it was said.
         _sayState();
       case 'answer':
@@ -310,12 +314,12 @@ class VoiceSession extends ChangeNotifier {
 
 /// [sdp] with Opus asked for at its highest: full band at 48 kHz, stereo both ways, 510 kb/s, constant bit rate,
 /// no discontinuous transmission, with forward error correction kept for lost packets.
-String highestOpus(String sdp) {
+String highestOpus(String sdp, {int kbps = 510, bool stereo = true}) {
   final lines = sdp.split('\r\n');
   final opus = RegExp(r'^a=rtpmap:(\d+) opus/48000', caseSensitive: false);
   final payloads = {for (final l in lines) if (opus.hasMatch(l)) opus.firstMatch(l)!.group(1)!};
   if (payloads.isEmpty) return sdp;
-  const want = {'minptime': '10', 'useinbandfec': '1', 'stereo': '1', 'sprop-stereo': '1', 'maxaveragebitrate': '510000', 'maxplaybackrate': '48000', 'cbr': '1', 'usedtx': '0'};
+  final want = {'minptime': '10', 'useinbandfec': '1', 'stereo': stereo ? '1' : '0', 'sprop-stereo': stereo ? '1' : '0', 'maxaveragebitrate': '${kbps * 1000}', 'maxplaybackrate': '48000', 'cbr': '1', 'usedtx': '0'};
   final out = <String>[];
   final fmtpDone = <String>{};
   for (var i = 0; i < lines.length; i++) {

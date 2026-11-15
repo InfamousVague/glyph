@@ -178,7 +178,7 @@ class ReplyChips extends StatelessWidget {
     final t = context.tokens;
     final thread = PluginThread.of(context);
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
@@ -217,7 +217,7 @@ class _PromiseChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
       child: Align(
         alignment: Alignment.centerLeft,
         child: GlacierPressable(

@@ -15,6 +15,7 @@ import '../voice/channels.dart';
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../voice/rtc.dart';
 import 'shell.dart';
 import 'ripple_avatar.dart';
 
@@ -224,8 +225,23 @@ class CallDock extends StatelessWidget {
           boxShadow: t.shadowOf('0 8px 24px rgba(0,0,0,0.12)'),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          button(session.muted ? LucideMore.micOff : Lucide.mic, session.muted ? 'Unmute' : 'Mute', () => session.setMuted(!session.muted), on: session.muted),
-          button(session.deafened ? LucideMore.headphoneOff : LucideMore.headphones, session.deafened ? 'Hear again' : 'Deafen', () => session.setDeafened(!session.deafened), on: session.deafened),
+          // Pills, each with a chevron that opens the devices to choose from (Matt, 2026-11-15: "on the microphone icon
+          // and the deafen icon make them pill shaped with a little chevron facing up that opens a popover to select
+          // input and output devices respectively").
+          DevicePill(
+            icon: session.muted ? LucideMore.micOff : Lucide.mic,
+            label: session.muted ? 'Unmute' : 'Mute',
+            on: session.muted,
+            onPress: () => session.setMuted(!session.muted),
+            kind: 'audioinput',
+          ),
+          DevicePill(
+            icon: session.deafened ? LucideMore.headphoneOff : LucideMore.headphones,
+            label: session.deafened ? 'Hear again' : 'Deafen',
+            on: session.deafened,
+            onPress: () => session.setDeafened(!session.deafened),
+            kind: 'audiooutput',
+          ),
           button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
           button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
         ]),
@@ -764,6 +780,101 @@ class VolumeSlider extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+
+/// A dock button as a pill: its toggle, and beside it a chevron facing up that opens the devices of [kind]
+/// (`audioinput`: the microphones; `audiooutput`: the speakers and headsets) to choose from, the one in use ticked,
+/// and a way to Settings › Voice and video.
+class DevicePill extends StatefulWidget {
+  const DevicePill({super.key, required this.icon, required this.label, required this.on, required this.onPress, required this.kind});
+  final LucideIcon icon;
+  final String label;
+  final bool on;
+  final VoidCallback onPress;
+  final String kind;
+
+  @override
+  State<DevicePill> createState() => _DevicePillState();
+}
+
+class _DevicePillState extends State<DevicePill> {
+  bool _open = false;
+  List<MediaDeviceInfo> _devices = const [];
+
+  Future<void> _load() async {
+    final found = await RtcMedia.devices(widget.kind);
+    if (mounted) setState(() => _devices = found);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final v = Voice.instance;
+    final input = widget.kind == 'audioinput';
+    final current = input ? v.settings.input : v.settings.output;
+    final ink = widget.on ? t.color('app-paper') : t.color('app-ink');
+    final ground = widget.on ? t.color('app-ink') : t.color('app-paper-2');
+    Widget row(String id, String name) => GlacierMenuItem(
+          icon: AppIcon(input ? Lucide.mic : LucideMore.headphones, size: 16),
+          shortcut: id == current ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16),
+          onSelect: () => input ? v.useInput(id) : v.useOutput(id),
+          child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        );
+    return Container(
+      height: 52,
+      margin: EdgeInsets.symmetric(horizontal: t.space(1)),
+      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(26), border: widget.on ? null : Border.all(color: t.color('app-rule'))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        GlacierPressable(
+          onPressed: widget.onPress,
+          semanticLabel: widget.label,
+          builder: (context, state) => Container(
+            width: 46,
+            height: 52,
+            padding: const EdgeInsets.only(left: 6),
+            alignment: Alignment.center,
+            child: AppIcon(widget.icon, size: 20, wash: false, color: ink),
+          ),
+        ),
+        GlacierMenu(
+          open: _open,
+          onOpenChange: (open) {
+            setState(() => _open = open);
+            if (open) _load();
+          },
+          placement: Placement.top,
+          ariaLabel: input ? 'Microphone' : 'Speaker',
+          style: GlacierMenuStyle(minWidth: t.lenOf('15rem'), maxWidth: t.lenOf('20rem')),
+          trigger: (context, trigger) => GlacierPressable(
+            onPressed: trigger.toggle,
+            semanticLabel: input ? 'Choose a microphone' : 'Choose a speaker',
+            builder: (context, state) => Container(
+              width: 30,
+              height: 52,
+              padding: const EdgeInsets.only(right: 8),
+              alignment: Alignment.center,
+              child: AppIcon(Lucide.chevronUp, size: 16, strokeWidth: 2.4, wash: false, color: ink.withValues(alpha: 0.75)),
+            ),
+          ),
+          children: [
+            GlacierMenuLabel(child: Text(input ? 'Microphone' : 'Speaker or headset')),
+            row('', input ? 'The system\'s own' : 'The system\'s own'),
+            for (final d in _devices) row(d.deviceId, d.label.isEmpty ? 'A device' : d.label),
+            const GlacierMenuSeparator(),
+            GlacierMenuItem(
+              icon: const AppIcon(Lucide.settings, size: 16),
+              onSelect: () {
+                final shell = AppShell.maybeOf(context);
+                if (shell != null) shell.settings('voice');
+              },
+              child: const Text('Voice settings…'),
+            ),
+          ],
+        ),
+      ]),
     );
   }
 }

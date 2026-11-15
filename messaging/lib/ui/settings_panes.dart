@@ -17,7 +17,9 @@ import '../plugins/settings.dart';
 import '../sms.dart';
 import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
+import '../voice/voice_settings.dart';
 import 'common.dart';
+import 'voice_pane.dart';
 import 'computers.dart';
 import 'conversations.dart';
 import 'encryption.dart';
@@ -142,6 +144,20 @@ List<SettingsSection> _ownSections() => [
     group: 'messages',
     summary: (m) => m.status == null ? '' : (m.status!.notifications ? (m.app.flag('notif_preview') ? 'Allowed · previews shown' : 'Allowed · previews hidden') : 'Off in Android'),
     page: _notifications,
+  ),
+  // Calls (lib/voice/voice_settings.dart; Matt, 2026-11-15: "voice settings to change all kinds of things like bitrates
+  // and sound input devices etc etc"), on the phone and on a computer alike.
+  SettingsSection(
+    id: 'voice',
+    label: 'Voice and video',
+    icon: _icon(LucideMore.headphones),
+    hue: 'mint',
+    group: 'messages',
+    summary: (m) {
+      final v = VoiceSettings.of(m.app);
+      return '${v.audioKbps} kb/s${v.stereo ? ' stereo' : ''} · ${v.video}p';
+    },
+    page: (context, m) => [const VoicePane()],
   ),
   // Plugins (lib/plugins/settings.dart): each with its switch and its own settings, once the app has one.
   ...pluginsSettings(),
@@ -274,7 +290,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.7.23';
+const appVersion = '0.7.24';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
