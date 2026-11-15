@@ -307,7 +307,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
           hint('Android asks for each. Ghost reads your contacts only to show names; nothing is sent anywhere.'),
         ];
       case 'computer':
-        return [hint('Get it at ghost-sms.com, then pair it in Settings › Computers. You can do this any time.')];
+        return [hint('Get it at gogho.st, then pair it in Settings › Computers. You can do this any time.')];
       case 'look':
         return [
           GlacierSegmentedControl(
