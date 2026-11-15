@@ -11,10 +11,16 @@
 //	{"id":7,"op":"read","conv":"…","msg":"…"}       → {}
 //	{"id":8,"op":"media","media":"…","key":"<base64>","path":"…"} → {"path":"…"}
 //	{"id":9,"op":"unpair"}                          → {}
+//	{"id":11,"op":"send_media","conv":"…","path":"…","text":"…"} → {"tmp":"…"} (a picture or video, with words)
+//	{"id":10,"op":"activate"}                       → {} (this becomes Google Messages' active web session)
 //
 // Answers: {"id":1,"ok":{…}} or {"id":1,"error":"…"}. Events, unasked: {"ev":"ready"}, {"ev":"qr","url":"…"},
 // {"ev":"paired"}, {"ev":"message","data":message}, {"ev":"conversation","data":conversation},
-// {"ev":"phone","responding":bool}, {"ev":"unpaired","why":"…"}.
+// {"ev":"phone","responding":bool}, {"ev":"unpaired","why":"…"}, {"ev":"inactive"} (another web session, on a
+// computer or messages.google.com, took over: Google Messages has one active at a time) and {"ev":"active"}.
+//
+// With --takeover (Ghost on the phone, which owns the session) an inactive session takes itself back after a short
+// wait, as mautrix-gmessages' bridge does.
 package main
 
 import (
@@ -26,6 +32,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,7 +62,8 @@ type request struct {
 }
 
 var (
-	dir     string
+	dir      string
+	takeover bool
 	log     zerolog.Logger
 	out     = json.NewEncoder(os.Stdout)
 	outLock sync.Mutex
@@ -84,6 +92,7 @@ func event(name string, data any) {
 
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the session is kept")
+	flag.BoolVar(&takeover, "takeover", false, "take the active session back when another takes it")
 	flag.Parse()
 	if dir == "" {
 		fmt.Fprintln(os.Stderr, "--dir is needed")
@@ -181,6 +190,21 @@ func onEvent(raw any) {
 		event("message", message(evt.Message))
 	case *gmproto.Message:
 		event("message", message(evt))
+	case *gmproto.UserAlertEvent:
+		switch evt.GetAlertType() {
+		case gmproto.AlertType_BROWSER_INACTIVE:
+			event("inactive", nil)
+			if takeover {
+				go func() {
+					time.Sleep(10 * time.Second)
+					if c, err := client(); err == nil {
+						_ = c.SetActiveSession(context.Background())
+					}
+				}()
+			}
+		case gmproto.AlertType_BROWSER_ACTIVE:
+			event("active", nil)
+		}
 	case *events.PhoneNotResponding:
 		say(map[string]any{"ev": "phone", "responding": false})
 	case *events.PhoneRespondingAgain:
@@ -293,35 +317,26 @@ func do(r request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		mu.Lock()
-		cv := convs[r.Conv]
-		mu.Unlock()
-		if cv == nil {
-			if cv, err = c.GetConversation(ctx, r.Conv); err != nil {
-				return nil, err
-			}
-		}
-		tmp := fmt.Sprintf("tmp_%d", time.Now().UnixNano())
-		req := &gmproto.SendMessageRequest{
-			ConversationID: r.Conv,
-			MessagePayload: &gmproto.MessagePayload{
-				TmpID:          tmp,
-				ConversationID: r.Conv,
-				ParticipantID:  cv.DefaultOutgoingID,
-				TmpID2:         tmp,
-				MessageInfo:    []*gmproto.MessageInfo{{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}}},
-			},
-			SIMPayload: simFor(cv.DefaultOutgoingID).GetSIMData().GetSIMPayload(),
-			TmpID:      tmp,
-		}
-		resp, err := c.SendMessage(ctx, req)
+		return sendInfo(ctx, c, r.Conv, []*gmproto.MessageInfo{{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}}})
+	case "send_media":
+		c, err := client()
 		if err != nil {
 			return nil, err
 		}
-		if resp.GetStatus() != gmproto.SendMessageResponse_SUCCESS {
-			return nil, fmt.Errorf("Google Messages did not send it (%s)", resp.GetStatus())
+		data, err := os.ReadFile(r.Path)
+		if err != nil {
+			return nil, err
 		}
-		return map[string]any{"tmp": tmp}, nil
+		mime := http.DetectContentType(data)
+		uploaded, err := c.UploadMedia(ctx, data, filepath.Base(r.Path), mime)
+		if err != nil {
+			return nil, err
+		}
+		info := []*gmproto.MessageInfo{{Data: &gmproto.MessageInfo_MediaContent{MediaContent: uploaded}}}
+		if r.Text != "" {
+			info = append(info, &gmproto.MessageInfo{Data: &gmproto.MessageInfo_MessageContent{MessageContent: &gmproto.MessageContent{Content: r.Text}}})
+		}
+		return sendInfo(ctx, c, r.Conv, info)
 	case "react":
 		c, err := client()
 		if err != nil {
@@ -345,6 +360,12 @@ func do(r request) (any, error) {
 			SIMPayload:   sim.GetSIMData().GetSIMPayload(),
 		})
 		return nil, err
+	case "activate":
+		c, err := client()
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.SetActiveSession(ctx)
 	case "read":
 		c, err := client()
 		if err != nil {
@@ -380,6 +401,33 @@ func do(r request) (any, error) {
 		return map[string]any{"path": r.Path}, nil
 	}
 	return nil, fmt.Errorf("unknown op %q", r.Op)
+}
+
+// sendInfo sends [info] (words, a picture) to [conv], from the SIM and participant the conversation sends from.
+func sendInfo(ctx context.Context, c *libgm.Client, conv string, info []*gmproto.MessageInfo) (any, error) {
+	mu.Lock()
+	cv := convs[conv]
+	mu.Unlock()
+	if cv == nil {
+		var err error
+		if cv, err = c.GetConversation(ctx, conv); err != nil {
+			return nil, err
+		}
+	}
+	tmp := fmt.Sprintf("tmp_%d", time.Now().UnixNano())
+	resp, err := c.SendMessage(ctx, &gmproto.SendMessageRequest{
+		ConversationID: conv,
+		MessagePayload: &gmproto.MessagePayload{TmpID: tmp, ConversationID: conv, ParticipantID: cv.DefaultOutgoingID, TmpID2: tmp, MessageInfo: info},
+		SIMPayload:     simFor(cv.DefaultOutgoingID).GetSIMData().GetSIMPayload(),
+		TmpID:          tmp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp.GetStatus() != gmproto.SendMessageResponse_SUCCESS {
+		return nil, fmt.Errorf("Google Messages did not send it (%s)", resp.GetStatus())
+	}
+	return map[string]any{"tmp": tmp}, nil
 }
 
 // simFor is the SIM a conversation sends from: the one whose participant is its outgoing one, else the first.

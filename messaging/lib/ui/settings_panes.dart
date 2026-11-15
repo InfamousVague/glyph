@@ -20,6 +20,7 @@ import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
 import '../voice/voice_settings.dart';
 import 'common.dart';
+import 'gm_web_screen.dart';
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
 import 'computers.dart';
@@ -436,6 +437,14 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
               ? 'Ghost works beside Google Messages: RCS chats and texts in Ghost, Ghost\'s notifications. Open to check each step.'
               : 'Typing dots, read receipts, full-size pictures and group chats over the internet, through Google Messages. A few steps, one at a time.'),
           onPress: () => push(context, (_) => const RcsSetupScreen()),
+        ),
+        // Google Messages' web connection on the phone (lib/ui/gm_web_screen.dart; Matt, 2026-11-15: "Can you build the
+        // on phone google messages connection too?").
+        SettingRow(
+          icon: _icon(Lucide.link),
+          label: 'Google Messages connection',
+          hint: const Text('Pictures, reactions and read marks for RCS chats in Ghost, without Google Messages\' notifications. Paired once with another screen\'s help.'),
+          onPress: () => push(context, (_) => const GmWebScreen()),
         ),
       ]),
     PaneSection(title: 'Writing', children: [

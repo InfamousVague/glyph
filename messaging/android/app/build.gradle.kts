@@ -41,6 +41,10 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    // The Google Messages sidecar (libgmsidecar.so, an executable): unpacked on install, so the app may run it from
+    // its native library folder (GmWeb.kt).
+    packaging { jniLibs { useLegacyPackaging = true } }
+
     // voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (VoiceFx.kt).
     externalNativeBuild {
         cmake { path = file("src/main/cpp/CMakeLists.txt") }

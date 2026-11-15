@@ -595,7 +595,7 @@ class Store(private val context: Context) {
         return out
     }
 
-    fun readPart(partId: Long): ByteArray? = try {
+    fun readPart(partId: Long): ByteArray? = if (GmWeb.isPart(partId)) GmWeb.part(context, partId) else try {
         resolver.openInputStream(Uri.parse("content://mms/part/$partId"))?.use { it.readBytes() }
     } catch (_: Exception) { null }
 
@@ -815,10 +815,27 @@ class Store(private val context: Context) {
         for (m in bridged) {
             val words = m.text.trim()
             if (have.any { it.first == m.out && it.second == words && kotlin.math.abs(it.third - m.time) < 180_000 }) continue
+            // From the on-phone connection (GmWeb): its pictures, its delivered and read marks, and reactions.
+            val parts = m.media?.let { j ->
+                try {
+                    val a = org.json.JSONArray(j)
+                    (0 until a.length()).map { i -> a.getJSONObject(i).let { p -> mapOf("id" to p.getLong("id"), "type" to p.optString("type"), "name" to p.optString("name").ifBlank { null }) } }
+                } catch (_: Exception) { emptyList() }
+            } ?: emptyList()
+            val status = m.status ?: ""
+            val state = when {
+                !m.out -> "received"
+                status.contains("fail") || status.contains("error") || status.contains("canceled") -> "failed"
+                status.contains("sending") || status.contains("yet_to_send") || status.contains("resending") -> "sending"
+                status.contains("display") || status.contains("read") -> "read"
+                status.contains("delivered") -> "delivered"
+                else -> "sent"
+            }
             out += mapOf(
-                "id" to m.id, "kind" to "rcs", "address" to (m.address ?: m.sender ?: ""), "body" to m.text, "encrypted" to false,
-                "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to if (m.out) "sent" else "received",
-                "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender,
+                "id" to m.id, "kind" to "rcs", "address" to (m.address ?: m.sender ?: ""),
+                "body" to if (m.reactions.isNullOrBlank()) m.text else "${m.text}\n${m.reactions}", "encrypted" to false,
+                "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to state,
+                "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender, "parts" to parts,
             )
         }
     }

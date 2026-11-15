@@ -18,6 +18,7 @@ import android.provider.Settings
 import android.provider.Telephony
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -307,6 +308,9 @@ object GmBridge {
     fun sendBeside(context: Context, addresses: List<String>, body: String, attachments: List<String>): Long {
         val db = Db.get(context)
         val conv = convFor(db, addresses)
+        // 0. The on-phone connection (GmWeb), where it is connected and has this conversation: words and pictures,
+        //    as Google Messages would send them.
+        if (conv != null && GmWeb.knows(conv.conv) && GmWeb.send(conv.conv, body, attachments.mapNotNull { fileOf(context, it) })) return conv.thread
         if (conv != null && attachments.isEmpty() && reply(context, conv.conv, body)) return conv.thread
         val numbers = addresses.filter { ContactKey.of(it) != null }
         if (numbers.size == 1 && addresses.size == 1 && attachments.isEmpty()) {
@@ -315,9 +319,18 @@ object GmBridge {
             if (parts.size > 1) sms.sendMultipartTextMessage(numbers[0], null, parts, null, null) else sms.sendTextMessage(numbers[0], null, body, null, null)
             return try { Telephony.Threads.getOrCreateThreadId(context, setOf(numbers[0])) } catch (_: Exception) { conv?.thread ?: -1L }
         }
-        context.startActivity(composeIntent(if (numbers.isNotEmpty()) numbers else addresses, body))
+        context.startActivity(composeIntent(context, if (numbers.isNotEmpty()) numbers else addresses, body, attachments))
         return conv?.thread ?: -1L
     }
+
+    /** A picture chosen to send (a content address, or a file), as a file the helper can read. */
+    private fun fileOf(context: Context, uri: String): String? = try {
+        if (uri.startsWith("/")) uri else {
+            val f = File(File(context.cacheDir, "gmsend").apply { mkdirs() }, "${System.currentTimeMillis()}-${uri.hashCode().toUInt()}")
+            context.contentResolver.openInputStream(Uri.parse(uri))?.use { inp -> f.outputStream().use { inp.copyTo(it) } }
+            f.absolutePath
+        }
+    } catch (_: Exception) { null }
 
     /** The bridged conversation [addresses] are: the same people, or, for one known only by its title, that title. */
     private fun convFor(db: Db, addresses: List<String>): Conv? {
@@ -328,22 +341,44 @@ object GmBridge {
         }
     }
 
-    /** Marks [conv] read in Google Messages too, where it offers that. */
+    /** Marks [conv] read in Google Messages too: through the on-phone connection, or its notification's Mark as read. */
     fun markRead(context: Context, conv: String) {
+        GmWeb.read(conv)
         try { actions[conv]?.read?.send() } catch (_: Exception) {}
     }
 
-    /** Google Messages' compose page with [to] and [text] filled in: for what the bridge cannot send itself. */
-    fun composeIntent(to: List<String>, text: String): Intent =
-        Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + to.joinToString(";") { Uri.encode(it) }))
+    /**
+     * Google Messages' compose page with [to] and [text] filled in, and the pictures with them (Matt, 2026-11-15: "Does
+     * this also proxy videos and images"): for what the bridge cannot send itself.
+     */
+    fun composeIntent(context: Context, to: List<String>, text: String, attachments: List<String> = emptyList()): Intent {
+        if (attachments.isEmpty()) {
+            return Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + to.joinToString(";") { Uri.encode(it) }))
+                .putExtra("sms_body", text).setPackage(PACKAGE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        // A file of the app's own is handed over by the app's provider, which serves its MMS folder.
+        val uris = ArrayList(attachments.map { a ->
+            if (!a.startsWith("/")) Uri.parse(a) else {
+                val copy = File(MmsFileProvider.dir(context), "share-${File(a).name}")
+                File(a).copyTo(copy, overwrite = true)
+                MmsFileProvider.uriFor(context, copy)
+            }
+        })
+        val types = uris.map { context.contentResolver.getType(it) ?: "image/*" }.distinct()
+        return Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE)
+            .setType(types.singleOrNull() ?: "*/*")
+            .apply { if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris[0]) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris) }
+            .putExtra("address", to.joinToString(";"))
             .putExtra("sms_body", text)
+            .putExtra(Intent.EXTRA_TEXT, text)
             .setPackage(PACKAGE)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
 
     // --- the database ------------------------------------------------------------------------------------------------
 
     /** The bridge's own small database: conversations Google Messages showed, and their messages. */
-    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 1) {
+    class Db private constructor(context: Context) : SQLiteOpenHelper(context, "gm_bridge.db", null, 2) {
         companion object {
             @Volatile private var one: Db? = null
             fun get(context: Context): Db = one ?: synchronized(this) { one ?: Db(context.applicationContext).also { one = it } }
@@ -353,9 +388,77 @@ object GmBridge {
             db.execSQL("CREATE TABLE conv (conv TEXT PRIMARY KEY, thread INTEGER, title TEXT, grp INTEGER, addresses TEXT, updated INTEGER)")
             db.execSQL("CREATE TABLE msg (id INTEGER PRIMARY KEY AUTOINCREMENT, conv TEXT, text TEXT, time INTEGER, sender TEXT, address TEXT, out INTEGER, read INTEGER DEFAULT 0, UNIQUE(conv, time, text, out))")
             db.execSQL("CREATE INDEX msg_conv ON msg(conv, time)")
+            onUpgrade(db, 1, 2)
         }
 
-        override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {}
+        override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
+            // 2: Google Messages' own id for a message, its status, pictures and reactions, from the on-phone
+            // connection (GmWeb.kt); a picture's way to be brought down, by the number the screens know it by.
+            if (old < 2) {
+                db.execSQL("ALTER TABLE msg ADD COLUMN gm_id TEXT")
+                db.execSQL("ALTER TABLE msg ADD COLUMN status TEXT")
+                db.execSQL("ALTER TABLE msg ADD COLUMN media TEXT")
+                db.execSQL("ALTER TABLE msg ADD COLUMN reactions TEXT")
+                db.execSQL("CREATE UNIQUE INDEX msg_gm ON msg(gm_id)")
+                db.execSQL("CREATE TABLE part (id INTEGER PRIMARY KEY, media TEXT, key TEXT, mime TEXT, name TEXT)")
+            }
+        }
+
+        override fun onOpen(db: SQLiteDatabase) {
+            super.onOpen(db)
+            if (!db.isReadOnly) db.execSQL("PRAGMA journal_mode=WAL")
+        }
+
+        /** A conversation as the on-phone connection reads it: by Google Messages' own id. */
+        fun keepWebConversation(conv: String, thread: Long, title: String?, group: Boolean, addresses: List<String>) {
+            writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
+                put("conv", conv); put("thread", thread); put("title", title); put("grp", if (group) 1 else 0)
+                put("addresses", addresses.joinToString("\u001f")); put("updated", System.currentTimeMillis())
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        /**
+         * A message as the on-phone connection reads it, by Google Messages' own id: kept once, its status and
+         * reactions brought up to date when it comes again. A copy the notification bridge already kept (the same
+         * words, the same side, within three minutes, in a conversation of the same thread) becomes this one.
+         * True where it is new.
+         */
+        fun keepWebMessage(conv: String, thread: Long, gmId: String, text: String, time: Long, sender: String?, address: String?, out: Boolean, status: String, media: String?, reactions: String?, read: Boolean): Boolean {
+            val db = writableDatabase
+            val update = ContentValues().apply { put("status", status); put("reactions", reactions); if (media != null) put("media", media); if (read) put("read", 1) }
+            if (db.update("msg", update, "gm_id = ?", arrayOf(gmId)) > 0) return false
+            db.rawQuery(
+                "SELECT m.id FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NULL AND m.out = ? AND m.text = ? AND ABS(m.time - ?) < 180000 LIMIT 1",
+                arrayOf("$thread", if (out) "1" else "0", text, "$time"),
+            ).use { c ->
+                if (c.moveToFirst()) {
+                    db.update("msg", ContentValues(update).apply { put("gm_id", gmId); put("conv", conv); put("time", time) }, "id = ?", arrayOf("${c.getLong(0)}"))
+                    return false
+                }
+            }
+            val id = db.insertWithOnConflict("msg", null, ContentValues(update).apply {
+                put("conv", conv); put("gm_id", gmId); put("text", text); put("time", time); put("sender", sender); put("address", address)
+                put("out", if (out) 1 else 0); put("read", if (out || read) 1 else 0)
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+            return id != -1L
+        }
+
+        fun keepPart(id: Long, media: String, key: String, mime: String, name: String?) {
+            writableDatabase.insertWithOnConflict("part", null, ContentValues().apply { put("id", id); put("media", media); put("key", key); put("mime", mime); put("name", name) }, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        fun part(id: Long): Triple<String, String, String>? = readableDatabase.rawQuery("SELECT media, key, mime FROM part WHERE id = ?", arrayOf("$id")).use { c ->
+            if (c.moveToFirst()) Triple(c.getString(0), c.getString(1), c.getString(2)) else null
+        }
+
+        /** The newest message of [conv] Google Messages knows by its id: what marking it read goes as far as. */
+        fun newestWebId(conv: String): String? = readableDatabase.rawQuery("SELECT gm_id FROM msg WHERE conv = ? AND gm_id IS NOT NULL ORDER BY time DESC LIMIT 1", arrayOf(conv)).use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+
+        fun webConversations(): Set<String> = readableDatabase.rawQuery("SELECT DISTINCT conv FROM msg WHERE gm_id IS NOT NULL", null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getString(0)) }
+        }
 
         fun keepConversation(r: Read, thread: Long) {
             writableDatabase.insertWithOnConflict("conv", null, ContentValues().apply {
@@ -389,10 +492,10 @@ object GmBridge {
         }
 
         fun messagesOfThread(thread: Long, limit: Int): List<Msg> = readableDatabase.rawQuery(
-            "SELECT m.id, m.conv, m.text, m.time, m.sender, m.address, m.out, m.read FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? ORDER BY m.time DESC LIMIT ?",
+            "SELECT m.id, m.conv, m.text, m.time, m.sender, m.address, m.out, m.read, m.status, m.media, m.reactions FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? ORDER BY m.time DESC LIMIT ?",
             arrayOf("$thread", "$limit"),
         ).use { c ->
-            buildList { while (c.moveToNext()) add(Msg(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3), c.getString(4), c.getString(5), c.getInt(6) == 1, c.getInt(7) == 1)) }
+            buildList { while (c.moveToNext()) add(Msg(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3), c.getString(4), c.getString(5), c.getInt(6) == 1, c.getInt(7) == 1, c.getString(8), c.getString(9), c.getString(10))) }
         }
 
         fun convOfThread(thread: Long): String? = readableDatabase.rawQuery("SELECT conv FROM conv WHERE thread = ? ORDER BY updated DESC LIMIT 1", arrayOf("$thread")).use { c -> if (c.moveToFirst()) c.getString(0) else null }
@@ -412,7 +515,7 @@ object GmBridge {
     }
 
     data class Conv(val conv: String, val thread: Long, val title: String?, val group: Boolean, val addresses: List<String>, val text: String, val time: Long, val out: Boolean, val unread: Int)
-    data class Msg(val id: Long, val conv: String, val text: String, val time: Long, val sender: String?, val address: String?, val out: Boolean, val read: Boolean)
+    data class Msg(val id: Long, val conv: String, val text: String, val time: Long, val sender: String?, val address: String?, val out: Boolean, val read: Boolean, val status: String? = null, val media: String? = null, val reactions: String? = null)
 }
 
 /**
@@ -434,7 +537,8 @@ class GmListener : NotificationListenerService() {
             if (sbn.notification.category == Notification.CATEGORY_MESSAGE) cancelNotification(sbn.key)
             // A new message of theirs, or one Android hid from the bridge (a code, which Android's database holds):
             // Ghost's notification, read from what Ghost has, a moment later so Google Messages has written the text.
-            if (kept != null && (kept.incoming || kept.hidden)) {
+            // With the on-phone connection up, it notifies (GmWeb): not twice.
+            if (kept != null && (kept.incoming || kept.hidden) && !GmWeb.connected) {
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     Thread {
                         try { Notifier.incoming(context, kept.thread) } catch (e: Exception) { DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}") }
@@ -480,6 +584,8 @@ class GmListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         watch()
+        // The on-phone Google Messages connection, kept running while Android keeps this listener (GmWeb).
+        if (GmWeb.hasSession(applicationContext)) GmWeb.start(applicationContext)
         for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && sbn.notification.category == Notification.CATEGORY_MESSAGE) noteRanking(sbn)
         // What Google Messages shows now, read as the bridge starts (after a restart, or access just given).
         try {

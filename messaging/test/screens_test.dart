@@ -50,6 +50,7 @@ import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:ghost_messaging/ui/gm_web_screen.dart';
 import 'package:ghost_messaging/ui/rcs_setup.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
@@ -260,6 +261,8 @@ void _answerChannel() {
         return _statusSaid;
       case 'gmChannels':
         return _gmChannels;
+      case 'gmWebState':
+        return _gmWeb;
       case 'conversations':
         return _conversations;
       case 'conversationsPage':
@@ -483,6 +486,9 @@ Future<Fetched> _fakeSites(Uri url) async {
   if (url.host == 'example.com') return (status: 200, body: '<meta property="og:site_name" content="Hickory Premier"><meta property="og:title" content="Movie night: 7:00 PM, Theatre 2">');
   return (status: 404, body: '');
 }
+
+/// The on-phone Google Messages connection as it stands (android GmWeb.state): there, not paired, unless a test says.
+Map<String, Object?> _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
 
 /// Google Messages' notification channels as Ghost saw them (android GmBridge.channelList): none, unless a test says.
 List<Map<String, Object?>> _gmChannels = const [];
@@ -865,6 +871,16 @@ void main() {
       expect(find.text('Silence Incoming messages'), findsOneWidget);
       expect(find.text('Silence Other notifications'), findsNothing, reason: 'quiet already');
       _gmChannels = const [];
+      // The on-phone Google Messages connection (lib/ui/gm_web_screen.dart; Matt, 2026-11-15: "Can you build the on
+      // phone google messages connection too?"): not paired, then paired and connected.
+      _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
+      await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web', dark: dark);
+      expect(find.text('Pair with Google Messages'), findsOneWidget);
+      _gmWeb = const {'available': true, 'running': true, 'paired': true, 'connected': true, 'phone': '+1 555-123-0000'};
+      await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web-paired', dark: dark);
+      expect(find.text('Connected'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
       // Ghost is the texting app: each page after, in turn.
       _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
