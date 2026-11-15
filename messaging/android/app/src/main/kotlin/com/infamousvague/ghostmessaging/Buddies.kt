@@ -19,7 +19,7 @@ object Buddies {
 
     fun kept(context: Context): String = prefs(context).getString("list", "[]") ?: "[]"
 
-    /** Those the routes can reach: their name, their username where a number would be, and the sealing key. */
+    /** Those the routes can reach: their name, their `@username` where a number would be, and the sealing key. */
     fun peers(context: Context, already: Set<String>): List<Map<String, Any?>> {
         val out = ArrayList<Map<String, Any?>>()
         val list = runCatching { JSONArray(kept(context)) }.getOrNull() ?: return out
@@ -30,7 +30,11 @@ object Buddies {
             if (id.isEmpty() || id in already || (state != "yes" && state != "asked" && state != "invited")) continue
             val pub = runCatching { Base64.getDecoder().decode(o.optString("k")) }.getOrNull()?.takeIf { it.size == 33 && Net.idOf(it) == id } ?: continue
             val pair = E2e.pairKey(context, pub) ?: continue
-            out.add(mapOf("id" to id, "address" to "", "key" to Net.netKey(pair)))
+            // A friend who said yes is a conversation, addressed by username (lib/standalone/chats.dart): what they
+            // write is kept in Dart, and Friends carries it as it does a phone-number friend's.
+            val username = o.optString("u")
+            val address = if (state == "yes" && username.isNotEmpty()) "@$username" else ""
+            out.add(mapOf("id" to id, "address" to address, "key" to Net.netKey(pair)))
         }
         return out
     }

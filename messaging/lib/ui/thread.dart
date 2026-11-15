@@ -765,7 +765,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       ),
       actions: [
         ..._plugins.header(context, newest: _messages?.firstOrNull),
-        if (!remote && !_group && _people.isNotEmpty)
+        // A phone call needs a number: a friend by username (`@name`, lib/standalone) has none.
+        if (!remote && !_group && _people.isNotEmpty && !_people.first.address.startsWith('@'))
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // A group of friends' voice and video channel, open to hop in and out of, and calling the whole group into it
         // (Matt, 2026-11-14: "allow for group chat video and voice calls to hop in the voice and video channel at any

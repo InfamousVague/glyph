@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
@@ -13,7 +14,7 @@ void main() {
   // AppState keeps each choice on the phone too: no phone here.
   setUpAll(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
 
-  test('what an untouched device uses: RNNoise, 100% both ways, 1080p, 510 kb/s stereo', () {
+  test('what an untouched phone uses: RNNoise, 100% both ways, 1080p, 510 kb/s stereo', () {
     final v = VoiceSettings.of(AppState());
     expect(v.noise, NoiseMode.rnnoise);
     expect((v.inputVolume, v.outputVolume), (100, 100));
@@ -50,7 +51,7 @@ void main() {
   test('a noise suppression this device cannot run falls back to WebRTC\'s own', () {
     const v = VoiceSettings(noise: NoiseMode.deepfilter);
     expect(v.noiseOn({NoiseMode.rnnoise, NoiseMode.deepfilter}), NoiseMode.deepfilter);
-    expect(v.noiseOn({NoiseMode.rnnoise}), NoiseMode.webrtc, reason: 'a phone runs RNNoise alone');
+    expect(v.noiseOn({NoiseMode.rnnoise}), NoiseMode.rnnoise, reason: 'a phone runs RNNoise alone: the next best');
     expect(const VoiceSettings().noiseOn(const {}), NoiseMode.webrtc, reason: 'no native half at all');
     expect(const VoiceSettings(noise: NoiseMode.off).noiseOn({NoiseMode.rnnoise}), NoiseMode.off);
   });
@@ -90,7 +91,7 @@ void main() {
       expect(said.where((c) => c.method == 'modes'), hasLength(1));
       final configured = said.where((c) => c.method == 'configure').map((c) => c.arguments as Map).toList();
       expect(configured[0], {'mode': 'rnnoise', 'gain': 1.5});
-      expect(configured[1], {'mode': 'off', 'gain': 0.8}, reason: 'DeepFilterNet here falls back to WebRTC\'s own, so nothing native');
+      expect(configured[1], {'mode': 'rnnoise', 'gain': 0.8}, reason: 'DeepFilterNet cannot run here: RNNoise, the next best');
     });
 
     test('with no native half the call goes on, and WebRTC\'s own is used', () async {
@@ -99,5 +100,22 @@ void main() {
       expect(VoiceFx.available, isEmpty);
       expect(const VoiceSettings().noiseOn(VoiceFx.available), NoiseMode.webrtc);
     });
+  });
+
+  // Matt, 2026-11-15: "on desktop use DeepFilter as default and on mobile use the RNN as default".
+  test('until one is chosen, a computer uses DeepFilterNet and a phone RNNoise; DeepFilterNet unable to run gives RNNoise', () {
+    for (final (platform, want) in [
+      (TargetPlatform.macOS, NoiseMode.deepfilter),
+      (TargetPlatform.windows, NoiseMode.deepfilter),
+      (TargetPlatform.linux, NoiseMode.deepfilter),
+      (TargetPlatform.android, NoiseMode.rnnoise),
+      (TargetPlatform.iOS, NoiseMode.rnnoise),
+    ]) {
+      debugDefaultTargetPlatformOverride = platform;
+      expect(VoiceSettings.of(AppState()).noise, want, reason: '$platform');
+    }
+    debugDefaultTargetPlatformOverride = null;
+    expect(const VoiceSettings(noise: NoiseMode.deepfilter).noiseOn({NoiseMode.rnnoise}), NoiseMode.rnnoise);
+    expect(const VoiceSettings(noise: NoiseMode.deepfilter).noiseOn({}), NoiseMode.webrtc);
   });
 }
