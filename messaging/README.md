@@ -583,6 +583,12 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **Pages** (`lib/ui/hangout_screen.dart`): a hangout opens its page: who is here, Join voice, and the chat. In the
     call a toggle switches between people and chat. Roles show beside names; press and hold someone for their role,
     Mute for everyone, Remove and Ban, as your role allows. The shield opens Roles and permissions.
+  - **Layout** (Matt, 2026-11-15: "When opening a hangout the left side should show the chat with some space below
+    reserved for the navbar controls, the voice on desktop should show up on the left side with the right side reserved
+    for chat, when a video starts split the right side 50/50 showing the videos above the chat"). A hangout opened from
+    the list is in the list's place, its composer and dock standing above the pill (`HangoutScreen.inSidebar`). Beside
+    the list (a computer, the Fold open) the call is the people and the dock there, and the pane is the chat
+    (`HangoutStage`), whose top half becomes the videos (`CallVideos`) once anyone turns one on.
   - **The browser** (site/join): the same chat beside the call, role tags, and the same rules. It checks rosters
     itself (P-256 by WebCrypto; tool/voicebench/roster_check.mjs checks rosters the app signed) and leaves when
     removed or banned. tool/voicebench/join_test.mjs covers the chat both ways and history for a latecomer.

@@ -312,7 +312,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Future<void> _openVoice(VoiceChannel c) async {
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
     if (c.hangout && Voice.instance.session?.channel.room != c.room) {
-      push(context, (_) => HangoutScreen(channel: c));
+      push(context, (_) => HangoutScreen(channel: c, inSidebar: AppShell.maybeOf(context) != null));
       return;
     }
     try {
@@ -769,6 +769,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               onArchive: () => _archive(c),
               onDelete: () => _confirmDelete(c),
               onPin: () => _pin(c),
+              // The cards' shape, as ConversationRow and PluginRow draw it: the actions show inside it.
+              card: (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem')),
               child: look != null
                   ? PluginRow(conversation: c, look: look.$1, host: look.$2, selecting: _selecting, selected: selected, onPress: () => _selecting ? _toggle(c) : _open(c), onLongPress: () => _selecting ? _toggle(c) : _menu(c))
                   : ConversationRow(

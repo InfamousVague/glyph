@@ -40,6 +40,9 @@ class VoiceScreen extends StatelessWidget {
         // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
         // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
         // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
+        // Beside the list on a wide screen the people are in the list's place (HangoutScreen there) and this side is
+        // the hangout's chat, with its videos above it once anyone turns one on (HangoutStage).
+        if (s != null && s.channel.hangout && AppShell.wideOf(context)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
         if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
         if (s != null) {
           return GhostPage(
@@ -128,8 +131,12 @@ void copyInvite(BuildContext context, VoiceChannel c) {
 /// unless someone turns on video"): a picture for each who has video on, then everyone as a list, each face rippling
 /// while they talk.
 class CallPanel extends StatelessWidget {
-  const CallPanel({super.key, required this.session});
+  const CallPanel({super.key, required this.session, this.videos = true});
   final VoiceSession session;
+
+  /// With the pictures of whoever has video on above the people; off where they are shown elsewhere (CallVideos,
+  /// the pane beside a hangout's people on a wide screen).
+  final bool videos;
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +157,7 @@ class CallPanel extends StatelessWidget {
         // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
         final room = v.hangoutFor(session.channel);
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (withVideo.isNotEmpty) ...[
+          if (videos && withVideo.isNotEmpty) ...[
             LayoutBuilder(builder: (context, box) {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
@@ -196,6 +203,59 @@ class CallPanel extends StatelessWidget {
                     ]),
                   )),
               ])),
+        ]);
+      },
+    );
+  }
+}
+
+/// The pictures of whoever in [session] has video on, filling the space given: one alone, two to four two across,
+/// more three across (Matt, 2026-11-15: "when a video starts split the right side 50/50 showing the videos above the
+/// chat"). Nothing where nobody has video on ([any]).
+class CallVideos extends StatelessWidget {
+  const CallVideos({super.key, required this.session});
+  final VoiceSession session;
+
+  /// Whether anyone in [session] has video on now, this device included.
+  static bool any(VoiceSession session) {
+    final media = Voice.instance.media;
+    if (media?.localVideo.value != null) return true;
+    return session.members.values.any((m) => m.video && media?.remote.value[m.id] != null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final v = Voice.instance;
+    final media = v.media;
+    return ListenableBuilder(
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo]),
+      builder: (context, _) {
+        final tiles = <({String name, MediaStream stream, bool muted, bool me})>[
+          if (media?.localVideo.value case final mine?) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true),
+          for (final m in session.members.values)
+            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false),
+        ];
+        if (tiles.isEmpty) return const SizedBox.shrink();
+        final across = tiles.length == 1 ? 1 : (tiles.length <= 4 ? 2 : 3);
+        final rows = (tiles.length / across).ceil();
+        final gap = t.space(2);
+        return Column(children: [
+          for (var r = 0; r < rows; r++) ...[
+            if (r > 0) SizedBox(height: gap),
+            Expanded(
+              child: Row(children: [
+                for (var c = 0; c < across; c++) ...[
+                  if (c > 0) SizedBox(width: gap),
+                  Expanded(
+                    child: r * across + c < tiles.length
+                        ? _Tile(name: tiles[r * across + c].name, muted: tiles[r * across + c].muted, stream: tiles[r * across + c].stream, mirror: tiles[r * across + c].me)
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ]),
+            ),
+          ],
         ]);
       },
     );

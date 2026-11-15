@@ -30,6 +30,7 @@ class SwipeActions extends StatefulWidget {
     this.pinLabel = 'Pin',
     this.pinIcon = Lucide.pin,
     this.enabled = true,
+    this.card,
   });
 
   final Widget child;
@@ -47,6 +48,12 @@ class SwipeActions extends StatefulWidget {
 
   /// Off while several conversations are being chosen: a row is then a thing to tick, not to drag.
   final bool enabled;
+
+  /// The card the row is drawn as: how far it stands in from the row's edges, and how round its corners are. Given
+  /// one, what a drag uncovers is drawn inside the card's own outline and the card's face slides within it (Matt,
+  /// 2026-11-15: "make the pin unpin delete and archive within the card instead of being on the left and right").
+  /// Without one it is drawn across the whole row.
+  final ({EdgeInsets inset, double radius})? card;
 
   /// How far a row is dragged, in logical pixels, to reach each detent.
   static const archiveAt = 76.0;
@@ -152,11 +159,11 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
         onHorizontalDragUpdate: _drag,
         onHorizontalDragEnd: _letGo,
         onHorizontalDragCancel: _letGo,
-        child: ClipRect(
+        child: _clip(
           child: Stack(children: [
             if (_dx != 0)
               Positioned.fill(
-                child: AnimatedContainer(
+                child: _inCard(AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   color: ground,
                   alignment: left ? Alignment.centerRight : Alignment.centerLeft,
@@ -175,16 +182,45 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
                       if (left) AppIcon(icon, size: 20, color: ink),
                     ]),
                   ),
-                ),
+                )),
               ),
             Transform.translate(
               offset: Offset(_dx, 0),
               // The row is solid while it is off its place, so what it uncovers does not show through it.
-              child: _dx == 0 ? widget.child : ColoredBox(color: t.color('glacier-bg'), child: widget.child),
+              // In a card the face is solid of itself, and the room round it shows the action, not the page.
+              child: _dx == 0 || widget.card != null ? widget.child : ColoredBox(color: t.color('glacier-bg'), child: widget.child),
             ),
           ]),
         ),
       );
     });
   }
+
+  /// The whole row's edges, or the card's outline while it is off its place (at rest nothing is cut, so the
+  /// chosen card's line round it is whole).
+  Widget _clip({required Widget child}) {
+    final card = widget.card;
+    if (card == null) return ClipRect(child: child);
+    if (_dx == 0) return child;
+    return ClipPath(clipper: _CardClip(card.inset, card.radius), child: child);
+  }
+
+  /// What a drag uncovers, in the card's place and shape where the row is a card.
+  Widget _inCard(Widget ground) {
+    final card = widget.card;
+    if (card == null) return ground;
+    return Padding(padding: card.inset, child: ClipRRect(borderRadius: BorderRadius.circular(card.radius), child: ground));
+  }
+}
+
+class _CardClip extends CustomClipper<Path> {
+  const _CardClip(this.inset, this.radius);
+  final EdgeInsets inset;
+  final double radius;
+
+  @override
+  Path getClip(Size size) => Path()..addRRect(RRect.fromRectAndRadius(inset.deflateRect(Offset.zero & size), Radius.circular(radius)));
+
+  @override
+  bool shouldReclip(_CardClip old) => old.inset != inset || old.radius != radius;
 }
