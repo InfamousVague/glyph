@@ -30,6 +30,8 @@ import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
 import 'package:ghost_messaging/voice/voice.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaDeviceInfo;
+import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/plugins/plugin.dart' show ListGroup, RowFace;
 import 'package:ghost_messaging/plugins/embeds.dart' show Embeds, Fetched;
@@ -1262,6 +1264,14 @@ void main() {
       ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
       ..members['c'] = const VoiceMember('c', name: 'Riley', guest: true);
     v.session = s;
+    // The Mac's devices, as macOS names them.
+    RtcMedia.enumerate = () async => [
+          MediaDeviceInfo(kind: 'audioinput', label: 'MacBook Air Microphone', deviceId: 'mic-1'),
+          MediaDeviceInfo(kind: 'audioinput', label: 'AirPods Pro', deviceId: 'mic-2'),
+          MediaDeviceInfo(kind: 'audiooutput', label: 'MacBook Air Speakers', deviceId: 'out-1'),
+          MediaDeviceInfo(kind: 'audiooutput', label: 'AirPods Pro', deviceId: 'out-2'),
+        ];
+    addTearDown(() => RtcMedia.enumerate = null);
     addTearDown(() {
       v.session = null;
       v.own = [];
@@ -1296,6 +1306,25 @@ void main() {
       expect(find.text('100%'), findsNothing, reason: 'louder than as sent');
       expect(v.volumeOf('a'), greaterThan(1.0));
       v.setVolume('a', 1.0);
+      await tester.tapAt(const Offset(5, 5));
+      await _settle(tester);
+      // The microphone and the speaker as pills, each with a chevron to its devices (Matt, 2026-11-15: "on the
+      // microphone icon and the deafen icon make them pill shaped with a little chevron facing up that opens a popover
+      // to select input and output devices respectively").
+      expect(find.byType(DevicePill), findsNWidgets(2));
+      await tester.tap(find.bySemanticsLabel('Choose a microphone'));
+      await _settle(tester);
+      await _shootAgain(tester, '19-voice-devices', dark: dark);
+      expect(find.text('Microphone'.toUpperCase()), findsOneWidget);
+      expect(find.text('Voice settings…'), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await _settle(tester);
+      // Settings › Voice and video.
+      await _shoot(tester, sheet, const SettingsSectionScreen('voice'), '19-voice-settings', dark: dark);
+      expect(find.text('Bit rate'), findsOneWidget);
+      expect(find.text('510 kb/s'), findsOneWidget);
+      expect(find.text('Echo cancellation'), findsOneWidget);
+      expect(find.text('1080p'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });

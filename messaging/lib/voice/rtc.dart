@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'voice.dart';
+import 'voice_settings.dart';
 
 /// The microphone, the camera and a WebRTC connection to each other member (lib/voice/voice.dart says what goes
 /// between them and how).
@@ -15,7 +16,10 @@ import 'voice.dart';
 /// at 510 kb/s. Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
 class RtcMedia implements VoiceMedia {
-  RtcMedia({this.iceServers = defaultIce});
+  RtcMedia({this.iceServers = defaultIce, this.settings = const VoiceSettings()});
+
+  /// The devices, Opus and processing, and the picture's quality, as Settings › Voice has them.
+  VoiceSettings settings;
 
   static const defaultIce = [
     {
@@ -117,21 +121,73 @@ class RtcMedia implements VoiceMedia {
 
   static double _ease(double from, double to) => to > from ? from + (to - from) * 0.6 : from + (to - from) * 0.25;
 
-  static const audioBitrate = 510000;
+  int get audioBitrate => settings.audioKbps * 1000;
+
+  /// Stands in for the system's list of devices (a test, with no WebRTC underneath).
+  @visibleForTesting
+  static Future<List<MediaDeviceInfo>> Function()? enumerate;
+
+  Map<String, Object> get _audioAsked => {
+        if (settings.input.isNotEmpty) 'deviceId': settings.input,
+        'echoCancellation': settings.echo,
+        'noiseSuppression': settings.noise,
+        'autoGainControl': settings.gain,
+        'channelCount': settings.stereo ? 2 : 1,
+        'sampleRate': 48000,
+      };
+
+  /// The devices there are of [kind] (`audioinput`, `audiooutput`), by the system's names for them.
+  static Future<List<MediaDeviceInfo>> devices(String kind) async {
+    try {
+      final all = await (enumerate ?? navigator.mediaDevices.enumerateDevices)();
+      return [for (final d in all) if (d.kind == kind) d];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Takes sound from another microphone, in the call as it goes: the new one's track in every connection's place.
+  Future<void> setInput(String deviceId) async {
+    settings = VoiceSettings(input: deviceId, output: settings.output, audioKbps: settings.audioKbps, stereo: settings.stereo, echo: settings.echo, noise: settings.noise, gain: settings.gain, video: settings.video);
+    final old = _mic;
+    if (old == null) return;
+    final fresh = await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
+    final track = fresh.getAudioTracks().first;
+    track.enabled = old.getAudioTracks().firstOrNull?.enabled ?? true;
+    _mic = fresh;
+    for (final p in _peers.values) {
+      final made = p._pc;
+      if (made == null) continue;
+      for (final s in await (await made).getSenders()) {
+        if (s.track?.kind == 'audio') await s.replaceTrack(track);
+      }
+    }
+    final meter = _meter;
+    if (meter != null) {
+      for (final s in await meter.getSenders()) {
+        if (s.track?.kind == 'audio') await s.replaceTrack(track);
+      }
+    }
+    for (final t in old.getTracks()) {
+      await t.stop();
+    }
+    await old.dispose();
+  }
+
+  /// Plays the call through another speaker or headset.
+  Future<void> setOutput(String deviceId) async {
+    settings = VoiceSettings(input: settings.input, output: deviceId, audioKbps: settings.audioKbps, stereo: settings.stereo, echo: settings.echo, noise: settings.noise, gain: settings.gain, video: settings.video);
+    if (deviceId.isNotEmpty) await Helper.selectAudioOutput(deviceId).catchError((_) {});
+  }
 
   @override
   Future<void> start() async {
-    _mic ??= await navigator.mediaDevices.getUserMedia({
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': false,
-        'autoGainControl': false,
-        'channelCount': 2,
-        'sampleRate': 48000,
-      },
-      'video': false,
-    });
-    if (!kIsWeb && Platform.isAndroid) await Helper.setSpeakerphoneOn(true);
+    _mic ??= await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
+    if (settings.output.isNotEmpty) {
+      await Helper.selectAudioOutput(settings.output).catchError((_) {});
+    } else if (!kIsWeb && Platform.isAndroid) {
+      await Helper.setSpeakerphoneOn(true);
+    }
     if (_meter == null) {
       try {
         final meter = await createPeerConnection({'iceServers': <Map<String, Object>>[], 'sdpSemantics': 'unified-plan'});
@@ -188,7 +244,7 @@ class RtcMedia implements VoiceMedia {
     if (on && _cam == null) {
       _cam = await navigator.mediaDevices.getUserMedia({
         'audio': false,
-        'video': {'width': 1920, 'height': 1080, 'frameRate': 30, 'facingMode': 'user'},
+        'video': {'width': settings.videoSize.width, 'height': settings.videoSize.height, 'frameRate': 30, 'facingMode': 'user'},
       });
       localVideo.value = _cam;
     } else if (!on && _cam != null) {
@@ -277,7 +333,7 @@ class _RtcPeer implements VoicePeer {
     await pc.addTransceiver(track: mic, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, streams: [media._mic!]));
     await pc.addTransceiver(
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
-      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: videoFor(media._peers.length).bitrate, maxFramerate: 30, scaleResolutionDownBy: videoFor(media._peers.length).scale)]),
+      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: math.min(videoFor(media._peers.length).bitrate, media.settings.videoCap), maxFramerate: 30, scaleResolutionDownBy: videoFor(media._peers.length).scale)]),
     );
     if (media._camTrack != null) await showCamera(media._camTrack);
   }
@@ -305,7 +361,7 @@ class _RtcPeer implements VoicePeer {
       final encodings = p.encodings;
       if (encodings == null || encodings.isEmpty) continue;
       for (final e in encodings) {
-        e.maxBitrate = kind == 'audio' ? RtcMedia.audioBitrate : v.bitrate;
+        e.maxBitrate = kind == 'audio' ? media.audioBitrate : math.min(v.bitrate, media.settings.videoCap);
         if (kind == 'video') e.scaleResolutionDownBy = v.scale;
       }
       if (kind == 'video') p.degradationPreference = RTCDegradationPreference.BALANCED;
@@ -328,7 +384,7 @@ class _RtcPeer implements VoicePeer {
     final c = await pc;
     await _addOwn(c);
     final offer = await c.createOffer();
-    final sdp = highestOpus(offer.sdp ?? '');
+    final sdp = highestOpus(offer.sdp ?? '', kbps: media.settings.audioKbps, stereo: media.settings.stereo);
     await c.setLocalDescription(RTCSessionDescription(sdp, 'offer'));
     await _highest(c);
     return sdp;
@@ -341,7 +397,7 @@ class _RtcPeer implements VoicePeer {
     await _settled(c);
     await _fillOwn(c);
     final answer = await c.createAnswer();
-    final mine = highestOpus(answer.sdp ?? '');
+    final mine = highestOpus(answer.sdp ?? '', kbps: media.settings.audioKbps, stereo: media.settings.stereo);
     await c.setLocalDescription(RTCSessionDescription(mine, 'answer'));
     await _highest(c);
     return mine;

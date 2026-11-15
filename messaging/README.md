@@ -495,6 +495,16 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
+- **Voice settings, and device pills on the mic and deafen buttons** (0.7.24, not released; Matt, 2026-11-15:
+  "update the UI on phone and desktop to be able to have voice settings to change all kinds of things like bitrates
+  and sound input devices etc etc, on the microphone icon and the deafen icon make them pill shaped with a little
+  chevron facing up that opens a popover to select input and output devices respectively"). Settings › Voice and
+  video (`lib/ui/voice_pane.dart`, `VoiceSettings` in `lib/voice/voice_settings.dart`): microphone and speaker,
+  audio bitrate (510, 256, 128, 64, 32 kb/s), stereo, echo cancellation, noise suppression, automatic gain, and the
+  largest video sent (1080p, 720p, 480p). In a call the mute and deafen buttons are pills with an upward chevron
+  (`DevicePill`); the chevron opens a menu above it of input or output devices and "Voice settings…". A new input
+  replaces the track in every connection at once (`RtcMedia.setInput`). Suggested replies have a gap below them
+  over the composer (Matt: "there needs to be a gap below the suggested responses").
 - **The pill shrinks as Ghost.md's dock does; your own ripples; larger faces on a computer** (0.7.23;
   Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the page and make it get smaller when
   we scroll down just like ghost markdown does match the sizes"; "on desktop it doesn't seem like when i'm talking i
