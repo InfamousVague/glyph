@@ -195,17 +195,19 @@ class _FilterButtonState extends State<FilterButton> {
               ),
               if (widget.hidden > 0)
                 Positioned(
-                  right: -4,
-                  top: -4,
+                  right: -6,
+                  top: -6,
                   child: ExcludeSemantics(
                     child: Container(
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      // As big as the pill's (Matt, 2026-11-15: "make the notification count badges a bit bigger on
+                      // the filter and other places where they're listed").
+                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
                       alignment: Alignment.center,
                       // In the app's accent (Matt, 2026-11-14: "Make the pill indicator on the filters thr same as
                       // the primary color").
-                      decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(9), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                      child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(10, weight: 'bold', height: 1.15, color: t.color('app-on-accent'))),
+                      decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                      child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(13, weight: 'bold', height: 1.15, color: t.color('app-on-accent'))),
                     ),
                   ),
                 ),

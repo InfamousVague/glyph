@@ -1,4 +1,4 @@
-import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:glacier/glacier.dart';
@@ -81,12 +81,19 @@ class _ChannelRow extends StatelessWidget implements PaneRow {
               icon: Lucide.ellipsis,
               label: 'Channel options',
               onPressed: () => showChoices(context, title: channel.name, choices: [
+                Choice('Copy invite link', Lucide.link, () => copyInvite(context, channel)),
                 Choice('Share with friends', Lucide.share2, () => push(context, (_) => ShareChannelScreen(channel: channel))),
                 Choice('Remove channel', Lucide.trash2, () => v.forget(channel), danger: true),
               ]),
             ),
     );
   }
+}
+
+/// Puts [c]'s link on the clipboard: anyone with it can join from a browser (site/join).
+void copyInvite(BuildContext context, VoiceChannel c) {
+  Clipboard.setData(ClipboardData(text: c.link));
+  toast(context, 'Invite link copied. Anyone with it can join ${c.name} from a browser.');
 }
 
 /// Everyone in the channel you're in, and the buttons.
@@ -120,7 +127,7 @@ class CallPanel extends StatelessWidget {
       builder: (context, _) {
         final tiles = <Widget>[
           _Tile(name: 'You', muted: session.muted || session.deafened, stream: media?.localVideo.value, mirror: true),
-          for (final m in session.members.values) _Tile(name: v.nameOf(m.id), muted: m.muted, stream: m.video ? media?.remote.value[m.id] : null),
+          for (final m in session.members.values) _Tile(name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), muted: m.muted, stream: m.video ? media?.remote.value[m.id] : null),
         ];
         return ClipRRect(
           borderRadius: BorderRadius.circular(t.radius('xl')),
@@ -129,7 +136,11 @@ class CallPanel extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(t.space(4)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(session.channel.name, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+                Row(children: [
+                  Expanded(child: Text(session.channel.name, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
+                  // A hangout's, not a group's: a group's channel is its members' alone.
+                  if (session.channel.group == null) IconTap(icon: Lucide.link, label: 'Copy invite link', size: 18, onPressed: () => copyInvite(context, session.channel)),
+                ]),
                 Text(session.members.isEmpty ? 'Just you so far' : '${session.members.length + 1} connected', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                 SizedBox(height: t.space(3)),
                 LayoutBuilder(builder: (context, box) {

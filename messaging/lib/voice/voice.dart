@@ -54,6 +54,13 @@ class VoiceChannel {
 
   Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1};
 
+  /// A link anyone can open in a browser to hop in, as a guest or signed up (site/join; Matt, 2026-11-14: "Make the
+  /// voice hangouts possible to share via a link so people can join to talk anonymously or sign up through the
+  /// browser similar to a zoom meeting"). The seed is in the part after the #, which a browser never sends to any
+  /// server, so the link opens the channel and the relay still can't read it. Whoever has it is in, as with a
+  /// meeting link.
+  String get link => 'https://ghost-sms.com/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}';
+
   static VoiceChannel? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || (j['s'] as String).length != 64 || j['n'] is! String) return null;
     return VoiceChannel(seed: j['s'] as String, name: j['n'] as String, mine: j['m'] == 1);
@@ -119,12 +126,15 @@ abstract class VoiceMedia {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false});
   final String id;
   final String name;
   final bool muted;
   final bool video;
-  VoiceMember copyWith({String? name, bool? muted, bool? video}) => VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video);
+
+  /// Joined from a browser by the link, with no username: a guest.
+  final bool guest;
+  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest}) => VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -245,7 +255,7 @@ class VoiceSession extends ChangeNotifier {
     switch (m['t']) {
       case 'me':
         final had = members[from] ?? VoiceMember(from);
-        members[from] = had.copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true);
+        members[from] = had.copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true);
         notifyListeners();
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));

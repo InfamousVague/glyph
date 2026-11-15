@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join a hangout · Ghost Messaging</title>
+<meta name="description" content="Join a Ghost Messaging hangout from your browser: voice and video, sealed between the people in it.">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --tile: #e6e6e8; --ink: #0e0e10; --ink2: #55565c; --rule: #e3e3e6; --red: #dd3a30; --green: #2fb35a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --tile: #1c1c1f; --ink: #f2f2f3; --ink2: #a3a4ab; --rule: #232326; } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  main { max-width: 64rem; margin: 0 auto; padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom)); min-height: 100%; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 0.75rem; }
+  header img { width: 2.25rem; height: 2.25rem; border-radius: 0.65rem; }
+  header a { color: var(--ink2); font-size: 0.9rem; text-decoration: none; margin-left: auto; }
+  h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); letter-spacing: -0.03em; line-height: 1.1; margin: 2rem 0 0.4rem; overflow-wrap: anywhere; }
+  .sub { color: var(--ink2); margin: 0 0 1.5rem; }
+  .card { background: var(--card); border-radius: 1.25rem; padding: 1.1rem; }
+  .lobby { display: grid; gap: 1rem; grid-template-columns: 1fr; max-width: 34rem; }
+  .preview { aspect-ratio: 4 / 3; background: var(--tile); border-radius: 1rem; overflow: hidden; position: relative; display: grid; place-items: center; }
+  .preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .preview .face { width: 4.5rem; height: 4.5rem; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 1.6rem; }
+  label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
+  input[type=text] { width: 100%; font: inherit; padding: 0.75rem 1rem; border-radius: 0.8rem; border: 1.5px solid var(--rule); background: var(--bg); color: var(--ink); }
+  .row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; cursor: pointer; border: 0; }
+  .primary { background: var(--ink); color: var(--bg); font-weight: 650; padding: 0.85rem 1.6rem; border-radius: 999px; font-size: 1.05rem; }
+  .primary:disabled { opacity: 0.5; cursor: default; }
+  .quiet { background: transparent; color: var(--ink); border: 1.5px solid var(--rule); padding: 0.6rem 1rem; border-radius: 999px; font-weight: 600; }
+  .link { background: none; color: var(--ink2); text-decoration: underline; padding: 0; font-size: 0.95rem; }
+  .round { width: 3.4rem; height: 3.4rem; border-radius: 50%; display: grid; place-items: center; background: var(--card); border: 1.5px solid var(--rule); color: var(--ink); }
+  .round.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .round.leave { background: var(--red); color: #fff; border-color: var(--red); }
+  .round svg { width: 1.35rem; height: 1.35rem; }
+  .note { color: var(--ink2); font-size: 0.9rem; margin: 0.6rem 0 0; }
+  .error { color: var(--red); font-size: 0.95rem; margin: 0.5rem 0 0; }
+  .grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); flex: 1; align-content: start; margin-top: 1rem; }
+  .tile { aspect-ratio: 4 / 3; background: var(--tile); border-radius: 1rem; overflow: hidden; position: relative; display: grid; place-items: center; }
+  .tile video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+  .tile.me video { transform: scaleX(-1); }
+  .tile .face { width: 4rem; height: 4rem; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 1.5rem; }
+  .tile .who { position: absolute; left: 0.6rem; bottom: 0.5rem; right: 0.6rem; font-weight: 600; font-size: 0.95rem; display: flex; gap: 0.35rem; align-items: center; text-shadow: 0 0 6px rgba(0,0,0,0.25); }
+  .tile.has-video .who { color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+  .tile .who small { font-weight: 400; opacity: 0.75; }
+  .tile .who svg { width: 0.95rem; height: 0.95rem; color: var(--red); flex: none; }
+  .bar { position: sticky; bottom: 0; display: flex; justify-content: center; gap: 0.9rem; padding: 1rem 0 0.25rem; background: linear-gradient(transparent, var(--bg) 35%); }
+  .center { text-align: center; margin: auto; max-width: 28rem; }
+  [hidden] { display: none !important; }
+  dialog { border: 0; border-radius: 1.25rem; background: var(--bg); color: var(--ink); max-width: min(26rem, calc(100% - 2rem)); padding: 1.4rem; }
+  dialog::backdrop { background: rgba(0,0,0,0.45); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/icon.png" alt="">
+    <b>Ghost Messaging</b>
+    <a href="/">Get the app</a>
+  </header>
+
+  <!-- Not a hangout link. -->
+  <section id="bad" class="center" hidden>
+    <h1>This link isn't a hangout</h1>
+    <p class="sub">Ask whoever sent it for the whole link: it ends with a long string of letters and numbers after a #.</p>
+  </section>
+
+  <!-- Before joining: who is here, your name, your microphone and camera. -->
+  <section id="lobby" hidden>
+    <h1 id="title">Hangout</h1>
+    <p class="sub" id="here">Connecting…</p>
+    <div class="lobby">
+      <div class="preview" id="preview"><div class="face" id="preview-face">?</div></div>
+      <div class="row">
+        <button class="round on" id="lobby-mic" aria-label="Microphone on"></button>
+        <button class="round" id="lobby-cam" aria-label="Camera off"></button>
+        <span class="note" id="devices"></span>
+      </div>
+      <div class="card">
+        <label for="name">Your name</label>
+        <input type="text" id="name" maxlength="40" autocomplete="nickname" placeholder="Guest">
+        <p class="note" id="who-note">You join as a guest. Nobody needs your number or an account.</p>
+        <p class="note"><button class="link" id="signup-open">Sign up with a username</button></p>
+      </div>
+      <div class="row">
+        <button class="primary" id="join">Join</button>
+      </div>
+      <p class="error" id="lobby-error" hidden></p>
+      <p class="note">What's said here goes between the people in the hangout, sealed with a key from this link. Our server only helps you find each other.</p>
+    </div>
+  </section>
+
+  <!-- In the hangout. -->
+  <section id="call" hidden style="display:flex;flex-direction:column;flex:1">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h1 id="call-title" style="margin-top:1.25rem">Hangout</h1>
+        <p class="sub" id="call-here" style="margin:0"></p>
+      </div>
+      <button class="quiet" id="copy">Copy link</button>
+    </div>
+    <div class="grid" id="tiles"></div>
+    <p class="error" id="call-error" hidden></p>
+    <div class="bar">
+      <button class="round" id="mic" aria-label="Mute"></button>
+      <button class="round" id="cam" aria-label="Turn video on"></button>
+      <button class="round leave" id="leave" aria-label="Leave"></button>
+    </div>
+  </section>
+
+  <!-- Left. -->
+  <section id="left" class="center" hidden>
+    <h1>You left the hangout</h1>
+    <p class="sub">It stays open: come back any time with the same link.</p>
+    <button class="primary" id="rejoin">Join again</button>
+  </section>
+</main>
+
+<dialog id="signup">
+  <h2 style="margin-top:0">Sign up</h2>
+  <p class="note" style="margin-top:0">A username people can find you by on Ghost Messaging. It's tied to this browser: there's no password, and nothing else about you is kept.</p>
+  <label for="username" style="margin-top:1rem">Username</label>
+  <input type="text" id="username" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="maya">
+  <p class="error" id="signup-error" hidden></p>
+  <div class="row" style="margin-top:1rem;justify-content:flex-end">
+    <button class="quiet" id="signup-cancel">Not now</button>
+    <button class="primary" id="signup-claim">Claim it</button>
+  </div>
+</dialog>
+
+<script type="module">
+import { readLink, identity, connectHub, Hangout } from './voice.js';
+
+const $ = (id) => document.getElementById(id);
+const icons = {
+  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/></svg>',
+  micOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19v3"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M16.95 16.95A7 7 0 0 1 5 12v-2"/><path d="M18.89 13.23A7 7 0 0 0 19 12v-2"/><path d="m2 2 20 20"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/></svg>',
+  cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>',
+  camOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196"/><path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><path d="m2 2 20 20"/></svg>',
+  leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-12.728-5.272"/><path d="M22 2 2 22"/><path d="M4.76 13.582A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 .244.473"/></svg>',
+};
+const show = (id) => { for (const s of ['bad', 'lobby', 'call', 'left']) $(s).hidden = s !== id; };
+const store = { get: (k) => { try { return localStorage.getItem(k) ?? ''; } catch (_) { return ''; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} } };
+const initial = (n) => (n.replace('@', '').trim()[0] ?? '?').toUpperCase();
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+const link = readLink(location.hash);
+if (!link) { show('bad'); throw new Error('not a hangout link'); }
+document.title = link.name + ' · Ghost Messaging';
+for (const id of ['title', 'call-title']) $(id).textContent = link.name;
+show('lobby');
+
+// The hub is this site's own, unless a test names another (?hub=ws://…).
+const hubUrl = new URLSearchParams(location.search).get('hub') ?? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/hub`;
+let username = store.get('ghost-voice-username');
+$('name').value = store.get('ghost-voice-name') || (username ? '@' + username : '');
+const me = await identity(true);
+let hub, hangout;
+let wantMic = true, wantCam = false, preview = null;
+
+function rename() {
+  $('preview-face').textContent = initial($('name').value || 'Guest');
+  $('who-note').textContent = username ? `Signed up as @${username}.` : 'You join as a guest. Nobody needs your number or an account.';
+  $('signup-open').hidden = !!username;
+}
+rename();
+$('name').addEventListener('input', rename);
+
+function paintToggles() {
+  $('lobby-mic').innerHTML = wantMic ? icons.mic : icons.micOff;
+  $('lobby-mic').classList.toggle('on', !wantMic);
+  $('lobby-mic').setAttribute('aria-label', wantMic ? 'Microphone on' : 'Microphone off');
+  $('lobby-cam').innerHTML = wantCam ? icons.cam : icons.camOff;
+  $('lobby-cam').classList.toggle('on', wantCam);
+  $('lobby-cam').setAttribute('aria-label', wantCam ? 'Camera on' : 'Camera off');
+  $('devices').textContent = (wantMic ? 'Microphone on' : 'Muted') + ' · ' + (wantCam ? 'camera on' : 'camera off');
+}
+paintToggles();
+$('lobby-mic').onclick = () => { wantMic = !wantMic; paintToggles(); };
+$('lobby-cam').onclick = async () => {
+  wantCam = !wantCam;
+  paintToggles();
+  if (wantCam) {
+    try {
+      preview = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720, facingMode: 'user' } });
+      const v = document.createElement('video');
+      Object.assign(v, { autoplay: true, muted: true, playsInline: true, srcObject: preview });
+      $('preview').replaceChildren(v);
+    } catch (e) {
+      wantCam = false;
+      paintToggles();
+      error('lobby-error', 'The camera couldn’t be opened: ' + e.message);
+    }
+  } else {
+    for (const t of preview?.getTracks() ?? []) t.stop();
+    preview = null;
+    $('preview').replaceChildren(Object.assign(document.createElement('div'), { className: 'face', id: 'preview-face', textContent: initial($('name').value || 'Guest') }));
+  }
+};
+
+function error(id, words) { $(id).textContent = words; $(id).hidden = !words; }
+
+async function connect() {
+  try {
+    hub = await connectHub(hubUrl, me);
+    hangout = new Hangout(hub, link.seed, paint);
+    await hangout.prepare();
+  } catch (e) {
+    $('here').textContent = 'The relay server can’t be reached right now.';
+    error('lobby-error', e.message);
+  }
+}
+await connect();
+// For tool/voicebench/join_test.mjs: the hangout as it stands.
+window.ghostHangout = () => hangout;
+
+function paint() {
+  if (!hangout) return;
+  const n = hangout.here.length;
+  $('here').textContent = n === 0 ? 'Nobody is here yet. Be the first.' : plural(n, 'person is', 'people are') + ' here.';
+  if (!hangout.joined) return;
+  const people = hangout.members.size + 1;
+  $('call-here').textContent = people === 1 ? 'Just you so far' : plural(people, 'person', 'people') + ' here';
+  $('mic').innerHTML = hangout.muted ? icons.micOff : icons.mic;
+  $('mic').classList.toggle('on', hangout.muted);
+  $('mic').setAttribute('aria-label', hangout.muted ? 'Unmute' : 'Mute');
+  $('cam').innerHTML = hangout.video ? icons.cam : icons.camOff;
+  $('cam').classList.toggle('on', hangout.video);
+  $('cam').setAttribute('aria-label', hangout.video ? 'Turn video off' : 'Turn video on');
+  $('leave').innerHTML = icons.leave;
+  const tiles = [{ id: 'me', name: (hangout.name || 'Guest') + ' (you)', muted: hangout.muted, stream: hangout.cam, me: true }];
+  for (const [id, m] of hangout.members) tiles.push({ id, name: m.name || 'Someone', guest: m.guest, muted: m.muted, stream: m.video ? m.stream : null, audio: m.stream });
+  const box = $('tiles');
+  const kept = new Map([...box.children].map((el) => [el.dataset.id, el]));
+  const order = [];
+  for (const t of tiles) {
+    let el = kept.get(t.id);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'tile' + (t.me ? ' me' : '');
+      el.dataset.id = t.id;
+      el.innerHTML = '<div class="face"></div><div class="who"><span class="n"></span><small class="g"></small><span class="m"></span></div>';
+      if (!t.me) { const a = document.createElement('audio'); a.autoplay = true; el.append(a); }
+    }
+    el.querySelector('.face').textContent = initial(t.name);
+    el.querySelector('.n').textContent = t.name;
+    el.querySelector('.g').textContent = t.guest ? 'guest' : '';
+    el.querySelector('.m').innerHTML = t.muted ? icons.micOff : '';
+    let v = el.querySelector('video');
+    if (t.stream) {
+      if (!v) { v = document.createElement('video'); Object.assign(v, { autoplay: true, playsInline: true, muted: true }); el.prepend(v); }
+      if (v.srcObject !== t.stream) v.srcObject = t.stream;
+    } else if (v) v.remove();
+    el.classList.toggle('has-video', !!t.stream);
+    const a = el.querySelector('audio');
+    if (a && t.audio && a.srcObject !== t.audio) a.srcObject = t.audio;
+    order.push(el);
+  }
+  box.replaceChildren(...order);
+  if (hangout.lost) error('call-error', 'The connection to the relay server was lost. Leave and join again.');
+}
+
+$('join').onclick = async () => {
+  const name = $('name').value.trim() || (username ? '@' + username : 'Guest');
+  store.set('ghost-voice-name', $('name').value.trim());
+  $('join').disabled = true;
+  error('lobby-error', '');
+  try {
+    if (!hub?.up) await connect();
+    for (const t of preview?.getTracks() ?? []) t.stop();
+    preview = null;
+    await hangout.join({ name, guest: !username, audio: wantMic, video: wantCam });
+    show('call');
+    paint();
+  } catch (e) {
+    error('lobby-error', e.name === 'NotAllowedError' ? 'Allow the microphone to join: your browser asks for it.' : e.message);
+  } finally {
+    $('join').disabled = false;
+  }
+};
+$('mic').onclick = () => hangout.setMuted(!hangout.muted);
+$('cam').onclick = () => hangout.setVideo(!hangout.video).catch((e) => error('call-error', 'The camera couldn’t be opened: ' + e.message));
+$('leave').onclick = () => { hangout.leave(); show('left'); };
+$('rejoin').onclick = () => { show('lobby'); paint(); };
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(location.href); $('copy').textContent = 'Copied'; setTimeout(() => ($('copy').textContent = 'Copy link'), 1800); } catch (_) {}
+};
+addEventListener('beforeunload', () => { if (hangout?.joined) hangout.leave(); });
+
+// Sign up: a username on the relay's directory, for this browser's key.
+$('signup-open').onclick = () => { error('signup-error', ''); $('signup').showModal(); };
+$('signup-cancel').onclick = () => $('signup').close();
+$('signup-claim').onclick = async () => {
+  const want = $('username').value.trim().toLowerCase().replace(/^@+/, '');
+  if (!/^[a-z0-9][a-z0-9._]{2,19}$/.test(want) || want.includes('..')) return error('signup-error', 'A username is 3 to 20 letters, numbers, dots or underscores.');
+  try {
+    const got = await hub.dir({ dir: 'claim', name: want }, 'claim');
+    if (!got.ok) return error('signup-error', got.err === 'taken' ? `@${want} is taken.` : 'That username can’t be used.');
+    username = want;
+    store.set('ghost-voice-username', want);
+    if (!$('name').value.trim()) $('name').value = '@' + want;
+    rename();
+    $('signup').close();
+  } catch (e) {
+    error('signup-error', e.message);
+  }
+};
+</script>
+</body>
+</html>
