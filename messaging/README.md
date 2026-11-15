@@ -454,6 +454,9 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
     Spam, each kind, Personal & other) with their counts; nothing is ticked to begin with. Delete asks again, then
     deletes one conversation at a time with a moving bar, "Deleting 3 of 10", and a Stop that leaves the rest. The
     list's host can now `present` a page, `deleteThread` and `reload`; `ListPlace.groups` carries the groups.
+  - **Each plugin's page has its switch at the top** ("Plugins should be able to be toggled on and off from the top
+    of each plugin setting page"). Its row in Settings stays while it is off, saying Off, and its page then holds the
+    switch alone.
   - **Your day is not shipped** for now ("remove the plugin that gives you the digest for now"); `day.dart` stays.
   - **Notifications & receipts** (shown) and **Likely scams** (hidden), from a second sample of the phone ("there is
     still a lot of messages that are unsorted that are spam or confirmation based things that land in personal

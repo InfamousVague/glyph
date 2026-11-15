@@ -914,16 +914,18 @@ void main() {
       expect(find.text('Mark as read when copied'), findsNothing);
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-codes'), '12-plugins-settings-codes', dark: dark);
       expect(find.text('Mark as read when copied'), findsOneWidget);
-      // Settings' list: Codes, Kinds of text and the Spam filter under Plugins; the Spam filter's row goes while it
-      // is switched off.
+      // Settings' list: Codes, Kinds of text and the Spam filter under Plugins; the Spam filter's row stays while it
+      // is switched off, saying so, so it can be switched back on from its page.
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list', dark: dark);
       expect(find.text('Spam filter'), findsOneWidget);
       expect(find.text('Kinds of text'), findsOneWidget);
       await _shoot(tester, sheet, const SettingsScreen(), '12-plugins-settings-list-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.text('Spam filter'), findsNothing);
-      // A section whose plugin is off is not there to open: Settings itself is.
+      expect(find.text('Spam filter'), findsOneWidget);
+      // A plugin's page has its switch at the top (Matt, 2026-11-14: "Plugins should be able to be toggled on and
+      // off from the top of each plugin setting page"); off, that is all it has.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.byType(GlacierSearchField), findsOneWidget);
+      expect(find.byType(GlacierSwitch), findsOneWidget);
+      expect(tester.widget<GlacierSwitch>(find.byType(GlacierSwitch)).checked, isFalse);
       expect(find.text('Mute conversations in Spam'), findsNothing);
       // Kinds of text's own page: each kind, said in a line.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-kinds'), '12-plugins-settings-kinds', dark: dark);
