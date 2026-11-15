@@ -66,8 +66,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   unawaited(Voice.instance.start(state));
   // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
   // opens whether or not the site answers.
-  // A Mac's alone: it swaps in the Mac's zip. Windows is updated by running the new installer from ghost-sms.com.
-  final macUpdates = updates && Platform.isMacOS ? MacUpdates.fromEnvironment(env) : null;
+  // A Mac swaps in the Mac's zip; Windows runs the new installer from ghost-sms.com, silently, on Restart to update.
+  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
   if (macUpdates != null) {
     // Told to the phone's screens too, so its banner and its words are the computer's (remote.dart).
     calls.attachUpdates(macUpdates);

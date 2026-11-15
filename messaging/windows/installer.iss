@@ -2,7 +2,8 @@
 ; Built by .github/workflows/messaging-windows.yml after `flutter build windows`, with the version passed in:
 ;   iscc /DAppVersion=0.7.21 /DSource=build\windows\x64\runner\Release windows\installer.iss
 ; It installs for the person alone (no administrator), into their own Programs folder, with a Start menu entry and
-; an uninstaller; running a newer one over it updates it in place. The AppId stays the same for every version.
+; an uninstaller; running a newer one over it updates it in place, which the app does itself (silently, then
+; reopened) when the person chooses Restart to update. The AppId stays the same for every version.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -46,3 +47,5 @@ Name: "{userdesktop}\Ghost Messaging"; Filename: "{app}\ghost_messaging.exe"; Ta
 
 [Run]
 Filename: "{app}\ghost_messaging.exe"; Description: "Open Ghost Messaging"; Flags: nowait postinstall skipifsilent
+; The app's own update (lib/desktop/updates.dart, WindowsUpdateHost) runs this silently and quits: open it again.
+Filename: "{app}\ghost_messaging.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent
