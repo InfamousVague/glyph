@@ -52,7 +52,9 @@ void _logErrors() {
 
 Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
-  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
+  // An iPhone has no texts for an app to read (Apple allows it only in the EU, to the default messaging app), so it
+  // is a companion to the person's Android phone in the same way (Matt, 2026-11-15: "port the app to work on iOS").
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux || Platform.isIOS) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
