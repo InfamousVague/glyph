@@ -25,6 +25,8 @@ abstract final class LucideMore {
   static const hand = LucideIcon('hand', ['M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2', 'M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2', 'M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8', 'M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15'], []);
   static const slidersHorizontal = LucideIcon('sliders-horizontal', ['M10 5H3', 'M12 19H3', 'M14 3v4', 'M16 17v4', 'M21 12h-9', 'M21 19h-5', 'M21 5h-7', 'M8 10v4', 'M8 12H3'], []);
   static const type = LucideIcon('type', ['M12 4v16', 'M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2', 'M9 20h6'], []);
+  // Settings › Voice and video's Music mode.
+  static const music = LucideIcon('music', ['M9 18V5l12-2v13', 'M3 18A3 3 0 1 0 9 18A3 3 0 1 0 3 18Z', 'M15 16A3 3 0 1 0 21 16A3 3 0 1 0 15 16Z'], [1, 2]);
   static const audioLines = LucideIcon('audio-lines', ['M2 10v3', 'M6 6v11', 'M10 3v18', 'M14 8v7', 'M18 5v13', 'M22 10v3'], []);
   static const spellCheck = LucideIcon('spell-check', ['m20 15-5.5 5.5L12 18', 'm4 16 6-12 5.115 10.23', 'M6 12h8'], []);
   static const braces = LucideIcon('braces', ['M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1', 'M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1'], []);

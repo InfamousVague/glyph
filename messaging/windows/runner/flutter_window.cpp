@@ -1,5 +1,7 @@
 #include "flutter_window.h"
 
+#include "voice_fx.h"
+
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -25,6 +27,8 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  // The microphone's processing in calls (voice_fx.cpp), after flutter_webrtc is registered.
+  RegisterVoiceFx(flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

@@ -80,6 +80,9 @@ class MainActivity : FlutterActivity() {
             override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; NetSms.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
+        // The microphone's processing in calls (VoiceFx.kt).
+        VoiceFx.register(messenger)
+
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.
         DartAsk.channel = calls

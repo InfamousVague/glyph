@@ -126,6 +126,9 @@ if (!read('security', ['find-identity', '-v', '-p', 'codesigning']).includes(`"$
 
 // --- the build ------------------------------------------------------------------------------------------------------
 
+// DeepFilterNet for calls (native/voicefx/deepfilter), built fresh so the app carries it; without it, RNNoise alone.
+say('> Building DeepFilterNet for calls');
+run('sh', [join(ROOT, 'native/voicefx/deepfilter/build.sh')], { cwd: ROOT });
 run('flutter', ['build', 'macos', '--release', `--build-name=${versionName}`, `--build-number=${versionCode}`], { cwd: ROOT });
 const built = join(ROOT, 'build/macos/Build/Products/Release', APP);
 if (!existsSync(join(built, 'Contents/Info.plist'))) fail(`No app at ${built}.`);

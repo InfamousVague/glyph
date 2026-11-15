@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import 'package:flutter/widgets.dart';
@@ -17,6 +18,7 @@ import '../sms.dart';
 import 'common.dart';
 import '../voice/rtc.dart';
 import 'shell.dart';
+import 'nav_bar.dart';
 import 'ripple_avatar.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
@@ -48,7 +50,7 @@ class VoiceScreen extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
                 children: [CallPanel(session: s)],
               ),
-              Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + t.space(4), child: Center(child: CallDock(session: s))),
+              Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
             ]),
           );
         }
@@ -198,55 +200,64 @@ class CallDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final red = t.colorOf('#dd3a30');
+    // The size of the sidebar's dock (Matt, 2026-11-15: "the call controls are also too large they should match the
+    // size of the sidebar control dock"): its rings, its frosted pill and the step between them (NavPill), and on a
+    // computer the size that dock rests at (pillScrolledScale).
+    final ring = t.len('app-ring');
+    final gap = t.space(2);
+    final radius = BorderRadius.circular(t.radius('full'));
+    final mark = t.lenOf('1.15rem');
     Widget button(LucideIcon icon, String label, VoidCallback onPress, {bool on = false, bool danger = false}) => GlacierPressable(
           onPressed: onPress,
           semanticLabel: label,
           builder: (context, state) => Container(
-            width: 52,
-            height: 52,
-            margin: EdgeInsets.symmetric(horizontal: t.space(1)),
+            width: ring,
+            height: ring,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: danger ? red : (on ? t.color('app-ink') : t.color(state.pressed ? 'app-paper-3' : 'app-paper-2')),
-              border: danger || on ? null : Border.all(color: t.color('app-rule')),
+              color: danger ? red.withValues(alpha: state.pressed ? 0.8 : 1) : (on ? t.color('app-ink') : t.color(state.pressed ? 'app-paper-3' : 'glacier-bg')),
+              border: danger || on ? null : Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')),
             ),
             alignment: Alignment.center,
-            child: AppIcon(icon, size: 20, wash: false, color: danger ? const Color(0xFFFFFFFF) : (on ? t.color('app-paper') : t.color('app-ink'))),
+            child: AppIcon(icon, size: mark, wash: false, color: danger ? const Color(0xFFFFFFFF) : (on ? t.color('app-paper') : t.color('app-ink'))),
           ),
         );
-    return ListenableBuilder(
+    final dock = ListenableBuilder(
       listenable: session,
-      builder: (context, _) => Container(
-        padding: EdgeInsets.all(t.space(2)),
-        decoration: BoxDecoration(
-          color: t.color('app-paper'),
-          borderRadius: BorderRadius.circular(t.radius('full')),
-          border: Border.all(color: t.color('app-rule')),
-          boxShadow: t.shadowOf('0 8px 24px rgba(0,0,0,0.12)'),
+      builder: (context, _) => ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: EdgeInsets.all(gap + t.len('glacier-hairline')),
+            foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
+            decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
+            child: Row(mainAxisSize: MainAxisSize.min, spacing: gap, children: [
+              // Pills, each with a chevron that opens the devices to choose from (Matt, 2026-11-15: "on the microphone
+              // icon and the deafen icon make them pill shaped with a little chevron facing up that opens a popover to
+              // select input and output devices respectively").
+              DevicePill(
+                icon: session.muted ? LucideMore.micOff : Lucide.mic,
+                label: session.muted ? 'Unmute' : 'Mute',
+                on: session.muted,
+                onPress: () => session.setMuted(!session.muted),
+                kind: 'audioinput',
+              ),
+              DevicePill(
+                icon: session.deafened ? LucideMore.headphoneOff : LucideMore.headphones,
+                label: session.deafened ? 'Hear again' : 'Deafen',
+                on: session.deafened,
+                onPress: () => session.setDeafened(!session.deafened),
+                kind: 'audiooutput',
+              ),
+              button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
+              button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
+            ]),
+          ),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          // Pills, each with a chevron that opens the devices to choose from (Matt, 2026-11-15: "on the microphone icon
-          // and the deafen icon make them pill shaped with a little chevron facing up that opens a popover to select
-          // input and output devices respectively").
-          DevicePill(
-            icon: session.muted ? LucideMore.micOff : Lucide.mic,
-            label: session.muted ? 'Unmute' : 'Mute',
-            on: session.muted,
-            onPress: () => session.setMuted(!session.muted),
-            kind: 'audioinput',
-          ),
-          DevicePill(
-            icon: session.deafened ? LucideMore.headphoneOff : LucideMore.headphones,
-            label: session.deafened ? 'Hear again' : 'Deafen',
-            on: session.deafened,
-            onPress: () => session.setDeafened(!session.deafened),
-            kind: 'audiooutput',
-          ),
-          button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
-          button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
-        ]),
       ),
     );
+    return Sms.remote ? Transform.scale(scale: pillScrolledScale, alignment: Alignment.bottomCenter, child: dock) : dock;
   }
 }
 
@@ -557,12 +568,41 @@ class VoiceRow extends StatelessWidget {
   }
 }
 
-/// While you're in a call, one face floating over the list: yours, with your speech rippling out of it (Matt,
-/// 2026-11-15: "I like the idea of the active call floating in a single avatar with our speech wobbles coming out").
-/// A green ring says the call is on; a red mark that you're muted. A press opens the call.
-class CallBubble extends StatelessWidget {
-  const CallBubble({super.key, required this.onOpen});
+/// The call you're in, as a banner in the sidebar just above the dock (Matt, 2026-11-15: "switch the active call to
+/// be a banner again in the sidebar just above the navigation bar"): a beating green dot, the channel, how long and
+/// who is talking, their faces rippling, and mute and leave. Pressed, it opens the call.
+class CallBanner extends StatefulWidget {
+  const CallBanner({super.key, required this.onOpen});
   final VoidCallback onOpen;
+
+  @override
+  State<CallBanner> createState() => _CallBannerState();
+}
+
+class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateMixin {
+  late final AnimationController _beat = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // The time in the call, a second at a time.
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && Voice.instance.session != null) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _beat.dispose();
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  static String _clock(Duration d) {
+    final m = d.inMinutes, s = d.inSeconds % 60;
+    return m >= 60 ? '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}' : '$m:${s.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -574,36 +614,77 @@ class CallBubble extends StatelessWidget {
         final s = v.session;
         if (s == null) return const SizedBox.shrink();
         final levels = v.media?.levels ?? s.media.levels;
+        final green = t.colorOf('#2fb35a');
+        final red = t.colorOf('#dd3a30');
         return ListenableBuilder(
           listenable: Listenable.merge([s, levels]),
-          builder: (context, _) => GlacierPressable(
-            onPressed: onOpen,
-            semanticLabel: 'In ${s.channel.name}, ${s.members.length + 1} connected${s.muted ? ', muted' : ''}. Open the call.',
-            builder: (context, state) => Stack(clipBehavior: Clip.none, children: [
-              DecoratedBox(
-                decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: t.shadowOf('0 6px 18px rgba(0,0,0,0.22)')),
-                child: RippleAvatar(name: s.name.isEmpty ? 'You' : s.name, level: levels.value['me'] ?? 0, muted: s.muted || s.deafened, size: Sms.remote ? 64 : 56, ringed: true),
-              ),
-              if (s.muted || s.deafened)
-                Positioned(
-                  right: -2,
-                  bottom: -2,
+          builder: (context, _) {
+            final loud = levels.value;
+            final talking = [
+              if ((loud['me'] ?? 0) > RippleAvatar.talking && !s.muted) ('me', s.name.isEmpty ? 'You' : s.name),
+              for (final m in s.members.values)
+                if ((loud[m.id] ?? 0) > RippleAvatar.talking && !m.muted) (m.id, v.nameOf(m.id)),
+            ];
+            final people = s.members.length + 1;
+            final radius = BorderRadius.circular(t.radius('full'));
+            return GlacierPressable(
+              onPressed: widget.onOpen,
+              semanticLabel: 'In ${s.channel.name}, $people connected${s.muted ? ', muted' : ''}. Open the call.',
+              builder: (context, state) => ClipRRect(
+                borderRadius: radius,
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                   child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#dd3a30'), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                    alignment: Alignment.center,
-                    child: const AppIcon(LucideMore.micOff, size: 11, wash: false, color: Color(0xFFFFFFFF)),
+                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(1) + 2, t.space(1) + 2, t.space(1) + 2),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(green.withValues(alpha: state.pressed ? 0.24 : 0.16), t.colorOf('color-mix(in srgb, var(--glacier-bg) 88%, transparent)')),
+                      borderRadius: radius,
+                      border: Border.all(color: green.withValues(alpha: 0.5), width: 1.5),
+                    ),
+                    child: Row(children: [
+                      FadeTransition(
+                        opacity: Tween(begin: 0.35, end: 1.0).animate(_beat),
+                        child: Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: green)),
+                      ),
+                      SizedBox(width: t.space(2)),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                          Text(s.channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink'))),
+                          Text(
+                            '${_clock(DateTime.now().difference(s.since ?? DateTime.now()))} · ${talking.isEmpty ? (people == 1 ? 'just you' : '$people here') : '${talking.map((x) => x.$2).join(', ')} talking'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: pageText(t, t.fontSize('xs'), color: talking.isEmpty ? t.color('app-ink-3') : green),
+                          ),
+                        ]),
+                      ),
+                      for (final (id, name) in talking.take(3))
+                        Padding(padding: EdgeInsets.only(left: t.space(1)), child: RippleAvatar(name: name, level: loud[id] ?? 0, size: 26)),
+                      SizedBox(width: t.space(2)),
+                      IconTap(icon: s.muted ? LucideMore.micOff : Lucide.mic, label: s.muted ? 'Unmute' : 'Mute', size: 18, color: s.muted ? red : null, onPressed: () => s.setMuted(!s.muted)),
+                      SizedBox(width: t.space(1)),
+                      GlacierPressable(
+                        onPressed: () => v.leave(),
+                        semanticLabel: 'Leave the call',
+                        builder: (context, state) => Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: red.withValues(alpha: state.pressed ? 0.8 : 1)),
+                          alignment: Alignment.center,
+                          child: const AppIcon(LucideMore.phoneOff, size: 16, wash: false, color: Color(0xFFFFFFFF)),
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
-            ]),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 }
-
 
 /// What can be done about someone in the call, from this device (Matt, 2026-11-15: "add the ability to press and hold
 /// on a user to habe options like muting changing volume levels for that user and more"): silence them here, how loud
@@ -816,27 +897,31 @@ class _DevicePillState extends State<DevicePill> {
     final input = widget.kind == 'audioinput';
     final current = input ? v.settings.input : v.settings.output;
     final ink = widget.on ? t.color('app-paper') : t.color('app-ink');
-    final ground = widget.on ? t.color('app-ink') : t.color('app-paper-2');
+    final ground = widget.on ? t.color('app-ink') : t.color('glacier-bg');
     Widget row(String id, String name) => GlacierMenuItem(
           icon: AppIcon(input ? Lucide.mic : LucideMore.headphones, size: 16),
           shortcut: id == current ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16),
           onSelect: () => input ? v.useInput(id) : v.useOutput(id),
           child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
         );
+    final ring = t.len('app-ring');
     return Container(
-      height: 52,
-      margin: EdgeInsets.symmetric(horizontal: t.space(1)),
-      decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(26), border: widget.on ? null : Border.all(color: t.color('app-rule'))),
+      height: ring,
+      decoration: BoxDecoration(
+        color: ground,
+        borderRadius: BorderRadius.circular(ring / 2),
+        border: widget.on ? null : Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')),
+      ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         GlacierPressable(
           onPressed: widget.onPress,
           semanticLabel: widget.label,
           builder: (context, state) => Container(
-            width: 46,
-            height: 52,
+            width: ring - 6,
+            height: ring,
             padding: const EdgeInsets.only(left: 6),
             alignment: Alignment.center,
-            child: AppIcon(widget.icon, size: 20, wash: false, color: ink),
+            child: AppIcon(widget.icon, size: t.lenOf('1.15rem'), wash: false, color: ink),
           ),
         ),
         GlacierMenu(
@@ -852,11 +937,11 @@ class _DevicePillState extends State<DevicePill> {
             onPressed: trigger.toggle,
             semanticLabel: input ? 'Choose a microphone' : 'Choose a speaker',
             builder: (context, state) => Container(
-              width: 30,
-              height: 52,
-              padding: const EdgeInsets.only(right: 8),
+              width: 24,
+              height: ring,
+              padding: const EdgeInsets.only(right: 6),
               alignment: Alignment.center,
-              child: AppIcon(Lucide.chevronUp, size: 16, strokeWidth: 2.4, wash: false, color: ink.withValues(alpha: 0.75)),
+              child: AppIcon(Lucide.chevronUp, size: 14, strokeWidth: 2.4, wash: false, color: ink.withValues(alpha: 0.75)),
             ),
           ),
           children: [
