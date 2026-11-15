@@ -201,7 +201,13 @@ class MainActivity : FlutterActivity() {
                 // hub, and data texts.
                 "netIdentity" -> bg { Net.identity(applicationContext) }
                 // With the members of this phone's groups, whose keys came with the group (Groups.peers).
-                "netPeers" -> bg { Net.peers(applicationContext).let { known -> known + Groups.peers(applicationContext, known.map { it["id"] as String }.toSet()) } }
+                "netPeers" -> bg {
+                    Net.peers(applicationContext).let { known -> known + Groups.peers(applicationContext, known.map { it["id"] as String }.toSet()) }
+                        .let { known -> known + Buddies.peers(applicationContext, known.map { it["id"] as String }.toSet()) }
+                }
+                // Friends by username (Buddies.kt).
+                "buddiesKeep" -> bg { Buddies.keep(applicationContext, call.argument<String>("json") ?: "[]"); null }
+                "buddiesKept" -> bg { Buddies.kept(applicationContext) }
                 "netSign" -> bg { Net.sign(applicationContext, call.argument<ByteArray>("message")!!) }
                 "netSmsAvailable" -> bg { NetSms.available(applicationContext) }
                 "netSmsSend" -> bg { NetSms.send(applicationContext, call.argument<String>("address")!!, call.argument<ByteArray>("bytes")!!); null }

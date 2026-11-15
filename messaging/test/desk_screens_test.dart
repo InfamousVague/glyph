@@ -182,7 +182,9 @@ void main() {
         await tester.tap(find.text('Maya Chen'));
       });
       expect(find.text('Waiting for your phone'), findsOneWidget); // under the text typed while it was away
-      expect(find.textContaining('Connected over the local network'), findsOneWidget);
+      // How the phone is connected is in Settings alone, not under the list's search (Matt, 2026-11-14: "move the
+      // "connected to the relay" into the settings only we don't need to show it on the sidebar").
+      expect(find.textContaining('Connected over the local network'), findsNothing);
       // What only the phone does is not offered here.
       // What the phone does for a computer is offered here as on the phone (Matt: "the desktop app should get all
       // featues its missing from mobile"; "an emoji picker, file upload, voice memo and sticker selector"): a
@@ -222,7 +224,9 @@ void main() {
       expect(find.text('Mom'), findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
       // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
-      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx, middle = tester.getCenter(_nav('Contacts')).dx;
+      // Six rings since Voice joined them: the middle falls between the third and the fourth.
+      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx;
+      final middle = (tester.getCenter(_nav('Contacts')).dx + tester.getCenter(_nav('Voice')).dx) / 2;
       expect(first, lessThan(60));
       expect(last, greaterThan(280));
       expect(middle, closeTo((first + last) / 2, 0.6));

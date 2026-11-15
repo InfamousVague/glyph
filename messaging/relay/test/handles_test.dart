@@ -111,7 +111,7 @@ void main() {
   void Function(Map<String, Object?>) tellOf(String id) => tells[id] ??= (m) => (heard[id] ??= []).add(m);
   void come(Handles to, String id) {
     heard[id] ??= [];
-    to.came(id, tellOf(id));
+    to.came(id, tellOf(id), key: utf8.encode('key of $id'));
   }
 
   void leave(Handles from, String id) => from.went(id, tellOf(id));
@@ -134,6 +134,51 @@ void main() {
     net.bios['$network:${Handles.tidy(network, handle)}'] = 'I am on Ghost Messaging $code';
     await h.said(id, {'dir': 'check', 'p': network, 'handle': handle});
   }
+
+  // Matt, 2026-11-14: "create a profile and username under "me" to register a username and add friends on the
+  // platform".
+  test('usernames: claimed once, found by anyone, kept only as hashes, and given up', () async {
+    expect(Handles.goodName('Matt_W'), isTrue);
+    expect(Handles.goodName('ab'), isFalse);
+    expect(Handles.goodName('admin'), isFalse);
+    expect(Handles.goodName('a..b'), isFalse);
+    expect(Handles.nameKey('@Matt'), Handles.nameKey('matt'));
+    await h.said(alice, {'dir': 'claim', 'name': 'Maya'});
+    expect(last(alice, 'claim'), containsPair('ok', true));
+    // Taken: Bob cannot have it, whatever case he types.
+    await h.said(bob, {'dir': 'claim', 'name': 'MAYA'});
+    expect(last(bob, 'claim'), containsPair('err', 'taken'));
+    // Found by its name: the install and its key, to seal what is sent to it.
+    await h.said(bob, {'dir': 'whois', 'name': '@maya'});
+    expect(last(bob, 'whois'), {'dir': 'whois', 'name': 'maya', 'id': alice, 'key': base64Encode(utf8.encode('key of $alice'))});
+    await h.said(bob, {'dir': 'whois', 'name': 'nobody'});
+    expect(last(bob, 'whois'), containsPair('none', true));
+    // A new one gives the old one up.
+    await h.said(alice, {'dir': 'claim', 'name': 'maya.chen'});
+    await h.said(bob, {'dir': 'whois', 'name': 'maya'});
+    expect(last(bob, 'whois'), containsPair('none', true));
+    await h.said(bob, {'dir': 'claim', 'name': 'maya'});
+    expect(last(bob, 'claim'), containsPair('ok', true));
+    // Kept across a restart, as hashes: the file has no usernames in it.
+    h.save();
+    final file = File('${dir.path}/handles.json').readAsStringSync();
+    expect(file, isNot(contains('maya')));
+    final again = Handles(dataDir: dir, config: config, fetch: net.fetch)..load();
+    come(again, carol);
+    await again.said(carol, {'dir': 'whois', 'name': 'maya.chen'});
+    expect(last(carol, 'whois'), containsPair('id', alice));
+    // Given up.
+    come(again, alice);
+    await again.said(alice, {'dir': 'release'});
+    await again.said(carol, {'dir': 'whois', 'name': 'maya.chen'});
+    expect(last(carol, 'whois'), containsPair('none', true));
+    // Not walked through: lookups are limited.
+    for (var i = 0; i < Handles.lookupsAnHour; i++) {
+      await again.said(carol, {'dir': 'whois', 'name': 'name$i'});
+    }
+    await again.said(carol, {'dir': 'whois', 'name': 'maya'});
+    expect(last(carol, 'err'), containsPair('about', 'whois'));
+  });
 
   test('a handle is tidied and hashed the same however it is written', () {
     expect(Handles.keyOf('discord', '@Maya'), Handles.keyOf('discord', ' maya '));

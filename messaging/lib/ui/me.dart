@@ -17,7 +17,9 @@ import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../me/network_marks.g.dart';
 import '../sms.dart';
+import '../friends/buddies.dart';
 import 'common.dart';
+import 'profile.dart';
 import 'settings.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -117,6 +119,30 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
   final me = Me.instance;
   return [
     const _Wake(),
+    // A username and a profile, and friends by username (lib/ui/profile.dart; Matt, 2026-11-14: "create a profile
+    // and username under "me" to register a username and add friends on the platform").
+    if (!Sms.remote)
+      PaneSection(
+        title: 'Profile',
+        children: [
+          SettingRow(
+            icon: _icon(Lucide.atSign),
+            label: me.username == null ? 'Choose a username' : '@${me.username}',
+            hint: Text(me.username == null ? 'So friends can find and add you' : (me.displayName.isEmpty ? 'Add your name and a line about you' : me.displayName)),
+            onPress: () => push(context, (_) => const ProfileScreen()),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.users),
+            label: 'Friends',
+            hint: Text(Buddies.instance.requests.isNotEmpty
+                ? '${Buddies.instance.requests.length} asked you'
+                : Buddies.instance.friends.isEmpty
+                    ? 'Add friends by username'
+                    : '${Buddies.instance.friends.length} friend${Buddies.instance.friends.length == 1 ? '' : 's'}'),
+            onPress: () => push(context, (_) => const BuddiesScreen()),
+          ),
+        ],
+      ),
     PaneSection(
       title: 'You',
       children: [

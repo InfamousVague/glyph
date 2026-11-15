@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.7.20+32
+version: 0.7.21+33
 
 environment:
   sdk: ^3.11.0
@@ -14,6 +14,9 @@ dependencies:
     path: packages/glacier
   pointycastle: ^4.0.0
   qr: ^4.0.1
+  # Voice and video channels and group calls (lib/voice; Matt, 2026-11-14: "jump in audio chats like discord has
+  # always open voice channels"): WebRTC, the sound and picture going between the phones directly.
+  flutter_webrtc: 1.6.3
 
 dev_dependencies:
   flutter_test:

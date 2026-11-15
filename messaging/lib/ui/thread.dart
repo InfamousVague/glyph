@@ -25,6 +25,10 @@ import '../sms.dart';
 import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
+import 'shell.dart';
+import 'voice_screen.dart';
+import '../voice/voice.dart';
+import '../voice/channels.dart';
 import 'encryption.dart';
 import 'message_popover.dart';
 import 'sticker_picker.dart';
@@ -690,6 +694,32 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   /// The conversation's own settings (lib/ui/chat_settings.dart): its people, its background and bubbles, its
   /// encryption, whether it is muted or pinned. From the cog at the top, and from a tap on the name.
+  /// Hops into the group's channel, and shows it.
+  Future<void> _voice(VoiceChannel c, {bool video = false}) async {
+    try {
+      await Voice.instance.join(c, video: video);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
+      return;
+    }
+    if (!mounted) return;
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) {
+      shell.go('voice');
+    } else {
+      push(context, (_) => const VoiceScreen());
+    }
+  }
+
+  /// Rings everyone in the group, and hops into its channel.
+  Future<void> _callGroup() async {
+    final g = _ghost;
+    if (g == null) return;
+    final told = await Voice.instance.ring(g);
+    if (mounted) toast(context, told == 0 ? 'Nobody could be rung right now. You\'re in the channel for them.' : 'Calling ${g.name}');
+    await _voice(VoiceChannel.ofGroup(g.id, g.name));
+  }
+
   Future<void> _openSettings() async {
     await push<void>(context, (_) => ChatSettingsScreen(thread: widget.thread, people: _people));
     _e2eChanged();
@@ -737,6 +767,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         ..._plugins.header(context, newest: _messages?.firstOrNull),
         if (!remote && !_group && _people.isNotEmpty)
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
+        // A group of friends' voice and video channel, open to hop in and out of, and calling the whole group into it
+        // (Matt, 2026-11-14: "allow for group chat video and voice calls to hop in the voice and video channel at any
+        // time with the option to call the group"; lib/voice).
+        if (_ghost != null && !_ghost!.gone) ...[
+          ListenableBuilder(
+            listenable: Voice.instance,
+            builder: (context, _) {
+              final c = VoiceChannel.ofGroup(_ghost!.id, _ghost!.name);
+              final n = Voice.instance.inChannel(c).length;
+              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Voice channel' : 'Voice channel, $n in it', onPressed: () => _voice(c));
+            },
+          ),
+          IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),
+        ],
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
         // On a computer too (Matt, 2026-11-14: "There needs to be chat settings on desktop as well"): what a computer
         // can change of a conversation, and what it can only show (lib/ui/chat_settings.dart).

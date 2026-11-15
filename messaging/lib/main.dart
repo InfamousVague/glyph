@@ -14,9 +14,11 @@ import 'backgrounds.dart';
 import 'desktop/main.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
+import 'friends/buddies.dart';
 import 'friends/friends.dart';
 import 'friends/groups.dart';
 import 'net/net.dart';
+import 'voice/channels.dart';
 import 'sms.dart';
 import 'ui/computers.dart';
 import 'ui/setup.dart';
@@ -205,10 +207,14 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // The app's routes to other phones with it (lib/net/net.dart): set up once, as the app opens.
       // And friends, who are reached by them (lib/friends/friends.dart).
       final app = AppState.of(context);
-      Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start());
+      Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app));
       // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once
       // one has been.
       Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
+      // Friends by username (lib/friends/buddies.dart): heard over the hub, so it is dialled while any are kept.
+      Buddies.instance.start().then((_) {
+        if (Buddies.instance.all.isNotEmpty) Net.instance.want('buddies', true);
+      });
       // Summaries of unread conversations by the phone's own model (lib/summaries.dart): where it stands, and asked
       // for where it can be had.
       Summaries.instance.start(app);

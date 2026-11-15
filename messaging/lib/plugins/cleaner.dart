@@ -45,6 +45,8 @@ class CleanerPlugin extends GhostPlugin {
             PluginAction(
               label: 'Clean up',
               icon: LucideMore.brushCleaning,
+              // Matt, 2026-11-14: "I wan the cleanup brush to be more subdued".
+              quiet: true,
               run: (host) => host.present((context) => CleanerSheet(groups: place.groups, delete: host.deleteThread, reload: host.reload)),
             ),
           ];

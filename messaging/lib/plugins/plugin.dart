@@ -60,7 +60,9 @@ class MessageFacts {
   factory MessageFacts.conversation(Conversation c) => MessageFacts(
         thread: c.id,
         senders: [for (final p in c.people) p.address],
-        text: c.snippet,
+        // What they last sent, where your own words are newer: a pitch answered "STOP" is still a pitch (Matt,
+        // 2026-11-14: "Health insurance sales people are not getting caught by the sales filter").
+        text: c.heard ?? c.snippet,
         contact: c.people.any(_known),
         group: c.group,
         date: c.date,
@@ -206,13 +208,16 @@ abstract interface class PluginHost {
 /// app draws it as the place it is in draws such things, and calls [run] when it is chosen.
 @immutable
 class PluginAction {
-  const PluginAction({required this.label, required this.icon, required this.run, this.danger = false});
+  const PluginAction({required this.label, required this.icon, required this.run, this.danger = false, this.quiet = false});
   final String label;
   final LucideIcon icon;
   final FutureOr<void> Function(PluginHost host) run;
 
   /// Drawn in red: it deletes, or cannot be taken back.
   final bool danger;
+
+  /// Drawn small and faint: there when wanted, not asking to be pressed (the Cleaner's brush).
+  final bool quiet;
 }
 
 // --- (b) sections of the list ----------------------------------------------------------------------------------------

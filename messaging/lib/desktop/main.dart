@@ -15,6 +15,7 @@ import 'desk.dart';
 import 'link/link.dart';
 import 'platform.dart';
 import 'remote.dart';
+import '../voice/channels.dart';
 import 'store.dart';
 import 'ui/shell.dart';
 import '../ui/update_banner.dart';
@@ -60,6 +61,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final sheet = accents.base;
   installSettingsStyles(sheet);
   await link.start();
+  // Voice channels (lib/voice): the computer's own connection to the hub, made once it has a channel.
+  unawaited(Voice.instance.start(state));
   // The app's own updates: asked of the Mac's half, looked for now and every few hours. Never awaited: the app
   // opens whether or not the site answers.
   final macUpdates = updates ? MacUpdates.fromEnvironment(env) : null;

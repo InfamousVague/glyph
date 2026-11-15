@@ -57,15 +57,22 @@ class _DeskShellState extends State<DeskShell> {
 
   @override
   Widget build(BuildContext context) {
+    // How the phone is connected is said in Settings › Your phone, not under the list's search (Matt, 2026-11-14:
+    // "move the "connected to the relay" into the settings only"): the line is there only while the phone can't be
+    // reached, which needs saying where you are.
     final scope = DeskScope.of(context);
-    return AppShell(
-      // How the phone is connected, and what is waiting for it.
-      status: ListenableBuilder(listenable: scope.link, builder: (context, _) => LinkStatus(link: scope.link, waiting: scope.calls.waiting)),
-      nothing: (context) => const _Nothing(),
-      // Each page that opens in the pane asks for a look for a newer version, as on the phone.
-      paneObservers: [UpdateWatch()],
+    return ListenableBuilder(
+      listenable: scope.link,
+      builder: (context, _) => AppShell(
+        status: scope.link.via != null ? null : LinkStatus(link: scope.link, waiting: scope.calls.waiting),
+        nothing: (context) => const _Nothing(),
+        // Each page that opens in the pane asks for a look for a newer version, as on the phone.
+        paneObservers: _observers,
+      ),
     );
   }
+
+  final _observers = [UpdateWatch()];
 }
 
 /// The pane before a conversation is chosen.

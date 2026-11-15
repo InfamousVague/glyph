@@ -30,7 +30,9 @@
 		<string>_ghostmsg._tcp</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Ghost Messaging records a voice message when you press the microphone, for your phone to send. It listens at no other time.</string>
+	<string>Ghost Messaging uses the microphone for a voice message you record, and in a voice channel or call you join. It listens at no other time.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ghost Messaging uses the camera when you turn video on in a voice channel or call.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Ghost Messaging finds your phone on the network you share, to show its texts and send through it without a server in between.</string>
 	<key>LSApplicationCategoryType</key>

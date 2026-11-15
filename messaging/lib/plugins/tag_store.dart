@@ -74,7 +74,7 @@ class TagStore extends ChangeNotifier {
   void take(Iterable<Conversation> fresh) {
     for (final c in fresh) {
       final facts = MessageFacts.conversation(c);
-      final mark = (c.date.millisecondsSinceEpoch, facts.contact, c.snippet);
+      final mark = (c.date.millisecondsSinceEpoch, facts.contact, facts.text);
       final had = _held[c.id];
       if (had != null && had.mark == mark && !_waiting.containsKey(c.id)) {
         // The same words: whether it is read or muted may have changed, and that is all.

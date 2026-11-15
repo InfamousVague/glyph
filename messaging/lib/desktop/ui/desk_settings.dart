@@ -153,7 +153,9 @@ List<Widget> _phonePage(BuildContext context, DeskSettings d) {
       SettingRow(
         icon: _icon(LucideMore.smartphone),
         label: phone.name,
-        hint: Text('${linkLine(link)} · paired ${listWhen(phone.since)}'),
+        // How the two are connected lives here alone (Matt, 2026-11-14: "move the "connected to the relay" into the
+        // settings only we don't need to show it on the sidebar"), with any texts waiting for the phone.
+        hint: Text('${linkLine(link)}${d.calls.waiting > 0 ? ' · ${d.calls.waiting} ${d.calls.waiting == 1 ? 'text' : 'texts'} waiting' : ''} · paired ${listWhen(phone.since)}'),
       ),
     ]),
     ConnectionChoice(value: phone.mode, relay: phone.relay, onChanged: (m) => link.setMode(m)),

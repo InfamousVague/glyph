@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
@@ -24,6 +25,10 @@ import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/cleaner.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
+import 'package:ghost_messaging/ui/voice_screen.dart';
+import 'package:ghost_messaging/voice/voice.dart';
+import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/plugins/plugin.dart' show ListGroup, RowFace;
 import 'package:ghost_messaging/plugins/embeds.dart' show Embeds, Fetched;
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, FilterButton, PluginRow, SectionTabs;
@@ -1232,6 +1237,39 @@ void main() {
     }
   });
 
+  // Voice channels (lib/ui/voice_screen.dart; Matt, 2026-11-14: "always open voice channels that you can jump in and
+  // out at any time and you can see who's connected and also toggle video on and off").
+  testWidgets('the Voice page: in a channel, and the channels with who is in them', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 1100 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    final hangout = VoiceChannel.make('Hangout'), study = VoiceChannel.make('Study room');
+    final v = Voice.instance;
+    v.own = [hangout, study];
+    final s = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia(), name: 'Me')
+      ..members['a'] = const VoiceMember('a', name: 'Maya Chen')
+      ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
+      ..members['c'] = const VoiceMember('c', name: 'Riley');
+    v.session = s;
+    addTearDown(() {
+      v.session = null;
+      v.own = [];
+    });
+    for (final dark in [false, true]) {
+      await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
+      expect(find.text('Hangout'), findsWidgets);
+      expect(find.text('4 connected'), findsOneWidget);
+      expect(find.bySemanticsLabel('Mute'), findsOneWidget);
+      expect(find.bySemanticsLabel('Turn video on'), findsOneWidget);
+      expect(find.text('Study room', skipOffstage: false), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   // The Cleaner (lib/plugins/cleaner.dart; Matt, 2026-11-14: "add a "Cleaner" plugin that allows us to bulk delete
   // messages by category and shows deletion progress in real time"): kinds ticked, and part way through.
   testWidgets('the Cleaner: choosing, and deleting', (tester) async {
@@ -1699,4 +1737,40 @@ class _ThreeFriends extends FakePort {
 
   @override
   Future<List<E2eState>> states() async => [for (final p in people) E2eState(address: p.address, state: 'on', friend: 'yes', hasGhost: true, person: p)];
+}
+
+class _NoRoute implements VoiceRoute {
+  @override
+  String get me => 'me';
+  @override
+  Future<List<String>> join(String room, String token) async => const [];
+  @override
+  void leave(String room) {}
+  @override
+  void send(String room, Uint8List bytes) {}
+  @override
+  void look(String room, String token) {}
+  @override
+  void unlook(String room) {}
+  @override
+  Stream<RoomEvent> get events => const Stream.empty();
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get packets => const Stream.empty();
+  @override
+  Stream<({String room, List<String> members})> get looks => const Stream.empty();
+}
+
+class _NoMedia implements VoiceMedia {
+  @override
+  Future<void> start() async {}
+  @override
+  Future<void> stop() async {}
+  @override
+  set muted(bool on) {}
+  @override
+  set deafened(bool on) {}
+  @override
+  Future<void> setVideo(bool on) async {}
+  @override
+  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => throw UnimplementedError();
 }

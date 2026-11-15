@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/plugins/kinds.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
@@ -142,5 +143,25 @@ void main() {
     for (final person in ['Hey boss do you have the vin?', 'Be there soon', 'Do you have any of those eye drops left?', 'Book club']) {
       expect(kindOf(person), isNull, reason: person);
     }
+  });
+
+  // Matt, 2026-11-14: "Health insurance sales people are not getting caught by the sales filter", with a screenshot
+  // of a pitch he had answered: the list sorted the conversation by its newest message, his reply.
+  test('a conversation is sorted by what they last sent, not by your reply to it', () {
+    final c = Conversation.from({
+      'id': 9,
+      'date': 0,
+      'people': [
+        {'address': '+17345550100'},
+      ],
+      'snippet': 'No thanks, also I live in NC',
+      'heard': 'Hi Matthew, want a free attic insulation, window, or gutter service quote before winter while we\'re in your area this week?',
+    });
+    final facts = MessageFacts.conversation(c);
+    expect(facts.text, startsWith('Hi Matthew'));
+    final tags = const KindsPlugin().classifiers.first(facts);
+    expect(tags.single.detail, 'sales');
+    expect(kindOf('Do you want a quick price estimate on new health plans in IL? Reply STOP to opt out'), 'sales');
+    expect(kindOf('Want a free gutter service quote?'), 'sales');
   });
 }

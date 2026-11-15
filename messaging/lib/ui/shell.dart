@@ -8,6 +8,9 @@ import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../art/lucide_more.dart';
+import 'voice_screen.dart';
+import '../voice/channels.dart';
 import 'compose.dart';
 import 'contacts.dart';
 import 'conversations.dart';
@@ -276,6 +279,9 @@ class AppShellState extends State<AppShell> {
         compose();
       case 'contacts':
         contacts();
+      case 'voice':
+        // Voice channels, and the call you're in (lib/ui/voice_screen.dart).
+        show(const VoiceScreen(key: ValueKey('voice')), showing: 'voice');
       case 'settings':
         settings();
       default:
@@ -386,7 +392,7 @@ class AppShellState extends State<AppShell> {
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
         valueListenable: archived,
         builder: (context, count, _) => ListenableBuilder(
-          listenable: Me.instance,
+          listenable: Listenable.merge([Me.instance, Voice.instance]),
           builder: (context, _) => NavPill(
             upright: upright,
             active: _showing ?? (settingsOpen ? 'settings' : (_archivedOpen ? 'archive' : 'messages')),
@@ -395,6 +401,8 @@ class AppShellState extends State<AppShell> {
               const NavItem(id: 'new', icon: Lucide.messageSquarePlus, label: 'New chat'),
               const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
               const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
+              // Voice channels, lit while you're in one (Matt, 2026-11-14: "always open voice channels").
+              NavItem(id: 'voice', icon: LucideMore.headphones, label: Voice.instance.session == null ? 'Voice' : 'Voice, connected', count: Voice.instance.session == null ? 0 : Voice.instance.session!.members.length + 1),
               NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
               NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
             ],
@@ -403,7 +411,7 @@ class AppShellState extends State<AppShell> {
       );
 
   /// How many rings the pill has: what a window must be tall enough for, to have it stood up.
-  static const _rings = 5;
+  static const _rings = 6;
 
   Widget _sized(Widget child) => LayoutBuilder(
         // The screens measure themselves against the screen they are on: here that is their share of the window.
@@ -519,6 +527,8 @@ class AppShellState extends State<AppShell> {
                   )),
                 ),
               ),
+              // A group calling (lib/voice): over everything, until joined or put away.
+              const Positioned(left: 0, right: 0, top: 0, child: RingCard()),
             ]),
           ),
         ),

@@ -32,6 +32,7 @@ class Conversation {
     this.blocked = false,
     this.draft,
     this.encrypted = false,
+    this.heard,
   });
   final int id;
   final DateTime date;
@@ -60,7 +61,12 @@ class Conversation {
         blocked: blocked,
         draft: draft,
         encrypted: encrypted,
+        heard: heard,
       );
+
+  /// What someone not in the contacts last sent here, where it is not the newest message (your reply may be): what
+  /// the list sorts the conversation by (lib/plugins). Null for a contact, a group, or where nothing came in.
+  final String? heard;
 
   /// The one person of the conversation is on Android's blocked list.
   final bool blocked;
@@ -99,6 +105,7 @@ class Conversation {
         blocked: m['blocked'] == true,
         draft: m['draft'] as String?,
         encrypted: m['encrypted'] == true,
+        heard: (m['heard'] as String?)?.trim().isEmpty ?? true ? null : m['heard'] as String,
       );
 }
 
@@ -649,6 +656,18 @@ class Sms {
   Future<List<({String id, String address, Uint8List key})>> netPeers() async {
     final list = await _calls.invokeMethod('netPeers') as List? ?? const [];
     return [for (final p in list.cast<Map>()) (id: p['id'] as String, address: p['address'] as String, key: p['key'] as Uint8List)];
+  }
+
+  /// Friends by username (lib/friends/buddies.dart): the list, kept where the phone works out each one's sealing key
+  /// (android Buddies.kt). Nothing on a computer, which speaks through its phone.
+  Future<void> buddiesKeep(String json) async {
+    if (remote) return;
+    await _calls.invokeMethod('buddiesKeep', {'json': json});
+  }
+
+  Future<String> buddiesKept() async {
+    if (remote) return '[]';
+    return await _calls.invokeMethod<String>('buddiesKept') ?? '[]';
   }
 
   /// This phone's signature over [message], r then s.
