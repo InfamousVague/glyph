@@ -20,6 +20,7 @@ import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
 import '../voice/voice_settings.dart';
 import 'common.dart';
+import 'rcs_setup.dart';
 import 'voice_pane.dart';
 import 'computers.dart';
 import 'conversations.dart';
@@ -424,6 +425,19 @@ List<Widget> _effects(BuildContext context, SettingsModel m) {
 List<Widget> _messages(BuildContext context, SettingsModel m) {
   final app = m.app;
   return [
+    // RCS through Google Messages, on the phone (lib/ui/rcs_setup.dart; Matt, 2026-11-15: "add a button under messages
+    // settings to setup RCS if on an android phone and walk the user through how to enable the rcs sidecar").
+    if (!Sms.remote)
+      PaneSection(title: 'RCS', children: [
+        SettingRow(
+          icon: _icon(Lucide.messageSquare),
+          label: m.status?.beside ?? false ? 'RCS is on, through Google Messages' : 'Set up RCS',
+          hint: Text(m.status?.beside ?? false
+              ? 'Ghost works beside Google Messages: RCS chats and texts in Ghost, Ghost\'s notifications. Open to check each step.'
+              : 'Typing dots, read receipts, full-size pictures and group chats over the internet, through Google Messages. A few steps, one at a time.'),
+          onPress: () => push(context, (_) => const RcsSetupScreen()),
+        ),
+      ]),
     PaneSection(title: 'Writing', children: [
       SettingRow(
         icon: _icon(LucideMore.keyboard),
@@ -541,6 +555,27 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages
+    // or hide them and proxy everything through ghost").
+    if (m.status?.beside ?? false)
+      PaneSection(
+        title: 'Beside Google Messages',
+        footer: const Text('Keep Google Messages\' notifications allowed (set them to Silent): Ghost reads them to see RCS chats. Turned off completely, Ghost sees nothing new.'),
+        children: [
+          SettingRow(
+            icon: _icon(Lucide.bell),
+            label: 'Ghost\'s notifications in place of Google Messages\'',
+            hint: const Text('Each Google Messages notification is hidden as it comes and Ghost shows its own. Replying from it goes through Google Messages, as RCS where the chat is RCS.'),
+            control: GlacierSwitch(checked: app.flag('gm_proxy', fallback: true), onCheckedChange: (v) => app.setFlag('gm_proxy', v), ariaLabel: 'Ghost\'s notifications in place of Google Messages\''),
+          ),
+          SettingRow(
+            icon: _icon(LucideMore.vibrate),
+            label: 'Make Google Messages\' silent',
+            hint: const Text('Android\'s page for Google Messages\' notifications: set its conversations to Silent.'),
+            onPress: () => Sms.instance.openGmNotifications(),
+          ),
+        ],
+      ),
   ];
 }
 

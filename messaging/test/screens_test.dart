@@ -50,6 +50,7 @@ import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:ghost_messaging/ui/rcs_setup.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/nav_bar.dart';
 import 'package:ghost_messaging/ui/new_group.dart';
@@ -834,6 +835,16 @@ void main() {
       await _shootAgain(tester, '0-guide-2-texts-beside', dark: dark);
       expect(find.text('Or keep Google Messages, and RCS'), findsOneWidget);
       expect(find.text('Use beside Google Messages'), findsOneWidget);
+      // Setting up RCS from Settings › Messages (lib/ui/rcs_setup.dart; Matt, 2026-11-15: "add a button under messages
+      // settings to setup RCS if on an android phone and walk the user through how to enable the rcs sidecar"): from
+      // Ghost the default, Google Messages the next thing to make so; and part way, Google Messages the default.
+      _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false, 'gmDefault': false};
+      await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup', dark: dark);
+      expect(find.text('Open Default apps'), findsOneWidget);
+      expect(find.text('Google Messages is the default SMS app'), findsOneWidget);
+      _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false, 'gmDefault': true};
+      await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup-partway', dark: dark, prefs: const {'rcs_on_chosen': 'on'});
+      expect(find.text('Open notification access'), findsOneWidget);
       // Ghost is the texting app: each page after, in turn.
       _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);

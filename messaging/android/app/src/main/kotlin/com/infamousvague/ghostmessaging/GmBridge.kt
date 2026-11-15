@@ -58,6 +58,23 @@ object GmBridge {
         context.packageManager.getPackageInfo(PACKAGE, 0); true
     } catch (_: Exception) { false }
 
+    /** Opens Google Messages, or its page in the Play Store where it is not on the phone (Settings › Messages › RCS). */
+    fun open(context: Context): Boolean {
+        val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val target = launch ?: Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PACKAGE")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try { context.startActivity(target); true } catch (_: Exception) {
+            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$PACKAGE")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        }
+    }
+
+    /** Android's notification settings for Google Messages, where its notifications are made silent. */
+    fun openNotificationSettings(context: Context): Boolean = try {
+        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, PACKAGE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+    } catch (_: Exception) { false }
+
+    /** Whether Google Messages is the default SMS app now. */
+    fun isGmDefault(context: Context): Boolean = Telephony.Sms.getDefaultSmsPackage(context) == PACKAGE
+
     /** A conversation's way to answer, kept while Google Messages keeps it: its Reply and its Mark as read. */
     class Actions(val reply: PendingIntent, val input: RemoteInput, val read: PendingIntent?)
 
@@ -105,7 +122,9 @@ object GmBridge {
             if (address != null) addresses += address
             heard += Heard(text, time, if (out) null else senderName, address, out)
         }
-        if (heard.isEmpty()) return null
+        // Every message hidden (a one-time code, Android 15+): the conversation is still read, so Ghost can notify
+        // from Android's own copy of the text.
+        if (heard.isEmpty() && messages.isEmpty()) return null
         // One to one, with no address from the people in it: the title may be the number itself.
         if (addresses.isEmpty() && !group && title != null) ContactKey.of(title)?.let { addresses += ContactKey.main(title) }
         // One to one: whoever is not you is the one other person.
@@ -154,17 +173,34 @@ object GmBridge {
 
     // --- keeping what was read -----------------------------------------------------------------------------------------
 
-    /** What a notification said, kept; true when anything was new. */
-    fun heard(context: Context, sbn: StatusBarNotification): Boolean {
-        val r = read(context, sbn) ?: return false
+    /** What reading a notification came to: its thread, whether anything was new, and whether a new one is theirs. */
+    data class Kept(val thread: Long, val fresh: Boolean, val incoming: Boolean, val hidden: Boolean)
+
+    /** What a notification said, kept; null for one that is not a conversation. */
+    fun heard(context: Context, sbn: StatusBarNotification): Kept? {
+        val r = read(context, sbn) ?: return null
         actionsOf(sbn.notification)?.let { actions[r.conv] = it }
         val db = Db.get(context)
         val thread = threadFor(context, r)
         db.keepConversation(r, thread)
         var fresh = false
-        for (m in r.messages) if (db.keepMessage(r.conv, m)) fresh = true
-        return fresh
+        var incoming = false
+        for (m in r.messages) if (db.keepMessage(r.conv, m)) { fresh = true; if (!m.out) incoming = true }
+        return Kept(thread, fresh, incoming, hidden = r.messages.isEmpty())
     }
+
+    /**
+     * Ghost's notifications in place of Google Messages' (Matt, 2026-11-15: "make the app work without needing to be
+     * the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them
+     * and proxy everything through ghost"). On unless turned off in Settings › Notifications (`gm_proxy`).
+     *
+     * Google Messages' own must stay allowed (silent is best): they are what Ghost reads. Each of its message
+     * notifications is taken away as it comes and Ghost's own put up, whose Reply goes back through Google Messages.
+     */
+    fun proxying(context: Context): Boolean =
+        !isDefault(context) && context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("gm_proxy", "on") != "off" &&
+            // Never hidden where Ghost could not show its own: the person would be told of nothing at all.
+            context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
 
     /**
      * The conversation's thread in Android's database where its people are known: the same thread its texts are in,
@@ -331,10 +367,25 @@ object GmBridge {
 class GmListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName != GmBridge.PACKAGE) return
+        val context = applicationContext
         try {
-            if (GmBridge.heard(applicationContext, sbn)) Bus.changed(-1)
+            val kept = GmBridge.heard(context, sbn)
+            if (kept?.fresh == true) Bus.changed(-1)
+            if (!GmBridge.proxying(context)) return
+            // Its message notifications, the group's summary among them, are taken away; anything else it shows (a
+            // failed send, a prompt of its own) is left.
+            if (sbn.notification.category == Notification.CATEGORY_MESSAGE) cancelNotification(sbn.key)
+            // A new message of theirs, or one Android hid from the bridge (a code, which Android's database holds):
+            // Ghost's notification, read from what Ghost has, a moment later so Google Messages has written the text.
+            if (kept != null && (kept.incoming || kept.hidden)) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    Thread {
+                        try { Notifier.incoming(context, kept.thread) } catch (e: Exception) { DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}") }
+                    }.start()
+                }, 300)
+            }
         } catch (e: Exception) {
-            DevLog.add(applicationContext, "bridge", "A Google Messages notification could not be read: ${e.javaClass.simpleName}")
+            DevLog.add(context, "bridge", "A Google Messages notification could not be read: ${e.javaClass.simpleName}")
         }
     }
 
@@ -366,7 +417,7 @@ class GmListener : NotificationListenerService() {
         // What Google Messages shows now, read as the bridge starts (after a restart, or access just given).
         try {
             var fresh = false
-            for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && GmBridge.heard(applicationContext, sbn)) fresh = true
+            for (sbn in activeNotifications ?: emptyArray()) if (sbn.packageName == GmBridge.PACKAGE && GmBridge.heard(applicationContext, sbn)?.fresh == true) fresh = true
             if (fresh) Bus.changed(-1)
         } catch (_: Exception) {}
     }

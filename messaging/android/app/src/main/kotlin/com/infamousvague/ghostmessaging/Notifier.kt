@@ -118,7 +118,8 @@ object Notifier {
         }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
     fun incoming(context: Context, thread: Long) {
-        if (thread < 0) return
+        // -1 is "the list", never a conversation. A bridged conversation below that (GmBridge) is notified like any.
+        if (thread == -1L) return
         if (MainActivity.openThread == thread && MainActivity.inFront) return
         val store = Store(context)
         if (store.isMuted(thread)) return

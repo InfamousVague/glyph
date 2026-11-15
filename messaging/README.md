@@ -30,6 +30,19 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Set up RCS, and Ghost's notifications in place of Google Messages'** (not released; `lib/ui/rcs_setup.dart`,
+  GmBridge.kt; Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an android phone and walk
+  the user through how to enable the rcs sidecar"; "we should have a way to make the app work without needing to be
+  the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them and
+  proxy everything through ghost"). Settings › Messages › Set up RCS walks through six steps, each ticked as Android
+  says: Google Messages installed, made the default, RCS chats on in it, Ghost allowed texts, notification access,
+  Google Messages' notifications set to Silent; then how to pair a computer (Settings › Google Messages there). When
+  Google Messages becomes the default, Android takes Ghost's SMS permissions back and the walkthrough opens at its
+  texts page, carrying on with the same steps (`rcs_setup`). Beside Google Messages, each of its message
+  notifications is hidden as it comes and Ghost's own shown (Settings › Notifications, `gm_proxy`, on by default);
+  replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
+  Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
+  Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
 - **Google Messages on the computer** (0.7.25, not released; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
   2026-11-15: "Yes, mautrix sidecar"). Settings › Google Messages on the Mac or Windows pairs the computer with Google
   Messages by a QR code, as messages.google.com is, and every conversation there joins the desktop's list: RCS and
