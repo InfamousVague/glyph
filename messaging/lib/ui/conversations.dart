@@ -838,7 +838,22 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       back: widget.archived && !_selecting,
       // A newer version waiting: above the title and the search (Matt, 2026-11-14: "move the update banner on desktop
       // and mobile to show at the top of the sidebar above where it says messages and has the search bar").
-      top: widget.archived ? null : const UpdateCard(),
+      // The call you're in, as a banner over the title that takes its room (Matt, 2026-11-15: "Make sure the active
+      // call runs as a banner that expands space from the top of thr sidebar not a floating banner"): not while the
+      // call itself is the page beside.
+      top: widget.archived
+          ? null
+          : Column(mainAxisSize: MainAxisSize.min, children: [
+              const UpdateCard(),
+              CallBanner(onOpen: () {
+                final shell = AppShell.maybeOf(context);
+                if (shell != null) {
+                  shell.go('voice');
+                } else {
+                  push(context, (_) => const VoiceScreen());
+                }
+              }),
+            ]),
       // While several are being chosen the bar counts them, and holds what can be done with them.
       titleWidget: !_selecting
           ? null

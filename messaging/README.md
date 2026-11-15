@@ -459,8 +459,12 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - The list's toggle is icons alone, with a Voice tab of the channels (`VoiceRow`, live in green). Settings ›
     Messages › The list chooses Tabs, All together (conversations, codes and channels in one list, newest first,
     the filter in the title row) or Voice above (channels as cards over the list, `VoiceStrip`).
-  - While in a call, a capsule floats over the list above the pill (`CallCapsule`): a beating dot, the channel, the
-    time in it, whoever is talking (rippling), mute and leave; a press opens the call. The Voice ring no longer counts.
+  - While in a call, a banner at the top of the sidebar, above the title, takes its own room and pushes the list
+    down (`CallBanner`; "Make sure the active call runs as a banner that expands space from the top of thr sidebar
+    not a floating banner"): a beating dot, the channel, the time in it, whoever is talking (rippling), mute and
+    leave; a press opens the call. The Voice ring no longer counts.
+  - In a call the Voice page is the call alone: who is in it and the dock ("I want the call screen to be super simple
+    too just a list of chatters and the call controls"); a picture only appears for someone who turns video on.
 - **Hangouts by link, in a browser** (0.7.22, not released; site/join; Matt, 2026-11-14: "Make the voice hangouts
   possible to share via a link so people can join to talk anonymously or sign up through the browser similar to a
   zoom meeting"). A hangout's options (and the call, for one that is not a group's) copy
