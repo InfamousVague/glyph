@@ -283,4 +283,28 @@ void main() {
     await v.answerDesk({'op': 'forget', 's': made.seed});
     expect(v.own.map((c) => c.seed), [mine.seed]);
   });
+
+  // Matt, 2026-11-15: "Removing a hangout channel doesn't remove it for all devices".
+  test('a channel removed on the phone stays removed: its computer is told, and cannot hand it back', () async {
+    final v = Voice.instance;
+    final hang = VoiceChannel.make('Friday hang');
+    v.own = [hang];
+    addTearDown(() => v.own = []);
+    await v.forget(hang);
+    expect(v.own, isEmpty);
+    // The computer, which had it and had not heard, offers it to the phone again: refused.
+    final back = await v.answerDesk({'op': 'add', 's': hang.seed, 'n': hang.name}) as Map;
+    expect(back['gone'], isTrue);
+    expect(v.own, isEmpty);
+    // And the list the computer reads says it is gone, so the computer takes it away too.
+    final list = await v.answerDesk({'op': 'list'}) as Map;
+    expect(list['gone'], contains(hang.seed));
+    expect([for (final c in list['channels'] as List) (c as Map)['s']], isNot(contains(hang.seed)));
+    // Removed from the computer: the phone marks it gone as well.
+    final other = VoiceChannel.make('From the Mac');
+    await v.answerDesk({'op': 'add', 's': other.seed, 'n': other.name});
+    await v.answerDesk({'op': 'forget', 's': other.seed});
+    expect(v.removed(other.seed), isTrue);
+    expect((await v.answerDesk({'op': 'add', 's': other.seed, 'n': other.name}) as Map)['gone'], isTrue);
+  });
 }
