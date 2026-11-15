@@ -4,16 +4,17 @@
 /// `assets/onboarding/<page>.mp3`. Change a line, run the tool, and that page alone is spoken again.
 library;
 
+// Ghost's voice (Matt, 2026-11-15: "Rework the onboarding to be a bit shorter and have it focus on the fact that ghost
+// is an all in one messenger look at branding from things like discord telegram etc and find our own voice amoung
+// those"): where Discord is a loud hangout, Telegram fast and powerful, Signal principled and WhatsApp plain, Ghost is
+// calm and sure of itself, in short sentences with a little wit. All your people, one quiet app.
 const Map<String, String> narration = {
-  'welcome': 'Hi, and welcome to Ghost Messaging. It\'s your texts and picture messages, in a calm, simple place, with a few things texting has always been missing.',
-  'texts': 'First, let\'s bring your texts here. Android lets one app send and keep them, so make Ghost your texting app. Or, if you\'d rather keep Google Messages, Ghost can work right beside it. Either way, nothing is deleted.',
-  'people': 'Next, names and notifications. Let Ghost see your contacts, so you see names and faces instead of numbers. And allow notifications, so you can reply right from them, without opening the app.',
-  'private': 'When the person you\'re texting has Ghost too, your messages can be encrypted, so only your two phones can read them. Look for the lock. Everyone else still gets an ordinary text.',
-  'sorted': 'Ghost keeps things tidy. Codes from banks and apps get a tab of their own, ready to copy. Sales texts are set aside, and the ones that need a reply are easy to find.',
-  'calls': 'Every group has a voice channel you can drop in and out of, any time. Share a link, and anyone can join a hangout from their browser. Turn on video whenever you like.',
-  'computer': 'Ghost is on your Mac and your Windows computer, too. Open it there, scan the code with this phone, and your conversations follow you, sent from your own number.',
-  'look': 'Pick a look. Light, dark, or follow your phone. Then choose a colour for your bubbles.',
-  'start': 'That\'s the tour, and you\'re ready. Everything you\'ve seen is in Settings, whenever you want it. Happy texting.',
+  'welcome': 'Hi, I\'m Ghost. Your texts, your friends, your groups and your calls, all in one quiet app. No more juggling five messengers to reach the people you care about.',
+  'texts': 'Ghost starts with every text you already have. Make it your texting app, or keep Google Messages and Ghost works right beside it. Nothing is lost either way.',
+  'together': 'Friends who have Ghost get more: chats over the internet, locked so only your phones can read them, with reactions, stickers and groups. Everyone else still gets a text, in the same conversation.',
+  'calls': 'Every group has a voice channel that\'s always open. Drop in when you\'re free, slip out when you\'re not. Share a link, and anyone can join from a browser.',
+  'everywhere': 'Ghost is on your Mac and your Windows computer, too. Scan a code once, and your conversations follow you, sent from your own number.',
+  'start': 'That\'s Ghost. Pick a look, then go say hi to someone.',
 };
 
 /// Where a page's voice is kept.

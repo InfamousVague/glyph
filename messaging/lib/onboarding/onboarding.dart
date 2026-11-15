@@ -3,8 +3,7 @@
 /// elevenlabs key and the vibrant colors and iconography for each step, mimick this on the setup of Ghost
 /// Messaging"): a page at a time, each with a band of vivid colour and its icons (band.dart), a title, the words a
 /// friendly voice says aloud (ElevenLabs, made at build time with the key: narration.dart, tool/onboarding_voice.py),
-/// and the step itself where there is one: Ghost as the texting app (or beside Google Messages), contacts and
-/// notifications, a look.
+/// and the step itself where there is one: Ghost as the texting app (or beside Google Messages), and a look.
 ///
 /// Shown on first launch, until Ghost can send and receive texts and the walkthrough is finished; Settings › About
 /// replays it. On the texts page Next waits until Ghost can send texts, and Skip appears once it can.
@@ -35,17 +34,16 @@ class GuideLook {
   Color get hue => guideHues[hues.first]!.$1;
 }
 
-/// The pages, in order: an id (narration.dart's, and its voice's file), a title, and a look.
+/// The pages, in order: an id (narration.dart's, and its voice's file), a title, and a look. Six, about Ghost as one
+/// messenger for everyone (Matt, 2026-11-15: "Rework the onboarding to be a bit shorter and have it focus on the fact
+/// that ghost is an all in one messenger"); contacts and notifications are asked for as the app opens (lib/main.dart).
 const List<(String, String, GuideLook)> guidePages = [
-  ('welcome', 'Hi, I\'m Ghost Messaging', GuideLook(['indigo', 'purple', 'rose'], Lucide.messageSquare, [Lucide.lock, Lucide.image, Lucide.mic, LucideMore.smile])),
-  ('texts', 'Your texts, here', GuideLook(['green', 'mint', 'cyan'], LucideMore.smartphone, [Lucide.messageSquare, Lucide.shieldCheck, Lucide.link, Lucide.check])),
-  ('people', 'Names and notifications', GuideLook(['cyan', 'blue', 'indigo'], Lucide.users, [Lucide.bell, Lucide.image, LucideMore.reply, Lucide.circleCheck])),
-  ('private', 'Just between you', GuideLook(['blue', 'indigo', 'purple'], Lucide.lock, [Lucide.keyRound, Lucide.shieldCheck, Lucide.messageSquare, Lucide.eyeOff])),
-  ('sorted', 'Sorted for you', GuideLook(['amber', 'orange', 'coral'], Lucide.listChecks, [Lucide.keyRound, Lucide.tag, LucideMore.reply, Lucide.sparkles])),
-  ('calls', 'Talk, any time', GuideLook(['rose', 'red', 'orange'], LucideMore.headphones, [Lucide.mic, Lucide.video, Lucide.users, Lucide.link])),
-  ('computer', 'On your computer, too', GuideLook(['mint', 'cyan', 'blue'], Lucide.laptop, [LucideMore.qrCode, LucideMore.keyboard, Lucide.refreshCw, Lucide.messageSquare])),
-  ('look', 'Pick a look', GuideLook(['magenta', 'purple', 'blue'], Lucide.palette, [Lucide.sunMoon, Lucide.swatchBook, Lucide.image, Lucide.sparkles])),
-  ('start', 'You\'re ready', GuideLook(['rose', 'orange', 'amber'], LucideMore.rocket, [Lucide.circleCheck, Lucide.sparkles, Lucide.flame, Lucide.messageSquare])),
+  ('welcome', 'Everyone, in one place', GuideLook(['indigo', 'purple', 'rose'], Lucide.ghost, [Lucide.messageSquare, Lucide.users, LucideMore.headphones, Lucide.lock])),
+  ('texts', 'Start with your texts', GuideLook(['green', 'mint', 'cyan'], LucideMore.smartphone, [Lucide.messageSquare, Lucide.shieldCheck, Lucide.link, Lucide.check])),
+  ('together', 'Texts and chats, side by side', GuideLook(['blue', 'indigo', 'purple'], Lucide.users, [Lucide.lock, Lucide.sticker, Lucide.atSign, LucideMore.smile])),
+  ('calls', 'Drop in, out loud', GuideLook(['rose', 'red', 'orange'], LucideMore.headphones, [Lucide.mic, Lucide.video, Lucide.users, Lucide.link])),
+  ('everywhere', 'On every screen', GuideLook(['cyan', 'blue', 'indigo'], Lucide.laptop, [LucideMore.qrCode, LucideMore.smartphone, Lucide.refreshCw, Lucide.messageSquare])),
+  ('start', 'You\'re in', GuideLook(['magenta', 'rose', 'orange'], LucideMore.rocket, [Lucide.palette, Lucide.sunMoon, Lucide.sparkles, Lucide.messageSquare])),
 ];
 
 /// Plays a page's voice, and stops it (android MainActivity's "ghost/guide" channel). Where nothing answers (a
@@ -234,7 +232,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
                 if (_page > 0) ...[GuideButton(label: 'Back', look: GuideButtonLook.ring, onPress: () => _go(_page - 1)), SizedBox(width: t.space(2))],
                 GuideButton(
                   key: const ValueKey('guide-next'),
-                  label: last ? 'Start texting' : 'Next',
+                  label: last ? 'Say hi' : 'Next',
                   icon: last ? Lucide.check : Lucide.arrowRight,
                   look: GuideButtonLook.filled,
                   color: look.hue,
@@ -288,27 +286,9 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
         if (widget.replay) return [done('Ghost can send and receive your texts.')];
         if (widget.initialStatus != null && _usable) return [done(_status!.isDefault ? 'Ghost is your texting app.' : 'Ghost is working beside Google Messages.')];
         return [TextsStep(hue: look.hue, onDone: _look)];
-      case 'people':
-        final s = _status;
-        if (s != null && s.contacts && s.notifications) return [done('Names, photos and notifications are on.')];
-        return [
-          GuideButton(
-            label: 'Allow contacts and notifications',
-            icon: Lucide.users,
-            look: GuideButtonLook.filled,
-            color: look.hue,
-            large: true,
-            onPress: () async {
-              final got = await Sms.instance.requestPermissions();
-              if (mounted) setState(() => _status = got);
-            },
-          ),
-          SizedBox(height: t.space(2)),
-          hint('Android asks for each. Ghost reads your contacts only to show names; nothing is sent anywhere.'),
-        ];
-      case 'computer':
+      case 'everywhere':
         return [hint('Get it at gogho.st, then pair it in Settings › Computers. You can do this any time.')];
-      case 'look':
+      case 'start':
         return [
           GlacierSegmentedControl(
             options: const [

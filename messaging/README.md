@@ -576,18 +576,24 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
     people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
     owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
-- **The walkthrough, as Ghost Keyboard's and Ghost.md's** (0.7.26, not released; Matt, 2026-11-15: "Look at how we
-  do onboarding on Ghost KBD and Ghost Markdown with the optional voice guide through the elevenlabs key and the
-  vibrant colors and iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`:
-  nine pages (welcome, your texts, names and notifications, private, sorted, calls, your computer, a look, ready),
-  each a band of vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of
-  Ghost Keyboard), a title, its words, and its step. Dots and the Next button take the page's colour.
-  - **Your texts** is the old setup screen as a step (`TextsStep`, lib/ui/setup.dart): the default SMS app, or beside
-    Google Messages, and RCS first where it is coming from another app. Next waits there, and Skip appears, only once
-    Ghost can send texts.
+- **The walkthrough, as Ghost Keyboard's and Ghost.md's** (0.7.26; Matt, 2026-11-15: "Look at how we do onboarding
+  on Ghost KBD and Ghost Markdown with the optional voice guide through the elevenlabs key and the vibrant colors and
+  iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`: each page a band of
+  vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of Ghost
+  Keyboard), a title, its words, and its step; dots and the Next button take the page's colour.
+  - **Six pages, Ghost as one messenger** (0.7.27, not released; Matt, 2026-11-15: "Rework the onboarding to be a bit
+    shorter and have it focus on the fact that ghost is an all in one messenger look at branding from things like
+    discord telegram etc and find our own voice amoung those"): Everyone, in one place · Start with your texts ·
+    Texts and chats, side by side · Drop in, out loud · On every screen · You're in (a look, then "Say hi"). The
+    voice: where Discord is a loud hangout, Telegram fast and powerful, Signal principled and WhatsApp plain, Ghost
+    is calm and sure of itself, in short sentences with a little wit; "all your people, one quiet app". Contacts and
+    notifications are asked for as the app opens, as before the walkthrough.
+  - **Start with your texts** is the old setup screen as a step (`TextsStep`, lib/ui/setup.dart): the default SMS
+    app, or beside Google Messages, and RCS first where it is coming from another app. Next waits there, and Skip
+    appears, only once Ghost can send texts.
   - **The voice** is ElevenLabs' (Jessica, Eleven v4), made once at build time with the key in ~/.elevenlabs-key by
-    `tool/onboarding_voice.py` from narration.dart, kept as assets/onboarding/*.mp3 (700 KB); only a page whose words
-    changed is spoken again. Played on the phone by GuideVoice.kt; Voice on and off at the top, and kept.
+    `tool/onboarding_voice.py` from narration.dart, kept as assets/onboarding/*.mp3 (420 KB, 52 seconds); only a
+    page whose words changed is spoken again. Played on the phone by GuideVoice.kt; Voice on and off at the top, kept.
   - Shown on first launch until finished; Settings › About › Watch the walkthrough again. Tests: onboarding_test
     (the voice per page, Skip, words matching their voice), screens_test's `0-guide-*` pictures.
 - **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25; Matt, 2026-11-15:

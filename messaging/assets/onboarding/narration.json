@@ -6,58 +6,40 @@
   },
   "files": {
     "welcome": {
-      "words": "0983741cbfdb82a9",
+      "words": "ab09f02ff89499a8",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 77992
+      "bytes": 86351
     },
     "texts": {
-      "words": "8f66441743240c36",
-      "model": "eleven_v4",
-      "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 111847
-    },
-    "people": {
-      "words": "c4a3756a880e9d6c",
-      "model": "eleven_v4",
-      "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 102234
-    },
-    "private": {
-      "words": "be7dea84ad87c022",
-      "model": "eleven_v4",
-      "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 86978
-    },
-    "sorted": {
-      "words": "007273bec23f195e",
-      "model": "eleven_v4",
-      "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 83216
-    },
-    "calls": {
-      "words": "60aca5dc699dbdbb",
+      "words": "91c8582a6c023cb2",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
       "bytes": 77992
     },
-    "computer": {
-      "words": "399747871de2640a",
+    "calls": {
+      "words": "992b0660e070915e",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 74857
-    },
-    "look": {
-      "words": "8f24edecbc24984a",
-      "model": "eleven_v4",
-      "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 49153
+      "bytes": 67752
     },
     "start": {
-      "words": "4f326859e1a351a8",
+      "words": "9ff189555edeacc9",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 53123
+      "bytes": 29927
+    },
+    "together": {
+      "words": "ab62f91207d41494",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 96591
+    },
+    "everywhere": {
+      "words": "5667f687f5c78fee",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 61900
     }
   }
 }

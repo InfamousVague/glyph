@@ -817,14 +817,14 @@ void main() {
       // this on the setup of Ghost Messaging"): the welcome, then the texts page, which holds Next until Ghost can send.
       _statusSaid = const {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
-      expect(find.text('Hi, I\'m Ghost Messaging'), findsOneWidget);
+      expect(find.text('Everyone, in one place'), findsOneWidget);
       expect(find.byKey(const ValueKey('guide-skip')), findsNothing, reason: 'nothing to skip to before Ghost can send texts');
       await tester.tap(find.byKey(const ValueKey('guide-next')));
       await _shootAgain(tester, '0-guide-2-texts', dark: dark);
       expect(find.text('Set as default SMS app'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('guide-next')));
       await _settle(tester);
-      expect(find.text('Your texts, here'), findsOneWidget, reason: 'Next waits until Ghost can send texts');
+      expect(find.text('Start with your texts'), findsOneWidget, reason: 'Next waits until Ghost can send texts');
       // Google Messages on the phone and texts allowed, notification access not yet: the way to keep it, and RCS
       // (Matt, 2026-11-15: "I'd like to have a way that people can reliably get text in and out of ghost without
       // needing to switch the default messaging app").
@@ -841,12 +841,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('guide-next')));
       await _settle(tester);
       expect(find.text('Ghost is your texting app.'), findsOneWidget);
-      for (final (i, page) in [(3, 'people'), (4, 'private'), (5, 'sorted'), (6, 'calls'), (7, 'computer'), (8, 'look'), (9, 'start')]) {
+      for (final (i, page) in [(3, 'together'), (4, 'calls'), (5, 'everywhere'), (6, 'start')]) {
         await tester.tap(find.byKey(const ValueKey('guide-next')));
         await _shootAgain(tester, '0-guide-$i-$page', dark: dark);
       }
-      expect(find.text('You\'re ready'), findsOneWidget);
-      expect(find.text('Start texting'), findsOneWidget);
+      expect(find.text('You\'re in'), findsOneWidget);
+      expect(find.text('Say hi'), findsOneWidget);
       _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
       // Each effect at a moment of its run, over the conversation.
       const night = {ScreenEffect.fireworks, ScreenEffect.celebration, ScreenEffect.lasers, ScreenEffect.snow, ScreenEffect.goodNight, ScreenEffect.party, ScreenEffect.spotlight};
