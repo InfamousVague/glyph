@@ -17,13 +17,16 @@ import 'inbox.dart';
 ///
 /// There is no push: the chats are asked for every [_idle] while the app runs, and the open chat every [_open].
 class Bluesky extends InboxNetwork {
-  Bluesky({this.entryway = 'https://bsky.social', this.plc = 'https://plc.directory', HttpClient? client})
+  Bluesky({this.entryway = 'https://bsky.social', this.plc = 'https://plc.directory', HttpClient? client, this.soon = false})
       : _client = client ?? (HttpClient()..connectionTimeout = const Duration(seconds: 10));
 
   /// Where a handle is resolved, and the directory a did:plc is looked up in. Stand-ins in tests.
   final String entryway;
   final String plc;
   final HttpClient _client;
+
+  @override
+  final bool soon;
 
   static const _proxy = 'did:web:api.bsky.chat#bsky_chat';
   static const _idle = Duration(seconds: 20);

@@ -130,6 +130,9 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Signs out and forgets everything kept for it on this device.
   Future<void> signOut();
 
+  /// Shown in Settings as "Coming soon", and never started: not offered yet.
+  bool get soon => false;
+
   /// Unread chats.
   int get unreadChats => chats.where((c) => c.unread > 0).length;
 }
@@ -139,7 +142,9 @@ class Inbox {
   Inbox._(this.networks);
 
   static Inbox? _instance;
-  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky()]);
+  // Bluesky is built and tested, and offered later (Matt, 2026-11-15: "I don't have bluesky setup yet, set that to
+  // "coming soon"").
+  static Inbox get instance => _instance ??= Inbox._([Telegram(), Bluesky(soon: true)]);
 
   /// Stand-ins for a test of a screen; null puts the app's own back.
   @visibleForTesting
@@ -158,12 +163,13 @@ class Inbox {
   }
 
   /// The networks signed in, whose chats the list shows.
-  List<InboxNetwork> get ready => [for (final n in networks) if (n.state == InboxState.ready) n];
+  List<InboxNetwork> get ready => [for (final n in networks) if (!n.soon && n.state == InboxState.ready) n];
 
   Listenable get changes => Listenable.merge(networks);
 
   Future<void> start(AppState app) async {
     for (final n in networks) {
+      if (n.soon) continue;
       try {
         await n.start(app);
       } catch (e) {

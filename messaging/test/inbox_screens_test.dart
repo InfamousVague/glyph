@@ -167,6 +167,22 @@ void main() {
     }
   });
 
+  testWidgets('Bluesky is coming soon: no tab, no sign-in, and never started', (tester) async {
+    Inbox.instance = null;
+    final own = Inbox.instance;
+    final bluesky = own.named('bluesky')!;
+    expect(bluesky.soon, isTrue);
+    expect(own.ready, isNot(contains(bluesky)));
+    final sheet = await loadSheet(tester);
+    addInboxSettings();
+    addTearDown(() => SettingsSources.remove(inboxSettingsSections));
+    for (final dark in [false, true]) {
+      await _shoot(tester, sheet, const SettingsSectionScreen('inbox-bluesky'), '16-inbox-bluesky-soon', dark: dark);
+      expect(find.text('Coming soon'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
+    }
+  });
+
   testWidgets('each network has a section of Settings', (tester) async {
     final sections = inboxSettingsSections();
     expect(sections.map((s) => s.label), ['Telegram', 'Bluesky']);
