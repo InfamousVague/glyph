@@ -448,7 +448,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
-- **Calls as a list, ripples, a dock, three list layouts and a call capsule** (0.7.22, not released; Matt, 2026-11-15:
+- **Calls as a list, ripples, a dock, three list layouts and a call capsule** (0.7.22; Matt, 2026-11-15:
   "make the voice chats a list of participants don't show the squares unless someone turns on video and make the
   profile picture habe wobbly ripples going out when talking ... voice controls at the bottom in a dock ... an icon
   only segmented toggle ... add voice chats to the list as well, try a few different layouts ... including a mixed
@@ -474,7 +474,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - In a call the Voice page is the call alone: who is in it as plain rows, not in a card, and the dock ("I want the
     call screen to be super simple too just a list of chatters and the call controls", "Make the lists of people not
     in a card"); a picture only appears for someone who turns video on.
-- **Hangouts by link, in a browser** (0.7.22, not released; site/join; Matt, 2026-11-14: "Make the voice hangouts
+- **Hangouts by link, in a browser** (0.7.22; site/join; Matt, 2026-11-14: "Make the voice hangouts
   possible to share via a link so people can join to talk anonymously or sign up through the browser similar to a
   zoom meeting"). A hangout's options (and the call, for one that is not a group's) copy
   `https://ghost-sms.com/join/#<seed>.<name>`: the seed is after the #, which a browser sends to no server. The page is
