@@ -265,7 +265,46 @@ class Store(private val context: Context) {
             next = null
             if (offset <= 0) out += conversationsFromTexts(archived, pinned, muted, drafts).filter { only == null || (it["id"] as Long) in only }
         }
+        if (offset <= 0) withBridge(out, only, lastShown = if (next != null) out.lastOrNull()?.get("date") as Long? else null)
         return mapOf("items" to out, "next" to next)
+    }
+
+    /**
+     * Google Messages' conversations as the bridge has them (GmBridge): one whose thread is in [out] brings its newer
+     * words and its unread; one Android's database does not have (an RCS chat) is added. Only on the first page, and
+     * only those as new as the page's oldest where there are more pages after it ([lastShown]).
+     */
+    private fun withBridge(out: ArrayList<Map<String, Any?>>, only: Set<Long>?, lastShown: Long?) {
+        val bridged = try { GmBridge.Db.get(context).conversations() } catch (_: Exception) { return }
+        if (bridged.isEmpty()) return
+        val at = HashMap<Long, Int>()
+        out.forEachIndexed { i, row -> at[row["id"] as Long] = i }
+        val archived = archivedThreads(); val pinned = threadFlags("pinned"); val muted = threadFlags("muted")
+        var added = false
+        for (b in bridged.distinctBy { it.thread }) {
+            if (only != null && b.thread !in only) continue
+            val i = at[b.thread]
+            if (i != null) {
+                val row = out[i]
+                if (b.time > (row["date"] as Long)) {
+                    out[i] = row + mapOf("date" to b.time, "snippet" to b.text, "unread" to ((row["unread"] as Boolean) || b.unread > 0), "bridged" to true)
+                    added = true
+                } else if (b.unread > 0 && row["unread"] != true) {
+                    out[i] = row + mapOf("unread" to true)
+                }
+                continue
+            }
+            if (lastShown != null && b.time < lastShown) continue
+            val people = if (b.addresses.isNotEmpty()) b.addresses.map { contact(it) } else listOf(mapOf("address" to (b.title ?: ""), "name" to b.title))
+            out += mapOf(
+                "id" to b.thread, "date" to b.time, "count" to 1, "people" to people, "heard" to null, "snippet" to b.text,
+                "encrypted" to false, "group" to null, "unread" to (b.unread > 0), "error" to false, "attachment" to false,
+                "archived" to archived.contains(b.thread), "pinned" to pinned.contains(b.thread), "muted" to muted.contains(b.thread),
+                "name" to (threadName(b.thread) ?: if (b.group) b.title else null), "draft" to null, "blocked" to false, "bridged" to true,
+            )
+            added = true
+        }
+        if (added) out.sortByDescending { it["date"] as Long }
     }
 
     /** The numbers on Android's blocked list, as conversations are told apart by them ([E2e.norm]). */
@@ -401,6 +440,12 @@ class Store(private val context: Context) {
         resolver.query(Uri.parse("content://mms-sms/conversations?simple=true"), arrayOf("_id", "recipient_ids"), "_id = ?", arrayOf(thread.toString()), null)?.use {
             if (it.moveToFirst()) return recipientsOf(it.getString(1)).map { a -> contact(a) }
         }
+        // A conversation only the bridge has (an RCS chat Google Messages showed): its people as the bridge read them.
+        try {
+            GmBridge.Db.get(context).conversations().firstOrNull { c -> c.thread == thread }?.let { c ->
+                return if (c.addresses.isNotEmpty()) c.addresses.map { a -> contact(a) } else listOf(mapOf("address" to (c.title ?: ""), "name" to c.title))
+            }
+        } catch (_: Exception) {}
         return emptyList()
     }
 
@@ -489,6 +534,7 @@ class Store(private val context: Context) {
                 )
             }
         }
+        withBridgedMessages(thread, out, limit)
         out.sortByDescending { it["date"] as Long }
         val originals = originals()
         val marked = if (originals.isEmpty()) out else out.map { m ->
@@ -758,10 +804,38 @@ class Store(private val context: Context) {
         resolver.update(uri, ContentValues().apply { put("msg_box", box) }, null, null)
     }
 
+    /**
+     * The bridge's messages for [thread] (GmBridge: RCS chats Google Messages showed), each one Android's database
+     * does not already have: a text it has with the same words within three minutes is the same message.
+     */
+    private fun withBridgedMessages(thread: Long, out: ArrayList<Map<String, Any?>>, limit: Int) {
+        val bridged = try { GmBridge.Db.get(context).messagesOfThread(thread, limit) } catch (_: Exception) { return }
+        if (bridged.isEmpty()) return
+        val have = out.map { Triple(it["outgoing"] as Boolean, (it["body"] as String?)?.trim() ?: "", it["date"] as Long) }
+        for (m in bridged) {
+            val words = m.text.trim()
+            if (have.any { it.first == m.out && it.second == words && kotlin.math.abs(it.third - m.time) < 180_000 }) continue
+            out += mapOf(
+                "id" to m.id, "kind" to "rcs", "address" to (m.address ?: m.sender ?: ""), "body" to m.text, "encrypted" to false,
+                "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to if (m.out) "sent" else "received",
+                "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender,
+            )
+        }
+    }
+
     fun markRead(thread: Long) {
+        // Beside Google Messages (GmBridge): read in the bridge, and in Google Messages too where it offers that. Android's
+        // database takes no writes from an app that is not the default, so the two updates below may change nothing.
+        try {
+            val db = GmBridge.Db.get(context)
+            db.convOfThread(thread)?.let { GmBridge.markRead(context, it) }
+            db.markRead(thread)
+        } catch (_: Exception) {}
         val v = ContentValues().apply { put("read", 1); put("seen", 1) }
-        resolver.update(Telephony.Sms.CONTENT_URI, v, "thread_id = ? AND read = 0", arrayOf(thread.toString()))
-        resolver.update(Telephony.Mms.CONTENT_URI, v, "thread_id = ? AND read = 0", arrayOf(thread.toString()))
+        try {
+            resolver.update(Telephony.Sms.CONTENT_URI, v, "thread_id = ? AND read = 0", arrayOf(thread.toString()))
+            resolver.update(Telephony.Mms.CONTENT_URI, v, "thread_id = ? AND read = 0", arrayOf(thread.toString()))
+        } catch (_: SecurityException) {}
     }
 
     /**
@@ -772,6 +846,9 @@ class Store(private val context: Context) {
      * showing "deleted" over something that was not.
      */
     fun deleteThread(thread: Long) {
+        try { GmBridge.Db.get(context).forget(thread) } catch (_: Exception) {}
+        // Only the bridge's (an RCS chat Google Messages showed): nothing of Android's to delete.
+        if (thread < 0) return
         var gone = 0
         try { gone += resolver.delete(Uri.parse("content://mms-sms/conversations/$thread"), null, null) } catch (e: Exception) { android.util.Log.w("GhostMessaging", "delete conversation", e) }
         if (hasMessages(thread)) {
@@ -785,6 +862,8 @@ class Store(private val context: Context) {
 
     /** Deletes one message, and says so if Android did not: asked by its own address, then by its number. */
     fun deleteMessage(kind: String, id: Long) {
+        // One the bridge read from Google Messages (GmBridge): forgotten here; Google Messages keeps its own.
+        if (kind == "rcs") { GmBridge.Db.get(context).forgetMessage(id); return }
         val all = if (kind == "mms") Telephony.Mms.CONTENT_URI else Telephony.Sms.CONTENT_URI
         var gone = try { resolver.delete(Uri.withAppendedPath(all, id.toString()), null, null) } catch (e: Exception) { android.util.Log.w("GhostMessaging", "delete message", e); 0 }
         if (gone == 0) {

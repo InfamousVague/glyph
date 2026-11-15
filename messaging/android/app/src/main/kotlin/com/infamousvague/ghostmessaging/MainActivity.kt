@@ -104,6 +104,9 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "status" -> result.success(status())
                 "requestDefault" -> requestDefault(result)
+                // Beside Google Messages (GmBridge): Android's page for notification access, and the SMS permissions.
+                "bridgeAccess" -> { startActivity(GmBridge.accessIntent(this)); result.success(true) }
+                "requestSms" -> requestSms(result)
                 "requestPermissions" -> requestPermissions(result)
                 "openRequest" -> { result.success(pendingOpen); pendingOpen = null }
                 "conversations" -> on(lists) { store.conversations() }
@@ -542,6 +545,11 @@ class MainActivity : FlutterActivity() {
             "contacts" to granted(Manifest.permission.READ_CONTACTS),
             "notifications" to (android.os.Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS)),
             "phone" to granted(Manifest.permission.READ_PHONE_NUMBERS),
+            // Beside Google Messages (GmBridge): whether it is there, whether its notifications may be read, and
+            // whether the SMS database may be read and texts sent (granted by asking, when Ghost is not the default).
+            "gmInstalled" to GmBridge.isInstalled(this),
+            "bridge" to GmBridge.hasAccess(this),
+            "sms" to (granted(Manifest.permission.READ_SMS) && granted(Manifest.permission.SEND_SMS)),
         )
     }
 
@@ -551,6 +559,14 @@ class MainActivity : FlutterActivity() {
         roleResult = result
         @Suppress("DEPRECATION")
         startActivityForResult(role.createRequestRoleIntent(RoleManager.ROLE_SMS), ROLE_REQUEST)
+    }
+
+    /** Reading the SMS database and sending texts, which a default SMS app has without asking. */
+    private fun requestSms(result: MethodChannel.Result) {
+        val missing = listOf(Manifest.permission.READ_SMS, Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS).filter { !granted(it) }
+        if (missing.isEmpty()) { result.success(status()); return }
+        permsResult = result
+        requestPermissions(missing.toTypedArray(), PERMS_REQUEST)
     }
 
     private fun requestPermissions(result: MethodChannel.Result) {

@@ -117,6 +117,13 @@ object Sender {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         require(clean.isNotEmpty()) { "No one to send to" }
+        // Beside Google Messages (GmBridge): sent through it, or as a plain SMS. Android's database takes no writes from
+        // an app that is not the default, so the way below (which writes the message there first) cannot be used.
+        if (!GmBridge.isDefault(context)) {
+            val thread = GmBridge.sendBeside(context, clean, body, attachments)
+            Bus.changed(thread)
+            return thread
+        }
         val thread = store.threadFor(clean)
         // To one person with encryption on, the words go sealed (E2e), and are kept sealed in the SMS database.
         if (clean.size == 1 && attachments.isEmpty()) {

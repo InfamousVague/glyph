@@ -12,6 +12,18 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Or works beside Google Messages, keeping RCS** (0.7.25, not released; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
+  to see if there is a way we can proxy messages from google messages to ghost so we can support RCS and other
+  features ... I'd like to have a way that people can reliably get text in and out of ghost without needing to switch
+  the default messaging app"; then "Both, notifications first"). Google Messages stays the default. Ghost reads texts
+  from Android's database (READ_SMS, asked for) and RCS chats from Google Messages' notifications (notification
+  access; only Google Messages' are read), into `gm_bridge.db`, joined to Android's thread where the people are known.
+  A message Android already has (the same words within three minutes) is shown once. Replies go through the
+  notification's own Reply (RCS where the chat is RCS), else as SMS to one number, else Google Messages opens with the
+  words filled in. Not seen: chats muted in Google Messages or open there when a message comes, RCS from before, RCS
+  pictures; Android 15's hidden one-time codes are skipped (they are texts, read in full from Android). Delete and
+  mark read touch only Ghost's copy and Google Messages' Mark as read. Checked on an emulator with SMS; a real RCS
+  chat not yet. Next: the Messages for Web protocol on the computers, for history, pictures and reactions.
 - **Conversations**: newest first, with contact names and photos, unread dots, a "Not sent" mark, search over
   names, numbers and the last message, long press to mark as read, archive (this app's own list) or delete.
 - **A conversation**: bubbles grouped by sender and minute, day headings, sender names and faces in a group,
