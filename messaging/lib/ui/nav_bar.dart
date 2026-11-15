@@ -239,8 +239,8 @@ class _RingState extends State<_Ring> {
             children: [
               round,
               PositionedDirectional(
-                end: -5,
-                top: -5,
+                end: -6,
+                top: -6,
                 child: ExcludeSemantics(
                   child: Container(
                     // Large enough to read at a glance, and red: a count is the one thing on the pill that is not
@@ -248,11 +248,12 @@ class _RingState extends State<_Ring> {
                     // the right color make it red"). It was fourteen across in the page's ink, which on the ring
                     // that is shown (itself ink) read as a hole in it. A line of the page's ground round it keeps
                     // it off the ring in either case.
-                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    // A size larger again (Matt, 2026-11-15: "make the notification count badges a bit bigger").
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: t.colorOf('#dd3a30'), borderRadius: BorderRadius.circular(10), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(11, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                    decoration: BoxDecoration(color: t.colorOf('#dd3a30'), borderRadius: BorderRadius.circular(12), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(13, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
                   ),
                 ),
               ),

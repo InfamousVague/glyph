@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
@@ -215,5 +217,30 @@ void main() {
     for (var others = 1; others <= 10; others++) {
       expect(videoFor(others).bitrate * others, lessThanOrEqualTo(12000000), reason: '$others others');
     }
+  });
+
+  // Matt, 2026-11-14: "Make the voice hangouts possible to share via a link so people can join to talk anonymously or
+  // sign up through the browser similar to a zoom meeting". tool/voicebench/join_test.mjs checks the page makes the
+  // same room and token from this link.
+  test('a hangout\'s link: the seed and the name after the #, which no server is sent', () {
+    const c = VoiceChannel(seed: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff', name: 'Friday hang ✨');
+    expect(c.link, 'https://ghost-sms.com/join/#00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff.RnJpZGF5IGhhbmcg4pyo');
+    expect(c.room, '42c94d6559e4ea774004c9c5aa93e907');
+    expect(c.token, '6ad07432d21d71cd131266a87b30ac1c84a167e5eea281ccdcee5cca2963ad64');
+    expect(Uri.parse(c.link).path, '/join/', reason: 'the path is all a server sees');
+  });
+
+  test('a member who joined from a browser with no username is a guest', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Hangout');
+    final a = VoiceSession(channel: c, route: _Route(hub, 'a'), media: _Media(), name: 'A');
+    await a.join();
+    final guest = _Route(hub, 'g');
+    await guest.join(c.room, c.token);
+    guest.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'me', 'n': 'Alex', 'g': true}))));
+    await _settle();
+    expect(a.members['g']!.guest, isTrue);
+    expect(a.members['g']!.name, 'Alex');
+    await a.leave();
   });
 }

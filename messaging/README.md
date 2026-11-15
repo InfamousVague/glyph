@@ -448,6 +448,18 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Hangouts by link, in a browser** (0.7.22, not released; site/join; Matt, 2026-11-14: "Make the voice hangouts
+  possible to share via a link so people can join to talk anonymously or sign up through the browser similar to a
+  zoom meeting"). A hangout's options (and the call, for one that is not a group's) copy
+  `https://ghost-sms.com/join/#<seed>.<name>`: the seed is after the #, which a browser sends to no server. The page is
+  a member of the channel in the browser, the app's protocol written again in JavaScript (`site/join/voice.js`):
+  who is there before joining, a name or "Guest", microphone and camera, then the call with its tiles, mute, video
+  and leave. Sign up claims a username on the relay for a key kept in the browser (IndexedDB, not readable even by the
+  page). Guests are marked in the app's call. `tool/voicebench/join_test.mjs` runs two browsers through it against a
+  local relay (sound and video both ways, the same room and token as the app). Not yet: a TURN server, so two people
+  on strict networks may not connect; friends and messages in the browser.
+- **Bigger count badges** on the pill's rings and the filter (24 px, 13 pt; "make the notification count badges a bit
+  bigger on the filter and other places where they're listed").
 - **Ghost Messaging for Windows, and Mac and Windows downloads on ghost-sms.com** (2026-11-15; Matt, 2026-11-14: "Add a
   mac and windows build to ghost-sms.com"). The desktop app builds for Windows (`windows/`, built on GitHub's Windows
   runners by .github/workflows/messaging-windows.yml, which also installs it silently and checks it opens a window)
