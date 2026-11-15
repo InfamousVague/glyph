@@ -20,6 +20,7 @@ import 'background_picker.dart';
 import '../desktop/platform.dart' show computerWord;
 import '../voice/voice_settings.dart';
 import 'common.dart';
+import 'gm_guide_screen.dart';
 import 'gm_web_screen.dart';
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
@@ -445,6 +446,14 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
           label: 'Google Messages connection',
           hint: const Text('Pictures, reactions and read marks for RCS chats in Ghost, without Google Messages\' notifications. Paired once with another screen\'s help.'),
           onPress: () => push(context, (_) => const GmWebScreen()),
+        ),
+        // The same on a Mac or a PC, kept running (lib/ui/gm_guide_screen.dart; Matt, 2026-11-15: "Tell me how to setup
+        // the sidecar on mac and PC in a guide found in settings").
+        SettingRow(
+          icon: _icon(Lucide.laptop),
+          label: 'On a Mac or PC',
+          hint: const Text('How to run the Google Messages helper on your computer, and keep it running.'),
+          onPress: () => push(context, (_) => const GmGuideScreen()),
         ),
       ]),
     PaneSection(title: 'Writing', children: [

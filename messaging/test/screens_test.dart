@@ -50,6 +50,7 @@ import 'package:ghost_messaging/ui/compose.dart';
 import 'package:ghost_messaging/ui/computers.dart';
 import 'package:ghost_messaging/ui/contacts.dart';
 import 'package:ghost_messaging/ui/conversations.dart';
+import 'package:ghost_messaging/ui/gm_guide_screen.dart';
 import 'package:ghost_messaging/ui/gm_web_screen.dart';
 import 'package:ghost_messaging/ui/rcs_setup.dart';
 import 'package:ghost_messaging/ui/settings.dart';
@@ -879,6 +880,10 @@ void main() {
       _gmWeb = const {'available': true, 'running': true, 'paired': true, 'connected': true, 'phone': '+1 555-123-0000'};
       await _shoot(tester, sheet, const GmWebScreen(), '19-gm-web-paired', dark: dark);
       expect(find.text('Connected'), findsOneWidget);
+      // The guide to running it on a Mac or PC (Matt, 2026-11-15: "Tell me how to setup the sidecar on mac and PC in a
+      // guide found in settings").
+      await _shoot(tester, sheet, const GmGuideScreen(), '19-gm-guide', dark: dark);
+      expect(find.text('1. Get the app'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
       // Ghost is the texting app: each page after, in turn.
