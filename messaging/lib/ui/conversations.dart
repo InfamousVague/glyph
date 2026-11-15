@@ -20,6 +20,7 @@ import '../sms.dart';
 import '../summaries.dart';
 import 'common.dart';
 import 'voice_screen.dart';
+import 'hangout_screen.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
 import 'update_banner.dart';
@@ -309,6 +310,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
+    // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
+    if (c.hangout && Voice.instance.session?.channel.room != c.room) {
+      push(context, (_) => HangoutScreen(channel: c));
+      return;
+    }
     try {
       await Voice.instance.join(c);
     } catch (e) {

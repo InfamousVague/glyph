@@ -844,6 +844,8 @@ class HandlesConfig {
   });
 
   factory HandlesConfig.fromEnvironment(Map<String, String> env) => HandlesConfig(
+        // Still ghost-sms.com after the move to gogho.st (2026-11-15): the sign-in pages' callback addresses are the
+        // ones Discord, X and Telegram were given. Once gogho.st's are added there, GHOST_PUBLIC_URL moves it.
         publicUrl: (env['GHOST_PUBLIC_URL'] ?? 'https://ghost-sms.com').replaceAll(RegExp(r'/+$'), ''),
         discordId: env['GHOST_DISCORD_ID'] ?? '',
         discordSecret: env['GHOST_DISCORD_SECRET'] ?? '',

@@ -32,13 +32,13 @@ import java.util.concurrent.Executors
  *
  * Debug builds never look. A build signed by another key than the release's (one made on a machine without the
  * release key) looks, and is told the download is not signed by its key: it is replaced once by the release from
- * ghost-sms.com, and updates itself from then on.
+ * gogho.st (ghost-sms.com before 2026-11-15, which still serves the copies installed then), and updates itself from then on.
  *
  * The release found last is written down ([FOUND]), so it is still on offer after the app has been restarted
  * ([restore]).
  */
 object Updater {
-    const val BASE = "https://ghost-sms.com"
+    const val BASE = "https://gogho.st"
     private const val ACTION_INSTALLED = "com.infamousvague.ghostmessaging.INSTALL_STATUS"
     private const val PREFS = "updates"
     private const val CHECKED_AT = "checked_at"

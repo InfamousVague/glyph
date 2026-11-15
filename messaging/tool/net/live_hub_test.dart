@@ -10,7 +10,7 @@ import 'package:ghost_messaging/net/switchboard.dart';
 
 /// Two installs made up here, talking through a hub that is really there (docs/network.md):
 ///
-///     flutter test tool/net/live_hub_test.dart --dart-define=HUB=wss://ghost-sms.com/hub
+///     flutter test tool/net/live_hub_test.dart --dart-define=HUB=wss://gogho.st/hub
 ///
 /// It is the check run after tool/deploy-relay.mjs. Each run makes two new key pairs, so it leaves nothing behind
 /// but what it sends itself, which it also fetches: a packet held for one who is away and handed over when they

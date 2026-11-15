@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ships ghost-sms.com, Ghost Messaging's site (site/), to the box in one ssh session, as Ghost Keyboard's
+ * Ships gogho.st (before 2026-11-15, ghost-sms.com), Ghost Messaging's site (site/), to the box in one ssh session, as Ghost Keyboard's
  * tool/deploy-site.mjs ships ghostkbd.com (Matt, 2026-11-13: "serve it over ghost-sms.com I'll point the domain to
  * the same server ghost kbd uses").
  *
@@ -17,7 +17,7 @@
  * It uses Ghost.md's box account and its own deploy code, as tool/release.mjs does (this app lives in Ghost.md's
  * repository, so the checkout is the folder above; --glyph <path> or GLYPH_ROOT say otherwise). THE CADDYFILE IS
  * SHARED (attack.fm, ghostmarkdown.com, ghostkbd.com and more), so --caddy is glyph's scripts/deploy-landing.mjs
- * procedure, line for line: it touches only ghost-sms.com's own block; a timestamped backup; every other site asked
+ * procedure, line for line: it touches only gogho.st's and ghost-sms.com's own blocks; a timestamped backup; every other site asked
  * for its page before; the block written; `caddy validate`; a reload; every other site asked again; a failed
  * validate, or any site answering differently, puts the backup back. Caddy gets the certificate by itself, once the
  * domain's DNS points at the box. The box counts logins: this spends one.
@@ -35,7 +35,13 @@ const RELEASE = '/opt/ghost-sms-release';
 const APK = 'ghost-messaging.apk';
 // The Mac app's (tool/release-mac.mjs): what an installed copy reads, and the zip it updates itself from.
 const MAC_ZIP = 'ghost-messaging-mac.zip';
-const DOMAIN = 'ghost-sms.com';
+const DOMAIN = 'gogho.st';
+// The site's first address (Matt, 2026-11-15: "I got the domain gogho.st hooked up the box, please update all the links
+// in app and everything to point through that domain instead of the ghost-sms one also point that domain to the
+// website"). It still answers what copies installed before the move ask of it - their updates and the relay - and
+// the relay's sign-in pages (/link/*, whose addresses Discord, X and Telegram were given); anything else there goes
+// to the same address on gogho.st.
+const OLD = 'ghost-sms.com';
 const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
 const printOnly = args.includes('--print');
@@ -82,9 +88,29 @@ ${DOMAIN} {
 www.${DOMAIN} {
 	redir https://${DOMAIN}{uri} permanent
 }
+${OLD} {
+	encode zstd gzip
+	@release path /${APK} /apk.json /${MAC_ZIP} /mac.json /ghost-messaging-setup.exe /windows.json
+	handle @release {
+		root * ${RELEASE}
+		header Cache-Control "no-cache"
+		file_server
+	}
+	@relay path /hub /relay/* /link/*
+	handle @relay {
+		reverse_proxy 127.0.0.1:18787
+	}
+	handle {
+		redir https://${DOMAIN}{uri} permanent
+	}
+}
+www.${OLD} {
+	redir https://${DOMAIN}{uri} permanent
+}
 `;
 
-const dom = DOMAIN.replace('.', '[.]');
+// Both names' blocks are this site's: each is taken out and written again.
+const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')})`;
 // Run on the box. Reads the site as a tarball on stdin.
 const REMOTE = `set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
@@ -117,7 +143,7 @@ BACKUP="$CF.bak-$(date +%Y%m%d-%H%M%S)"
 $SUDO cp -a "$CF" "$BACKUP"
 echo "ok backup $BACKUP"
 # What installed copies update from. Where it answered before, it must answer after.
-feeds() { for p in /apk.json /${APK}; do curl -s -o /dev/null -w "$p %{http_code}\\n" -I --max-time 10 --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}$p" || true; done; }
+feeds() { for p in /apk.json /${APK}; do curl -s -o /dev/null -w "$p %{http_code}\\n" -I --max-time 10 --resolve "${OLD}:443:127.0.0.1" "https://${OLD}$p" || true; done; }
 FEEDS=$(feeds)
 BEFORE=$(probe | grep -v -E '^(www[.])?${dom} ' || true)
 echo "before:"; echo "$BEFORE" | sed 's/^/  /'
@@ -136,7 +162,7 @@ AFTER=$(probe | grep -v -E '^(www[.])?${dom} ' || true)
 echo "after:"; echo "$AFTER" | sed 's/^/  /'
 [ "$BEFORE" = "$AFTER" ] || restore "a site answers differently after the reload"
 if [ "$FEEDS" = "$(printf '/apk.json 200\\n/${APK} 200')" ]; then
-  [ "$(feeds)" = "$FEEDS" ] || restore "https://${DOMAIN}/apk.json or /${APK} no longer answers, and installed copies update from them"
+  [ "$(feeds)" = "$FEEDS" ] || restore "https://${OLD}/apk.json or /${APK} no longer answers, and copies installed before gogho.st update from them"
   echo "ok /apk.json and /${APK} answer as before"
 fi
 echo "ok ${DOMAIN}'s blocks written and live"

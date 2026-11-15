@@ -232,7 +232,7 @@ void main() {
   // same room and token from this link.
   test('a hangout\'s link: the seed and the name after the #, which no server is sent', () {
     const c = VoiceChannel(seed: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff', name: 'Friday hang ✨');
-    expect(c.link, 'https://ghost-sms.com/join/#00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff.RnJpZGF5IGhhbmcg4pyo');
+    expect(c.link, 'https://gogho.st/join/#00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff.RnJpZGF5IGhhbmcg4pyo');
     expect(c.room, '42c94d6559e4ea774004c9c5aa93e907');
     expect(c.token, '6ad07432d21d71cd131266a87b30ac1c84a167e5eea281ccdcee5cca2963ad64');
     expect(Uri.parse(c.link).path, '/join/', reason: 'the path is all a server sees');

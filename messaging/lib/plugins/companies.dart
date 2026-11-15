@@ -15,7 +15,7 @@ library;
 /// A company that sends sign-in codes.
 /// The app's own address: the company whose face is the app's ghost (Matt, 2026-11-14: "it's not using the ghost
 /// logo for the icon in codes").
-const ghostDomain = 'ghost-sms.com';
+const ghostDomain = 'gogho.st';
 
 class Company {
   const Company(this.name, this.domain, this.color, [this.also = const []]);

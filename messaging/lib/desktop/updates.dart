@@ -9,7 +9,7 @@ import 'package:pointycastle/digests/sha256.dart';
 /// The Mac app's own updates, so a copy that is installed is never installed again by hand (Matt, 2026-11-13:
 /// "install the app on my mac and make sure it has OTA updates so we don't need to reinstall again").
 ///
-/// - **What it reads** is `https://ghost-sms.com/mac.json`, which tool/release-mac.mjs puts beside the phone app's
+/// - **What it reads** is `https://gogho.st/mac.json`, which tool/release-mac.mjs puts beside the phone app's
 ///   `apk.json`: `{ version, versionCode, sha256, bytes, url }`, the url being the zip of the app beside it. A newer
 ///   one is one whose `versionCode` (the app's `CFBundleVersion`) is above this app's.
 /// - **What it does** is download that zip into the app's own cache and hand it to the Mac's half
@@ -27,11 +27,11 @@ import 'package:pointycastle/digests/sha256.dart';
 /// can be walked through with no hand on the app (docs/desktop.md, "Updating itself").
 
 /// Where an installed Mac app reads of a newer one.
-const macFeed = 'https://ghost-sms.com/mac.json';
+const macFeed = 'https://gogho.st/mac.json';
 
 /// Where an installed Windows app reads of a newer one: tool/release-windows.mjs's description of the installer
 /// beside it (Matt, 2026-11-15: "also we need an auto updated for windows").
-const windowsFeed = 'https://ghost-sms.com/windows.json';
+const windowsFeed = 'https://gogho.st/windows.json';
 
 /// The build number a Windows build was made with (`--dart-define=GHOST_BUILD=…` in
 /// .github/workflows/messaging-windows.yml); 0 for a build made any other way, which never updates itself.
@@ -385,7 +385,7 @@ class MacUpdates extends ChangeNotifier {
 /// update runs it silently with /RELAUNCH (windows/installer.iss reopens the app then) and quits this copy.
 ///
 /// The installer is not signed yet, so what makes it believed is weaker than the Mac's Developer ID check: it came
-/// over HTTPS from ghost-sms.com, beside a description from the same server, and matches that description.
+/// over HTTPS from gogho.st, beside a description from the same server, and matches that description.
 ///
 /// Only a copy the installer put in place updates itself: one in the person's Programs folder, built with a build
 /// number ([windowsBuild]). Any other (a build run from its folder) is never looked for.

@@ -28,7 +28,7 @@ import '../net/hub_carrier.dart';
 /// from the source, and no browser or phone engine sends uncompressed sound or picture.
 @immutable
 class VoiceChannel {
-  const VoiceChannel({required this.seed, required this.name, this.group, this.mine = false});
+  const VoiceChannel({required this.seed, required this.name, this.group, this.mine = false, this.owner = ''});
 
   /// 32 bytes in hex: everything else comes from it.
   final String seed;
@@ -40,30 +40,47 @@ class VoiceChannel {
   /// Made on this phone.
   final bool mine;
 
+  /// The public key (33 bytes in hex) of the install that made it: the hangout's owner, who decides its roles
+  /// (lib/voice/roles.dart). Empty for a group's channel and for hangouts made before roles.
+  final String owner;
+
   Uint8List get _seed => NetCrypto.unhex(seed);
   String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'voice room').sublist(0, 16));
   String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'voice token'));
   Uint8List get key => NetCrypto.derive(_seed, 'voice key');
+
+  /// The hangout's chat room: a room of its own beside the call's, which anyone looking at the hangout is in, so the
+  /// chat and the roles reach people who are not in the call (lib/voice/hangout.dart).
+  String get chatRoom => NetCrypto.hex(NetCrypto.derive(_seed, 'hangout room').sublist(0, 16));
+  String get chatToken => NetCrypto.hex(NetCrypto.derive(_seed, 'hangout token'));
 
   /// A group's channel, from the group's id.
   factory VoiceChannel.ofGroup(String groupId, String name) =>
       VoiceChannel(seed: NetCrypto.hex(NetCrypto.sha256(utf8.encode('ghost-voice group|$groupId'))), name: name, group: groupId);
 
   /// A new channel of this phone's.
-  factory VoiceChannel.make(String name) => VoiceChannel(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, mine: true);
+  factory VoiceChannel.make(String name, {String owner = ''}) => VoiceChannel(seed: NetCrypto.hex(NetCrypto.randomBytes(32)), name: name, mine: true, owner: owner);
 
-  Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1};
+  /// A hangout (not a group's channel): it has a chat and roles.
+  bool get hangout => group == null;
+
+  VoiceChannel copyWith({bool? mine}) => VoiceChannel(seed: seed, name: name, group: group, mine: mine ?? this.mine, owner: owner);
+
+  Map<String, Object> toJson() => {'s': seed, 'n': name, if (mine) 'm': 1, if (owner.isNotEmpty) 'o': owner};
 
   /// A link anyone can open in a browser to hop in, as a guest or signed up (site/join; Matt, 2026-11-14: "Make the
   /// voice hangouts possible to share via a link so people can join to talk anonymously or sign up through the
   /// browser similar to a zoom meeting"). The seed is in the part after the #, which a browser never sends to any
   /// server, so the link opens the channel and the relay still can't read it. Whoever has it is in, as with a
   /// meeting link.
-  String get link => 'https://ghost-sms.com/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}';
+  ///
+  /// The owner's key follows the name, so the browser knows whose roles to believe.
+  String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}';
 
   static VoiceChannel? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || (j['s'] as String).length != 64 || j['n'] is! String) return null;
-    return VoiceChannel(seed: j['s'] as String, name: j['n'] as String, mine: j['m'] == 1);
+    final owner = j['o'] is String && RegExp(r'^0[23][0-9a-f]{64}$').hasMatch(j['o'] as String) ? j['o'] as String : '';
+    return VoiceChannel(seed: j['s'] as String, name: j['n'] as String, mine: j['m'] == 1, owner: owner);
   }
 }
 
@@ -173,6 +190,12 @@ class VoiceSession extends ChangeNotifier {
   final String name;
 
   final Map<String, VoiceMember> members = {};
+
+  /// Who is not answered at all (a hangout's banned: lib/voice/hangout.dart).
+  bool Function(String id)? refuse;
+
+  /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
+  bool locked = false, videoLocked = false;
   final Map<String, VoicePeer> _peers = {};
   final List<StreamSubscription<Object?>> _subs = [];
   bool muted = false, deafened = false, video = false, joined = false;
@@ -190,10 +213,11 @@ class VoiceSession extends ChangeNotifier {
     joined = true;
     since = DateTime.now();
     for (final id in there) {
+      if (refuse?.call(id) ?? false) continue;
       members[id] = VoiceMember(id);
     }
     _sayState();
-    for (final id in there) {
+    for (final id in members.keys.toList()) {
       unawaited(_offer(id));
     }
     notifyListeners();
@@ -216,6 +240,7 @@ class VoiceSession extends ChangeNotifier {
   }
 
   void setMuted(bool on) {
+    if (!on && locked) return;
     muted = on;
     media.muted = on || deafened;
     _sayState();
@@ -231,6 +256,7 @@ class VoiceSession extends ChangeNotifier {
   }
 
   Future<void> setVideo(bool on) async {
+    if (on && videoLocked) return;
     video = on;
     await media.setVideo(on);
     _sayState();
@@ -239,6 +265,7 @@ class VoiceSession extends ChangeNotifier {
 
   void _event(RoomEvent e) {
     if (e.came != null) {
+      if (refuse?.call(e.came!) ?? false) return;
       // They offer: they came in.
       members[e.came!] = VoiceMember(e.came!);
       _sayState();
@@ -276,6 +303,11 @@ class VoiceSession extends ChangeNotifier {
     }
     final to = m['to'];
     if (to != null && to != route.me) return;
+    if (refuse?.call(from) ?? false) {
+      members.remove(from);
+      unawaited(_peers.remove(from)?.close());
+      return;
+    }
     switch (m['t']) {
       case 'me':
         final had = members[from] ?? VoiceMember(from);

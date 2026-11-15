@@ -20,7 +20,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const HOST_URL = 'https://ghost-sms.com';
+// The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
+const HOST_URL = 'https://gogho.st';
 const RELEASE = '/opt/ghost-sms-release';
 const BACKUPS = '/opt/ghost-sms-releases';
 const EXE = 'ghost-messaging-setup.exe';
