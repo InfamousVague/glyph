@@ -1353,7 +1353,7 @@ void main() {
     _answerChannel();
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
     installSettingsStyles(sheet);
-    final hangout = VoiceChannel.make('Hangout'), study = VoiceChannel.make('Study room');
+    final hangout = VoiceChannel.make('Friday space'), study = VoiceChannel.make('Study room');
     final v = Voice.instance;
     v.own = [hangout, study];
     // Maya is talking, and so, a little, is this phone.
@@ -1376,10 +1376,10 @@ void main() {
     });
     for (final dark in [false, true]) {
       await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
-      expect(find.text('Hangout'), findsWidgets);
+      expect(find.text('Friday space'), findsWidgets);
       // In a call the page is the call alone: who is in it and the dock (Matt, 2026-11-15: "I want the call screen to
       // be super simple too just a list of chatters and the call controls").
-      expect(find.text('Channels'.toUpperCase()), findsNothing);
+      expect(find.text('Spaces'.toUpperCase()), findsNothing);
       expect(find.text('Study room'), findsNothing);
       // A list of who is there, faces rippling while they talk, and no squares: nobody has video on (Matt,
       // 2026-11-15: "make the voice chats a list of participants don't show the squares unless someone turns on
@@ -1493,7 +1493,7 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '21-hangout-person', dark: dark);
       expect(find.text('Mute for everyone'), findsOneWidget);
-      expect(find.text('Remove from hangout'), findsOneWidget);
+      expect(find.text('Remove from space'), findsOneWidget);
       expect(find.text('Ban'), findsOneWidget);
       await tester.tap(find.bySemanticsLabel('Mute Sam for everyone'));
       await _settle(tester);
@@ -1589,21 +1589,21 @@ void main() {
       // manage permissions and such as well as delete the hangouts on desktop"): its settings, link, sharing, delete.
       tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
       await _shoot(tester, sheet, const VoiceScreen(), '22-hangout-menu', dark: dark);
-      await tester.tap(find.bySemanticsLabel('Channel options'));
+      await tester.tap(find.bySemanticsLabel('Space options'));
       await _settle(tester);
       await _shootAgain(tester, '22-hangout-menu', dark: dark);
       expect(find.text('Settings and permissions'), findsOneWidget);
       expect(find.text('Copy invite link'), findsOneWidget);
-      expect(find.text('Delete hangout'), findsOneWidget);
+      expect(find.text('Delete space'), findsOneWidget);
       await tester.tap(find.text('Settings and permissions'));
       await _settle(tester);
       await _shootAgain(tester, '22-hangout-settings', dark: dark);
       expect(find.byType(RolesScreen), findsOneWidget);
       expect(find.text('Copy invite link'), findsOneWidget);
       // Further down: the role new people get, and deleting it.
-      await tester.scrollUntilVisible(find.text('Delete hangout'), 300, scrollable: find.byType(Scrollable).last);
+      await tester.scrollUntilVisible(find.text('Delete space'), 300, scrollable: find.byType(Scrollable).last);
       expect(find.text('Join as'), findsOneWidget);
-      expect(find.text('Delete hangout'), findsOneWidget);
+      expect(find.text('Delete space'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1867,7 +1867,7 @@ void main() {
       // closes it.
       await tester.tap(ring('new'));
       await _settle(tester);
-      expect(find.text('Voice call'), findsOneWidget);
+      expect(find.text('New space'), findsOneWidget);
       await tester.tap(find.text('New chat').hitTestable().last);
       await _settle(tester);
       expect(find.byType(ComposeScreen), findsOneWidget);

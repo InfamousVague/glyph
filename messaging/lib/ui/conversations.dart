@@ -353,7 +353,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // where calls are.
     final voices = Voice.instance.channels;
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-      (id: voiceTab, icon: LucideMore.headphones, label: 'Voice', count: voices.where(Voice.instance.live).length),
+      (id: voiceTab, icon: LucideMore.headphones, label: 'Spaces', count: voices.where(Voice.instance.live).length),
     ]);
     final kinds = _plugins.kinds;
     if (tabs == null && kinds.isEmpty) return null;
@@ -715,8 +715,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
           icon: AppIcon(LucideMore.headphones, size: 28, color: t.color('app-ink-3')),
-          title: 'No voice channels yet',
-          body: const Text('Every group of friends has one. Start your own with the new button, then share it with friends or by a link.'),
+          title: 'No spaces yet',
+          body: const Text('Every group of friends has its own space. Start one with the new button, then share it with friends or by a link.'),
         ),
       ]);
     } else if (rows.isEmpty) {
