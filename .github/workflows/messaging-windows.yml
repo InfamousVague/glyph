@@ -39,6 +39,12 @@ jobs:
 
       - run: flutter pub get
 
+      # DeepFilterNet for calls (native/voicefx/deepfilter), by the runner's own Rust: windows/runner/CMakeLists.txt
+      # links it where it is there, and the app offers RNNoise alone where it is not.
+      - name: Build DeepFilterNet
+        working-directory: messaging/native/voicefx/deepfilter
+        run: cargo build --release
+
       - name: Build the app
         run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }} --dart-define=GHOST_BUILD=${{ inputs.build }} --dart-define=GHOST_VERSION=${{ inputs.version }}
 

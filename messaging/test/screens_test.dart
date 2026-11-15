@@ -1078,6 +1078,10 @@ void main() {
       // The address book offers New group where there is a friend to put in one.
       await _shoot(tester, sheet, ContactsScreen(key: ValueKey('contacts-$dark')), '15-groups-contacts', dark: dark);
       expect(find.text('New group'), findsOneWidget);
+      // The people added on Ghost Messaging come first, under their own heading, and the phone's contacts after.
+      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Alex Kim')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));
+      expect(tester.getTopLeft(find.text('Sam Rivera')).dy, lessThan(tester.getTopLeft(find.text('Maya Chen')).dy));
       // Its name, and who is in it; Create waits for someone to be chosen.
       await _shoot(tester, sheet, NewGroupScreen(key: ValueKey('new-$dark')), '15-groups-new', dark: dark);
       await tester.tap(find.text('Create'));
