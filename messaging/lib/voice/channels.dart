@@ -56,6 +56,25 @@ class Voice extends ChangeNotifier {
   /// Channels made here or shared by friends.
   List<VoiceChannel> own = [];
 
+  /// The seeds of channels removed on this device or its phone or computer, kept so that neither gives one back to
+  /// the other (Matt, 2026-11-15: "Removing a hangout channel doesn't remove it for all devices": the computer still
+  /// had it and, every few seconds, handed the phone it again). The newest [_goneKept].
+  final List<String> _gone = [];
+  static const _goneKept = 300;
+
+  bool removed(String seed) => _gone.contains(seed);
+
+  void _markGone(String seed) {
+    _gone.remove(seed);
+    _gone.add(seed);
+    if (_gone.length > _goneKept) _gone.removeRange(0, _gone.length - _goneKept);
+    _app?.set('voice_gone', jsonEncode(_gone));
+  }
+
+  void _unmarkGone(String seed) {
+    if (_gone.remove(seed)) _app?.set('voice_gone', jsonEncode(_gone));
+  }
+
   /// How loud each person is played here, and who is silenced here, by their id: kept, and applied in every call with
   /// them (Matt, 2026-11-15: "press and hold on a user to habe options like muting changing volume levels").
   final Map<String, double> _volumes = {};
@@ -106,6 +125,7 @@ class Voice extends ChangeNotifier {
     try {
       own = [for (final j in jsonDecode(app.choice('voice_channels', '[]')) as List) ?VoiceChannel.fromJson(j)];
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
+      _gone.addAll((jsonDecode(app.choice('voice_gone', '[]')) as List).whereType<String>());
       final people = jsonDecode(app.choice('voice_people', '{}')) as Map;
       _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
@@ -148,12 +168,16 @@ class Voice extends ChangeNotifier {
     switch (what['op']) {
       case 'add':
         final c = VoiceChannel.fromJson({'s': what['s'], 'n': what['n']});
+        // One removed here is not given back by a computer that had not heard yet.
+        if (c != null && removed(c.seed)) return {'ok': false, 'gone': true};
         if (c != null && !own.any((o) => o.seed == c.seed)) {
           own = [...own, VoiceChannel(seed: c.seed, name: c.name, mine: true)];
           await _keep();
         }
         return {'ok': true};
       case 'forget':
+        if (what['s'] is String) _markGone(what['s'] as String);
+        if (session != null && session!.channel.seed == what['s']) await leave();
         own = [for (final o in own) if (o.seed != what['s']) o];
         await _keep();
         return {'ok': true};
@@ -163,6 +187,8 @@ class Voice extends ChangeNotifier {
           'channels': [
             for (final c in channels) {'s': c.seed, 'n': c.name, if (c.group != null) 'g': c.group, if (c.mine) 'm': 1},
           ],
+          // What was removed, here or from a computer, for every computer to take away too.
+          'gone': _gone,
           'name': me.displayName.isNotEmpty ? me.displayName : (me.username == null ? '' : '@${me.username}'),
           if (me.username != null) 'u': me.username,
         };
@@ -174,19 +200,36 @@ class Voice extends ChangeNotifier {
     if (!Sms.remote) return;
     try {
       final got = await Sms.instance.voiceSync({'op': 'list'});
+      // Removed on the phone: removed here too, and never handed back to it.
+      final phoneGone = (got['gone'] as List? ?? const []).whereType<String>().toSet();
+      var dropped = false;
+      for (final s in phoneGone) {
+        if (!removed(s)) _markGone(s);
+        if (own.any((o) => o.seed == s)) {
+          own = [for (final o in own) if (o.seed != s) o];
+          dropped = true;
+          if (session?.channel.seed == s) unawaited(leave());
+        }
+      }
+      if (dropped) _app?.set('voice_channels', jsonEncode([for (final c in own) c.toJson()]));
       final list = <VoiceChannel>[];
       for (final j in (got['channels'] as List? ?? const [])) {
         if (j is! Map || j['s'] is! String || j['n'] is! String || (j['s'] as String).length != 64) continue;
+        // Removed here while the phone was away: it is told again, and not shown meanwhile.
+        if (removed(j['s'] as String)) {
+          unawaited(Sms.instance.voiceSync({'op': 'forget', 's': j['s']}).catchError((_) => <String, dynamic>{}));
+          continue;
+        }
         list.add(VoiceChannel(seed: j['s'] as String, name: j['n'] as String, group: j['g'] as String?, mine: j['m'] == 1));
       }
       final name = got['name'] is String ? got['name'] as String : null;
-      final changed = list.map((c) => '${c.seed}${c.name}').join() != _phone.map((c) => '${c.seed}${c.name}').join() || name != _deskName;
+      final changed = dropped || list.map((c) => '${c.seed}${c.name}').join() != _phone.map((c) => '${c.seed}${c.name}').join() || name != _deskName;
       _phone = list;
       _deskName = name;
       _deskUsername = got['u'] as String?;
       // Channels made here that the phone does not have yet go to it.
       for (final c in own) {
-        if (!list.any((p) => p.seed == c.seed)) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name}).catchError((_) => <String, dynamic>{}));
+        if (!list.any((p) => p.seed == c.seed) && !removed(c.seed)) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name}).catchError((_) => <String, dynamic>{}));
       }
       if (changed) _look();
     } catch (_) {
@@ -281,6 +324,7 @@ class Voice extends ChangeNotifier {
 
   Future<void> forget(VoiceChannel c) async {
     if (session?.channel.room == c.room) await leave();
+    _markGone(c.seed);
     own = [for (final o in own) if (o.seed != c.seed) o];
     _phone = [for (final o in _phone) if (o.seed != c.seed) o];
     if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'forget', 's': c.seed}).catchError((_) => <String, dynamic>{}));
@@ -319,6 +363,8 @@ class Voice extends ChangeNotifier {
         if (Buddies.instance.byId(r.peer.id)?.state != 'yes') return;
         final c = VoiceChannel.fromJson({'s': b['s'], 'n': b['n']});
         if (c == null || own.any((o) => o.seed == c.seed)) return;
+        // Shared again by a friend, after it was removed: wanted again.
+        _unmarkGone(c.seed);
         own = [...own, c];
         unawaited(_keep());
       case 'ring':
