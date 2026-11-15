@@ -16,22 +16,22 @@ void main() {
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null));
 
   group('updates', () {
-    UpdateState failed(String error) => UpdateState(phase: 'failed', error: error, source: 'https://ghost-sms.com');
+    UpdateState failed(String error) => UpdateState(phase: 'failed', error: error, source: 'https://gogho.st');
 
     test('a site that is not there to ask is said plainly, not as Java said it', () {
-      const said = 'ghost-sms.com isn\'t serving updates yet.';
+      const said = 'gogho.st isn\'t serving updates yet.';
       // What Updater.kt says from 0.4.0, and what a TLS, DNS, connection or 404 failure reads as without it.
       for (final error in [
         'notServing',
         'java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.',
         'Handshake failed',
         'Read error: ssl=0x7b1c: Failure in SSL library, usually a protocol error',
-        'Unable to resolve host "ghost-sms.com": No address associated with hostname',
-        'Failed to connect to ghost-sms.com/149.248.47.151:443',
+        'Unable to resolve host "gogho.st": No address associated with hostname',
+        'Failed to connect to gogho.st/149.248.47.151:443',
         'The update server answered 404.',
       ]) {
         expect(updateLine(failed(error)), said, reason: error);
-        expect(updateSummary(failed(error)), 'ghost-sms.com isn\'t serving updates yet', reason: error);
+        expect(updateSummary(failed(error)), 'gogho.st isn\'t serving updates yet', reason: error);
       }
     });
 
@@ -39,7 +39,7 @@ void main() {
       expect(updateLine(failed('offline')), startsWith('This phone is offline.'));
       expect(updateLine(failed('The download does not match the release\'s hash.')), 'Couldn\'t update: The download does not match the release\'s hash.');
       expect(updateLine(failed('The update server answered 500.')), 'Couldn\'t update: The update server answered 500.');
-      expect(updateLine(failed('The download is not signed by this app\'s key.')), contains('Install the release from ghost-sms.com once'));
+      expect(updateLine(failed('The download is not signed by this app\'s key.')), contains('Install the release from gogho.st once'));
       expect(updateLine(const UpdateState(phase: 'upToDate')), 'Up to date.');
     });
   });

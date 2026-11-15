@@ -51,7 +51,7 @@ class RoomEvent {
 class HubCarrier implements Carrier {
   HubCarrier({required this.url, required this.signer, Duration? retry}) : _retry = retry ?? const Duration(seconds: 3);
 
-  /// The hub's address: `wss://ghost-sms.com/hub`.
+  /// The hub's address: `wss://gogho.st/hub`.
   final String url;
   final NetSigner signer;
   final Duration _retry;

@@ -163,12 +163,12 @@ void main() {
     for (final dark in [false, true]) {
       // The wizard: how to connect, the code to scan, the six digits.
       await shoot('1-wizard', fresh(), dark: dark);
-      final showing = fresh()..beginPairing(mode: 'both', relay: 'wss://ghost-sms.com/relay');
+      final showing = fresh()..beginPairing(mode: 'both', relay: 'wss://gogho.st/relay');
       // The code as the examples have it, so the picture is the same from one run to the next.
       await shoot('2-code', showing, dark: dark);
       expect(find.text('Scan this with your phone'), findsOneWidget);
       final comparing = fresh();
-      comparing.beginPairing(mode: 'both', relay: 'wss://ghost-sms.com/relay')
+      comparing.beginPairing(mode: 'both', relay: 'wss://gogho.st/relay')
         ..phase = 'code'
         ..code = '874151'
         ..phoneName = 'Galaxy Z Fold8';
@@ -178,7 +178,7 @@ void main() {
 
       // Paired: the conversations, one of them open, a text waiting for the phone.
       PhoneLink paired(String? via) => fresh()
-        ..phone = PairedPhone(id: 'd387c0690aec58b7', name: 'Galaxy Z Fold8', key: DeskCrypto.randomBytes(32), mode: 'both', relay: 'wss://ghost-sms.com/relay', since: DateTime.now().subtract(const Duration(days: 9)))
+        ..phone = PairedPhone(id: 'd387c0690aec58b7', name: 'Galaxy Z Fold8', key: DeskCrypto.randomBytes(32), mode: 'both', relay: 'wss://gogho.st/relay', since: DateTime.now().subtract(const Duration(days: 9)))
         ..shownVia = via;
       await shoot('4-conversations', paired('local'), dark: dark, then: () async {
         await tester.tap(find.text('Maya Chen'));
@@ -383,7 +383,7 @@ void main() {
       final ready = MacUpdates.standing(
         installed: const InstalledMac(version: '0.6.2', build: 456601, dir: '/tmp/none'),
         phase: MacUpdatePhase.ready,
-        release: MacRelease(version: '0.7.0', build: 470000, sha256: 'ab' * 32, bytes: 35000000, url: Uri.parse('https://ghost-sms.com/ghost-messaging-mac.zip')),
+        release: MacRelease(version: '0.7.0', build: 470000, sha256: 'ab' * 32, bytes: 35000000, url: Uri.parse('https://gogho.st/ghost-messaging-mac.zip')),
         host: mac,
       );
       await shoot('7-update-ready', paired('local'), dark: dark, updates: ready);

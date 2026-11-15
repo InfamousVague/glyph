@@ -15,8 +15,8 @@
  *
  * WHAT AN INSTALLED COPY READS (lib/desktop/updates.dart, macos/Runner/UpdatesChannel.swift):
  *
- *   https://ghost-sms.com/mac.json                 { version, versionCode, sha256, bytes, url, build, minimumSystemVersion }
- *   https://ghost-sms.com/ghost-messaging-mac.zip  the signed app, zipped by ditto
+ *   https://gogho.st/mac.json                 { version, versionCode, sha256, bytes, url, build, minimumSystemVersion }
+ *   https://gogho.st/ghost-messaging-mac.zip  the signed app, zipped by ditto
  *
  * beside the phone app's apk.json, in /opt/ghost-sms-release. ghost-sms.com's Caddy block serves that folder's
  * files by name (tool/deploy-site.mjs): the two above were added to it with this tool, and the block on the box
@@ -49,7 +49,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const HOST_URL = 'https://ghost-sms.com';
+// The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
+const HOST_URL = 'https://gogho.st';
 const RELEASE = '/opt/ghost-sms-release';
 const BACKUPS = '/opt/ghost-sms-releases';
 const ZIP = 'ghost-messaging-mac.zip';
@@ -326,13 +327,13 @@ $SUDO chmod 755 ${RELEASE}
 rm -rf ${STAGE}
 echo "ok placed in ${RELEASE}"`);
 
-// Is it served? ghost-sms.com's block names the files it serves from that folder (tool/deploy-site.mjs).
+// Is it served? gogho.st's block names the files it serves from that folder (tool/deploy-site.mjs).
 const res = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' }).catch((e) => ({ ok: false, status: e.message }));
 const said = res.ok ? await res.json().catch(() => null) : null;
 if (!keepConnection) box.close();
 if (said?.sha256 !== info.sha256) {
   say(`x ${HOST_URL}/${FEED} answered ${res.status}, not this release. The release is in ${RELEASE} on the box.`);
-  say(`  ghost-sms.com's Caddy block should name /${FEED} and /${ZIP} (it has since 2026-11-14). If it no longer does: node tool/deploy-site.mjs --caddy`);
+  say(`  gogho.st's Caddy block should name /${FEED} and /${ZIP} (it has since 2026-11-14). If it no longer does: node tool/deploy-site.mjs --caddy`);
   process.exit(1);
 }
 const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' });

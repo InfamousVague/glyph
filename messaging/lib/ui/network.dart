@@ -24,7 +24,7 @@ String networkSummary() {
 
 /// What an invitation says: where to get the app, in words a person would send. When they have it and the two
 /// phones text each other, the app offers to exchange keys, and that is what makes them reachable by the routes.
-const inviteText = 'Join me on Ghost Messaging: calls and private chats straight between our phones. Get it at https://ghost-sms.com';
+const inviteText = 'Join me on Ghost Messaging: calls and private chats straight between our phones. Get it at https://gogho.st';
 
 String _routeLine(Carrier c, {required bool on, required bool anyone, required bool off}) {
   if (off || !on) return 'Off';

@@ -376,7 +376,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
   return [
     PaneSection(
       title: 'Ghost Messaging for $desktopName',
-      footer: const Text('It updates itself from ghost-sms.com: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
+      footer: const Text('It updates itself from gogho.st: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'This version', value: Text('${here.version} (${here.build})')),
         SettingRow(

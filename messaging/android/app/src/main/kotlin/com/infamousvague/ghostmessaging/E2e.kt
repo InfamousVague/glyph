@@ -35,7 +35,7 @@ object E2e {
     private const val TAG = "GhostMessaging"
     private const val PREFS = "e2e"
     private const val WRAP_ALIAS = "ghost_e2e_wrap"
-    const val KEY_NOTE = "Ghost Messaging encryption key. With the app (ghost-sms.com) our texts can be end-to-end encrypted."
+    const val KEY_NOTE = "Ghost Messaging encryption key. With the app (gogho.st) our texts can be end-to-end encrypted."
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 

@@ -939,7 +939,7 @@ List<Widget> _keyboard(BuildContext context, SettingsModel m) {
 
 // --- Updates ----------------------------------------------------------------------------------------------------------
 
-String _host(UpdateState u) => u.source.isEmpty ? 'ghost-sms.com' : u.source.replaceFirst('https://', '');
+String _host(UpdateState u) => u.source.isEmpty ? 'gogho.st' : u.source.replaceFirst('https://', '');
 
 /// Whether the look for an update failed because the site is not there to ask: no certificate, no such name, nothing
 /// answering, or no release published (Updater.kt says `notServing`; the words are what a copy before 0.4.0's
@@ -1091,7 +1091,7 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.lock),
           label: 'Nothing leaves the phone',
-          hint: const Text('No account and no server of ours. The app connects to ghost-sms.com for its own updates and to nothing else.'),
+          hint: const Text('No account and no server of ours. The app connects to gogho.st for its own updates and to nothing else.'),
         ),
       ],
     ),

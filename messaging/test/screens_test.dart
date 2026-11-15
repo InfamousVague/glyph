@@ -26,7 +26,11 @@ import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/cleaner.dart';
-import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
+import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
+import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
+import 'package:ghost_messaging/voice/hangout.dart';
+import 'package:ghost_messaging/voice/roles.dart';
+import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
 import 'package:ghost_messaging/voice/voice.dart';
@@ -310,8 +314,8 @@ void _answerChannel() {
         ];
       case 'update':
         return _updateWaiting
-            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'}
-            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'}
+            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'};
       case 'ownNumber':
         return '+15551239999';
       // A link pressed in a message: the browser took it.
@@ -366,13 +370,13 @@ void _answerChannel() {
       // Paired computers: one connected over the local network, one last seen yesterday through the relay.
       case 'deskList':
         return [
-          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
-          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
+          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://gogho.st/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
+          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://gogho.st/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
         ];
       case 'deskState':
         return _pairing;
       case 'deskPeek':
-        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://gogho.st/relay'};
       case 'deskUnrestricted':
         return false;
       case 'deskAddresses':
@@ -776,13 +780,13 @@ void main() {
       expect(find.textContaining('cannot send data texts'), findsOneWidget);
       expect(find.textContaining('A test was sent to Riley Fox'), findsOneWidget);
       expect(find.text('Invite someone by text'), findsOneWidget);
-      expect(inviteText, contains('https://ghost-sms.com'));
+      expect(inviteText, contains('https://gogho.st'));
       expect(hub.carried, 1, reason: 'the test went by the route that is up');
       expect(sms.carried, 0);
       await tester.runAsync(Net.instance.shutdown);
       // Pairing with a computer, step by step: before a code is scanned, while the computer is looked for, the six
       // digits to compare, and paired.
-      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://gogho.st/relay'};
       for (final (name, state) in <(String, Map<String, Object?>)>[
         ('start', {'phase': 'none'}),
         ('waiting', {...mac, 'phase': 'waiting'}),
@@ -1121,7 +1125,7 @@ void main() {
       Scrollable.ensureVisible(tester.element(find.text('Leave group')), alignment: 0.85);
       await _settle(tester);
       await _shootAgain(tester, '15-groups-settings', dark: dark);
-      expect(find.text('Admin'), findsOneWidget);
+      expect(find.text('Admin'), findsWidgets);
       await tester.tap(find.text('Add people'));
       await _settle(tester);
       await tester.tap(find.text('Alex Kim'));
@@ -1340,6 +1344,102 @@ void main() {
       expect(find.text('510 kb/s'), findsOneWidget);
       expect(find.text('Echo cancellation'), findsOneWidget);
       expect(find.text('1080p'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  // Matt, 2026-11-15: "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the
+  // whole group can send messages to the hangout as well as voice and video, make default roles such as admin,
+  // moderator, member".
+  testWidgets('a hangout: its chat, roles beside names, moderation on press and hold, and its roles page', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    // This phone owns the hangout; Maya is a moderator, Sam a member (muted), Riley a guest from the link.
+    final keys = NetKeys.generate();
+    final channel = VoiceChannel.make('Friday hang', owner: NetCrypto.hex(keys.public));
+    final route = _IdRoute(keys.id);
+    final store = MemoryHangoutStore();
+    final now = DateTime(2026, 11, 15, 19, 40).millisecondsSinceEpoch;
+    store.keepMessages(channel.chatRoom, [
+      HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Starting the movie in 10, hop in', at: now),
+      HangoutMessage(id: '2', from: 'a', name: 'Maya Chen', text: 'Bring snacks 🍿', at: now + 20000),
+      HangoutMessage(id: '3', from: 'c', name: 'Riley', text: 'On my way!', at: now + 60000),
+      HangoutMessage(id: '4', from: keys.id, name: 'Me', text: 'Saving you a seat', at: now + 90000),
+    ]);
+    store.keepRoster(channel.chatRoom, Roster.first(channel.owner).next(assigned: {'a': Role.moderator}));
+    final seeded = store.messages(channel.chatRoom);
+    final room = HangoutRoom(channel: channel, route: route, name: 'Me', signer: KeysSigner(keys), store: store);
+    room.present.addAll({'a': const HangoutPerson('a', name: 'Maya Chen', inVoice: true), 'c': const HangoutPerson('c', name: 'Riley', guest: true, inVoice: true)});
+    final v = Voice.instance;
+    v.own = [channel];
+    v.putHangout(room);
+    final s = VoiceSession(channel: channel, route: route, media: _NoMedia({'a': 0.45}), name: 'Me')
+      ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
+      ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
+      ..members['c'] = const VoiceMember('c', name: 'Riley', guest: true);
+    v.session = s;
+    addTearDown(() {
+      v.session = null;
+      v.own = [];
+      v.clearHangouts();
+    });
+    for (final dark in [false, true]) {
+      // In the call: the people, each with their role where it is not Member; the owner marked.
+      await _shoot(tester, sheet, const VoiceScreen(), '21-hangout', dark: dark);
+      expect(find.byType(HangoutScreen), findsOneWidget);
+      expect(find.text('Owner'), findsOneWidget);
+      expect(find.text('Moderator'), findsOneWidget);
+      // The chat: the run of Maya's two under one name, Riley's, this phone's.
+      await tester.tap(find.bySemanticsLabel('Chat'));
+      await _settle(tester);
+      await _shootAgain(tester, '21-hangout-chat', dark: dark);
+      expect(find.text('Bring snacks 🍿'), findsOneWidget);
+      expect(find.text('Maya Chen'), findsOneWidget, reason: 'her two messages under her name once');
+      expect(find.byType(GlacierInput), findsOneWidget);
+      // Writing one.
+      await tester.enterText(find.byType(EditableText), 'Two minutes');
+      await tester.tap(find.bySemanticsLabel('Send'));
+      await _settle(tester);
+      expect(room.messages.map((m) => m.text), contains('Two minutes'));
+      expect(find.text('Two minutes'), findsOneWidget);
+      // Back to the people; press and hold Sam: as owner, his role, mute for everyone, remove, ban.
+      await tester.tap(find.bySemanticsLabel('People'));
+      await _settle(tester);
+      await tester.longPress(find.text('Sam'));
+      await _settle(tester);
+      await _shootAgain(tester, '21-hangout-person', dark: dark);
+      expect(find.text('Mute for everyone'), findsOneWidget);
+      expect(find.text('Remove from hangout'), findsOneWidget);
+      expect(find.text('Ban'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Mute Sam for everyone'));
+      await _settle(tester);
+      expect(room.roster.muted, contains('b'));
+      expect(room.heard('b'), isFalse);
+      await tester.tapAt(const Offset(5, 5));
+      await _settle(tester);
+      // The roles page: who has which, the three roles, the role new people get. (Who is here as the hub would say.)
+      room.present.addAll({'a': const HangoutPerson('a', name: 'Maya Chen', inVoice: true), 'b': const HangoutPerson('b', name: 'Sam', inVoice: true), 'c': const HangoutPerson('c', name: 'Riley', guest: true, inVoice: true)});
+      await _shoot(tester, sheet, RolesScreen(room: room), '21-hangout-roles', dark: dark);
+      expect(find.text('Admin'), findsWidgets);
+      expect(find.text('Member'), findsWidgets, reason: 'the role, and the one new people join as');
+      expect(find.text('Join as'), findsOneWidget);
+      await _shoot(tester, sheet, RoleScreen(room: room, roleId: Role.moderator), '21-hangout-role', dark: dark);
+      expect(find.text('Mute others'), findsOneWidget);
+      expect(find.text('Ban'), findsOneWidget);
+      // Out of the call: the chat with a way into voice at its top.
+      v.session = null;
+      await _shoot(tester, sheet, HangoutScreen(channel: channel), '21-hangout-out', dark: dark);
+      expect(find.text('Join voice'), findsOneWidget);
+      expect(find.text('Saving you a seat'), findsOneWidget);
+      v.session = s;
+      room.roster = Roster.first(channel.owner).next(assigned: {'a': Role.moderator});
+      room.messages = seeded;
+      store.keepMessages(channel.chatRoom, seeded);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1893,6 +1993,14 @@ class _ThreeFriends extends FakePort {
 
   @override
   Future<List<E2eState>> states() async => [for (final p in people) E2eState(address: p.address, state: 'on', friend: 'yes', hasGhost: true, person: p)];
+}
+
+/// A route that goes nowhere, for an install whose id is [me] (a hangout's owner, in a picture).
+class _IdRoute extends _NoRoute {
+  _IdRoute(this._me);
+  final String _me;
+  @override
+  String get me => _me;
 }
 
 class _NoRoute implements VoiceRoute {

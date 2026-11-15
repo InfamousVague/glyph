@@ -3,7 +3,7 @@
 //
 //   PLAYWRIGHT=<path to playwright's index.mjs> node tool/voicebench/join_test.mjs
 //
-// This branch's relay on this machine, the site served as ghost-sms.com serves it, and two Chromium pages with a
+// This branch's relay on this machine, the site served as gogho.st serves it, and two Chromium pages with a
 // made-up microphone: one joins as a guest, the other sees one person there, signs up with a username and joins.
 // Both must see each other by name, the guest marked, connected, with sound arriving. The page must make the same
 // room, token and link as the app (values from lib/voice/voice.dart for a fixed seed).
@@ -51,7 +51,7 @@ try {
   assert.equal(made.room, '42c94d6559e4ea774004c9c5aa93e907');
   assert.equal(made.token, '6ad07432d21d71cd131266a87b30ac1c84a167e5eea281ccdcee5cca2963ad64');
   assert.equal(made.title, 'Friday hang ✨');
-  assert.equal(`https://ghost-sms.com/join/#${seed}.${name}`, 'https://ghost-sms.com/join/#00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff.RnJpZGF5IGhhbmcg4pyo');
+  assert.equal(`https://gogho.st/join/#${seed}.${name}`, 'https://gogho.st/join/#00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff.RnJpZGF5IGhhbmcg4pyo');
   await a.waitForFunction(() => /Nobody is here/.test(document.getElementById('here').textContent));
   console.log('ok the page makes the app\'s room, token and link; the lobby says nobody is here');
 
@@ -113,6 +113,34 @@ try {
   await b.setViewportSize({ width: 400, height: 860 });
   await b.waitForTimeout(800);
   await b.screenshot({ path: join(here, 'join-call.png') });
+
+  // The hangout's chat (lib/voice/hangout.dart): the app's chat room for this seed, what one writes the other sees,
+  // and someone coming in later gets what they missed.
+  const chatRoom = await a.evaluate(() => ({ room: window.ghostChat().room, token: window.ghostChat().token }));
+  assert.equal(chatRoom.room, '1585bb6a5d338a56973e14f9853332a1');
+  assert.equal(chatRoom.token, 'da99e3a9b14ef7f100d300ae545faafd6c269a4804e2eb301d816ca7e4acc21a');
+  await a.fill('#said', 'Hello from Alex');
+  await a.press('#said', 'Enter');
+  await b.waitForFunction(() => [...document.querySelectorAll('#messages li')].some((li) => li.textContent.includes('Hello from Alex')), null, { timeout: 10000 });
+  await b.fill('#said', 'Hi Alex!');
+  await b.click('#say button');
+  await a.waitForFunction(() => [...document.querySelectorAll('#messages li')].some((li) => li.textContent.includes('Hi Alex!')), null, { timeout: 10000 });
+  // Each deletes only their own: Alex's page offers Delete on his message alone.
+  const deletable = await a.evaluate(() => [...document.querySelectorAll('#messages li')].filter((li) => li.querySelector('.del')).map((li) => li.textContent));
+  assert.equal(deletable.length, 1);
+  assert.ok(deletable[0].includes('Hello from Alex'));
+  console.log('ok the chat: the app\'s room, messages both ways, each may delete only their own');
+  const late = await (await browser.newContext({ permissions: ['microphone', 'camera'] })).newPage();
+  late.on('pageerror', (e) => { console.log('page error:', e.message); failed = true; });
+  await late.goto(url);
+  await late.waitForFunction(() => window.ghostChat?.()?.room);
+  await late.fill('#name', 'Sam');
+  await late.click('#join');
+  await late.waitForFunction(() => document.querySelectorAll('#messages li').length >= 2, null, { timeout: 10000 });
+  console.log('ok someone joining later gets the chat they missed');
+  await late.click('#leave');
+  await b.setViewportSize({ width: 400, height: 860 });
+  await b.screenshot({ path: join(here, 'join-chat.png'), fullPage: true });
 
   // Leaving: the other sees them go.
   await a.click('#leave');
