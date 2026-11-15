@@ -16,6 +16,7 @@ import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../sms.dart';
 import 'background_picker.dart';
+import '../desktop/platform.dart' show computerWord;
 import 'common.dart';
 import 'computers.dart';
 import 'conversations.dart';
@@ -44,7 +45,7 @@ String settingsGroupLabel(String group) => switch (group) {
       'plugins' => 'Extras',
       'privacy' => 'Privacy',
       'phone' => 'This phone',
-      'app' => Sms.remote ? 'This Mac' : 'App',
+      'app' => Sms.remote ? 'This $computerWord' : 'App',
       _ => group,
     };
 

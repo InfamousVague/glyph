@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+/**
+ * Ghost Messaging for Windows on ghost-sms.com (Matt, 2026-11-14: "Add a mac and windows build to ghost-sms.com").
+ *
+ *   node tool/release-windows.mjs --glyph ~/Development/Apps/glyph [--run <id>] [--keep-connection] [--again]
+ *
+ * A Mac cannot build the Windows app: .github/workflows/messaging-windows.yml does, on a Windows runner, for the
+ * version in pubspec.yaml (this starts it, unless --run names one that already ran). Its installer is fetched with
+ * `gh`, then put beside the APK and the Mac's zip in /opt/ghost-sms-release as ghost-messaging-setup.exe, with
+ * windows.json saying its version, size and SHA-256. The site's Windows button reads windows.json.
+ *
+ * One login to the box (the same box code as tool/release-mac.mjs, from Ghost.md's checkout). The installer is
+ * unsigned: Windows asks before running it the first time.
+ */
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const HOST_URL = 'https://ghost-sms.com';
+const RELEASE = '/opt/ghost-sms-release';
+const BACKUPS = '/opt/ghost-sms-releases';
+const EXE = 'ghost-messaging-setup.exe';
+const FEED = 'windows.json';
+const WORKFLOW = 'messaging-windows.yml';
+const OUT = join(ROOT, 'build/release-windows');
+
+const args = process.argv.slice(2);
+const flag = (name) => {
+  const at = args.indexOf(`--${name}`);
+  return at < 0 ? undefined : args[at + 1];
+};
+const has = (name) => args.includes(`--${name}`);
+const say = (line) => console.log(line);
+const fail = (why) => {
+  console.error(`x ${why}`);
+  process.exit(1);
+};
+const out = (cmd, cmdArgs) => {
+  const r = spawnSync(cmd, cmdArgs, { encoding: 'utf8' });
+  if (r.status !== 0) fail(`${cmd} ${cmdArgs.join(' ')} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 400)}`);
+  return r.stdout.trim();
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const pubspec = readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8');
+const [, versionName, versionCode] = pubspec.match(/^version:\s*([0-9.]+)\+(\d+)/m) ?? fail('No version in pubspec.yaml.');
+
+async function liveRelease() {
+  try {
+    const r = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' });
+    return r.ok ? await r.json() : null;
+  } catch (_) {
+    return null;
+  }
+}
+{
+  const now = await liveRelease();
+  if (now && now.version === versionName && !has('again')) fail(`Ghost Messaging for Windows ${versionName} is already on the site (--again to send it again).`);
+}
+
+// The build: started here for this version, or one that already ran.
+let run = flag('run');
+if (!run) {
+  const before = new Set(JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '20', '--json', 'databaseId'])).map((r) => r.databaseId));
+  say(`> Building Ghost Messaging for Windows ${versionName} (${versionCode}) on GitHub`);
+  out('gh', ['workflow', 'run', WORKFLOW, '--ref', flag('ref') ?? 'main', '-f', `version=${versionName}`, '-f', `build=${versionCode}`]);
+  for (let i = 0; i < 30 && !run; i++) {
+    await sleep(4000);
+    const fresh = JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '5', '--json', 'databaseId'])).find((r) => !before.has(r.databaseId));
+    if (fresh) run = String(fresh.databaseId);
+  }
+  if (!run) fail('The build did not start on GitHub.');
+}
+say(`  run ${run}`);
+for (;;) {
+  const r = JSON.parse(out('gh', ['run', 'view', run, '--json', 'status,conclusion']));
+  if (r.status === 'completed') {
+    if (r.conclusion !== 'success') fail(`The Windows build ended ${r.conclusion}: gh run view ${run} --log-failed`);
+    break;
+  }
+  await sleep(20000);
+}
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+out('gh', ['run', 'download', run, '--dir', OUT]);
+const found = (function find(dir) {
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) {
+      const f = find(p);
+      if (f) return f;
+    } else if (n === EXE) return p;
+  }
+  return null;
+})(OUT);
+if (!found) fail(`No ${EXE} in run ${run}'s artifacts.`);
+const bytes = readFileSync(found);
+const info = { version: versionName, versionCode: Number(versionCode), sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length, url: EXE, build: new Date().toISOString(), run: Number(run) };
+writeFileSync(join(OUT, FEED), JSON.stringify(info, null, 2) + '\n');
+say(`ok ${EXE}: ${(info.bytes / 1e6).toFixed(1)} MB, sha256 ${info.sha256.slice(0, 16)}…`);
+
+const glyph = [flag('glyph'), process.env.GLYPH_ROOT, join(ROOT, '..'), join(homedir(), 'Development/Apps/glyph')]
+  .filter(Boolean)
+  .find((dir) => existsSync(join(dir, 'tauri/scripts/lib/box.mjs')) && existsSync(join(dir, 'scripts/lib/env.mjs')));
+if (!glyph) fail('No Ghost.md checkout found for its box code (--glyph <path> or GLYPH_ROOT).');
+const { BOX_ENV_KEYS, boxSshOptions, openBox } = await import(pathToFileURL(join(glyph, 'tauri/scripts/lib/box.mjs')).href);
+const { loadEnv } = await import(pathToFileURL(join(glyph, 'scripts/lib/env.mjs')).href);
+const box = openBox(loadEnv(BOX_ENV_KEYS), boxSshOptions({ connectTimeout: 20 }));
+say('> Logging in to the box');
+box.logIn();
+const STAGE = '/tmp/ghost-messaging-windows-stage';
+box.ssh(`rm -rf ${STAGE} && mkdir -p ${STAGE}`);
+say(`> Uploading (${(info.bytes / 1e6).toFixed(1)} MB)`);
+box.rsync(['--progress'], found, `${STAGE}/${EXE}`);
+box.rsync([], join(OUT, FEED), `${STAGE}/${FEED}`);
+say('> Publishing');
+// The installer first, whole, by rename; windows.json last. The live two are kept outside the web root first.
+box.ssh(`set -e
+SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
+[ "$(sha256sum ${STAGE}/${EXE} | cut -d' ' -f1)" = "${info.sha256}" ] || { echo "x the installer arrived changed"; exit 1; }
+stamp=$(date -u +%Y%m%d%H%M%S)
+$SUDO mkdir -p ${RELEASE} ${BACKUPS}
+if [ -f ${RELEASE}/${FEED} ]; then $SUDO mkdir -p ${BACKUPS}/windows-before-$stamp && $SUDO cp -p ${RELEASE}/${FEED} ${RELEASE}/${EXE} ${BACKUPS}/windows-before-$stamp/; fi
+$SUDO install -m 644 -o root -g root ${STAGE}/${EXE} ${RELEASE}/.${EXE}.new
+$SUDO mv -f ${RELEASE}/.${EXE}.new ${RELEASE}/${EXE}
+$SUDO install -m 644 -o root -g root ${STAGE}/${FEED} ${RELEASE}/.${FEED}.new
+$SUDO mv -f ${RELEASE}/.${FEED}.new ${RELEASE}/${FEED}
+$SUDO chmod 755 ${RELEASE}
+rm -rf ${STAGE}
+echo "ok placed in ${RELEASE}"`);
+const said = await liveRelease();
+if (!has('keep-connection')) box.close();
+if (said?.sha256 !== info.sha256) {
+  say(`x ${HOST_URL}/${FEED} is not this release. It is in ${RELEASE} on the box; the site's Caddy block must name /${FEED} and /${EXE} (node tool/deploy-site.mjs --caddy).`);
+  process.exit(1);
+}
+const head = await fetch(`${HOST_URL}/${EXE}`, { method: 'HEAD' });
+say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for Windows ${info.version} (${info.versionCode}), installer served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);

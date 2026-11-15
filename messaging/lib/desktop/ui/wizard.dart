@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+
+import '../platform.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
@@ -143,7 +145,7 @@ class _PairWizardState extends State<PairWizard> {
   List<Widget> _choose(Tokens t) {
     final relay = _relay.text.trim();
     return [
-      _title(t, 'Your texts, on your Mac', 'Pair this Mac with Ghost Messaging on your phone. The phone stays the only thing that sends and receives texts; the Mac shows your conversations and sends through it. Everything between the two is sealed with a key only they hold.', mark: true),
+      _title(t, 'Your texts, on your $computerWord', 'Pair this $computerWord with Ghost Messaging on your phone. The phone stays the only thing that sends and receives texts; the $computerWord shows your conversations and sends through it. Everything between the two is sealed with a key only they hold.', mark: true),
       ConnectionChoice(
         value: relay.isEmpty ? 'local' : _mode,
         onChanged: (m) => setState(() => _mode = m),
