@@ -507,6 +507,27 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
+- **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25, not released; Matt, 2026-11-15:
+  "can we support 4k? and flac audio? also build in like krisp noise supression or other fancy noise suppression
+  tools, add a volume slider for input and output volume with overboosting", then "RNNoise + DeepFilterNet").
+  - Settings › Voice and video (`lib/ui/voice_pane.dart`, `VoiceSettings`): microphone and output volume, 0 to 200%;
+    noise suppression Off, Standard (WebRTC's), RNNoise, or DeepFilterNet (computers); Music mode; 4K among the
+    video choices.
+  - **4K**: the whole picture at up to 25 Mb/s to one other; to more, each copy the size 1080p would send
+    (`VoiceSettings.sendTo`). It needs a camera that films 4K.
+  - **FLAC** is not something WebRTC carries. **Music mode** sends the microphone as it is instead: no echo
+    cancellation, noise suppression, gain control or high-pass filter, 510 kb/s stereo at a constant rate.
+  - **Noise and the microphone's boost** are `native/voicefx`, one C library in flutter_webrtc's capture hook on
+    every platform (its README has the table): RNNoise 0.2 everywhere, DeepFilterNet 3 on the Mac and Windows
+    (`native/voicefx/deepfilter`, a Rust crate with the model built in). On this Mac DeepFilterNet takes steady noise
+    down 43 dB at 3% of one core, RNNoise 79 dB at under 1%. Where a choice cannot run, WebRTC's own stands in.
+  - **Output volume** multiplies each person's own volume (`RtcMedia._apply`).
+  - Volume and noise suppression change in a call at once (`Voice.settingsChanged`); the rest from the next call.
+  - Not yet heard in a real call on a phone or a computer: the hooks are built and the engine is tested on its own.
+- **The active call is a banner again, just above the dock; the call controls are the dock's size** (0.7.25, not
+  released; Matt, 2026-11-15: "switch the active call to be a banner again in the sidebar just above the navigation
+  bar"; "the call controls are also too large they should match the size of the sidebar control dock").
+  `CallBanner`; `CallDock` uses the dock's ring size, frosted pill and gap, at 0.8 on a computer as the dock is.
 - **"Tell friends I'm here" works from a computer** (0.7.24; Matt, 2026-11-15: "tell friends i'm here
   toggle isn't working on mac and windows only on mobile"). It was turned off on a computer; now it is the phone's
   setting changed through the phone (`Me.setListed` asks `Me.forComputer` "listed", and "state" says it), moving
