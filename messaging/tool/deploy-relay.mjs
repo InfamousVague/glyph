@@ -50,7 +50,7 @@ const UNIT = '/etc/systemd/system/ghost-relay.service';
 // 8787, the relay's own default, is another service's on the box (found by the first deploy, which stopped there).
 // tool/deploy-site.mjs's block names the same port: the two must agree.
 const PORT = 18787;
-const DOMAIN = 'ghost-sms.com';
+const DOMAIN = 'gogho.st'; // ghost-sms.com before 2026-11-15; it passes the same two addresses on (tool/deploy-site.mjs).
 const ENV = '/etc/ghost-relay/env';
 const args = process.argv.slice(2);
 const printOnly = args.includes('--print');

@@ -507,6 +507,15 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
+- **gogho.st** (0.7.26, not released; site live 2026-11-15; Matt: "I got the domain gogho.st hooked up the box,
+  please update all the links in app and everything to point through that domain instead of the ghost-sms one also
+  point that domain to the website"). The site is at gogho.st (www redirects to it), and the app's updates (phone,
+  Mac, Windows), the hub, the computer link's relay, hangout links and the invite all point there.
+  ghost-sms.com still serves what copies installed before the move ask of it (their update feeds, /hub, /relay)
+  and the sign-in pages at /link/*; every other address there redirects to gogho.st (tool/deploy-site.mjs).
+  Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
+  relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
+  Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
 - **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25, not released; Matt, 2026-11-15:
   "can we support 4k? and flac audio? also build in like krisp noise supression or other fancy noise suppression
   tools, add a volume slider for input and output volume with overboosting", then "RNNoise + DeepFilterNet").

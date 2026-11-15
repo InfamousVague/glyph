@@ -59,7 +59,7 @@ class VoiceChannel {
   /// browser similar to a zoom meeting"). The seed is in the part after the #, which a browser never sends to any
   /// server, so the link opens the channel and the relay still can't read it. Whoever has it is in, as with a
   /// meeting link.
-  String get link => 'https://ghost-sms.com/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}';
+  String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}';
 
   static VoiceChannel? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || (j['s'] as String).length != 64 || j['n'] is! String) return null;

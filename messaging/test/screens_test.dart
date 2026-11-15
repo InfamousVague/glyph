@@ -310,8 +310,8 @@ void _answerChannel() {
         ];
       case 'update':
         return _updateWaiting
-            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'}
-            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'}
+            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://gogho.st'};
       case 'ownNumber':
         return '+15551239999';
       // A link pressed in a message: the browser took it.
@@ -366,13 +366,13 @@ void _answerChannel() {
       // Paired computers: one connected over the local network, one last seen yesterday through the relay.
       case 'deskList':
         return [
-          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
-          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://ghost-sms.com/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
+          {'id': 'd387c0690aec58b7', 'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://gogho.st/relay', 'since': _ago(days: 9), 'seen': _ago(minutes: 1), 'via': 'local'},
+          {'id': '0f1e2d3c4b5a6978', 'name': 'Studio iMac', 'mode': 'relay', 'relay': 'wss://gogho.st/relay', 'since': _ago(days: 30), 'seen': _ago(days: 1, hours: 3), 'via': null},
         ];
       case 'deskState':
         return _pairing;
       case 'deskPeek':
-        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+        return {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'relay': 'wss://gogho.st/relay'};
       case 'deskUnrestricted':
         return false;
       case 'deskAddresses':
@@ -776,13 +776,13 @@ void main() {
       expect(find.textContaining('cannot send data texts'), findsOneWidget);
       expect(find.textContaining('A test was sent to Riley Fox'), findsOneWidget);
       expect(find.text('Invite someone by text'), findsOneWidget);
-      expect(inviteText, contains('https://ghost-sms.com'));
+      expect(inviteText, contains('https://gogho.st'));
       expect(hub.carried, 1, reason: 'the test went by the route that is up');
       expect(sms.carried, 0);
       await tester.runAsync(Net.instance.shutdown);
       // Pairing with a computer, step by step: before a code is scanned, while the computer is looked for, the six
       // digits to compare, and paired.
-      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://ghost-sms.com/relay'};
+      const mac = {'name': 'Matt\'s MacBook Pro', 'mode': 'both', 'offered': 'both', 'relay': 'wss://gogho.st/relay'};
       for (final (name, state) in <(String, Map<String, Object?>)>[
         ('start', {'phase': 'none'}),
         ('waiting', {...mac, 'phase': 'waiting'}),

@@ -16,7 +16,7 @@ package com.infamousvague.ghostmessaging
  */
 object BackgroundWire {
     const val TAG = "ghost:bg1:"
-    const val NOTE = "Ghost Messaging chat background (ghost-sms.com)"
+    const val NOTE = "Ghost Messaging chat background (gogho.st)"
 
     private val pattern = Regex("ghost:bg1:([a-z]+(?::[A-Za-z0-9#,]+)?)")
     private val hex = Regex("#[0-9A-Fa-f]{6}")

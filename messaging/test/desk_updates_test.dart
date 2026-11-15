@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 
-/// The Mac app's own updates (lib/desktop/updates.dart), against a server standing in for ghost-sms.com and a
+/// The Mac app's own updates (lib/desktop/updates.dart), against a server standing in for gogho.st and a
 /// stand-in for the Mac's half, which on a Mac is macos/Runner/UpdatesChannel.swift.
 class _FakeMac implements UpdateHost {
   _FakeMac(this.here, {this.answer = 'ready'});
@@ -90,13 +90,13 @@ void main() {
   }
 
   test('a release\'s description is read, and what is not one is refused', () {
-    final at = Uri.parse('https://ghost-sms.com/mac.json');
+    final at = Uri.parse('https://gogho.st/mac.json');
     final r = MacRelease.parse(jsonEncode({'version': '0.7.0', 'versionCode': 455123, 'sha256': sha.toUpperCase(), 'bytes': 31000000, 'url': 'ghost-messaging-mac.zip'}), at)!;
     expect(r.version, '0.7.0');
     expect(r.build, 455123);
     expect(r.sha256, sha);
     expect(r.bytes, 31000000);
-    expect(r.url, Uri.parse('https://ghost-sms.com/ghost-messaging-mac.zip'));
+    expect(r.url, Uri.parse('https://gogho.st/ghost-messaging-mac.zip'));
     Map<String, Object?> one([Map<String, Object?> change = const {}]) => {'version': '0.7.0', 'versionCode': 455123, 'sha256': sha, 'bytes': 31000000, 'url': 'ghost-messaging-mac.zip', ...change};
     expect(MacRelease.parse(jsonEncode(one()), at), isNotNull);
     expect(MacRelease.parse('not json', at), isNull);
@@ -109,8 +109,8 @@ void main() {
     expect(MacRelease.parse(jsonEncode(one({'version': 'latest'})), at), isNull);
     // The zip is beside its description: another server's, or one spoken to another way, is not taken.
     expect(MacRelease.parse(jsonEncode(one({'url': 'https://elsewhere.example/app.zip'})), at), isNull);
-    expect(MacRelease.parse(jsonEncode(one({'url': 'http://ghost-sms.com/ghost-messaging-mac.zip'})), at), isNull);
-    expect(MacRelease.parse(jsonEncode(one({'url': 'https://ghost-sms.com/other/app.zip'})), at)!.url.path, '/other/app.zip');
+    expect(MacRelease.parse(jsonEncode(one({'url': 'http://gogho.st/ghost-messaging-mac.zip'})), at), isNull);
+    expect(MacRelease.parse(jsonEncode(one({'url': 'https://gogho.st/other/app.zip'})), at)!.url.path, '/other/app.zip');
   });
 
   test('a newer release is brought down whole and handed to the Mac, and Restart swaps it in', () async {
@@ -211,9 +211,9 @@ void main() {
     expect(updates.phase, MacUpdatePhase.idle);
     expect(zipAsked, 0);
     expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'off'}), isNull);
-    expect(MacUpdates.fromEnvironment(const {})!.feed, Uri.parse('https://ghost-sms.com/mac.json'));
+    expect(MacUpdates.fromEnvironment(const {})!.feed, Uri.parse('https://gogho.st/mac.json'));
     expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'http://127.0.0.1:8123/mac.json'})!.feed, Uri.parse('http://127.0.0.1:8123/mac.json'));
-    expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'nonsense'})!.feed, Uri.parse('https://ghost-sms.com/mac.json'));
+    expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'nonsense'})!.feed, Uri.parse('https://gogho.st/mac.json'));
     expect(MacUpdates.fromEnvironment(const {})!.restartWhenReady, isFalse);
     expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATE_RESTART': 'now'})!.restartWhenReady, isTrue);
   });

@@ -10,7 +10,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 /// Verifying a phone number against the relay that is really there, and the texting service behind it (docs/me.md,
 /// "A phone number"): the check run after the relay is deployed with the service's values.
 ///
-///     flutter test tool/net/live_number_test.dart --dart-define=HUB=wss://ghost-sms.com/hub
+///     flutter test tool/net/live_number_test.dart --dart-define=HUB=wss://gogho.st/hub
 ///         says whether the server can text a code (its hello: "phone": "text"), and sends nothing
 ///     … --dart-define=NUMBER=+15550100199
 ///         also has a code texted to that number (it costs a text; only a number whose owner asked for it)

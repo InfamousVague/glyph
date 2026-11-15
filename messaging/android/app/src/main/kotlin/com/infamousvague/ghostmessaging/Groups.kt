@@ -32,6 +32,8 @@ import java.util.Base64
  */
 object Groups {
     private const val PREFS = "groups"
+    // A name for a group's address, not a link: kept when the site moved to gogho.st (2026-11-15), since phones have
+    // groups stored under it and send it to each other.
     private const val DOMAIN = "@group.ghost-sms.com"
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
