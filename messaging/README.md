@@ -448,7 +448,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
-- **Usernames, friends by username, and voice and video channels** (0.7.20, not released; relay changes not
+- **Usernames, friends by username, and voice and video channels** (0.7.20; relay deployed 2026-11-15 01:51 UTC;
   deployed; Matt, 2026-11-14: "work on the friend system so we can create a profile and username under "me" ...
   always open voice channels that you can jump in and out at any time and you can see who's connected and also
   toggle video on and off, also allow for group chat video and voice calls ... with the option to call the group ...
