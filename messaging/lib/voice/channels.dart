@@ -13,6 +13,8 @@ import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
+import 'hangout.dart';
+import 'roles.dart';
 import 'rtc.dart';
 import 'voice.dart';
 import 'voice_settings.dart';
@@ -73,6 +75,8 @@ class Voice extends ChangeNotifier {
   void setSilenced(String id, bool on) {
     on ? _silenced.add(id) : _silenced.remove(id);
     media?.setPeerMuted(id, on);
+    // And what the hangout's roster says on top (someone muted for everyone stays silent).
+    _enforce();
     _keepPeople();
   }
 
@@ -147,9 +151,9 @@ class Voice extends ChangeNotifier {
   Future<Object?> answerDesk(Map<String, Object?> what) async {
     switch (what['op']) {
       case 'add':
-        final c = VoiceChannel.fromJson({'s': what['s'], 'n': what['n']});
+        final c = VoiceChannel.fromJson({'s': what['s'], 'n': what['n'], 'o': what['o']});
         if (c != null && !own.any((o) => o.seed == c.seed)) {
-          own = [...own, VoiceChannel(seed: c.seed, name: c.name, mine: true)];
+          own = [...own, c.copyWith(mine: true)];
           await _keep();
         }
         return {'ok': true};
@@ -161,7 +165,7 @@ class Voice extends ChangeNotifier {
         final me = Me.instance;
         return {
           'channels': [
-            for (final c in channels) {'s': c.seed, 'n': c.name, if (c.group != null) 'g': c.group, if (c.mine) 'm': 1},
+            for (final c in channels) {'s': c.seed, 'n': c.name, if (c.group != null) 'g': c.group, if (c.mine) 'm': 1, if (c.owner.isNotEmpty) 'o': c.owner},
           ],
           'name': me.displayName.isNotEmpty ? me.displayName : (me.username == null ? '' : '@${me.username}'),
           if (me.username != null) 'u': me.username,
@@ -177,7 +181,9 @@ class Voice extends ChangeNotifier {
       final list = <VoiceChannel>[];
       for (final j in (got['channels'] as List? ?? const [])) {
         if (j is! Map || j['s'] is! String || j['n'] is! String || (j['s'] as String).length != 64) continue;
-        list.add(VoiceChannel(seed: j['s'] as String, name: j['n'] as String, group: j['g'] as String?, mine: j['m'] == 1));
+        final c = VoiceChannel.fromJson(j);
+        if (c == null) continue;
+        list.add(VoiceChannel(seed: c.seed, name: c.name, group: j['g'] as String?, mine: c.mine, owner: c.owner));
       }
       final name = got['name'] is String ? got['name'] as String : null;
       final changed = list.map((c) => '${c.seed}${c.name}').join() != _phone.map((c) => '${c.seed}${c.name}').join() || name != _deskName;
@@ -186,7 +192,7 @@ class Voice extends ChangeNotifier {
       _deskUsername = got['u'] as String?;
       // Channels made here that the phone does not have yet go to it.
       for (final c in own) {
-        if (!list.any((p) => p.seed == c.seed)) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name}).catchError((_) => <String, dynamic>{}));
+        if (!list.any((p) => p.seed == c.seed)) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}).catchError((_) => <String, dynamic>{}));
       }
       if (changed) _look();
     } catch (_) {
@@ -199,6 +205,20 @@ class Voice extends ChangeNotifier {
 
   /// The id this device is in channels as.
   String? get me => _route?.me;
+
+  /// What this install signs with on the hub: its hangouts' rosters, and the key it owns hangouts by. On a computer
+  /// its own key (made on first need), on a phone the phone's.
+  NetSigner? get signer {
+    final r = _route;
+    if (r is HubVoiceRoute) return r.hub.signer;
+    if (Sms.remote && _app != null) return (_ownHub ??= _macHub()).signer;
+    return Net.instance.hub?.signer;
+  }
+
+  String? get _ownerKey {
+    final s = signer;
+    return s == null ? null : NetCrypto.hex(s.publicKey);
+  }
 
   /// A name for [id]: a friend's, a group member's, or what they said in the call.
   String nameOf(String id) {
@@ -271,11 +291,12 @@ class Voice extends ChangeNotifier {
 
   /// Makes a channel of this phone's, named [name].
   Future<VoiceChannel> make(String name) async {
-    final c = VoiceChannel.make(name.trim().isEmpty ? 'Voice' : name.trim());
+    // This install owns it: its key is in the hangout, so everyone with the link knows whose roles to believe.
+    final c = VoiceChannel.make(name.trim().isEmpty ? 'Voice' : name.trim(), owner: _ownerKey ?? '');
     own = [...own, c];
     await _keep();
     // Made on a computer: the phone keeps it too.
-    if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name}).catchError((_) => <String, dynamic>{}));
+    if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}).catchError((_) => <String, dynamic>{}));
     return c;
   }
 
@@ -293,7 +314,7 @@ class Voice extends ChangeNotifier {
     for (final f in friends) {
       final peer = Net.instance.byId(f.id);
       if (peer == null) continue;
-      await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'channel', 's': c.seed, 'n': c.name}));
+      await Net.instance.send(peer, Envelope(kind: 'voice', body: {'t': 'channel', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}));
     }
   }
 
@@ -317,7 +338,7 @@ class Voice extends ChangeNotifier {
       case 'channel':
         // Only from a friend.
         if (Buddies.instance.byId(r.peer.id)?.state != 'yes') return;
-        final c = VoiceChannel.fromJson({'s': b['s'], 'n': b['n']});
+        final c = VoiceChannel.fromJson({'s': b['s'], 'n': b['n'], 'o': b['o']});
         if (c == null || own.any((o) => o.seed == c.seed)) return;
         own = [...own, c];
         unawaited(_keep());
@@ -332,6 +353,81 @@ class Voice extends ChangeNotifier {
   void dismissRing() {
     ringing = null;
     notifyListeners();
+  }
+
+  // --- hangouts: chat and roles (lib/voice/hangout.dart, lib/voice/roles.dart) -----------------------------------
+
+  final Map<String, HangoutRoom> _hangouts = {};
+  final Map<String, int> _holds = {};
+
+  /// [c]'s chat and roles: made on first need, kept for as long as the app runs (its messages and roster are kept
+  /// with the device's choices between runs). Null for a group's channel, or before the relay is connected.
+  HangoutRoom? hangoutFor(VoiceChannel c) {
+    if (!c.hangout) return null;
+    final have = _hangouts[c.seed];
+    if (have != null) return have;
+    final route = _route;
+    if (route == null) return null;
+    final room = HangoutRoom(
+      channel: c,
+      route: route,
+      name: _myName,
+      username: _deskName == null ? Me.instance.username : _deskUsername,
+      signer: signer,
+      store: _app == null ? null : AppHangoutStore(_app!),
+    );
+    room.onRoster = (_) => _enforce();
+    room.addListener(notifyListeners);
+    return _hangouts[c.seed] = room;
+  }
+
+  /// For a picture or a test: [room] as its hangout's, with no relay.
+  @visibleForTesting
+  void putHangout(HangoutRoom room) => _hangouts[room.channel.seed] = room;
+
+  @visibleForTesting
+  void clearHangouts() => _hangouts.clear();
+
+  /// Opens [c]'s chat room while something shows it (its page, or the call): [release] when done.
+  Future<HangoutRoom?> hold(VoiceChannel c) async {
+    final room = hangoutFor(c);
+    if (room == null) return null;
+    _holds[c.seed] = (_holds[c.seed] ?? 0) + 1;
+    room.name = _myName;
+    await room.open();
+    return room;
+  }
+
+  Future<void> release(VoiceChannel c) async {
+    final n = (_holds[c.seed] ?? 1) - 1;
+    if (n > 0) {
+      _holds[c.seed] = n;
+      return;
+    }
+    _holds.remove(c.seed);
+    await _hangouts[c.seed]?.close();
+  }
+
+  String get _myName => _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
+
+  /// Does in the call what the hangout's roster says: who is heard (not muted for everyone, allowed to speak, not
+  /// silenced here), whether this device may speak or show video, and leaving when put out.
+  void _enforce() {
+    final s = session, m = media;
+    if (s == null || m == null) return;
+    final room = s.channel.hangout ? _hangouts[s.channel.seed] : null;
+    for (final id in s.members.keys) {
+      m.setPeerMuted(id, _silenced.contains(id) || (room != null && !room.heard(id)));
+    }
+    if (room == null) return;
+    if (room.putOut != null) {
+      unawaited(leave());
+      return;
+    }
+    s.locked = !room.heard(room.me);
+    if (s.locked && !s.muted) s.setMuted(true);
+    s.videoLocked = !room.can(Perm.video);
+    if (s.videoLocked && s.video) unawaited(s.setVideo(false));
   }
 
   /// Hops into [c], leaving any other first.
@@ -351,11 +447,25 @@ class Voice extends ChangeNotifier {
     }
     final name = _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
     final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.sendKbps, stereo: settings.sendStereo);
+    // A hangout's chat and roles while in its call: whoever is banned is not answered, and the roster is done.
+    final room = await hold(c);
+    if (room != null) {
+      if (room.putOut != null) {
+        session = null;
+        media = null;
+        await release(c);
+        throw StateError(room.putOut!);
+      }
+      s.refuse = (id) => room.roster.banned.contains(id);
+      room.sayMe(inVoice: true);
+    }
     _saw(c.room);
     s.addListener(notifyListeners);
+    s.addListener(_enforce);
     notifyListeners();
     try {
-      await s.join(withVideo: video);
+      await s.join(withVideo: video && (room == null || room.can(Perm.video)));
+      _enforce();
     } catch (e) {
       await leave();
       rethrow;
@@ -389,8 +499,45 @@ class Voice extends ChangeNotifier {
     media = null;
     if (s != null) {
       s.removeListener(notifyListeners);
+      s.removeListener(_enforce);
       await s.leave();
+      final room = _hangouts[s.channel.seed];
+      if (room != null) {
+        room.sayMe(inVoice: false);
+        await release(s.channel);
+      }
     }
     notifyListeners();
   }
+}
+
+/// A hangout's chat and roster kept with the device's choices (`hangout_<room>_m`, `hangout_<room>_r`).
+class AppHangoutStore implements HangoutStore {
+  AppHangoutStore(this.app);
+  final AppState app;
+
+  @override
+  List<HangoutMessage> messages(String room) {
+    try {
+      final list = jsonDecode(app.choice('hangout_${room}_m', '[]')) as List;
+      return [for (final j in list) if (j is Map && j['f'] is String) ?HangoutMessage.fromJson(j.cast<String, dynamic>(), j['f'] as String)];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  void keepMessages(String room, List<HangoutMessage> messages) => app.set('hangout_${room}_m', jsonEncode([for (final m in messages) m.toStored()]));
+
+  @override
+  Roster? roster(String room) {
+    try {
+      return Roster.fromJson(jsonDecode(app.choice('hangout_${room}_r', '')));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  void keepRoster(String room, Roster roster) => app.set('hangout_${room}_r', jsonEncode(roster.toJson()));
 }

@@ -20,6 +20,7 @@ import '../voice/rtc.dart';
 import 'shell.dart';
 import 'nav_bar.dart';
 import 'ripple_avatar.dart';
+import 'hangout_screen.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
 /// see who's connected and also toggle video on and off"): each channel with who is in it, a press to hop in, and,
@@ -38,6 +39,8 @@ class VoiceScreen extends StatelessWidget {
         final s = v.session;
         // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
         // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
+        // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
+        if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
         if (s != null) {
           return GhostPage(
             title: s.channel.name,
@@ -88,15 +91,18 @@ class _ChannelRow extends StatelessWidget implements PaneRow {
       label: channel.name,
       hint: Text(here ? 'You and ${inIt.isEmpty ? 'nobody else yet' : who}' : who, maxLines: 1, overflow: TextOverflow.ellipsis),
       value: Text(here ? 'Connected' : (inIt.isEmpty ? 'Join' : 'Join · ${inIt.length}')),
+      // A hangout opens its page (its chat, and a way into voice); a group's channel is joined at once.
       onPress: here
           ? null
-          : () async {
-              try {
-                await v.join(channel);
-              } catch (e) {
-                if (context.mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
-              }
-            },
+          : channel.hangout
+              ? () => push(context, (_) => HangoutScreen(channel: channel))
+              : () async {
+                  try {
+                    await v.join(channel);
+                  } catch (e) {
+                    if (context.mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
+                  }
+                },
       control: channel.group != null
           ? null
           : IconTap(
@@ -132,7 +138,7 @@ class CallPanel extends StatelessWidget {
     final media = v.media;
     final levels = media?.levels ?? session.media.levels;
     return ListenableBuilder(
-      listenable: Listenable.merge([session, levels, ?media?.remote, ?media?.localVideo]),
+      listenable: Listenable.merge([session, levels, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
       builder: (context, _) {
         final loud = levels.value;
         final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me})>[
@@ -141,6 +147,8 @@ class CallPanel extends StatelessWidget {
             (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted, video: m.video ? media?.remote.value[m.id] : null, me: false),
         ];
         final withVideo = [for (final p in people) if (p.video != null) p];
+        // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
+        final room = v.hangoutFor(session.channel);
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (withVideo.isNotEmpty) ...[
             LayoutBuilder(builder: (context, box) {
@@ -180,6 +188,9 @@ class CallPanel extends StatelessWidget {
                           style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')),
                         ),
                       ),
+                      if (room != null)
+                        if ((p.me ? room.me : p.id) case final who when room.roster.isOwner(who) || room.roster.roleOf(who).id != room.roster.newcomer)
+                          Padding(padding: EdgeInsets.only(right: t.space(2)), child: RoleTag(role: room.roster.roleOf(who), owner: room.roster.isOwner(who))),
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.colorOf('#dd3a30'))),
                     ]),
@@ -796,7 +807,12 @@ class _PersonSheet extends StatelessWidget {
                                 toast(context, 'Copied');
                               },
                             ),
+                            // A hangout's: their role, and what this device's role may do about them.
+                            if (v.hangoutFor(session.channel) case final room?) HangoutModeration(room: room, id: id, name: name),
                           ],
+                          if (me)
+                            if (v.hangoutFor(session.channel) case final room?)
+                              SettingRow(icon: AppIcon(Lucide.shieldCheck, size: 18), label: 'Your role', value: RoleTag(role: room.roster.roleOf(room.me), owner: room.roster.isOwner(room.me))),
                         ]),
                       );
                     },

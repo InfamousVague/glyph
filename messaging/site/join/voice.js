@@ -29,13 +29,13 @@ async function open(key, sealed) {
   try { return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: sealed.slice(0, 12), additionalData: AAD, tagLength: 128 }, key, sealed.slice(12))); } catch (_) { return null; }
 }
 
-/** The link's fragment: the channel's seed, and its name. Null where it is not one. */
+/** The link's fragment: the channel's seed, its name, and its owner's key (lib/voice/roles.dart). Null where it is not one. */
 export function readLink(fragment) {
-  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?$/.exec(fragment ?? '');
+  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$/.exec(fragment ?? '');
   if (!m) return null;
   let name = 'Hangout';
   try { if (m[2]) name = dec.decode(Uint8Array.from(atob(m[2].replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))) || name; } catch (_) {}
-  return { seed: m[1], name };
+  return { seed: m[1], name, owner: m[3] ?? '' };
 }
 
 // lib/voice/voice.dart highestOpus and videoFor.
@@ -204,6 +204,8 @@ export class Hangout {
     let m;
     try { m = JSON.parse(dec.decode(clear)); } catch (_) { return; }
     if (m.to && m.to !== this.hub.me.id) return;
+    // Someone the hangout banned is not answered (lib/voice/hangout.dart).
+    if (this.refuse?.(from)) { this.members.delete(from); this.peers.get(from)?.close(); this.peers.delete(from); return this.change(); }
     if (m.t === 'me') {
       const had = this.members.get(from) ?? {};
       this.members.set(from, { ...had, name: String(m.n ?? ''), muted: !!m.m, video: !!m.v, guest: !!m.g });
@@ -322,5 +324,224 @@ export class Hangout {
     this.members.clear();
     this.joined = false;
     this.change();
+  }
+}
+
+// --- roles and the chat (lib/voice/roles.dart, lib/voice/hangout.dart) ------------------------------------------
+//
+// Matt, 2026-11-15: "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the
+// whole group can send messages to the hangout as well as voice and video, make default roles such as admin,
+// moderator, member". The same rules as the app: a roster believed only when the owner (whose key is in the link) or
+// an admin the owner made signed it, and each device doing what it says.
+
+export const PERMS = ['speak', 'video', 'chat', 'invite', 'muteOthers', 'removeMembers', 'ban', 'manageMessages'];
+const DEFAULT_ROLES = [
+  { id: 'admin', n: 'Admin', p: PERMS, r: 30 },
+  { id: 'moderator', n: 'Moderator', p: ['speak', 'video', 'chat', 'invite', 'muteOthers', 'removeMembers', 'manageMessages'], r: 20 },
+  { id: 'member', n: 'Member', p: ['speak', 'video', 'chat', 'invite'], r: 10 },
+];
+const idOf = async (pub) => hex((await sha256(pub)).slice(0, 16));
+
+// P-256's numbers, to open a key written as 33 bytes (02 or 03, then x) into the 65 WebCrypto takes.
+const P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffffn;
+const B = 0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604bn;
+const modpow = (b, e, m) => { let r = 1n; b %= m; while (e > 0n) { if (e & 1n) r = (r * b) % m; b = (b * b) % m; e >>= 1n; } return r; };
+const big = (bytes) => BigInt('0x' + (hex(bytes) || '0'));
+const bytes32 = (n) => unhex(n.toString(16).padStart(64, '0'));
+async function verify(pub33, message, sig) {
+  try {
+    if (pub33.length !== 33 || sig.length !== 64) return false;
+    const x = big(pub33.slice(1));
+    let y = modpow((x * x * x - 3n * x + B) % P, (P + 1n) / 4n, P);
+    if ((y & 1n) !== BigInt(pub33[0] & 1)) y = P - y;
+    const key = await crypto.subtle.importKey('raw', new Uint8Array([4, ...bytes32(x), ...bytes32(y)]), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, sig, message);
+  } catch (_) { return false; }
+}
+
+/** A roster as the app keeps it, with what it says worked out (Roster in lib/voice/roles.dart). */
+export class Roster {
+  constructor(j, owner, ownerId) {
+    this.j = j ?? { o: owner, v: 0, roles: [], a: {}, g: {}, b: [], m: [], n: 'member' };
+    this.owner = owner;
+    this.ownerId = ownerId;
+    this.granted = new Set();
+  }
+  get version() { return this.j.v ?? 0; }
+  get roles() { return (this.j.roles?.length ? this.j.roles : DEFAULT_ROLES).slice().sort((a, b) => b.r - a.r); }
+  role(id) { return this.roles.find((r) => r.id === id); }
+  isOwner(id) { return !!this.owner && id === this.ownerId; }
+  roleOf(id) {
+    if (this.isOwner(id)) return this.role('admin');
+    let named = this.j.a?.[id] ?? this.j.n ?? 'member';
+    if (named === 'admin' && !this.granted.has(id)) named = this.j.n === 'admin' ? 'member' : (this.j.n ?? 'member');
+    return this.role(named) ?? this.role('member') ?? DEFAULT_ROLES[2];
+  }
+  can(id, perm) {
+    if (this.isOwner(id)) return true;
+    if ((this.j.b ?? []).includes(id)) return false;
+    if (perm === 'speak' && (this.j.m ?? []).includes(id)) return false;
+    if (!this.owner) return DEFAULT_ROLES[2].p.includes(perm);
+    return this.roleOf(id).p.includes(perm);
+  }
+  banned(id) { return (this.j.b ?? []).includes(id); }
+  outranks(a, b) { if (a === b || this.isOwner(b)) return false; if (this.isOwner(a)) return true; return this.roleOf(a).r > this.roleOf(b).r; }
+
+  /** The admins whose grant from the owner checks out. */
+  async checkGrants() {
+    this.granted = new Set();
+    for (const [id, g] of Object.entries(this.j.g ?? {})) {
+      if (await verify(unhex(this.owner), enc.encode(`ghost-hangout admin|${this.owner}|${id}`), unhex(g))) this.granted.add(id);
+    }
+  }
+
+  /** Whether to believe it: the app's Roster.trustedFor. The bytes signed are the app's, field for field. */
+  async trusted() {
+    const j = this.j;
+    if (!this.owner || j.o !== this.owner || !j.by || !j.k || !j.s) return false;
+    const k = unhex(j.k);
+    if ((await idOf(k)) !== j.by) return false;
+    const sorted = (o) => Object.fromEntries(Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    const body = { o: j.o, v: j.v, roles: (j.roles ?? []).map((r) => ({ id: r.id, n: r.n, p: PERMS.filter((p) => r.p.includes(p)), r: r.r })), a: sorted(j.a), g: sorted(j.g), b: [...(j.b ?? [])].sort(), m: [...(j.m ?? [])].sort(), n: j.n, by: j.by, k: j.k };
+    if (!(await verify(k, enc.encode('ghost-hangout roster|' + JSON.stringify(body)), unhex(j.s)))) return false;
+    await this.checkGrants();
+    if (!(this.isOwner(j.by) || this.roleOf(j.by).id === 'admin')) return false;
+    for (const [id, r] of Object.entries(j.a ?? {})) if (r === 'admin' && !this.granted.has(id)) return false;
+    if ((j.b ?? []).includes(this.ownerId) || (j.m ?? []).includes(this.ownerId)) return false;
+    return true;
+  }
+}
+
+/** A hangout's chat room: its messages, who is here, and its roster, as lib/voice/hangout.dart has them. */
+export class Chat {
+  constructor(hub, seed, owner, onChange) {
+    this.hub = hub;
+    this.seedHex = seed;
+    this.owner = owner;
+    this.onChange = onChange;
+    this.messages = [];
+    this.present = new Map();
+    this.heldMutes = new Set();
+    this.opened = false;
+  }
+
+  async prepare() {
+    const s = unhex(this.seedHex);
+    this.room = hex((await derive(s, 'hangout room')).slice(0, 16));
+    this.token = hex(await derive(s, 'hangout token'));
+    this.key = await crypto.subtle.importKey('raw', await derive(s, 'voice key'), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    this.ownerId = this.owner ? await idOf(unhex(this.owner)) : '';
+    this.roster = new Roster(null, this.owner, this.ownerId);
+    try {
+      const kept = JSON.parse(localStorage.getItem('ghost-hangout-' + this.room) ?? 'null');
+      if (kept) {
+        const r = new Roster(kept.r, this.owner, this.ownerId);
+        if (kept.r && (await r.trusted())) this.roster = r;
+        this.messages = kept.m ?? [];
+      }
+    } catch (_) {}
+    this.hub.json.add((m) => this.event(m));
+    this.hub.bin.add((d) => this.packet(d));
+  }
+
+  get me() { return this.hub.me.id; }
+  can(perm) { return this.roster.can(this.me, perm); }
+  heard(id) { return this.roster.can(id, 'speak') && !this.heldMutes.has(id); }
+  change() { this.onChange?.(); }
+  keep() { try { localStorage.setItem('ghost-hangout-' + this.room, JSON.stringify({ r: this.roster.j.s ? this.roster.j : null, m: this.messages.slice(-300) })); } catch (_) {} }
+
+  open({ name, guest, username }) {
+    this.name = name;
+    this.guest = guest;
+    this.username = username;
+    if (this.roster.banned(this.me)) this.putOut = 'You were banned from this hangout.';
+    this.hub.say({ join: this.room, token: this.token });
+  }
+
+  close() { if (this.opened) this.hub.say({ leave: this.room }); this.opened = false; this.present.clear(); }
+
+  hi() { this.say({ t: 'hi', n: this.name, a: true, g: !!this.guest, ...(this.username ? { u: this.username } : {}) }); }
+
+  event(m) {
+    if (m.room !== this.room) return;
+    if ('ok' in m) {
+      if (!m.ok) return;
+      this.opened = true;
+      for (const id of m.members ?? []) this.present.set(id, this.present.get(id) ?? { name: '' });
+      this.hi();
+      this.say({ t: 'sync?', since: this.messages.at(-1)?.at ?? 0, v: this.roster.version });
+    } else if (m.came) {
+      this.present.set(m.came, { name: '' });
+      this.hi();
+    } else if (m.went) {
+      this.present.delete(m.went);
+      this.heldMutes.delete(m.went);
+    }
+    this.change();
+  }
+
+  async say(what) {
+    if (!this.opened) return;
+    const sealed = await seal(this.key, enc.encode(JSON.stringify(what)));
+    if (this.hub.ws.readyState === 1) this.hub.ws.send(new Uint8Array([2, ...unhex(this.room), ...sealed]));
+  }
+
+  send(text) {
+    const x = text.trim();
+    if (!x || !this.can('chat') || this.putOut) return false;
+    const m = { id: hex(crypto.getRandomValues(new Uint8Array(8))), x: x.slice(0, 4000), at: Date.now(), n: this.name, f: this.me };
+    this.add([m]);
+    this.say({ t: 'msg', id: m.id, x: m.x, at: m.at, n: m.n });
+    return true;
+  }
+
+  canDelete(m) { return m.f === this.me || this.roster.isOwner(this.me) || (this.can('manageMessages') && this.roster.outranks(this.me, m.f)); }
+  remove(m) { if (!this.canDelete(m)) return; this.drop(m.id); this.say({ t: 'del', id: m.id }); }
+
+  add(list) {
+    const have = new Set(this.messages.map((m) => m.id));
+    const more = list.filter((m) => m && typeof m.id === 'string' && typeof m.x === 'string' && typeof m.at === 'number' && !have.has(m.id) && have.add(m.id));
+    if (!more.length) return;
+    this.messages = [...this.messages, ...more].sort((a, b) => a.at - b.at).slice(-300);
+    this.keep();
+    this.change();
+  }
+
+  drop(id) { const n = this.messages.length; this.messages = this.messages.filter((m) => m.id !== id); if (this.messages.length !== n) { this.keep(); this.change(); } }
+
+  answers(asker) { return [this.me, ...[...this.present.keys()].filter((id) => id !== asker)].sort()[0] === this.me; }
+
+  async packet(d) {
+    if (d[0] !== 2 || d.length < 34 || hex(d.slice(1, 17)) !== this.room) return;
+    const from = hex(d.slice(17, 33));
+    const clear = await open(this.key, d.slice(33));
+    if (!clear) return;
+    let m;
+    try { m = JSON.parse(dec.decode(clear)); } catch (_) { return; }
+    const r = this.roster;
+    if (m.to && m.to !== this.me) {
+      if (m.t === 'kick' && r.can(from, 'removeMembers') && r.outranks(from, m.to)) { this.present.delete(m.to); this.change(); }
+      return;
+    }
+    if (r.banned(from)) return;
+    if (m.t === 'hi') { this.present.set(from, { name: String(m.n ?? ''), guest: !!m.g, voice: !!m.a, username: m.u ?? null }); this.change(); }
+    else if (m.t === 'msg') { if (r.can(from, 'chat')) this.add([{ id: m.id, x: String(m.x ?? '').trim().slice(0, 4000), at: m.at, n: String(m.n ?? ''), f: from }]); }
+    else if (m.t === 'del') { const x = this.messages.find((y) => y.id === m.id); if (x && (x.f === from || r.isOwner(from) || (r.can(from, 'manageMessages') && r.outranks(from, x.f)))) this.drop(m.id); }
+    else if (m.t === 'sync?') {
+      if (this.answers(from)) { const missed = this.messages.filter((x) => x.at > (m.since ?? 0)); if (missed.length) this.say({ t: 'hist', to: from, m: missed.map((x) => ({ id: x.id, x: x.x, at: x.at, n: x.n, f: x.f })) }); }
+      if (r.j.s && (typeof m.v !== 'number' || r.version > m.v)) this.say({ t: 'roster', to: from, r: r.j });
+    }
+    else if (m.t === 'hist') this.add((m.m ?? []).filter((x) => typeof x.f === 'string'));
+    else if (m.t === 'roster') {
+      const next = new Roster(m.r, this.owner, this.ownerId);
+      if ((m.r?.v ?? 0) > r.version && (await next.trusted())) {
+        this.roster = next;
+        if (next.banned(this.me)) this.putOut = 'You were banned from this hangout.';
+        this.keep();
+        this.change();
+      }
+    }
+    else if (m.t === 'mute') { if (r.can(from, 'muteOthers') && r.outranks(from, m.who)) { m.on ? this.heldMutes.add(m.who) : this.heldMutes.delete(m.who); this.change(); } }
+    else if (m.t === 'kick') { if (r.can(from, 'removeMembers') && r.outranks(from, this.me)) { this.putOut = r.banned(this.me) ? 'You were banned from this hangout.' : 'You were removed from this hangout.'; this.change(); } }
   }
 }

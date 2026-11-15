@@ -495,6 +495,38 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
+- **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25, not released; Matt, 2026-11-15:
+  "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the whole group can
+  send messages to the hangout as well as voice and video, make default roles such as admin, moderator, member").
+  - **Owner.** A hangout made now carries its maker's public key (`VoiceChannel.owner`, in its link as a third part
+    after the name, in the phone ⇄ computer sync and when shared with friends). The owner can do everything and can't
+    be acted on. Hangouts made before this have no owner: everyone in them is a member and nothing can be changed.
+  - **Roles** (`lib/voice/roles.dart`): Admin, Moderator and Member to start, each a set of permissions (Speak,
+    Video, Send messages, Invite, Mute others, Remove people, Ban, Manage messages) and a rank; a role acts only on
+    those below it. Admins edit what each role may do, add roles (above, between or below Moderator and Member),
+    assign every role but admin, and choose the role new people join as. Only the owner makes admins.
+  - **How everyone agrees without a server.** One `Roster` per hangout: numbered and signed by whoever changed it.
+    A device keeps the highest-numbered roster it can check: signed by the owner, or by an admin whose being one the
+    owner signed (`adminGrants`). Anyone in the hangout can hand it to a newcomer; no one else can forge one
+    (hangout_test: a member's self-promotion, an altered roster, a copied grant, all refused).
+  - **The chat** (`lib/voice/hangout.dart`): a second hub room beside the call's (`VoiceChannel.chatRoom`), sealed
+    with the same key, joined while the hangout's page is open or you are in its call, so people out of voice can
+    write too. The hub keeps nothing: each device keeps the last 300 messages, and someone coming in gets what they
+    missed from the lowest id there (one copy, not one from everyone). Delete your own; Manage messages deletes
+    those of roles below.
+  - **Enforcement, on every device.** A message from a role that may not write is not shown. Someone muted for
+    everyone (in the roster by an admin, or by a moderator while they are there) is silenced on every device and
+    their own microphone is locked; a role without Video can't turn the camera on. Remove puts someone out now (they
+    can come back); Ban is in the roster, so they are refused in the call and in the chat for good.
+  - **Pages** (`lib/ui/hangout_screen.dart`): a hangout opens its page: who is here, Join voice, and the chat. In the
+    call a toggle switches between people and chat. Roles show beside names; press and hold someone for their role,
+    Mute for everyone, Remove and Ban, as your role allows. The shield opens Roles and permissions.
+  - **The browser** (site/join): the same chat beside the call, role tags, and the same rules. It checks rosters
+    itself (P-256 by WebCrypto; tool/voicebench/roster_check.mjs checks rosters the app signed) and leaves when
+    removed or banned. tool/voicebench/join_test.mjs covers the chat both ways and history for a latecomer.
+  - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
+    people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
+    owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
 - **"Tell friends I'm here" works from a computer** (0.7.24; Matt, 2026-11-15: "tell friends i'm here
   toggle isn't working on mac and windows only on mobile"). It was turned off on a computer; now it is the phone's
   setting changed through the phone (`Me.setListed` asks `Me.forComputer` "listed", and "state" says it), moving
