@@ -18,10 +18,10 @@
       "bytes": 77992
     },
     "calls": {
-      "words": "992b0660e070915e",
+      "words": "4c9f2622270f2372",
       "model": "eleven_v4",
       "voice": "cgSgspJ2msm6clMCkdW9",
-      "bytes": 67752
+      "bytes": 67125
     },
     "start": {
       "words": "9ff189555edeacc9",

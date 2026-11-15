@@ -243,7 +243,7 @@ void main() {
       await tester.tap(_nav('New chat'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('New group'), findsOneWidget);
-      expect(find.text('Voice call'), findsOneWidget);
+      expect(find.text('New space'), findsOneWidget);
       // The sheet slides up from the foot.
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('New chat').hitTestable().last);
