@@ -88,6 +88,39 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
+  /// What the list shows: the people added on Ghost Messaging (friends) first, under their own heading, then the
+  /// phone's contacts without them (Matt, 2026-11-15: "Contacts added on Ghost Messaging should render at the top
+  /// instead of the normal contacts"). A search narrows both. Headings are there only where there are friends to show.
+  List<_Row> _rows(List<Map<String, String?>> found) {
+    final byDigits = {for (final c in found) Friends.digits(c['address'] ?? ''): c};
+    final q = _query.toLowerCase();
+    final qDigits = Friends.digits(_query);
+    final friends = <_Row>[];
+    for (final s in Friends.instance.friends) {
+      final contact = byDigits[Friends.digits(s.address)];
+      final address = s.person?.address ?? contact?['address'] ?? s.address;
+      final name = s.person?.name ?? contact?['name'];
+      if (q.isNotEmpty) {
+        final named = name != null && name.toLowerCase().contains(q);
+        final numbered = qDigits.isNotEmpty && Friends.digits(address).contains(qDigits);
+        if (!named && !numbered) continue;
+      }
+      friends.add(_Row(person: Person(address: address, name: name, photo: s.person?.photo ?? contact?['photo']), label: contact?['label'], friend: true));
+    }
+    friends.sort((a, b) => (a.person!.name ?? a.person!.address).toLowerCase().compareTo((b.person!.name ?? b.person!.address).toLowerCase()));
+    final rest = [
+      for (final c in found)
+        if (!Friends.instance.isFriend(c['address'] ?? '')) _Row(person: Person(address: c['address'] ?? '', name: c['name'], photo: c['photo']), label: c['label']),
+    ];
+    if (friends.isEmpty) return rest;
+    return [
+      const _Row(heading: 'On Ghost Messaging'),
+      ...friends,
+      if (rest.isNotEmpty) const _Row(heading: 'Contacts'),
+      ...rest,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -149,7 +182,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           ),
                         ),
                 )
-              : found.isEmpty
+              : ListenableBuilder(
+                  listenable: Friends.instance,
+                  builder: (context, _) {
+                    final rows = _rows(found);
+                    return rows.isEmpty
                   ? Padding(
                       padding: EdgeInsets.all(t.space(6)),
                       child: SettingsEmpty(
@@ -160,17 +197,23 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     )
                   : ListView.builder(
                       padding: EdgeInsets.only(bottom: t.space(6)),
-                      itemCount: found.length + (_query.isEmpty ? 1 : 0),
+                      itemCount: rows.length + (_query.isEmpty ? 1 : 0),
                       itemBuilder: (context, i) {
-                        if (i == found.length) {
+                        if (i == rows.length) {
                           return Padding(
                             padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), 0),
                             child: Text('The people you text most. Search to find anyone else.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                           );
                         }
-                        final c = found[i];
-                        final person = Person(address: c['address'] ?? '', name: c['name'], photo: c['photo']);
-                        final label = c['label'];
+                        final row = rows[i];
+                        if (row.heading != null) {
+                          return Padding(
+                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(i == 0 ? 1 : 4), t.space(4), t.space(1)),
+                            child: Text(row.heading!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
+                          );
+                        }
+                        final person = row.person!;
+                        final label = row.label;
                         return GlacierPressable(
                           onPressed: () => _open(person),
                           semanticLabel: person.name ?? person.address,
@@ -189,7 +232,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   ]),
                                 ),
                                 // A friend (lib/friends/friends.dart): what is written to them goes over the internet.
-                                if (Friends.instance.isFriend(person.address)) ...[
+                                if (row.friend) ...[
                                   SizedBox(width: t.space(2)),
                                   Semantics(label: 'Friend', child: AppIcon(Lucide.userCheck, size: 16, color: t.color('app-ink-3'))),
                                 ],
@@ -198,9 +241,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           ),
                         );
                       },
-                    ),
+                    );
+                  },
+                ),
         ),
       ]),
     );
   }
+}
+
+/// A line of the list: a heading, or someone in it.
+class _Row {
+  const _Row({this.heading, this.person, this.label, this.friend = false});
+  final String? heading;
+  final Person? person;
+  final String? label;
+  final bool friend;
 }
