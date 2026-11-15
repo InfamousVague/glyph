@@ -14,7 +14,10 @@ import '../../ui/computers.dart';
 import '../../ui/gm_guide_screen.dart';
 import '../../ui/settings.dart';
 import '../../ui/settings_panes.dart' show aboutLicences;
+import '../../gm/google_signin.dart';
+import '../../gm/google_signin_flow.dart';
 import '../gm_web.dart';
+import '../private_browser.dart';
 import '../link/link.dart';
 import '../remote.dart';
 import '../updates.dart';
@@ -210,23 +213,32 @@ class _GmPage extends StatelessWidget {
                 ),
               ],
             )
-          else
+          else ...[
+            // Google-account pairing, all in one place (lib/gm/google_signin_flow.dart; Matt, 2026-11-15: "Please make
+            // setting up google messages a onboarding flow that is all in one place"): QR pairing is gone from Google
+            // Messages signed in to an account.
             PaneSection(
-              title: 'Google Messages on this computer',
-              description: const Text('Pair this computer with Google Messages on your phone, the way messages.google.com is paired, and every conversation there shows here: RCS chats and texts, their history, pictures and reactions.'),
-              footer: const Text('The connection is this computer\'s alone: messages go between it and Google, as they do for messages.google.com, never through Ghost\'s servers. It is done by a small open-source helper built on mautrix-gmessages (GNU AGPL).'),
+              title: 'Set up Google Messages on this computer',
+              description: const Text('Every conversation in Google Messages shows here, RCS and texts, with their history, pictures and reactions. It takes a couple of minutes, once.'),
+              footer: const Text('The connection is this computer\'s alone: messages go between it and Google, never through Ghost\'s servers. The helper is open source, built on mautrix-gmessages (GNU AGPL).'),
               children: [
-                if (gm.problem != null) SettingRow(icon: _icon(Lucide.triangleAlert), label: 'Not paired', hint: Text(gm.problem!)),
-                SettingRow(icon: _icon(Lucide.bookOpen), label: 'How it works', hint: const Text('Pairing, keeping it running on this computer, and using it with your phone.'), onPress: () => push(context, (_) => const GmGuideScreen())),
-                SettingRow(icon: _icon(LucideMore.qrCode), label: 'Pair with Google Messages', hint: const Text('Shows a QR code to scan in Google Messages on your phone.'), onPress: () async {
-                  try {
-                    await gm.pair();
-                  } catch (e) {
-                    if (context.mounted) toast(context, '$e');
-                  }
-                }),
+                SettingRowBox(child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: t.space(2)),
+                  child: GoogleSignInFlow(onPair: gm.pairGoogle, onOpenPrivate: () => openPrivately(googleSignInUrl), emoji: gm.emoji, problem: gm.problem),
+                )),
               ],
             ),
+            PaneSection(children: [
+              SettingRow(icon: _icon(Lucide.bookOpen), label: 'Keep it running', hint: const Text('Open at login, staying awake, and using it with your phone.'), onPress: () => push(context, (_) => const GmGuideScreen())),
+              SettingRow(icon: _icon(LucideMore.qrCode), label: 'Pair with a QR code instead', hint: const Text('For Google Messages not signed in to a Google account, where Device pairing still has a QR code scanner.'), onPress: () async {
+                try {
+                  await gm.pair();
+                } catch (e) {
+                  if (context.mounted) toast(context, '$e');
+                }
+              }),
+            ]),
+          ],
         ]);
       },
     );

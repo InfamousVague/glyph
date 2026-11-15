@@ -12,6 +12,9 @@
 //	{"id":8,"op":"media","media":"…","key":"<base64>","path":"…"} → {"path":"…"}
 //	{"id":9,"op":"unpair"}                          → {}
 //	{"id":11,"op":"send_media","conv":"…","path":"…","text":"…"} → {"tmp":"…"} (a picture or video, with words)
+//	{"id":12,"op":"pair_google","cookies":{"SID":"…",…}} → {} then events "emoji" (tap it in Google Messages on the
+//	                                                phone) and "paired", or "pair_failed": Google-account pairing, which
+//	                                                is what Google Messages offers now that QR pairing is gone.
 //	{"id":10,"op":"activate"}                       → {} (this becomes Google Messages' active web session)
 //
 // Answers: {"id":1,"ok":{…}} or {"id":1,"error":"…"}. Events, unasked: {"ev":"ready"}, {"ev":"qr","url":"…"},
@@ -58,7 +61,8 @@ type request struct {
 	Remove bool   `json:"remove"`
 	Media  string `json:"media"`
 	Key    string `json:"key"`
-	Path   string `json:"path"`
+	Path    string            `json:"path"`
+	Cookies map[string]string `json:"cookies"`
 }
 
 var (
@@ -106,6 +110,16 @@ func main() {
 		connect()
 	}
 	event("ready", nil)
+	// A Google-account session's cookies change as Google answers: kept every few minutes as well as at events.
+	go func() {
+		for range time.Tick(5 * time.Minute) {
+			mu.Lock()
+			if auth != nil {
+				saveSession()
+			}
+			mu.Unlock()
+		}
+	}()
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Buffer(make([]byte, 1<<20), 8<<20)
 	for scan.Scan() {
@@ -265,6 +279,8 @@ func do(r request) (any, error) {
 		return map[string]any{"paired": cli != nil && cli.IsLoggedIn(), "connected": cli != nil && cli.IsConnected(), "phone": phone}, nil
 	case "pair":
 		return nil, pair()
+	case "pair_google":
+		return nil, pairGoogle(r.Cookies)
 	case "unpair":
 		c, err := client()
 		if err != nil {
@@ -506,6 +522,61 @@ func pair() error {
 		c.Disconnect()
 	}()
 	return nil
+}
+
+// pairGoogle pairs by the person's Google account, from the cookies of a browser signed in to it (messages.google.com
+// /web/config, in a private window): Google Messages on the phone shows emoji, and the person taps the one this says
+// ("emoji"). Then the session, cookies and all, is kept and the client connected ("paired").
+func pairGoogle(cookies map[string]string) error {
+	need := []string{"SID", "HSID", "SSID", "OSID", "APISID", "SAPISID"}
+	for _, n := range need {
+		if cookies[n] == "" {
+			return fmt.Errorf("the sign-in is missing the %s cookie: copy the whole request again", n)
+		}
+	}
+	mu.Lock()
+	if pairing != nil {
+		pairing()
+	}
+	if cli != nil {
+		cli.Disconnect()
+	}
+	a := libgm.NewAuthData()
+	a.SetCookies(cookies)
+	c := libgm.NewClient(a, nil, log, exhttp.SensibleClientSettings)
+	c.SetEventHandler(onEvent)
+	ctx, cancel := context.WithCancel(context.Background())
+	pairing = cancel
+	mu.Unlock()
+	go func() {
+		defer cancel()
+		err := c.DoGaiaPairing(ctx, func(emoji string) {
+			say(map[string]any{"ev": "emoji", "emoji": emoji})
+		})
+		if err != nil {
+			c.Disconnect()
+			say(map[string]any{"ev": "pair_failed", "why": gaiaWhy(err)})
+			return
+		}
+		mu.Lock()
+		auth, cli = a, c
+		saveSession()
+		mu.Unlock()
+		event("paired", nil)
+	}()
+	return nil
+}
+
+// gaiaWhy is a Google-account pairing's failure in words a person can act on.
+func gaiaWhy(err error) string {
+	switch {
+	case errors.Is(err, libgm.ErrNoDevicesFound):
+		return "Google found no phone with Google Messages signed in to this account"
+	case errors.Is(err, context.Canceled):
+		return "Pairing was stopped"
+	default:
+		return "Google didn't accept the pairing (" + err.Error() + "). Sign in again in a new private window and copy the request again."
+	}
 }
 
 func conversation(c *gmproto.Conversation) map[string]any {

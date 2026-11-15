@@ -19,6 +19,10 @@ ability to back and forth is useless". Both read and send.
 | TDLib itself, from github.com/tdlib/td at a pinned commit (and OpenSSL from its source for Android), not a prebuilt package | `tool/build-tdlib.sh mac` / `android`, run by the release scripts; `build/tdlib/` |
 | A tab per signed-in network beside Messages and Voice (Telegram's paper plane, Bluesky's cloud), the chat page, sign-in pages, Settings › Telegram / Bluesky | `lib/ui/inbox_ui.dart`, `lib/ui/conversations.dart` (`test/inbox_screens_test.dart`, `test/shots/16-inbox-*`) |
 
+**Bluesky is "Coming soon" for now** (Matt, 2026-11-15: "I don't have bluesky setup yet, set that to \"coming soon\""):
+built and tested, but `Bluesky(soon: true)` in `Inbox.instance` keeps it from starting, from the list's tabs and from
+signing in; Settings › Bluesky says Coming soon. Taking out `soon: true` turns it on.
+
 Every network runs on the device (phone and computer each sign in for themselves, as Telegram's and Bluesky's own
 apps do); nothing goes through ghost-sms.com.
 

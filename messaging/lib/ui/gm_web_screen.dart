@@ -8,6 +8,8 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
+import '../gm/google_signin_flow.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/crypto.dart';
@@ -154,15 +156,32 @@ class _GmWebScreenState extends State<GmWebScreen> {
         ],
       ));
     } else if (_room == null) {
+      // Google-account pairing, all in one place (lib/gm/google_signin_flow.dart; Matt, 2026-11-15: "Please make setting
+      // up google messages a onboarding flow that is all in one place"): QR pairing is gone where Google Messages is
+      // signed in to an account.
       children.add(PaneSection(
-        title: 'Google Messages, whole',
-        description: const Text('Pair Ghost with Google Messages the way a computer pairs with messages.google.com, and Ghost has every conversation with its pictures, reactions, and when your messages are delivered and read, without needing Google Messages\' notifications.'),
-        footer: const Text('You need another screen for a minute: a computer, a tablet, anything with a browser. This phone can\'t scan its own screen, so Ghost shares a link that shows the code there. The link\'s secret never reaches Ghost\'s servers. It is done by an open-source helper built on mautrix-gmessages (GNU AGPL).'),
+        title: 'Set up Google Messages in Ghost',
+        description: const Text('Ghost then has every conversation, with pictures, reactions, and when your messages are delivered and read, without needing Google Messages\' notifications.'),
+        footer: const Text('It is done by an open-source helper built on mautrix-gmessages (GNU AGPL), talking to Google directly, never through Ghost\'s servers.'),
         children: [
-          if (problem != null) SettingRow(icon: icon(Lucide.triangleAlert), label: 'Not paired', hint: Text(problem)),
-          SettingRow(icon: icon(Lucide.link), label: 'Pair with Google Messages', hint: const Text('Makes a link to open on another screen, where the QR code shows.'), onPress: _pair),
+          SettingRowBox(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: t.space(2)),
+            child: GoogleSignInFlow(
+              onPhone: true,
+              emoji: s['emoji'] as String?,
+              problem: problem,
+              onPair: (cookies) async {
+                final r = await Sms.instance.gmWebPairGoogle(cookies);
+                if (mounted) setState(() => _s = r);
+                return r['error'] as String?;
+              },
+            ),
+          )),
         ],
       ));
+      children.add(PaneSection(children: [
+        SettingRow(icon: icon(LucideMore.qrCode), label: 'Pair with a QR code instead', hint: const Text('For Google Messages not signed in to a Google account, where Device pairing still has a QR code scanner: shows the code on another screen.'), onPress: _pair),
+      ]));
     } else {
       final link = _link!;
       children.add(PaneSection(

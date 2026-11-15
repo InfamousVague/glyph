@@ -36,9 +36,7 @@ if [ "$want" = android ] || [ "$want" = all ]; then
   mkdir -p "$dest"
   CGO_ENABLED=1 CC="$cc" GOOS=android GOARCH=arm64 go build $flags -o "$dest/libgmsidecar.so" .
   echo "ok $dest/libgmsidecar.so"
-  # And for an emulator on an Intel or Apple Mac (x86_64 images); a release keeps arm64 alone (abiFilters).
-  cc64=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/x86_64-linux-android29-clang | head -1)
-  mkdir -p "$root/android/app/src/main/jniLibs/x86_64"
-  CGO_ENABLED=1 CC="$cc64" GOOS=android GOARCH=amd64 go build $flags -o "$root/android/app/src/main/jniLibs/x86_64/libgmsidecar.so" .
-  echo "ok $root/android/app/src/main/jniLibs/x86_64/libgmsidecar.so"
+  # arm64 alone: the phones this is for, and the emulators on an Apple-silicon Mac. (An x86_64 copy went into
+  # 0.7.32's APK although the app's abiFilters say arm64: what is in jniLibs is packed as it is.)
+  rm -f "$root/android/app/src/main/jniLibs/x86_64/libgmsidecar.so"
 fi

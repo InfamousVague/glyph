@@ -816,6 +816,9 @@ class Sms {
   /// screen) and unpairing.
   Future<Map<String, Object?>> gmWebState() async => ((await _calls.invokeMethod<Map>('gmWebState')) ?? const {}).cast<String, Object?>();
   Future<Map<String, Object?>> gmWebPair() async => ((await _calls.invokeMethod<Map>('gmWebPair')) ?? const {}).cast<String, Object?>();
+  /// Pairs the phone's connection by Google account, from a signed-in browser's cookies (lib/gm/google_signin.dart).
+  Future<Map<String, Object?>> gmWebPairGoogle(Map<String, String> cookies) async =>
+      ((await _calls.invokeMethod<Map>('gmWebPairGoogle', {'cookies': cookies})) ?? const {}).cast<String, Object?>();
   Future<Map<String, Object?>> gmWebUnpair() async => ((await _calls.invokeMethod<Map>('gmWebUnpair')) ?? const {}).cast<String, Object?>();
 
   /// Android's settings for one of Google Messages' channels.
