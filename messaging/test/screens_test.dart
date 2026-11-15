@@ -258,6 +258,8 @@ void _answerChannel() {
     switch (call.method) {
       case 'status':
         return _statusSaid;
+      case 'gmChannels':
+        return _gmChannels;
       case 'conversations':
         return _conversations;
       case 'conversationsPage':
@@ -481,6 +483,9 @@ Future<Fetched> _fakeSites(Uri url) async {
   if (url.host == 'example.com') return (status: 200, body: '<meta property="og:site_name" content="Hickory Premier"><meta property="og:title" content="Movie night: 7:00 PM, Theatre 2">');
   return (status: 404, body: '');
 }
+
+/// Google Messages' notification channels as Ghost saw them (android GmBridge.channelList): none, unless a test says.
+List<Map<String, Object?>> _gmChannels = const [];
 
 /// What the phone says of itself (SmsStatus): the default SMS app, unless a test says otherwise.
 Map<String, Object> _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
@@ -845,6 +850,21 @@ void main() {
       _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false, 'gmDefault': true};
       await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup-partway', dark: dark, prefs: const {'rcs_on_chosen': 'on'});
       expect(find.text('Open notification access'), findsOneWidget);
+      // The last step, Google Messages' "Incoming messages" and one conversation of its own still loud (Matt,
+      // 2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through
+      // ghost instead").
+      _statusSaid = const {'isDefault': false, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': true, 'gmDefault': true};
+      _gmChannels = const [
+        {'id': 'bugle_default_channel', 'name': 'Incoming messages', 'importance': 4, 'loud': true, 'popup': true, 'conversation': null, 'title': null},
+        {'id': 'c-437', 'name': 'Mo', 'importance': 4, 'loud': true, 'popup': true, 'conversation': '437', 'title': 'Mo'},
+        {'id': 'bugle_misc_channel', 'name': 'Other notifications', 'importance': 2, 'loud': false, 'popup': false, 'conversation': null, 'title': null},
+      ];
+      await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup-loud', dark: dark, prefs: const {'rcs_on_chosen': 'on'});
+      await tester.scrollUntilVisible(find.text('Silence Mo'), 200, scrollable: find.byType(Scrollable).first);
+      await _shootAgain(tester, '19-rcs-setup-loud', dark: dark);
+      expect(find.text('Silence Incoming messages'), findsOneWidget);
+      expect(find.text('Silence Other notifications'), findsNothing, reason: 'quiet already');
+      _gmChannels = const [];
       // Ghost is the texting app: each page after, in turn.
       _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-1-welcome', dark: dark);
