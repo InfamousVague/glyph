@@ -1482,6 +1482,68 @@ void main() {
     }
   });
 
+  // Matt, 2026-11-15: "When opening a hangout the left side should show the chat with some space below reserved for the
+  // navbar controls, the voice on desktop should show up on the left side with the right side reserved for chat, when a
+  // video starts split the right side 50/50 showing the videos above the chat".
+  testWidgets('a hangout\'s layout: room for the pill under its chat; wide, the people beside the list and the chat in the pane', (tester) async {
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    final keys = NetKeys.generate();
+    final channel = VoiceChannel.make('Friday hang', owner: NetCrypto.hex(keys.public));
+    final route = _IdRoute(keys.id);
+    final store = MemoryHangoutStore();
+    final now = DateTime(2026, 11, 15, 19, 40).millisecondsSinceEpoch;
+    store.keepMessages(channel.chatRoom, [
+      HangoutMessage(id: '1', from: 'a', name: 'Maya Chen', text: 'Starting the movie in 10, hop in', at: now),
+      HangoutMessage(id: '2', from: keys.id, name: 'Me', text: 'Saving you a seat', at: now + 90000),
+    ]);
+    final room = HangoutRoom(channel: channel, route: route, name: 'Me', signer: KeysSigner(keys), store: store);
+    final v = Voice.instance;
+    v.own = [channel];
+    v.putHangout(room);
+    addTearDown(() {
+      v.session = null;
+      v.own = [];
+      v.clearHangouts();
+    });
+    for (final dark in [false, true]) {
+      // A phone: the hangout opened in the list's place, the chat's composer standing above where the pill floats.
+      tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+      await _shoot(tester, sheet, HangoutScreen(channel: channel, inSidebar: true), '22-hangout-sidebar', dark: dark);
+      final composer = tester.getRect(find.byType(GlacierInput));
+      // The pill's top stands this far from the screen's foot (shell.dart: the bar's inset, the pill, its inset).
+      final t = _tokensOf(tester);
+      expect(892 - composer.bottom, greaterThan(32 + NavPill.clearance(t) - NavPill.inset(t) + 4), reason: 'the pill\'s room is kept under it');
+
+      // Wide, in the call: the people and the dock in the list's place, the chat in the pane.
+      tester.view.physicalSize = const Size(1280 * 2.0, 800 * 2.0);
+      v.session = VoiceSession(channel: channel, route: route, media: _NoMedia({'a': 0.4}), name: 'Me')
+        ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
+        ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true);
+      await _shoot(tester, sheet, const AppShell(), '22-hangout-wide', dark: dark);
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      shell.go('voice');
+      await _settle(tester);
+      Navigator.of(tester.element(find.byType(ConversationsScreen))).push(PageRouteBuilder<void>(pageBuilder: (c, _, _) => HangoutScreen(channel: channel, inSidebar: true)));
+      await _settle(tester);
+      await _shootAgain(tester, '22-hangout-wide', dark: dark);
+      expect(find.byType(HangoutStage), findsOneWidget, reason: 'the pane is the chat');
+      expect(find.byType(CallPanel), findsOneWidget, reason: 'the people beside the list');
+      final people = tester.getRect(find.byType(CallPanel)), chat = tester.getRect(find.byType(HangoutChat));
+      expect(people.right, lessThanOrEqualTo(chat.left), reason: 'voice on the left, chat on the right');
+      expect(find.text('Saving you a seat'), findsOneWidget);
+      // The dock stands above the pill, not over it.
+      final dock = tester.getRect(find.byType(CallDock)), pill = tester.getRect(find.byType(NavPill));
+      expect(dock.bottom, lessThanOrEqualTo(pill.top + 1));
+      v.session = null;
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   // Matt, 2026-11-15: "use an icon only segmented toggle for the messages codes and add voice chats to the list as well,
   // try a few different layouts for switching between the few including a mixed view that shows them all intertwined
   // sorted by recency, also id like you to rework the active call indicator".
@@ -2083,3 +2145,6 @@ class _NoMedia implements VoiceMedia {
   @override
   void setPeerMuted(String id, bool muted) {}
 }
+
+/// The tokens the screen on show is drawn with.
+Tokens _tokensOf(WidgetTester tester) => tester.element(find.byType(HangoutChat).first).tokens;

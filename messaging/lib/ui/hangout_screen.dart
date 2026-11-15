@@ -15,6 +15,7 @@ import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
 import 'nav_bar.dart';
+import 'shell.dart';
 import 'voice_screen.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
@@ -24,8 +25,13 @@ import 'voice_screen.dart';
 /// Out of the call it is the chat, with who is here and a way into voice at its top. In the call, a toggle chooses the
 /// people or the chat, with the call's dock over either. The shield opens its roles (RolesScreen).
 class HangoutScreen extends StatefulWidget {
-  const HangoutScreen({super.key, required this.channel, this.onClose});
+  const HangoutScreen({super.key, required this.channel, this.onClose, this.inSidebar = false});
   final VoiceChannel channel;
+
+  /// Opened in the list's place, under the pill: the chat's composer and the call's dock leave it room (Matt,
+  /// 2026-11-15: "When opening a hangout the left side should show the chat with some space below reserved for the
+  /// navbar controls").
+  final bool inSidebar;
 
   /// Leaves the page where it is not a pushed route (the Voice tab showing it): back to the list.
   final VoidCallback? onClose;
@@ -57,7 +63,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
       await Voice.instance.join(widget.channel, video: video);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t join: ${e is StateError ? e.message : e}', tone: GlacierToastTone.danger);
+      return;
     }
+    // Beside the list: the chat (and the videos) go to the pane, the people stay here (HangoutStage).
+    if (mounted && AppShell.wideOf(context)) AppShell.maybeOf(context)?.go('voice');
   }
 
   @override
@@ -70,6 +79,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         final pad = MediaQuery.paddingOf(context).bottom;
+        final wide = AppShell.wideOf(context);
+        // Under the pill in the list's place: what stands at the foot (the composer, the dock) stands above it.
+        final pill = widget.inSidebar ? AppShell.pillRoom(context) : 0.0;
+        final dockAt = pad + (widget.inSidebar ? pill : NavPill.inset(t));
         final actions = [
           if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, widget.channel)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Roles and permissions', onPressed: () => push(context, (_) => RolesScreen(room: room))),
@@ -80,7 +93,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
             body: Padding(padding: EdgeInsets.all(t.space(4)), child: SettingsCallout(child: Text(room!.putOut!))),
           );
         }
-        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room, bottom: s != null ? NavPill.clearance(t) : 0);
+        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room, bottom: pill + (s != null ? NavPill.clearance(t) : 0));
         if (s == null) {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
@@ -108,6 +121,22 @@ class _HangoutScreenState extends State<HangoutScreen> {
             ]),
           );
         }
+        // In the call beside the list (a computer, a wide phone): the people and the dock here, the chat and the videos
+        // in the pane (Matt, 2026-11-15: "the voice on desktop should show up on the left side with the right side
+        // reserved for chat").
+        if (wide) {
+          return GhostPage(
+            title: widget.channel.name,
+            actions: actions,
+            body: Stack(children: [
+              ListView(
+                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
+                children: [CallPanel(session: s, videos: false)],
+              ),
+              Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
+            ]),
+          );
+        }
         // In the call: the people or the chat, and the dock.
         return GhostPage(
           title: widget.channel.name,
@@ -132,13 +161,73 @@ class _HangoutScreenState extends State<HangoutScreen> {
                 child: _tab == 'chat'
                     ? chat
                     : ListView(
-                        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + pad),
+                        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
                         children: [CallPanel(session: s)],
                       ),
               ),
             ]),
-            Positioned(left: 0, right: 0, bottom: pad + NavPill.inset(t), child: Center(child: CallDock(session: s))),
+            Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
           ]),
+        );
+      },
+    );
+  }
+}
+
+/// A hangout's call beside the list on a wide screen: its chat, and once anyone turns on video, the videos in the top
+/// half and the chat in the bottom (Matt, 2026-11-15: "when a video starts split the right side 50/50 showing the
+/// videos above the chat"). The people and the dock are in the list's place (HangoutScreen).
+class HangoutStage extends StatefulWidget {
+  const HangoutStage({super.key, required this.channel});
+  final VoiceChannel channel;
+
+  @override
+  State<HangoutStage> createState() => _HangoutStageState();
+}
+
+class _HangoutStageState extends State<HangoutStage> {
+  HangoutRoom? _room;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(Voice.instance.hold(widget.channel).then((r) {
+      if (mounted) setState(() => _room = r);
+    }));
+  }
+
+  @override
+  void dispose() {
+    unawaited(Voice.instance.release(widget.channel));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final v = Voice.instance;
+    final room = _room ?? v.hangoutFor(widget.channel);
+    final media = v.media;
+    return ListenableBuilder(
+      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?v.session]),
+      builder: (context, _) {
+        final s = v.session?.channel.room == widget.channel.room ? v.session : null;
+        final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room);
+        final videos = s != null && CallVideos.any(s);
+        return GhostPage(
+          title: 'Chat',
+          back: false,
+          actions: [
+            if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, widget.channel)),
+            if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Roles and permissions', onPressed: () => push(context, (_) => RolesScreen(room: room))),
+          ],
+          body: videos
+              ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)), child: CallVideos(session: s))),
+                  Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
+                  Expanded(child: chat),
+                ])
+              : chat,
         );
       },
     );
