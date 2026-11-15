@@ -27,35 +27,42 @@ class VoiceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final v = Voice.instance;
-    return GhostPage(
-      title: 'Voice',
-      actions: [IconTap(icon: Lucide.plus, label: 'New channel', onPressed: () => push(context, (_) => const NewChannelScreen()))],
-      body: ListenableBuilder(
-        listenable: v,
-        builder: (context, _) {
-          final s = v.session;
-          return Stack(children: [
-            ListView(
-              // Clear of the dock while in a call.
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), (s != null ? 120 : t.space(8)) + MediaQuery.paddingOf(context).bottom),
-              children: [
-                if (s != null) ...[CallPanel(session: s), SizedBox(height: t.space(6))],
-                if (v.channels.isEmpty)
-                  SettingsCallout(child: const Text('Every group of friends has a voice channel. Make one of your own with + and share it with friends you added by username.'))
-                else
-                  PaneSection(
-                    title: 'Channels',
-                    children: [for (final c in v.channels) _ChannelRow(channel: c)],
-                  ),
-              ],
-            ),
-            // The call's buttons in a dock at the foot, as the rest of the app's are (Matt, 2026-11-15: "we should habe
-            // the voice controls at the bottom in a dock like we habe the rest of thr controls").
-            if (s != null)
+    return ListenableBuilder(
+      listenable: v,
+      builder: (context, _) {
+        final s = v.session;
+        // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
+        // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
+        if (s != null) {
+          return GhostPage(
+            title: s.channel.name,
+            actions: [
+              // A hangout's, not a group's: a group's channel is its members' alone.
+              if (s.channel.group == null) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, s.channel)),
+            ],
+            body: Stack(children: [
+              ListView(
+                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
+                children: [CallPanel(session: s)],
+              ),
               Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + t.space(4), child: Center(child: CallDock(session: s))),
-          ]);
-        },
-      ),
+            ]),
+          );
+        }
+        return GhostPage(
+          title: 'Voice',
+          actions: [IconTap(icon: Lucide.plus, label: 'New channel', onPressed: () => push(context, (_) => const NewChannelScreen()))],
+          body: ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            children: [
+              if (v.channels.isEmpty)
+                SettingsCallout(child: const Text('Every group of friends has a voice channel. Make one of your own with + and share it with friends you added by username.'))
+              else
+                PaneSection(title: 'Channels', children: [for (final c in v.channels) _ChannelRow(channel: c)]),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -130,16 +137,7 @@ class CallPanel extends StatelessWidget {
         ];
         final withVideo = [for (final p in people) if (p.video != null) p];
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#2fb35a'))),
-            SizedBox(width: t.space(2)),
-            Expanded(child: Text(session.channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink')))),
-            // A hangout's, not a group's: a group's channel is its members' alone.
-            if (session.channel.group == null) IconTap(icon: Lucide.link, label: 'Copy invite link', size: 18, onPressed: () => copyInvite(context, session.channel)),
-          ]),
-          Text(session.members.isEmpty ? 'Just you so far' : '${session.members.length + 1} connected', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           if (withVideo.isNotEmpty) ...[
-            SizedBox(height: t.space(3)),
             LayoutBuilder(builder: (context, box) {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
@@ -147,13 +145,14 @@ class CallPanel extends StatelessWidget {
                 for (final p in withVideo) SizedBox(width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
               ]);
             }),
+            SizedBox(height: t.space(3)),
           ],
-          SizedBox(height: t.space(3)),
           ClipRRect(
             borderRadius: BorderRadius.circular(t.radius('xl')),
             child: ColoredBox(
               color: t.color('app-paper-2'),
-              child: Column(children: [
+              // Room above and below for the first and last face's rings.
+              child: Padding(padding: EdgeInsets.symmetric(vertical: t.space(2)), child: Column(children: [
                 for (final p in people)
                   Padding(
                     padding: EdgeInsets.fromLTRB(t.space(5), t.space(2), t.space(3), t.space(2)),
@@ -175,7 +174,7 @@ class CallPanel extends StatelessWidget {
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.colorOf('#dd3a30'))),
                     ]),
                   ),
-              ]),
+              ])),
             ),
           ),
         ]);
@@ -574,18 +573,20 @@ class VoiceStrip extends StatelessWidget {
   }
 }
 
-/// While you're in a call, over the list above the pill (Matt, 2026-11-15: "rework the active call indicator"): a
-/// capsule with a beating green dot, the channel and how long you've been in it, the faces of whoever is talking
-/// (rippling), and the microphone and leave. A press on it opens the call.
-class CallCapsule extends StatefulWidget {
-  const CallCapsule({super.key, required this.onOpen});
+/// While you're in a call, a banner at the top of the sidebar, above the list's title, that takes its own room and
+/// pushes the list down (Matt, 2026-11-15: "rework the active call indicator", then "Make sure the active call runs
+/// as a banner that expands space from the top of thr sidebar not a floating banner"): a beating green dot, the
+/// channel and how long you've been in it, the faces of whoever is talking (rippling), and the microphone and leave.
+/// A press on it opens the call. It folds away when the call ends.
+class CallBanner extends StatefulWidget {
+  const CallBanner({super.key, required this.onOpen});
   final VoidCallback onOpen;
 
   @override
-  State<CallCapsule> createState() => _CallCapsuleState();
+  State<CallBanner> createState() => _CallBannerState();
 }
 
-class _CallCapsuleState extends State<CallCapsule> with SingleTickerProviderStateMixin {
+class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateMixin {
   late final AnimationController _beat = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
   Timer? _tick;
 
@@ -614,11 +615,15 @@ class _CallCapsuleState extends State<CallCapsule> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final t = context.tokens;
     final v = Voice.instance;
-    return ListenableBuilder(
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: ListenableBuilder(
       listenable: v,
       builder: (context, _) {
         final s = v.session;
-        if (s == null) return const SizedBox.shrink();
+        if (s == null) return const SizedBox(width: double.infinity);
         final levels = v.media?.levels ?? s.media.levels;
         final green = t.colorOf('#2fb35a');
         return ListenableBuilder(
@@ -635,12 +640,13 @@ class _CallCapsuleState extends State<CallCapsule> with SingleTickerProviderStat
               onPressed: widget.onOpen,
               semanticLabel: 'In ${s.channel.name}, $people connected. Open the call.',
               builder: (context, state) => Container(
-                padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(1), t.space(1)),
+                // As wide as the search field and the cards under it, in the column's flow.
+                margin: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), 0),
+                padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
                 decoration: BoxDecoration(
-                  color: t.color(state.pressed ? 'app-paper-3' : 'app-paper'),
-                  borderRadius: BorderRadius.circular(t.radius('full')),
-                  border: Border.all(color: green.withValues(alpha: 0.55), width: 1.5),
-                  boxShadow: t.shadowOf('0 6px 20px rgba(0,0,0,0.14)'),
+                  color: Color.alphaBlend(green.withValues(alpha: state.pressed ? 0.2 : 0.12), t.color('app-paper')),
+                  borderRadius: BorderRadius.circular(t.radius('xl')),
+                  border: Border.all(color: green.withValues(alpha: 0.45), width: 1.5),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.max, children: [
                   FadeTransition(
@@ -680,6 +686,7 @@ class _CallCapsuleState extends State<CallCapsule> with SingleTickerProviderStat
           },
         );
       },
+    ),
     );
   }
 }

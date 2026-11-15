@@ -500,15 +500,6 @@ class AppShellState extends State<AppShell> {
                               ),
                             ),
                           ),
-                        // The call you're in, over the list above the pill (Matt, 2026-11-15: "rework the active call
-                        // indicator"); not while the call itself is open, nor under a page on a phone.
-                        if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)))
-                          Positioned(
-                            left: t.space(3),
-                            right: docked ? edges.right + NavPill.railWidth(t) + t.space(2) : t.space(3),
-                            bottom: edges.bottom + (docked ? t.space(3) : NavPill.clearance(t) - t.space(2)),
-                            child: CallCapsule(onOpen: () => go('voice')),
-                          ),
                       ]))),
                     ),
                   ),

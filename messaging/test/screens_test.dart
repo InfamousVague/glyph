@@ -1269,7 +1269,10 @@ void main() {
     for (final dark in [false, true]) {
       await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
       expect(find.text('Hangout'), findsWidgets);
-      expect(find.text('4 connected'), findsOneWidget);
+      // In a call the page is the call alone: who is in it and the dock (Matt, 2026-11-15: "I want the call screen to
+      // be super simple too just a list of chatters and the call controls").
+      expect(find.text('Channels'.toUpperCase()), findsNothing);
+      expect(find.text('Study room'), findsNothing);
       // A list of who is there, faces rippling while they talk, and no squares: nobody has video on (Matt,
       // 2026-11-15: "make the voice chats a list of participants don't show the squares unless someone turns on
       // video"); the buttons in a dock at the foot.
@@ -1278,7 +1281,6 @@ void main() {
       expect(find.byType(CallDock), findsOneWidget);
       expect(find.bySemanticsLabel('Mute'), findsOneWidget);
       expect(find.bySemanticsLabel('Turn video on'), findsOneWidget);
-      expect(find.text('Study room', skipOffstage: false), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1311,7 +1313,10 @@ void main() {
       expect(find.byType(SectionTabs), findsOneWidget);
       final voiceTab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphones));
       expect(voiceTab, findsOneWidget);
-      expect(find.byType(CallCapsule), findsOneWidget);
+      expect(find.byType(CallBanner), findsOneWidget);
+      // A banner at the top of the list that takes its room, above the title, not floating over the list (Matt,
+      // 2026-11-15: "Make sure the active call runs as a banner that expands space from the top of thr sidebar").
+      expect(tester.getRect(find.byType(CallBanner)).bottom, lessThan(tester.getRect(find.text('Messages').first).top));
       expect(find.textContaining('Maya Chen talking'), findsOneWidget);
       await tester.tap(voiceTab);
       await _settle(tester);
