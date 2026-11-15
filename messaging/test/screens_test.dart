@@ -43,7 +43,6 @@ import 'package:ghost_messaging/ui/setup.dart';
 import 'package:ghost_messaging/ui/shell.dart';
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
-import 'package:ghost_messaging/ui/update_banner.dart';
 import 'package:ghost_messaging/ui/video.dart' show shrunkNote;
 import 'package:glacier/glacier.dart';
 
@@ -127,6 +126,10 @@ Map<String, Object?> _e2e(String address) => switch (address) {
 
 /// For the picture of a summary (17-summary): the text waiting for the phone in Maya's conversation is left out.
 bool _summaryPicture = false;
+
+/// A newer version is waiting: only for the update card's pictures, since the card is part of the list and would
+/// be in every picture of it.
+bool _updateWaiting = false;
 
 List<Map<String, Object?>> _messages(int thread) {
   if (thread == 6) {
@@ -295,7 +298,9 @@ void _answerChannel() {
           {'name': 'Mom', 'address': '+1 555-123-0010', 'photo': null, 'label': 'Mobile'},
         ];
       case 'update':
-        return {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
+        return _updateWaiting
+            ? {'phase': 'available', 'current': '0.6.1', 'available': '0.6.2', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'}
+            : {'phase': 'idle', 'current': '0.6.1', 'auto': true, 'canInstall': true, 'source': 'https://ghost-sms.com'};
       case 'ownNumber':
         return '+15551239999';
       // A link pressed in a message: the browser took it.
@@ -479,10 +484,15 @@ void main() {
       // The list as the app shows it: in its frame (lib/ui/shell.dart), the pill at its foot.
       await _shoot(tester, sheet, const AppShell(), '1-conversations', dark: dark);
       expect(find.byType(NavPill), findsOneWidget);
-      // A newer version is waiting: the banner over the page, on every page.
-      await _shoot(tester, sheet, const UpdateBanner(child: AppShell()), '1-update-banner', dark: dark);
+      // A newer version is waiting: the card at the top of the list, above its title and search (Matt, 2026-11-14:
+      // "move the update banner on desktop and mobile to show at the top of the sidebar above where it says messages
+      // and has the search bar").
+      _updateWaiting = true;
+      await _shoot(tester, sheet, const AppShell(), '1-update-banner', dark: dark);
       expect(find.textContaining('is out'), findsOneWidget);
       expect(find.text('Update now'), findsOneWidget);
+      expect(tester.getRect(find.textContaining('is out')).bottom, lessThan(tester.getRect(find.text('Messages').first).top));
+      _updateWaiting = false;
       // A row dragged sideways (lib/ui/swipe_actions.dart): to the left past Archive, on past Delete, back to
       // Archive and let go; then to the right past Pin. The phone ticks at each detent it passes into.
       _asked.clear();
@@ -660,9 +670,11 @@ void main() {
       expect(find.byWidgetPredicate((w) => w is IconTap && w.label == 'Send'), findsOneWidget);
       await _shoot(tester, sheet, ThreadScreen(thread: 2, people: [for (final p in _conversations[1]['people'] as List) Person.from(p as Map)]), '3-group', dark: dark);
       await _shoot(tester, sheet, const ComposeScreen(), '4-compose', dark: dark);
-      // The banner over a conversation: under its header, over its messages, with its cross.
-      await _shoot(tester, sheet, const UpdateBanner(child: ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')])), '1-update-banner-thread', dark: dark);
-      expect(find.bySemanticsLabel('Not now'), findsWidgets);
+      // A conversation keeps all its room: the card is the list's alone.
+      _updateWaiting = true;
+      await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '1-update-banner-thread', dark: dark);
+      expect(find.text('Update now'), findsNothing);
+      _updateWaiting = false;
       // Nothing to show (here, nothing a search finds): the app's logo stands where the list would be.
       await _shoot(tester, sheet, const ConversationsScreen(), '1-conversations-none', dark: dark);
       await tester.enterText(find.byType(EditableText).first, 'zzzz');
@@ -1570,20 +1582,22 @@ void main() {
       await _shootAgain(tester, '11-frame-wide-invite', dark: dark);
       expect(find.byType(ThreadScreen), findsOneWidget);
       expect(find.textContaining('Join me on Ghost Messaging'), findsOneWidget);
-      // A newer version waiting: beside a pane the banner is in the list's column, under its search field, with
+      // A newer version waiting: beside a pane the card is in the list's column, above its title and search, with
       // the app's name left out so its words and its button fit; on a narrow screen it runs the screen's width and
       // says the name.
       tester.view.physicalSize = open;
-      await _shoot(tester, sheet, const UpdateBanner(child: AppShell()), '11-frame-wide-banner', dark: dark);
+      _updateWaiting = true;
+      await _shoot(tester, sheet, const AppShell(), '11-frame-wide-banner', dark: dark);
       final button = tester.getRect(find.text('Update now'));
       expect(button.right, lessThan(side), reason: 'the banner is in the list\'s column, not across the window');
       expect(tester.getRect(find.textContaining('is out')).left, greaterThan(0));
       expect(find.text('0.6.2 is out'), findsOneWidget);
-      expect(tester.getRect(find.text('0.6.2 is out')).top, greaterThan(tester.getRect(find.byType(GlacierSearchField).first).bottom - 1));
+      expect(tester.getRect(find.text('0.6.2 is out')).bottom, lessThan(tester.getRect(find.byType(GlacierSearchField).first).top));
       tester.view.physicalSize = cover;
       await _settle(tester);
       expect(find.text('Ghost Messaging 0.6.2 is out'), findsOneWidget);
       expect(tester.getRect(find.text('Update now')).right, greaterThan(300));
+      _updateWaiting = false;
       // The next round starts with a frame of its own.
       await tester.pumpWidget(const SizedBox());
     }

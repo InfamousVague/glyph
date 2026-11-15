@@ -11,7 +11,7 @@ import '../sms.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
-  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer});
+  const GhostPage({super.key, required this.title, required this.body, this.back = true, this.actions = const [], this.titleWidget, this.footer, this.top});
 
   final String title;
   final Widget? titleWidget;
@@ -21,6 +21,9 @@ class GhostPage extends StatelessWidget {
 
   /// Kept above the keyboard: a conversation's composer.
   final Widget? footer;
+
+  /// Above the title, under the status bar: the list's update card (lib/ui/update_banner.dart).
+  final Widget? top;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +38,7 @@ class GhostPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(height: pad.top),
+          ?top,
           SizedBox(
             height: t.lenOf('3.5rem'),
             child: Row(

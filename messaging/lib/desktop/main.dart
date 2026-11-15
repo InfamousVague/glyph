@@ -108,9 +108,8 @@ class DesktopApp extends StatelessWidget {
               sheet: accents?.of(state) ?? sheet,
               attrs: {'platform': 'desktop', if (state.theme != 'system') 'theme': state.theme},
               typography: ghostTypography(state.emoji),
-              // A newer version says so with the banner the phone has (lib/ui/update_banner.dart; Matt, 2026-11-14:
-              // "bring the same update banner we have on mobile to the desktop app"), over every page as there.
-              child: InkOverrides(child: GlacierToastProvider(child: UpdateBanner(child: child!))),
+              // A newer version says so with the card the phone has, at the top of the list (lib/ui/update_banner.dart).
+              child: InkOverrides(child: GlacierToastProvider(child: child!)),
             ),
             home: const DeskHome(),
           ),

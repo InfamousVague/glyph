@@ -19,6 +19,7 @@ import '../reactions.dart';
 import '../sms.dart';
 import '../summaries.dart';
 import 'common.dart';
+import 'update_banner.dart';
 import 'compose.dart';
 import 'settings.dart';
 import 'shell.dart';
@@ -760,6 +761,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final page = GhostPage(
       title: widget.archived ? 'Archived' : 'Messages',
       back: widget.archived && !_selecting,
+      // A newer version waiting: above the title and the search (Matt, 2026-11-14: "move the update banner on desktop
+      // and mobile to show at the top of the sidebar above where it says messages and has the search bar").
+      top: widget.archived ? null : const UpdateCard(),
       // While several are being chosen the bar counts them, and holds what can be done with them.
       titleWidget: !_selecting
           ? null
@@ -801,7 +805,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               // The tabs: "Messages" and each section that has conversations in it, as one toggle, and beside them
               // the button that marks the tab shown as read (_tabsRow).
               if (!widget.archived && !_selecting) ?_tabsRow(t),
-              // The search is this page's header too: the update banner hangs under it, not over it.
+              // The search is this page's header too.
               const HeaderEnd(),
               // A read of Android's store that is taking a moment: a thin bar, where the list already shows.
               SizedBox(

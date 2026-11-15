@@ -370,11 +370,12 @@ void main() {
         host: mac,
       );
       await shoot('7-update-ready', paired('local'), dark: dark, updates: ready);
-      // In the sidebar, under its search field, as wide as the list and no wider (Matt, 2026-11-14: "the banner
-      // shows up in the middle of the page instead of in the sidebar"); in a column that narrow the app's name is
-      // left out.
+      // In the sidebar, above its title and search field, as wide as the list and no wider (Matt, 2026-11-14: "the
+      // banner shows up in the middle of the page instead of in the sidebar", then "move the update banner ... to show
+      // at the top of the sidebar above where it says messages"); in a column that narrow the app's name is left out.
       expect(find.text('0.7.0 is ready to install'), findsOneWidget);
       expect(tester.getRect(find.text('Update now')).right, lessThan(340));
+      expect(tester.getRect(find.text('0.7.0 is ready to install')).bottom, lessThan(tester.getRect(find.byType(GlacierSearchField).first).top));
       await tester.tap(find.text('Update now'));
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));

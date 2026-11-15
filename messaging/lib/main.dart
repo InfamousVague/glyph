@@ -143,7 +143,7 @@ class GhostMessagingApp extends StatelessWidget {
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,
-              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: UpdateBanner(child: child!)))),
+              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
             ),
           ),
           home: const _Home(),
