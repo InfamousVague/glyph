@@ -23,7 +23,8 @@ class DeskStore implements LinkStore {
   static Directory defaultDir() {
     final appData = Platform.environment['APPDATA'];
     if (Platform.isWindows && appData != null) return Directory('$appData\\Ghost Messaging');
-    final home = Platform.environment['HOME'] ?? Directory.systemTemp.path;
+    // iOS gives a Flutter app no HOME: the container is the parent of its tmp folder.
+    final home = Platform.environment['HOME'] ?? (Platform.isIOS ? Directory.systemTemp.parent.path : Directory.systemTemp.path);
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }
 

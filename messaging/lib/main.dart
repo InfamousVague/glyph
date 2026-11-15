@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/services.dart';
@@ -12,6 +12,9 @@ import 'summaries.dart';
 import 'app_state.dart';
 import 'backgrounds.dart';
 import 'desktop/main.dart';
+import 'desktop/store.dart' show DeskStore;
+import 'standalone/standalone.dart';
+import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'friends/buddies.dart';
@@ -54,6 +57,14 @@ Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
+  // An iPhone has no texts for an app to read (Apple allows it only in the EU, to the default messaging app), so it is
+  // Ghost Messaging of its own: friends by username, groups and calls over the internet (lib/standalone; Matt,
+  // 2026-11-15: "roll a version of the app that works without sms"). One already paired with an Android phone as a
+  // computer is (lib/desktop) stays that phone's companion.
+  if (Platform.isIOS) {
+    if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
+    await standaloneSetup();
+  }
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
   // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
@@ -272,6 +283,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
         _check(first: true);
       });
     }
+    // An iPhone of its own starts with a username (lib/standalone/welcome.dart); it is never asked to be the
+    // default for texts, so the walkthrough above is not shown on one.
+    if (Sms.standalone && Me.instance.username == null) return StandaloneWelcome(onDone: () => setState(() {}));
     // The list, and what is opened from it beside it where the screen is wide enough (a folding phone opened out).
     return AppShell(key: _shell, paneObservers: _paneWatch);
   }

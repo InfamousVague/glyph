@@ -134,7 +134,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed),
         ),
         // A group of friends is made from here, where there is a friend to put in one (lib/ui/new_group.dart).
-        if (!Sms.remote && _query.isEmpty && Friends.instance.available && Friends.instance.friends.isNotEmpty)
+        if (!Sms.paired && _query.isEmpty && Friends.instance.available && Friends.instance.friends.isNotEmpty)
           GlacierPressable(
             onPressed: () {
               final shell = AppShell.maybeOf(context);
@@ -177,7 +177,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           child: SettingsEmpty(
                             icon: AppIcon(Lucide.contactRound, size: 28, color: t.color('app-ink-3')),
                             title: 'Your contacts couldn\'t be read',
-                            body: Text(Sms.remote ? 'They are on the phone, which isn\'t reachable just now.' : _error!),
+                            body: Text(Sms.paired ? 'They are on the phone, which isn\'t reachable just now.' : _error!),
                             action: SettingsEmptyAction('Try again', () => _look(_query)),
                           ),
                         ),

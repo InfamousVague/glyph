@@ -277,7 +277,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     // Friends (lib/friends/friends.dart): offered where both have the app and a relay server
                     // answers; where the two already stand somewhere it is always said. Asked and answered on the
                     // phone, which holds the keys and the routes.
-                    if (!Sms.remote && (_e2e.friend.isNotEmpty || (Friends.instance.available && (_e2e.on || _e2e.offerable))))
+                    if (!Sms.paired && (_e2e.friend.isNotEmpty || (Friends.instance.available && (_e2e.on || _e2e.offerable))))
                       SettingRow(
                         icon: AppIcon(_e2e.isFriend ? Lucide.userCheck : Lucide.userPlus, size: 18),
                         label: switch (_e2e.friend) { 'yes' => 'Friends', 'invited' => 'Accept friend request', 'want' || 'asked' => 'Friend request sent', _ => 'Add friend' },

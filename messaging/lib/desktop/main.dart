@@ -48,8 +48,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     store: store,
     name: await MacPlatform.computerName(),
     app: appVersion,
-    // Bonjour is the Mac's (macos/Runner/DeskChannels.swift); on Windows the phone is found by its address or the relay.
-    finder: !(bonjour ?? (env['GHOST_DESK_BONJOUR'] != 'off' && Platform.isMacOS)) ? null : BonjourFinder(),
+    // Bonjour is the Mac's and the iPhone's (DeskChannels.swift); on Windows the phone is found by its address or the relay.
+    finder: !(bonjour ?? (env['GHOST_DESK_BONJOUR'] != 'off' && (Platform.isMacOS || Platform.isIOS))) ? null : BonjourFinder(),
     given: [...envPeers, ?Peer.parse(prefs['peer'] ?? '')],
   );
   final calls = LinkCalls(link, store);
