@@ -82,6 +82,8 @@ class MainActivity : FlutterActivity() {
 
         // The microphone's processing in calls (VoiceFx.kt).
         VoiceFx.register(messenger)
+        // The walkthrough's voice (GuideVoice.kt).
+        GuideVoice.register(this, messenger)
 
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.

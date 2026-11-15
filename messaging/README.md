@@ -22,7 +22,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   of it is linked into Ghost. Its session is kept in the app's folder. Releases carry it only once its source is
   public: `sidecar/gmessages/SOURCE_URL` names where, and release-mac.mjs and messaging-windows.yml leave it out until
   that file exists. Checked: the sidecar asks Google for a pairing code; pairing with a phone not yet.
-- **Or works beside Google Messages, keeping RCS** (0.7.25, not released; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
+- **Or works beside Google Messages, keeping RCS** (0.7.25; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
   to see if there is a way we can proxy messages from google messages to ghost so we can support RCS and other
   features ... I'd like to have a way that people can reliably get text in and out of ghost without needing to switch
   the default messaging app"; then "Both, notifications first"). Google Messages stays the default. Ghost reads texts
@@ -526,7 +526,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   Kept on purpose: `@group.ghost-sms.com` in a group's address (a name phones store and send, not a link), and the
   relay's sign-in callbacks (`GHOST_PUBLIC_URL`), until gogho.st's callback addresses are added at Discord, X and
   Telegram. The folders on the box keep their names (/opt/ghost-sms-*).
-- **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25, not released; Matt, 2026-11-15:
+- **Hangouts get a chat, and roles and permissions as Discord has them** (0.7.25; Matt, 2026-11-15:
   "Implement a permissions system similar to discord for hangouts and add a chat to hangouts so the whole group can
   send messages to the hangout as well as voice and video, make default roles such as admin, moderator, member").
   - **Owner.** A hangout made now carries its maker's public key (`VoiceChannel.owner`, in its link as a third part
@@ -558,7 +558,21 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
     people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
     owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
-- **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25, not released; Matt, 2026-11-15:
+- **The walkthrough, as Ghost Keyboard's and Ghost.md's** (0.7.26, not released; Matt, 2026-11-15: "Look at how we
+  do onboarding on Ghost KBD and Ghost Markdown with the optional voice guide through the elevenlabs key and the
+  vibrant colors and iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`:
+  nine pages (welcome, your texts, names and notifications, private, sorted, calls, your computer, a look, ready),
+  each a band of vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of
+  Ghost Keyboard), a title, its words, and its step. Dots and the Next button take the page's colour.
+  - **Your texts** is the old setup screen as a step (`TextsStep`, lib/ui/setup.dart): the default SMS app, or beside
+    Google Messages, and RCS first where it is coming from another app. Next waits there, and Skip appears, only once
+    Ghost can send texts.
+  - **The voice** is ElevenLabs' (Jessica, Eleven v4), made once at build time with the key in ~/.elevenlabs-key by
+    `tool/onboarding_voice.py` from narration.dart, kept as assets/onboarding/*.mp3 (700 KB); only a page whose words
+    changed is spoken again. Played on the phone by GuideVoice.kt; Voice on and off at the top, and kept.
+  - Shown on first launch until finished; Settings › About › Watch the walkthrough again. Tests: onboarding_test
+    (the voice per page, Skip, words matching their voice), screens_test's `0-guide-*` pictures.
+- **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25; Matt, 2026-11-15:
   "can we support 4k? and flac audio? also build in like krisp noise supression or other fancy noise suppression
   tools, add a volume slider for input and output volume with overboosting", then "RNNoise + DeepFilterNet").
   - Settings › Voice and video (`lib/ui/voice_pane.dart`, `VoiceSettings`): microphone and output volume, 0 to 200%;
@@ -575,8 +589,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - **Output volume** multiplies each person's own volume (`RtcMedia._apply`).
   - Volume and noise suppression change in a call at once (`Voice.settingsChanged`); the rest from the next call.
   - Not yet heard in a real call on a phone or a computer: the hooks are built and the engine is tested on its own.
-- **The active call is a banner again, just above the dock; the call controls are the dock's size** (0.7.25, not
-  released; Matt, 2026-11-15: "switch the active call to be a banner again in the sidebar just above the navigation
+- **The active call is a banner again, just above the dock; the call controls are the dock's size** (0.7.25; Matt, 2026-11-15: "switch the active call to be a banner again in the sidebar just above the navigation
   bar"; "the call controls are also too large they should match the size of the sidebar control dock").
   `CallBanner`; `CallDock` uses the dock's ring size, frosted pill and gap, at 0.8 on a computer as the dock is.
 - **"Tell friends I'm here" works from a computer** (0.7.24; Matt, 2026-11-15: "tell friends i'm here
