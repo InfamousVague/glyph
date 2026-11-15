@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -106,7 +107,52 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => AppShellState();
 }
 
-class AppShellState extends State<AppShell> {
+/// How large the pill is once the list under it is scrolled down, of its own size: Ghost.md's dock's
+/// (lib/shell/page_dock.dart `dockScrolledScale` there), and within this many pixels of the top is the top.
+const double pillScrolledScale = 0.8;
+const double pillTopSlack = 4;
+
+class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin {
+  /// The pill as Ghost.md's dock is (Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the
+  /// page and make it get smaller when we scroll down just like ghost markdown does match the sizes"): its whole size
+  /// at the list's top, four fifths once the person scrolls it down, and whole again only when the list is back at
+  /// its top, whoever took it there. A scroll the app makes (a jump back to where it was) leaves it as it is; so does
+  /// one across the page or inside something in it. Shrinks in the kit's fast duration, grows in its normal one, both
+  /// easing out; at once under reduced motion. On a computer, as Ghost.md's desktop dock, it rests at the smaller size.
+  /// 0 whole, 1 small.
+  late final AnimationController _small = AnimationController(vsync: this, value: Sms.remote ? 1 : 0);
+  late final Animation<double> _pillScale = _small.drive(Tween<double>(begin: 1, end: pillScrolledScale));
+  double _smallGoal = Sms.remote ? 1 : 0;
+
+  bool _pillHeard(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+    final m = n.metrics;
+    if (!m.hasPixels || m.pixels <= m.minScrollExtent + pillTopSlack) {
+      _pillGo(0);
+      return false;
+    }
+    final theirs = switch (n) {
+      UserScrollNotification(:final direction) => direction != ScrollDirection.idle,
+      ScrollStartNotification(:final dragDetails) => dragDetails != null,
+      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
+      _ => false,
+    };
+    if (theirs) _pillGo(1);
+    return false;
+  }
+
+  void _pillGo(double goal) {
+    if (Sms.remote) goal = 1;
+    if (_smallGoal == goal || !mounted) return;
+    _smallGoal = goal;
+    final t = context.tokens;
+    if (t.reducedMotion) {
+      _small.value = goal;
+      return;
+    }
+    _small.animateTo(goal, duration: t.duration(goal == 1 ? 'glacier-duration-fast' : 'glacier-duration-normal'), curve: t.curve('glacier-ease-out'));
+  }
+
   final _pane = GlobalKey<NavigatorState>();
   final _side = GlobalKey<NavigatorState>();
 
@@ -153,6 +199,7 @@ class AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _small.dispose();
     closed.dispose();
     archived.dispose();
     settingsSection.dispose();
@@ -482,9 +529,12 @@ class AppShellState extends State<AppShell> {
                               if (n.canHandlePop != _sideBack) setState(() => _sideBack = n.canHandlePop);
                               return false;
                             },
-                            child: Navigator(
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: _pillHeard,
+                              child: Navigator(
                               key: _side,
                               onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (context, _, _) => const ConversationsScreen()),
+                            ),
                             ),
                           ),
                         ),
@@ -501,7 +551,13 @@ class AppShellState extends State<AppShell> {
                               child: AnimatedOpacity(
                                 opacity: !wide && settingsOpen ? 0 : 1,
                                 duration: const Duration(milliseconds: 160),
-                                child: _pill(upright: docked),
+                                // Held to its corner as it shrinks: the foot's middle, or the corner it stands in.
+                                child: ScaleTransition(
+                                  key: const ValueKey('pill-scale'),
+                                  scale: _pillScale,
+                                  alignment: docked ? Alignment.bottomRight : Alignment.bottomCenter,
+                                  child: _pill(upright: docked),
+                                ),
                               ),
                             ),
                           ),

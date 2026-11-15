@@ -1342,6 +1342,33 @@ void main() {
     }
   });
 
+  // Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the page and make it get smaller when
+  // we scroll down just like ghost markdown does match the sizes".
+  testWidgets('the pill: whole at the list\'s top, four fifths once scrolled down, whole again back at the top', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    await _shoot(tester, sheet, const AppShell(), '1-conversations', dark: false);
+    double scale() => tester.widget<ScaleTransition>(find.byKey(const ValueKey('pill-scale'))).scale.value;
+    expect(scale(), 1.0);
+    final ringWhole = tester.getSize(find.byKey(const ValueKey('nav-messages')));
+    // The person scrolls down: the pill grows smaller, and stays so while the list is still.
+    await tester.drag(find.byType(ConversationRow).first, const Offset(0, -300));
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(scale(), closeTo(pillScrolledScale, 0.001));
+    expect(tester.getRect(find.byKey(const ValueKey('nav-messages'))).width, closeTo(ringWhole.width * pillScrolledScale, 0.5));
+    // Back at the top: whole again.
+    await tester.drag(find.byType(ConversationRow).first, const Offset(0, 600));
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(scale(), 1.0);
+  });
+
   // The Cleaner (lib/plugins/cleaner.dart; Matt, 2026-11-14: "add a "Cleaner" plugin that allows us to bulk delete
   // messages by category and shows deletion progress in real time"): kinds ticked, and part way through.
   testWidgets('the Cleaner: choosing, and deleting', (tester) async {
