@@ -55,8 +55,10 @@ void main() {
     expect(strangerGuess('28777', 'USPS: your package is out for delivery'), 'business');
     expect(strangerGuess('+15559870000', 'Thanks for choosing us. Reply STOP to opt out'), 'business');
     expect(strangerGuess('+15559870000', 'hey it\'s Sam from the gym, got your number from Jess'), 'person');
-    for (final p in [DayPlugin, QuietPlugin, StrangersPlugin]) {
+    for (final p in [QuietPlugin, StrangersPlugin]) {
       expect(shippedPlugins.where((s) => s.runtimeType == p), hasLength(1), reason: '$p ships');
     }
+    // Your day is kept but not shipped for now (Matt, 2026-11-14: "remove the plugin that gives you the digest for now").
+    expect(shippedPlugins.whereType<DayPlugin>(), isEmpty);
   });
 }

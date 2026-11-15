@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -22,7 +23,8 @@ import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
-import 'package:ghost_messaging/plugins/plugin.dart' show RowFace;
+import 'package:ghost_messaging/plugins/cleaner.dart';
+import 'package:ghost_messaging/plugins/plugin.dart' show ListGroup, RowFace;
 import 'package:ghost_messaging/plugins/embeds.dart' show Embeds, Fetched;
 import 'package:ghost_messaging/plugins/ui.dart' show BrandFace, FilterButton, PluginRow, SectionTabs;
 import 'package:ghost_messaging/sms.dart';
@@ -1225,6 +1227,39 @@ void main() {
       expect(hues().length, greaterThan(4), reason: 'Settings\' sections are in their colours, not the ink');
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 6));
+    }
+  });
+
+  // The Cleaner (lib/plugins/cleaner.dart; Matt, 2026-11-14: "add a "Cleaner" plugin that allows us to bulk delete
+  // messages by category and shows deletion progress in real time"): kinds ticked, and part way through.
+  testWidgets('the Cleaner: choosing, and deleting', (tester) async {
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    const groups = [
+      ListGroup(id: 'codes', label: 'Codes', icon: Lucide.keyRound, threads: [1, 2, 3, 4]),
+      ListGroup(id: 'spam', label: 'Spam', icon: Lucide.triangleAlert, threads: [5, 6, 7, 8, 9, 10, 11]),
+      ListGroup(id: 'sales', label: 'Sales & solicitors', icon: Lucide.megaphone, threads: [12, 13, 14]),
+      ListGroup(id: ListGroup.othersId, label: 'Personal & other', icon: Lucide.messageSquare, threads: [15, 16]),
+    ];
+    for (final dark in [false, true]) {
+      final hold = Completer<void>();
+      await _shoot(tester, sheet, CleanerSheet(groups: groups, delete: (t) => t < 7 ? Future.value() : hold.future, reload: () async {}), '18-cleaner', dark: dark);
+      await tester.tap(find.text('Spam'));
+      await tester.tap(find.text('Sales & solicitors'));
+      await _settle(tester);
+      await _shootAgain(tester, '18-cleaner', dark: dark);
+      await tester.tap(find.text('Delete 10 conversations'));
+      await _settle(tester);
+      await tester.tap(find.text('Delete'));
+      await _settle(tester);
+      await _shootAgain(tester, '18-cleaner-deleting', dark: dark);
+      expect(find.text('Deleting 3 of 10'), findsOneWidget);
+      hold.complete();
+      await _settle(tester);
+      await tester.pumpWidget(const SizedBox());
     }
   });
 

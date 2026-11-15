@@ -776,7 +776,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           if (Sms.can('deleteThreads')) IconTap(icon: Lucide.trash2, label: 'Delete', color: t.colorOf('#dd3a30'), onPressed: _confirmDeleteSelected),
         ] else if (!widget.archived) ...[
           // Plugins: their buttons for the list's header, in the frame and out of it.
-          ..._plugins.header(context, ListPlace(section: _section, shown: shown.length)),
+          ..._plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const []))),
           // Mark all read for the tab shown, at the title row's end (Matt, 2026-11-14: "make the mark all read aligned
           // to the right of the messages title row instead of next to the filter").
           Padding(

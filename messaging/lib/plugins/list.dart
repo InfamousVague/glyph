@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
+import '../art/lucide_more.dart';
 import '../sms.dart';
 import '../ui/common.dart';
 import 'plugin.dart';
@@ -23,6 +24,7 @@ export 'ui.dart' show PluginRow;
 abstract interface class PluginEffects {
   Future<void> markRead(int thread);
   Future<void> mute(int thread, bool muted);
+  Future<void> deleteThread(int thread);
 }
 
 class SmsEffects implements PluginEffects {
@@ -33,6 +35,9 @@ class SmsEffects implements PluginEffects {
 
   @override
   Future<void> mute(int thread, bool muted) => Sms.instance.threadFlag('muted', thread, muted);
+
+  @override
+  Future<void> deleteThread(int thread) => Sms.instance.deleteThreads([thread]);
 }
 
 /// The conversations that are not archived, by section: which section each one is in, the sections that have any
@@ -177,6 +182,28 @@ class ListPlugins {
   }
 
   int countOf(String kind) => _sorted.counts[kind] ?? 0;
+
+  /// The conversations of [all] that are not archived, by what they were sorted as: each section that has any, then
+  /// those no section has (Personal & other). For the header's buttons (the Cleaner).
+  List<ListGroup> groups(List<Conversation> all) {
+    final at = _sorted.at;
+    final by = <String, List<int>>{};
+    final others = <int>[];
+    for (final c in all) {
+      if (c.archived) continue;
+      final s = at[c.id];
+      if (s == null) {
+        others.add(c.id);
+      } else {
+        (by[s.id] ??= []).add(c.id);
+      }
+    }
+    return [
+      for (final s in _sorted.sections)
+        if (by[s.id] != null) ListGroup(id: s.id, label: s.section.label, icon: s.section.icon, threads: by[s.id]!),
+      if (others.isNotEmpty) ListGroup(id: ListGroup.othersId, label: 'Personal & other', icon: LucideMore.messageCircle, threads: others),
+    ];
+  }
 
   /// How many conversations each section has, and which have something unread: for what the plugins put over the
   /// list (Your day).
@@ -364,4 +391,29 @@ class _Host implements PluginHost {
   /// The list has nothing being written.
   @override
   void write(String text) {}
+
+  @override
+  void present(WidgetBuilder page) {
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
+      opaque: false,
+      barrierDismissible: false,
+      barrierColor: const Color(0x66000000),
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, _, _) => page(context),
+      transitionsBuilder: (context, a, _, child) => SlideTransition(
+        position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+        child: child,
+      ),
+    ));
+  }
+
+  @override
+  Future<void> deleteThread(int thread) => list.effects.deleteThread(thread);
+
+  @override
+  Future<void> reload() async {
+    if (!list._gone) await list.refresh();
+  }
 }

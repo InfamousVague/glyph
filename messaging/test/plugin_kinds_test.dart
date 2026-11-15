@@ -46,7 +46,7 @@ void main() {
 
   test('the kinds that are hidden as the app ships, and the ones that are shown', () {
     final hidden = {for (final k in textKinds) if (k.hidden) k.id};
-    expect(hidden, {'debt', 'political', 'sales'});
+    expect(hidden, {'debt', 'political', 'sales', 'scams'});
     for (final s in const KindsPlugin().sections) {
       expect(s.filter, isTrue, reason: '${s.id} is the filter\'s, not a tab');
     }
@@ -95,11 +95,52 @@ void main() {
     expect(kindOf('We had issues collecting payment for your internet service.'), 'reminders');
     expect(kindOf('Your service is scheduled for interruption within 3 days. Pay \$84.24 now'), 'reminders');
     expect(kindOf('Your appt with the electrician is scheduled for Friday at 10.'), 'appointments');
-    // A carrier's name alone is not a delivery: its sign-in codes and alerts are not.
+    // A carrier's name alone is not a delivery: its sign-in codes and alerts are not. A sign-in alert is a
+    // notification.
     expect(kindOf('FedEx: here is your one-time passcode 318874.'), isNull);
-    expect(kindOf('Amazon: sign-in from NC. Tap link to respond.'), isNull);
-    // "Reply STOP to opt out" is one sign, not two: an alert that says it is not sales.
-    expect(kindOf('Thanks! You will now get patient alerts. Reply STOP to opt out.'), isNull);
-    expect(kindOf('Someone sent you a new photo. Tap to view. Reply STOP to opt-out'), isNull);
+    expect(kindOf('Amazon: sign-in from NC. Tap link to respond.'), 'notices');
+    // "Reply STOP to opt out" is one sign, not two: an alert that says it is not sales. It is a notification.
+    expect(kindOf('Thanks! You will now get patient alerts. Reply STOP to opt out.'), 'notices');
+    expect(kindOf('Someone sent you a new photo. Tap to view. Reply STOP to opt-out'), 'notices');
+  });
+
+  // The second sample (2026-11-14; reworded): Matt, "there is still a lot of messages that are unsorted that are spam
+  // or confirmation based things that land in personal messages".
+  test('confirmations, receipts and alerts are notifications; scams and pitches are hidden', () {
+    for (final notice in [
+      'You have successfully been unsubscribed. Reply START to resubscribe.',
+      'Thanks for parking with us. View your receipt here: https://example.com/r',
+      'Your two factor authentication settings have changed.',
+      'Your feedback is important to us. Please take a survey about your visit.',
+      'A deposit of \$120.00 is scheduled to be transferred in 2-3 business days.',
+      'Your state return was accepted.',
+      'Welcome to Example Club! You will receive up to 4 msg/week. Text STOP to quit.',
+      'Sam invited you to a party - can you go? RSVP here: https://example.com/e',
+      'Your recycle service at 12 Main St is delayed by six hours.',
+    ]) {
+      expect(kindOf(notice), 'notices', reason: notice);
+    }
+    for (final scam in [
+      "I'm 36 years old and still single. How about you?",
+      'Hey long time no see, how are you doing lately?',
+      "Hi, I'm a recruiter at Example Co. We'd love to offer you a part-time role.",
+      'Your resume for Benefit Specialist was reviewed. May we schedule an online interview?',
+    ]) {
+      expect(kindOf(scam), 'scams', reason: scam);
+    }
+    for (final pitch in [
+      'Hi, I have some new health plans with lower deductibles. Can I get you a price estimate?',
+      'There is still time to access up to 45k fast at new low rates. Reply STOP to opt out',
+      'I tried reaching out about getting you featured in a national paper.',
+      'Your shop could use a fresh new website. I can build it live for FREE.',
+    ]) {
+      expect(kindOf(pitch), 'sales', reason: pitch);
+    }
+    expect(kindOf("Hi, this is the debt team. Let's talk about debt relief options."), 'debt');
+    expect(kindOf("Good afternoon, I'm in route for your mosquito treatment."), 'appointments');
+    expect(kindOf('Your table is ready, reply 1 to confirm.'), 'appointments');
+    for (final person in ['Hey boss do you have the vin?', 'Be there soon', 'Do you have any of those eye drops left?', 'Book club']) {
+      expect(kindOf(person), isNull, reason: person);
+    }
   });
 }

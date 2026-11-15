@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart' show WidgetBuilder;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/codes.dart';
@@ -186,4 +187,13 @@ class _Host implements PluginHost {
   void move(int thread, String? section) => did.add('move $thread $section');
   @override
   void write(String text) => did.add('write $text');
+
+  @override
+  void present(WidgetBuilder page) {}
+
+  @override
+  Future<void> deleteThread(int thread) async {}
+
+  @override
+  Future<void> reload() async {}
 }
