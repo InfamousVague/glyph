@@ -140,6 +140,21 @@ mkdirSync(OUT, { recursive: true });
 const app = join(OUT, APP);
 run('ditto', [built, app]);
 
+// The Google Messages sidecar (sidecar/gmessages, AGPL-3.0), in Contents/Helpers: only once its source is public
+// (sidecar/gmessages/SOURCE_URL names where), since the AGPL asks that of every copy given out.
+const sidecarSource = join(ROOT, 'sidecar/gmessages/SOURCE_URL');
+const helper = join(app, 'Contents/Helpers/gmsidecar');
+if (existsSync(sidecarSource)) {
+  say('> Building the Google Messages sidecar');
+  run('sh', [join(ROOT, 'tool/build-gmsidecar.sh'), 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  run('ditto', [join(ROOT, 'build/gmsidecar/mac/gmsidecar'), helper]);
+  run('ditto', [join(ROOT, 'sidecar/gmessages/LICENSE'), join(app, 'Contents/Resources/gmsidecar-LICENSE.txt')]);
+  run('ditto', [sidecarSource, join(app, 'Contents/Resources/gmsidecar-SOURCE.txt')]);
+} else {
+  say('  (no Google Messages sidecar: its source is not published yet, sidecar/gmessages/SOURCE_URL)');
+}
+
 const plist = JSON.parse(read('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')]) || '{}');
 if (plist.CFBundleIdentifier !== BUNDLE_ID) fail(`The app's id is ${plist.CFBundleIdentifier}, not ${BUNDLE_ID}.`);
 if (plist.CFBundleShortVersionString !== versionName || String(plist.CFBundleVersion) !== String(versionCode)) {
@@ -174,6 +189,7 @@ if (existsSync(frameworks)) {
     if (isBundle || isCode) sign(at);
   }
 }
+if (existsSync(helper)) sign(helper);
 sign(app, ['--entitlements', entitlements]);
 
 const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });
