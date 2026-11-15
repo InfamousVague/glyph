@@ -177,6 +177,17 @@
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
 
+        <!-- Beside Google Messages (GmBridge.kt): its notifications read, with the person's notification access, so its
+             RCS chats are in Ghost and answered through it. Every other app's notifications are ignored. -->
+        <service
+            android:name=".GmListener"
+            android:label="Ghost Messaging: Google Messages bridge"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <receiver android:name=".DeskBootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

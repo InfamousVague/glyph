@@ -169,6 +169,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   /// Each page that opens in the pane asks for a look for a newer version, as each page of the app does.
   final _paneWatch = <NavigatorObserver>[UpdateWatch()];
+  /// The default SMS app, or beside Google Messages (SmsStatus.usable); null until asked.
   bool? _isDefault;
   StreamSubscription<OpenRequest>? _opens;
 
@@ -200,8 +201,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   Future<void> _check({bool first = false}) async {
     final s = await Sms.instance.status();
     if (!mounted) return;
-    setState(() => _isDefault = s.isDefault);
-    if (first && s.isDefault) {
+    setState(() => _isDefault = s.usable);
+    if (first && s.usable) {
       // The app's own updates: a look at most twice a day, as it opens.
       Sms.instance.updateBackground();
       // The app's routes to other phones with it (lib/net/net.dart): set up once, as the app opens.

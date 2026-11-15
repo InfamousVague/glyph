@@ -291,12 +291,33 @@ class MmsAttempt {
 }
 
 class SmsStatus {
-  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone});
+  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false});
   final bool isDefault;
   final bool contacts;
   final bool notifications;
   final bool phone;
-  factory SmsStatus.from(Map m) => SmsStatus(isDefault: m['isDefault'] == true, contacts: m['contacts'] == true, notifications: m['notifications'] == true, phone: m['phone'] == true);
+
+  /// Beside Google Messages (android GmBridge.kt): whether it is on the phone, whether Ghost may read its
+  /// notifications, and whether Ghost may read the SMS database and send texts without being the default.
+  final bool gmInstalled;
+  final bool bridge;
+  final bool sms;
+
+  /// Ghost beside Google Messages, not the default: its RCS chats come through its notifications.
+  bool get beside => !isDefault && bridge && sms;
+
+  /// The app can run: the default, or beside Google Messages.
+  bool get usable => isDefault || beside;
+
+  factory SmsStatus.from(Map m) => SmsStatus(
+        isDefault: m['isDefault'] == true,
+        contacts: m['contacts'] == true,
+        notifications: m['notifications'] == true,
+        phone: m['phone'] == true,
+        gmInstalled: m['gmInstalled'] == true,
+        bridge: m['bridge'] == true,
+        sms: m['sms'] == true,
+      );
 }
 
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
@@ -726,6 +747,12 @@ class Sms {
 
   Future<SmsStatus> status() async => SmsStatus.from(await _calls.invokeMethod('status') as Map);
   Future<bool> requestDefault() async => await _calls.invokeMethod<bool>('requestDefault') ?? false;
+
+  /// Beside Google Messages: Android's page for notification access, opened at Ghost (android GmBridge.kt).
+  Future<void> openBridgeAccess() => _calls.invokeMethod<bool>('bridgeAccess');
+
+  /// Beside Google Messages: reading the SMS database and sending texts, asked for.
+  Future<SmsStatus> requestSms() async => SmsStatus.from((await _calls.invokeMethod<Map>('requestSms')) ?? const {});
   Future<SmsStatus> requestPermissions() async => SmsStatus.from(await _calls.invokeMethod('requestPermissions') as Map);
 
   Future<OpenRequest?> openRequest() async {

@@ -747,7 +747,29 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           '${a.pictures == null ? '' : ', ${_thousands(a.pictures!)} picture ${a.pictures == 1 ? 'message' : 'messages'}'}'
           '${a.recentTexts == null ? '' : ' · ${_thousands(a.recentTexts!)} in the last 30 days'}';
   return [
-    if (a.rcsLikely)
+    // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I'd like to have a way that people can reliably
+    // get text in and out of ghost without needing to switch the default messaging app").
+    if (s != null && (s.beside || (!s.isDefault && s.gmInstalled)))
+      PaneSection(
+        title: 'Beside Google Messages',
+        description: const Text('Google Messages is the default SMS app and keeps RCS. Ghost reads your texts from Android and RCS chats from Google Messages\' notifications, and replies through it.'),
+        footer: const Text('Not seen: chats muted in Google Messages, or open there when a message comes. RCS chats from before aren\'t brought over, and RCS pictures stay in Google Messages. New group chats and pictures open Google Messages to send.'),
+        children: [
+          SettingRow(
+            icon: _icon(s.bridge ? Lucide.circleCheck : Lucide.triangleAlert),
+            label: s.bridge ? 'Reading Google Messages\' notifications' : 'Notification access is off',
+            hint: Text(s.bridge ? 'Only Google Messages\' notifications are read. Every other app\'s are ignored.' : 'Without it RCS chats don\'t reach Ghost. Turn it on for Ghost Messaging.'),
+            onPress: () => Sms.instance.openBridgeAccess(),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.rotateCcw),
+            label: 'Make Ghost the default instead',
+            hint: const Text('Everything then goes through Ghost, pictures and group chats too, and RCS is turned off for your number.'),
+            onPress: () => Sms.instance.openDefaultApps(),
+          ),
+        ],
+      ),
+    if (a.rcsLikely && !(s?.beside ?? false))
       PaneSection(
         title: 'Coming from ${a.app}',
         description: Text('Android can\'t tell this app whether RCS chats are on for your number. ${a.app} is on this phone, and RCS chats are on there unless you turned them off.'),
