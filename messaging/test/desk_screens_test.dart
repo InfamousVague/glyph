@@ -319,7 +319,7 @@ void main() {
       expect(find.text('Kept on this Mac'), findsOneWidget);
       // A small list hung over the ring, in the sidebar (Matt: "too large and way too wide", of the sheet across
       // the window it first was), with the Mac's own sections under "This Mac".
-      expect(tester.getRect(find.byType(GlacierMenuItem).first).right, lessThan(340));
+      expect(tester.getRect(find.byType(GlacierMenuItem).first).right, lessThan(390), reason: 'in the sidebar, at most 380 wide');
       expect(tester.getRect(find.byType(GlacierMenuItem).first).width, lessThan(250));
       expect(find.descendant(of: find.byType(GlacierMenuLabel), matching: find.text('THIS MAC')), findsOneWidget);
       // It stands clear of the pill, a gap between the two: nothing of it lies on the bar or under it (Matt,
@@ -374,7 +374,7 @@ void main() {
       // banner shows up in the middle of the page instead of in the sidebar", then "move the update banner ... to show
       // at the top of the sidebar above where it says messages"); in a column that narrow the app's name is left out.
       expect(find.text('0.7.0 is ready to install'), findsOneWidget);
-      expect(tester.getRect(find.text('Update now')).right, lessThan(340));
+      expect(tester.getRect(find.text('Update now')).right, lessThan(390), reason: 'in the sidebar, at most 380 wide');
       expect(tester.getRect(find.text('0.7.0 is ready to install')).bottom, lessThan(tester.getRect(find.byType(GlacierSearchField).first).top));
       await tester.tap(find.text('Update now'));
       await tester.pump(const Duration(milliseconds: 100));

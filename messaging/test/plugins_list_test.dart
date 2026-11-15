@@ -142,7 +142,8 @@ void main() {
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
     await settle(tester);
-    // One segmented toggle holds the tabs, and Mark all read stands beside it with the main list's two unread.
+    // One segmented toggle holds the tabs, and Mark all read is at the title row's end with the main list's two
+    // unread (Matt, 2026-11-14: "make the mark all read aligned to the right of the messages title row").
     expect(find.descendant(of: find.byType(SectionTabs), matching: find.byType(GlacierSegmentedControl)), findsOneWidget);
     expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
     // The button is its picture alone, in a circle as tall as the toggle beside it (Matt, 2026-11-14: "change mark
@@ -152,7 +153,8 @@ void main() {
     final button = tester.getSize(find.byType(MarkAllRead)), toggle = tester.getRect(find.byType(GlacierSegmentedControl));
     expect(button.width, button.height);
     expect(button.height, closeTo(toggle.height, 0.5));
-    expect(tester.getRect(find.byType(MarkAllRead)).center.dy, closeTo(toggle.center.dy, 0.5));
+    expect(tester.getRect(find.byType(MarkAllRead)).center.dy, closeTo(tester.getRect(find.text('Messages').first).center.dy, 4));
+    expect(tester.getRect(find.byType(MarkAllRead)).bottom, lessThan(toggle.top));
     expect(tester.widget<GlacierSegmentedControl>(find.byType(GlacierSegmentedControl)).size, GlacierSegmentedSize.md);
 
     // The button marks the tab shown: Maya's and Dad's, and not the ticket, which is in its own tab.
@@ -196,7 +198,7 @@ void main() {
     await settle(tester);
   });
 
-  testWidgets('with no section to make a tab of, Mark all read stands alone while something is unread', (tester) async {
+  testWidgets('with no section to make a tab of, Mark all read is still in the title row, quiet when nothing is unread', (tester) async {
     PluginRegistry.instance = PluginRegistry(const []);
     final all = _phone();
     all[0] = ListPhone.conversation(1, '+15551230001', 'Sounds good, see you at 7', name: 'Maya Chen', minutes: 4, unread: true);
@@ -211,10 +213,10 @@ void main() {
     await tester.tap(find.byType(MarkAllRead));
     await settle(tester);
     expect(phone.asked.toSet(), {'markRead 1', 'markRead 2'});
-    // Nothing unread, no tabs: no row.
+    // Nothing unread: the button stays, quiet.
     await tester.pump(const Duration(seconds: 6));
     await settle(tester);
-    expect(find.byType(MarkAllRead), findsNothing);
+    expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 0);
   });
 
   testWidgets('several can be chosen in a section, where a tap then chooses', (tester) async {

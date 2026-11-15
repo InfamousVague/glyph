@@ -289,14 +289,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   /// The row under the search field: the tabs as a segmented toggle (Matt, 2026-11-14: "change the messages and
-  /// codes to a segmented toggle") and, at its end, Mark all read for the tab shown ("a button to mark all read").
-  /// With no section to make a tab of, the button stands alone, and only while something is unread; with nothing
-  /// of either there is no row.
+  /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
+  /// end of the title row.
   Widget? _tabsRow(Tokens t) {
     final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu);
-    final unread = _of(_section).where((c) => c.unread).length;
     final kinds = _plugins.kinds;
-    if (tabs == null && unread == 0 && kinds.isEmpty) return null;
+    if (tabs == null && kinds.isEmpty) return null;
     final only = _section != null && (_section == ListPlugins.hiddenView || kinds.any((k) => k.id == _section));
     return Padding(
       // From the search field's edge, which is the cards' edge too.
@@ -308,11 +306,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           child: Row(children: [
             Expanded(child: tabs ?? const SizedBox.shrink()),
             if (kinds.isNotEmpty) ...[
-              SizedBox(width: t.space(2)),
+              if (tabs != null) SizedBox(width: t.space(2)) else const Spacer(),
               FilterButton(hidden: _plugins.hiddenCount, only: only, rows: (context) => _filterRows(kinds)),
             ],
-            SizedBox(width: t.space(2)),
-            MarkAllRead(unread: unread, onPress: () => _markAllRead(_section)),
           ]),
         ),
         // One kind shown alone: which, and the way back to everything.
@@ -781,6 +777,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ] else if (!widget.archived) ...[
           // Plugins: their buttons for the list's header, in the frame and out of it.
           ..._plugins.header(context, ListPlace(section: _section, shown: shown.length)),
+          // Mark all read for the tab shown, at the title row's end (Matt, 2026-11-14: "make the mark all read aligned
+          // to the right of the messages title row instead of next to the filter").
+          Padding(
+            padding: EdgeInsets.only(left: t.space(1)),
+            child: MarkAllRead(unread: _of(_section).where((c) => c.unread).length, onPress: () => _markAllRead(_section)),
+          ),
           // Shown alone, with no frame and so no pill: the two it would hold.
           if (!framed) IconTap(icon: Lucide.messageSquarePlus, label: 'New message', onPressed: _compose),
           if (!framed) IconTap(icon: Lucide.settings, label: 'Settings', onPressed: _settings),
