@@ -812,6 +812,12 @@ class Sms {
   Future<List<GmChannel>> gmChannels() async =>
       [for (final c in ((await _calls.invokeMethod<List>('gmChannels')) ?? const [])) GmChannel.from(c as Map)];
 
+  /// The on-phone Google Messages connection (android GmWeb.kt): how it stands, pairing (a QR code to show on another
+  /// screen) and unpairing.
+  Future<Map<String, Object?>> gmWebState() async => ((await _calls.invokeMethod<Map>('gmWebState')) ?? const {}).cast<String, Object?>();
+  Future<Map<String, Object?>> gmWebPair() async => ((await _calls.invokeMethod<Map>('gmWebPair')) ?? const {}).cast<String, Object?>();
+  Future<Map<String, Object?>> gmWebUnpair() async => ((await _calls.invokeMethod<Map>('gmWebUnpair')) ?? const {}).cast<String, Object?>();
+
   /// Android's settings for one of Google Messages' channels.
   Future<void> openGmChannel(GmChannel c) => _calls.invokeMethod<bool>('openGmChannel', {'id': c.id, 'conversation': c.conversation});
 

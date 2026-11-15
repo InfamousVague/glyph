@@ -80,6 +80,9 @@ class MainActivity : FlutterActivity() {
             override fun onCancel(arguments: Any?) { events = null; Bus.listener = null; Bus.prefsListener = null; Desk.listener = null; Voice.listener = null; NetSms.listener = null; updateListener?.let { Updater.removeListener(it) }; updateListener = null }
         })
 
+        // The on-phone Google Messages connection, where one was paired (GmWeb.kt).
+        if (GmWeb.hasSession(applicationContext)) GmWeb.start(applicationContext)
+
         // The microphone's processing in calls (VoiceFx.kt).
         VoiceFx.register(messenger)
         // The walkthrough's voice (GuideVoice.kt).
@@ -111,6 +114,10 @@ class MainActivity : FlutterActivity() {
                 "openGm" -> result.success(GmBridge.open(this))
                 "openGmNotifications" -> result.success(GmBridge.openNotificationSettings(this))
                 "gmChannels" -> result.success(GmBridge.channelList(this))
+                // The on-phone Google Messages connection (GmWeb.kt): how it stands, pairing, unpairing.
+                "gmWebState" -> { if (GmWeb.available(this)) GmWeb.start(applicationContext); result.success(GmWeb.state(this)) }
+                "gmWebPair" -> bg { GmWeb.start(applicationContext); GmWeb.pair(); GmWeb.state(applicationContext) }
+                "gmWebUnpair" -> bg { GmWeb.unpair(); GmWeb.state(applicationContext) }
                 "openGmChannel" -> result.success(GmBridge.openChannel(this, call.argument<String>("id")!!, call.argument<String>("conversation")))
                 "requestSms" -> requestSms(result)
                 "requestPermissions" -> requestPermissions(result)

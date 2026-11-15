@@ -414,7 +414,8 @@ class LinkCalls implements SmsCalls, CapableCalls {
   /// into the list, and what is asked of one of them is answered by it, not the phone.
   Future<dynamic> _call(String method, Map<String, dynamic> a) async {
     final gm = GmWeb.instance;
-    if (!gm.paired) return _phoneCall(method, a);
+    // Not paired, or another session (the phone's) has Google Messages for now: the phone's list has it all.
+    if (!gm.paired || gm.inactive) return _phoneCall(method, a);
     final thread = (a['thread'] as num?)?.toInt();
     final ours = thread != null && gm.owns(thread);
     switch (method) {

@@ -1,0 +1,244 @@
+package com.infamousvague.ghostmessaging
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.BufferedWriter
+import java.io.File
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+
+/**
+ * Google Messages' web connection on the phone itself (Matt, 2026-11-15: "Can you build the on phone google messages
+ * connection too?"): the sidecar (sidecar/gmessages, AGPL-3.0, built for Android as libgmsidecar.so) run beside the
+ * app, as the computers run it, so Ghost has Google Messages' conversations whole without its notifications: RCS
+ * and texts, pictures, reactions, and their delivered and read marks.
+ *
+ * What it hears goes into the bridge's database (GmBridge.Db), as what the notifications say does, so everything
+ * after (Store's list and conversations, Ghost's notifications, replies, a paired computer) works the same, with more
+ * in it. Google Messages has one active web session at a time; the phone's takes it back when a computer's or
+ * messages.google.com takes it (--takeover), and a paired computer uses the phone's (lib/desktop/gm_web.dart defers).
+ *
+ * It lives in the app's process, started by the notification listener (which Android keeps running) and the app;
+ * the process is started again, more slowly each time, if it stops.
+ */
+object GmWeb {
+    @Volatile private var process: Process? = null
+    @Volatile private var input: BufferedWriter? = null
+    private val waiting = ConcurrentHashMap<Long, CompletableFuture<JSONObject>>()
+    private val next = AtomicLong(1)
+    private var restarts = 0
+    private lateinit var app: Context
+
+    @Volatile var paired = false
+    @Volatile var connected = false
+    /** This session is not the active one: another (a computer, messages.google.com) took it for now. */
+    @Volatile var inactive = false
+    @Volatile var phone = ""
+    /** While pairing: the address to show as a QR code on another screen. */
+    @Volatile var qr: String? = null
+    @Volatile var problem: String? = null
+
+    fun binary(context: Context) = File(context.applicationInfo.nativeLibraryDir, "libgmsidecar.so")
+    fun available(context: Context) = binary(context).exists()
+    private fun dir(context: Context) = File(context.filesDir, "gmessages").apply { mkdirs() }
+
+    /** Whether a session was ever paired here (so the helper is worth starting as the app does). */
+    fun hasSession(context: Context) = File(dir(context), "session.json").exists()
+
+    /** Starts the helper where this build carries it; nothing where it is running already. */
+    @Synchronized
+    fun start(context: Context) {
+        app = context.applicationContext
+        if (process?.isAlive == true || !available(app)) return
+        try {
+            val p = ProcessBuilder(binary(app).absolutePath, "--dir", dir(app).absolutePath, "--takeover").start()
+            process = p
+            input = p.outputStream.bufferedWriter()
+            Thread({ read(p) }, "gmweb-out").apply { isDaemon = true }.start()
+            Thread({ try { p.errorStream.bufferedReader().forEachLine { } } catch (_: Exception) {} }, "gmweb-err").apply { isDaemon = true }.start()
+        } catch (e: Exception) {
+            problem = "The Google Messages helper could not start (${e.message})"
+        }
+    }
+
+    private fun read(p: Process) {
+        try {
+            p.inputStream.bufferedReader().forEachLine { line -> try { heard(JSONObject(line)) } catch (_: Exception) {} }
+        } catch (_: Exception) {}
+        // It stopped: what waited is told, and it is started again, more slowly each time (a minute at most).
+        if (process == p) {
+            process = null
+            connected = false
+            for (w in waiting.values) w.completeExceptionally(IllegalStateException("The Google Messages helper stopped"))
+            waiting.clear()
+            val wait = (1L shl restarts.coerceAtMost(6)).coerceAtMost(60) * 1000
+            restarts++
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ start(app) }, wait)
+        }
+    }
+
+    /** Asks the helper [op]; its answer, or the error it gave. Blocks: never on the main thread. */
+    fun ask(op: String, args: Map<String, Any?> = emptyMap(), seconds: Long = 60): JSONObject {
+        val w = input ?: throw IllegalStateException("The Google Messages helper is not running")
+        val id = next.getAndIncrement()
+        val done = CompletableFuture<JSONObject>()
+        waiting[id] = done
+        val line = JSONObject(args).put("id", id).put("op", op).toString()
+        synchronized(w) { w.write(line); w.newLine(); w.flush() }
+        try {
+            return done.get(seconds, TimeUnit.SECONDS)
+        } finally {
+            waiting.remove(id)
+        }
+    }
+
+    private fun heard(o: JSONObject) {
+        if (o.has("id")) {
+            val w = waiting.remove(o.getLong("id")) ?: return
+            if (o.has("error")) w.completeExceptionally(IllegalStateException(o.getString("error"))) else w.complete(o.optJSONObject("ok") ?: JSONObject())
+            return
+        }
+        when (o.optString("ev")) {
+            "ready" -> { restarts = 0; Thread { status(); if (paired) sync() }.start() }
+            "connected" -> { connected = true; problem = null; Thread { status(); sync() }.start() }
+            "qr" -> qr = o.optString("url")
+            "paired" -> { qr = null; paired = true; problem = null }
+            "pair_failed" -> { qr = null; problem = o.optString("why") }
+            "unpaired" -> { paired = false; connected = false; problem = o.optString("why"); Bus.changed(-1) }
+            "inactive" -> inactive = true
+            "active" -> { inactive = false; Thread { sync() }.start() }
+            "phone" -> problem = if (o.optBoolean("responding")) null else "Google Messages on this phone isn't answering"
+            "conversation" -> o.optJSONObject("data")?.let { Thread { keepConversation(it); Bus.changed(-1) }.start() }
+            "message" -> o.optJSONObject("data")?.let { m -> Thread { keepMessage(m, notify = true) }.start() }
+        }
+    }
+
+    private fun status() {
+        try {
+            val s = ask("status", seconds = 10)
+            paired = s.optBoolean("paired")
+            connected = s.optBoolean("connected")
+            phone = s.optString("phone")
+        } catch (_: Exception) {}
+    }
+
+    /** Conversations, and the newest messages of the newest of them, read again. */
+    private fun sync() {
+        if (!paired) return
+        try {
+            val list = ask("conversations", mapOf("count" to 100)).optJSONArray("items") ?: return
+            for (i in 0 until list.length()) keepConversation(list.getJSONObject(i))
+            for (i in 0 until minOf(list.length(), 25)) {
+                val conv = list.getJSONObject(i).getString("id")
+                val ms = ask("messages", mapOf("conv" to conv, "count" to 30)).optJSONArray("items") ?: continue
+                for (j in 0 until ms.length()) keepMessage(ms.getJSONObject(j), notify = false)
+            }
+            Bus.changed(-1)
+        } catch (_: Exception) {}
+    }
+
+    private val people = ConcurrentHashMap<String, JSONObject>()
+
+    private fun keepConversation(c: JSONObject) {
+        val conv = c.getString("id")
+        val ps = c.optJSONArray("people") ?: JSONArray()
+        val addresses = ArrayList<String>()
+        for (i in 0 until ps.length()) {
+            val p = ps.getJSONObject(i)
+            people["$conv/${p.optString("id")}"] = p
+            if (!p.optBoolean("me")) p.optString("number").takeIf { it.isNotBlank() }?.let { addresses += it }
+        }
+        val group = c.optBoolean("group")
+        val title = c.optString("name").ifBlank { null }
+        val read = GmBridge.Read(conv, title, group, addresses, emptyList())
+        val thread = GmBridge.threadFor(app, read)
+        GmBridge.Db.get(app).keepWebConversation(conv, thread, title, group, addresses)
+        threads[conv] = thread
+        unreadIn[conv] = c.optBoolean("unread")
+    }
+
+    private val threads = ConcurrentHashMap<String, Long>()
+    private val unreadIn = ConcurrentHashMap<String, Boolean>()
+
+    private fun keepMessage(m: JSONObject, notify: Boolean) {
+        val conv = m.getString("conv")
+        val thread = threads[conv] ?: run {
+            // A message in a conversation not read yet: read it first.
+            try { keepConversation(ask("conversations", mapOf("count" to 100)).optJSONArray("items")?.let { all -> (0 until all.length()).map { all.getJSONObject(it) }.firstOrNull { it.optString("id") == conv } } ?: return) } catch (_: Exception) { return }
+            threads[conv] ?: return
+        }
+        val out = m.optBoolean("me")
+        val from = people["$conv/${m.optString("from")}"]
+        val media = m.optJSONArray("media")
+        val parts = JSONArray()
+        val db = GmBridge.Db.get(app)
+        if (media != null) for (i in 0 until media.length()) {
+            val p = media.getJSONObject(i)
+            val id = partId(p.getString("id"))
+            db.keepPart(id, p.getString("id"), p.optString("key"), p.optString("mime"), p.optString("name").ifBlank { null })
+            parts.put(JSONObject().put("id", id).put("type", p.optString("mime")).put("name", p.optString("name")))
+        }
+        val reactions = m.optJSONArray("reactions")?.let { r -> (0 until r.length()).mapNotNull { r.getJSONObject(it).optString("emoji").ifBlank { null } }.joinToString(" ") }?.ifBlank { null }
+        val time = m.optLong("time")
+        // Read where Google Messages has the conversation read and this is not newer than what was read.
+        val read = out || unreadIn[conv] == false
+        val fresh = db.keepWebMessage(conv, thread, m.getString("id"), m.optString("text"), time, from?.optString("name")?.ifBlank { null }, from?.optString("number")?.ifBlank { null }, out, m.optString("status"), if (parts.length() > 0) parts.toString() else null, reactions, read)
+        Bus.changed(thread)
+        // A new message of theirs, just now: Ghost's notification (Google Messages' own may be off altogether).
+        if (notify && fresh && !out && System.currentTimeMillis() - time < 5 * 60_000) {
+            unreadIn[conv] = true
+            try { Notifier.incoming(app, thread) } catch (e: Exception) { DevLog.add(app, "gmweb", "notification: ${e.message}") }
+        }
+    }
+
+    /** A picture's number for the screens: from its id, the same every time, never one of Android's (which are small). */
+    fun partId(media: String): Long = 1_000_000_000_000L + (media.hashCode().toLong() and 0x7fffffffL)
+
+    fun isPart(id: Long) = id >= 1_000_000_000_000L
+
+    /** A picture's bytes, brought down once and kept in the app's cache. */
+    fun part(context: Context, id: Long): ByteArray? {
+        val f = File(File(context.cacheDir, "gmmedia").apply { mkdirs() }, "$id")
+        if (!f.exists()) {
+            val (media, key, _) = GmBridge.Db.get(context).part(id) ?: return null
+            try { ask("media", mapOf("media" to media, "key" to key, "path" to f.absolutePath), seconds = 120) } catch (_: Exception) { return null }
+        }
+        return if (f.exists()) f.readBytes() else null
+    }
+
+    /** Whether [conv] is one this connection knows: what is sent to it goes this way. */
+    fun knows(conv: String) = connected && threads.containsKey(conv)
+
+    /** Sends words, and pictures by their paths, to [conv]. */
+    fun send(conv: String, text: String, files: List<String> = emptyList()): Boolean = try {
+        if (files.isEmpty()) ask("send", mapOf("conv" to conv, "text" to text))
+        else {
+            for ((i, f) in files.withIndex()) ask("send_media", mapOf("conv" to conv, "path" to f, "text" to if (i == files.lastIndex) text else ""), seconds = 180)
+        }
+        true
+    } catch (e: Exception) {
+        DevLog.add(app, "gmweb", "send: ${e.message}")
+        false
+    }
+
+    /** Marks [conv] read in Google Messages, as far as its newest message (which sends a read receipt where on). */
+    fun read(conv: String) {
+        if (!connected) return
+        val newest = GmBridge.Db.get(app).newestWebId(conv) ?: return
+        unreadIn[conv] = false
+        Thread { try { ask("read", mapOf("conv" to conv, "msg" to newest)) } catch (_: Exception) {} }.start()
+    }
+
+    fun pair(): Boolean = try { problem = null; ask("pair"); true } catch (e: Exception) { problem = e.message; false }
+
+    fun unpair(): Boolean = try { ask("unpair"); paired = false; connected = false; true } catch (e: Exception) { problem = e.message; false }
+
+    /** How it stands, for Settings. */
+    fun state(context: Context): Map<String, Any?> = mapOf(
+        "available" to available(context), "running" to (process?.isAlive == true), "paired" to paired, "connected" to connected,
+        "inactive" to inactive, "phone" to phone, "qr" to qr, "problem" to problem,
+    )
+}

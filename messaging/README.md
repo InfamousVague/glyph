@@ -43,6 +43,21 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
   Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
   Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
+- **Google Messages' web connection on the phone** (not released; `GmWeb.kt`, `lib/ui/gm_web_screen.dart`,
+  `site/pair`; Matt, 2026-11-15: "Can you build the on phone google messages connection too?"). The sidecar built for
+  Android (`tool/build-gmsidecar.sh android`, libgmsidecar.so, run from the app's native library folder) runs in the
+  app's process, started by the notification listener (which Android keeps) and the app. What it hears goes into the
+  bridge's database, so the list, conversations, Ghost's notifications, replies and a paired computer all have it:
+  RCS and texts, pictures (brought down on demand), reactions, and delivered and read marks (blue double check).
+  Sending, pictures included, and marking read go through it when connected; else the notification bridge as before.
+  Google Messages' notifications can then be off altogether. Pairing: the phone cannot scan its own screen, so
+  Settings › Messages › Google Messages connection shares a link (gogho.st/pair/#secret) to open on another screen;
+  the secret gives a room on the relay and its key, the phone says each new QR code there sealed, and the page draws
+  it (the relay sees ciphertext; the secret never leaves the link). Google Messages keeps one web session: the phone's
+  takes it back (`--takeover`) and a computer whose sidecar is pushed off shows the phone's conversations through
+  the phone. Also: pictures sent beside Google Messages without the connection go to its compose with the words.
+  Checked on the arm64 emulator: the helper runs, gets a pairing code from Google, and the page (served locally,
+  against the live relay) drew it. Not checked: pairing with a real phone, and everything after it.
 - **Which of Google Messages' notifications still make a sound** (0.7.29; GmBridge.kt `noteChannel`; Matt,
   2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through ghost
   instead"; "Let's do our best given these options and push out an update"). Android lets no ordinary app change

@@ -187,6 +187,12 @@ class _GmPage extends StatelessWidget {
               title: 'Paired with Google Messages',
               footer: const Text('Every conversation in Google Messages shows here, RCS and texts, with their history and pictures. Your phone needs to be on and online: the messages go through it.'),
               children: [
+                if (gm.inactive)
+                  SettingRow(
+                    icon: _icon(LucideMore.smartphone),
+                    label: 'Your phone has Google Messages for now',
+                    hint: const Text('Google Messages keeps one web session at a time, and Ghost on your phone holds it. This computer shows the same conversations through your phone.'),
+                  ),
                 SettingRow(
                   icon: _icon(gm.connected ? Lucide.circleCheck : Lucide.triangleAlert),
                   label: gm.connected ? 'Connected' : 'Connecting…',

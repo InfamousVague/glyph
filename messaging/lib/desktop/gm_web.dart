@@ -35,6 +35,10 @@ class GmWeb extends ChangeNotifier {
   bool paired = false;
   bool connected = false;
 
+  /// Another web session has Google Messages for now (the phone's own connection, android GmWeb.kt, which takes it
+  /// back whenever it is taken): this computer then shows what the phone has, through the phone.
+  bool inactive = false;
+
   /// The phone's number as Google Messages says it, once connected.
   String phone = '';
 
@@ -198,6 +202,14 @@ class GmWeb extends ChangeNotifier {
         problem = '${said['why']}';
         notifyListeners();
         changed.add(-1);
+      case 'inactive':
+        inactive = true;
+        notifyListeners();
+        changed.add(-1);
+      case 'active':
+        inactive = false;
+        notifyListeners();
+        unawaited(refresh());
       case 'phone':
         problem = said['responding'] == true ? null : 'Your phone isn\'t answering Google Messages';
         notifyListeners();

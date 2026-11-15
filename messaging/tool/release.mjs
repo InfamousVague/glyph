@@ -169,6 +169,12 @@ if (deploy && live && live.version === versionName && !args.includes('--again'))
 }
 say(`> Building Ghost Messaging ${versionName} (code ${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
+// The Google Messages sidecar for the phone (sidecar/gmessages, AGPL-3.0; android GmWeb.kt), built fresh into
+// jniLibs, only once its source is public (sidecar/gmessages/SOURCE_URL), as the computers' are.
+if (existsSync(join(ROOT, 'sidecar/gmessages/SOURCE_URL'))) {
+  say('> Building the Google Messages sidecar for the phone');
+  run('sh', [join(ROOT, 'tool/build-gmsidecar.sh'), 'android'], { cwd: ROOT });
+}
 run('flutter', ['build', 'apk', '--release', '--target-platform', 'android-arm64', `--build-name=${versionName}`, `--build-number=${versionCode}`], { cwd: ROOT });
 const built = join(ROOT, 'build/app/outputs/flutter-apk/app-release.apk');
 if (!existsSync(built)) fail(`No APK at ${built}.`);
