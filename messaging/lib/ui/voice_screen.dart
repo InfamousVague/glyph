@@ -44,6 +44,9 @@ class VoiceScreen extends StatelessWidget {
         // the hangout's chat, with its videos above it once anyone turns one on (HangoutStage).
         if (s != null && s.channel.hangout && AppShell.wideOf(context)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
         if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
+        // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
+        final seen = v.viewing;
+        if (s == null && seen != null && v.channels.any((c) => c.seed == seen.seed)) return HangoutScreen(key: ValueKey('hangout-${seen.room}'), channel: seen);
         if (s != null) {
           return GhostPage(
             title: s.channel.name,
@@ -111,11 +114,7 @@ class _ChannelRow extends StatelessWidget implements PaneRow {
           : IconTap(
               icon: Lucide.ellipsis,
               label: 'Channel options',
-              onPressed: () => showChoices(context, title: channel.name, choices: [
-                Choice('Copy invite link', Lucide.link, () => copyInvite(context, channel)),
-                Choice('Share with friends', Lucide.share2, () => push(context, (_) => ShareChannelScreen(channel: channel))),
-                Choice('Remove channel', Lucide.trash2, () => v.forget(channel), danger: true),
-              ]),
+              onPressed: () => showHangoutMenu(context, channel),
             ),
     );
   }
@@ -593,7 +592,17 @@ class VoiceRow extends StatelessWidget {
         : live
             ? inIt.map(v.nameOf).join(', ')
             : 'Nobody here · hop in any time';
-    return GlacierPressable(
+    // Held, or pressed with the other button: a hangout's menu (Matt, 2026-11-15: "there also needs to be a context
+    // menu to open settings for hangouts and manage permissions and such as well as delete the hangouts").
+    void menu() {
+      if (channel.hangout) showHangoutMenu(context, channel, onOpen: onPress);
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onLongPress: channel.hangout ? menu : null,
+      onSecondaryTap: channel.hangout ? menu : null,
+      child: GlacierPressable(
       onPressed: onPress,
       semanticLabel: '${channel.name}, voice channel, ${live ? '${inIt.length} in it' : 'nobody in it'}',
       builder: (context, state) => Padding(
@@ -635,6 +644,7 @@ class VoiceRow extends StatelessWidget {
           ]),
         ),
       ),
+    ),
     );
   }
 }

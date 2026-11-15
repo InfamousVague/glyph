@@ -589,6 +589,15 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     the list is in the list's place, its composer and dock standing above the pill (`HangoutScreen.inSidebar`). Beside
     the list (a computer, the Fold open) the call is the people and the dock there, and the pane is the chat
     (`HangoutStage`), whose top half becomes the videos (`CallVideos`) once anyone turns one on.
+    Then (Matt: "clicking on a voice chat should show me the chat in the normal spot and connected participants with a
+    "join" button ... hide the default navbar when in a hangout and show the call controls where it was"): a hangout
+    pressed in the list opens where a conversation opens (`Voice.view`, VoiceScreen), with who is connected and Join
+    voice at its top. In its call beside the pane, the people take the list's place (`HangoutPeople`) and the call's
+    dock stands where the pill was; the pill comes back on leaving.
+  - **Menu and settings** (Matt: "a context menu to open settings for hangouts and manage permissions and such as well
+    as delete the hangouts"): hold or right-click a hangout's row for Open, Settings and permissions, Copy invite link,
+    Share with friends and Delete hangout (asked first; `showHangoutMenu`). Its settings page
+    (`HangoutSettingsScreen`) is the link, sharing, the owner, the roles and permissions, and Delete.
   - **The browser** (site/join): the same chat beside the call, role tags, and the same rules. It checks rosters
     itself (P-256 by WebCrypto; tool/voicebench/roster_check.mjs checks rosters the app signed) and leaves when
     removed or banned. tool/voicebench/join_test.mjs covers the chat both ways and history for a latecomer.

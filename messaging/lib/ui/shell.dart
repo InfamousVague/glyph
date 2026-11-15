@@ -12,6 +12,7 @@ import 'common.dart';
 import 'new_group.dart';
 import '../art/lucide_more.dart';
 import 'voice_screen.dart';
+import 'hangout_screen.dart';
 import '../voice/channels.dart';
 import 'compose.dart';
 import 'contacts.dart';
@@ -197,8 +198,24 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Whether the list and the pane are side by side.
   bool get wide => _wide;
 
+  /// The hangout whose call this device is in, as last drawn: the list's place and the pill's change with it.
+  String? _inHangout;
+
+  void _voiceChanged() {
+    final s = Voice.instance.session;
+    final now = s != null && s.channel.hangout ? s.channel.room : null;
+    if (now != _inHangout && mounted) setState(() => _inHangout = now);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    Voice.instance.addListener(_voiceChanged);
+  }
+
   @override
   void dispose() {
+    Voice.instance.removeListener(_voiceChanged);
     _small.dispose();
     closed.dispose();
     archived.dispose();
@@ -538,6 +555,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             ),
                           ),
                         ),
+                        // In a hangout's call beside the pane: who is in it, in the list's place (the chat is the
+                        // pane's: HangoutStage).
+                        if (wide && Voice.instance.session != null && Voice.instance.session!.channel.hangout)
+                          Positioned.fill(child: HangoutPeople(key: ValueKey('people-${Voice.instance.session!.channel.room}'), session: Voice.instance.session!)),
                         // The way round floats over the list's end, clear of the bar at the foot of a phone's
                         // screen; the list leaves it room (AppShell.pillRoom). Not on a wide phone, where it
                         // stands at the window's right.
@@ -552,19 +573,28 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                                 opacity: !wide && settingsOpen ? 0 : 1,
                                 duration: const Duration(milliseconds: 160),
                                 // Held to its corner as it shrinks: the foot's middle, or the corner it stands in.
-                                child: ScaleTransition(
-                                  key: const ValueKey('pill-scale'),
-                                  scale: _pillScale,
-                                  alignment: docked ? Alignment.bottomRight : Alignment.bottomCenter,
-                                  child: _pill(upright: docked),
-                                ),
+                                // In a hangout's call beside the pane the call's buttons stand where the pill was
+                                // (Matt, 2026-11-15: "hide the default navbar when in a hangout and show the call
+                                // controls where it was").
+                                child: wide && Voice.instance.session != null && Voice.instance.session!.channel.hangout
+                                    ? Padding(
+                                        key: const ValueKey('call-dock-in-pill'),
+                                        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), NavPill.inset(t)),
+                                        child: Center(child: CallDock(session: Voice.instance.session!)),
+                                      )
+                                    : ScaleTransition(
+                                        key: const ValueKey('pill-scale'),
+                                        scale: _pillScale,
+                                        alignment: docked ? Alignment.bottomRight : Alignment.bottomCenter,
+                                        child: _pill(upright: docked),
+                                      ),
                               ),
                             ),
                           ),
                         // The call you're in: a banner just above the dock (Matt, 2026-11-15: "switch the active
                         // call to be a banner again in the sidebar just above the navigation bar"); not while the call
                         // itself is open, nor under a page on a phone. Beside a dock stood up, it keeps clear of it.
-                        if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)))
+                        if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)) && !(wide && _inHangout != null))
                           Positioned(
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),

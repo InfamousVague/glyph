@@ -1511,13 +1511,16 @@ void main() {
       v.clearHangouts();
     });
     for (final dark in [false, true]) {
-      // A phone: the hangout opened in the list's place, the chat's composer standing above where the pill floats.
+      // A phone: the hangout opened where a conversation opens (over the list, no pill under it), its composer at the
+      // foot, who is connected and Join at its top.
       tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
-      await _shoot(tester, sheet, HangoutScreen(channel: channel, inSidebar: true), '22-hangout-sidebar', dark: dark);
+      v.view(channel);
+      await _shoot(tester, sheet, const VoiceScreen(), '22-hangout-open', dark: dark);
+      expect(find.byType(HangoutScreen), findsOneWidget);
+      expect(find.text('Join voice'), findsOneWidget);
       final composer = tester.getRect(find.byType(GlacierInput));
-      // The pill's top stands this far from the screen's foot (shell.dart: the bar's inset, the pill, its inset).
-      final t = _tokensOf(tester);
-      expect(892 - composer.bottom, greaterThan(32 + NavPill.clearance(t) - NavPill.inset(t) + 4), reason: 'the pill\'s room is kept under it');
+      expect(892 - composer.bottom, lessThan(32 + 40), reason: 'no room kept for a pill that isn\'t there');
+      v.view(null);
 
       // Wide, in the call: the people and the dock in the list's place, the chat in the pane.
       tester.view.physicalSize = const Size(1280 * 2.0, 800 * 2.0);
@@ -1528,18 +1531,38 @@ void main() {
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       shell.go('voice');
       await _settle(tester);
-      Navigator.of(tester.element(find.byType(ConversationsScreen))).push(PageRouteBuilder<void>(pageBuilder: (c, _, _) => HangoutScreen(channel: channel, inSidebar: true)));
-      await _settle(tester);
       await _shootAgain(tester, '22-hangout-wide', dark: dark);
       expect(find.byType(HangoutStage), findsOneWidget, reason: 'the pane is the chat');
-      expect(find.byType(CallPanel), findsOneWidget, reason: 'the people beside the list');
+      expect(find.byType(HangoutPeople), findsOneWidget, reason: 'the people in the list\'s place');
       final people = tester.getRect(find.byType(CallPanel)), chat = tester.getRect(find.byType(HangoutChat));
       expect(people.right, lessThanOrEqualTo(chat.left), reason: 'voice on the left, chat on the right');
       expect(find.text('Saving you a seat'), findsOneWidget);
-      // The dock stands above the pill, not over it.
-      final dock = tester.getRect(find.byType(CallDock)), pill = tester.getRect(find.byType(NavPill));
-      expect(dock.bottom, lessThanOrEqualTo(pill.top + 1));
+      // The pill is put away; the call's buttons stand where it was.
+      expect(find.byType(NavPill), findsNothing);
+      expect(find.byType(CallBanner), findsNothing);
+      final dock = tester.getRect(find.byType(CallDock));
+      expect(800 - dock.bottom, lessThan(32 + 40), reason: 'at the foot, where the pill stood');
+      expect(dock.right, lessThanOrEqualTo(people.right + 40), reason: 'in the list\'s column');
       v.session = null;
+      // A hangout's menu (Matt, 2026-11-15: "there also needs to be a context menu to open settings for hangouts and
+      // manage permissions and such as well as delete the hangouts on desktop"): its settings, link, sharing, delete.
+      tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+      await _shoot(tester, sheet, const VoiceScreen(), '22-hangout-menu', dark: dark);
+      await tester.tap(find.bySemanticsLabel('Channel options'));
+      await _settle(tester);
+      await _shootAgain(tester, '22-hangout-menu', dark: dark);
+      expect(find.text('Settings and permissions'), findsOneWidget);
+      expect(find.text('Copy invite link'), findsOneWidget);
+      expect(find.text('Delete hangout'), findsOneWidget);
+      await tester.tap(find.text('Settings and permissions'));
+      await _settle(tester);
+      await _shootAgain(tester, '22-hangout-settings', dark: dark);
+      expect(find.byType(RolesScreen), findsOneWidget);
+      expect(find.text('Copy invite link'), findsOneWidget);
+      // Further down: the role new people get, and deleting it.
+      await tester.scrollUntilVisible(find.text('Delete hangout'), 300, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Join as'), findsOneWidget);
+      expect(find.text('Delete hangout'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });

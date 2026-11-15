@@ -427,6 +427,16 @@ class Voice extends ChangeNotifier {
     return _hangouts[c.seed] = room;
   }
 
+  /// The hangout open in the conversation's place (the pane) while not in its call: VoiceScreen shows it (Matt,
+  /// 2026-11-15: "clicking on a voice chat should show me the chat in the normal spot and connected participants with
+  /// a "join" button").
+  VoiceChannel? viewing;
+
+  void view(VoiceChannel? c) {
+    viewing = c;
+    notifyListeners();
+  }
+
   /// For a picture or a test: [room] as its hangout's, with no relay.
   @visibleForTesting
   void putHangout(HangoutRoom room) => _hangouts[room.channel.seed] = room;
