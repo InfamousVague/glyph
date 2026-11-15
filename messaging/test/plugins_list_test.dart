@@ -46,7 +46,8 @@ void main() {
     final phone = ListPhone(_phone())..install();
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
-    expect(find.byType(SectionTabs), findsNothing);
+    // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
     expect(find.byType(ConversationRow), findsNWidgets(5));
     expect(find.byType(PluginRow), findsNothing);
     expect(phone.asked, isEmpty);
@@ -107,7 +108,8 @@ void main() {
     // The word on the last row does the same: the section is empty, its chip goes, and the list is the main one.
     await tester.tap(find.text('Keep in Messages'));
     await settle(tester);
-    expect(find.byType(SectionTabs), findsNothing);
+    // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
     expect(find.byType(ConversationRow), findsNWidgets(5));
     expect(find.text('ticket 5522 was closed'), findsOneWidget);
     expect(phone.prefs[Filing.key], '4:,2:');
@@ -213,7 +215,8 @@ void main() {
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, const ConversationsScreen(), AppState());
     await settle(tester);
-    expect(find.byType(SectionTabs), findsNothing);
+    // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
     // Conversation 2 is unread in the phone's list too: two in all.
     expect(tester.widget<MarkAllRead>(find.byType(MarkAllRead)).unread, 2);
     phone.asked.clear();
@@ -258,7 +261,8 @@ void main() {
 
     state.setFlag(PluginRegistry.switchKey(plugin), false);
     await settle(tester);
-    expect(find.byType(SectionTabs), findsNothing);
+    // No section of a plugin's: the toggle has Messages and Voice alone (Voice is always a tab since 2026-11-15).
+      expect(tester.widget<SectionTabs>(find.byType(SectionTabs)).sections, isEmpty);
     expect(find.byType(PluginRow), findsNothing);
     expect(find.byType(ConversationRow), findsNWidgets(5));
     expect(_icon('Ticket desk'), findsNothing);

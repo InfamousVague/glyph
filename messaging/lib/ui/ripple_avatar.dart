@@ -9,7 +9,10 @@ import '../kit/settings_type.dart';
 /// picture habe wobbly ripples going out when talking"). [level] is how loud they are now, 0 to 1 (lib/voice/rtc.dart
 /// reads it from WebRTC): the rings come and go with it, wobble more the louder it is, and are still when quiet.
 class RippleAvatar extends StatefulWidget {
-  const RippleAvatar({super.key, required this.name, required this.level, this.size = 44, this.color, this.muted = false});
+  const RippleAvatar({super.key, required this.name, required this.level, this.size = 44, this.color, this.muted = false, this.ringed = false});
+
+  /// A green ring round the face even while quiet: a call that is on (CallBubble).
+  final bool ringed;
   final String name;
   final double level;
   final double size;
@@ -78,7 +81,7 @@ class _RippleAvatarState extends State<RippleAvatar> with SingleTickerProviderSt
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: t.color('app-paper-3'),
-                  border: Border.all(color: _strength > 0.05 ? ink.withValues(alpha: (0.4 + _strength * 0.6).clamp(0, 1)) : t.color('app-rule'), width: _strength > 0.05 ? 2.5 : 1),
+                  border: Border.all(color: _strength > 0.05 ? ink.withValues(alpha: (0.4 + _strength * 0.6).clamp(0, 1)) : (widget.ringed ? ink : t.color('app-rule')), width: _strength > 0.05 || widget.ringed ? 2.5 : 1),
                 ),
                 alignment: Alignment.center,
                 child: Text(letter, style: pageText(t, widget.size * 0.4, weight: 'bold', color: t.color('app-ink'))),

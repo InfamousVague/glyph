@@ -224,16 +224,24 @@ void main() {
       expect(find.text('Mom'), findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
       // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
-      // Six rings since Voice joined them: the middle falls between the third and the fourth.
+      // Five rings: calls are the list's Voice tab, not a ring (Matt, 2026-11-15: "lets remove the calls icon in the
+      // dock").
       final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx;
-      final middle = (tester.getCenter(_nav('Contacts')).dx + tester.getCenter(_nav('Voice')).dx) / 2;
+      final middle = tester.getCenter(_nav('Contacts')).dx;
       expect(first, lessThan(60));
       expect(last, greaterThan(280));
       expect(middle, closeTo((first + last) / 2, 0.6));
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));
-      // A new chat opens beside the list and is the one shown; Messages puts it away.
+      // The new ring asks: a new chat, a group or a voice call (Matt, 2026-11-15: "The new button should also ask for
+      // new chat, group or voice call"). A new chat opens beside the list and is the one shown; Messages puts it away.
       await tester.tap(_nav('New chat'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('New group'), findsOneWidget);
+      expect(find.text('Voice call'), findsOneWidget);
+      // The sheet slides up from the foot.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('New chat').hitTestable().last);
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.widget<NavPill>(find.byType(NavPill)).active, 'new');
       await tester.tap(_nav('Messages'));

@@ -14,6 +14,7 @@ import '../kit/settings_type.dart';
 import '../voice/channels.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'shell.dart';
 import 'ripple_avatar.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
@@ -147,15 +148,14 @@ class CallPanel extends StatelessWidget {
             }),
             SizedBox(height: t.space(3)),
           ],
-          ClipRRect(
-            borderRadius: BorderRadius.circular(t.radius('xl')),
-            child: ColoredBox(
-              color: t.color('app-paper-2'),
-              // Room above and below for the first and last face's rings.
-              child: Padding(padding: EdgeInsets.symmetric(vertical: t.space(2)), child: Column(children: [
+          // The people as plain rows, not in a card (Matt, 2026-11-15: "Make the lists of people not in a card"), with
+          // room above and below for the first and last face's rings.
+          Padding(
+              padding: EdgeInsets.symmetric(vertical: t.space(2)),
+              child: Column(children: [
                 for (final p in people)
                   Padding(
-                    padding: EdgeInsets.fromLTRB(t.space(5), t.space(2), t.space(3), t.space(2)),
+                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: 40),
                       SizedBox(width: t.space(3)),
@@ -175,8 +175,6 @@ class CallPanel extends StatelessWidget {
                     ]),
                   ),
               ])),
-            ),
-          ),
         ]);
       },
     );
@@ -325,7 +323,19 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     if (friends.isNotEmpty) await v.share(c, friends);
     if (!mounted) return;
     toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length}');
-    Navigator.of(context).maybePop();
+    // A call, started: in it at once, its page in this one's place.
+    try {
+      await v.join(c);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
+    }
+    if (!mounted) return;
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) {
+      shell.go('voice');
+    } else {
+      Navigator.of(context).pushReplacement(PageRouteBuilder<void>(pageBuilder: (context, _, _) => const VoiceScreen()));
+    }
   }
 
   @override
@@ -333,7 +343,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final t = context.tokens;
     final friends = Buddies.instance.friends;
     return GhostPage(
-      title: 'New channel',
+      title: 'Voice call',
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: StatefulBuilder(
@@ -357,7 +367,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
                 ],
               ),
               SizedBox(height: t.space(6)),
-              PaneSection(children: [SettingRow(icon: AppIcon(LucideMore.headphones, size: 18), label: 'Make channel', onPress: _make)]),
+              PaneSection(children: [SettingRow(icon: AppIcon(LucideMore.phoneCall, size: 18), label: 'Start the call', onPress: _make)]),
             ],
           ),
         ),
@@ -524,169 +534,49 @@ class VoiceRow extends StatelessWidget {
   }
 }
 
-/// The voice channels as a strip of small cards over the list (the "strip" layout): live ones first, lit.
-class VoiceStrip extends StatelessWidget {
-  const VoiceStrip({super.key, required this.channels, required this.onPress});
-  final List<VoiceChannel> channels;
-  final ValueChanged<VoiceChannel> onPress;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final v = Voice.instance;
-    final green = t.colorOf('#2fb35a');
-    return SizedBox(
-      height: t.lenOf('4.6rem'),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: t.space(2)),
-        itemCount: channels.length,
-        separatorBuilder: (_, _) => SizedBox(width: t.space(2)),
-        itemBuilder: (context, i) {
-          final c = channels[i];
-          final n = v.session?.channel.room == c.room ? v.session!.members.length + 1 : v.inChannel(c).length;
-          return GlacierPressable(
-            onPressed: () => onPress(c),
-            semanticLabel: '${c.name}, ${n == 0 ? 'nobody in it' : '$n in it'}',
-            builder: (context, state) => Container(
-              width: t.lenOf('9rem'),
-              padding: EdgeInsets.all(t.space(3)),
-              decoration: BoxDecoration(
-                color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
-                borderRadius: BorderRadius.circular(t.lenOf('1rem')),
-                border: Border.all(color: n > 0 ? green : t.color('app-rule'), width: n > 0 ? 2 : 1),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                Row(children: [
-                  AppIcon(LucideMore.headphones, size: 14, wash: false, color: n > 0 ? green : t.color('app-ink-3')),
-                  SizedBox(width: t.space(1)),
-                  Expanded(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
-                ]),
-                SizedBox(height: t.space(1)),
-                Text(n == 0 ? 'Nobody here' : '$n here', style: pageText(t, t.fontSize('xs'), weight: n > 0 ? 'semibold' : 'regular', color: n > 0 ? green : t.color('app-ink-3'))),
-              ]),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// While you're in a call, a banner at the top of the sidebar, above the list's title, that takes its own room and
-/// pushes the list down (Matt, 2026-11-15: "rework the active call indicator", then "Make sure the active call runs
-/// as a banner that expands space from the top of thr sidebar not a floating banner"): a beating green dot, the
-/// channel and how long you've been in it, the faces of whoever is talking (rippling), and the microphone and leave.
-/// A press on it opens the call. It folds away when the call ends.
-class CallBanner extends StatefulWidget {
-  const CallBanner({super.key, required this.onOpen});
+/// While you're in a call, one face floating over the list: yours, with your speech rippling out of it (Matt,
+/// 2026-11-15: "I like the idea of the active call floating in a single avatar with our speech wobbles coming out").
+/// A green ring says the call is on; a red mark that you're muted. A press opens the call.
+class CallBubble extends StatelessWidget {
+  const CallBubble({super.key, required this.onOpen});
   final VoidCallback onOpen;
 
   @override
-  State<CallBanner> createState() => _CallBannerState();
-}
-
-class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateMixin {
-  late final AnimationController _beat = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
-  Timer? _tick;
-
-  @override
-  void initState() {
-    super.initState();
-    // The time in the call, a second at a time.
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && Voice.instance.session != null) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _beat.dispose();
-    _tick?.cancel();
-    super.dispose();
-  }
-
-  static String _clock(Duration d) {
-    final m = d.inMinutes, s = d.inSeconds % 60;
-    return m >= 60 ? '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}' : '$m:${s.toString().padLeft(2, '0')}';
-  }
-
-  @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final v = Voice.instance;
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      child: ListenableBuilder(
+    return ListenableBuilder(
       listenable: v,
       builder: (context, _) {
         final s = v.session;
-        if (s == null) return const SizedBox(width: double.infinity);
+        if (s == null) return const SizedBox.shrink();
         final levels = v.media?.levels ?? s.media.levels;
-        final green = t.colorOf('#2fb35a');
         return ListenableBuilder(
           listenable: Listenable.merge([s, levels]),
-          builder: (context, _) {
-            final loud = levels.value;
-            final talking = [
-              if ((loud['me'] ?? 0) > RippleAvatar.talking && !s.muted) ('me', s.name.isEmpty ? 'You' : s.name),
-              for (final m in s.members.values)
-                if ((loud[m.id] ?? 0) > RippleAvatar.talking && !m.muted) (m.id, v.nameOf(m.id)),
-            ];
-            final people = s.members.length + 1;
-            return GlacierPressable(
-              onPressed: widget.onOpen,
-              semanticLabel: 'In ${s.channel.name}, $people connected. Open the call.',
-              builder: (context, state) => Container(
-                // As wide as the search field and the cards under it, in the column's flow.
-                margin: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), 0),
-                padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
-                decoration: BoxDecoration(
-                  color: Color.alphaBlend(green.withValues(alpha: state.pressed ? 0.2 : 0.12), t.color('app-paper')),
-                  borderRadius: BorderRadius.circular(t.radius('xl')),
-                  border: Border.all(color: green.withValues(alpha: 0.45), width: 1.5),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.max, children: [
-                  FadeTransition(
-                    opacity: Tween(begin: 0.35, end: 1.0).animate(_beat),
-                    child: Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: green)),
-                  ),
-                  SizedBox(width: t.space(2)),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                      Text(s.channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink'))),
-                      Text(
-                        '${_clock(DateTime.now().difference(s.since ?? DateTime.now()))} · ${talking.isEmpty ? (people == 1 ? 'just you' : '$people here') : '${talking.map((x) => x.$2).join(', ')} talking'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: pageText(t, t.fontSize('xs'), color: talking.isEmpty ? t.color('app-ink-3') : green),
-                      ),
-                    ]),
-                  ),
-                  for (final (id, name) in talking.take(3))
-                    Padding(padding: EdgeInsets.only(left: t.space(1)), child: RippleAvatar(name: name, level: loud[id] ?? 0, size: 26)),
-                  SizedBox(width: t.space(2)),
-                  IconTap(icon: s.muted ? LucideMore.micOff : Lucide.mic, label: s.muted ? 'Unmute' : 'Mute', size: 18, color: s.muted ? t.colorOf('#dd3a30') : null, onPressed: () => s.setMuted(!s.muted)),
-                  GlacierPressable(
-                    onPressed: () => v.leave(),
-                    semanticLabel: 'Leave the call',
-                    builder: (context, state) => Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#dd3a30').withValues(alpha: state.pressed ? 0.8 : 1)),
-                      alignment: Alignment.center,
-                      child: const AppIcon(LucideMore.phoneOff, size: 16, wash: false, color: Color(0xFFFFFFFF)),
-                    ),
-                  ),
-                ]),
+          builder: (context, _) => GlacierPressable(
+            onPressed: onOpen,
+            semanticLabel: 'In ${s.channel.name}, ${s.members.length + 1} connected${s.muted ? ', muted' : ''}. Open the call.',
+            builder: (context, state) => Stack(clipBehavior: Clip.none, children: [
+              DecoratedBox(
+                decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: t.shadowOf('0 6px 18px rgba(0,0,0,0.22)')),
+                child: RippleAvatar(name: s.name.isEmpty ? 'You' : s.name, level: levels.value['me'] ?? 0, muted: s.muted || s.deafened, size: 56, ringed: true),
               ),
-            );
-          },
+              if (s.muted || s.deafened)
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#dd3a30'), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                    alignment: Alignment.center,
+                    child: const AppIcon(LucideMore.micOff, size: 11, wash: false, color: Color(0xFFFFFFFF)),
+                  ),
+                ),
+            ]),
+          ),
         );
       },
-    ),
     );
   }
 }

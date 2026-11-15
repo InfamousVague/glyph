@@ -299,23 +299,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     return all;
   }
 
-  /// Everything at once: the main list's conversations, every tab's (codes and the rest; not what the filter hides),
-  /// and the voice channels, the newest first, the pinned conversations before all.
-  List<Object> _mixed(List<Conversation> main, List<VoiceChannel> voices, Sorted sorted) {
-    final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
-    final seen = {for (final c in main) c.id};
-    final all = <Conversation>[...main];
-    for (final s in sorted.sections) {
-      if (s.section.filter) continue;
-      for (final c in _plugins.pick(held, s.id, searching: false)) {
-        if (seen.add(c.id)) all.add(c);
-      }
-    }
-    DateTime when(Object o) => o is Conversation ? o.date : (Voice.instance.lastActive(o as VoiceChannel) ?? DateTime.fromMillisecondsSinceEpoch(0));
-    final rest = <Object>[for (final c in all) if (!c.pinned) c, ...voices]..sort((a, b) => when(b).compareTo(when(a)));
-    return [for (final c in all) if (c.pinned) c, ...rest];
-  }
-
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
     try {
@@ -343,18 +326,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
   /// end of the title row.
   Widget? _tabsRow(Tokens t) {
-    // How the list switches between messages, codes and voice channels (Matt, 2026-11-15: "try a few different
-    // layouts for switching between the few including a mixed view"): tabs, voice among them; one list; or a strip.
-    final layout = AppState.of(context).choice('list_layout', 'tabs');
+    // Messages, codes and voice channels as the toggle's three icons (Matt, 2026-11-15: "use the segmented toggle with
+    // the three icons instead of intertwining them remove the other options for now"). Voice is there always: it is
+    // where calls are.
     final voices = Voice.instance.channels;
-    final tabs = layout == 'mixed'
-        ? null
-        : _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
-            if (layout == 'tabs' && voices.isNotEmpty) (id: voiceTab, icon: LucideMore.headphones, label: 'Voice', count: voices.where(Voice.instance.live).length),
-          ]);
+    final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
+      (id: voiceTab, icon: LucideMore.headphones, label: 'Voice', count: voices.where(Voice.instance.live).length),
+    ]);
     final kinds = _plugins.kinds;
-    // All together, there are no tabs, and the filter is in the title row.
-    if (layout == 'mixed') return null;
     if (tabs == null && kinds.isEmpty) return null;
     final only = _section != null && (_section == ListPlugins.hiddenView || kinds.any((k) => k.id == _section));
     return Padding(
@@ -680,18 +659,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _plugins.othersShown = () => ListPlugins.othersShownFor(app);
     }
     final sorted = _plugins.sort(widget.archived ? null : _all);
-    final layout = app.choice('list_layout', 'tabs');
     final voices = widget.archived ? const <VoiceChannel>[] : _voices();
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && layout == 'tabs' && voices.isNotEmpty)) _section = null;
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && !widget.archived)) _section = null;
     final shown = _shown;
-    // What the list holds: conversations; the voice channels in their tab; or, in the mixed layout, everything at once,
-    // the newest first (Matt, 2026-11-15: "a mixed view that shows them all intertwined sorted by recency").
-    final List<Object> rows = _section == voiceTab
-        ? voices
-        : layout == 'mixed' && _section == null && _query.trim().isEmpty && !_selecting && !widget.archived
-            ? _mixed(shown, voices, sorted)
-            : shown;
-    final strip = layout == 'strip' && _section == null && _query.trim().isEmpty && !_selecting && voices.isNotEmpty;
+    // What the list holds: conversations, or the voice channels in their tab.
+    final List<Object> rows = _section == voiceTab ? voices : shown;
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
@@ -717,6 +689,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           action: SettingsEmptyAction('Try again', _load),
         ),
       ]);
+    } else if (rows.isEmpty && _section == voiceTab) {
+      body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
+        SettingsEmpty(
+          icon: AppIcon(LucideMore.headphones, size: 28, color: t.color('app-ink-3')),
+          title: 'No voice channels yet',
+          body: const Text('Every group of friends has one. Start your own with the new button, then share it with friends or by a link.'),
+        ),
+      ]);
     } else if (rows.isEmpty) {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
@@ -738,7 +718,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ]);
     } else {
-      final extras = (notice ? 1 : 0) + (strip ? 1 : 0);
+      final extras = (notice ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
@@ -751,9 +731,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           if (notice && i == 0) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
           }
-          if (strip && i == (notice ? 1 : 0)) {
-            return Padding(padding: EdgeInsets.only(bottom: t.space(2)), child: VoiceStrip(channels: voices, onPress: _openVoice));
-          }
           final at = i - extras;
           if (at < rows.length && rows[at] is VoiceChannel) {
             final v = rows[at] as VoiceChannel;
@@ -765,7 +742,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             final held = rows[at] as Conversation;
             final c = held.id == open && held.unread ? held.copyWith(unread: false) : held;
             // Plugins: in a section, the row is drawn as the section's plugin describes it (a code large, with Copy).
-            final look = _section == null && layout != 'mixed' ? null : _plugins.look(this.context, c);
+            final look = _section == null ? null : _plugins.look(this.context, c);
             final selected = _selecting ? _selected.contains(c.id) : c.id == beside;
             // Dragged left it archives, further it deletes (asked first), right it pins: lib/ui/swipe_actions.dart.
             return SwipeActions(
@@ -838,22 +815,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       back: widget.archived && !_selecting,
       // A newer version waiting: above the title and the search (Matt, 2026-11-14: "move the update banner on desktop
       // and mobile to show at the top of the sidebar above where it says messages and has the search bar").
-      // The call you're in, as a banner over the title that takes its room (Matt, 2026-11-15: "Make sure the active
-      // call runs as a banner that expands space from the top of thr sidebar not a floating banner"): not while the
-      // call itself is the page beside.
-      top: widget.archived
-          ? null
-          : Column(mainAxisSize: MainAxisSize.min, children: [
-              const UpdateCard(),
-              CallBanner(onOpen: () {
-                final shell = AppShell.maybeOf(context);
-                if (shell != null) {
-                  shell.go('voice');
-                } else {
-                  push(context, (_) => const VoiceScreen());
-                }
-              }),
-            ]),
+      top: widget.archived ? null : const UpdateCard(),
       // While several are being chosen the bar counts them, and holds what can be done with them.
       titleWidget: !_selecting
           ? null
@@ -871,12 +833,6 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ] else if (!widget.archived) ...[
           // Plugins: their buttons for the list's header, in the frame and out of it.
           ..._plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const []))),
-          // All together, the filter stands in the title row: there is no row of tabs for it.
-          if (layout == 'mixed' && _plugins.kinds.isNotEmpty)
-            Padding(
-              padding: EdgeInsets.only(left: t.space(1)),
-              child: FilterButton(hidden: _plugins.hiddenCount, only: _section != null, rows: (context) => _filterRows(_plugins.kinds)),
-            ),
           // Mark all read for the tab shown, at the title row's end (Matt, 2026-11-14: "make the mark all read aligned
           // to the right of the messages title row instead of next to the filter").
           Padding(
