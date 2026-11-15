@@ -448,7 +448,12 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
-- **Six more plugins** (0.7.17, not released; Matt, 2026-11-14: "let's add all of the additional ones to a plugins,
+- **Personal & other in the filter** (0.7.18, not released; Matt, 2026-11-14: "when only selecting political
+  messages I still see personal messages"). The filter's menu has a row for every conversation no kind has
+  (`filter_other`, `ListPlugins.othersShown`), so ticking one kind alone shows that kind alone; All ticks it too.
+  Before, a conversation of no kind was always in Messages whatever was ticked. Food delivery (a kind), the
+  filter's count in the accent colour and the Messages icon on the toggle came out in 0.7.17.
+- **Six more plugins** (0.7.17; Matt, 2026-11-14: "let's add all of the additional ones to a plugins,
   some can be grouped into the same plugin I also want smart embeds added to expand spotify links, youtube, etc").
   Each has its switch in Settings › Plugins.
   - **Link previews** (`embeds.dart`, on): a card under a text with a link. YouTube, YouTube Music, Spotify,

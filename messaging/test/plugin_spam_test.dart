@@ -260,8 +260,9 @@ void main() {
       expect(find.text('Show only'.toUpperCase()), findsNothing);
       final rows = find.byType(GlacierMenuItem);
       expect(find.descendant(of: rows.first, matching: find.text('All')), findsOneWidget);
-      expect(find.descendant(of: rows.at(1), matching: find.text('Spam')), findsOneWidget);
-      expect(find.descendant(of: rows.at(1), matching: find.byType(AppIcon)), findsOneWidget, reason: 'its icon, and no tick: it is hidden');
+      expect(find.descendant(of: rows.at(1), matching: find.text('Personal & other')), findsOneWidget);
+      expect(find.descendant(of: rows.at(2), matching: find.text('Spam')), findsOneWidget);
+      expect(find.descendant(of: rows.at(2), matching: find.byType(AppIcon)), findsOneWidget, reason: 'its icon, and no tick: it is hidden');
       // Ticked: shown in Messages, the menu staying open; the choice is kept.
       await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Spam')).first);
       await settle(tester);
@@ -274,10 +275,32 @@ void main() {
       // All, with everything ticked, unticks everything.
       await tester.tap(find.byType(FilterButton));
       await settle(tester);
-      expect(find.descendant(of: find.byType(GlacierMenuItem).at(1), matching: find.byType(AppIcon)), findsNWidgets(2), reason: 'its icon and its tick');
+      expect(find.descendant(of: find.byType(GlacierMenuItem).at(2), matching: find.byType(AppIcon)), findsNWidgets(2), reason: 'its icon and its tick');
       await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('All')));
       await settle(tester);
       expect(state.flag('filter_spam', fallback: true), isFalse);
+      expect(state.flag(ListPlugins.othersKey), isFalse);
+    });
+
+    // Matt, 2026-11-14: "when only selecting political messages I still see personal messages".
+    testWidgets('one kind ticked alone: Messages shows that kind and nothing else, personal texts included', (tester) async {
+      PluginRegistry.instance = PluginRegistry(const [SpamPlugin()]);
+      ListPhone(phone()).install();
+      final sheet = await loadSheet(tester);
+      final state = AppState()..setFlag('filter_spam', true)..setFlag(ListPlugins.othersKey, false);
+      await pumpScreen(tester, sheet, const ConversationsScreen(), state);
+      expect(find.byType(ConversationRow), findsNWidgets(2));
+      expect(find.text(_prize), findsOneWidget);
+      expect(find.text('Call me when you land'), findsNothing);
+      expect(find.text('4 hidden · Show'), findsOneWidget);
+      // Personal & other ticked again: everything is back.
+      await tester.tap(find.byType(FilterButton));
+      await settle(tester);
+      await tester.tap(find.descendant(of: find.byType(GlacierMenuItem), matching: find.text('Personal & other')));
+      await settle(tester);
+      await tester.tapAt(const Offset(5, 5));
+      await settle(tester);
+      expect(find.byType(ConversationRow), findsNWidgets(6));
     });
 
     testWidgets('what was marked "Not spam" is still not spam when the app is opened again', (tester) async {
