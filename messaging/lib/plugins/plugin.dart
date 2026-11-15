@@ -334,12 +334,25 @@ final class WidgetFill<P> extends SlotFill {
   final List<Widget> Function(BuildContext context, P place, PluginPrefs prefs) build;
 }
 
-/// The list of conversations: the section whose chip is chosen (null: the main list) and how many it shows.
+/// The list of conversations: the section whose chip is chosen (null: the main list) and how many it shows, how many
+/// are in each section and how many of them are unread, and a way to show one section.
 @immutable
 class ListPlace {
-  const ListPlace({this.section, this.shown = 0});
+  const ListPlace({this.section, this.shown = 0, this.counts = const {}, this.unread = const {}, this.show, this.conversations = const []});
   final String? section;
   final int shown;
+
+  /// How many conversations each section has, by its id.
+  final Map<String, int> counts;
+
+  /// The sections with something unread in them.
+  final Set<String> unread;
+
+  /// Shows a section (null: the main list); null where the list cannot.
+  final void Function(String? section)? show;
+
+  /// The conversations the list shows now, newest first, as facts and their tags.
+  final List<ConversationPlace> conversations;
 }
 
 /// One conversation: its facts, its tags, and the section it is in (null: the main list).
@@ -351,13 +364,26 @@ class ConversationPlace {
   final String? section;
 }
 
-/// The composer of a conversation: who it writes to, and what is written so far.
+/// The composer of a conversation: who it writes to, and what is written so far; the newest message from them, where
+/// it is the newest of all (no reply yet); whether anyone in it is a contact, and whether it is a group.
 @immutable
 class ComposerPlace {
-  const ComposerPlace({required this.thread, required this.senders, this.text = ''});
+  const ComposerPlace({required this.thread, required this.senders, this.text = '', this.lastIn, this.lastOut, this.title = '', this.contact = true, this.group = false, this.count = 0});
   final int thread;
   final List<String> senders;
   final String text;
+  final String? lastIn;
+
+  /// The newest message where it is the person's own (they wrote last).
+  final String? lastOut;
+
+  /// What the conversation is called (its people's names).
+  final String title;
+  final bool contact;
+  final bool group;
+
+  /// How many messages the conversation holds as the screen has them.
+  final int count;
 }
 
 /// One message in a conversation.
@@ -395,10 +421,17 @@ abstract final class Slots {
   /// Lines in the menu a message's long press brings up.
   static const messageMenu = ActionSlot<MessagePlace>('conversation.message.menu');
 
+  /// Under a message in a conversation, as wide as its bubble may be: a card for a link it holds, things to do with
+  /// what it says (Matt, 2026-11-14: "I also want smart embeds added to expand spotify links, youtube, etc").
+  static const underMessage = WidgetSlot<MessagePlace>('conversation.message.under');
+
+  /// Over a conversation's composer, under its newest message: replies to choose from, a word about who wrote.
+  static const aboveComposer = WidgetSlot<ComposerPlace>('conversation.composer.above');
+
   /// Rows in the plugin's own card on Settings › Plugins, after its [GhostPlugin.settings].
   static const settings = WidgetSlot<SettingsPlace>('settings.plugin');
 
-  static const List<Slot<Object?>> all = [listHeader, aboveList, conversationMenu, conversationHeader, composer, messageMenu, settings];
+  static const List<Slot<Object?>> all = [listHeader, aboveList, conversationMenu, conversationHeader, composer, messageMenu, underMessage, aboveComposer, settings];
 }
 
 // --- (d) messages that have just come --------------------------------------------------------------------------------

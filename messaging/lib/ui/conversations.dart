@@ -344,7 +344,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final app = AppState.of(context);
     final t = context.tokens;
     bool on(PluginSection k) => ListPlugins.kindShown(app, k);
-    final all = kinds.every(on);
+    final others = ListPlugins.othersShownFor(app);
+    final all = others && kinds.every(on);
     Widget tick(bool shown) => shown ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16, height: 16);
     Widget row(String label, int n, bool shown) => Opacity(
           opacity: shown ? 1 : 0.5,
@@ -363,10 +364,21 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           for (final k in kinds) {
             app.setFlag('filter_${k.id}', !all);
           }
+          app.setFlag(ListPlugins.othersKey, !all);
         },
         child: row('All', 0, true),
       ),
       const GlacierMenuSeparator(),
+      // Everything no kind has: personal texts above all (Matt, 2026-11-14: "when only selecting political messages I
+      // still see personal messages").
+      GlacierMenuItem(
+        icon: const AppIcon(LucideMore.messageCircle, size: 16),
+        shortcut: tick(others),
+        closes: false,
+        ariaLabel: 'Personal & other, ${others ? 'shown' : 'hidden'}',
+        onSelect: () => app.setFlag(ListPlugins.othersKey, !others),
+        child: row('Personal & other', _plugins.othersCount, others),
+      ),
       for (final k in kinds)
         GlacierMenuItem(
           icon: AppIcon(k.section.icon, size: 16),
@@ -606,6 +618,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _plugins.bind(app);
       // The filter: which kinds of text Messages shows, as the person chose or as each kind starts.
       _plugins.shown = (k) => ListPlugins.kindShown(app, k);
+      _plugins.othersShown = () => ListPlugins.othersShownFor(app);
     }
     final sorted = _plugins.sort(widget.archived ? null : _all);
     if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0)) _section = null;
@@ -796,7 +809,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 child: _slow && _all != null ? const GlacierProgressBar(indeterminate: true, ariaLabel: 'Loading your conversations') : null,
               ),
               // Plugins: what they put between the search field and the list.
-              if (!widget.archived) ..._plugins.above(context, ListPlace(section: _section, shown: shown.length)),
+              if (!widget.archived)
+                ..._plugins.above(
+                  context,
+                  ListPlace(section: _section, shown: shown.length, counts: _plugins.counts, unread: _plugins.unreadSections, show: (section) => setState(() => _section = section)),
+                ),
               Expanded(child: body),
             ],
           ),

@@ -39,13 +39,16 @@ class SmsEffects implements PluginEffects {
 /// (in the order they are asked), how many each has, and which have something unread.
 @immutable
 class Sorted {
-  const Sorted(this.at, this.sections, this.counts, this.unread);
+  const Sorted(this.at, this.sections, this.counts, this.unread, {this.others = 0});
   static const none = Sorted({}, [], {}, {});
 
   final Map<int, PluginSection> at;
   final List<PluginSection> sections;
   final Map<String, int> counts;
   final Set<String> unread;
+
+  /// How many conversations no section has: personal texts and everything else the filter's kinds leave alone.
+  final int others;
 
   bool has(String? section) => section != null && counts.containsKey(section);
 }
@@ -124,7 +127,8 @@ class ListPlugins {
       if (c.unread) unread.add(s.id);
     }
     _settle(at, listed);
-    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread);
+    final others = all.where((c) => !c.archived && at[c.id] == null).length;
+    return _sorted = Sorted(at, [for (final s in sections) if (counts.containsKey(s.id)) s], counts, unread, others: others);
   }
 
   /// What the list shows in place of a section: every conversation of a kind the filter hides ("N hidden · Show").
@@ -136,7 +140,17 @@ class ListPlugins {
   /// Whether the person shows [kind] in Messages: their choice, else the kind's own default.
   static bool kindShown(AppState app, PluginSection kind) => app.flag('filter_${kind.id}', fallback: !kind.section.hidden);
 
-  bool _hidden(PluginSection? s) => s != null && s.section.filter && !shown(s);
+  /// Whether Messages shows the conversations no kind has (personal texts and the rest): the filter's "Personal &
+  /// other" row (Matt, 2026-11-14: "when only selecting political messages I still see personal messages").
+  bool Function() othersShown = () => true;
+
+  /// The person's choice for [othersShown]: shown until they untick it.
+  static bool othersShownFor(AppState app) => app.flag(othersKey, fallback: true);
+  static const othersKey = 'filter_other';
+
+  int get othersCount => _sorted.others;
+
+  bool _hidden(PluginSection? s) => s == null ? !othersShown() : s.section.filter && !shown(s);
 
   bool _leaves(PluginSection s) => s.section.filter ? !shown(s) : s.section.leavesMain;
 
@@ -145,11 +159,11 @@ class ListPlugins {
   /// A search from the main list looks through all of them.
   List<Conversation> pick(List<Conversation> all, String? section, {required bool searching}) {
     final at = _sorted.at;
-    if (at.isEmpty) return section == null ? all : const [];
+    if (at.isEmpty && kinds.isEmpty) return section == null ? all : const [];
     if (section == hiddenView) return [for (final c in all) if (_hidden(at[c.id])) c];
     if (section != null) return [for (final c in all) if (at[c.id]?.id == section) c];
     if (searching) return all;
-    return [for (final c in all) if (at[c.id] == null || !_leaves(at[c.id]!)) c];
+    return [for (final c in all) if (at[c.id] == null ? othersShown() : !_leaves(at[c.id]!)) c];
   }
 
   /// The kinds the filter can show or hide (each plugin's [ListSection.filter] sections that are on), and how many
@@ -164,8 +178,13 @@ class ListPlugins {
 
   int countOf(String kind) => _sorted.counts[kind] ?? 0;
 
+  /// How many conversations each section has, and which have something unread: for what the plugins put over the
+  /// list (Your day).
+  Map<String, int> get counts => _sorted.counts;
+  Set<String> get unreadSections => _sorted.unread;
+
   /// How many conversations the filter is hiding from Messages now.
-  int get hiddenCount => [for (final s in _sorted.sections) if (s.section.filter && !shown(s)) countOf(s.id)].fold(0, (a, b) => a + b);
+  int get hiddenCount => [for (final s in _sorted.sections) if (s.section.filter && !shown(s)) countOf(s.id)].fold(0, (a, b) => a + b) + (othersShown() ? 0 : _sorted.others);
 
   // --- what the screen draws ----------------------------------------------------------------------------------------
 

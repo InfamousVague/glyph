@@ -188,6 +188,26 @@ const List<TextKind> textKinds = [
     ],
     weak: [r'bill', r'statement', r'payment', r'past due', r'balance', r'account ending', r'pay (?:now|online|here)'],
   ),
+  // Asked before deliveries, so "your Dasher is on the way" is food, not a parcel (Matt, 2026-11-14: "Add a food
+  // delivery text filter too").
+  TextKind(
+    id: 'food',
+    label: 'Food delivery',
+    one: 'a food delivery',
+    icon: LucideMore.utensils,
+    notSpam: true,
+    about: 'Takeout and groceries: DoorDash, Uber Eats, Grubhub, Instacart, a driver or Dasher on the way, your food is here.',
+    strong: [
+      r'door-?dash|uber ?eats|grubhub|postmates|instacart|seamless|caviar|gopuff|deliveroo|just ?eat|skip ?the ?dishes|waitr|favor delivery|shipt',
+      r'(?:your )?dasher',
+      r'(?:your )?(?:food|meal|takeout|take-out|groceries|grocery order|pizza) (?:is|has|will be|was) (?:here|on (?:its|the) way|ready|arriving|being prepared|delivered|picked up|out for delivery)',
+      r'(?:restaurant|kitchen) (?:is preparing|has (?:started|accepted)|confirmed) your order',
+      r'(?:your )?(?:driver|courier|shopper) (?:is|has) (?:on (?:the|their) way|arriving|arrived|picked up|nearby|outside|here|almost there)',
+      r'(?:leave|left) (?:it |your order |the food )?at (?:the|your) door',
+      r'order (?:is )?ready for pick-?up',
+    ],
+    weak: [r'order', r'food', r'restaurant', r'driver', r'pick(?:ed)?-?up', r'tip', r'eta', r'minutes? away', r'meal', r'groceries'],
+  ),
   TextKind(
     id: 'deliveries',
     label: 'Deliveries & tracking',

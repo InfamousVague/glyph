@@ -78,7 +78,8 @@ class SectionTabs extends StatelessWidget {
           value: chosen ?? _main,
           onValueChange: (v) => onPick(v == _main ? null : v),
           options: [
-            GlacierSegmentedOption(value: _main, label: label('Messages')),
+            // Matt, 2026-11-14: "add an icon for messages on the segmented toggle".
+            GlacierSegmentedOption(value: _main, label: label('Messages', icon: LucideMore.messageCircle)),
             for (final s in sections) GlacierSegmentedOption(value: s.id, label: label(s.section.label, icon: s.section.icon, count: counts[s.id] ?? 0, dot: unread.contains(s.id))),
           ],
         ),
@@ -198,8 +199,10 @@ class _FilterButtonState extends State<FilterButton> {
                       constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: t.color('app-ink-3'), borderRadius: BorderRadius.circular(9), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                      child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(10, weight: 'bold', height: 1.15, color: t.color('app-paper'))),
+                      // In the app's accent (Matt, 2026-11-14: "Make the pill indicator on the filters thr same as
+                      // the primary color").
+                      decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(9), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                      child: Text(widget.hidden > 99 ? '99+' : '${widget.hidden}', style: t.textAt(10, weight: 'bold', height: 1.15, color: t.color('app-on-accent'))),
                     ),
                   ),
                 ),

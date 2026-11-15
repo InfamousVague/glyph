@@ -448,6 +448,28 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Personal & other in the filter** (0.7.18, not released; Matt, 2026-11-14: "when only selecting political
+  messages I still see personal messages"). The filter's menu has a row for every conversation no kind has
+  (`filter_other`, `ListPlugins.othersShown`), so ticking one kind alone shows that kind alone; All ticks it too.
+  Before, a conversation of no kind was always in Messages whatever was ticked. Food delivery (a kind), the
+  filter's count in the accent colour and the Messages icon on the toggle came out in 0.7.17.
+- **Six more plugins** (0.7.17; Matt, 2026-11-14: "let's add all of the additional ones to a plugins,
+  some can be grouped into the same plugin I also want smart embeds added to expand spotify links, youtube, etc").
+  Each has its switch in Settings › Plugins.
+  - **Link previews** (`embeds.dart`, on): a card under a text with a link. YouTube, YouTube Music, Spotify,
+    SoundCloud, Vimeo, TikTok, X and Reddit through their oEmbed addresses; Apple Music and, if "Other sites" is
+    on, any page through its Open Graph tags. Logos from Simple Icons (`embed_marks.g.dart`).
+  - **Quick actions** (`actions.dart`, on): chips under a received text for a time ("Today 7 PM" → a calendar
+    event), an address (→ the map), a tracking number and a phone number.
+  - **Replies** (`replies.dart`, on): suggested replies above the composer when the last text asks something, a
+    "Needs a reply" section, and Remind me (in an hour, tonight, tomorrow) in a message's menu and for a promise
+    you made ("I'll call you later"); android `Reminders.kt`.
+  - **Your day** (`day.dart`, on): a card at the top of the list: greeting, date, and what needs a reply, deliveries,
+    reminders and appointments; × puts it away until something changes.
+  - **Quiet hours** (`quiet.dart`, off): sales, political and reminder texts arrive silently; optionally everything
+    from 10 PM to 7 AM, contacts' urgent words still sounding (android `Notifier.quietNow`).
+  - **Unknown numbers** (`strangers.dart`, on): above the composer of a conversation with a number not in
+    contacts, a guess (likely spam, a business, a person) with Save, Block and Not now.
 - **Summaries of unread conversations** (0.7.16; `lib/summaries.dart`, android `Summaries.kt`; Matt, 2026-11-14:
   "Use a local AI to summarize unread message conversations like apple does"). Several unread texts in a row (since
   you last wrote), or one long one, are summed up in a line in the list, marked with a sparkle, in place of the last
@@ -530,9 +552,9 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
     stays there whatever the classifiers say of it afterwards (`plugins_filed`).
   - **Slots** are named places on the screens for a plugin's buttons, menu lines or widgets (`Slots`). Drawn now:
     the list's header, between the search field and the list, a conversation's long-press menu in the list, and a
-    plugin's own card on Settings › Plugins. Defined, and waiting for `lib/ui/thread.dart` to ask for them: a
-    conversation's header, the composer's row of buttons, a message's menu. `conversation.dart` answers all three
-    ready to put in place (`ConversationPlugins.header`, `.composer`, `.message`), a line each when it does.
+    plugin's own card on Settings › Plugins, and in a conversation (0.7.17): its header, a message's menu, under a
+    message (`Slots.underMessage`) and above the composer (`Slots.aboveComposer`), through `ConversationPlugins`
+    and `PluginThread` (which lets a plugin write into the composer).
   - **Rules for a message that has just come**: mute the conversation, mark it as read, file it in a section. They
     are decided in Dart, by the list, for each unread conversation as it is first seen: while the app is open, and
     catching up the next time it is opened. Android's side has posted the notification by then (`Messaging.kt`
@@ -716,7 +738,7 @@ choice (the phone's default SMS SIM is used), and a backup.
 | Notifications | `Notifier.kt` | Notifications with Reply and Mark as read, the "respond via message" service, and the file provider Android's MMS service reads and writes through. |
 | Paired computers, on the phone | `Desk.kt`, `DeskService.kt`, `DeskSession.kt`, `DeskCrypto.kt`, `WsClient.kt`, `ScanActivity.kt` | Who is paired and each one's key (under an Android Keystore key), the foreground service that listens on the local network (NSD) and dials the relay, one connection as the phone answers it, the sealing, a WebSocket client written out, and the QR scanner (Camera2 and ZXing). Tests: `DeskCryptoTest`, `DeskSessionTest`, `WsClientTest`, `ScanTest`. |
 | The Mac app | `macos/`, `lib/desktop/` | The same Flutter project with a macOS runner: `lib/main.dart` goes to `lib/desktop/main.dart` on a computer. `link/` is the sealing (pointycastle), a connection, the relay's socket and `PhoneLink` (pairing, local first, the relay when it fails); `remote.dart` answers the phone's screens' calls from the phone; `ui/` is the wizard, the two panes and Settings; `macos/Runner/DeskChannels.swift` is Bonjour, the Keychain and the Mac's name. |
-| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `spam.dart`). |
+| Plugins | `lib/plugins/` | The contract (`plugin.dart`), the registry and the plugins the app ships with (`registry.dart`), the conversations' tags (`tag_store.dart`), what the list of conversations keeps of them (`list.dart`), what a conversation would ask (`conversation.dart`), what is drawn of them (`ui.dart`), Settings › Plugins (`settings.dart`), and the plugins themselves (`codes.dart`, `kinds.dart`, `spam.dart`, `embeds.dart`, `actions.dart`, `replies.dart`, `day.dart`, `quiet.dart`, `strangers.dart`). |
 | The relay | `relay/` | A WebSocket server in Dart's own library alone (`relay/README.md`). Not on a server. |
 
 ## Building
