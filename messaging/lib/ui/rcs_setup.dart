@@ -43,6 +43,9 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
   SmsStatus? _s;
   Arriving _arriving = const Arriving();
 
+  /// Google Messages' channels as last seen: the ones still loud are listed in the last step.
+  List<GmChannel> _channels = const [];
+
   @override
   void initState() {
     super.initState();
@@ -65,10 +68,15 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
     try {
       final s = await Sms.instance.status();
       final a = await Sms.instance.arriving();
+      var channels = const <GmChannel>[];
+      try {
+        channels = await Sms.instance.gmChannels();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _s = s;
         _arriving = a;
+        _channels = channels;
       });
       if (s.beside) {
         // Done: the first screen need not carry it on any more.
@@ -90,7 +98,9 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
     final s = _s;
     if (s == null) return const SizedBox.shrink();
     final rcsOn = app.flag('rcs_on_chosen', fallback: false);
-    final silent = app.flag('gm_silent_chosen', fallback: false);
+    // Silent as far as Ghost has seen (every channel a notification came on is quiet), or said so by the person.
+    final loud = [for (final c in _channels) if (c.loud) c];
+    final silent = (_channels.isNotEmpty && loud.isEmpty) || (loud.isEmpty && app.flag('gm_silent_chosen', fallback: false));
     final done = [s.gmInstalled, s.gmDefault, rcsOn, s.sms, s.bridge, silent];
     final next = done.indexOf(false);
     Widget step(int i, String title, String what, {String? action, VoidCallback? onAction, String? also, VoidCallback? onAlso, Widget? more}) {
@@ -164,8 +174,23 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
               : null,
           also: _arriving.sideloaded && !s.bridge ? 'Android\'s page for Ghost' : null,
           onAlso: Sms.instance.openAppInfo),
-      step(5, 'Google Messages\' notifications are silent', 'Leave them on, but set them to Silent: Ghost reads them, hides each one as it comes, and shows its own. Turned off completely, Ghost would see nothing.',
-          action: 'Open its notification settings', onAction: Sms.instance.openGmNotifications, also: 'They\'re silent', onAlso: () => app.setFlag('gm_silent_chosen', true)),
+      step(5, 'Google Messages\' notifications are silent', 'Leave them on, but set them to Silent: Ghost reads them, hides each one as it comes, and shows its own. Turned off completely, Ghost would see nothing. A conversation with its own sound in Google Messages needs silencing on its own too.',
+          action: loud.isEmpty ? 'Open its notification settings' : null,
+          onAction: Sms.instance.openGmNotifications,
+          also: _channels.isEmpty ? 'They\'re silent' : null,
+          onAlso: () => app.setFlag('gm_silent_chosen', true),
+          more: loud.isEmpty
+              ? null
+              : Padding(
+                  padding: EdgeInsets.only(top: t.space(3)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Still making a sound, as of their last message:', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-2'))),
+                    SizedBox(height: t.space(2)),
+                    Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+                      for (final c in loud) _Pill(label: 'Silence ${c.label}', filled: true, onPressed: () => Sms.instance.openGmChannel(c)),
+                    ]),
+                  ]),
+                )),
       if (s.beside)
         SettingsCallout(child: const Text('RCS is set up. Ghost shows every conversation, RCS and texts, and replies go through Google Messages.')),
       SizedBox(height: t.space(4)),

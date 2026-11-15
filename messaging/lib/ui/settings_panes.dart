@@ -571,8 +571,8 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: _icon(LucideMore.vibrate),
             label: 'Make Google Messages\' silent',
-            hint: const Text('Android\'s page for Google Messages\' notifications: set its conversations to Silent.'),
-            onPress: () => Sms.instance.openGmNotifications(),
+            hint: const Text('Which of its notifications still make a sound, as of their last message, each with the way to silence it: its Incoming messages, and any conversation with a sound of its own.'),
+            onPress: () => push(context, (_) => const RcsSetupScreen()),
           ),
         ],
       ),

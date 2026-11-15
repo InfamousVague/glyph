@@ -291,6 +291,34 @@ class MmsAttempt {
   String get line => '${ok ? 'worked' : 'failed'}: $detail (${at.toIso8601String().substring(0, 16).replaceFirst('T', ' ')})';
 }
 
+/// One of Google Messages' notification channels, as it was when a notification last came on it (android GmBridge):
+/// its "Incoming messages", or a conversation's own, which overrides that one.
+class GmChannel {
+  const GmChannel({required this.id, required this.name, required this.loud, required this.popup, this.conversation, this.title});
+  final String id;
+  final String name;
+
+  /// Makes a sound (importance Default or more); [popup] also shows over the screen (High).
+  final bool loud;
+  final bool popup;
+  final String? conversation;
+
+  /// The conversation's title where the channel is one conversation's.
+  final String? title;
+
+  factory GmChannel.from(Map m) => GmChannel(
+        id: '${m['id']}',
+        name: '${m['name'] ?? m['id']}',
+        loud: m['loud'] == true,
+        popup: m['popup'] == true,
+        conversation: m['conversation'] as String?,
+        title: m['title'] as String?,
+      );
+
+  /// How it reads in a list: a conversation's by the conversation.
+  String get label => conversation != null ? (title ?? name) : name;
+}
+
 class SmsStatus {
   const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false});
   final bool isDefault;
@@ -779,6 +807,13 @@ class Sms {
 
   /// Opens Google Messages, or its Play Store page where it is not on the phone.
   Future<void> openGm() => _calls.invokeMethod<bool>('openGm');
+
+  /// Google Messages' notification channels as Ghost last saw them (android GmBridge.channelList), loudest first.
+  Future<List<GmChannel>> gmChannels() async =>
+      [for (final c in ((await _calls.invokeMethod<List>('gmChannels')) ?? const [])) GmChannel.from(c as Map)];
+
+  /// Android's settings for one of Google Messages' channels.
+  Future<void> openGmChannel(GmChannel c) => _calls.invokeMethod<bool>('openGmChannel', {'id': c.id, 'conversation': c.conversation});
 
   /// Android's notification settings for Google Messages, to make them silent (Ghost then shows its own).
   Future<void> openGmNotifications() => _calls.invokeMethod<bool>('openGmNotifications');

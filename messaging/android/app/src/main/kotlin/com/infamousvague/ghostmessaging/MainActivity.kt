@@ -110,6 +110,8 @@ class MainActivity : FlutterActivity() {
                 "bridgeAccess" -> { startActivity(GmBridge.accessIntent(this)); result.success(true) }
                 "openGm" -> result.success(GmBridge.open(this))
                 "openGmNotifications" -> result.success(GmBridge.openNotificationSettings(this))
+                "gmChannels" -> result.success(GmBridge.channelList(this))
+                "openGmChannel" -> result.success(GmBridge.openChannel(this, call.argument<String>("id")!!, call.argument<String>("conversation")))
                 "requestSms" -> requestSms(result)
                 "requestPermissions" -> requestPermissions(result)
                 "openRequest" -> { result.success(pendingOpen); pendingOpen = null }
