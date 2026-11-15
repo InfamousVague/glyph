@@ -230,4 +230,51 @@ void main() {
     expect(mac.restarts, 1);
     expect(updates.phase, MacUpdatePhase.restarting);
   });
+
+  group('Windows (WindowsUpdateHost)', () {
+    const local = r'C:\Users\riley\AppData\Local';
+    const exe = r'C:\Users\riley\AppData\Local\Programs\Ghost Messaging\ghost_messaging.exe';
+
+    test('only a copy the installer put in place, made with a build number, looks for updates', () async {
+      expect(await WindowsUpdateHost(env: const {'LOCALAPPDATA': local}, exe: exe, build: 36, version: '0.7.24').installed(), isNotNull);
+      expect(await WindowsUpdateHost(env: const {'LOCALAPPDATA': local}, exe: exe, build: 0, version: '0.7.24').installed(), isNull);
+      expect(await WindowsUpdateHost(env: const {'LOCALAPPDATA': local}, exe: r'D:\src\build\ghost_messaging.exe', build: 36).installed(), isNull);
+      expect(await WindowsUpdateHost(env: const {}, exe: exe, build: 36).installed(), isNull);
+      final here = await WindowsUpdateHost(env: const {'LOCALAPPDATA': local}, exe: exe.toUpperCase(), build: 36, version: '0.7.24').installed();
+      expect(here!.build, 36);
+      expect(here.dir, r'C:\Users\riley\AppData\Local\Ghost Messaging\updates');
+    });
+
+    test('the installer is held to its size and SHA-256, then run silently and the app quits', () async {
+      final dir = Directory.systemTemp.createTempSync('win-update');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final bytes = Uint8List.fromList(List.generate(4096, (i) => i % 13));
+      final file = File('${dir.path}/setup.exe')..writeAsBytesSync(bytes);
+      // SHA-256 worked out apart from the app's own code.
+      final r = Process.runSync('shasum', ['-a', '256', file.path]);
+      final sha = (r.stdout as String).split(' ').first;
+      final launched = <String>[];
+      var quit = 0;
+      final host = WindowsUpdateHost(env: const {'LOCALAPPDATA': local}, exe: exe, build: 36, launch: (p) async => launched.add(p), quit: () => quit++);
+
+      expect(await host.restart(), isNot('restarting'), reason: 'nothing to run yet');
+      expect(await host.install(file.path, sha256: sha, bytes: bytes.length + 1), contains('size'));
+      expect(await host.install(file.path, sha256: 'a' * 64, bytes: bytes.length), contains('not the one'));
+      expect(file.existsSync(), isFalse, reason: 'a changed installer is not kept');
+
+      file.writeAsBytesSync(bytes);
+      expect(await host.install(file.path, sha256: sha.toUpperCase(), bytes: bytes.length), 'ready');
+      expect(launched, isEmpty);
+      expect(await host.restart(), 'restarting');
+      expect(launched, [file.path]);
+      expect(quit, 1);
+    });
+
+    test('fromEnvironment reads windows.json on Windows, and GHOST_DESK_UPDATES still names another', () {
+      expect(MacUpdates.fromEnvironment(const {}, windows: true)!.feed.toString(), windowsFeed);
+      expect(MacUpdates.fromEnvironment(const {})!.feed.toString(), macFeed);
+      expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'http://127.0.0.1:9/w.json'}, windows: true)!.feed.toString(), 'http://127.0.0.1:9/w.json');
+      expect(MacUpdates.fromEnvironment(const {'GHOST_DESK_UPDATES': 'off'}, windows: true), isNull);
+    });
+  });
 }

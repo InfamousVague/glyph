@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:pointycastle/digests/sha256.dart';
 
 /// The Mac app's own updates, so a copy that is installed is never installed again by hand (Matt, 2026-11-13:
 /// "install the app on my mac and make sure it has OTA updates so we don't need to reinstall again").
@@ -27,6 +28,14 @@ import 'package:flutter/services.dart';
 
 /// Where an installed Mac app reads of a newer one.
 const macFeed = 'https://ghost-sms.com/mac.json';
+
+/// Where an installed Windows app reads of a newer one: tool/release-windows.mjs's description of the installer
+/// beside it (Matt, 2026-11-15: "also we need an auto updated for windows").
+const windowsFeed = 'https://ghost-sms.com/windows.json';
+
+/// The build number a Windows build was made with (`--dart-define=GHOST_BUILD=…` in
+/// .github/workflows/messaging-windows.yml); 0 for a build made any other way, which never updates itself.
+const windowsBuild = int.fromEnvironment('GHOST_BUILD');
 
 /// A release, as its description gives it.
 class MacRelease {
@@ -182,11 +191,13 @@ class MacUpdates extends ChangeNotifier {
   bool _standing = false;
 
   /// The updater for this run of the app: where `GHOST_DESK_UPDATES` says to look, or nowhere for `off`.
-  static MacUpdates? fromEnvironment(Map<String, String> env) {
+  /// On Windows it reads [windowsFeed] and runs the installer it brings ([WindowsUpdateHost]).
+  static MacUpdates? fromEnvironment(Map<String, String> env, {bool windows = false}) {
     final said = (env['GHOST_DESK_UPDATES'] ?? '').trim();
     if (said == 'off') return null;
-    final feed = said.isEmpty ? null : Uri.tryParse(said);
-    return MacUpdates(feed: feed != null && feed.hasScheme && feed.host.isNotEmpty ? feed : null, restartWhenReady: env['GHOST_DESK_UPDATE_RESTART'] == 'now');
+    final given = said.isEmpty ? null : Uri.tryParse(said);
+    final feed = given != null && given.hasScheme && given.host.isNotEmpty ? given : (windows ? Uri.parse(windowsFeed) : null);
+    return MacUpdates(feed: feed, host: windows ? WindowsUpdateHost(env: env) : null, restartWhenReady: env['GHOST_DESK_UPDATE_RESTART'] == 'now');
   }
 
   final Uri feed;
@@ -324,7 +335,10 @@ class MacUpdates extends ChangeNotifier {
       }
     }
     dir.createSync(recursive: true);
-    final file = File('${dir.path}/ghost-messaging-mac-${release.build}.zip');
+    // Named as published, with the build before the extension: ghost-messaging-mac-500.zip, …-setup-36.exe.
+    final name = release.url.pathSegments.isEmpty || release.url.pathSegments.last.isEmpty ? 'update' : release.url.pathSegments.last;
+    final dot = name.lastIndexOf('.');
+    final file = File('${dir.path}${Platform.pathSeparator}${dot > 0 ? '${name.substring(0, dot)}-${release.build}${name.substring(dot)}' : '$name-${release.build}'}');
     final client = _client()..connectionTimeout = const Duration(seconds: 15);
     IOSink? out;
     try {
@@ -364,6 +378,88 @@ class MacUpdates extends ChangeNotifier {
     } finally {
       client.close(force: true);
     }
+  }
+}
+
+/// Windows' half, in Dart alone: the installer is held to the size and SHA-256 its description gives, and Restart to
+/// update runs it silently (windows/installer.iss reopens the app after a silent install) and quits this copy.
+///
+/// The installer is not signed yet, so what makes it believed is weaker than the Mac's Developer ID check: it came
+/// over HTTPS from ghost-sms.com, beside a description from the same server, and matches that description.
+///
+/// Only a copy the installer put in place updates itself: one in the person's Programs folder, built with a build
+/// number ([windowsBuild]). Any other (a build run from its folder) is never looked for.
+class WindowsUpdateHost implements UpdateHost {
+  WindowsUpdateHost({Map<String, String>? env, String? exe, int? build, String? version, this.launch = _launch, this.quit = _quit})
+      : _env = env ?? Platform.environment,
+        _exe = exe ?? Platform.resolvedExecutable,
+        _build = build ?? windowsBuild,
+        _version = version ?? const String.fromEnvironment('GHOST_VERSION');
+  final Map<String, String> _env;
+  final String _exe;
+  final int _build;
+  final String _version;
+
+  /// Starts the installer at the path, detached; and ends this app.
+  final Future<void> Function(String path) launch;
+  final void Function() quit;
+
+  String? _installer;
+
+  static Future<void> _launch(String path) async {
+    await Process.start(path, const ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS'], mode: ProcessStartMode.detached);
+  }
+
+  static void _quit() => exit(0);
+
+  /// Where the installer puts the app: `%LOCALAPPDATA%\Programs\Ghost Messaging`.
+  bool get _installedByInstaller {
+    final local = _env['LOCALAPPDATA'];
+    if (local == null || local.isEmpty) return false;
+    final home = '$local\\Programs\\Ghost Messaging\\'.toLowerCase();
+    return _exe.toLowerCase().startsWith(home);
+  }
+
+  @override
+  Future<InstalledMac?> installed() async {
+    if (_build <= 0 || !_installedByInstaller) return null;
+    final base = _env['LOCALAPPDATA']!;
+    return InstalledMac(version: _version, build: _build, dir: '$base\\Ghost Messaging\\updates');
+  }
+
+  @override
+  Future<String> install(String path, {required String sha256, required int bytes}) async {
+    final file = File(path);
+    if (!file.existsSync() || file.lengthSync() != bytes) return 'The installer is not the size the release says';
+    final digest = SHA256Digest();
+    final out = Uint8List(digest.digestSize);
+    await for (final chunk in file.openRead()) {
+      final b = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+      digest.update(b, 0, b.length);
+    }
+    digest.doFinal(out, 0);
+    final hex = out.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    if (hex != sha256.toLowerCase()) {
+      try {
+        file.deleteSync();
+      } catch (_) {}
+      return 'The installer is not the one the release describes';
+    }
+    _installer = path;
+    return 'ready';
+  }
+
+  @override
+  Future<String> restart() async {
+    final path = _installer;
+    if (path == null || !File(path).existsSync()) return 'The installer is gone; it is fetched again later';
+    try {
+      await launch(path);
+    } catch (e) {
+      return 'The installer would not start ($e)';
+    }
+    quit();
+    return 'restarting';
   }
 }
 

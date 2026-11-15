@@ -40,7 +40,7 @@ jobs:
       - run: flutter pub get
 
       - name: Build the app
-        run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }}
+        run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }} --dart-define=GHOST_BUILD=${{ inputs.build }} --dart-define=GHOST_VERSION=${{ inputs.version }}
 
       - name: Build the installer
         shell: pwsh
