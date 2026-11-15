@@ -135,7 +135,7 @@ class Voice extends ChangeNotifier {
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
     } catch (_) {}
     Net.instance.addListener(_follow);
-    if (Sms.remote) {
+    if (Sms.paired) {
       unawaited(syncNow());
       _sync?.cancel();
       _sync = Timer.periodic(const Duration(seconds: 8), (_) => syncNow());
@@ -201,7 +201,7 @@ class Voice extends ChangeNotifier {
 
   /// On a computer: asks the phone for its channels now, and every few seconds while the app is open.
   Future<void> syncNow() async {
-    if (!Sms.remote) return;
+    if (!Sms.paired) return;
     try {
       final got = await Sms.instance.voiceSync({'op': 'list'});
       // Removed on the phone: removed here too, and never handed back to it.
@@ -254,7 +254,7 @@ class Voice extends ChangeNotifier {
   NetSigner? get signer {
     final r = _route;
     if (r is HubVoiceRoute) return r.hub.signer;
-    if (Sms.remote && _app != null) return (_ownHub ??= _macHub()).signer;
+    if (Sms.paired && _app != null) return (_ownHub ??= _macHub()).signer;
     return Net.instance.hub?.signer;
   }
 
@@ -279,7 +279,7 @@ class Voice extends ChangeNotifier {
 
   void _follow() {
     final HubCarrier? hub;
-    if (Sms.remote) {
+    if (Sms.paired) {
       // Dialled only once there is a channel to see.
       if (channels.isEmpty && _ownHub == null) return;
       hub = _ownHub ??= _macHub();
@@ -316,11 +316,11 @@ class Voice extends ChangeNotifier {
   }
 
   void _look() {
-    if (Sms.remote && _ownHub == null && channels.isNotEmpty) return _follow();
+    if (Sms.paired && _ownHub == null && channels.isNotEmpty) return _follow();
     final route = _route;
     if (route == null) return;
     // The hub dialled for the channels too, on a phone, while there are any.
-    if (!Sms.remote) unawaited(Net.instance.want('voice', channels.isNotEmpty));
+    if (!Sms.paired) unawaited(Net.instance.want('voice', channels.isNotEmpty));
     for (final c in channels) {
       route.look(c.room, c.token);
     }
@@ -339,7 +339,7 @@ class Voice extends ChangeNotifier {
     own = [...own, c];
     await _keep();
     // Made on a computer: the phone keeps it too.
-    if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}).catchError((_) => <String, dynamic>{}));
+    if (Sms.paired) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name, if (c.owner.isNotEmpty) 'o': c.owner}).catchError((_) => <String, dynamic>{}));
     return c;
   }
 
@@ -348,7 +348,7 @@ class Voice extends ChangeNotifier {
     _markGone(c.seed);
     own = [for (final o in own) if (o.seed != c.seed) o];
     _phone = [for (final o in _phone) if (o.seed != c.seed) o];
-    if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'forget', 's': c.seed}).catchError((_) => <String, dynamic>{}));
+    if (Sms.paired) unawaited(Sms.instance.voiceSync({'op': 'forget', 's': c.seed}).catchError((_) => <String, dynamic>{}));
     _route?.unlook(c.room);
     await _keep();
   }

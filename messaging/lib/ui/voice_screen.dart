@@ -175,7 +175,7 @@ class CallPanel extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
-                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.remote ? 52 : 40),
+                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Text.rich(
@@ -268,7 +268,7 @@ class CallDock extends StatelessWidget {
         ),
       ),
     );
-    return Sms.remote ? Transform.scale(scale: pillScrolledScale, alignment: Alignment.bottomCenter, child: dock) : dock;
+    return Sms.computer ? Transform.scale(scale: pillScrolledScale, alignment: Alignment.bottomCenter, child: dock) : dock;
   }
 }
 

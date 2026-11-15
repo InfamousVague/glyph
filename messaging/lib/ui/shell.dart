@@ -120,9 +120,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// one across the page or inside something in it. Shrinks in the kit's fast duration, grows in its normal one, both
   /// easing out; at once under reduced motion. On a computer, as Ghost.md's desktop dock, it rests at the smaller size.
   /// 0 whole, 1 small.
-  late final AnimationController _small = AnimationController(vsync: this, value: Sms.remote ? 1 : 0);
+  late final AnimationController _small = AnimationController(vsync: this, value: Sms.computer ? 1 : 0);
   late final Animation<double> _pillScale = _small.drive(Tween<double>(begin: 1, end: pillScrolledScale));
-  double _smallGoal = Sms.remote ? 1 : 0;
+  double _smallGoal = Sms.computer ? 1 : 0;
 
   bool _pillHeard(ScrollNotification n) {
     if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
@@ -142,7 +142,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 
   void _pillGo(double goal) {
-    if (Sms.remote) goal = 1;
+    if (Sms.computer) goal = 1;
     if (_smallGoal == goal || !mounted) return;
     _smallGoal = goal;
     final t = context.tokens;
@@ -487,7 +487,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       const rail = false;
       // Folded, it stands up too (Matt, 2026-11-14: "Folded: make it vertical"), floating in the list's bottom right
       // corner, with no strip: on a narrow screen every bit of width is the list's.
-      final docked = !wide && !Sms.remote && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
+      final docked = !wide && !Sms.computer && box.maxHeight - edges.vertical >= NavPill.railHeight(t, _rings) + t.lenOf('8rem');
       // A page that has finished sliding over the list covers all of it.
       final covered = !wide && _open != null && _open!.animation?.status == AnimationStatus.completed;
       return _ShellScope(
@@ -568,7 +568,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                           Positioned(
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
-                            bottom: edges.bottom + (docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.remote ? pillScrolledScale : 1) + t.space(2)),
+                            bottom: edges.bottom + (docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
                             child: CallBanner(onOpen: () => go('voice')),
                           ),
                       ]))),

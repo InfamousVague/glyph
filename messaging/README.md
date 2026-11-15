@@ -576,6 +576,29 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
     people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
     owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
+- **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
+  investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
+  android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will
+  ever have two phones").
+  - **What Apple allows**: no app may read or send texts on an iPhone, except in the EU, where iOS 26's
+    TelephonyMessagingKit lets the person's chosen default messaging app do so (with an entitlement Apple grants).
+    The Google Messages bridge (mautrix-gmessages, as Beeper uses it) works only by pairing with Google Messages on
+    an Android phone. So an iPhone of its own has no texts: friends by username, groups and calls over the relay.
+  - **The iPhone app** (`lib/standalone`): `StandaloneCalls` answers the phone's calls by the same names from a store
+    of its own (Application Support, `standalone.json`), so the phone's screens and start-up run unchanged
+    (`Sms.standalone`). Its identity is a P-256 key made on the iPhone (Keychain in a release build), the same
+    arithmetic as the phone's (`NetKeys`), so an iPhone and an Android phone seal to each other. Each friend by
+    username is a conversation addressed `@username`, carried by `Friends` as a phone-number friend's is.
+  - **First screen** (`StandaloneWelcome`): a username, claimed on the relay's directory, and a name for friends.
+    No pairing step. An iPhone already paired with an Android phone as a computer stays its companion.
+  - **`Sms.remote` split**: `Sms.paired` (asks a paired phone: computers, a paired iPhone) and `Sms.computer`
+    (a window's sizes) beside it; `remote` still means no texts here.
+  - **Native half** (`ios/Runner`): DeskChannels, DeskSound, DeskVideo and VoiceFx from the Mac, for UIKit (Keychain,
+    Bonjour, the photo picker, the audio session, iOS's video player, voicefx in WebRTC's capture hook).
+  - Checked in two iOS Simulators against the live relay: usernames claimed, a friend request sent and accepted
+    (sealed), a message sent, delivered and shown unread on the other. Not yet: groups and pictures from an iPhone, a
+    friend by username on Android (Android has no username chats yet), push notifications, TestFlight.
+- **Calls: 4K, Music mode, volume to 200%, RNNoise and DeepFilterNet** (0.7.25, not released; Matt, 2026-11-15:
 - **The walkthrough, as Ghost Keyboard's and Ghost.md's** (0.7.26, not released; Matt, 2026-11-15: "Look at how we
   do onboarding on Ghost KBD and Ghost Markdown with the optional voice guide through the elevenlabs key and the
   vibrant colors and iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`:

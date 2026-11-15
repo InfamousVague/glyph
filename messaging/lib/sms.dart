@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:async';
 import 'dart:convert';
 
@@ -613,8 +614,21 @@ class Sms {
   /// The Mac sets this to its link to the phone before anything is drawn (lib/desktop/remote.dart).
   static set calls(SmsCalls calls) => _calls = calls;
 
-  /// These screens are on a computer, not the phone: what only the phone can do is not offered.
+  /// These screens are not on the Android phone: no texts here, so what only the phone can do is not offered. True on
+  /// a computer and on an iPhone, paired or not.
   static bool get remote => _calls is! _ChannelCalls;
+
+  /// An iPhone of its own (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works without sms"):
+  /// no phone to ask, so the routes, the relay server's directory, friends by username and calls run here, as they do
+  /// on the phone. Set before anything is drawn.
+  static bool standalone = false;
+
+  /// What these screens ask of is a paired Android phone (a computer, or an iPhone paired with one): the routes,
+  /// the directory and calls are the phone's, asked across the link.
+  static bool get paired => remote && !standalone;
+
+  /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
+  static bool get computer => remote && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
 
   /// Whether [what] can be done from here: anything on the phone itself; on a computer, what the phone it is paired
   /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
@@ -682,12 +696,12 @@ class Sms {
   /// Friends by username (lib/friends/buddies.dart): the list, kept where the phone works out each one's sealing key
   /// (android Buddies.kt). Nothing on a computer, which speaks through its phone.
   Future<void> buddiesKeep(String json) async {
-    if (remote) return;
+    if (paired) return;
     await _calls.invokeMethod('buddiesKeep', {'json': json});
   }
 
   Future<String> buddiesKept() async {
-    if (remote) return '[]';
+    if (paired) return '[]';
     return await _calls.invokeMethod<String>('buddiesKept') ?? '[]';
   }
 
