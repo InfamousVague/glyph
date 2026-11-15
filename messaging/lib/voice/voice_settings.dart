@@ -57,7 +57,7 @@ class VoiceSettings {
         stereo: app.flag('voice_stereo', fallback: true),
         echo: app.flag('voice_echo', fallback: true),
         // Before there was a choice of how, noise suppression was a switch for WebRTC's own.
-        noise: NoiseMode.named(app.choice('voice_noise_mode', '')) ?? (app.flag('voice_noise', fallback: false) ? NoiseMode.webrtc : NoiseMode.rnnoise),
+        noise: NoiseMode.named(app.choice('voice_noise_mode', '')) ?? (app.flag('voice_noise', fallback: false) ? NoiseMode.webrtc : NoiseMode.standard),
         gain: app.flag('voice_gain', fallback: false),
         music: app.flag('voice_music', fallback: false),
         inputVolume: (int.tryParse(app.choice('voice_in_volume', '100')) ?? 100).clamp(0, maxVolume),
@@ -90,6 +90,8 @@ class VoiceSettings {
   NoiseMode noiseOn(Set<NoiseMode> available) {
     if (music || noise == NoiseMode.off) return NoiseMode.off;
     if (noise == NoiseMode.webrtc || available.contains(noise)) return noise;
+    // DeepFilterNet where it cannot run: RNNoise, the next best, before WebRTC's own.
+    if (noise == NoiseMode.deepfilter && available.contains(NoiseMode.rnnoise)) return NoiseMode.rnnoise;
     return NoiseMode.webrtc;
   }
 
@@ -123,6 +125,13 @@ enum NoiseMode {
   webrtc('Standard', 'WebRTC\'s own: steady noise like fans'),
   rnnoise('RNNoise', 'A small neural network: fans, keyboards, traffic'),
   deepfilter('DeepFilterNet', 'A larger network, near studio quality; computers');
+
+  /// The one used until another is chosen (Matt, 2026-11-15: "on desktop use DeepFilter as default and on mobile use
+  /// the RNN as default"): DeepFilterNet on a computer, which has the room for the larger network; RNNoise on a phone.
+  static NoiseMode get standard => switch (defaultTargetPlatform) {
+        TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux => NoiseMode.deepfilter,
+        _ => NoiseMode.rnnoise,
+      };
 
   const NoiseMode(this.label, this.hint);
   final String label;
