@@ -12,7 +12,9 @@
 <meta property="og:title" content="Ghost Messaging">
 <meta property="og:description" content="High-quality text, voice and video in one app, on your phone and your computer.">
 <meta property="og:url" content="https://gogho.st/">
-<meta property="og:image" content="https://gogho.st/art/og.png">
+<meta property="og:image" content="https://gogho.st/art/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <!--
   The site (Matt, 2026-11-15): "redo the website with vivid colors and iconography inspired by the competition like
@@ -22,13 +24,14 @@
   and "rework the header to be something about high quality text, voice and video in one app".
   - Every picture of the app is the app: tool/site-layers.py cuts the screen tests' own pictures (test/shots) into
     site/shots/. The hero lifts one conversation apart into its layers.
-  - The pictures under /art/ are Matt's to make (Desktop/ghost-messaging-art-prompts.md); until one is there, its spot
-    shows the drawn ghost.
+  - The pictures under /art/ are Matt's (made from Desktop/ghost-messaging-art-prompts.md; "gogho.st assets has been
+    added to desktop wire them"), sized by tool/site-art.py.
   - Icons are Lucide's (ISC licence), inline. No fonts or scripts from anywhere else.
 -->
 <script>
   // The theme before anything is drawn: dark unless this visitor chose light (the toggle in the bar).
-  try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}
+  // A link ending #light shows the light page without changing what this visitor chose.
+  try { if (location.hash === '#light' || localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}
 </script>
 <style>
   /* Dark by default (Matt, 2026-11-15: "I really like this direction but want to have a dark mode that's used by
@@ -73,7 +76,8 @@
   /* --- top bar --- */
   header.bar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); background: color-mix(in srgb, var(--bg) 78%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
   header.bar .wrap { display: flex; align-items: center; gap: 1rem; height: 4rem; }
-  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; letter-spacing: -.02em; text-decoration: none; font-size: 1.1rem; }
+  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; letter-spacing: -.02em; text-decoration: none; font-size: 1.1rem; white-space: nowrap; }
+  @media (max-width: 400px) { .brand { font-size: 1rem; gap: .45rem; } header.bar .cta { padding: .5rem .9rem; } }
   .brand img { width: 2.1rem; height: 2.1rem; border-radius: .65rem; }
   nav.links { display: flex; gap: 1.5rem; margin-left: auto; font-weight: 600; font-size: .95rem; color: var(--ink-2); }
   nav.links a { text-decoration: none; }
@@ -113,13 +117,13 @@
   .fit { transform: scale(var(--fit, 1)); }
   .stack { --gap: 0px; --rx: 0deg; --rz: 0deg; position: relative; width: 300px; height: 650px; transform-style: preserve-3d; transform: rotateX(var(--rx)) rotateZ(var(--rz)); transition: transform 1.4s cubic-bezier(.2, .8, .2, 1); }
   .stack.open { --rx: 46deg; --rz: -27deg; }
-  .plate { position: absolute; inset: 0; border-radius: 34px; background: linear-gradient(180deg, var(--plate-1), var(--plate-2)); box-shadow: 0 0 0 1px var(--rule), 0 40px 70px -20px rgba(0, 0, 0, .45), 0 0 60px -10px var(--glow-a); }
+  .plate { position: absolute; inset: 0; transform: translateZ(calc(var(--gap) * .5)); transition: transform 1.4s cubic-bezier(.2, .8, .2, 1); border-radius: 34px; background: linear-gradient(180deg, var(--plate-1), var(--plate-2)); box-shadow: 0 0 0 1px var(--rule), 0 40px 70px -20px rgba(0, 0, 0, .45), 0 0 60px -10px var(--glow-a); }
   .plate::after { /* a phone's edge, under the plate */ content: ""; position: absolute; inset: -9px; border-radius: 42px; background: linear-gradient(135deg, var(--edge-1), var(--edge-2)); transform: translateZ(-14px); box-shadow: 0 50px 80px -30px rgba(0, 0, 0, .5); }
   .layer { position: absolute; transform: translateZ(calc(var(--gap) * var(--z))); transition: transform 1.4s cubic-bezier(.2, .8, .2, 1); filter: var(--lift); will-change: transform; }
   .layer img { width: 100%; height: auto; }
   .stack:not(.open) .layer { filter: none; }
   .glow { position: absolute; width: 36rem; height: 36rem; border-radius: 50%; background: radial-gradient(circle, var(--glow-a), transparent 62%); filter: blur(10px); }
-  .mascot { position: absolute; width: 7.5rem; right: 3%; top: 4%; filter: drop-shadow(0 18px 24px rgba(8, 70, 64, .22)); animation: bob 6s ease-in-out infinite; z-index: 2; }
+  .mascot { position: absolute; width: 9.5rem; right: 1%; top: 2%; filter: drop-shadow(0 18px 24px rgba(8, 70, 64, .22)); animation: bob 6s ease-in-out infinite; z-index: 2; }
   @keyframes bob { 50% { transform: translateY(-10px); } }
   .tag { position: absolute; z-index: 3; display: flex; align-items: center; gap: .5rem; background: var(--tag-bg); backdrop-filter: blur(8px); border: 1px solid var(--rule); border-radius: 999px; padding: .45rem .8rem .45rem .5rem; font-size: .82rem; font-weight: 700; box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); transition: opacity .6s ease, transform .6s ease; }
   .tag span.t { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--mist); color: var(--teal-2); }
@@ -144,7 +148,10 @@
   .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin-top: 3rem; }
   @media (max-width: 900px) { .trio { grid-template-columns: 1fr; max-width: 26rem; margin-left: auto; margin-right: auto; } }
   .pillar { background: var(--paper); border: 1px solid var(--rule); border-radius: 2rem; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
-  .pillar .text { padding: 1.6rem 1.6rem 1.2rem; }
+  .pillar .text { padding: 1.6rem 1.6rem 1.2rem; position: relative; }
+  .pillar .peek { position: absolute; right: 1rem; top: .9rem; width: 4.2rem; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .25)); }
+  .pillar h3, .pillar p { padding-right: 3.6rem; }
+  .card .art { width: 4.4rem; height: 4.4rem; object-fit: contain; margin: -.4rem 0 .5rem -.3rem; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .22)); }
   .pillar h3 { display: flex; align-items: center; gap: .6rem; margin: 0 0 .4rem; font-size: 1.35rem; letter-spacing: -.025em; }
   .pillar h3 span { width: 2.3rem; height: 2.3rem; border-radius: .8rem; display: grid; place-items: center; background: var(--mist); color: var(--teal-2); }
   .pillar p { margin: 0; color: var(--ink-2); font-size: .98rem; }
@@ -164,11 +171,12 @@
   .chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.6rem; }
   .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .85rem; border-radius: 999px; background: var(--paper); border: 1px solid var(--rule); font-weight: 650; font-size: .9rem; }
   .chip svg.i { width: 1.05rem; height: 1.05rem; color: var(--teal); }
-  .duo { position: relative; height: 34rem; }
+  .duo { position: relative; height: 38rem; }
+  .duo .scene { position: absolute; left: 50%; bottom: -1rem; width: 82%; transform: translateX(-50%); filter: drop-shadow(0 24px 30px rgba(0, 0, 0, .35)); z-index: 2; border-radius: 0; box-shadow: none; }
   .duo img { position: absolute; width: 15.5rem; border-radius: 1.8rem; box-shadow: 0 0 0 1px var(--rule), 0 30px 60px -20px rgba(8, 70, 64, .35); }
   .duo .a { left: 6%; top: 0; transform: rotate(-5deg); }
   .duo .b { right: 6%; top: 3rem; transform: rotate(4deg); }
-  @media (max-width: 520px) { .duo { height: 27rem; } .duo img { width: 12rem; } .duo .a { left: 0; } .duo .b { right: 0; } }
+  @media (max-width: 520px) { .duo { height: 31rem; } .duo img { width: 12rem; } .duo .a { left: 0; } .duo .b { right: 0; } .duo .scene { width: 96%; } }
 
   /* one inbox */
   .inbox { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 2.5rem; }
@@ -186,6 +194,9 @@
   .bubbles svg.i { width: 1.05rem; height: 1.05rem; }
 
   /* desktop */
+  .deskart { position: relative; }
+  .deskart .scene { position: absolute; right: -2rem; bottom: -3.5rem; width: 46%; filter: drop-shadow(0 22px 28px rgba(0, 0, 0, .35)); }
+  @media (max-width: 520px) { .deskart .scene { right: -.5rem; bottom: -2.5rem; width: 52%; } }
   .window { background: var(--paper); border: 1px solid var(--rule); border-radius: 1.4rem; box-shadow: 0 40px 80px -30px rgba(8, 70, 64, .35); overflow: hidden; }
   .window .chrome { display: flex; gap: .4rem; padding: .7rem .9rem; border-bottom: 1px solid var(--rule); background: var(--chrome); }
   .window .chrome i { width: .7rem; height: .7rem; border-radius: 50%; }
@@ -197,6 +208,7 @@
   .steps b { color: var(--ink); }
 
   /* privacy */
+  .privacy-art { width: min(17rem, 70%); margin: 0 auto 1rem; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, .3)); }
   .seal { width: 5rem; height: 5rem; margin: 0 auto 1.3rem; border-radius: 1.6rem; display: grid; place-items: center; color: var(--teal-2); background: linear-gradient(180deg, var(--seal-top), var(--mist)); border: 1px solid var(--sea); box-shadow: 0 18px 36px -14px rgba(22, 163, 155, .45); }
   .seal svg.i { width: 2.2rem; height: 2.2rem; }
 
@@ -207,7 +219,7 @@
   .final .get { justify-content: center; }
   .final a.dl.main { background: #fff; color: var(--deep); }
   .final a.dl.alt { background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(255, 255, 255, .28); box-shadow: none; }
-  .final .mascot-end { width: 6.5rem; margin: 0 auto 1rem; filter: drop-shadow(0 16px 24px rgba(0, 30, 28, .35)); }
+  .final .mascot-end { width: 9rem; margin: 0 auto 1rem; filter: drop-shadow(0 16px 24px rgba(0, 30, 28, .35)); }
   .install { max-width: 46rem; margin: 2.5rem auto 0; text-align: left; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
   .install div { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); border-radius: 1.3rem; padding: 1.1rem 1.2rem; font-size: .93rem; }
   .install b { display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem; font-size: 1rem; }
@@ -284,28 +296,26 @@
       <div class="glow"></div>
       <img class="mascot" src="/art/mascot-hero.webp" alt="" onerror="this.outerHTML='<svg class=&quot;mascot&quot; viewBox=&quot;0 0 120 130&quot;><use href=&quot;#ghost&quot;/></svg>'">
       <div class="fit" id="fit">
-        <!-- One conversation from the app (test/shots/2-thread-light.png), in its own layers, each where it sits on
-             the 824 x 1784 screen; --z is how far it lifts. -->
+        <!-- One conversation from the app (test/shots/2-thread-*.png) in three planes: the bubbles, the bar and the
+             composer above them, the reactions just over their bubbles. Written by tool/site-layers.py. -->
         <div class="stack" id="stack">
           <div class="plate"></div>
-          <div class="layer" style="--z:2;left:0;top:2.47%;width:100%"><img src="/shots/x-header-dark.webp" data-shot="x-header" alt=""></div>
-          <div class="layer" style="--z:3;left:2.43%;top:9.75%;width:78.2%"><img src="/shots/x-link-dark.webp" data-shot="x-link" alt=""></div>
-          <div class="layer" style="--z:2;left:5.58%;top:19.28%;width:74%"><img src="/shots/x-place-dark.webp" data-shot="x-place" alt=""></div>
-          <div class="layer" style="--z:4;left:19.9%;top:32.17%;width:77.9%"><img src="/shots/x-out1-dark.webp" data-shot="x-out1" alt=""></div>
-          <div class="layer" style="--z:4;left:51%;top:39.74%;width:46.8%"><img src="/shots/x-out2-dark.webp" data-shot="x-out2" alt=""></div>
-          <div class="layer" style="--z:7;left:53.4%;top:44.62%;width:7.3%"><img src="/shots/x-heart-dark.webp" data-shot="x-heart" alt=""></div>
-          <div class="layer" style="--z:1;left:63.1%;top:47.42%;width:34%"><img src="/shots/x-ticks-dark.webp" data-shot="x-ticks" alt=""></div>
-          <div class="layer" style="--z:3;left:2.43%;top:51.57%;width:78.2%"><img src="/shots/x-in-dark.webp" data-shot="x-in" alt=""></div>
-          <div class="layer" style="--z:7;left:70.6%;top:59.3%;width:7.5%"><img src="/shots/x-laugh-dark.webp" data-shot="x-laugh" alt=""></div>
-          <div class="layer" style="--z:5;left:4.1%;top:68.5%;width:24%"><img src="/shots/x-emoji-dark.webp" data-shot="x-emoji" alt=""></div>
-          <div class="layer" style="--z:3;left:2.43%;top:77.47%;width:60.2%"><img src="/shots/x-chips-dark.webp" data-shot="x-chips" alt=""></div>
-          <div class="layer" style="--z:9;left:3.4%;top:83.6%;width:77.8%"><img src="/shots/x-callbar-dark.webp" data-shot="x-callbar" alt=""></div>
-          <div class="layer" style="--z:4;left:2.43%;top:91.7%;width:95.4%"><img src="/shots/x-compose-dark.webp" data-shot="x-compose" alt=""></div>
+<!-- STACK -->
+          <div class="layer" style="--z:2.1;left:0.00%;top:2.47%;width:100.00%" data-light="0.00,2.47,100.00" data-dark="0.00,2.47,100.00"><img src="/shots/x-header-dark.webp" data-shot="x-header" alt=""></div>
+          <div class="layer" style="--z:1.9;left:2.43%;top:10.20%;width:78.16%" data-light="2.43,9.75,78.16" data-dark="2.43,10.20,78.16"><img src="/shots/x-link-dark.webp" data-shot="x-link" alt=""></div>
+          <div class="layer" style="--z:1.75;left:5.58%;top:19.73%;width:74.03%" data-light="5.58,19.28,74.03" data-dark="5.58,19.73,74.03"><img src="/shots/x-place-dark.webp" data-shot="x-place" alt=""></div>
+          <div class="layer" style="--z:1.5;left:19.90%;top:32.51%;width:77.91%" data-light="19.90,32.17,77.91" data-dark="19.90,32.51,77.91"><img src="/shots/x-out1-dark.webp" data-shot="x-out1" alt=""></div>
+          <div class="layer" style="--z:1.5;left:51.46%;top:40.02%;width:46.36%" data-light="50.97,39.74,46.84" data-dark="51.46,40.02,46.36"><img src="/shots/x-out2-dark.webp" data-shot="x-out2" alt=""></div>
+          <div class="layer" style="--z:1.55;left:53.88%;top:44.51%;width:7.28%" data-light="53.40,44.62,7.28" data-dark="53.88,44.51,7.28"><img src="/shots/x-heart-dark.webp" data-shot="x-heart" alt=""></div>
+          <div class="layer" style="--z:1.35;left:63.11%;top:47.42%;width:33.98%" data-light="63.11,47.42,33.98" data-dark="63.11,47.42,33.98"><img src="/shots/x-ticks-dark.webp" data-shot="x-ticks" alt=""></div>
+          <div class="layer" style="--z:1.2;left:2.43%;top:51.68%;width:78.16%" data-light="2.43,51.57,78.16" data-dark="2.43,51.68,78.16"><img src="/shots/x-in-dark.webp" data-shot="x-in" alt=""></div>
+          <div class="layer" style="--z:1.25;left:70.63%;top:59.30%;width:7.52%" data-light="70.63,59.30,7.52" data-dark="70.63,59.30,7.52"><img src="/shots/x-laugh-dark.webp" data-shot="x-laugh" alt=""></div>
+          <div class="layer" style="--z:1.0;left:4.13%;top:68.50%;width:24.03%" data-light="4.13,68.50,24.03" data-dark="4.13,68.50,24.03"><img src="/shots/x-emoji-dark.webp" data-shot="x-emoji" alt=""></div>
+          <div class="layer" style="--z:0.85;left:2.43%;top:77.47%;width:60.19%" data-light="2.43,77.47,60.19" data-dark="2.43,77.47,60.19"><img src="/shots/x-chips-dark.webp" data-shot="x-chips" alt=""></div>
+          <div class="layer" style="--z:0.65;left:2.43%;top:91.70%;width:95.39%" data-light="2.43,91.70,95.39" data-dark="2.43,91.70,95.39"><img src="/shots/x-compose-dark.webp" data-shot="x-compose" alt=""></div>
+          <!-- /STACK -->
         </div>
       </div>
-      <div class="tag t1"><span class="t"><svg class="i"><use href="#i-heart"/></svg></span>Reactions that land</div>
-      <div class="tag t2"><span class="t"><svg class="i"><use href="#i-phones"/></svg></span>Voice channels, always open</div>
-      <div class="tag t3"><span class="t"><svg class="i"><use href="#i-lock"/></svg></span>Sealed end to end</div>
     </div>
   </div>
 </div>
@@ -318,11 +328,11 @@
   </div>
   <div class="wrap trio">
     <div class="pillar">
-      <div class="text"><h3><span><svg class="i"><use href="#i-msgs"/></svg></span>Messages</h3><p>Texts and picture messages, plus encrypted chats with friends on Ghost. Reactions, effects, stickers, groups with names and faces.</p></div>
+      <div class="text"><img class="peek" src="/art/boo-messages.webp" alt="" loading="lazy"><h3><span><svg class="i"><use href="#i-msgs"/></svg></span>Messages</h3><p>Texts and picture messages, plus encrypted chats with friends on Ghost. Reactions, effects, stickers, groups with names and faces.</p></div>
       <div class="shot"><img src="/shots/list-dark.webp" data-shot="list" alt="The conversation list" loading="lazy"></div>
     </div>
     <div class="pillar">
-      <div class="text"><h3><span><svg class="i"><use href="#i-phones"/></svg></span>Voice</h3><p>Every group has a channel that's always open: see who's in, drop in, drop out. Share a hangout by link and anyone can join.</p></div>
+      <div class="text"><img class="peek" src="/art/boo-calls.webp" alt="" loading="lazy"><h3><span><svg class="i"><use href="#i-phones"/></svg></span>Voice</h3><p>Every group has a channel that's always open: see who's in, drop in, drop out. Share a hangout by link and anyone can join.</p></div>
       <div class="shot"><img src="/shots/hangout-dark.webp" data-shot="hangout" alt="A hangout with four people" loading="lazy"></div>
     </div>
     <div class="pillar">
@@ -333,9 +343,9 @@
   <div class="wrap">
     <div class="grid">
       <div class="card"><div class="tile"><svg class="i"><use href="#i-heart"/></svg></div><h3>Reactions that land</h3><p>A ❤️ from an iPhone or a Pixel sits on the message it was for, not in a line of its own.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-spark"/></svg></div><h3>Effects</h3><p>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", ghosts for "Boo".</p></div>
+      <div class="card"><img class="art" src="/art/scene-effects.webp" alt="" loading="lazy"><h3>Effects</h3><p>Balloons for "Happy birthday", confetti for "Congrats", lasers for "pew pew", ghosts for "Boo".</p></div>
       <div class="card"><div class="tile"><svg class="i"><use href="#i-users"/></svg></div><h3>Friends by username</h3><p>Pick a username, add friends by theirs, and make groups you can call all at once.</p></div>
-      <div class="card"><div class="tile"><svg class="i"><use href="#i-key"/></svg></div><h3>Codes, sorted</h3><p>One-time codes get their own tab with the company's logo, ready to copy.</p></div>
+      <div class="card"><img class="art" src="/art/boo-codes.webp" alt="" loading="lazy"><h3>Codes, sorted</h3><p>One-time codes get their own tab with the company's logo, ready to copy.</p></div>
       <div class="card"><div class="tile"><svg class="i"><use href="#i-msg"/></svg></div><h3>Sorted for you</h3><p>Needs a reply, sales and spam each find their own tab, so what matters comes first.</p></div>
       <div class="card"><div class="tile"><svg class="i"><use href="#i-smile"/></svg></div><h3>Your emoji</h3><p>The phone's own, Noto, Twemoji, OpenMoji or a clean outline set. Stickers too.</p></div>
       <div class="card"><div class="tile"><svg class="i"><use href="#i-check2"/></svg></div><h3>Ticks</h3><p>Sent, delivered and read. Pictures retry by themselves and tell you why.</p></div>
@@ -362,6 +372,7 @@
     <div class="duo" aria-hidden="true">
       <img class="a" src="/shots/hangout-dark.webp" data-shot="hangout" alt="" loading="lazy">
       <img class="b" src="/shots/hangout-chat-dark.webp" data-shot="hangout-chat" alt="" loading="lazy">
+      <img class="scene" src="/art/scene-calls.webp" alt="" loading="lazy">
     </div>
   </div>
 </section>
@@ -381,9 +392,12 @@
 
 <section id="desktop">
   <div class="wrap split">
-    <div class="window" aria-hidden="true">
-      <div class="chrome"><i></i><i></i><i></i></div>
-      <img src="/shots/wide-dark.webp" data-shot="wide" alt="" loading="lazy">
+    <div class="deskart" aria-hidden="true">
+      <div class="window">
+        <div class="chrome"><i></i><i></i><i></i></div>
+        <img src="/shots/wide-dark.webp" data-shot="wide" alt="" loading="lazy">
+      </div>
+      <img class="scene" src="/art/scene-desktop.webp" alt="" loading="lazy">
     </div>
     <div>
       <span class="kicker"><svg class="i" style="width:1rem;height:1rem"><use href="#i-laptop"/></svg>On your computer</span>
@@ -400,7 +414,7 @@
 
 <section id="privacy">
   <div class="wrap center">
-    <div class="seal"><svg class="i"><use href="#i-shield"/></svg></div>
+    <img class="privacy-art" src="/art/scene-privacy.webp" alt="" loading="lazy">
     <span class="kicker">Private by default</span>
     <h2>Nothing goes <em>where it shouldn't.</em></h2>
     <p class="sub">No account to make. What travels through our server between friends is sealed on your device first, so the server passes it along and can't read it.</p>
@@ -458,6 +472,11 @@
   const shots = () => {
     const light = root.dataset.theme === 'light';
     for (const img of document.querySelectorAll('img[data-shot]')) img.src = '/shots/' + img.dataset.shot + (light ? '' : '-dark') + '.webp';
+    // Each piece sits a few pixels differently in the app's light and dark screens (tool/site-layers.py).
+    for (const layer of document.querySelectorAll('.layer[data-light]')) {
+      const [l, t, w] = (light ? layer.dataset.light : layer.dataset.dark).split(',');
+      Object.assign(layer.style, { left: l + '%', top: t + '%', width: w + '%' });
+    }
     mode.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
     document.querySelector('meta[name="theme-color"]').content = light ? '#f4fbf9' : '#050c0b';
   };
@@ -478,16 +497,21 @@
   const open = () => {
     stack.classList.add('open');
     stage.classList.add('open');
-    stack.style.setProperty("--gap", "30px");
+    stack.style.setProperty("--gap", "40px");
   };
-  if (still) open(); else setTimeout(open, 500);
+  // It opens once every layer has arrived (or after 2.5 s at most), so no piece pops in halfway through.
+  if (still) open();
+  else {
+    const ready = [...stack.querySelectorAll('img')].map((img) => (img.complete ? Promise.resolve() : img.decode().catch(() => {})));
+    Promise.race([Promise.all(ready), new Promise((r) => setTimeout(r, 2500))]).then(() => setTimeout(open, 250));
+  }
   if (!still) {
     addEventListener('scroll', () => {
       if (!stack.classList.contains('open')) return;
       const more = Math.min(1, scrollY / 500);
       stack.style.transition = 'none';
       for (const l of stack.querySelectorAll('.layer')) l.style.transition = 'none';
-      stack.style.setProperty('--gap', (30 + more * 20).toFixed(1) + 'px');
+      stack.style.setProperty('--gap', (40 + more * 20).toFixed(1) + 'px');
     }, { passive: true });
   }
 </script>
