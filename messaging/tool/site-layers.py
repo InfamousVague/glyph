@@ -19,9 +19,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "test" / "shots"
 OUT = ROOT / "site" / "shots"
 
-# The app's light background, and how near a pixel must be to count as it (a bubble's grey, 240, is not).
-BG = 253
-NEAR = 4
+# Each theme's background in the app, and how near a pixel must be to count as it (a bubble's grey is not). The site
+# is dark by default (Matt: "want to have a dark mode that's used by default"), light as a choice: both are cut, the
+# dark ones as name-dark.webp.
+THEMES = {"light": (253, 4), "dark": (4, 7)}
+BG, NEAR = THEMES["light"]
 
 
 def cut(image, box):
@@ -75,48 +77,55 @@ def pill(image, box, radius):
     return piece
 
 
-def save(piece, name):
+def save(piece, name, theme="light"):
+    name = name if theme == "light" else f"{name}-dark"
     OUT.mkdir(parents=True, exist_ok=True)
     piece.save(OUT / f"{name}.webp", "WEBP", quality=88, method=6)
     print(f"ok site/shots/{name}.webp {piece.size[0]}x{piece.size[1]}")
 
 
+# Where each piece of the conversation sits in each theme (dark draws the top bubbles a few pixels lower).
+PIECES = {
+    "light": {
+        "x-header": (0, 44, 824, 160), "x-link": (20, 174, 664, 316), "x-place": (46, 344, 656, 478),
+        "x-out1": (164, 574, 806, 709), "x-out2": (420, 709, 806, 800), "x-heart": (440, 796, 500, 848),
+        "x-ticks": (520, 846, 800, 912), "x-in": (20, 920, 664, 1058), "x-laugh": (582, 1058, 644, 1106),
+        "x-emoji": (34, 1222, 232, 1326), "x-chips": (20, 1382, 516, 1464), "x-compose": (20, 1636, 806, 1744),
+    },
+    "dark": {
+        "x-header": (0, 44, 824, 160), "x-link": (20, 182, 664, 326), "x-place": (46, 352, 656, 486),
+        "x-out1": (164, 580, 806, 711), "x-out2": (424, 714, 806, 800), "x-heart": (444, 794, 504, 848),
+        "x-ticks": (520, 846, 800, 912), "x-in": (20, 922, 664, 1058), "x-laugh": (582, 1058, 644, 1106),
+        "x-emoji": (34, 1222, 232, 1326), "x-chips": (20, 1382, 516, 1464), "x-compose": (20, 1636, 806, 1744),
+    },
+}
+
+
 def main():
-    thread = Image.open(SHOTS / "2-thread-light.png")
-    tabs = Image.open(SHOTS / "20-layout-tabs-light.png")
-    hangout = Image.open(SHOTS / "21-hangout-light.png")
+    global BG, NEAR
+    for theme, (bg, near) in THEMES.items():
+        BG, NEAR = bg, near
+        thread = Image.open(SHOTS / f"2-thread-{theme}.png")
+        tabs = Image.open(SHOTS / f"20-layout-tabs-{theme}.png")
+        hangout = Image.open(SHOTS / f"21-hangout-{theme}.png")
 
-    # The hero's exploded conversation (2-thread): each piece where it sits on the 824 x 1784 screen.
-    pieces = {
-        "x-header": (thread, (0, 44, 824, 160)),
-        "x-link": (thread, (20, 174, 664, 316)),
-        "x-place": (thread, (46, 344, 656, 478)),
-        "x-out1": (thread, (164, 574, 806, 709)),
-        "x-out2": (thread, (420, 709, 806, 800)),
-        "x-heart": (thread, (440, 796, 500, 848)),
-        "x-ticks": (thread, (520, 846, 800, 912)),
-        "x-in": (thread, (20, 920, 664, 1058)),
-        "x-laugh": (thread, (582, 1058, 644, 1106)),
-        "x-emoji": (thread, (34, 1222, 232, 1326)),
-        "x-chips": (thread, (20, 1382, 516, 1464)),
-        "x-compose": (thread, (20, 1636, 806, 1744)),
-    }
-    for name, (image, box) in pieces.items():
-        save(cut(image, box), name)
-    # Floating pieces from other screens.
-    save(pill(tabs, (28, 1597, 669, 1716), 60), "x-callbar")
-    save(pill(tabs, (689, 1210, 807, 1696), 59), "x-dock")
-    save(cut(hangout, (20, 300, 804, 790)), "x-people")
-    save(cut(hangout, (160, 1590, 664, 1724)), "x-calldock")
+        # The hero's exploded conversation (2-thread): each piece where it sits on the 824 x 1784 screen.
+        for name, box in PIECES[theme].items():
+            save(cut(thread, box), name, theme)
+        # Floating pieces from other screens.
+        save(pill(tabs, (28, 1597, 669, 1716), 60), "x-callbar", theme)
+        save(pill(tabs, (689, 1210, 807, 1696), 59), "x-dock", theme)
+        save(cut(hangout, (20, 300, 804, 790)), "x-people", theme)
+        save(cut(hangout, (160, 1590, 664, 1724)), "x-calldock", theme)
 
-    # Settings › Voice and video from its Volume section down: the boost, Music mode, noise suppression.
-    save(Image.open(SHOTS / "19-voice-settings-light.png").convert("RGB").crop((0, 590, 824, 2200)), "voice-settings")
+        # Settings › Voice and video from its Volume section down: the boost, Music mode, noise suppression.
+        save(Image.open(SHOTS / f"19-voice-settings-{theme}.png").convert("RGB").crop((0, 590, 824, 2200)), "voice-settings", theme)
 
-    # Whole screens, for the sections below the hero.
-    for src, name in (("2-thread-light.png", "thread"), ("20-layout-tabs-light.png", "list"), ("21-hangout-light.png", "hangout"), ("11-frame-wide-thread-light.png", "wide"), ("21-hangout-chat-light.png", "hangout-chat")):
-        path = SHOTS / src
-        if path.exists():
-            save(Image.open(path).convert("RGB"), name)
+        # Whole screens, for the sections below the hero.
+        for src, name in (("2-thread", "thread"), ("20-layout-tabs", "list"), ("21-hangout", "hangout"), ("11-frame-wide-thread", "wide"), ("21-hangout-chat", "hangout-chat")):
+            path = SHOTS / f"{src}-{theme}.png"
+            if path.exists():
+                save(Image.open(path).convert("RGB"), name, theme)
 
 
 if __name__ == "__main__":
