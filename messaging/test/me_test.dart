@@ -185,6 +185,23 @@ void main() {
     await again.unlink('phone');
     await _until(() => relay.hub!.handles!.linked == 0);
     expect(phone.me.number, isNull);
+
+    // "Tell friends I'm here" from the computer is the phone's (Matt, 2026-11-15: "tell friends i'm here toggle isn't
+    // working on mac and windows only on mobile").
+    final was = phone.me.listed;
+    again.setListed(!was);
+    expect(again.listed, !was, reason: 'the switch moves at once');
+    await _until(() => phone.me.listed == !was);
+    final third = Me.forTest();
+    await third.followPhone(ask);
+    expect(third.listed, !was, reason: 'read back from the phone');
+    // A phone that will not do it puts the switch back, and says why.
+    final refused = Me.forTest();
+    await refused.followPhone(ask);
+    refused.asking = (_) async => throw MeError('The phone does not do that for a computer.');
+    refused.setListed(was);
+    await _until(() => refused.listed == !was);
+    expect(refused.phoneSaid, contains('does not do that'));
     await phone.hub.stop();
   });
 

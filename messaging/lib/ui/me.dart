@@ -168,7 +168,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.megaphone),
           label: 'Tell friends I\'m here',
           hint: Text(me.accounts.isEmpty ? 'Link an account first.' : 'People watching for ${me.accounts.length == 1 ? 'your account' : 'one of your accounts'} hear that you joined.'),
-          control: GlacierSwitch(checked: me.listed, onCheckedChange: me.setListed, ariaLabel: 'Tell friends I\'m here', disabled: Sms.remote),
+          control: GlacierSwitch(checked: me.listed, onCheckedChange: me.setListed, ariaLabel: 'Tell friends I\'m here', disabled: Sms.remote && !me.ready),
         ),
       ],
     ),

@@ -409,6 +409,7 @@ class Me extends ChangeNotifier {
       final s = await phone({'dir': 'state'});
       ways = (s['ways'] as Map? ?? const {}).cast<String, String>();
       links = (s['links'] as Map? ?? const {}).cast<String, String>();
+      if (s['listed'] is bool) listed = s['listed'] as bool;
       ready = s['ready'] == true;
       phoneSaid = ready ? null : 'Your phone can\'t reach the relay server right now.';
     } catch (e) {
@@ -425,7 +426,9 @@ class Me extends ChangeNotifier {
   }
 
   /// On the phone: what a paired computer asks of Settings › Me ([followPhone] there). How things stand, and the
-  /// number's verification; nothing else (a computer does not link accounts or change the watch list).
+  /// number's verification, and "Tell friends I'm here" (Matt, 2026-11-15: "tell friends i'm here toggle isn't
+  /// working on mac and windows only on mobile"); nothing else (a computer does not link accounts or change the watch
+  /// list).
   Future<Object?> forComputer(Map<String, Object?> args) async {
     final what = (args['what'] as Map?)?.cast<String, Object?>() ?? args;
     switch (what['dir']) {
@@ -436,7 +439,10 @@ class Me extends ChangeNotifier {
             await Future<void>.delayed(const Duration(milliseconds: 100));
           }
         }
-        return {'ready': ready, 'ways': ways, 'links': links};
+        return {'ready': ready, 'ways': ways, 'links': links, 'listed': listed};
+      case 'listed':
+        setListed(what['on'] == true);
+        return {'dir': 'listed', 'on': listed};
       case 'text':
         return {'dir': 'text', 'p': 'phone', 'handle': await textCode('${what['handle']}')};
       case 'code':
@@ -548,7 +554,26 @@ class Me extends ChangeNotifier {
   }
 
   /// The person's own choice of "Tell friends I'm here": kept as theirs, so a link made later does not undo an off.
+  ///
+  /// On a paired computer ([followPhone]) it is the phone's to change: the switch moves at once and goes back if the
+  /// phone says no or cannot be reached ([phoneSaid] says why).
   void setListed(bool on) {
+    final phone = asking;
+    if (phone != null) {
+      final was = listed;
+      listed = on;
+      notifyListeners();
+      phone({'dir': 'listed', 'on': on}).then((m) {
+        listed = m['on'] is bool ? m['on'] as bool : on;
+        phoneSaid = null;
+        notifyListeners();
+      }, onError: (Object e) {
+        listed = was;
+        phoneSaid = e is MeError ? e.message : _words(e);
+        notifyListeners();
+      });
+      return;
+    }
     _app?.setFlag('me_listed_chosen', true);
     _list(on);
   }
