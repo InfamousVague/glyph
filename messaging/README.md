@@ -495,6 +495,15 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
+- **The pill shrinks as Ghost.md's dock does; your own ripples; larger faces on a computer** (0.7.23, not released;
+  Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the page and make it get smaller when
+  we scroll down just like ghost markdown does match the sizes"; "on desktop it doesn't seem like when i'm talking i
+  see the wobbles coming from my voice chat, also make the voice chat avatars a little larger on desktop"). The pill
+  is its whole size at the list's top and 0.8 once the person scrolls down, whole again only back at the top, in the
+  kit's fast and normal durations, at once under reduced motion; on a computer it rests at 0.8 (Ghost.md's
+  `DockShrink`, the same `app-ring` rings). Your own level is read from a connection holding only your microphone, so
+  your face ripples alone in a call too, from the media source's level or, where only that is kept, its energy over
+  time. A call's faces are 52 (the floating one 64) on a computer, 40 and 56 on a phone.
 - **Usernames, friends by username, and voice and video channels** (0.7.20; relay deployed 2026-11-15 01:51 UTC;
   deployed; Matt, 2026-11-14: "work on the friend system so we can create a profile and username under "me" ...
   always open voice channels that you can jump in and out at any time and you can see who's connected and also

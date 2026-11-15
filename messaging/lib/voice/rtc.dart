@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -63,10 +64,41 @@ class RtcMedia implements VoiceMedia {
   final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
   Timer? _levelTimer;
 
+  /// A connection that holds the microphone and never connects: what this device's own level is read from, alone in a
+  /// call or with others (Matt, 2026-11-15: "on desktop it doesn't seem like when i'm talking i see the wobbles coming
+  /// from my voice chat"). It was read from the connections to the others alone, so alone in a call, and wherever
+  /// those had not yet said it, the face had nothing to ripple with.
+  RTCPeerConnection? _meter;
+  double? _energy, _energyTime;
+
+  /// How loud the microphone is from a media source's numbers: its own level where it gives one, else from the
+  /// energy it has heard over the time it has heard it (the two WebRTC keeps; the Mac's has given the second only).
+  double? _micLevel(Map<dynamic, dynamic> v) {
+    if (v['audioLevel'] is num) return (v['audioLevel'] as num).toDouble();
+    final e = v['totalAudioEnergy'], d = v['totalSamplesDuration'];
+    if (e is! num || d is! num) return null;
+    final was = _energy, wasTime = _energyTime;
+    _energy = e.toDouble();
+    _energyTime = d.toDouble();
+    if (was == null || wasTime == null || _energyTime! <= wasTime) return null;
+    return math.sqrt(((_energy! - was) / (_energyTime! - wasTime)).clamp(0.0, 1.0));
+  }
+
   /// Reads how loud each sound is, several times a second (WebRTC's audioLevel: the incoming sound's at each
   /// connection, the microphone's at its media source), eased so a face does not flicker between words.
   Future<void> _readLevels() async {
     final next = <String, double>{};
+    final meter = _meter;
+    if (meter != null) {
+      try {
+        for (final r in await meter.getStats()) {
+          if ((r.type == 'media-source' || r.type == 'track') && r.values['kind'] == 'audio' && r.values['remoteSource'] != true) {
+            final l = _micLevel(r.values);
+            if (l != null) next['me'] = l;
+          }
+        }
+      } catch (_) {}
+    }
     for (final e in _peers.entries) {
       final made = e.value._pc;
       if (made == null) continue;
@@ -75,7 +107,7 @@ class RtcMedia implements VoiceMedia {
         for (final r in await pc.getStats()) {
           final v = r.values;
           if (r.type == 'inbound-rtp' && v['kind'] == 'audio' && v['audioLevel'] is num) next[e.key] = (v['audioLevel'] as num).toDouble();
-          if (r.type == 'media-source' && v['kind'] == 'audio' && v['audioLevel'] is num) next['me'] = (v['audioLevel'] as num).toDouble();
+          if (r.type == 'media-source' && v['kind'] == 'audio' && v['audioLevel'] is num && !next.containsKey('me')) next['me'] = (v['audioLevel'] as num).toDouble();
         }
       } catch (_) {}
     }
@@ -100,6 +132,13 @@ class RtcMedia implements VoiceMedia {
       'video': false,
     });
     if (!kIsWeb && Platform.isAndroid) await Helper.setSpeakerphoneOn(true);
+    if (_meter == null) {
+      try {
+        final meter = await createPeerConnection({'iceServers': <Map<String, Object>>[], 'sdpSemantics': 'unified-plan'});
+        await meter.addTransceiver(track: _mic!.getAudioTracks().first, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: [_mic!]));
+        _meter = meter;
+      } catch (_) {}
+    }
     _levelTimer ??= Timer.periodic(const Duration(milliseconds: 150), (_) => _readLevels());
   }
 
@@ -108,6 +147,9 @@ class RtcMedia implements VoiceMedia {
     _levelTimer?.cancel();
     _levelTimer = null;
     levels.value = const {};
+    await _meter?.close();
+    _meter = null;
+    _energy = _energyTime = null;
     for (final p in _peers.values.toList()) {
       await p.close();
     }

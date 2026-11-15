@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/shell.dart' show pillScrolledScale;
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/desktop/link/crypto.dart';
 import 'package:ghost_messaging/desktop/link/link.dart';
@@ -228,8 +229,11 @@ void main() {
       // dock").
       final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx;
       final middle = tester.getCenter(_nav('Contacts')).dx;
-      expect(first, lessThan(60));
-      expect(last, greaterThan(280));
+      // On a computer the pill rests at the smaller size, as Ghost.md's desktop dock does (Matt, 2026-11-15: "just like
+      // ghost markdown does match the sizes"), held to the foot's middle.
+      expect(tester.widget<ScaleTransition>(find.byKey(const ValueKey('pill-scale'))).scale.value, closeTo(pillScrolledScale, 0.001));
+      expect(first, lessThan(90));
+      expect(last, greaterThan(250));
       expect(middle, closeTo((first + last) / 2, 0.6));
       await tester.tap(_nav('Messages'));
       await tester.pump(const Duration(milliseconds: 400));

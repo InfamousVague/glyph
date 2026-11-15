@@ -13,6 +13,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../voice/channels.dart';
 import '../voice/voice.dart';
+import '../sms.dart';
 import 'common.dart';
 import 'shell.dart';
 import 'ripple_avatar.dart';
@@ -162,7 +163,8 @@ class CallPanel extends StatelessWidget {
                     child: Padding(
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
-                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: 40),
+                      // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
+                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.remote ? 52 : 40),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Text.rich(
@@ -564,7 +566,7 @@ class CallBubble extends StatelessWidget {
             builder: (context, state) => Stack(clipBehavior: Clip.none, children: [
               DecoratedBox(
                 decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: t.shadowOf('0 6px 18px rgba(0,0,0,0.22)')),
-                child: RippleAvatar(name: s.name.isEmpty ? 'You' : s.name, level: levels.value['me'] ?? 0, muted: s.muted || s.deafened, size: 56, ringed: true),
+                child: RippleAvatar(name: s.name.isEmpty ? 'You' : s.name, level: levels.value['me'] ?? 0, muted: s.muted || s.deafened, size: Sms.remote ? 64 : 56, ringed: true),
               ),
               if (s.muted || s.deafened)
                 Positioned(
