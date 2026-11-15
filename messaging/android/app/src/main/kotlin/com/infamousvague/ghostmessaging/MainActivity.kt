@@ -172,6 +172,13 @@ class MainActivity : FlutterActivity() {
                 }
                 // Try again, on a picture message that could not be brought down (Store.insertMmsNotice).
                 "retryDownload" -> bg { MmsPushReceiver.retry(applicationContext, call.argument<Number>("id")!!.toLong()); null }
+                // A friend by username wrote (lib/standalone/overlay.dart keeps their words in Dart): said as a
+                // text from a contact would be, unless that conversation is on the screen.
+                "notifyChat" -> bg {
+                    Notifier.chat(applicationContext, call.argument<Number>("thread")!!.toLong(), call.argument<String>("who") ?: "", call.argument<String>("body") ?: "")
+                    null
+                }
+                "cancelChat" -> bg { Notifier.cancel(applicationContext, call.argument<Number>("thread")!!.toLong()); null }
                 "markRead" -> bg {
                     val t = call.argument<Number>("thread")!!.toLong()
                     store.markRead(t); Notifier.cancel(applicationContext, t); null

@@ -576,6 +576,22 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   - **Not yet:** a moderator's mute is held only while they are in the hangout; Matt's phone and computer are two
     people to a hangout (the computer has its own key), so a hangout made on one makes the other a member until the
     owner makes it an admin; the site's join page needs `tool/deploy-site.mjs` to go live.
+- **Friends by username on Android: iPhones and Android phones text each other** (not released; Matt, 2026-11-15:
+  "Yes, Android next").
+  - Android's store of texts has no room for someone with no number, so a friend by username's conversation is kept
+    in Dart (`lib/standalone/chats.dart`, `UsernameChats`, the same store the iPhone uses) and `OverlayCalls`
+    (`lib/standalone/overlay.dart`) stands in front of the phone's channel: what is about an `@username`, or a
+    conversation or row it keeps (ids from 2^40), is answered there; the list, contacts search and encryption states
+    are the phone's with these added; everything else goes to the phone. `Sms.remote` stays false behind it
+    (`PhoneSide`).
+  - android Buddies.peers gives a friend who said yes the address `@username`, so `Friends` carries their words.
+    A message from them is notified by `Notifier.chat` (Android's own notifications see only its store). No phone
+    call button for them, and no wake text (they have no number).
+  - Checked live, Android emulator and iPhone Simulator over the relay: a request each way, a message each way,
+    delivered, shown in the open conversation and in the list beside texts.
+  - Not yet: a paired computer does not see these conversations (it asks the phone's Android side); a message the
+    relay passes to a connection that has just died is lost, as for any friend (nothing is sent again without an
+    answer); a closed or backgrounded app hears them only when it connects again.
 - **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
   investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
   android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will

@@ -255,6 +255,29 @@ object Notifier {
         try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
     }
 
+    /**
+     * A friend by username wrote (lib/standalone/overlay.dart): their name and words, opening the conversation.
+     * Their words are kept in Dart, not Android's store, so this is told them rather than reading them itself. Not
+     * while that conversation is on the screen; "New message" where previews are off.
+     */
+    fun chat(context: Context, thread: Long, who: String, body: String) {
+        if (MainActivity.openThread == thread && MainActivity.inFront) return
+        val previews = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("notif_preview", "on") != "off"
+        val sender = Person.Builder().setName(who).setKey(who).build()
+        val style = Notification.MessagingStyle(Person.Builder().setName("You").build())
+            .addMessage(Notification.MessagingStyle.Message(if (previews) body else "New message", System.currentTimeMillis(), sender))
+        val n = Notification.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_ghost)
+            .setStyle(style)
+            .setContentIntent(open(context, thread))
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setColor(0xFF4F5BD5.toInt())
+            .setGroup(GROUP)
+            .build()
+        try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+    }
+
     fun cancel(context: Context, thread: Long) {
         context.getSystemService(NotificationManager::class.java).cancel(thread.toInt())
     }

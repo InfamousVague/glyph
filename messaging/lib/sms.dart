@@ -534,6 +534,10 @@ abstract class SmsCalls {
 /// Calls that reach the phone from somewhere else (a computer's link), where what can be asked depends on the phone
 /// at the other end: an older Ghost Messaging there does less. [caps] names what it does beyond the first few
 /// (android DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
+/// Calls answered on the Android phone itself, though not straight by its channel: what keeps the phone's friends by
+/// username in Dart in front of it (lib/standalone/overlay.dart). [Sms.remote] stays false behind one.
+abstract class PhoneSide {}
+
 abstract class CapableCalls {
   Set<String> get caps;
 }
@@ -616,7 +620,11 @@ class Sms {
 
   /// These screens are not on the Android phone: no texts here, so what only the phone can do is not offered. True on
   /// a computer and on an iPhone, paired or not.
-  static bool get remote => _calls is! _ChannelCalls;
+  static bool get remote => !(_calls is _ChannelCalls || _calls is PhoneSide);
+
+  /// The calls as they are answered now: the phone's channel, or what stands in front of it (lib/standalone).
+  // ignore: unnecessary_getters_setters
+  static SmsCalls get calls => _calls;
 
   /// An iPhone of its own (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works without sms"):
   /// no phone to ask, so the routes, the relay server's directory, friends by username and calls run here, as they do
