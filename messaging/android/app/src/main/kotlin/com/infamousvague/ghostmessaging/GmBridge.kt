@@ -271,6 +271,13 @@ object GmBridge {
         return syntheticThread(r.conv)
     }
 
+    /** The thread of the text Android was given most recently, within two minutes of [at]; null where none. */
+    fun justArrived(context: Context, at: Long): Long? = try {
+        context.contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI, arrayOf("thread_id", "date"), "date >= ?", arrayOf("${at - 120_000}"), "date DESC LIMIT 1",
+        )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+    } catch (_: Exception) { null }
+
     /** A thread number of the bridge's own, below zero so it is never one of Android's. */
     fun syntheticThread(conv: String): Long = -1L - (conv.hashCode().toLong() and 0x7fffffffL)
 
@@ -533,19 +540,39 @@ class GmListener : NotificationListenerService() {
             // How loud the channel it came on is (the guide's last step, Settings › Notifications).
             if (sbn.notification.category == Notification.CATEGORY_MESSAGE) noteRanking(sbn)
             if (!GmBridge.proxying(context)) return
-            // Its message notifications, the group's summary among them, are taken away; anything else it shows (a
-            // failed send, a prompt of its own) is left.
-            if (sbn.notification.category == Notification.CATEGORY_MESSAGE) cancelNotification(sbn.key)
-            // A new message of theirs, or one Android hid from the bridge (a code, which Android's database holds):
-            // Ghost's notification, read from what Ghost has, a moment later so Google Messages has written the text.
-            // With the on-phone connection up, it notifies (GmWeb): not twice.
-            if (kept != null && (kept.incoming || kept.hidden) && !GmWeb.connected) {
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    Thread {
-                        try { Notifier.incoming(context, kept.thread) } catch (e: Exception) { DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}") }
-                    }.start()
-                }, 300)
+            if (sbn.notification.category != Notification.CATEGORY_MESSAGE) return
+            val summary = sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0
+            // The group's summary goes once none of its conversations' notifications is left up.
+            if (summary) {
+                if ((activeNotifications ?: emptyArray()).none { it.packageName == GmBridge.PACKAGE && it.key != sbn.key && it.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0 && it.notification.category == Notification.CATEGORY_MESSAGE }) cancelNotification(sbn.key)
+                return
             }
+            if (kept == null) return
+            // Ghost's own first; Google Messages' taken away only once it is up (Matt, 2026-11-15, a code text that
+            // showed nowhere: Ghost had taken Google Messages' away and had nothing of its own yet). A text Android
+            // hid from the bridge (a code) is read from Android's database, which Google Messages may write a moment
+            // after notifying: asked again for a few seconds. With the on-phone connection up, it notifies (GmWeb).
+            val key = sbn.key
+            Thread {
+                var shown = GmWeb.connected
+                if (!shown && (kept.incoming || kept.hidden)) {
+                    for (wait in longArrayOf(250, 750, 1500, 2500, 4000)) {
+                        Thread.sleep(wait)
+                        // A hidden text hides its conversation's name too, so the bridge could not tell which thread it
+                        // is: the text Android has just been given, the newest received in the last two minutes, is it.
+                        val thread = if (kept.thread >= 0 || !kept.hidden) kept.thread else GmBridge.justArrived(context, sbn.postTime) ?: continue
+                        shown = try { Notifier.incoming(context, thread) } catch (e: Exception) {
+                            DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}"); false
+                        }
+                        if (shown) break
+                    }
+                } else if (!kept.incoming && !kept.hidden) {
+                    // An update to one already shown (a reply of yours shown back): Ghost's stands as it is.
+                    shown = true
+                }
+                if (shown) try { cancelNotification(key) } catch (_: Exception) {}
+                else DevLog.add(context, "bridge", "Google Messages' notification left up: Ghost had nothing to show for it")
+            }.start()
         } catch (e: Exception) {
             DevLog.add(context, "bridge", "A Google Messages notification could not be read: ${e.javaClass.simpleName}")
         }

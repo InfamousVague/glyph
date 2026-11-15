@@ -45,6 +45,10 @@ android {
     // its native library folder (GmWeb.kt).
     packaging { jniLibs { useLegacyPackaging = true } }
 
+    // TDLib for the Telegram inbox (lib/inbox/telegram.dart), built by tool/build-tdlib.sh android into the app's
+    // build folder: taken in where it is there; without it, Telegram says it isn't in this build.
+    sourceSets { getByName("main") { jniLibs.srcDir("../../build/tdlib/android") } }
+
     // voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (VoiceFx.kt).
     externalNativeBuild {
         cmake { path = file("src/main/cpp/CMakeLists.txt") }

@@ -117,15 +117,17 @@ object Notifier {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-    fun incoming(context: Context, thread: Long) {
+    /** Shows [thread]'s unread messages; true where a notification is up for it (GmListener waits on this). */
+    fun incoming(context: Context, thread: Long): Boolean {
         // -1 is "the list", never a conversation. A bridged conversation below that (GmBridge) is notified like any.
-        if (thread == -1L) return
-        if (MainActivity.openThread == thread && MainActivity.inFront) return
+        if (thread == -1L) return false
+        // Open on the screen now: nothing to notify, and nothing is missed.
+        if (MainActivity.openThread == thread && MainActivity.inFront) return true
         val store = Store(context)
-        if (store.isMuted(thread)) return
+        if (store.isMuted(thread)) return true
         val people = store.threadPeople(thread)
         val unread = store.messages(thread, 8).filter { !(it["outgoing"] as Boolean) && !(it["read"] as Boolean) }.reversed()
-        if (unread.isEmpty()) { cancel(context, thread); return }
+        if (unread.isEmpty()) { cancel(context, thread); return false }
         val ui = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
         val previews = ui.getString("notif_preview", "on") != "off"
         val group = people.size > 1
@@ -195,7 +197,7 @@ object Notifier {
         }
         builder.addAction(reply).addAction(read)
         val n = builder.build()
-        try { manager(context).notify(thread.toInt(), n) } catch (_: SecurityException) {}
+        return try { manager(context).notify(thread.toInt(), n); true } catch (_: SecurityException) { false }
     }
 
     private const val CHANNEL_QUIET = "quiet"

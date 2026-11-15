@@ -2,8 +2,39 @@
 
 Matt, 2026-11-15: "pick up the other sessions question about proxying direct messages from other apps like discord,
 slack, telegram through our app and being able to reply via an API, i'm not sure which services allow this so look
-into it and do some research". Research only: nothing here is built. Read on 2026-11-15; anything marked
-**unverified** wants a look at the source before building on it.
+into it and do some research". Read on 2026-11-15; anything marked
+**unverified** wants a look at the source before building on it. Telegram and Bluesky are now built (below).
+
+## Built: Telegram and Bluesky (2026-11-15)
+
+Matt: "Let's build in telegram and bluesky for now, since we can't send outbound messages anything without the
+ability to back and forth is useless". Both read and send.
+
+| Part | Where |
+| --- | --- |
+| The model: a network, its chats, a chat's messages, sending | `lib/inbox/inbox.dart` |
+| Bluesky: handle + app password (DMs allowed) → the account's PDS → `chat.bsky.convo.*` through the chat proxy; asked every 20 s, the open chat every 4 s | `lib/inbox/bluesky.dart` (`test/inbox_bluesky_test.dart`) |
+| Telegram: TDLib signed in by number, code and two-step password; private chats and groups (not channels) in Telegram's order; history, sending, read | `lib/inbox/telegram.dart` (`test/inbox_telegram_test.dart`) |
+| TDLib's four C functions, one receiving isolate for the whole app (TDLib aborts if `td_receive` runs on two threads) | `lib/inbox/td_json.dart` |
+| TDLib itself, from github.com/tdlib/td at a pinned commit (and OpenSSL from its source for Android), not a prebuilt package | `tool/build-tdlib.sh mac` / `android`, run by the release scripts; `build/tdlib/` |
+| A tab per signed-in network beside Messages and Voice (Telegram's paper plane, Bluesky's cloud), the chat page, sign-in pages, Settings › Telegram / Bluesky | `lib/ui/inbox_ui.dart`, `lib/ui/conversations.dart` (`test/inbox_screens_test.dart`, `test/shots/16-inbox-*`) |
+
+Every network runs on the device (phone and computer each sign in for themselves, as Telegram's and Bluesky's own
+apps do); nothing goes through ghost-sms.com.
+
+**Telegram needs Matt's app id before it works in a release** (Telegram's terms: one per developer, never the
+sample ones): my.telegram.org › API development tools › create an app, then put the two values in
+`~/.config/ghostmessaging/telegram.env` (`chmod 600`), one a line:
+
+    TELEGRAM_API_ID=1234567
+    TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+
+`tool/release.mjs` and `tool/release-mac.mjs` pass them as `--dart-define`s (`tool/telegram-defines.mjs`; never
+printed, never committed). Without the file Telegram shows "isn't in this build" and Bluesky works regardless.
+
+Not yet: pictures and other media (shown as "Photo", "Voice message"…), avatars (initials), Windows and Intel Macs for
+Telegram (TDLib is built for Android arm64 and Apple silicon), notifications when the app is closed, the computer
+using the phone's sign-in.
 
 ## The short answer
 

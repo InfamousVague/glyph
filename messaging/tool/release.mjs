@@ -36,6 +36,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { telegramDefines } from './telegram-defines.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -175,7 +176,13 @@ if (existsSync(join(ROOT, 'sidecar/gmessages/SOURCE_URL'))) {
   say('> Building the Google Messages sidecar for the phone');
   run('sh', [join(ROOT, 'tool/build-gmsidecar.sh'), 'android'], { cwd: ROOT });
 }
-run('flutter', ['build', 'apk', '--release', '--target-platform', 'android-arm64', `--build-name=${versionName}`, `--build-number=${versionCode}`], { cwd: ROOT });
+// Telegram's library for the Telegram inbox (lib/inbox/telegram.dart), built from Telegram's source (reused while
+// the pinned commit is the same) into build/tdlib/android, which the app's jniLibs take in; and the app id.
+say('> TDLib for the Telegram inbox');
+run('sh', [join(ROOT, 'tool/build-tdlib.sh'), 'android'], { cwd: ROOT });
+const telegram = telegramDefines();
+say(telegram.said);
+run('flutter', ['build', 'apk', '--release', '--target-platform', 'android-arm64', `--build-name=${versionName}`, `--build-number=${versionCode}`, ...telegram.args], { cwd: ROOT });
 const built = join(ROOT, 'build/app/outputs/flutter-apk/app-release.apk');
 if (!existsSync(built)) fail(`No APK at ${built}.`);
 
