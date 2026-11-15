@@ -182,7 +182,9 @@ void main() {
         await tester.tap(find.text('Maya Chen'));
       });
       expect(find.text('Waiting for your phone'), findsOneWidget); // under the text typed while it was away
-      expect(find.textContaining('Connected over the local network'), findsOneWidget);
+      // How the phone is connected is in Settings alone, not under the list's search (Matt, 2026-11-14: "move the
+      // "connected to the relay" into the settings only we don't need to show it on the sidebar").
+      expect(find.textContaining('Connected over the local network'), findsNothing);
       // What only the phone does is not offered here.
       // What the phone does for a computer is offered here as on the phone (Matt: "the desktop app should get all
       // featues its missing from mobile"; "an emoji picker, file upload, voice memo and sticker selector"): a
