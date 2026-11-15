@@ -12,6 +12,16 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
+- **Google Messages on the computer** (0.7.25, not released; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
+  2026-11-15: "Yes, mautrix sidecar"). Settings › Google Messages on the Mac or Windows pairs the computer with Google
+  Messages by a QR code, as messages.google.com is, and every conversation there joins the desktop's list: RCS and
+  texts, history, pictures, reactions (shown under the words). A phone conversation with the same people is shown
+  once, from Google Messages. Sending text and marking read go to Google Messages; pictures to its conversations are
+  sent from the phone for now. It is done by a separate program, the sidecar (Go, built on mautrix-gmessages' libgm,
+  AGPL-3.0, `tool/build-gmsidecar.sh`), which the app starts and talks to over its standard input and output; nothing
+  of it is linked into Ghost. Its session is kept in the app's folder. Releases carry it only once its source is
+  public: `sidecar/gmessages/SOURCE_URL` names where, and release-mac.mjs and messaging-windows.yml leave it out until
+  that file exists. Checked: the sidecar asks Google for a pairing code; pairing with a phone not yet.
 - **Or works beside Google Messages, keeping RCS** (0.7.25, not released; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
   to see if there is a way we can proxy messages from google messages to ghost so we can support RCS and other
   features ... I'd like to have a way that people can reliably get text in and out of ghost without needing to switch
