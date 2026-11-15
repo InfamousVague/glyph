@@ -561,14 +561,15 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                               ),
                             ),
                           ),
-                        // The call you're in: your face, floating over the list's corner, rippling as you talk (Matt,
-                        // 2026-11-15: "I like the idea of the active call floating in a single avatar"); not while the
-                        // call itself is open, nor under a page on a phone.
+                        // The call you're in: a banner just above the dock (Matt, 2026-11-15: "switch the active
+                        // call to be a banner again in the sidebar just above the navigation bar"); not while the call
+                        // itself is open, nor under a page on a phone. Beside a dock stood up, it keeps clear of it.
                         if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)))
                           Positioned(
-                            left: t.space(4),
-                            bottom: edges.bottom + (docked ? t.space(4) : NavPill.clearance(t)),
-                            child: CallBubble(onOpen: () => go('voice')),
+                            left: t.space(3),
+                            right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
+                            bottom: edges.bottom + (docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.remote ? pillScrolledScale : 1) + t.space(2)),
+                            child: CallBanner(onOpen: () => go('voice')),
                           ),
                       ]))),
                     ),

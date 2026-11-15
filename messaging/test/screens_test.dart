@@ -1332,7 +1332,7 @@ void main() {
   // Matt, 2026-11-15: "use an icon only segmented toggle for the messages codes and add voice chats to the list as well,
   // try a few different layouts for switching between the few including a mixed view that shows them all intertwined
   // sorted by recency, also id like you to rework the active call indicator".
-  testWidgets('the list\'s three tabs with voice, and the call as a floating face', (tester) async {
+  testWidgets('the list\'s three tabs with voice, and the call as a banner above the dock', (tester) async {
     tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
     tester.view.devicePixelRatio = 2.0;
     tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
@@ -1357,10 +1357,19 @@ void main() {
       expect(find.byType(SectionTabs), findsOneWidget);
       final voiceTab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphones));
       expect(voiceTab, findsOneWidget);
-      // The call: your face, floating, rippling as you talk (Matt, 2026-11-15: "I like the idea of the active call
-      // floating in a single avatar with our speech wobbles coming out").
-      expect(find.byType(CallBubble), findsOneWidget);
-      expect(find.descendant(of: find.byType(CallBubble), matching: find.byType(RippleAvatar)), findsOneWidget);
+      // The call: a banner just above the dock, the people talking rippling in it (Matt, 2026-11-15: "switch the
+      // active call to be a banner again in the sidebar just above the navigation bar").
+      expect(find.byType(CallBanner), findsOneWidget);
+      expect(find.text('Friday hang'), findsWidgets);
+      expect(find.descendant(of: find.byType(CallBanner), matching: find.byType(RippleAvatar)), findsNWidgets(2));
+      final banner = tester.getRect(find.byType(CallBanner)), pill = tester.getRect(find.byType(NavPill));
+      if (pill.height > pill.width) {
+        // A dock stood up at the right: the banner keeps clear of it, at the same foot.
+        expect(banner.right, lessThanOrEqualTo(pill.left), reason: 'beside the dock, not over it');
+      } else {
+        expect(banner.bottom, lessThanOrEqualTo(pill.top), reason: 'above the dock, not over it');
+        expect(pill.top - banner.bottom, lessThan(40), reason: 'just above it');
+      }
       // No Voice ring: calls are the Voice tab.
       expect(find.byKey(const ValueKey('nav-voice')), findsNothing);
       await tester.tap(voiceTab);

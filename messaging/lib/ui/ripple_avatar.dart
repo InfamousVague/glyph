@@ -11,7 +11,7 @@ import '../kit/settings_type.dart';
 class RippleAvatar extends StatefulWidget {
   const RippleAvatar({super.key, required this.name, required this.level, this.size = 44, this.color, this.muted = false, this.ringed = false});
 
-  /// A green ring round the face even while quiet: a call that is on (CallBubble).
+  /// A green ring round the face even while quiet: a call that is on.
   final bool ringed;
   final String name;
   final double level;
