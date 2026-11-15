@@ -1041,6 +1041,11 @@ class Sms {
   /// On a paired computer: one of Settings › Me's asks, done by the phone (android DeskCalls "me", answered by the
   /// phone's [Me.forComputer]). Matt, 2026-11-14: "on desktop the phone number reads as unknown and is not proxying
   /// the verification process".
+  /// On a computer: the phone's voice channels, and a channel made here given to it (lib/voice/channels.dart;
+  /// android DartAsk "voice").
+  Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
+      Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
+
   Future<Map<String, dynamic>> me(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('me', {'what': what})) ?? const {});
 

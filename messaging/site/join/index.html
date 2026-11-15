@@ -329,7 +329,7 @@ $('join').onclick = async () => {
     if (!hub?.up) await connect();
     for (const t of preview?.getTracks() ?? []) t.stop();
     preview = null;
-    await hangout.join({ name, guest: !username, audio: wantMic, video: wantCam });
+    await hangout.join({ name, guest: !username, username, audio: wantMic, video: wantCam });
     show('call');
     paint();
   } catch (e) {

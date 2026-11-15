@@ -220,6 +220,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Summaries.instance.start(app);
       // And the number's verification, done here for a paired computer that asks (Sms.me on the computer).
       Sms.answer('me', Me.instance.forComputer);
+      // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
+      Sms.answer('voice', Voice.instance.answerDesk);
       if (!s.contacts || !s.notifications) await Sms.instance.requestPermissions();
       final req = await Sms.instance.openRequest();
       if (req != null) _open(req);

@@ -33,6 +33,31 @@ class RtcMedia implements VoiceMedia {
   final ValueNotifier<Map<String, MediaStream>> remote = ValueNotifier(const {});
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
+  final Map<String, double> _volume = {};
+  final Set<String> _silenced = {};
+
+  /// Each one's sound as this device plays it: silenced (deafened, or that one muted here) or at their volume.
+  void _apply(String id, MediaStream stream) {
+    for (final t in stream.getAudioTracks()) {
+      t.enabled = !_deaf && !_silenced.contains(id);
+      final v = _volume[id];
+      if (v != null) unawaited(Helper.setVolume(v, t).catchError((_) {}));
+    }
+  }
+
+  @override
+  void setPeerVolume(String id, double volume) {
+    _volume[id] = volume.clamp(0.0, 2.0);
+    final s = remote.value[id];
+    if (s != null) _apply(id, s);
+  }
+
+  @override
+  void setPeerMuted(String id, bool muted) {
+    muted ? _silenced.add(id) : _silenced.remove(id);
+    final s = remote.value[id];
+    if (s != null) _apply(id, s);
+  }
 
   @override
   final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
@@ -109,10 +134,8 @@ class RtcMedia implements VoiceMedia {
   @override
   set deafened(bool on) {
     _deaf = on;
-    for (final s in remote.value.values) {
-      for (final t in s.getAudioTracks()) {
-        t.enabled = !on;
-      }
+    for (final e in remote.value.entries) {
+      _apply(e.key, e.value);
     }
   }
 
@@ -162,9 +185,7 @@ class RtcMedia implements VoiceMedia {
   }
 
   void _heard(String id, MediaStream stream) {
-    for (final t in stream.getAudioTracks()) {
-      t.enabled = !_deaf;
-    }
+    _apply(id, stream);
     remote.value = {...remote.value, id: stream};
   }
 

@@ -55,6 +55,31 @@ class Voice extends ChangeNotifier {
   /// Channels made here or shared by friends.
   List<VoiceChannel> own = [];
 
+  /// How loud each person is played here, and who is silenced here, by their id: kept, and applied in every call with
+  /// them (Matt, 2026-11-15: "press and hold on a user to habe options like muting changing volume levels").
+  final Map<String, double> _volumes = {};
+  final Set<String> _silenced = {};
+
+  double volumeOf(String id) => _volumes[id] ?? 1.0;
+  bool silenced(String id) => _silenced.contains(id);
+
+  void setVolume(String id, double v) {
+    _volumes[id] = v.clamp(0.0, 2.0);
+    media?.setPeerVolume(id, _volumes[id]!);
+    _keepPeople();
+  }
+
+  void setSilenced(String id, bool on) {
+    on ? _silenced.add(id) : _silenced.remove(id);
+    media?.setPeerMuted(id, on);
+    _keepPeople();
+  }
+
+  void _keepPeople() {
+    _app?.set('voice_people', jsonEncode({'v': _volumes, 'm': _silenced.toList()}));
+    notifyListeners();
+  }
+
   /// When each channel (by room) last had someone in it, as this device saw: what the list sorts channels by among
   /// conversations (Matt, 2026-11-15: "a mixed view that shows them all intertwined sorted by recency").
   final Map<String, int> _seen = {};
@@ -80,19 +105,93 @@ class Voice extends ChangeNotifier {
     try {
       own = [for (final j in jsonDecode(app.choice('voice_channels', '[]')) as List) ?VoiceChannel.fromJson(j)];
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
+      final people = jsonDecode(app.choice('voice_people', '{}')) as Map;
+      _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
+      _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
     } catch (_) {}
     Net.instance.addListener(_follow);
+    if (Sms.remote) {
+      unawaited(syncNow());
+      _sync?.cancel();
+      _sync = Timer.periodic(const Duration(seconds: 8), (_) => syncNow());
+    }
     Groups.instance.addListener(_look);
     Net.instance.listen(_received);
     _follow();
   }
 
-  /// Every channel: each group's, then those made or shared.
-  List<VoiceChannel> get channels => [
-        for (final g in Groups.instance.all)
-          if (!g.gone) VoiceChannel.ofGroup(g.id, g.name),
-        ...own,
-      ];
+  /// Every channel: each group's, then those made or shared; on a computer, the phone's too.
+  List<VoiceChannel> get channels {
+    final out = <VoiceChannel>[
+      for (final g in Groups.instance.all)
+        if (!g.gone) VoiceChannel.ofGroup(g.id, g.name),
+      ..._phone,
+      ...own,
+    ];
+    final seen = <String>{};
+    return [for (final c in out) if (seen.add(c.seed)) c];
+  }
+
+  // --- the phone and its computer, in step (Matt, 2026-11-15: "make sure voice chats are kept actively in sync
+  // between mobile and desktop clients") ---------------------------------------------------------------------------
+
+  /// On a computer: the phone's channels (its groups' and its own), as it last said, and its name and username, which
+  /// the computer goes by in a call.
+  List<VoiceChannel> _phone = [];
+  String? _deskName, _deskUsername;
+  Timer? _sync;
+
+  /// On the phone: what a paired computer asks (android DartAsk "voice"): every channel, the name to go by, and a
+  /// channel the computer made, to keep here too.
+  Future<Object?> answerDesk(Map<String, Object?> what) async {
+    switch (what['op']) {
+      case 'add':
+        final c = VoiceChannel.fromJson({'s': what['s'], 'n': what['n']});
+        if (c != null && !own.any((o) => o.seed == c.seed)) {
+          own = [...own, VoiceChannel(seed: c.seed, name: c.name, mine: true)];
+          await _keep();
+        }
+        return {'ok': true};
+      case 'forget':
+        own = [for (final o in own) if (o.seed != what['s']) o];
+        await _keep();
+        return {'ok': true};
+      default:
+        final me = Me.instance;
+        return {
+          'channels': [
+            for (final c in channels) {'s': c.seed, 'n': c.name, if (c.group != null) 'g': c.group, if (c.mine) 'm': 1},
+          ],
+          'name': me.displayName.isNotEmpty ? me.displayName : (me.username == null ? '' : '@${me.username}'),
+          if (me.username != null) 'u': me.username,
+        };
+    }
+  }
+
+  /// On a computer: asks the phone for its channels now, and every few seconds while the app is open.
+  Future<void> syncNow() async {
+    if (!Sms.remote) return;
+    try {
+      final got = await Sms.instance.voiceSync({'op': 'list'});
+      final list = <VoiceChannel>[];
+      for (final j in (got['channels'] as List? ?? const [])) {
+        if (j is! Map || j['s'] is! String || j['n'] is! String || (j['s'] as String).length != 64) continue;
+        list.add(VoiceChannel(seed: j['s'] as String, name: j['n'] as String, group: j['g'] as String?, mine: j['m'] == 1));
+      }
+      final name = got['name'] is String ? got['name'] as String : null;
+      final changed = list.map((c) => '${c.seed}${c.name}').join() != _phone.map((c) => '${c.seed}${c.name}').join() || name != _deskName;
+      _phone = list;
+      _deskName = name;
+      _deskUsername = got['u'] as String?;
+      // Channels made here that the phone does not have yet go to it.
+      for (final c in own) {
+        if (!list.any((p) => p.seed == c.seed)) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name}).catchError((_) => <String, dynamic>{}));
+      }
+      if (changed) _look();
+    } catch (_) {
+      // The phone is away or older: the computer keeps what it last heard.
+    }
+  }
 
   /// Who is in [channel] now, as the hub says.
   List<String> inChannel(VoiceChannel channel) => _in[channel.room] ?? const [];
@@ -174,12 +273,16 @@ class Voice extends ChangeNotifier {
     final c = VoiceChannel.make(name.trim().isEmpty ? 'Voice' : name.trim());
     own = [...own, c];
     await _keep();
+    // Made on a computer: the phone keeps it too.
+    if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'add', 's': c.seed, 'n': c.name}).catchError((_) => <String, dynamic>{}));
     return c;
   }
 
   Future<void> forget(VoiceChannel c) async {
     if (session?.channel.room == c.room) await leave();
     own = [for (final o in own) if (o.seed != c.seed) o];
+    _phone = [for (final o in _phone) if (o.seed != c.seed) o];
+    if (Sms.remote) unawaited(Sms.instance.voiceSync({'op': 'forget', 's': c.seed}).catchError((_) => <String, dynamic>{}));
     _route?.unlook(c.room);
     await _keep();
   }
@@ -238,8 +341,14 @@ class Voice extends ChangeNotifier {
     await leave();
     if (ringing?.channel.room == c.room) ringing = null;
     final m = media = RtcMedia();
-    final name = Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}');
-    final s = session = VoiceSession(channel: c, route: route, media: m, name: name);
+    for (final e in _volumes.entries) {
+      m.setPeerVolume(e.key, e.value);
+    }
+    for (final id in _silenced) {
+      m.setPeerMuted(id, true);
+    }
+    final name = _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
+    final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername);
     _saw(c.room);
     s.addListener(notifyListeners);
     notifyListeners();

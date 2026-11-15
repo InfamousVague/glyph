@@ -468,6 +468,7 @@ object Desk : DeskHost {
         override fun e2e(address: String) = E2e.state(context, address)
         override fun ownNumber() = store.ownNumbers().firstOrNull()
         override fun me(what: Map<String, Any?>) = DartAsk.ask("me", what)
+        override fun voice(what: Map<String, Any?>) = DartAsk.ask("voice", what, seconds = 10)
 
         // --- what the phone's screens do, done for a computer too -----------------------------------------------------
 
