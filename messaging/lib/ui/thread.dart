@@ -238,14 +238,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final s = await Sms.instance.e2e(_people.first.address);
       if (mounted) setState(() => _e2e = s);
       // Both have the app: whether friends can be offered is looked for, where it is not known yet.
-      if (!Sms.remote && (s.on || s.offerable)) Friends.instance.look();
+      if (!Sms.paired && (s.on || s.offerable)) Friends.instance.look();
     } catch (_) {}
   }
 
   /// Whether Add friend is offered here: one person, who has the app, nothing said yet about being friends, a
   /// relay server known to answer, and the offer not put away.
   bool _offersFriend(BuildContext context) =>
-      !Sms.remote && !_group && _people.isNotEmpty && Friends.instance.offers(_e2e) && AppState.of(context).flag('friend_banner_${widget.thread}');
+      !Sms.paired && !_group && _people.isNotEmpty && Friends.instance.offers(_e2e) && AppState.of(context).flag('friend_banner_${widget.thread}');
 
   void _friendsChanged() {
     if (mounted) _loadE2e();
@@ -403,7 +403,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (_isGhost) {
         await _sendWords(body);
       } else {
-        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.remote && await Friends.instance.sendText(to.first, body);
+        final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && !Sms.paired && await Friends.instance.sendText(to.first, body);
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
     } catch (e) {
@@ -982,7 +982,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
           // to enable encryption for better security").
           // They asked to be friends: said here until it is answered.
-          if (!Sms.remote && !_group && _people.isNotEmpty && _e2e.on && _e2e.friend == 'invited')
+          if (!Sms.paired && !_group && _people.isNotEmpty && _e2e.on && _e2e.friend == 'invited')
             _E2eBar(
               icon: Lucide.userPlus,
               text: '${_people.first.label} wants to add you as a friend. Friends chat over the internet, encrypted, not by text.',
@@ -1431,7 +1431,7 @@ class _Bubble extends StatelessWidget {
     // On a computer a bubble is a size smaller than on the phone: its words, the room round them and its corners
     // (Matt, 2026-11-14: "the chat bubbles are a bit too large on mac"). A window is read from further off than a
     // phone is held, but it is also far wider, and the phone's bubbles filled it.
-    final desk = Sms.remote;
+    final desk = Sms.computer;
     final size = desk ? 0.88 : 1.0;
     final big = t.lenOf(desk ? '1rem' : '1.15rem');
     final small = t.lenOf('0.3rem');

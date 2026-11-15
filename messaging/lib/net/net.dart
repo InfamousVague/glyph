@@ -88,7 +88,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Sets the routes up. On a computer there are none yet: it speaks through the phone it is paired with.
   /// [carriers] stands in for the phone's own routes (a test).
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
-    if (Sms.remote || _board != null) return;
+    if (Sms.paired || _board != null) return;
     _app = app;
     try {
       final me = await Sms.instance.netIdentity();

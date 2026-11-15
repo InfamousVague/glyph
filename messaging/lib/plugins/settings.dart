@@ -3,6 +3,8 @@
 /// so Settings' search finds a plugin, and a plugin's setting, by name.
 library;
 
+import 'dart:io' show Platform;
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -82,7 +84,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
   return [
     PaneSection(
       title: 'Plugins',
-      description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? 'computer' : 'phone'} alone, and does nothing while it is off.'),
+      description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
       footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('A plugin with settings of its own has a section of its own in Settings, with its switch at the top.') : null,
       children: [
         for (final p in registry.plugins)
