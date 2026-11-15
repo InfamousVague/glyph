@@ -448,7 +448,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
-- **Cleaner, two more kinds, and a calmer frame** (0.7.19, not released; Matt, 2026-11-14).
+- **Cleaner, two more kinds, and a calmer frame** (0.7.19; Matt, 2026-11-14).
   - **Cleaner** (`cleaner.dart`, on): "add a "Cleaner" plugin that allows us to bulk delete messages by category and
     shows deletion progress in real time". The brush in the list's header opens a sheet of the list's groups (Codes,
     Spam, each kind, Personal & other) with their counts; nothing is ticked to begin with. Delete asks again, then
