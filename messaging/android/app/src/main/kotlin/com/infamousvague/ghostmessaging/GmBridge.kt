@@ -384,6 +384,11 @@ object GmBridge {
             fun get(context: Context): Db = one ?: synchronized(this) { one ?: Db(context.applicationContext).also { one = it } }
         }
 
+        // Written ahead (WAL), so the helper's thread and the list's reads do not wait on each other. Set the
+        // way Android allows: a PRAGMA that answers is refused by execSQL ("Queries can be performed using
+        // SQLiteDatabase query or rawQuery methods only"), which stopped every send in 0.7.30.
+        init { setWriteAheadLoggingEnabled(true) }
+
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL("CREATE TABLE conv (conv TEXT PRIMARY KEY, thread INTEGER, title TEXT, grp INTEGER, addresses TEXT, updated INTEGER)")
             db.execSQL("CREATE TABLE msg (id INTEGER PRIMARY KEY AUTOINCREMENT, conv TEXT, text TEXT, time INTEGER, sender TEXT, address TEXT, out INTEGER, read INTEGER DEFAULT 0, UNIQUE(conv, time, text, out))")
@@ -404,10 +409,6 @@ object GmBridge {
             }
         }
 
-        override fun onOpen(db: SQLiteDatabase) {
-            super.onOpen(db)
-            if (!db.isReadOnly) db.execSQL("PRAGMA journal_mode=WAL")
-        }
 
         /** A conversation as the on-phone connection reads it: by Google Messages' own id. */
         fun keepWebConversation(conv: String, thread: Long, title: String?, group: Boolean, addresses: List<String>) {
