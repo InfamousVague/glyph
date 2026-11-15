@@ -58,7 +58,10 @@ jobs:
       - name: Install it and start it
         shell: pwsh
         run: |
-          Start-Process -FilePath build\windows-installer\ghost-messaging-setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+          # The installer alone is waited for (-Wait would wait for anything it starts too).
+          $setup = Start-Process -FilePath build\windows-installer\ghost-messaging-setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru
+          $setup.WaitForExit()
+          if ($setup.ExitCode -ne 0) { throw "the installer failed (exit $($setup.ExitCode))" }
           $exe = "$env:LOCALAPPDATA\Programs\Ghost Messaging\ghost_messaging.exe"
           if (-not (Test-Path $exe)) { throw "not installed at $exe" }
           $p = Start-Process -FilePath $exe -PassThru

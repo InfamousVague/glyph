@@ -47,5 +47,12 @@ Name: "{userdesktop}\Ghost Messaging"; Filename: "{app}\ghost_messaging.exe"; Ta
 
 [Run]
 Filename: "{app}\ghost_messaging.exe"; Description: "Open Ghost Messaging"; Flags: nowait postinstall skipifsilent
-; The app's own update (lib/desktop/updates.dart, WindowsUpdateHost) runs this silently and quits: open it again.
-Filename: "{app}\ghost_messaging.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent
+; The app's own update (lib/desktop/updates.dart, WindowsUpdateHost) runs this silently with /RELAUNCH and quits:
+; open it again. Any other silent install (the build's own check) leaves it closed.
+Filename: "{app}\ghost_messaging.exe"; Flags: nowait runasoriginaluser; Check: Relaunch
+
+[Code]
+function Relaunch: Boolean;
+begin
+  Result := WizardSilent and (Pos('/RELAUNCH', Uppercase(GetCmdTail)) > 0);
+end;
