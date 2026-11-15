@@ -495,12 +495,12 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
-- **"Tell friends I'm here" works from a computer** (0.7.24, not released; Matt, 2026-11-15: "tell friends i'm here
+- **"Tell friends I'm here" works from a computer** (0.7.24; Matt, 2026-11-15: "tell friends i'm here
   toggle isn't working on mac and windows only on mobile"). It was turned off on a computer; now it is the phone's
   setting changed through the phone (`Me.setListed` asks `Me.forComputer` "listed", and "state" says it), moving
   at once and going back, with the phone's reason, if the phone refuses or cannot be reached. The phone needs 0.7.24
   too.
-- **Ghost Messaging for Windows updates itself** (0.7.24, not released; Matt, 2026-11-15: "also we need an auto
+- **Ghost Messaging for Windows updates itself** (0.7.24; Matt, 2026-11-15: "also we need an auto
   updated for windows"). The Mac's updater (`lib/desktop/updates.dart`) with Windows' own half,
   `WindowsUpdateHost`, in Dart alone: it reads `ghost-sms.com/windows.json` as the app opens and every six hours,
   brings the installer down, holds it to the size and SHA-256 given there, and Restart to update runs it with
@@ -509,7 +509,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   messaging-windows.yml) looks. The installer is unsigned, so it is believed for coming over HTTPS from ghost-sms.com
   and matching its description, not for a signature. Copies of 0.7.23 and before have no updater: 0.7.24 is installed
   by hand once.
-- **Voice settings, and device pills on the mic and deafen buttons** (0.7.24, not released; Matt, 2026-11-15:
+- **Voice settings, and device pills on the mic and deafen buttons** (0.7.24; Matt, 2026-11-15:
   "update the UI on phone and desktop to be able to have voice settings to change all kinds of things like bitrates
   and sound input devices etc etc, on the microphone icon and the deafen icon make them pill shaped with a little
   chevron facing up that opens a popover to select input and output devices respectively"). Settings › Voice and

@@ -28,6 +28,8 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     desk = DeskChannels(messenger: flutterViewController.engine.binaryMessenger)
+    // The microphone's processing in calls (VoiceFx.swift).
+    VoiceFx.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // The app's own updates (UpdatesChannel.swift): its first act is to say this version opened, which an update
     // put in place a moment ago is waiting to hear.
     updates = UpdatesChannel(messenger: flutterViewController.engine.binaryMessenger)

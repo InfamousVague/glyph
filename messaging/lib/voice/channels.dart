@@ -350,7 +350,7 @@ class Voice extends ChangeNotifier {
       m.setPeerMuted(id, true);
     }
     final name = _deskName ?? (Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}'));
-    final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.audioKbps, stereo: settings.stereo);
+    final s = session = VoiceSession(channel: c, route: route, media: m, name: name, username: _deskName == null ? Me.instance.username : _deskUsername, kbps: settings.sendKbps, stereo: settings.sendStereo);
     _saw(c.room);
     s.addListener(notifyListeners);
     notifyListeners();
@@ -364,6 +364,12 @@ class Voice extends ChangeNotifier {
 
   /// The settings as they stand (Settings › Voice), and a device chosen: kept, and used in the call there is.
   VoiceSettings get settings => _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
+
+  /// Settings › Voice and video changed: what can change in a call there is changes now (RtcMedia.applyLive).
+  Future<void> settingsChanged() async {
+    final m = media;
+    if (m is RtcMedia) await m.applyLive(settings);
+  }
 
   Future<void> useInput(String deviceId) async {
     _app?.set('voice_input', deviceId);
