@@ -603,7 +603,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`: each page a band of
   vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of Ghost
   Keyboard), a title, its words, and its step; dots and the Next button take the page's colour.
-  - **Six pages, Ghost as one messenger** (0.7.27, not released; Matt, 2026-11-15: "Rework the onboarding to be a bit
+  - **Six pages, Ghost as one messenger** (0.7.27; Matt, 2026-11-15: "Rework the onboarding to be a bit
     shorter and have it focus on the fact that ghost is an all in one messenger look at branding from things like
     discord telegram etc and find our own voice amoung those"): Everyone, in one place · Start with your texts ·
     Texts and chats, side by side · Drop in, out loud · On every screen · You're in (a look, then "Say hi"). The
