@@ -34,6 +34,32 @@ class RtcMedia implements VoiceMedia {
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
 
+  @override
+  final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
+  Timer? _levelTimer;
+
+  /// Reads how loud each sound is, several times a second (WebRTC's audioLevel: the incoming sound's at each
+  /// connection, the microphone's at its media source), eased so a face does not flicker between words.
+  Future<void> _readLevels() async {
+    final next = <String, double>{};
+    for (final e in _peers.entries) {
+      final made = e.value._pc;
+      if (made == null) continue;
+      try {
+        final pc = await made;
+        for (final r in await pc.getStats()) {
+          final v = r.values;
+          if (r.type == 'inbound-rtp' && v['kind'] == 'audio' && v['audioLevel'] is num) next[e.key] = (v['audioLevel'] as num).toDouble();
+          if (r.type == 'media-source' && v['kind'] == 'audio' && v['audioLevel'] is num) next['me'] = (v['audioLevel'] as num).toDouble();
+        }
+      } catch (_) {}
+    }
+    final was = levels.value;
+    levels.value = {for (final k in {...was.keys, ...next.keys}) k: _ease(was[k] ?? 0, next[k] ?? 0)};
+  }
+
+  static double _ease(double from, double to) => to > from ? from + (to - from) * 0.6 : from + (to - from) * 0.25;
+
   static const audioBitrate = 510000;
 
   @override
@@ -49,10 +75,14 @@ class RtcMedia implements VoiceMedia {
       'video': false,
     });
     if (!kIsWeb && Platform.isAndroid) await Helper.setSpeakerphoneOn(true);
+    _levelTimer ??= Timer.periodic(const Duration(milliseconds: 150), (_) => _readLevels());
   }
 
   @override
   Future<void> stop() async {
+    _levelTimer?.cancel();
+    _levelTimer = null;
+    levels.value = const {};
     for (final p in _peers.values.toList()) {
       await p.close();
     }

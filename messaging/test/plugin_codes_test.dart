@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/widgets.dart' show WidgetBuilder;
+import 'package:flutter/widgets.dart' show Semantics, Text, WidgetBuilder;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/codes.dart';
@@ -18,7 +18,12 @@ import 'support/list_harness.dart';
 /// sign-in code, which conversations the section takes, and the section in the list.
 MessageFacts _facts(String text, {bool contact = false, bool group = false, int thread = 4}) => MessageFacts(thread: thread, senders: const ['28849'], text: text, contact: contact, group: group);
 
-Finder _chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
+// A tab of the list's toggle: icons alone since 2026-11-15, each named for a screen reader ("Codes", "Codes, 2"), and a
+// tab's unread count is the number beside its icon.
+Finder _chip(String label) => find.descendant(
+      of: find.byType(SectionTabs),
+      matching: find.byWidgetPredicate((w) => (w is Semantics && (w.properties.label == label || (w.properties.label ?? '').startsWith('$label, '))) || (w is Text && w.data == label)),
+    );
 
 void main() {
   group('what reads as a code', () {

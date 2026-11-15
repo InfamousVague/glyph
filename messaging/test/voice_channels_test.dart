@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
@@ -66,6 +67,8 @@ class _Route implements VoiceRoute {
 }
 
 class _Media implements VoiceMedia {
+  @override
+  final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
   final log = <String>[];
   bool started = false, isMuted = false, isDeaf = false, isVideo = false;
   @override

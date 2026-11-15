@@ -12,6 +12,7 @@ import 'package:ghost_messaging/ui/me.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide_more.dart';
 import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/effects.dart';
 import 'package:ghost_messaging/friends/friends.dart';
@@ -26,6 +27,7 @@ import 'package:ghost_messaging/plugins/companies.dart';
 import 'package:ghost_messaging/plugins/company_marks.g.dart';
 import 'package:ghost_messaging/plugins/cleaner.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
+import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/channels.dart';
@@ -849,7 +851,11 @@ void main() {
     addTearDown(() => _conversations.removeWhere((c) => (c['id'] as int) >= 100));
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
     installSettingsStyles(sheet);
-    Finder chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
+    // Icons alone since 2026-11-15, each tab named for a screen reader.
+    Finder chip(String label) => find.descendant(
+          of: find.byType(SectionTabs),
+          matching: find.byWidgetPredicate((w) => (w is Semantics && (w.properties.label == label || (w.properties.label ?? '').startsWith('$label, '))) || (w is Text && w.data == label)),
+        );
     for (final dark in [false, true]) {
       // The list as it opens: the codes have left it for their chip, which counts them. Spam, the political text,
       // the debt collector and the sales pitch are hidden by the filter beside the tabs, which says how many, as
@@ -1250,10 +1256,11 @@ void main() {
     final hangout = VoiceChannel.make('Hangout'), study = VoiceChannel.make('Study room');
     final v = Voice.instance;
     v.own = [hangout, study];
-    final s = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia(), name: 'Me')
+    // Maya is talking, and so, a little, is this phone.
+    final s = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia({'a': 0.45, 'me': 0.12}), name: 'Me')
       ..members['a'] = const VoiceMember('a', name: 'Maya Chen')
       ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
-      ..members['c'] = const VoiceMember('c', name: 'Riley');
+      ..members['c'] = const VoiceMember('c', name: 'Riley', guest: true);
     v.session = s;
     addTearDown(() {
       v.session = null;
@@ -1263,9 +1270,60 @@ void main() {
       await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
       expect(find.text('Hangout'), findsWidgets);
       expect(find.text('4 connected'), findsOneWidget);
+      // A list of who is there, faces rippling while they talk, and no squares: nobody has video on (Matt,
+      // 2026-11-15: "make the voice chats a list of participants don't show the squares unless someone turns on
+      // video"); the buttons in a dock at the foot.
+      expect(find.byType(RippleAvatar), findsNWidgets(4));
+      expect(find.byType(StreamView), findsNothing);
+      expect(find.byType(CallDock), findsOneWidget);
       expect(find.bySemanticsLabel('Mute'), findsOneWidget);
       expect(find.bySemanticsLabel('Turn video on'), findsOneWidget);
       expect(find.text('Study room', skipOffstage: false), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  // Matt, 2026-11-15: "use an icon only segmented toggle for the messages codes and add voice chats to the list as well,
+  // try a few different layouts for switching between the few including a mixed view that shows them all intertwined
+  // sorted by recency, also id like you to rework the active call indicator".
+  testWidgets('the list\'s layouts with voice channels, and the call capsule', (tester) async {
+    tester.view.physicalSize = const Size(412 * 2.0, 892 * 2.0);
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
+    addTearDown(tester.view.reset);
+    _answerChannel();
+    final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
+    installSettingsStyles(sheet);
+    final hangout = VoiceChannel.make('Friday hang'), study = VoiceChannel.make('Study room');
+    final v = Voice.instance;
+    v.own = [hangout, study];
+    v.session = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia({'a': 0.4}), name: 'Me')
+      ..members['a'] = const VoiceMember('a', name: 'Maya Chen')
+      ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
+      ..since = DateTime.now().subtract(const Duration(minutes: 12, seconds: 5));
+    addTearDown(() {
+      v.session = null;
+      v.own = [];
+    });
+    for (final dark in [false, true]) {
+      // Tabs: icons alone, voice among them.
+      await _shoot(tester, sheet, const AppShell(), '20-layout-tabs', dark: dark);
+      expect(find.byType(SectionTabs), findsOneWidget);
+      final voiceTab = find.descendant(of: find.byType(SectionTabs), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == LucideMore.headphones));
+      expect(voiceTab, findsOneWidget);
+      expect(find.byType(CallCapsule), findsOneWidget);
+      expect(find.textContaining('Maya Chen talking'), findsOneWidget);
+      await tester.tap(voiceTab);
+      await _settle(tester);
+      await _shootAgain(tester, '20-layout-tabs-voice', dark: dark);
+      expect(find.byType(VoiceRow), findsNWidgets(2));
+      // All together: one list, the voice channel you're in among the newest.
+      await _shoot(tester, sheet, const AppShell(), '20-layout-mixed', dark: dark, prefs: const {'list_layout': 'mixed'});
+      expect(find.byType(SectionTabs), findsNothing);
+      expect(find.byType(VoiceRow), findsWidgets);
+      // Voice above: a strip of channels over the list.
+      await _shoot(tester, sheet, const AppShell(), '20-layout-strip', dark: dark, prefs: const {'list_layout': 'strip'});
+      expect(find.byType(VoiceStrip), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1761,6 +1819,9 @@ class _NoRoute implements VoiceRoute {
 }
 
 class _NoMedia implements VoiceMedia {
+  _NoMedia([Map<String, double> loud = const {}]) : levels = ValueNotifier(loud);
+  @override
+  final ValueNotifier<Map<String, double>> levels;
   @override
   Future<void> start() async {}
   @override

@@ -77,8 +77,10 @@ try {
   await b.waitForSelector('#call:not([hidden])');
 
   // Each sees the other by name, connected, sound arriving.
-  await a.waitForFunction(() => [...document.querySelectorAll('.tile .n')].some((n) => n.textContent === '@maya_test'), null, { timeout: 15000 });
-  await b.waitForFunction(() => [...document.querySelectorAll('.tile')].some((t) => t.querySelector('.n').textContent === 'Alex' && t.querySelector('.g').textContent === 'guest'), null, { timeout: 15000 });
+  await a.waitForFunction(() => [...document.querySelectorAll('#people .n')].some((n) => n.textContent === '@maya_test'), null, { timeout: 15000 });
+  await b.waitForFunction(() => [...document.querySelectorAll('#people li')].some((t) => t.querySelector('.n').textContent === 'Alex' && t.querySelector('.g').textContent === 'guest'), null, { timeout: 15000 });
+  // A list of who is there, no squares while nobody has video on.
+  if (await b.locator('.tile').count()) throw new Error('squares shown with no video on');
   console.log('ok each sees the other by name; the guest is marked');
   // Sound arriving: more than 20 kB in, on a connection that is up (asked every half second, for up to 15).
   const received = (p) => p.evaluate(async () => {
@@ -101,6 +103,9 @@ try {
   const opus = await a.evaluate(async () => { let n = 0; for (const pc of window.ghostHangout().peers.values()) for (const s of (await pc.getStats()).values()) if (s.type === 'outbound-rtp' && s.kind === 'audio') n += s.bytesSent; return n; });
   console.log(`ok connected both ways, sound arriving: the guest has sent ${opus} bytes, ${await received(b)} arrived at the other`);
 
+  // Someone talking ripples (the made-up microphone beeps).
+  await b.waitForFunction(() => document.querySelector('#people li.talking'), null, { timeout: 10000 });
+  console.log('ok a list, no squares without video; whoever talks ripples');
   // Video on in the browser reaches the other.
   await a.click('#cam');
   await b.waitForFunction(() => [...document.querySelectorAll('.tile')].some((t) => t.querySelector('.n').textContent === 'Alex' && t.classList.contains('has-video')), null, { timeout: 15000 });
@@ -111,7 +116,7 @@ try {
 
   // Leaving: the other sees them go.
   await a.click('#leave');
-  await b.waitForFunction(() => document.querySelectorAll('.tile').length === 1, null, { timeout: 10000 });
+  await b.waitForFunction(() => document.querySelectorAll('#people li').length === 1 && !document.querySelector('.tile'), null, { timeout: 10000 });
   await a.waitForSelector('#left:not([hidden])');
   console.log('ok leaving: the other sees them go');
 

@@ -28,7 +28,12 @@ List<Map<String, Object?>> _phone() => [
       ListPhone.conversation(6, '70003', 'ticket 9000, long ago', minutes: 9000, archived: true),
     ];
 
-Finder _chip(String label) => find.descendant(of: find.byType(SectionTabs), matching: find.text(label));
+// A tab of the list's toggle: icons alone since 2026-11-15, each named for a screen reader ("Codes", "Codes, 2"), and a
+// tab's unread count is the number beside its icon.
+Finder _chip(String label) => find.descendant(
+      of: find.byType(SectionTabs),
+      matching: find.byWidgetPredicate((w) => (w is Semantics && (w.properties.label == label || (w.properties.label ?? '').startsWith('$label, '))) || (w is Text && w.data == label)),
+    );
 Finder _icon(String label) => find.byWidgetPredicate((w) => w is IconTap && w.label == label);
 
 void main() {

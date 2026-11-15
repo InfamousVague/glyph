@@ -19,6 +19,9 @@ import '../reactions.dart';
 import '../sms.dart';
 import '../summaries.dart';
 import 'common.dart';
+import 'voice_screen.dart';
+import '../voice/voice.dart';
+import '../voice/channels.dart';
 import 'update_banner.dart';
 import 'compose.dart';
 import 'settings.dart';
@@ -126,8 +129,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // What was open in the pane has closed, or given way to something else: read again, as on coming back to the
     // list from a page.
     _shell = AppShell.maybeOf(context)?..closed.addListener(_back);
-    // A summary made comes into its row.
+    // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
+    Voice.instance.addListener(_summed);
     _load();
     _look();
     _changes = Sms.instance.changes.stream.listen((_) {
@@ -144,6 +148,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   void dispose() {
     Summaries.instance.removeListener(_summed);
+    Voice.instance.removeListener(_summed);
     _shell?.closed.removeListener(_back);
     _plugins.dispose();
     _changes?.cancel();
@@ -282,6 +287,52 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   // --- the tabs --------------------------------------------------------------------------------------------------------
 
+  /// The tab of voice channels (the "tabs" layout).
+  static const voiceTab = '*voice';
+
+  /// The voice channels, the live ones first, then by when each last had anyone in it.
+  List<VoiceChannel> _voices() {
+    final v = Voice.instance;
+    final all = [...v.channels];
+    int when(VoiceChannel c) => v.lastActive(c)?.millisecondsSinceEpoch ?? 0;
+    all.sort((a, b) => when(b).compareTo(when(a)));
+    return all;
+  }
+
+  /// Everything at once: the main list's conversations, every tab's (codes and the rest; not what the filter hides),
+  /// and the voice channels, the newest first, the pinned conversations before all.
+  List<Object> _mixed(List<Conversation> main, List<VoiceChannel> voices, Sorted sorted) {
+    final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
+    final seen = {for (final c in main) c.id};
+    final all = <Conversation>[...main];
+    for (final s in sorted.sections) {
+      if (s.section.filter) continue;
+      for (final c in _plugins.pick(held, s.id, searching: false)) {
+        if (seen.add(c.id)) all.add(c);
+      }
+    }
+    DateTime when(Object o) => o is Conversation ? o.date : (Voice.instance.lastActive(o as VoiceChannel) ?? DateTime.fromMillisecondsSinceEpoch(0));
+    final rest = <Object>[for (final c in all) if (!c.pinned) c, ...voices]..sort((a, b) => when(b).compareTo(when(a)));
+    return [for (final c in all) if (c.pinned) c, ...rest];
+  }
+
+  /// Hops into [c] and shows it.
+  Future<void> _openVoice(VoiceChannel c) async {
+    try {
+      await Voice.instance.join(c);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
+      return;
+    }
+    if (!mounted) return;
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) {
+      shell.go('voice');
+    } else {
+      push(context, (_) => const VoiceScreen());
+    }
+  }
+
   /// One tab's conversations (null: the main list's), whatever is typed in the search: not the archived ones.
   List<Conversation> _of(String? section) {
     final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
@@ -292,8 +343,18 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
   /// end of the title row.
   Widget? _tabsRow(Tokens t) {
-    final tabs = _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu);
+    // How the list switches between messages, codes and voice channels (Matt, 2026-11-15: "try a few different
+    // layouts for switching between the few including a mixed view"): tabs, voice among them; one list; or a strip.
+    final layout = AppState.of(context).choice('list_layout', 'tabs');
+    final voices = Voice.instance.channels;
+    final tabs = layout == 'mixed'
+        ? null
+        : _plugins.tabs(_section, (section) => setState(() => _section = section), onMenu: _tabMenu, extra: [
+            if (layout == 'tabs' && voices.isNotEmpty) (id: voiceTab, icon: LucideMore.headphones, label: 'Voice', count: voices.where(Voice.instance.live).length),
+          ]);
     final kinds = _plugins.kinds;
+    // All together, there are no tabs, and the filter is in the title row.
+    if (layout == 'mixed') return null;
     if (tabs == null && kinds.isEmpty) return null;
     final only = _section != null && (_section == ListPlugins.hiddenView || kinds.any((k) => k.id == _section));
     return Padding(
@@ -418,6 +479,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// A tab's menu (Matt, 2026-11-14: "add a right click menu for the codes and messages tabs"): a press with the
   /// other button on it, or a long press where there is no other button.
   void _tabMenu(String? section) {
+    if (section == voiceTab) return;
     final all = _of(section);
     final unread = all.where((c) => c.unread).length;
     final name = _plugins.tabName(section);
@@ -618,8 +680,18 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _plugins.othersShown = () => ListPlugins.othersShownFor(app);
     }
     final sorted = _plugins.sort(widget.archived ? null : _all);
-    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0)) _section = null;
+    final layout = app.choice('list_layout', 'tabs');
+    final voices = widget.archived ? const <VoiceChannel>[] : _voices();
+    if (!sorted.has(_section) && !(_section == ListPlugins.hiddenView && _plugins.hiddenCount > 0) && !(_section == voiceTab && layout == 'tabs' && voices.isNotEmpty)) _section = null;
     final shown = _shown;
+    // What the list holds: conversations; the voice channels in their tab; or, in the mixed layout, everything at once,
+    // the newest first (Matt, 2026-11-15: "a mixed view that shows them all intertwined sorted by recency").
+    final List<Object> rows = _section == voiceTab
+        ? voices
+        : layout == 'mixed' && _section == null && _query.trim().isEmpty && !_selecting && !widget.archived
+            ? _mixed(shown, voices, sorted)
+            : shown;
+    final strip = layout == 'strip' && _section == null && _query.trim().isEmpty && !_selecting && voices.isNotEmpty;
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
@@ -636,7 +708,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     Widget body;
     if (_all == null) {
       body = const Center(child: GhostSpinner(size: 28, label: 'Loading your conversations…'));
-    } else if (_error != null && shown.isEmpty) {
+    } else if (_error != null && rows.isEmpty) {
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
           icon: AppIcon(Lucide.circleAlert, size: 28, color: t.colorOf('#dd3a30')),
@@ -645,7 +717,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           action: SettingsEmptyAction('Try again', _load),
         ),
       ]);
-    } else if (shown.isEmpty) {
+    } else if (rows.isEmpty) {
       final rcs = _query.isEmpty && !widget.archived && _arriving.rcsLikely;
       body = ListView(padding: EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), children: [
         SettingsEmpty(
@@ -666,7 +738,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ]);
     } else {
-      final extras = (notice ? 1 : 0);
+      final extras = (notice ? 1 : 0) + (strip ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
@@ -674,19 +746,26 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       final foot = hiddenNow > 0;
       body = RefreshableList(
         onRefresh: _load,
-        itemCount: extras + shown.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
+        itemCount: extras + rows.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
         itemBuilder: (context, i) {
           if (notice && i == 0) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
           }
+          if (strip && i == (notice ? 1 : 0)) {
+            return Padding(padding: EdgeInsets.only(bottom: t.space(2)), child: VoiceStrip(channels: voices, onPress: _openVoice));
+          }
           final at = i - extras;
-          if (at < shown.length) {
+          if (at < rows.length && rows[at] is VoiceChannel) {
+            final v = rows[at] as VoiceChannel;
+            return VoiceRow(key: ValueKey('voice-${v.room}'), channel: v, onPress: () => _openVoice(v));
+          }
+          if (at < rows.length) {
             // The one that is open is being read: its row does not say unread, however it came to be opened (a
             // tap here, a notification, another app's "text this number").
-            final held = shown[at];
+            final held = rows[at] as Conversation;
             final c = held.id == open && held.unread ? held.copyWith(unread: false) : held;
             // Plugins: in a section, the row is drawn as the section's plugin describes it (a code large, with Copy).
-            final look = _section == null ? null : _plugins.look(this.context, c);
+            final look = _section == null && layout != 'mixed' ? null : _plugins.look(this.context, c);
             final selected = _selecting ? _selected.contains(c.id) : c.id == beside;
             // Dragged left it archives, further it deletes (asked first), right it pins: lib/ui/swipe_actions.dart.
             return SwipeActions(
@@ -712,7 +791,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     ),
             );
           }
-          if (foot && at == shown.length) {
+          if (foot && at == rows.length) {
             return GlacierPressable(
               onPressed: () => setState(() => _section = ListPlugins.hiddenView),
               semanticLabel: '$hiddenNow hidden by the filter. Show them.',
@@ -726,7 +805,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               ),
             );
           }
-          if (tail && at == shown.length + (foot ? 1 : 0)) {
+          if (tail && at == rows.length + (foot ? 1 : 0)) {
             return GlacierPressable(
               onPressed: () async {
                 await push<void>(context, (_) => const ConversationsScreen(archived: true));
@@ -742,7 +821,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
               ),
             );
           }
-          if (more && at == shown.length + (foot ? 1 : 0) + (tail ? 1 : 0)) {
+          if (more && at == rows.length + (foot ? 1 : 0) + (tail ? 1 : 0)) {
             return Padding(
               padding: EdgeInsets.symmetric(vertical: t.space(4)),
               child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
@@ -777,6 +856,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ] else if (!widget.archived) ...[
           // Plugins: their buttons for the list's header, in the frame and out of it.
           ..._plugins.header(context, ListPlace(section: _section, shown: shown.length, groups: _plugins.groups(_all ?? const []))),
+          // All together, the filter stands in the title row: there is no row of tabs for it.
+          if (layout == 'mixed' && _plugins.kinds.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(left: t.space(1)),
+              child: FilterButton(hidden: _plugins.hiddenCount, only: _section != null, rows: (context) => _filterRows(_plugins.kinds)),
+            ),
           // Mark all read for the tab shown, at the title row's end (Matt, 2026-11-14: "make the mark all read aligned
           // to the right of the messages title row instead of next to the filter").
           Padding(

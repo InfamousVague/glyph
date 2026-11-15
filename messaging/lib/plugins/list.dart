@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
+import '../art/app_icon.dart';
 import '../art/lucide_more.dart';
 import '../sms.dart';
 import '../ui/common.dart';
@@ -226,12 +227,12 @@ class ListPlugins {
 
   /// The tabs under the search field, or null while no section has a conversation in it. [onMenu] is asked for a
   /// tab's menu (a press with the other button, or a long one).
-  Widget? tabs(String? chosen, ValueChanged<String?> onPick, {ValueChanged<String?>? onMenu}) {
+  Widget? tabs(String? chosen, ValueChanged<String?> onPick, {ValueChanged<String?>? onMenu, List<({String id, LucideIcon icon, String label, int count})> extra = const []}) {
     // The kinds are the filter's, not tabs.
     final s = _sorted;
     final tabs = [for (final t in s.sections) if (!t.section.filter) t];
-    if (tabs.isEmpty) return null;
-    return SectionTabs(sections: tabs, counts: s.unreadCounts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu);
+    if (tabs.isEmpty && extra.isEmpty) return null;
+    return SectionTabs(sections: tabs, counts: s.unreadCounts, unread: s.unread, chosen: chosen, onPick: onPick, onMenu: onMenu, extra: extra);
   }
 
   /// What a tab is called: "Messages" for the main list, else its section's own name.
