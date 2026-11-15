@@ -495,7 +495,7 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
   PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
   Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
-- **The pill shrinks as Ghost.md's dock does; your own ripples; larger faces on a computer** (0.7.23, not released;
+- **The pill shrinks as Ghost.md's dock does; your own ripples; larger faces on a computer** (0.7.23;
   Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the page and make it get smaller when
   we scroll down just like ghost markdown does match the sizes"; "on desktop it doesn't seem like when i'm talking i
   see the wobbles coming from my voice chat, also make the voice chat avatars a little larger on desktop"). The pill
