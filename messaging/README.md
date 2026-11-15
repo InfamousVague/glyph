@@ -5,7 +5,25 @@ UI kit Ghost.md and Ghost Keyboard use.
 
 Started 2026-11-13 at Matt's ask: "Sketch out a project and load it on my phone, use the same glacier UI we use for
 other projects like ghost MARKDOWN and ghost KBD include basic functionality so i can replace my current sms today".
-It lives in Ghost.md's repository for now, in its own folder, and can be moved to a repository of its own whole.
+It is developed in Ghost.md's repository, in its own folder, and published whole as its own repository
+(github.com/InfamousVague/ghost-messaging) with each release (tool/publish-source.mjs).
+
+## Open source, for privacy
+
+Ghost Messaging is open source so anyone can check what it does with their messages (Matt, 2026-11-15: "I want to
+open source it for the privacy focused nature"). All of it is here: the phone app, the Mac and Windows apps, the
+relay server (`relay/`) that carries messages between your own devices and between friends, the call processing
+(`native/voicefx`) and the Google Messages helper (`sidecar/gmessages`, also at
+github.com/InfamousVague/ghost-gmessages-sidecar).
+
+- **Licence:** the GNU Affero General Public License v3 (`LICENSE`). Anyone who runs a changed copy, the relay
+  included, for others to use owes those people its source.
+- **What is not here:** the keys releases are signed with (Android's and Apple's), and the server's own credentials
+  (Twilio and the like, read from its environment). Builds made from this source are not signed as the releases are,
+  so they install as a separate app.
+- **Third-party parts** keep their own licences: the emoji fonts (`assets/emoji/LICENSES.md`), Inter and JetBrains
+  Mono (`assets/fonts/OFL.txt`), RNNoise (`native/voicefx/rnnoise/COPYING`, BSD), DeepFilterNet (MIT or Apache-2.0)
+  and mautrix-gmessages' libgm (AGPL-3.0).
 
 ## What it does
 
@@ -986,6 +1004,10 @@ The emoji sets' picture (`test/shots/7-emoji-sets.png`) is compared on Linux onl
 with Core Text, which leaves Twemoji's row blank, where Linux's and Android's draw it with FreeType.
 
 ## Releasing (ghost-sms.com)
+
+After each release, publish the source: `node tool/publish-source.mjs` (github.com/InfamousVague/ghost-messaging, one
+commit a release; and the sidecar's own repository where it changed). A release that carries the Google Messages
+sidecar must have its source public.
 
 Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the domain to the same server ghost kbd
 uses". Both scripts are Ghost Keyboard's, for this app, and use Ghost.md's box account (`tauri/.env`) through
