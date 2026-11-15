@@ -30,7 +30,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Becomes the default SMS app**: the first screen asks Android for the SMS role. Every existing conversation is
   there straight away, because messages live in Android's own SMS/MMS database (the Telephony provider), not the
   app. Switching back to another SMS app loses nothing.
-- **Set up RCS, and Ghost's notifications in place of Google Messages'** (not released; `lib/ui/rcs_setup.dart`,
+- **Set up RCS, and Ghost's notifications in place of Google Messages'** (0.7.29; `lib/ui/rcs_setup.dart`,
   GmBridge.kt; Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an android phone and walk
   the user through how to enable the rcs sidecar"; "we should have a way to make the app work without needing to be
   the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them and
@@ -43,7 +43,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
   Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
   Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
-- **Which of Google Messages' notifications still make a sound** (not released; GmBridge.kt `noteChannel`; Matt,
+- **Which of Google Messages' notifications still make a sound** (0.7.29; GmBridge.kt `noteChannel`; Matt,
   2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through ghost
   instead"; "Let's do our best given these options and push out an update"). Android lets no ordinary app change
   another's notification settings, and a notification is heard before Ghost can take it away, so the person silences
@@ -53,7 +53,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   ticks itself once all are quiet (as of each channel's last message). Your read receipts already go out through
   Google Messages' Mark as read; their delivered and read marks are not in notifications, so they need the on-phone
   Google Messages connection (not built).
-- **Google Messages on the computer** (0.7.25, not released; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
+- **Google Messages on the computer** (0.7.29, the sidecar in the Mac and Windows apps; `lib/desktop/gm_web.dart`, `sidecar/gmessages`; Matt,
   2026-11-15: "Yes, mautrix sidecar"). Settings › Google Messages on the Mac or Windows pairs the computer with Google
   Messages by a QR code, as messages.google.com is, and every conversation there joins the desktop's list: RCS and
   texts, history, pictures, reactions (shown under the words). A phone conversation with the same people is shown
@@ -599,6 +599,15 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     the list is in the list's place, its composer and dock standing above the pill (`HangoutScreen.inSidebar`). Beside
     the list (a computer, the Fold open) the call is the people and the dock there, and the pane is the chat
     (`HangoutStage`), whose top half becomes the videos (`CallVideos`) once anyone turns one on.
+    Then (Matt: "clicking on a voice chat should show me the chat in the normal spot and connected participants with a
+    "join" button ... hide the default navbar when in a hangout and show the call controls where it was"): a hangout
+    pressed in the list opens where a conversation opens (`Voice.view`, VoiceScreen), with who is connected and Join
+    voice at its top. In its call beside the pane, the people take the list's place (`HangoutPeople`) and the call's
+    dock stands where the pill was; the pill comes back on leaving.
+  - **Menu and settings** (Matt: "a context menu to open settings for hangouts and manage permissions and such as well
+    as delete the hangouts"): hold or right-click a hangout's row for Open, Settings and permissions, Copy invite link,
+    Share with friends and Delete hangout (asked first; `showHangoutMenu`). Its settings page
+    (`HangoutSettingsScreen`) is the link, sharing, the owner, the roles and permissions, and Delete.
   - **The browser** (site/join): the same chat beside the call, role tags, and the same rules. It checks rosters
     itself (P-256 by WebCrypto; tool/voicebench/roster_check.mjs checks rosters the app signed) and leaves when
     removed or banned. tool/voicebench/join_test.mjs covers the chat both ways and history for a latecomer.

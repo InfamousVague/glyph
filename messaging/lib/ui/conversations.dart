@@ -311,8 +311,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
+    // In the conversation's place (Matt, 2026-11-15: "clicking on a voice chat should show me the chat in the normal
+    // spot and connected participants with a "join" button").
     if (c.hangout && Voice.instance.session?.channel.room != c.room) {
-      push(context, (_) => HangoutScreen(channel: c, inSidebar: AppShell.maybeOf(context) != null));
+      final shell = AppShell.maybeOf(context);
+      if (shell != null) {
+        Voice.instance.view(c);
+        shell.go('voice');
+      } else {
+        push(context, (_) => HangoutScreen(channel: c));
+      }
       return;
     }
     try {

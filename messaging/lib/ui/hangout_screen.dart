@@ -15,6 +15,7 @@ import '../voice/roles.dart';
 import '../voice/voice.dart';
 import 'common.dart';
 import 'nav_bar.dart';
+import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'voice_screen.dart';
 
@@ -85,7 +86,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
         final dockAt = pad + (widget.inSidebar ? pill : NavPill.inset(t));
         final actions = [
           if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, widget.channel)),
-          if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Roles and permissions', onPressed: () => push(context, (_) => RolesScreen(room: room))),
+          if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Hangout settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
         ];
         if (room?.putOut != null) {
           return GhostPage(
@@ -105,9 +106,13 @@ class _HangoutScreenState extends State<HangoutScreen> {
               Padding(
                 padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
                 child: Row(children: [
+                  // Who is connected: their faces, then their names.
+                  for (final id in inVoice.take(4))
+                    Padding(padding: EdgeInsets.only(right: t.space(1)), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 30)),
+                  if (inVoice.isNotEmpty) SizedBox(width: t.space(1)),
                   Expanded(
                     child: Text(
-                      inVoice.isEmpty ? (here.isEmpty ? 'Nobody else here' : '${here.length} here · nobody in voice') : '${inVoice.length} in voice: ${inVoice.map(v.nameOf).join(', ')}',
+                      inVoice.isEmpty ? (here.isEmpty ? 'Nobody in voice' : '${here.length} here · nobody in voice') : '${inVoice.length} connected · ${inVoice.map(v.nameOf).join(', ')}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
@@ -219,7 +224,7 @@ class _HangoutStageState extends State<HangoutStage> {
           back: false,
           actions: [
             if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.link, label: 'Copy invite link', onPressed: () => copyInvite(context, widget.channel)),
-            if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Roles and permissions', onPressed: () => push(context, (_) => RolesScreen(room: room))),
+            if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Hangout settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
           body: videos
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -408,8 +413,11 @@ class RoleTag extends StatelessWidget {
 /// A hangout's roles: who has which, what each may do, and the role newcomers get. Anyone can read it; the owner and
 /// admins change it.
 class RolesScreen extends StatelessWidget {
-  const RolesScreen({super.key, required this.room});
+  const RolesScreen({super.key, required this.room, this.settings = false});
   final HangoutRoom room;
+
+  /// As the hangout's settings: its link, sharing it and deleting it around the roles.
+  final bool settings;
 
   @override
   Widget build(BuildContext context) {
@@ -427,11 +435,20 @@ class RolesScreen extends StatelessWidget {
           if (r.banned.contains(id)) continue;
           byRole.putIfAbsent(r.roleOf(id).id, () => []).add(id);
         }
+        final c = room.channel;
         return GhostPage(
-          title: 'Roles and permissions',
+          title: settings ? c.name : 'Roles and permissions',
           body: ListView(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
+              if (settings) ...[
+                PaneSection(title: 'Hangout', children: [
+                  if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.link, size: 18), label: 'Copy invite link', hint: const Text('Anyone with it can join, from the app or a browser.'), onPress: () => copyInvite(context, c)),
+                  if (room.can(Perm.invite)) SettingRow(icon: AppIcon(Lucide.share2, size: 18), label: 'Share with friends', onPress: () => push(context, (_) => ShareChannelScreen(channel: c))),
+                  SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
+                ]),
+                gap,
+              ],
               if (!r.hasOwner)
                 SettingsCallout(child: const Text('This hangout was made before roles, so it has no owner: everyone in it is a member, and no one can change that.'))
               else if (!manage)
@@ -493,6 +510,12 @@ class RolesScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (settings) ...[
+                  gap,
+                  PaneSection(title: '', children: [
+                    SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Delete hangout', hint: const Text('From this phone and your computer.'), onPress: () => confirmDeleteHangout(context, c)),
+                  ]),
+                ],
                 if (r.banned.isNotEmpty) ...[
                   gap,
                   PaneSection(
@@ -696,6 +719,97 @@ class HangoutModeration extends StatelessWidget {
             ),
         ]);
       },
+    );
+  }
+}
+
+/// A hangout's menu, held or pressed with the other button on its row (Matt, 2026-11-15: "there also needs to be a
+/// context menu to open settings for hangouts and manage permissions and such as well as delete the hangouts"): open
+/// it, its settings and roles, its link, share it, delete it.
+void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? onOpen}) {
+  final v = Voice.instance;
+  final room = v.hangoutFor(channel);
+  showChoices(context, title: channel.name, choices: [
+    if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
+    Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
+    if (room == null || room.can(Perm.invite)) Choice('Copy invite link', Lucide.link, () => copyInvite(context, channel)),
+    if (room == null || room.can(Perm.invite)) Choice('Share with friends', Lucide.share2, () => push(context, (_) => ShareChannelScreen(channel: channel))),
+    Choice('Delete hangout', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
+  ]);
+}
+
+/// Asks first, then takes [channel] off this phone and its computer (Voice.forget). Others keep their copy.
+void confirmDeleteHangout(BuildContext context, VoiceChannel channel) {
+  showChoices(context, title: 'Delete ${channel.name}? It goes from this phone and your computer; people who have the link keep it.', choices: [
+    Choice('Delete hangout', Lucide.trash2, () async {
+      final v = Voice.instance;
+      if (v.viewing?.seed == channel.seed) v.view(null);
+      await v.forget(channel);
+      if (context.mounted) toast(context, 'Deleted ${channel.name}');
+    }, danger: true),
+  ]);
+}
+
+/// A hangout's settings: its link and sharing, its roles and permissions, deleting it. Holds the hangout's room open
+/// while shown, so changes reach the others.
+class HangoutSettingsScreen extends StatefulWidget {
+  const HangoutSettingsScreen({super.key, required this.channel});
+  final VoiceChannel channel;
+
+  @override
+  State<HangoutSettingsScreen> createState() => _HangoutSettingsScreenState();
+}
+
+class _HangoutSettingsScreenState extends State<HangoutSettingsScreen> {
+  HangoutRoom? _room;
+
+  @override
+  void initState() {
+    super.initState();
+    _room = Voice.instance.hangoutFor(widget.channel);
+    unawaited(Voice.instance.hold(widget.channel).then((r) {
+      if (mounted) setState(() => _room = r);
+    }));
+  }
+
+  @override
+  void dispose() {
+    unawaited(Voice.instance.release(widget.channel));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final room = _room;
+    if (room == null) {
+      return GhostPage(title: widget.channel.name, body: Padding(padding: EdgeInsets.all(context.tokens.space(4)), child: SettingsCallout(child: const Text('The relay server isn\'t connected, so this hangout\'s settings can\'t be reached right now.'))));
+    }
+    return RolesScreen(room: room, settings: true);
+  }
+}
+
+/// Who is in the hangout's call, in the list's place beside the pane while in it on a wide screen: the call's dock
+/// stands where the pill was (lib/ui/shell.dart; Matt, 2026-11-15: "hide the default navbar when in a hangout and show
+/// the call controls where it was").
+class HangoutPeople extends StatelessWidget {
+  const HangoutPeople({super.key, required this.session});
+  final VoiceSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final c = session.channel;
+    final room = Voice.instance.hangoutFor(c);
+    return GhostPage(
+      title: c.name,
+      back: false,
+      actions: [
+        IconTap(icon: Lucide.shieldCheck, label: 'Hangout settings', onPressed: () => room == null ? null : push(context, (_) => RolesScreen(room: room, settings: true))),
+      ],
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), AppShell.pillRoom(context) + MediaQuery.paddingOf(context).bottom),
+        children: [CallPanel(session: session, videos: false)],
+      ),
     );
   }
 }
