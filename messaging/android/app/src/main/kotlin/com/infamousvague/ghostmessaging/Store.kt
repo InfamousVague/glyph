@@ -216,11 +216,16 @@ class Store(private val context: Context) {
                     val recipients = if (group != null) Groups.people(context, group) else recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
                     val date = if (iDate >= 0) c.getLong(iDate) else 0L
                     val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
+                    val people = recipients.map { contact(it) }
                     return mapOf(
                         "id" to id,
                         "date" to date,
                         "count" to count,
-                        "people" to recipients.map { contact(it) },
+                        "people" to people,
+                        // What someone not in the contacts last sent, for sorting the conversation by (lib/plugins):
+                        // the newest message may be your own reply, which says nothing of what they are (Matt,
+                        // 2026-11-14: "Health insurance sales people are not getting caught by the sales filter").
+                        "heard" to if (group == null && people.size == 1 && people[0]["name"] == null) latestHeard(id, "$date:$count") else null,
                         // A picture message's summary in Android's list is its subject, often empty: its words, or
                         // what it is, instead.
                         "snippet" to summary.ifBlank { latestSnippet(id, "$date:$count") },
@@ -329,6 +334,30 @@ class Store(private val context: Context) {
      * conversation's date and count: while they are what they were, the answer is what it was, where it used to be
      * read again (several questions to Android) for every such conversation each time the list was.
      */
+    private val heards = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, String>>()
+
+    /** The newest words that came in in [thread] (a text, or a picture message's words), kept until it changes. */
+    private fun latestHeard(thread: Long, stamp: String): String {
+        heards[thread]?.let { if (it.first == stamp) return it.second }
+        val words = try { readLatestHeard(thread) } catch (_: Exception) { "" }
+        heards[thread] = stamp to words
+        return words
+    }
+
+    private fun readLatestHeard(thread: Long): String {
+        val which = arrayOf(thread.toString())
+        var mms: Long? = null
+        var mmsDate = 0L
+        resolver.query(Telephony.Mms.CONTENT_URI, arrayOf("_id", "date"), "thread_id = ? AND msg_box = 1", which, "date DESC LIMIT 1")?.use {
+            if (it.moveToFirst()) { mms = it.getLong(0); mmsDate = it.getLong(1) * 1000 }
+        }
+        resolver.query(Telephony.Sms.CONTENT_URI, arrayOf("date", "address", "body"), "thread_id = ? AND type = 1", which, "date DESC LIMIT 1")?.use {
+            if (it.moveToFirst() && (mms == null || it.getLong(0) >= mmsDate)) return E2e.read(context, it.getString(1) ?: "", it.getString(2) ?: "").first
+        }
+        val id = mms ?: return ""
+        return (mmsPartsOf(listOf(id))[id] ?: emptyList()).filter { it["type"] == "text/plain" }.joinToString("\n") { it["text"] as String? ?: "" }
+    }
+
     private fun latestSnippet(thread: Long, stamp: String): String {
         snippets[thread]?.let { if (it.first == stamp) return it.second }
         val words = try { readLatestSnippet(thread) } catch (_: Exception) { "" }

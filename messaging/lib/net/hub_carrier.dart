@@ -108,6 +108,26 @@ class HubCarrier implements Carrier {
   final Map<int, Completer<Handed>> _sent = {};
   final Set<String> _watched = {};
   final Map<String, String> _joined = {};
+  final Map<String, String> _looked = {};
+  final _looks = StreamController<({String room, List<String> members})>.broadcast();
+
+  /// Who is in each room this install looks at ([look]), as the hub last said.
+  final Map<String, List<String>> looking = {};
+
+  /// Who is in a room looked at, each time that changes.
+  Stream<({String room, List<String> members})> get looks => _looks.stream;
+
+  /// Asks to be told who is in [room] without joining it: a voice channel's list. Asked again by itself after the
+  /// route is lost and comes back. [token] is the room's own: a wrong one is told nothing.
+  void look(String room, String token) {
+    _looked[room] = token;
+    if (_ready) _ws?.add(jsonEncode({'look': room, 'token': token}));
+  }
+
+  void unlook(String room) {
+    looking.remove(room);
+    if (_looked.remove(room) != null && _ready) _ws?.add(jsonEncode({'unlook': room}));
+  }
   final Map<String, Completer<List<String>>> _joining = {};
 
   @override
@@ -215,12 +235,21 @@ class HubCarrier implements Carrier {
       for (final e in _joined.entries) {
         ws.add(jsonEncode({'join': e.key, 'token': e.value}));
       }
+      for (final e in _looked.entries) {
+        ws.add(jsonEncode({'look': e.key, 'token': e.value}));
+      }
     } else if (m['dir'] is String) {
       _handles.add(m);
     } else if (m.containsKey('ack')) {
       _sent.remove(m['ack'])?.complete(m['here'] == true ? Handed.passed : Handed.held);
     } else if (m.containsKey('nak')) {
       _sent.remove(m['nak'])?.completeError(CarrierError(m['err'] == 'full' ? 'the relay server is holding too much for them already' : 'the relay server would not take it'));
+    } else if (m['room'] is String && m['look'] is List) {
+      // Who is in a room this install looks at without being in it.
+      final room = m['room'] as String;
+      final members = (m['look'] as List).cast<String>();
+      looking[room] = members;
+      _looks.add((room: room, members: members));
     } else if (m['room'] is String) {
       final room = m['room'] as String;
       if (m.containsKey('ok')) {

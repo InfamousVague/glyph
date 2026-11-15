@@ -161,6 +161,12 @@ const List<TextKind> textKinds = [
       r'eligible to add',
       r'solar (?:panels?|savings|consultation|program)',
       r'(?:pressure|power) washing',
+      // Matt's screenshot, 2026-11-14: "a free attic insulation, window, or gutter service quote ... while we're in
+      // your area".
+      r'(?:attic |home |spray foam )?insulation',
+      r'gutter (?:service|work|repair)s?',
+      r'(?:hvac|furnace|ac|a/c|heat pump|water heater) (?:tune-?up|service|install(?:ation)?|replacement|quote)s?',
+      r'free .{0,60}quote',
       r'(?:lawn|landscaping|yard) (?:care|service|services|maintenance)',
       r'pest control',
       r'window (?:cleaning|replacement)',

@@ -32,6 +32,7 @@ class Conversation {
     this.blocked = false,
     this.draft,
     this.encrypted = false,
+    this.heard,
   });
   final int id;
   final DateTime date;
@@ -60,7 +61,12 @@ class Conversation {
         blocked: blocked,
         draft: draft,
         encrypted: encrypted,
+        heard: heard,
       );
+
+  /// What someone not in the contacts last sent here, where it is not the newest message (your reply may be): what
+  /// the list sorts the conversation by (lib/plugins). Null for a contact, a group, or where nothing came in.
+  final String? heard;
 
   /// The one person of the conversation is on Android's blocked list.
   final bool blocked;
@@ -99,6 +105,7 @@ class Conversation {
         blocked: m['blocked'] == true,
         draft: m['draft'] as String?,
         encrypted: m['encrypted'] == true,
+        heard: (m['heard'] as String?)?.trim().isEmpty ?? true ? null : m['heard'] as String,
       );
 }
 

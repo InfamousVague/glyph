@@ -60,7 +60,9 @@ class MessageFacts {
   factory MessageFacts.conversation(Conversation c) => MessageFacts(
         thread: c.id,
         senders: [for (final p in c.people) p.address],
-        text: c.snippet,
+        // What they last sent, where your own words are newer: a pitch answered "STOP" is still a pitch (Matt,
+        // 2026-11-14: "Health insurance sales people are not getting caught by the sales filter").
+        text: c.heard ?? c.snippet,
         contact: c.people.any(_known),
         group: c.group,
         date: c.date,

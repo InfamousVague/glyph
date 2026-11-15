@@ -448,6 +448,28 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Usernames, friends by username, and voice and video channels** (0.7.20, not released; relay changes not
+  deployed; Matt, 2026-11-14: "work on the friend system so we can create a profile and username under "me" ...
+  always open voice channels that you can jump in and out at any time and you can see who's connected and also
+  toggle video on and off, also allow for group chat video and voice calls ... with the option to call the group ...
+  please make sure we stream at lossless quality").
+  - **Profile** (Settings › Me › Profile, `lib/ui/profile.dart`): a username claimed on the relay's directory
+    (`claim`/`whois`/`release` in relay/handles.dart, kept as hashes with the install's key), and a name and a line
+    that go to friends only.
+  - **Friends by username** (`lib/friends/buddies.dart`, android `Buddies.kt`): a request goes in the clear as a
+    greeting carrying the asker's key, checked against the name the hub says sent it; yes, no, end and profile
+    changes go sealed. The phone makes each pair's sealing key, so the routes reach them like anyone encrypted.
+  - **Voice channels** (`lib/voice`, `lib/ui/voice_screen.dart`, a Voice ring in the pill): every group has one, and
+    you can make your own and share it with friends. Who is in each shows without joining (the hub's new `look`).
+    Hop in and out any time; mute, deafen, video on and off. WebRTC (`flutter_webrtc` 1.6.3), each to each, signalling
+    sealed with the channel's key through the hub's rooms. Opus at 510 kb/s stereo 48 kHz with no DTX, noise
+    suppression and gain control off; video up to 1080p and 12 Mb/s, holding resolution.
+  - **Call the group** (a group's conversation header): rings every member; their app shows the call with Join.
+  - **Sorting by what they last sent**: a conversation from an unknown number is sorted by its newest incoming words
+    (android Store `heard`), so a pitch you answered is still a pitch ("Health insurance sales people are not getting
+    caught by the sales filter"); Sales also takes insulation, gutter service, HVAC and "free ... quote".
+  - Not yet: a TURN server (calls between two phones on strict carrier networks may not connect with STUN alone),
+    ringing a closed app, voice on the Mac beyond channels made there, messages between username friends.
 - **Cleaner, two more kinds, and a calmer frame** (0.7.19; Matt, 2026-11-14).
   - **Cleaner** (`cleaner.dart`, on): "add a "Cleaner" plugin that allows us to bulk delete messages by category and
     shows deletion progress in real time". The brush in the list's header opens a sheet of the list's groups (Codes,

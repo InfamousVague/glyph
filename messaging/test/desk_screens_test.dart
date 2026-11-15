@@ -222,7 +222,9 @@ void main() {
       expect(find.text('Mom'), findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(DesktopApp), matchesGoldenFile('shots/mac-10-contacts-${dark ? 'dark' : 'light'}.png'));
       // The rings stand evenly along the sidebar's foot: the first by its start, the last by its end.
-      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx, middle = tester.getCenter(_nav('Contacts')).dx;
+      // Six rings since Voice joined them: the middle falls between the third and the fourth.
+      final first = tester.getCenter(_nav('New chat')).dx, last = tester.getCenter(_nav('Settings')).dx;
+      final middle = (tester.getCenter(_nav('Contacts')).dx + tester.getCenter(_nav('Voice')).dx) / 2;
       expect(first, lessThan(60));
       expect(last, greaterThan(280));
       expect(middle, closeTo((first + last) / 2, 0.6));

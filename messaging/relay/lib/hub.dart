@@ -22,6 +22,8 @@ import 'sha256.dart';
 ///   of the hub loses them, and the app's own routes are what a sender falls back on (lib/net/switchboard.dart).
 ///   No more than [maxConnections] are connected at once.
 /// - **Who is here.** A connection may ask to be told when some names come and go (`watch`).
+/// - **Looking at a room** without joining it (`look`, with its token): told who is in it, now and as that changes. A
+///   voice channel's list, showing who is connected before you jump in.
 /// - **Rooms** (a voice room, a group): named by 32 hex digits with a token of 64, both made by its members from a
 ///   key only they hold; the first to name a room sets its token. Whoever holds the token may join and leave at any
 ///   time, is told who is in it, and what one member sends to the room goes to the others. A room nobody is in is
@@ -69,6 +71,11 @@ class Hub {
   final Map<String, List<_Held>> _mail = {};
   final Map<String, _Room> _rooms = {};
   final Map<String, Set<_End>> _watching = {};
+
+  /// Who is looking at a room without being in it (a voice channel's list: who is connected), by room, with the hash
+  /// of the token each looked with. Told who is in it now and whenever that changes; a wrong token is told nothing.
+  final Map<String, Map<_End, String>> _lookers = {};
+  static const maxLooks = 200;
   Timer? _sweeper;
 
   int _open = 0;
@@ -149,6 +156,9 @@ class Hub {
       end = null;
       for (final room in e.rooms.toList()) {
         _leave(e, room);
+      }
+      for (final room in e.looks.toList()) {
+        _unlook(e, room);
       }
       for (final id in e.watches) {
         final set = _watching[id];
@@ -234,6 +244,11 @@ class Hub {
       } else if (said.containsKey('leave')) {
         final room = said['leave'];
         if (room is String && e.rooms.contains(room)) _leave(e, room);
+      } else if (said.containsKey('look')) {
+        _look(e, said['look'], said['token']);
+      } else if (said.containsKey('unlook')) {
+        final room = said['unlook'];
+        if (room is String) _unlook(e, room);
       }
     }, onDone: leave, onError: (_) => leave(), cancelOnError: true);
   }
@@ -276,6 +291,34 @@ class Hub {
     }
   }
 
+  /// Tells whoever looks at [name] with its token who is in it now.
+  void _showLookers(String name) {
+    final lookers = _lookers[name];
+    if (lookers == null) return;
+    final room = _rooms[name];
+    for (final l in lookers.entries) {
+      if (room != null && room.hash != l.value) continue;
+      _tell(l.key.ws, {'room': name, 'look': [...?room?.members.keys]});
+    }
+  }
+
+  void _look(_End e, Object? name, Object? token) {
+    if (!_hex(name, 32) || !_hex(token, 64)) return;
+    if (e.looks.length >= maxLooks && !e.looks.contains(name)) return;
+    final hash = hexOf(sha256(utf8.encode(token as String)));
+    (_lookers[name as String] ??= {})[e] = hash;
+    e.looks.add(name);
+    final room = _rooms[name];
+    if (room == null || room.hash == hash) _tell(e.ws, {'room': name, 'look': [...?room?.members.keys]});
+  }
+
+  void _unlook(_End e, String name) {
+    e.looks.remove(name);
+    final lookers = _lookers[name];
+    lookers?.remove(e);
+    if (lookers != null && lookers.isEmpty) _lookers.remove(name);
+  }
+
   void _join(_End e, Object? name, Object? token) {
     if (!_hex(name, 32) || !_hex(token, 64)) {
       _tell(e.ws, {'room': name, 'ok': false, 'err': 'bad room'});
@@ -301,6 +344,7 @@ class Hub {
     for (final id in others) {
       _tell(room.members[id]?.ws, {'room': name, 'came': e.id});
     }
+    _showLookers(name);
     _say('${e.id.substring(0, 6)} joined room ${name.substring(0, 6)} (${room.members.length} in it)');
   }
 
@@ -316,6 +360,7 @@ class Hub {
         _tell(m.ws, {'room': name, 'went': e.id});
       }
     }
+    _showLookers(name);
     _say('${e.id.substring(0, 6)} left room ${name.substring(0, 6)}');
   }
 
@@ -342,6 +387,7 @@ class _End {
   final void Function(Map<String, Object?>) tell;
   final Set<String> rooms = {};
   final Set<String> watches = {};
+  final Set<String> looks = {};
 }
 
 class _Held {

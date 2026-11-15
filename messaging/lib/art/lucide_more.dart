@@ -58,6 +58,13 @@ abstract final class LucideMore {
   // Food delivery texts (lib/plugins/kinds.dart), and Messages on the list's toggle (lib/plugins/ui.dart).
   static const utensils = LucideIcon('utensils', ['M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2', 'M7 2v20', 'M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7'], []);
   static const messageCircle = LucideIcon('message-circle', ['M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719'], []);
+  // Voice and video channels (lib/voice, lib/ui/voice_screen.dart).
+  static const headphones = LucideIcon('headphones', ['M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3'], []);
+  static const headphoneOff = LucideIcon('headphone-off', ['M21 14h-1.343', 'M9.128 3.47A9 9 0 0 1 21 12v3.343', 'm2 2 20 20', 'M20.414 20.414A2 2 0 0 1 19 21h-1a2 2 0 0 1-2-2v-3', 'M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 2.636-6.364'], []);
+  static const phoneCall = LucideIcon('phone-call', ['M13 2a9 9 0 0 1 9 9', 'M13 6a5 5 0 0 1 5 5', 'M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384'], []);
+  static const phoneOff = LucideIcon('phone-off', ['M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-12.728-5.272', 'M22 2 2 22', 'M4.76 13.582A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 .244.473'], []);
+  static const videoOff = LucideIcon('video-off', ['M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196', 'M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2', 'm2 2 20 20'], []);
+  static const micOff = LucideIcon('mic-off', ['M12 19v3', 'M15 9.34V5a3 3 0 0 0-5.68-1.33', 'M16.95 16.95A7 7 0 0 1 5 12v-2', 'M18.89 13.23A7 7 0 0 0 19 12v-2', 'm2 2 20 20', 'M9 9v3a3 3 0 0 0 5.12 2.12'], []);
   // The Cleaner plugin (lib/plugins/cleaner.dart).
   static const brushCleaning = LucideIcon('brush-cleaning', ['m16 22-1-4', 'M19 14a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1', 'M19 14H5l-1.973 6.767A1 1 0 0 0 4 22h16a1 1 0 0 0 .973-1.233z', 'm8 22 1-4'], []);
   static const userRoundSearch = LucideIcon('user-round-search', ['M5 8A5 5 0 1 0 15 8A5 5 0 1 0 5 8Z', 'M2 21a8 8 0 0 1 10.434-7.62', 'M15 18A3 3 0 1 0 21 18A3 3 0 1 0 15 18Z', 'm22 22-1.9-1.9'], [0, 2]);

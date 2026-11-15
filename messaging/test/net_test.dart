@@ -412,6 +412,52 @@ void main() {
             await h.stop();
           }
         });
+
+    // Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can see who's
+    // connected".
+    test('a room is looked at without joining it: who is in it now and as they come and go; a wrong token sees nothing', () async {
+          final keys = [for (var i = 0; i < 3; i++) NetKeys.generate()];
+          final hubs = [for (final k in keys) HubCarrier(url: url, signer: KeysSigner(k))];
+          for (final h in hubs) {
+            await up(h);
+          }
+          final roomKey = NetCrypto.randomBytes(32);
+          final room = NetCrypto.hex(NetCrypto.derive(roomKey, 'room name').sublist(0, 16));
+          final token = NetCrypto.hex(NetCrypto.derive(roomKey, 'room token'));
+          final seen = <List<int>>[];
+          hubs[0].looks.listen((l) => seen.add([for (final m in l.members) keys.indexWhere((k) => k.id == m)]..sort()));
+          hubs[0].look(room, token);
+          await _tick(80);
+          expect(seen.last, isEmpty, reason: 'nobody in it yet');
+          await hubs[1].join(room, token);
+          await _tick(80);
+          expect(seen.last, [1]);
+          await hubs[2].join(room, token);
+          await _tick(80);
+          expect(seen.last, [1, 2]);
+          expect(hubs[0].looking[room]!.length, 2);
+          hubs[1].leave(room);
+          await _tick(80);
+          expect(seen.last, [2]);
+          // Looking is not being in it: nothing sent to the room reaches a looker.
+          final heard = <String>[];
+          hubs[0].roomPackets.listen((p) => heard.add('x'));
+          hubs[2].sendRoom(room, Uint8List.fromList([1, 2, 3]));
+          await _tick(80);
+          expect(heard, isEmpty);
+          // A wrong token is told nothing.
+          final outsider = HubCarrier(url: url, signer: KeysSigner(NetKeys.generate()));
+          await up(outsider);
+          final peeked = <Object>[];
+          outsider.looks.listen(peeked.add);
+          outsider.look(room, 'f' * 64);
+          await _tick(80);
+          expect(peeked, isEmpty);
+          hubs[0].unlook(room);
+          for (final h in [...hubs, outsider]) {
+            await h.stop();
+          }
+        });
   });
 }
 
