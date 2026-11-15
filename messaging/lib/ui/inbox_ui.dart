@@ -466,7 +466,7 @@ List<SettingsSection> inboxSettingsSections() => [
         ),
     ];
 
-String _summary(InboxNetwork n) => switch (n.state) {
+String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.ready => 'Signed in${n.account == null ? '' : ' as ${n.account}'}',
       InboxState.signingIn => 'Signing in…',
       InboxState.signedOut => 'Not signed in',
@@ -485,7 +485,9 @@ List<Widget> _pane(BuildContext context, InboxNetwork n) {
       description: Text('Your ${n.name} chats in a tab of their own beside Messages, read and answered here. They go between this device and ${n.name} only.'),
       footer: n.error == null || n.state == InboxState.ready ? null : Text(n.error!),
       children: [
-        if (n.state == InboxState.ready) ...[
+        if (n.soon)
+          SettingRow(icon: _icon(Lucide.info), label: 'Coming soon', hint: Text('${n.name} chats aren\'t offered yet.'), disabled: true)
+        else if (n.state == InboxState.ready) ...[
           SettingRow(icon: _icon(Lucide.userRound), label: n.account ?? 'Signed in', hint: Text('${n.chats.length} chat${n.chats.length == 1 ? '' : 's'}')),
           SettingRow(
             icon: _icon(Lucide.logOut),
