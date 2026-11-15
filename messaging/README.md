@@ -448,6 +448,19 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Calls as a list, ripples, a dock, three list layouts and a call capsule** (0.7.22, not released; Matt, 2026-11-15:
+  "make the voice chats a list of participants don't show the squares unless someone turns on video and make the
+  profile picture habe wobbly ripples going out when talking ... voice controls at the bottom in a dock ... an icon
+  only segmented toggle ... add voice chats to the list as well, try a few different layouts ... including a mixed
+  view ... rework the active call indicator").
+  - A call is everyone as a list (`CallPanel`), a picture only for whoever has video on, and the buttons in a dock
+    at the foot (`CallDock`). Faces ripple with wobbly rings while their owner talks (`lib/ui/ripple_avatar.dart`),
+    from WebRTC's audio levels read several times a second (`RtcMedia.levels`). The browser page does the same.
+  - The list's toggle is icons alone, with a Voice tab of the channels (`VoiceRow`, live in green). Settings ›
+    Messages › The list chooses Tabs, All together (conversations, codes and channels in one list, newest first,
+    the filter in the title row) or Voice above (channels as cards over the list, `VoiceStrip`).
+  - While in a call, a capsule floats over the list above the pill (`CallCapsule`): a beating dot, the channel, the
+    time in it, whoever is talking (rippling), mute and leave; a press opens the call. The Voice ring no longer counts.
 - **Hangouts by link, in a browser** (0.7.22, not released; site/join; Matt, 2026-11-14: "Make the voice hangouts
   possible to share via a link so people can join to talk anonymously or sign up through the browser similar to a
   zoom meeting"). A hangout's options (and the call, for one that is not a group's) copy

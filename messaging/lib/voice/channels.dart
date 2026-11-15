@@ -55,11 +55,31 @@ class Voice extends ChangeNotifier {
   /// Channels made here or shared by friends.
   List<VoiceChannel> own = [];
 
+  /// When each channel (by room) last had someone in it, as this device saw: what the list sorts channels by among
+  /// conversations (Matt, 2026-11-15: "a mixed view that shows them all intertwined sorted by recency").
+  final Map<String, int> _seen = {};
+
+  /// Someone is in [c] now (this device among them).
+  bool live(VoiceChannel c) => inChannel(c).isNotEmpty || session?.channel.room == c.room;
+
+  /// When [c] last had anyone in it: now while it does; null where never seen.
+  DateTime? lastActive(VoiceChannel c) {
+    if (live(c)) return DateTime.now();
+    final at = _seen[c.room];
+    return at == null ? null : DateTime.fromMillisecondsSinceEpoch(at);
+  }
+
+  void _saw(String room) {
+    _seen[room] = DateTime.now().millisecondsSinceEpoch;
+    _app?.set('voice_seen', jsonEncode(_seen));
+  }
+
   Future<void> start(AppState app) async {
     if (_app != null) return;
     _app = app;
     try {
       own = [for (final j in jsonDecode(app.choice('voice_channels', '[]')) as List) ?VoiceChannel.fromJson(j)];
+      _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
     } catch (_) {}
     Net.instance.addListener(_follow);
     Groups.instance.addListener(_look);
@@ -112,6 +132,7 @@ class Voice extends ChangeNotifier {
     final route = _route = HubVoiceRoute(hub);
     _subs.add(route.looks.listen((l) {
       _in[l.room] = l.members;
+      if (l.members.isNotEmpty) _saw(l.room);
       notifyListeners();
     }));
     _look();
@@ -219,6 +240,7 @@ class Voice extends ChangeNotifier {
     final m = media = RtcMedia();
     final name = Me.instance.displayName.isNotEmpty ? Me.instance.displayName : (Me.instance.username == null ? '' : '@${Me.instance.username}');
     final s = session = VoiceSession(channel: c, route: route, media: m, name: name);
+    _saw(c.room);
     s.addListener(notifyListeners);
     notifyListeners();
     try {

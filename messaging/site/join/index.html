@@ -39,7 +39,9 @@
   .round svg { width: 1.35rem; height: 1.35rem; }
   .note { color: var(--ink2); font-size: 0.9rem; margin: 0.6rem 0 0; }
   .error { color: var(--red); font-size: 0.95rem; margin: 0.5rem 0 0; }
-  .grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); flex: 1; align-content: start; margin-top: 1rem; }
+  .grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); align-content: start; margin-top: 1rem; }
+  .grid:empty { display: none; }
+  .bar .dock { display: flex; gap: 0.6rem; padding: 0.5rem; border-radius: 999px; background: var(--bg); border: 1px solid var(--rule); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
   .tile { aspect-ratio: 4 / 3; background: var(--tile); border-radius: 1rem; overflow: hidden; position: relative; display: grid; place-items: center; }
   .tile video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
   .tile.me video { transform: scaleX(-1); }
@@ -48,6 +50,26 @@
   .tile.has-video .who { color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
   .tile .who small { font-weight: 400; opacity: 0.75; }
   .tile .who svg { width: 0.95rem; height: 0.95rem; color: var(--red); flex: none; }
+  .people { list-style: none; margin: 1rem 0 0; padding: 0.4rem 0; background: var(--card); border-radius: 1.1rem; max-width: 34rem; }
+  .people li { display: flex; align-items: center; gap: 0.9rem; padding: 0.55rem 1rem 0.55rem 1.2rem; font-weight: 600; }
+  .people small { font-weight: 400; color: var(--ink2); }
+  .people .m { margin-left: auto; color: var(--red); display: flex; }
+  .people .m svg { width: 1rem; height: 1rem; }
+  /* A face, and wobbly rings going out from it while they talk (Matt, 2026-11-15: "make the profile picture habe
+     wobbly ripples going out when talking"). */
+  .face2 { position: relative; width: 2.6rem; height: 2.6rem; flex: none; }
+  .face2 b { position: absolute; inset: 0; border-radius: 50%; background: var(--tile); display: grid; place-items: center; z-index: 1; border: 1px solid var(--rule); }
+  .face2 i { position: absolute; inset: 0; border: 2px solid var(--green); border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; opacity: 0; }
+  .talking .face2 b { border: 2.5px solid var(--green); }
+  .talking .face2 i { animation: ripple 1.8s ease-out infinite; }
+  .talking .face2 i:nth-of-type(2) { animation-delay: 0.6s; }
+  .talking .face2 i:nth-of-type(3) { animation-delay: 1.2s; }
+  @keyframes ripple {
+    0% { transform: scale(1) rotate(0deg); opacity: 0.75; border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; }
+    50% { border-radius: 54% 46% 48% 52% / 46% 54% 48% 52%; }
+    100% { transform: scale(1.85) rotate(60deg); opacity: 0; border-radius: 48% 52% 54% 46% / 54% 48% 46% 52%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .talking .face2 i { animation: none; opacity: 0.5; } }
   .bar { position: sticky; bottom: 0; display: flex; justify-content: center; gap: 0.9rem; padding: 1rem 0 0.25rem; background: linear-gradient(transparent, var(--bg) 35%); }
   .center { text-align: center; margin: auto; max-width: 28rem; }
   [hidden] { display: none !important; }
@@ -104,12 +126,14 @@
       <button class="quiet" id="copy">Copy link</button>
     </div>
     <div class="grid" id="tiles"></div>
+    <ul class="people" id="people"></ul>
+    <div style="flex:1"></div>
     <p class="error" id="call-error" hidden></p>
-    <div class="bar">
+    <div class="bar"><div class="dock">
       <button class="round" id="mic" aria-label="Mute"></button>
       <button class="round" id="cam" aria-label="Turn video on"></button>
       <button class="round leave" id="leave" aria-label="Leave"></button>
-    </div>
+    </div></div>
   </section>
 
   <!-- Left. -->
@@ -232,8 +256,30 @@ function paint() {
   $('cam').classList.toggle('on', hangout.video);
   $('cam').setAttribute('aria-label', hangout.video ? 'Turn video off' : 'Turn video on');
   $('leave').innerHTML = icons.leave;
-  const tiles = [{ id: 'me', name: (hangout.name || 'Guest') + ' (you)', muted: hangout.muted, stream: hangout.cam, me: true }];
-  for (const [id, m] of hangout.members) tiles.push({ id, name: m.name || 'Someone', guest: m.guest, muted: m.muted, stream: m.video ? m.stream : null, audio: m.stream });
+  const everyone = [{ id: 'me', name: (hangout.name || 'Guest') + ' (you)', muted: hangout.muted, stream: hangout.cam, me: true }];
+  for (const [id, m] of hangout.members) everyone.push({ id, name: m.name || 'Someone', guest: m.guest, muted: m.muted, stream: m.video ? m.stream : null, audio: m.stream });
+  // Everyone as a list; a picture only for whoever has video on (Matt, 2026-11-15: "make the voice chats a list of
+  // participants don't show the squares unless someone turns on video"). Sound plays from the list's rows.
+  const list = $('people');
+  const keptRows = new Map([...list.children].map((el) => [el.dataset.id, el]));
+  list.replaceChildren(...everyone.map((p) => {
+    let li = keptRows.get(p.id);
+    if (!li) {
+      li = document.createElement('li');
+      li.dataset.id = p.id;
+      li.innerHTML = '<span class="face2"><i></i><i></i><i></i><b></b></span><span class="n"></span><small class="g"></small><span class="m"></span>';
+      if (!p.me) { const a = document.createElement('audio'); a.autoplay = true; li.append(a); }
+    }
+    li.querySelector('b').textContent = initial(p.name);
+    li.querySelector('.n').textContent = p.name;
+    li.querySelector('.g').textContent = p.guest ? 'guest' : '';
+    li.querySelector('.m').innerHTML = p.muted ? icons.micOff : '';
+    li.classList.toggle('talking', !p.muted && (levels.get(p.id) ?? 0) > 0.04);
+    const a = li.querySelector('audio');
+    if (a && p.audio && a.srcObject !== p.audio) a.srcObject = p.audio;
+    return li;
+  }));
+  const tiles = everyone.filter((p) => p.stream);
   const box = $('tiles');
   const kept = new Map([...box.children].map((el) => [el.dataset.id, el]));
   const order = [];
@@ -244,7 +290,6 @@ function paint() {
       el.className = 'tile' + (t.me ? ' me' : '');
       el.dataset.id = t.id;
       el.innerHTML = '<div class="face"></div><div class="who"><span class="n"></span><small class="g"></small><span class="m"></span></div>';
-      if (!t.me) { const a = document.createElement('audio'); a.autoplay = true; el.append(a); }
     }
     el.querySelector('.face').textContent = initial(t.name);
     el.querySelector('.n').textContent = t.name;
@@ -256,13 +301,24 @@ function paint() {
       if (v.srcObject !== t.stream) v.srcObject = t.stream;
     } else if (v) v.remove();
     el.classList.toggle('has-video', !!t.stream);
-    const a = el.querySelector('audio');
-    if (a && t.audio && a.srcObject !== t.audio) a.srcObject = t.audio;
     order.push(el);
   }
   box.replaceChildren(...order);
   if (hangout.lost) error('call-error', 'The connection to the relay server was lost. Leave and join again.');
 }
+
+// How loud each one is, a few times a second (WebRTC's audioLevel), for the rippling faces.
+const levels = new Map();
+setInterval(async () => {
+  if (!hangout?.joined) return;
+  for (const [id, pc] of hangout.peers) {
+    for (const s of (await pc.getStats()).values()) {
+      if (s.type === 'inbound-rtp' && s.kind === 'audio' && typeof s.audioLevel === 'number') levels.set(id, s.audioLevel);
+      if (s.type === 'media-source' && s.kind === 'audio' && typeof s.audioLevel === 'number') levels.set('me', s.audioLevel);
+    }
+  }
+  paint();
+}, 200);
 
 $('join').onclick = async () => {
   const name = $('name').value.trim() || (username ? '@' + username : 'Guest');

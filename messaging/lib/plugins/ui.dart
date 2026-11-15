@@ -29,7 +29,10 @@ import 'registry.dart';
 /// message: "add a right click menu for the codes and messages tabs"). It is the kit's middle size (Matt, later
 /// that day: "the segmented toggle for messages vs codes can be a size larger").
 class SectionTabs extends StatelessWidget {
-  const SectionTabs({super.key, required this.sections, required this.counts, required this.unread, required this.chosen, required this.onPick, this.onMenu});
+  const SectionTabs({super.key, required this.sections, required this.counts, required this.unread, required this.chosen, required this.onPick, this.onMenu, this.extra = const []});
+
+  /// Tabs of the app's own after the sections' (the voice channels: lib/ui/conversations.dart).
+  final List<({String id, LucideIcon icon, String label, int count})> extra;
 
   final List<PluginSection> sections;
   final Map<String, int> counts;
@@ -50,15 +53,18 @@ class SectionTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final values = [_main, for (final s in sections) s.id];
+    final values = [_main, for (final s in sections) s.id, for (final e in extra) e.id];
 
-    // In the toggle's own type and colour, which are the chosen tab's or a quiet one's by turns.
-    Widget label(String words, {LucideIcon? icon, int? count, bool dot = false, bool icons = true}) => Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (icon != null && icons) ...[AppIcon(icon, size: 15, strokeWidth: 2.2, wash: false), SizedBox(width: t.space(1))],
-          Flexible(child: Text(words, maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false)),
-          if (count != null) ...[SizedBox(width: t.space(1)), Opacity(opacity: 0.6, child: Text('$count'))],
-          if (dot) ...[SizedBox(width: t.space(1)), Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('#4f5bd5')))],
-        ]);
+    // Icons alone (Matt, 2026-11-15: "use an icon only segmented toggle for the messages codes"), each tab's name said
+    // to a screen reader, its unread count beside its icon where it has any.
+    Widget label(String words, LucideIcon icon, {int? count}) => Semantics(
+          label: count == null || count == 0 ? words : '$words, $count',
+          excludeSemantics: true,
+          child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+            AppIcon(icon, size: 18, strokeWidth: 2.2, wash: false),
+            if (count != null && count > 0) ...[SizedBox(width: t.space(1)), Opacity(opacity: 0.7, child: Text('$count'))],
+          ]),
+        );
 
     return LayoutBuilder(builder: (context, box) {
       // The tabs share the toggle's width equally, so where a press landed says which tab it was on.
@@ -78,12 +84,11 @@ class SectionTabs extends StatelessWidget {
           value: chosen ?? _main,
           onValueChange: (v) => onPick(v == _main ? null : v),
           options: [
-            // Matt, 2026-11-14: "add an icon for messages on the segmented toggle".
-            // Words alone (Matt, 2026-11-14: "remove the icons from messages and codes"), and a tab's count is of its
-            // unread conversations, none where all are read ("and the badge count for codes that are already read").
-            GlacierSegmentedOption(value: _main, label: label('Messages')),
-            for (final s in sections)
-              GlacierSegmentedOption(value: s.id, label: label(s.section.label, count: (counts[s.id] ?? 0) > 0 ? counts[s.id] : null)),
+            // A tab's count is of its unread conversations, none where all are read (Matt, 2026-11-14: "the badge count
+            // for codes that are already read").
+            GlacierSegmentedOption(value: _main, label: label('Messages', LucideMore.messageCircle)),
+            for (final s in sections) GlacierSegmentedOption(value: s.id, label: label(s.section.label, s.section.icon, count: counts[s.id])),
+            for (final e in extra) GlacierSegmentedOption(value: e.id, label: label(e.label, e.icon, count: e.count)),
           ],
         ),
       );

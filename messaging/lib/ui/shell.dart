@@ -402,7 +402,8 @@ class AppShellState extends State<AppShell> {
               const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
               const NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts'),
               // Voice channels, lit while you're in one (Matt, 2026-11-14: "always open voice channels").
-              NavItem(id: 'voice', icon: LucideMore.headphones, label: Voice.instance.session == null ? 'Voice' : 'Voice, connected', count: Voice.instance.session == null ? 0 : Voice.instance.session!.members.length + 1),
+              // The call you're in is shown by its capsule over the list (CallCapsule), not a number on this ring.
+              NavItem(id: 'voice', icon: LucideMore.headphones, label: Voice.instance.session == null ? 'Voice' : 'Voice, connected'),
               NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: count, menu: _archiveRows),
               NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
             ],
@@ -498,6 +499,15 @@ class AppShellState extends State<AppShell> {
                                 child: _pill(upright: docked),
                               ),
                             ),
+                          ),
+                        // The call you're in, over the list above the pill (Matt, 2026-11-15: "rework the active call
+                        // indicator"); not while the call itself is open, nor under a page on a phone.
+                        if (_showing != 'voice' && !(!wide && (settingsOpen || _open != null)))
+                          Positioned(
+                            left: t.space(3),
+                            right: docked ? edges.right + NavPill.railWidth(t) + t.space(2) : t.space(3),
+                            bottom: edges.bottom + (docked ? t.space(3) : NavPill.clearance(t) - t.space(2)),
+                            child: CallCapsule(onOpen: () => go('voice')),
                           ),
                       ]))),
                     ),

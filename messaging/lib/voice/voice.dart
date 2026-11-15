@@ -115,6 +115,9 @@ abstract class VoicePeer {
 
 /// This device's microphone and camera, and the connections to the others (lib/voice/rtc.dart).
 abstract class VoiceMedia {
+  /// How loud each one is now, 0 to 1: `me` for this device's microphone, and each other member by id. What the
+  /// call's faces ripple with while someone talks.
+  ValueListenable<Map<String, double>> get levels;
   Future<void> start();
   Future<void> stop();
   set muted(bool on);
@@ -157,6 +160,9 @@ class VoiceSession extends ChangeNotifier {
   final List<StreamSubscription<Object?>> _subs = [];
   bool muted = false, deafened = false, video = false, joined = false;
 
+  /// When this device came into the call.
+  DateTime? since;
+
   Future<void> join({bool withVideo = false}) async {
     video = withVideo;
     await media.start();
@@ -165,6 +171,7 @@ class VoiceSession extends ChangeNotifier {
     _subs.add(route.events.where((e) => e.room == channel.room).listen(_event));
     final there = await route.join(channel.room, channel.token);
     joined = true;
+    since = DateTime.now();
     for (final id in there) {
       members[id] = VoiceMember(id);
     }
