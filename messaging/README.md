@@ -448,6 +448,15 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   under the groups' names (`settingsGroupLabel`; a section alone in its group has none), each opening Settings at
   that section; its row in Settings' list is brought into view where it was out of sight. The list's tabs' menus
   are still the sheet.
+- **Ghost Messaging for Windows, and Mac and Windows downloads on ghost-sms.com** (2026-11-15; Matt, 2026-11-14: "Add a
+  mac and windows build to ghost-sms.com"). The desktop app builds for Windows (`windows/`, built on GitHub's Windows
+  runners by .github/workflows/messaging-windows.yml, which also installs it silently and checks it opens a window)
+  into an Inno Setup installer (`windows/installer.iss`: per person, no administrator, Start menu, uninstaller).
+  `tool/release-windows.mjs` starts that build and puts `ghost-messaging-setup.exe` and `windows.json` on the site;
+  0.7.21 (35 MB) was the first, unsigned, so Windows asks once before running it. On Windows the pairing is kept in
+  %APPDATA%, the phone is found by its address or the relay (no Bonjour), the Mac's updater is off, and the screens say
+  PC. The site has Download for Mac and Download for Windows under Android's, each shown once its feed exists.
+  Not yet: Windows updating itself, a signed installer, voice messages recorded on Windows.
 - **Usernames, friends by username, and voice and video channels** (0.7.20; relay deployed 2026-11-15 01:51 UTC;
   deployed; Matt, 2026-11-14: "work on the friend system so we can create a profile and username under "me" ...
   always open voice channels that you can jump in and out at any time and you can see who's connected and also
