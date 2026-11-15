@@ -154,9 +154,10 @@ export class Hangout {
 
   change() { this.onChange?.(); }
 
-  async join({ name, guest, audio = true, video = false }) {
+  async join({ name, guest, username, audio = true, video = false }) {
     this.name = name;
     this.guest = guest;
+    this.username = username || null;
     this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: false });
     if (!audio) this.setMuted(true);
     if (video) await this.setVideo(true);
@@ -187,7 +188,7 @@ export class Hangout {
     this.change();
   }
 
-  sayMe() { this.say({ t: 'me', n: this.name, m: this.muted, v: this.video, g: this.guest }); }
+  sayMe() { this.say({ t: 'me', n: this.name, m: this.muted, v: this.video, g: this.guest, ...(this.username ? { u: this.username } : {}) }); }
 
   async say(what) {
     if (!this.joined && what.t !== 'me') return;

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
 /// Voice and video channels (lib/voice/voice.dart). Matt, 2026-11-14: "jump in audio chats like discord has always
@@ -83,6 +84,10 @@ class _Media implements VoiceMedia {
   Future<void> setVideo(bool on) async => isVideo = on;
   @override
   VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => _Peer(this, id, onCandidate);
+  @override
+  void setPeerVolume(String id, double volume) {}
+  @override
+  void setPeerMuted(String id, bool muted) {}
 }
 
 class _Peer implements VoicePeer {
@@ -245,5 +250,37 @@ void main() {
     expect(a.members['g']!.guest, isTrue);
     expect(a.members['g']!.name, 'Alex');
     await a.leave();
+  });
+
+  test('a username goes with a member\'s name, so the others can add them as a friend', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Hangout');
+    final a = VoiceSession(channel: c, route: _Route(hub, 'a'), media: _Media(), name: 'Maya', username: 'maya');
+    final b = VoiceSession(channel: c, route: _Route(hub, 'b'), media: _Media(), name: 'Sam');
+    await a.join();
+    await b.join();
+    await _settle();
+    expect(b.members['a']!.username, 'maya');
+    expect(a.members['b']!.username, isNull);
+    await a.leave();
+    await b.leave();
+  });
+
+  // Matt, 2026-11-15: "make sure voice chats are kept actively in sync between mobile and desktop clients".
+  test('the phone answers its computer: every channel with its group, a name to go by; and keeps one the computer made', () async {
+    final v = Voice.instance;
+    final mine = VoiceChannel.make('Friday hang');
+    v.own = [mine];
+    addTearDown(() => v.own = []);
+    final list = await v.answerDesk({'op': 'list'}) as Map;
+    expect([for (final c in list['channels'] as List) (c as Map)['s']], [mine.seed]);
+    expect(((list['channels'] as List).first as Map)['m'], 1);
+    final made = VoiceChannel.make('From the Mac');
+    await v.answerDesk({'op': 'add', 's': made.seed, 'n': made.name});
+    expect(v.own.map((c) => c.seed), [mine.seed, made.seed]);
+    await v.answerDesk({'op': 'add', 's': made.seed, 'n': made.name});
+    expect(v.own, hasLength(2), reason: 'kept once');
+    await v.answerDesk({'op': 'forget', 's': made.seed});
+    expect(v.own.map((c) => c.seed), [mine.seed]);
   });
 }

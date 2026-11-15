@@ -1258,7 +1258,7 @@ void main() {
     v.own = [hangout, study];
     // Maya is talking, and so, a little, is this phone.
     final s = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia({'a': 0.45, 'me': 0.12}), name: 'Me')
-      ..members['a'] = const VoiceMember('a', name: 'Maya Chen')
+      ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
       ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
       ..members['c'] = const VoiceMember('c', name: 'Riley', guest: true);
     v.session = s;
@@ -1281,6 +1281,21 @@ void main() {
       expect(find.byType(CallDock), findsOneWidget);
       expect(find.bySemanticsLabel('Mute'), findsOneWidget);
       expect(find.bySemanticsLabel('Turn video on'), findsOneWidget);
+      // Press and hold someone: mute them for you, their volume, add them as a friend (Matt, 2026-11-15: "add the
+      // ability to press and hold on a user to habe options like muting changing volume levels for that user and
+      // more").
+      await tester.longPress(find.text('Maya Chen'));
+      await _settle(tester);
+      await _shootAgain(tester, '19-voice-person', dark: dark);
+      expect(find.text('Mute for me'), findsOneWidget);
+      expect(find.byType(VolumeSlider), findsOneWidget);
+      expect(find.text('100%'), findsOneWidget);
+      expect(find.text('Add @maya as a friend'), findsOneWidget);
+      await tester.tapAt(tester.getCenter(find.byType(VolumeSlider)) + const Offset(60, 0));
+      await _settle(tester);
+      expect(find.text('100%'), findsNothing, reason: 'louder than as sent');
+      expect(v.volumeOf('a'), greaterThan(1.0));
+      v.setVolume('a', 1.0);
       await tester.pumpWidget(const SizedBox());
     }
   });
@@ -1837,4 +1852,8 @@ class _NoMedia implements VoiceMedia {
   Future<void> setVideo(bool on) async {}
   @override
   VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => throw UnimplementedError();
+  @override
+  void setPeerVolume(String id, double volume) {}
+  @override
+  void setPeerMuted(String id, bool muted) {}
 }

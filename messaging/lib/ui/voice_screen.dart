@@ -154,7 +154,12 @@ class CallPanel extends StatelessWidget {
               padding: EdgeInsets.symmetric(vertical: t.space(2)),
               child: Column(children: [
                 for (final p in people)
-                  Padding(
+                  // Press and hold (or press with the other button) for what can be done about them here.
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onLongPress: () => showPerson(context, session, p.id, p.name),
+                    onSecondaryTap: () => showPerson(context, session, p.id, p.name),
+                    child: Padding(
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: 40),
@@ -173,7 +178,7 @@ class CallPanel extends StatelessWidget {
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.colorOf('#dd3a30'))),
                     ]),
-                  ),
+                  )),
               ])),
         ]);
       },
@@ -577,6 +582,186 @@ class CallBubble extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+
+/// What can be done about someone in the call, from this device (Matt, 2026-11-15: "add the ability to press and hold
+/// on a user to habe options like muting changing volume levels for that user and more"): silence them here, how loud
+/// they are here, add them as a friend where they have a username, copy their name. For yourself: mute and deafen.
+void showPerson(BuildContext context, VoiceSession session, String id, String name) {
+  Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
+    opaque: false,
+    barrierDismissible: true,
+    barrierColor: const Color(0x66000000),
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (context, _, _) => _PersonSheet(session: session, id: id, name: name),
+    transitionsBuilder: (context, a, _, child) => SlideTransition(
+      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+      child: child,
+    ),
+  ));
+}
+
+class _PersonSheet extends StatelessWidget {
+  const _PersonSheet({required this.session, required this.id, required this.name});
+  final VoiceSession session;
+  final String id;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final pad = MediaQuery.paddingOf(context);
+    final v = Voice.instance;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).pop(),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: GestureDetector(
+          onTap: () {},
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: t.lenOf('30rem')),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(t.radius('xl')),
+                child: ColoredBox(
+                  color: t.color('app-paper-2'),
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([v, session]),
+                    builder: (context, _) {
+                      final me = id == 'me';
+                      final m = session.members[id];
+                      final gone = !me && m == null;
+                      final friend = m?.username == null ? null : Buddies.instance.all.where((b) => b.username == m!.username).firstOrNull;
+                      return Padding(
+                        padding: EdgeInsets.all(t.space(4)),
+                        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          Row(children: [
+                            RippleAvatar(name: name, level: 0, size: 44),
+                            SizedBox(width: t.space(3)),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+                                Text(
+                                  me ? 'You' : gone ? 'Left the call' : m!.guest ? 'Guest, from a link' : (m.username == null ? 'In the call' : '@${m.username}'),
+                                  style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
+                                ),
+                              ]),
+                            ),
+                          ]),
+                          SizedBox(height: t.space(3)),
+                          if (me) ...[
+                            SettingRow(label: 'Mute', control: GlacierSwitch(checked: session.muted, onCheckedChange: session.setMuted, ariaLabel: 'Mute')),
+                            SettingRow(label: 'Deafen', hint: const Text('Hear nobody, and say nothing.'), control: GlacierSwitch(checked: session.deafened, onCheckedChange: session.setDeafened, ariaLabel: 'Deafen')),
+                          ] else if (!gone) ...[
+                            SettingRow(
+                              icon: AppIcon(LucideMore.micOff, size: 18),
+                              label: 'Mute for me',
+                              hint: const Text('Only you stop hearing them.'),
+                              control: GlacierSwitch(checked: v.silenced(id), onCheckedChange: (on) => v.setSilenced(id, on), ariaLabel: 'Mute $name for me'),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(vertical: t.space(2)),
+                              child: Row(children: [
+                                AppIcon(Lucide.volume2, size: 18, color: t.color('app-ink-2')),
+                                SizedBox(width: t.space(3)),
+                                Expanded(child: VolumeSlider(value: v.volumeOf(id), onChanged: (x) => v.setVolume(id, x), label: 'Volume for $name')),
+                                SizedBox(width: t.space(3)),
+                                SizedBox(width: 44, child: Text('${(v.volumeOf(id) * 100).round()}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
+                              ]),
+                            ),
+                            if (m!.username != null && friend?.state != 'yes')
+                              SettingRow(
+                                icon: AppIcon(Lucide.userPlus, size: 18),
+                                label: friend?.state == 'asked' ? 'Friend request sent' : 'Add @${m.username} as a friend',
+                                disabled: friend != null,
+                                onPress: () async {
+                                  try {
+                                    await Buddies.instance.add(m.username!);
+                                    if (context.mounted) toast(context, 'Asked @${m.username}');
+                                  } catch (e) {
+                                    if (context.mounted) toast(context, '$e', tone: GlacierToastTone.danger);
+                                  }
+                                },
+                              ),
+                            SettingRow(
+                              icon: AppIcon(Lucide.copy, size: 18),
+                              label: 'Copy name',
+                              onPress: () {
+                                Clipboard.setData(ClipboardData(text: m.username == null ? name : '@${m.username}'));
+                                toast(context, 'Copied');
+                              },
+                            ),
+                          ],
+                        ]),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A volume from nothing to twice as loud, dragged or tapped along its track; 100% marked.
+class VolumeSlider extends StatelessWidget {
+  const VolumeSlider({super.key, required this.value, required this.onChanged, required this.label, this.max = 2.0});
+  final double value;
+  final ValueChanged<double> onChanged;
+  final String label;
+  final double max;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Semantics(
+      label: label,
+      value: '${(value * 100).round()}%',
+      increasedValue: '${((value + 0.1).clamp(0, max) * 100).round()}%',
+      decreasedValue: '${((value - 0.1).clamp(0, max) * 100).round()}%',
+      onIncrease: () => onChanged((value + 0.1).clamp(0, max)),
+      onDecrease: () => onChanged((value - 0.1).clamp(0, max)),
+      child: LayoutBuilder(builder: (context, box) {
+        final w = box.maxWidth;
+        void at(double x) {
+          var v = (x / w).clamp(0.0, 1.0) * max;
+          // Held at 100% when near it.
+          if ((v - 1).abs() < 0.04) v = 1;
+          onChanged(v);
+        }
+
+        final frac = (value / max).clamp(0.0, 1.0);
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => at(d.localPosition.dx),
+          onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
+          child: SizedBox(
+            height: 32,
+            child: Stack(alignment: Alignment.centerLeft, children: [
+              Container(height: 6, decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(3))),
+              Container(width: w * frac, height: 6, decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(3))),
+              Positioned(left: w / 2 - 1, child: Container(width: 2, height: 12, color: t.color('app-ink-4'))),
+              Positioned(
+                left: (w * frac - 11).clamp(0.0, w - 22),
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('app-paper'), border: Border.all(color: t.color('app-accent'), width: 2), boxShadow: t.shadowOf('0 1px 4px rgba(0,0,0,0.2)')),
+                ),
+              ),
+            ]),
+          ),
+        );
+      }),
     );
   }
 }

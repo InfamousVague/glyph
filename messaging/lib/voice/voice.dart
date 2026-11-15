@@ -123,21 +123,31 @@ abstract class VoiceMedia {
   set muted(bool on);
   set deafened(bool on);
   Future<void> setVideo(bool on);
+
+  /// How loud [id] is played on this device, 0 to 2 (1 as they send it), and whether they are silenced for this
+  /// device alone (Matt, 2026-11-15: "press and hold on a user to habe options like muting changing volume levels for
+  /// that user").
+  void setPeerVolume(String id, double volume);
+  void setPeerMuted(String id, bool muted);
   VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate});
 }
 
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username});
   final String id;
   final String name;
+
+  /// Their username on Ghost Messaging, where they have one and said it: to add them as a friend.
+  final String? username;
   final bool muted;
   final bool video;
 
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
-  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest}) => VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest);
+  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest, String? username}) =>
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -146,7 +156,10 @@ class VoiceMember {
 /// never offer each other at once. What is said (offers, answers, ways to connect, and each member's name, muted
 /// and video) is sealed with the channel's key and sent to the room, naming who it is for where it is for one.
 class VoiceSession extends ChangeNotifier {
-  VoiceSession({required this.channel, required this.route, required this.media, required this.name});
+  VoiceSession({required this.channel, required this.route, required this.media, required this.name, this.username});
+
+  /// This device's username, said to the others so they can add it as a friend.
+  final String? username;
 
   final VoiceChannel channel;
   final VoiceRoute route;
@@ -239,7 +252,7 @@ class VoiceSession extends ChangeNotifier {
     _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp)});
   }
 
-  void _sayState() => _say({'t': 'me', 'n': name, 'm': muted || deafened, 'v': video});
+  void _sayState() => _say({'t': 'me', 'n': name, 'm': muted || deafened, 'v': video, if (username != null) 'u': username});
 
   void _say(Map<String, Object?> what) {
     if (!joined) return;
@@ -262,7 +275,7 @@ class VoiceSession extends ChangeNotifier {
     switch (m['t']) {
       case 'me':
         final had = members[from] ?? VoiceMember(from);
-        members[from] = had.copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true);
+        members[from] = had.copyWith(name: '${m['n'] ?? ''}', muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null);
         notifyListeners();
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));

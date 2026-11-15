@@ -228,6 +228,7 @@ interface DeskPhone {
     // What a computer may also do since the phone's screens became the computer's (Matt, 2026-11-14: "the desktop
     // app should get all featues its missing from mobile"): what those screens do on the phone.
     fun deleteMessage(kind: String, id: Long)
+    fun voice(what: Map<String, Any?>): Any?
     fun deleteThreads(threads: List<Long>): Int
     fun editMessage(kind: String, id: Long, body: String)
 
@@ -320,6 +321,8 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         "caps" -> CAPS
         "ownNumber" -> phone.ownNumber()
         "me" -> phone.me(plain(a.getJSONObject("what")))
+        // Voice channels, the phone's and the computer's kept in step (lib/voice/channels.dart): answered by Dart.
+        "voice" -> phone.voice(plain(a.getJSONObject("what")))
         "deleteMessage" -> { phone.deleteMessage(kind(a), a.getLong("id")); null }
         "deleteThread" -> phone.deleteThreads(listOf(a.getLong("thread")))
         "deleteThreads" -> phone.deleteThreads(longs(a.getJSONArray("threads")))
@@ -471,7 +474,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         val CAPS = listOf(
             "threadName", "deleteMessage", "deleteThread", "deleteThreads", "editMessage", "resendMms", "setBlocked", "blockedNumbers",
             "e2eOffer", "e2eOff", "e2eVerify", "e2ePlainSeen", "e2eList", "mmsStatus", "voiceLimit",
-            "put", "drop", "sendPictures", "sendVoice", "sendSticker", "ownNumber", "me",
+            "put", "drop", "sendPictures", "sendVoice", "sendSticker", "ownNumber", "me", "voice",
         )
     }
 }

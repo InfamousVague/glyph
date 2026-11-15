@@ -462,6 +462,13 @@ It lives in Ghost.md's repository for now, in its own folder, and can be moved t
   - While in a call your face floats over the list's corner, rippling as you talk, ringed green, marked red when
     muted (`CallBubble`; "the active call floating in a single avatar with our speech wobbles coming out"); a press
     opens the call.
+  - Press and hold someone in a call (or press with the other button) for: Mute for me (silenced here only), their
+    volume here from nothing to 200%, Add as a friend where they have a username (members now say theirs), and Copy
+    name; for yourself, mute and deafen. Each person's volume and mute are kept and applied in every call
+    (`Voice.setVolume`/`setSilenced`, `RtcMedia` with WebRTC's per-track volume).
+  - A paired computer's voice channels are the phone's (`Voice.answerDesk` on the phone through android DartAsk
+    "voice"; `Voice.syncNow` on the computer, at once and every eight seconds): the phone's groups' channels and its
+    own, its name and username to go by; a channel made or removed on the computer is made or removed on the phone.
   - The new ring asks: a new chat, a new group, or a voice call, which names the channel, shares it with friends you
     pick and puts you in it ("The new button should also ask for new chat, group or voice call").
   - In a call the Voice page is the call alone: who is in it as plain rows, not in a card, and the dock ("I want the

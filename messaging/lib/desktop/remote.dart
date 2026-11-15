@@ -720,6 +720,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
         } on LinkDown {
           return null;
         }
+      case 'voice':
+        // The phone's voice channels, kept in step with this computer's (lib/voice/channels.dart).
+        if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its voice channels here.');
+        return link.request('voice', a, const Duration(seconds: 15));
       case 'me':
         // Settings › Me's number, verified through the phone (Me.followPhone); a code takes the phone a while.
         if (!_caps.contains('me')) throw const PhoneError('Update Ghost Messaging on your phone to verify your number from here.');
