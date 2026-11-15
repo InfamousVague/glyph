@@ -43,13 +43,13 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
   Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
   Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
-- **A guide to the Google Messages helper on a Mac or PC** (not released; `lib/ui/gm_guide_screen.dart`; Matt,
+- **A guide to the Google Messages helper on a Mac or PC** (0.7.30; `lib/ui/gm_guide_screen.dart`; Matt,
   2026-11-15: "Tell me how to setup the sidecar on mac and PC in a guide found in settings I'll habe it run on my PC
   always"). Settings › Messages › On a Mac or PC on the phone, and Settings › Google Messages on a computer: get the
   app, pair it with the phone, pair Google Messages by its QR code, keep it running (the desktop apps quit when their
   window closes and don't start at login yet, so: minimise; Windows' shell:startup shortcut; the Mac's Login Items;
   stay awake), and the one-session rule with the phone's own connection.
-- **Google Messages' web connection on the phone** (not released; `GmWeb.kt`, `lib/ui/gm_web_screen.dart`,
+- **Google Messages' web connection on the phone** (0.7.30; `GmWeb.kt`, `lib/ui/gm_web_screen.dart`,
   `site/pair`; Matt, 2026-11-15: "Can you build the on phone google messages connection too?"). The sidecar built for
   Android (`tool/build-gmsidecar.sh android`, libgmsidecar.so, run from the app's native library folder) runs in the
   app's process, started by the notification listener (which Android keeps) and the app. What it hears goes into the
