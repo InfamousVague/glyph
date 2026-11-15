@@ -346,7 +346,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         showChoices(context, title: 'Start something new', choices: [
           Choice('New chat', Lucide.messageSquarePlus, () => compose()),
           Choice('New group', Lucide.users, () => show(const NewGroupScreen(key: ValueKey('new-group')), showing: 'new')),
-          Choice('Voice call', LucideMore.headphones, () => show(const NewChannelScreen(key: ValueKey('new-voice')), showing: 'new')),
+          Choice('New space', LucideMore.headphones, () => show(const NewChannelScreen(key: ValueKey('new-voice')), showing: 'new')),
         ]);
       case 'contacts':
         contacts();

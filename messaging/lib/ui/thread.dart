@@ -716,7 +716,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final g = _ghost;
     if (g == null) return;
     final told = await Voice.instance.ring(g);
-    if (mounted) toast(context, told == 0 ? 'Nobody could be rung right now. You\'re in the channel for them.' : 'Calling ${g.name}');
+    if (mounted) toast(context, told == 0 ? 'Nobody could be rung right now. You\'re in the group\'s space for them.' : 'Calling ${g.name}');
     await _voice(VoiceChannel.ofGroup(g.id, g.name));
   }
 
@@ -777,7 +777,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             builder: (context, _) {
               final c = VoiceChannel.ofGroup(_ghost!.id, _ghost!.name);
               final n = Voice.instance.inChannel(c).length;
-              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Voice channel' : 'Voice channel, $n in it', onPressed: () => _voice(c));
+              return IconTap(icon: LucideMore.headphones, label: n == 0 ? 'Group space' : 'Group space, $n in it', onPressed: () => _voice(c));
             },
           ),
           IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),

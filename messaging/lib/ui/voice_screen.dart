@@ -64,15 +64,15 @@ class VoiceScreen extends StatelessWidget {
           );
         }
         return GhostPage(
-          title: 'Voice',
-          actions: [IconTap(icon: Lucide.plus, label: 'New channel', onPressed: () => push(context, (_) => const NewChannelScreen()))],
+          title: 'Spaces',
+          actions: [IconTap(icon: Lucide.plus, label: 'New space', onPressed: () => push(context, (_) => const NewChannelScreen()))],
           body: ListView(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               if (v.channels.isEmpty)
-                SettingsCallout(child: const Text('Every group of friends has a voice channel. Make one of your own with + and share it with friends you added by username.'))
+                SettingsCallout(child: const Text('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
               else
-                PaneSection(title: 'Channels', children: [for (final c in v.channels) _ChannelRow(channel: c)]),
+                PaneSection(title: 'Spaces', children: [for (final c in v.channels) _ChannelRow(channel: c)]),
             ],
           ),
         );
@@ -113,7 +113,7 @@ class _ChannelRow extends StatelessWidget implements PaneRow {
           ? null
           : IconTap(
               icon: Lucide.ellipsis,
-              label: 'Channel options',
+              label: 'Space options',
               onPressed: () => showHangoutMenu(context, channel),
             ),
     );
@@ -447,7 +447,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final t = context.tokens;
     final friends = Buddies.instance.friends;
     return GhostPage(
-      title: 'Voice call',
+      title: 'New space',
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: StatefulBuilder(
@@ -455,12 +455,12 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               PaneSection(title: 'Name', children: [
-                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Hangout', ariaLabel: 'Channel name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Space name', ariaLabel: 'Space name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
               ]),
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'Share with',
-                description: Text(friends.isEmpty ? 'Add friends by username (Settings › Me › Friends) to share channels with them.' : 'They can see who\'s in it and hop in any time.'),
+                description: Text(friends.isEmpty ? 'Add friends by username (Settings › Me › Friends) to share spaces with them.' : 'They can see who\'s in it and hop in any time.'),
                 children: [
                   for (final f in friends)
                     SettingRow(
@@ -604,7 +604,7 @@ class VoiceRow extends StatelessWidget {
       onSecondaryTap: channel.hangout ? menu : null,
       child: GlacierPressable(
       onPressed: onPress,
-      semanticLabel: '${channel.name}, voice channel, ${live ? '${inIt.length} in it' : 'nobody in it'}',
+      semanticLabel: '${channel.name}, space, ${live ? '${inIt.length} in it' : 'nobody in it'}',
       builder: (context, state) => Padding(
         padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
         child: Container(

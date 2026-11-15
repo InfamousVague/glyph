@@ -625,6 +625,11 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     pressed in the list opens where a conversation opens (`Voice.view`, VoiceScreen), with who is connected and Join
     voice at its top. In its call beside the pane, the people take the list's place (`HangoutPeople`) and the call's
     dock stands where the pill was; the pill comes back on leaving.
+  - **Called "spaces" now** (Matt, 2026-11-15, picking from suggested names: "Space"). Everything people read says
+    space: the Spaces tab and page, New space on the new button, Space settings, Delete space, Remove from space,
+    a group's Group space, the walkthrough's calls page (re-voiced), the landing page and the join page ("Join a
+    space"). Code names (`VoiceChannel`, `HangoutRoom`, `hangout_screen.dart`) and what goes over the wire ("hangout
+    room", the roster's signed "ghost-hangout" text, link format) stay as they were, so links and rosters keep working.
   - **Menu and settings** (Matt: "a context menu to open settings for hangouts and manage permissions and such as well
     as delete the hangouts"): hold or right-click a hangout's row for Open, Settings and permissions, Copy invite link,
     Share with friends and Delete hangout (asked first; `showHangoutMenu`). Its settings page
